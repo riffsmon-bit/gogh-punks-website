@@ -5,6 +5,10 @@
 [build.environment]
   NODE_VERSION = "24"
 
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
 [[redirects]]
   from = "/verify/*"
   to = "/verify/index.html"

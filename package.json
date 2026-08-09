@@ -5,10 +5,16 @@
   "description": "Official public website for the Gogh Punks collection",
   "type": "module",
   "scripts": {
-    "check": "node scripts/site-check.mjs",
-    "site:check": "node scripts/site-check.mjs"
+    "check": "node scripts/site-check.mjs && node --test tests/*.test.mjs",
+    "env:check": "node scripts/env-check.mjs",
+    "site:check": "node scripts/site-check.mjs && node --test tests/*.test.mjs",
+    "test": "node --test tests/*.test.mjs"
   },
   "engines": {
     "node": ">=24 <25"
+  },
+  "dependencies": {
+    "@netlify/database": "^1.1.0",
+    "viem": "^2.55.11"
   }
 }

@@ -21,7 +21,9 @@ function localTarget(reference) {
   }
 
   const path = reference.split(/[?#]/, 1)[0] || "/";
+  if (path.startsWith("/api/")) return null;
   if (path === "/") return join(root, "index.html");
+  if (path === "/verify/verify.js") return join(root, "verify", "verify.js");
   if (path === "/verify/" || path.startsWith("/verify/")) {
     return join(root, "verify/index.html");
   }
@@ -57,6 +59,19 @@ for (const required of [
   if (!index.includes(required)) fail(`home page is missing required value ${required}`);
 }
 
+const verificationPage = readFileSync(join(root, "verify/index.html"), "utf8");
+for (const required of [
+  "GTD CAPTURE",
+  "data-cap>200",
+  "3 free mints per wallet",
+  "/api/auth/discord",
+  "/verify/verify.js",
+]) {
+  if (!verificationPage.includes(required)) {
+    fail(`GTD capture page is missing required value ${required}`);
+  }
+}
+
 const collectionIds = [1, 4, 7, 10, 13, 16, 20, 23, 26, 30, 36, 38, 44, 49, 56, 75];
 const hashes = new Set();
 for (const id of collectionIds) {
@@ -73,7 +88,13 @@ if (hashes.size !== collectionIds.length) {
   fail("selected website preview images contain a duplicate");
 }
 
-for (const file of ["styles.css", "main.js", "robots.txt", "site.webmanifest"]) {
+for (const file of [
+  "styles.css",
+  "main.js",
+  "verify/verify.js",
+  "robots.txt",
+  "site.webmanifest",
+]) {
   if (!extname(file) && file !== "robots.txt") fail(`unexpected site asset ${file}`);
   readFileSync(join(root, file));
 }
@@ -81,7 +102,19 @@ for (const file of ["styles.css", "main.js", "robots.txt", "site.webmanifest"]) 
 const searchable = pages
   .map((page) => readFileSync(join(root, page), "utf8"))
   .concat(readFileSync(join(root, "main.js"), "utf8"))
+  .concat(readFileSync(join(root, "verify/verify.js"), "utf8"))
   .join("\n");
+
+const verificationScript = readFileSync(join(root, "verify/verify.js"), "utf8");
+for (const forbiddenMethod of [
+  "eth_sendTransaction",
+  "wallet_sendCalls",
+  "wallet_requestPermissions",
+]) {
+  if (verificationScript.includes(forbiddenMethod)) {
+    fail(`wallet capture script contains forbidden method ${forbiddenMethod}`);
+  }
+}
 
 for (const forbidden of [
   "DISCORD_BOT_TOKEN",
