@@ -794,17 +794,13 @@ h2 {
 }
 
 .featured-on {
-  width: var(--page);
-  margin-inline: auto;
-  padding-block: clamp(42px, 6vw, 64px);
-  border-bottom: 1px solid rgba(218, 167, 55, 0.2);
-}
-
-.featured-on-inner {
+  width: min(360px, 100%);
   display: flex;
-  gap: clamp(24px, 5vw, 52px);
+  gap: clamp(18px, 3vw, 30px);
   align-items: center;
-  justify-content: center;
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(218, 167, 55, 0.2);
 }
 
 .featured-on-label {
@@ -820,14 +816,15 @@ h2 {
 }
 
 .featured-on-label::after {
-  width: 34px;
+  width: 28px;
   height: 1px;
   background: var(--line);
   content: "";
 }
 
 .featured-on-link {
-  width: clamp(126px, 14vw, 158px);
+  width: clamp(88px, 8vw, 104px);
+  flex: 0 0 auto;
   display: block;
   border: 1px solid rgba(240, 228, 197, 0.16);
   background: #1a1918;
