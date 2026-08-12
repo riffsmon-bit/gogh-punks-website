@@ -266,8 +266,11 @@ export async function completeCapture(token, expectedMessage, expectedWalletAddr
 export async function markRoleSync(walletAddress, state, errorCode = null) {
   await pool().query(
     `UPDATE gtd_wallet_links
-        SET role_sync_state = $2,
-            role_synced_at = CASE WHEN $2 = 'SYNCED' THEN NOW() ELSE role_synced_at END,
+        SET role_sync_state = $2::VARCHAR(20),
+            role_synced_at = CASE
+              WHEN $2::VARCHAR(20) = 'SYNCED' THEN NOW()
+              ELSE role_synced_at
+            END,
             last_role_sync_attempt_at = NOW(),
             role_sync_attempts = role_sync_attempts + 1,
             role_sync_error = $3

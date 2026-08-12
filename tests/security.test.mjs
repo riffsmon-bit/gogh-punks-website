@@ -67,4 +67,6 @@ test("schema and transaction enforce uniqueness and serialize the cap check", as
   assert.match(migration, /price_eth = 0/);
   assert.match(database, /pg_advisory_xact_lock/);
   assert.match(database, /COUNT\(\*\)::integer AS claimed/);
+  assert.match(database, /role_sync_state = \$2::VARCHAR\(20\)/);
+  assert.match(database, /WHEN \$2::VARCHAR\(20\) = 'SYNCED'/);
 });
