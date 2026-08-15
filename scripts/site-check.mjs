@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { extname, join, normalize, resolve } from "node:path";
 
 const root = resolve(process.cwd(), "site");
-const pages = ["index.html", "verify/index.html", "404.html"];
+const pages = ["index.html", "404.html"];
 const failures = [];
 
 function fail(message) {
@@ -23,10 +23,6 @@ function localTarget(reference) {
   const path = reference.split(/[?#]/, 1)[0] || "/";
   if (path.startsWith("/api/")) return null;
   if (path === "/") return join(root, "index.html");
-  if (path === "/verify/verify.js") return join(root, "verify", "verify.js");
-  if (path === "/verify/" || path.startsWith("/verify/")) {
-    return join(root, "verify/index.html");
-  }
   return join(root, normalize(path.replace(/^\//, "")));
 }
 
@@ -55,21 +51,16 @@ for (const required of [
   "https://discord.gg/NgRzPNra6s",
   "https://opensea.io/collection/gogh-punks-255843210",
   "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+  "0.0003 ETH",
 ]) {
   if (!index.includes(required)) fail(`home page is missing required value ${required}`);
 }
 
-const verificationPage = readFileSync(join(root, "verify/index.html"), "utf8");
-for (const required of [
-  "GTD CAPTURE",
-  "data-cap>200",
-  "3 free mints per wallet",
-  "/api/auth/discord",
-  "/verify/verify.js",
-]) {
-  if (!verificationPage.includes(required)) {
-    fail(`GTD capture page is missing required value ${required}`);
-  }
+if (index.includes("/verify/") || /\bGTD\b/.test(index)) {
+  fail("home page still exposes the retired GTD capture page");
+}
+if (index.includes("0.003 ETH")) {
+  fail("home page still contains the previous public mint price");
 }
 
 const collectionIds = [1, 4, 7, 10, 13, 16, 20, 23, 26, 30, 36, 38, 44, 49, 56, 75];
@@ -88,13 +79,7 @@ if (hashes.size !== collectionIds.length) {
   fail("selected website preview images contain a duplicate");
 }
 
-for (const file of [
-  "styles.css",
-  "main.js",
-  "verify/verify.js",
-  "robots.txt",
-  "site.webmanifest",
-]) {
+for (const file of ["styles.css", "main.js", "robots.txt", "site.webmanifest"]) {
   if (!extname(file) && file !== "robots.txt") fail(`unexpected site asset ${file}`);
   readFileSync(join(root, file));
 }
@@ -102,19 +87,7 @@ for (const file of [
 const searchable = pages
   .map((page) => readFileSync(join(root, page), "utf8"))
   .concat(readFileSync(join(root, "main.js"), "utf8"))
-  .concat(readFileSync(join(root, "verify/verify.js"), "utf8"))
   .join("\n");
-
-const verificationScript = readFileSync(join(root, "verify/verify.js"), "utf8");
-for (const forbiddenMethod of [
-  "eth_sendTransaction",
-  "wallet_sendCalls",
-  "wallet_requestPermissions",
-]) {
-  if (verificationScript.includes(forbiddenMethod)) {
-    fail(`wallet capture script contains forbidden method ${forbiddenMethod}`);
-  }
-}
 
 for (const forbidden of [
   "DISCORD_BOT_TOKEN",
