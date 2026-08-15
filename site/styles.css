@@ -376,6 +376,15 @@ button.button {
   margin: 0;
 }
 
+.mint-phase-status {
+  grid-column: 1 / -1;
+  margin-bottom: 8px !important;
+  color: var(--sun);
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+}
+
 .mint-clock-label {
   align-self: center;
   color: var(--muted);
@@ -385,6 +394,7 @@ button.button {
 }
 
 .mint-clock-value {
+  display: block;
   color: var(--sun);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: clamp(0.95rem, 1.7vw, 1.15rem);

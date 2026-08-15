@@ -1,5 +1,6 @@
 const countdown = document.querySelector("[data-countdown]");
 const countdownValue = document.querySelector("[data-countdown-value]");
+const phaseStatus = document.querySelector("[data-phase-status]");
 
 function countdownParts(milliseconds) {
   const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
@@ -14,21 +15,22 @@ function updateCountdown() {
   if (!countdown || !countdownValue) return;
   const now = Date.now();
   const start = Date.parse(countdown.dataset.start || "");
-  const end = Date.parse(countdown.dataset.end || "");
   const label = countdown.querySelector(".mint-clock-label");
 
+  if (!Number.isFinite(start)) return;
+
   if (now < start) {
+    if (phaseStatus) phaseStatus.textContent = "GTD PHASE IS OPEN";
+    if (label) label.textContent = "PUBLIC MINT OPENS IN";
     countdownValue.textContent = countdownParts(start - now);
+    countdown.classList.remove("is-live");
     return;
   }
-  if (now <= end) {
-    if (label) label.textContent = "PUBLIC MINT";
-    countdownValue.textContent = "THE MINT IS OPEN";
-    countdown.classList.add("is-live");
-    return;
-  }
-  if (label) label.textContent = "PUBLIC MINT";
-  countdownValue.textContent = "MINT WINDOW CLOSED";
+
+  if (phaseStatus) phaseStatus.textContent = "PUBLIC MINT IS OPEN";
+  if (label) label.textContent = "MINT STATUS";
+  countdownValue.textContent = "LIVE NOW";
+  countdown.classList.add("is-live");
 }
 
 updateCountdown();

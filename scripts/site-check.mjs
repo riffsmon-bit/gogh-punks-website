@@ -52,15 +52,22 @@ for (const required of [
   "https://opensea.io/collection/gogh-punks-255843210",
   "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
   "0.0003 ETH",
+  "GTD PHASE IS OPEN",
+  "PUBLIC MINT OPENS IN",
+  "2026-08-15T23:15:00.000Z",
+  "August 15, 2026 · 7:15 PM EDT",
 ]) {
   if (!index.includes(required)) fail(`home page is missing required value ${required}`);
 }
 
-if (index.includes("/verify/") || /\bGTD\b/.test(index)) {
+if (index.includes("/verify/")) {
   fail("home page still exposes the retired GTD capture page");
 }
 if (index.includes("0.003 ETH")) {
   fail("home page still contains the previous public mint price");
+}
+if (index.includes("2026-08-14T23:15:00.000Z")) {
+  fail("home page still contains the previous public mint start time");
 }
 
 const collectionIds = [1, 4, 7, 10, 13, 16, 20, 23, 26, 30, 36, 38, 44, 49, 56, 75];
