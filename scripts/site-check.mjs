@@ -54,8 +54,8 @@ for (const required of [
   "0.0003 ETH",
   "GTD PHASE IS OPEN",
   "PUBLIC MINT OPENS IN",
-  "2026-08-15T23:15:00.000Z",
-  "August 15, 2026 · 7:15 PM EDT",
+  "2026-08-15T19:15:00.000Z",
+  "August 15, 2026 · 3:15 PM EDT",
 ]) {
   if (!index.includes(required)) fail(`home page is missing required value ${required}`);
 }
@@ -66,7 +66,11 @@ if (index.includes("/verify/")) {
 if (index.includes("0.003 ETH")) {
   fail("home page still contains the previous public mint price");
 }
-if (index.includes("2026-08-14T23:15:00.000Z")) {
+if (
+  index.includes("2026-08-14T23:15:00.000Z") ||
+  index.includes("2026-08-15T23:15:00.000Z") ||
+  index.includes("August 15, 2026 · 7:15 PM EDT")
+) {
   fail("home page still contains the previous public mint start time");
 }
 
