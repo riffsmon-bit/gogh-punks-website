@@ -51,11 +51,18 @@ for (const required of [
   "https://discord.gg/NgRzPNra6s",
   "https://opensea.io/collection/gogh-punks-255843210",
   "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
-  "0.0003 ETH",
-  "GTD PHASE IS OPEN",
-  "PUBLIC MINT OPENS IN",
-  "2026-08-15T23:15:00.000Z",
-  "August 15, 2026 · 7:15 PM EDT",
+  "SOLD OUT",
+  "FINAL CIRCULATING SUPPLY",
+  "4,295",
+  "5,016",
+  "maxSupply() equals the historical mint count",
+  "Trade on OpenSea",
+  "Coming next · The Art Broker",
+  "Punk Account",
+  "Art Scout",
+  "Living Gallery",
+  "Art Mandate",
+  "transaction features remain",
 ]) {
   if (!index.includes(required)) fail(`home page is missing required value ${required}`);
 }
@@ -66,7 +73,18 @@ if (index.includes("/verify/")) {
 if (index.includes("0.003 ETH")) {
   fail("home page still contains the previous public mint price");
 }
-if (index.includes("2026-08-14T23:15:00.000Z")) {
+if (
+  index.includes("GTD PHASE IS OPEN") ||
+  index.includes("PUBLIC MINT IS OPEN") ||
+  index.includes(">Mint on OpenSea")
+) {
+  fail("home page still presents the ended mint as open");
+}
+if (
+  index.includes("2026-08-14T23:15:00.000Z") ||
+  index.includes("2026-08-15T23:15:00.000Z") ||
+  index.includes("August 15, 2026 · 7:15 PM EDT")
+) {
   fail("home page still contains the previous public mint start time");
 }
 

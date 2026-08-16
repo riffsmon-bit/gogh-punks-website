@@ -2,39 +2,13 @@ const countdown = document.querySelector("[data-countdown]");
 const countdownValue = document.querySelector("[data-countdown-value]");
 const phaseStatus = document.querySelector("[data-phase-status]");
 
-function countdownParts(milliseconds) {
-  const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
-  const days = Math.floor(totalSeconds / 86400);
-  const hours = Math.floor((totalSeconds % 86400) / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  return `${days}D · ${String(hours).padStart(2, "0")}H · ${String(minutes).padStart(2, "0")}M · ${String(seconds).padStart(2, "0")}S`;
-}
-
-function updateCountdown() {
-  if (!countdown || !countdownValue) return;
-  const now = Date.now();
-  const start = Date.parse(countdown.dataset.start || "");
+if (countdown && countdownValue) {
   const label = countdown.querySelector(".mint-clock-label");
-
-  if (!Number.isFinite(start)) return;
-
-  if (now < start) {
-    if (phaseStatus) phaseStatus.textContent = "GTD PHASE IS OPEN";
-    if (label) label.textContent = "PUBLIC MINT OPENS IN";
-    countdownValue.textContent = countdownParts(start - now);
-    countdown.classList.remove("is-live");
-    return;
-  }
-
-  if (phaseStatus) phaseStatus.textContent = "PUBLIC MINT IS OPEN";
-  if (label) label.textContent = "MINT STATUS";
-  countdownValue.textContent = "LIVE NOW";
-  countdown.classList.add("is-live");
+  if (phaseStatus) phaseStatus.textContent = "SOLD OUT";
+  if (label) label.textContent = "FINAL CIRCULATING SUPPLY";
+  countdownValue.textContent = "4,295";
+  countdown.classList.remove("is-live");
 }
-
-updateCountdown();
-setInterval(updateCountdown, 1000);
 
 const copyButton = document.querySelector("[data-copy-contract]");
 const contract = document.querySelector("[data-contract]");
