@@ -55,6 +55,7 @@ Set these values in **Netlify → Project configuration → Environment variable
 - `DISCORD_GUILD_ID`: `1535718970471219232` for the Gogh Punks server.
 - `DISCORD_GTD_ROLE_ID`: ID of the bot-managed `GTD` role.
 - `DISCORD_VISITOR_ROLE_ID`: ID of the existing `Visitor` role.
+- `DISCORD_SALES_CHANNEL_ID`: dedicated read-only sales channel (`1538732801036263514`).
 - `CHAIN_ID`: must remain `4663`.
 - `RPC_URL`: an HTTPS Robinhood Chain RPC endpoint. Treat provider keys as secrets.
 - `GTD_CAPTURE_CAP`: must remain `200`; the service fails closed if changed.
@@ -103,6 +104,14 @@ npx netlify dev
 ```
 
 The hourly `gtd-role-recheck` function runs only on published production deploys. Deploy previews do not execute scheduled functions automatically.
+
+The `discord-sales` production function runs once per minute. It waits for eight
+Robinhood confirmations, then requires both an OpenSea Seaport fulfillment and
+the exact seller-to-buyer Gogh Punks ERC-721 transfer in the same successful
+transaction. Validated native-token sales are deduplicated in Postgres before
+being posted to Discord; gifts, mints, burns, bundles, and unknown marketplace
+calls fail closed. The first run starts at the confirmed chain head and never
+floods the channel with historical sales.
 
 ## Protected exports
 
