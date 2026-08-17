@@ -10,8 +10,10 @@ import {
 const FEED_KEY = "gogh-punks-opensea-native-v1";
 const EXPECTED_GUILD_ID = "1535718970471219232";
 const DEFAULT_SALES_CHANNEL_ID = "1538732801036263514";
+const OFFICIAL_ROBINHOOD_RPC = "https://rpc.mainnet.chain.robinhood.com/";
 const CONFIRMATIONS = 8;
 const MAX_BLOCKS_PER_RUN = 2_000;
+const MAX_BLOCKS_PER_QUERY = 500;
 const MAX_RECEIPTS_PER_RUN = 100;
 const MAX_POSTS_PER_RUN = 5;
 const FEED_LOCK_ID = 4_663_721;
@@ -40,7 +42,7 @@ function getSettings() {
   const rpcUrl = new URL(required("RPC_URL"));
   if (rpcUrl.protocol !== "https:") throw new Error("RPC_URL must use HTTPS.");
   return {
-    rpcUrl: rpcUrl.toString(),
+    rpcUrls: [...new Set([rpcUrl.toString(), OFFICIAL_ROBINHOOD_RPC])],
     botToken: required("DISCORD_BOT_TOKEN"),
     guildId,
     channelId,
@@ -48,7 +50,7 @@ function getSettings() {
 }
 
 let rpcId = 0;
-async function rpc(url, method, params) {
+async function rpcRequest(url, method, params) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 12_000);
   try {
@@ -58,13 +60,25 @@ async function rpc(url, method, params) {
       body: JSON.stringify({ jsonrpc: "2.0", id: ++rpcId, method, params }),
       signal: controller.signal,
     });
-    if (!response.ok) throw new Error(`RPC HTTP ${response.status}.`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const body = await response.json();
-    if (body.error) throw new Error(`RPC ${method} failed (${body.error.code}).`);
+    if (body.error) throw new Error(`JSON-RPC ${body.error.code}`);
     return body.result;
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function rpc(urls, method, params) {
+  const failures = [];
+  for (const url of urls) {
+    try {
+      return await rpcRequest(url, method, params);
+    } catch (error) {
+      failures.push(String(error?.message ?? error));
+    }
+  }
+  throw new Error(`RPC ${method} unavailable (${failures.join("; ").slice(0, 160)}).`);
 }
 
 function fromHex(value, label) {
@@ -276,14 +290,14 @@ export async function runSalesFeed() {
     if (!locked) return { skipped: "already_running" };
 
     const rpcChainId = fromHex(
-      await rpc(settings.rpcUrl, "eth_chainId", []),
+      await rpc(settings.rpcUrls, "eth_chainId", []),
       "RPC chain ID",
     );
     if (rpcChainId !== GOGH_PUNKS_CHAIN_ID) {
       throw new Error(`RPC is connected to chain ${rpcChainId}, not ${GOGH_PUNKS_CHAIN_ID}.`);
     }
 
-    const head = fromHex(await rpc(settings.rpcUrl, "eth_blockNumber", []), "head block");
+    const head = fromHex(await rpc(settings.rpcUrls, "eth_blockNumber", []), "head block");
     const confirmedHead = Math.max(0, head - CONFIRMATIONS);
     const stateResult = await client.query(
       `SELECT last_scanned_block, last_scanned_block_hash
@@ -293,7 +307,7 @@ export async function runSalesFeed() {
     );
 
     if (!stateResult.rows[0]) {
-      const block = await rpc(settings.rpcUrl, "eth_getBlockByNumber", [blockHex(confirmedHead), false]);
+      const block = await rpc(settings.rpcUrls, "eth_getBlockByNumber", [blockHex(confirmedHead), false]);
       if (!block?.hash) throw new Error("RPC did not return the initialization block.");
       await client.query(
         `INSERT INTO discord_sales_feed_state
@@ -307,7 +321,7 @@ export async function runSalesFeed() {
     }
 
     const lastBlock = Number(stateResult.rows[0].last_scanned_block);
-    const previous = await rpc(settings.rpcUrl, "eth_getBlockByNumber", [blockHex(lastBlock), false]);
+    const previous = await rpc(settings.rpcUrls, "eth_getBlockByNumber", [blockHex(lastBlock), false]);
     if (!previous?.hash || previous.hash.toLowerCase() !== stateResult.rows[0].last_scanned_block_hash.trim()) {
       throw new Error(`Confirmed cursor block ${lastBlock} changed; feed halted for reorg review.`);
     }
@@ -315,12 +329,17 @@ export async function runSalesFeed() {
     let scanned = 0;
     let discovered = 0;
     let inserted = 0;
-    if (lastBlock < confirmedHead) {
-      const toBlock = Math.min(confirmedHead, lastBlock + MAX_BLOCKS_PER_RUN);
-      const logs = await rpc(settings.rpcUrl, "eth_getLogs", [
+    let cursor = lastBlock;
+    while (cursor < confirmedHead && scanned < MAX_BLOCKS_PER_RUN) {
+      const remainingCapacity = MAX_BLOCKS_PER_RUN - scanned;
+      const toBlock = Math.min(
+        confirmedHead,
+        cursor + Math.min(MAX_BLOCKS_PER_QUERY, remainingCapacity),
+      );
+      const logs = await rpc(settings.rpcUrls, "eth_getLogs", [
         {
           address: GOGH_PUNKS_COLLECTION,
-          fromBlock: blockHex(lastBlock + 1),
+          fromBlock: blockHex(cursor + 1),
           toBlock: blockHex(toBlock),
           topics: [TRANSFER_TOPIC],
         },
@@ -330,14 +349,15 @@ export async function runSalesFeed() {
         throw new Error(`Block window contains ${transactionHashes.length} NFT transactions; safe limit is ${MAX_RECEIPTS_PER_RUN}.`);
       }
       const receipts = await mapLimit(transactionHashes, 8, (hash) =>
-        rpc(settings.rpcUrl, "eth_getTransactionReceipt", [hash]),
+        rpc(settings.rpcUrls, "eth_getTransactionReceipt", [hash]),
       );
       const sales = receipts.flatMap(decodeReceiptSales);
-      const finalBlock = await rpc(settings.rpcUrl, "eth_getBlockByNumber", [blockHex(toBlock), false]);
+      const finalBlock = await rpc(settings.rpcUrls, "eth_getBlockByNumber", [blockHex(toBlock), false]);
       if (!finalBlock?.hash) throw new Error("RPC did not return the final scanned block.");
-      inserted = await insertSalesAndAdvance(client, sales, toBlock, finalBlock.hash.toLowerCase());
-      scanned = toBlock - lastBlock;
-      discovered = sales.length;
+      inserted += await insertSalesAndAdvance(client, sales, toBlock, finalBlock.hash.toLowerCase());
+      scanned += toBlock - cursor;
+      discovered += sales.length;
+      cursor = toBlock;
     }
 
     const delivery = await postPendingSales(client, settings);

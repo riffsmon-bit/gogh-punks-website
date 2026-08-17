@@ -143,5 +143,7 @@ test("migration and scheduler enforce chain-qualified deduplication", async () =
   assert.match(handler, /pg_try_advisory_lock/);
   assert.match(handler, /const CONFIRMATIONS = 8/);
   assert.match(handler, /const MAX_BLOCKS_PER_RUN = 2_000/);
+  assert.match(handler, /const MAX_BLOCKS_PER_QUERY = 500/);
+  assert.match(handler, /rpc\.mainnet\.chain\.robinhood\.com/);
   assert.match(handler, /schedule: "\* \* \* \* \*"/);
 });
