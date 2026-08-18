@@ -31,7 +31,7 @@ npm install
 npm run check
 ```
 
-This runs site and service syntax checks, 47 Node tests, Solidity formatting, compilation/size checks, high-severity Foundry lint, 48 Solidity tests plus configured fuzz runs, and ABI trust-boundary assertions. See [gas estimates](GAS_ESTIMATES.md) for the latest local report.
+This runs site and service syntax checks, 52 Node tests, Solidity formatting, compilation/size checks, high-severity Foundry lint, 51 Solidity tests plus configured fuzz runs, and ABI trust-boundary assertions. See [gas estimates](GAS_ESTIMATES.md) for the latest local report.
 
 The extended property profile is:
 

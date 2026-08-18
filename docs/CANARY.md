@@ -58,3 +58,23 @@ When canonical transfers are live and the owner explicitly accepts the test:
 Autonomous canary requires a new explicit authorization after every previous stage passes. It uses one Punk, dust balance, strict majority reserve, one venue, one collection, one selector, one authorized agent, one acquisition/day, short agent lifetime, short intent expiry, and global pause monitoring. Autonomous minting, unknown collections, and selling remain off.
 
 Stop immediately on any ownership mismatch, unexpected approval, policy mismatch, RPC disagreement, indexer divergence, adapter code-hash change, unexplained transaction, or monitoring outage.
+
+### Local autonomous rehearsal
+
+Run the local-only canary before any fork or live test:
+
+```sh
+npm run broker:canary
+```
+
+The rehearsal uses an ephemeral Foundry EVM, mock art, and a mock marketplace. It broadcasts
+nothing and loads no production key. One Punk Account receives `0.01 ETH`; `0.0096 ETH` is
+reserved; one allowlisted secondary acquisition may spend `0.0004 ETH`; and the absolute
+transaction, daily, and weekly maximum is `0.0005 ETH`. The test permits one collection, one
+venue, one adapter, one selector, one native currency, one short-lived agent, and one acquisition
+per day. Autonomous minting, unknown collections, and selling remain disabled.
+
+The same rehearsal proves that an excessive price and a reserve violation move no funds, a second
+acquisition is rejected, revocation stops the agent, and a global policy pause does not block the
+owner's emergency recovery path. Passing this rehearsal does not authorize a Robinhood deployment
+or a live autonomous canary.

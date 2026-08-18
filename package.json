@@ -12,6 +12,7 @@
     "contracts:lint": "forge lint --severity high",
     "broker:env-check": "node scripts/broker-env-check.mjs",
     "broker:check": "node scripts/art-broker-check.mjs",
+    "broker:canary": "forge test --offline --match-contract AutonomousCanaryTest -vv",
     "broker:analyze": "node scripts/run-broker-analysis.mjs",
     "broker:index": "node scripts/run-broker-indexer.mjs",
     "env:check": "node scripts/env-check.mjs",
