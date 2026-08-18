@@ -106,7 +106,7 @@ for (const requirement of [
 const analysisMigration = readFileSync(
   resolve(
     root,
-    "netlify/database/migrations/20260817020000_add_collection_analysis_state.sql",
+    "netlify/database/migrations/20260817021000_add_collection_analysis_state.sql",
   ),
   "utf8",
 );
