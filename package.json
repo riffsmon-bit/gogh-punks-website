@@ -5,10 +5,18 @@
   "description": "Official public website for the Gogh Punks collection",
   "type": "module",
   "scripts": {
-    "check": "node scripts/site-check.mjs && node --test tests/*.test.mjs",
+    "check": "npm run site:check && npm run contracts:check",
+    "code:check": "node scripts/code-check.mjs",
+    "contracts:build": "forge build && forge build --sizes contracts/src",
+    "contracts:check": "forge fmt --check && npm run contracts:build && forge lint --severity high && forge test --offline --fuzz-runs 1024 && node scripts/abi-check.mjs",
+    "contracts:lint": "forge lint --severity high",
+    "broker:env-check": "node scripts/broker-env-check.mjs",
+    "broker:check": "node scripts/art-broker-check.mjs",
+    "broker:analyze": "node scripts/run-broker-analysis.mjs",
+    "broker:index": "node scripts/run-broker-indexer.mjs",
     "env:check": "node scripts/env-check.mjs",
-    "site:check": "node scripts/site-check.mjs && node --test tests/*.test.mjs",
-    "test": "node --test tests/*.test.mjs"
+    "site:check": "node scripts/site-check.mjs && npm run code:check && npm run broker:check && npm test",
+    "test": "node --test tests/*.test.mjs broker/test/*.test.mjs"
   },
   "engines": {
     "node": ">=24 <25"
@@ -16,5 +24,8 @@
   "dependencies": {
     "@netlify/database": "^1.1.0",
     "viem": "^2.55.11"
+  },
+  "devDependencies": {
+    "@openzeppelin/contracts": "^5.6.1"
   }
 }

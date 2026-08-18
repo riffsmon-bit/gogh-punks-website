@@ -1,0 +1,102 @@
+{
+  "status": "NOT_DEPLOYED",
+  "chain": {
+    "name": "Robinhood Chain",
+    "chainId": 4663,
+    "rpcEnvironmentVariable": "ROBINHOOD_RPC_URL",
+    "explorer": "https://robinhoodchain.blockscout.com",
+    "nativeCurrency": "ETH"
+  },
+  "canonicalCollection": "0xE0F92B3B0E6DeD3654177FE3809Cd300e5ffaDf6",
+  "canonicalERC6551Registry": "0x000000006551c19487814612e58FE06813775758",
+  "verifiedExternalInfrastructure": {
+    "seaport": {
+      "address": "0x0000000000000068f116a894984e2db1123eb395",
+      "name": "Seaport",
+      "compiler": "v0.8.24+commit.e11b9ed9",
+      "deploymentTransaction": "0x4320260396b5fbb69618a9b95de358a865fb6c305d5b5dda35c21452b30ee39d",
+      "deploymentBlock": 605917,
+      "runtimeCodeHash": "0x95809b70c9659c30188db5fdd87103e24b1a55379af8c851fca393aba0224a00",
+      "verificationStatus": "VERIFIED_READ_ONLY_SCOUT",
+      "executionApproved": false
+    }
+  },
+  "accountSalt": "0x0000000000000000000000000000000000000000000000000000000000000000",
+  "gitCommit": null,
+  "compiler": "0.8.34",
+  "evmVersion": "cancun",
+  "optimizerRuns": 500,
+  "contracts": {
+    "ArtAdapterRegistry": {
+      "address": null,
+      "deploymentTransaction": null,
+      "deploymentBlock": null,
+      "deployer": null,
+      "implementationVersion": "1",
+      "constructorArguments": null,
+      "creationBytecodeHash": null,
+      "runtimeBytecodeHash": null,
+      "gitCommit": null,
+      "verificationStatus": "NOT_SUBMITTED"
+    },
+    "ArtAgentRegistry": {
+      "address": null,
+      "deploymentTransaction": null,
+      "deploymentBlock": null,
+      "deployer": null,
+      "implementationVersion": "1",
+      "constructorArguments": null,
+      "creationBytecodeHash": null,
+      "runtimeBytecodeHash": null,
+      "gitCommit": null,
+      "verificationStatus": "NOT_SUBMITTED"
+    },
+    "BrokerPolicyModule": {
+      "address": null,
+      "deploymentTransaction": null,
+      "deploymentBlock": null,
+      "deployer": null,
+      "implementationVersion": "1",
+      "constructorArguments": null,
+      "creationBytecodeHash": null,
+      "runtimeBytecodeHash": null,
+      "gitCommit": null,
+      "verificationStatus": "NOT_SUBMITTED"
+    },
+    "GoghPunkAccountV1": {
+      "address": null,
+      "deploymentTransaction": null,
+      "deploymentBlock": null,
+      "deployer": null,
+      "implementationVersion": "1",
+      "constructorArguments": null,
+      "creationBytecodeHash": null,
+      "runtimeBytecodeHash": null,
+      "gitCommit": null,
+      "verificationStatus": "NOT_SUBMITTED"
+    },
+    "GoghPunkAccountRegistry": {
+      "address": null,
+      "deploymentTransaction": null,
+      "deploymentBlock": null,
+      "deployer": null,
+      "implementationVersion": "1",
+      "constructorArguments": null,
+      "creationBytecodeHash": null,
+      "runtimeBytecodeHash": null,
+      "gitCommit": null,
+      "verificationStatus": "NOT_SUBMITTED"
+    }
+  },
+  "featureFlags": {
+    "ENABLE_SCOUT_MODE": true,
+    "ENABLE_APPROVAL_PURCHASES": false,
+    "ENABLE_AUTONOMOUS_PURCHASES": false,
+    "ENABLE_AUTONOMOUS_MINTS": false,
+    "ENABLE_UNKNOWN_COLLECTION_EXECUTION": false,
+    "ENABLE_SELLING": false,
+    "ENABLE_AUTONOMOUS_SELLING": false
+  },
+  "protocolGuardian": null,
+  "notes": "Template only. No production transactions have been signed or broadcast."
+}

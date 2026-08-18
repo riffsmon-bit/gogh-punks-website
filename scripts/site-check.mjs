@@ -3,7 +3,13 @@ import { readFileSync } from "node:fs";
 import { extname, join, normalize, resolve } from "node:path";
 
 const root = resolve(process.cwd(), "site");
-const pages = ["index.html", "404.html"];
+const pages = [
+  "index.html",
+  "404.html",
+  "broker/index.html",
+  "discover/index.html",
+  "punk/index.html",
+];
 const failures = [];
 
 function fail(message) {
@@ -23,6 +29,10 @@ function localTarget(reference) {
   const path = reference.split(/[?#]/, 1)[0] || "/";
   if (path.startsWith("/api/")) return null;
   if (path === "/") return join(root, "index.html");
+  if (path.startsWith("/punk/") && path !== "/punk/index.html") {
+    return join(root, "punk", "index.html");
+  }
+  if (path.endsWith("/")) return join(root, path.replace(/^\//, ""), "index.html");
   return join(root, normalize(path.replace(/^\//, "")));
 }
 
@@ -107,6 +117,22 @@ if (hashes.size !== collectionIds.length) {
 for (const file of ["styles.css", "main.js", "robots.txt", "site.webmanifest"]) {
   if (!extname(file) && file !== "robots.txt") fail(`unexpected site asset ${file}`);
   readFileSync(join(root, file));
+}
+
+for (const file of ["broker.css", "broker.js"]) readFileSync(join(root, file));
+
+const brokerPages = pages
+  .filter((page) => page.includes("/"))
+  .map((page) => readFileSync(join(root, page), "utf8"))
+  .join("\n");
+for (const required of [
+  "Autonomous execution",
+  "DISABLED",
+  "Art Mandate",
+  "Curator Journal",
+  "LOWER RISK",
+]) {
+  if (!brokerPages.includes(required)) fail(`broker pages are missing required value ${required}`);
 }
 
 const searchable = pages

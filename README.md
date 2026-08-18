@@ -1,46 +1,60 @@
-# Gogh Punks Website
+# Gogh Punks
 
-Official public website and GTD wallet capture for Gogh Punks, a collection of 10,000 fully on-chain pixel portraits on Robinhood Chain.
+Official website and staged Art Broker foundation for Gogh Punks, a fully on-chain pixel-art collection on Robinhood Chain. The collection is sold out with `maxSupply()` matching the 5,016 historical mints, and 4,295 tokens circulate after 721 permanent burns.
 
-## Official links
-
+- Collection: `0xE0F92B3B0E6DeD3654177FE3809Cd300e5ffaDf6`
+- Chain ID: `4663`
 - [OpenSea](https://opensea.io/collection/gogh-punks-255843210)
 - [Discord](https://discord.gg/NgRzPNra6s)
-- Contract: `0xE0F92B3B0E6DeD3654177FE3809Cd300e5ffaDf6`
+- [Explorer](https://robinhoodchain.blockscout.com/address/0xE0F92B3B0E6DeD3654177FE3809Cd300e5ffaDf6)
 
-## GTD capture
+## Autonomous digital curators
 
-The `/verify/` flow admits exactly 200 unique wallet/Discord pairs:
+Gogh Punks are evolving into autonomous digital art curators native to Robinhood. Each Punk can control its own deterministic smart-account wallet, build a persistent NFT gallery, develop a collecting personality, discover new artists and collections, and eventually acquire approved NFTs under strict owner-defined rules.
 
-1. The member signs in through official Discord OAuth with the `identify` scope.
-2. The backend confirms that the user is already in the configured Gogh Punks server and has completed membership screening.
-3. The member connects a wallet on Robinhood Chain (chain ID `4663`).
-4. The backend creates a short-lived, single-use EIP-4361 message tied to that Discord user, wallet, domain, chain, nonce, request ID, and expiry.
-5. The member signs the message. This is not a transaction and requests no approval or payment.
-6. The signature is verified against Robinhood Chain. The signature itself is never stored.
-7. A Postgres transaction takes a project advisory lock, rechecks the current count, and inserts only when fewer than 200 rows exist.
-8. The backend grants the Discord `GTD` role and keeps the member's `Visitor` role. An hourly job repairs temporary role-sync failures.
+The Punk owner remains ultimately in control. The AI does not hold the owner's wallet key, cannot call unrestricted account execution, and cannot bypass on-chain policy.
 
-Database uniqueness constraints enforce one wallet per Discord account and one Discord account per wallet. Request 201 is rejected even if several final-slot requests arrive simultaneously. Existing moderation restrictions are never removed by GTD capture.
+Current status: the account, policy, agent, adapter, indexer, Scout, gallery, and deployment-preparation foundations are staged locally. Verified Seaport settlements can be indexed as explicitly historical, non-actionable Scout research. A disabled-by-default worker enriches those collections with confirmed-block bytecode, verified-ABI surface, contract identity, bounded owner sampling, on-chain JSON metadata, metadata-only art heuristics, and observed market activity. Source block time—not index time—drives activity windows; liquidity remains unavailable without live listing/bid evidence, and contract risk remains `UNKNOWN` when evidence coverage is insufficient. **No Art Broker contract is deployed and every transaction/autonomous feature is disabled.**
 
-Every captured row exports as:
+## Architecture
 
 ```text
-wallet,3,0
+AI / analyzers (untrusted)
+          ↓
+typed recommendation and intent
+          ↓
+registered deterministic adapter
+          ↓
+on-chain Broker Policy
+          ↓
+Punk Account
+          ↓
+verified NFT receipt
 ```
 
-That is a custom mint limit of 3 and a price of 0 ETH.
+The live canonical Punk owner is resolved from `ownerOf(tokenId)`. Protocol administrators have no account withdrawal path.
 
-## Local validation
+## Repository
 
-Requires Node.js 24.
+- `site/`: public collection, Art Broker, Discover, and Punk Gallery pages.
+- `netlify/functions/`: public read APIs and retained GTD/Discord serverless functions.
+- `netlify/database/migrations/`: GTD and Art Broker read-model schemas.
+- `contracts/src/`: ERC-6551 account facade/account, policy, agent, and adapter registries.
+- `contracts/test/`: unit, adversarial, and fuzz/property tests.
+- `broker/src/`: opportunity model, discovery, scoring, typed intent builder, and reorg-aware indexer.
+- `deployments/robinhood.json`: not-deployed manifest template.
+- `docs/`: architecture, security, operations, and canary documentation.
+
+## Validation
+
+Requires Node.js 24 and Foundry.
 
 ```sh
 npm install
 npm run check
 ```
 
-`npm run check` validates the public site, preview assets, secret scan, 200-wallet policy, wallet/Discord uniqueness rules, opaque sessions, SIWE message binding, and the atomic-cap implementation.
+`npm run site:check` is the Netlify-safe frontend/backend validation path. `npm run contracts:check` adds Solidity formatting, build/size, tests, fuzzing, and ABI trust-boundary checks.
 
 ## Netlify configuration
 
@@ -95,13 +109,15 @@ npm run discord:plan
 
 Deploy that Discord plan only after explicit review. Copy the resulting role IDs with Discord Developer Mode and add them to Netlify.
 
-## Development and deployment
+## Local development and deployment
 
 The repository publishes `site/`, bundles functions from `netlify/functions/`, and automatically applies database migrations. Use Netlify CLI for the full local database/function environment:
 
 ```sh
 npx netlify dev
 ```
+
+Copy `.env.example` to an untracked local environment and use provider/secret-manager values. Never commit private keys, seed phrases, Discord secrets, database credentials, API secrets, or an Art Agent signing key.
 
 The hourly `gtd-role-recheck` function runs only on published production deploys. Deploy previews do not execute scheduled functions automatically.
 
@@ -113,23 +129,14 @@ being posted to Discord; gifts, mints, burns, bundles, and unknown marketplace
 calls fail closed. The first run starts at the confirmed chain head and never
 floods the channel with historical sales.
 
-## Protected exports
+## Deployment safety
 
-Both routes require this request header:
+The deployment script is simulation-only unless a human explicitly adds Foundry's `--broadcast` flag. Production deployment requires an independent audit, verified marketplace adapters, separated multisig/agent roles, a completed address manifest, and explicit authorization.
 
-```text
-Authorization: Bearer YOUR_ADMIN_EXPORT_TOKEN
-```
+See [architecture](docs/ART_BROKER_ARCHITECTURE.md), [threat model](docs/THREAT_MODEL.md), [curator reputation](docs/CURATOR_REPUTATION.md), [notifications](docs/NOTIFICATIONS.md), [gas estimates](docs/GAS_ESTIMATES.md), [deployment](docs/DEPLOYMENT.md), and [canary plan](docs/CANARY.md).
 
-- `/api/admin/gtd-export.csv` — headerless OpenSea file (`wallet,3,0`).
-- `/api/admin/gtd-captures.csv` — administrative audit export with Discord binding and sync state.
+## Legacy GTD functions
 
-Never put the export token in a browser URL, public script, screenshot, or repository.
+The retired GTD page is no longer linked or published. Its existing serverless capture/export functions and migration remain in the repository for controlled historical operations; they are separate from Art Broker authority and store no wallet private keys or signatures.
 
-## Failure behavior
-
-- Missing database, RPC, Discord, role hierarchy, or signature validation: no GTD role is granted.
-- A Discord outage after a successful database capture: the wallet remains secured and role sync is queued.
-- Invalid, expired, or replayed signature: rejected.
-- Wallet or Discord already linked elsewhere: rejected without revealing the other account.
-- Cap reached: rejected after the count is rechecked inside the locked transaction.
+Operational details for the retained Discord/SIWE service are preserved in [Legacy GTD operations](docs/LEGACY_GTD.md).
