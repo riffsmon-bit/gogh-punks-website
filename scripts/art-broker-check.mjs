@@ -65,7 +65,7 @@ for (const [name, enabled] of Object.entries(deployment.featureFlags)) {
 }
 
 const migration = readFileSync(
-  resolve(root, "netlify/database/migrations/20260815010000_create_art_broker_foundation.sql"),
+  resolve(root, "netlify/database/migrations/20260817224000_create_art_broker_foundation.sql"),
   "utf8",
 );
 for (const table of [
@@ -88,7 +88,7 @@ for (const table of [
 const scoutProjectionMigration = readFileSync(
   resolve(
     root,
-    "netlify/database/migrations/20260817010000_add_scout_source_provenance.sql",
+    "netlify/database/migrations/20260817224100_add_scout_source_provenance.sql",
   ),
   "utf8",
 );
@@ -106,7 +106,7 @@ for (const requirement of [
 const analysisMigration = readFileSync(
   resolve(
     root,
-    "netlify/database/migrations/20260817021000_add_collection_analysis_state.sql",
+    "netlify/database/migrations/20260817224200_add_collection_analysis_state.sql",
   ),
   "utf8",
 );
@@ -124,7 +124,7 @@ for (const requirement of [
 const collectionSignalsMigration = readFileSync(
   resolve(
     root,
-    "netlify/database/migrations/20260818010000_add_collection_signal_state.sql",
+    "netlify/database/migrations/20260817224300_add_collection_signal_state.sql",
   ),
   "utf8",
 );
