@@ -1,10 +1,4 @@
-const CHAIN_ID = 4663;
-const CHAIN_HEX = "0x1237";
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
-
-function abbreviate(address) {
-  return address ? `${address.slice(0, 6)}…${address.slice(-4)}` : "Connect wallet";
-}
 
 function formatNativeWei(value) {
   try {
@@ -72,51 +66,6 @@ function collectionEvidenceSummary(metadata) {
     ? `${parts.join(" · ")}. Historical/sample evidence only.`
     : "Collection signals are unavailable; no score was inferred.";
 }
-
-async function ensureRobinhood(provider) {
-  const current = await provider.request({ method: "eth_chainId" });
-  if (Number.parseInt(current, 16) === CHAIN_ID) return;
-  try {
-    await provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: CHAIN_HEX }] });
-  } catch (error) {
-    if (error?.code !== 4902) throw error;
-    await provider.request({
-      method: "wallet_addEthereumChain",
-      params: [{
-        chainId: CHAIN_HEX,
-        chainName: "Robinhood Chain",
-        nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-        rpcUrls: ["https://rpc.mainnet.chain.robinhood.com"],
-        blockExplorerUrls: ["https://robinhoodchain.blockscout.com"],
-      }],
-    });
-  }
-}
-
-document.querySelectorAll("[data-wallet]").forEach((button) => {
-  button.addEventListener("click", async () => {
-    if (!window.ethereum) {
-      button.textContent = "Wallet unavailable";
-      return;
-    }
-    button.disabled = true;
-    try {
-      await ensureRobinhood(window.ethereum);
-      const [address] = await window.ethereum.request({ method: "eth_requestAccounts" });
-      document.querySelectorAll("[data-wallet]").forEach((item) => {
-        item.textContent = abbreviate(address);
-        item.dataset.address = address;
-      });
-      document.querySelectorAll("[data-wallet-status]").forEach((item) => {
-        item.textContent = "Wallet connected for read-only owner discovery. Broker transactions remain disabled.";
-      });
-    } catch {
-      button.textContent = "Connection declined";
-    } finally {
-      button.disabled = false;
-    }
-  });
-});
 
 async function loadStatus() {
   const statusTargets = document.querySelectorAll("[data-protocol-status]");

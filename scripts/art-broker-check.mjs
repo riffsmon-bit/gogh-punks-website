@@ -64,6 +64,17 @@ for (const [name, enabled] of Object.entries(deployment.featureFlags)) {
   if (enabled !== expected) throw new Error(`${name} violates production default`);
 }
 
+const brokerClient = readFileSync(resolve(root, "site/broker.js"), "utf8");
+for (const forbiddenWalletAction of [
+  "eth_requestAccounts",
+  "wallet_switchEthereumChain",
+  "wallet_addEthereumChain",
+]) {
+  if (brokerClient.includes(forbiddenWalletAction)) {
+    throw new Error(`undeployed broker client exposes ${forbiddenWalletAction}`);
+  }
+}
+
 const migration = readFileSync(
   resolve(root, "netlify/database/migrations/20260817224000_create_art_broker_foundation.sql"),
   "utf8",
