@@ -9,13 +9,17 @@
     <link rel="icon" href="/assets/favicon.png" type="image/png" />
     <link rel="stylesheet" href="/broker.css" />
     <script src="/broker.js" defer></script>
+    <script src="/wallet.js" type="module"></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to discoveries</a>
     <header class="broker-header">
       <a class="broker-brand" href="/"><img src="/assets/favicon.png" alt="" /><span>GOGH PUNKS</span></a>
       <nav aria-label="Art Broker navigation"><a href="/broker/">Art Broker</a><a href="/discover/" aria-current="page">Discover</a><a href="/punk/1797" data-scout-gallery-link>Scout Gallery</a><a href="/">Collection</a></nav>
-      <button class="wallet-button" type="button" disabled aria-disabled="true">Wallet disabled</button>
+      <div class="wallet-control">
+        <button class="wallet-button" type="button" data-wallet-connect>Connect wallet</button>
+        <span class="wallet-state" data-wallet-state aria-live="polite">Read-only connection · no signatures or transactions</span>
+      </div>
     </header>
     <main class="broker-main" id="main">
       <section class="broker-hero">

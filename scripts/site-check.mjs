@@ -119,7 +119,7 @@ for (const file of ["styles.css", "main.js", "robots.txt", "site.webmanifest"]) 
   readFileSync(join(root, file));
 }
 
-for (const file of ["broker.css", "broker.js"]) readFileSync(join(root, file));
+for (const file of ["broker.css", "broker.js", "wallet.js"]) readFileSync(join(root, file));
 
 const brokerPages = pages
   .filter((page) => page.includes("/"))
@@ -131,13 +131,19 @@ for (const required of [
   "Art Mandate",
   "Curator Journal",
   "LOWER RISK",
+  "data-wallet-connect",
+  "Read-only connection",
 ]) {
   if (!brokerPages.includes(required)) fail(`broker pages are missing required value ${required}`);
 }
 
 const searchable = pages
   .map((page) => readFileSync(join(root, page), "utf8"))
-  .concat(readFileSync(join(root, "main.js"), "utf8"))
+  .concat(
+    readFileSync(join(root, "main.js"), "utf8"),
+    readFileSync(join(root, "broker.js"), "utf8"),
+    readFileSync(join(root, "wallet.js"), "utf8"),
+  )
   .join("\n");
 
 for (const forbidden of [
@@ -148,6 +154,17 @@ for (const forbidden of [
 ]) {
   if (searchable.includes(forbidden)) {
     fail(`public site contains forbidden secret marker ${forbidden}`);
+  }
+}
+
+const netlifyConfiguration = readFileSync(resolve(process.cwd(), "netlify.toml"), "utf8");
+for (const required of [
+  "img-src 'self' data: https://i.seadn.io",
+  "frame-ancestors 'none'",
+  "connect-src 'self'",
+]) {
+  if (!netlifyConfiguration.includes(required)) {
+    fail(`Netlify security headers are missing ${required}`);
   }
 }
 

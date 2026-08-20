@@ -78,6 +78,13 @@ button { font: inherit; }
   text-transform: uppercase;
 }
 .broker-header nav a[aria-current="page"] { color: var(--sun); }
+.wallet-control {
+  justify-self: end;
+  display: grid;
+  justify-items: end;
+  gap: 5px;
+  min-width: 210px;
+}
 .wallet-button,
 .action-button {
   justify-self: end;
@@ -96,6 +103,18 @@ button { font: inherit; }
 .wallet-button:focus-visible,
 .action-button:hover,
 .action-button:focus-visible { border-color: var(--gold); background: rgba(218, 167, 55, 0.12); }
+.wallet-button:disabled { cursor: default; }
+.wallet-button[data-wallet-status="owner"] { border-color: rgba(54, 200, 182, 0.55); color: var(--teal); }
+.wallet-button[data-wallet-status="wrong-network"] { border-color: rgba(237, 130, 108, 0.55); color: var(--risk); }
+.wallet-state {
+  max-width: 310px;
+  color: var(--muted);
+  font-size: 0.58rem;
+  line-height: 1.35;
+  text-align: right;
+}
+.wallet-state[data-wallet-status="owner"] { color: var(--teal); }
+.wallet-state[data-wallet-status="wrong-network"] { color: var(--risk); }
 .action-button:disabled { cursor: not-allowed; opacity: 0.42; }
 
 .broker-main { width: var(--page); margin: 0 auto; padding: 68px 0 100px; }
@@ -180,6 +199,7 @@ h3 { font-size: 1.45rem; }
 .opportunity-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .opportunity-card { overflow: hidden; }
 .art-placeholder {
+  position: relative;
   aspect-ratio: 1;
   display: grid;
   place-items: center;
@@ -190,6 +210,14 @@ h3 { font-size: 1.45rem; }
     #071321;
   font-family: var(--display);
   font-size: 1.3rem;
+}
+.art-placeholder.has-art > span { display: none; }
+.nft-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .card-body { padding: 20px; }
 .card-meta { display: flex; justify-content: space-between; gap: 10px; color: var(--muted); font-size: 0.72rem; }
@@ -208,6 +236,21 @@ h3 { font-size: 1.45rem; }
   font-size: 0.76rem;
   line-height: 1.45;
 }
+.trait-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.trait-list li {
+  padding: 5px 7px;
+  border: 1px solid rgba(54, 200, 182, 0.22);
+  color: #c6c7c0;
+  background: rgba(54, 200, 182, 0.06);
+  font-size: 0.61rem;
+}
 .score-strip {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(62px, 1fr));
@@ -219,6 +262,19 @@ h3 { font-size: 1.45rem; }
 .score-strip strong { font-size: 0.87rem; }
 .card-actions { display: flex; gap: 8px; margin-top: 18px; }
 .card-actions .action-button { flex: 1; }
+.opensea-attribution {
+  display: inline-block;
+  margin-top: 13px;
+  color: var(--sun);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+.opensea-attribution:hover,
+.opensea-attribution:focus-visible { text-decoration: underline; }
+.opensea-attribution[hidden] { display: none; }
 .empty-state { grid-column: 1 / -1; padding: 38px; border: 1px dashed var(--line); color: var(--muted); text-align: center; }
 .gallery-shell { display: grid; grid-template-columns: 310px minmax(0, 1fr); gap: 28px; }
 .punk-identity { position: sticky; top: 94px; align-self: start; }
@@ -236,6 +292,8 @@ h3 { font-size: 1.45rem; }
 @media (max-width: 900px) {
   .broker-header { grid-template-columns: 1fr auto; }
   .broker-header nav { display: none; }
+  .wallet-control { min-width: 0; }
+  .wallet-state { max-width: 220px; }
   .broker-hero, .gallery-shell { grid-template-columns: 1fr; }
   .punk-identity { position: static; max-width: 360px; }
   .metric-grid, .opportunity-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -243,6 +301,7 @@ h3 { font-size: 1.45rem; }
 @media (max-width: 620px) {
   .broker-header { min-height: 64px; }
   .broker-brand span { display: none; }
+  .wallet-state { max-width: 175px; font-size: 0.52rem; }
   .broker-main { width: min(100% - 28px, 1220px); padding-top: 42px; }
   .broker-hero { gap: 24px; }
   .layout-two, .metric-grid, .opportunity-grid { grid-template-columns: 1fr; }

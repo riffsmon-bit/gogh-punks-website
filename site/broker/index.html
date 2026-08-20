@@ -9,6 +9,7 @@
     <link rel="icon" href="/assets/favicon.png" type="image/png" />
     <link rel="stylesheet" href="/broker.css" />
     <script src="/broker.js" defer></script>
+    <script src="/wallet.js" type="module"></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to Art Broker</a>
@@ -20,7 +21,10 @@
         <a href="/punk/1797" data-scout-gallery-link>Scout Gallery</a>
         <a href="/">Collection</a>
       </nav>
-      <button class="wallet-button" type="button" disabled aria-disabled="true">Wallet disabled</button>
+      <div class="wallet-control">
+        <button class="wallet-button" type="button" data-wallet-connect>Connect wallet</button>
+        <span class="wallet-state" data-wallet-state aria-live="polite">Read-only connection · no signatures or transactions</span>
+      </div>
     </header>
     <main class="broker-main" id="main">
       <section class="broker-hero">
@@ -38,12 +42,13 @@
       <p class="safety-banner"><strong>Security status:</strong> this is a staged, read-only product surface. No Art Broker contract is deployed, no agent holds spending authority, and no purchase button can submit a transaction.</p>
 
       <section class="section-block" aria-labelledby="my-punks-title">
-        <div class="section-heading"><div><p class="eyebrow">Owner desk</p><h2 id="my-punks-title">My Punks</h2></div><p>Wallet connection stays disabled until the audited Punk Account contracts are deployed.</p></div>
+        <div class="section-heading"><div><p class="eyebrow">Owner desk</p><h2 id="my-punks-title">My Punks</h2></div><p>Connect read-only to compare your address with the current indexed owner. Management and transaction controls remain disabled until the audited Punk Account contracts are deployed.</p></div>
         <div class="metric-grid">
           <article class="metric"><span>Scout Punk</span><strong>#<span data-scout-token-id>—</span></strong><small>Confirmed owner snapshot</small></article>
           <article class="metric"><span>Punk Accounts</span><strong>0</strong><small>Protocol not deployed</small></article>
           <article class="metric"><span>Discoveries</span><strong data-opportunity-count>0</strong><small>Confirmed historical signals</small></article>
           <article class="metric"><span>Recommendations</span><strong data-recommendation-count>0</strong><small>Read-only Scout</small></article>
+          <article class="metric"><span>NFT artwork</span><strong data-metadata-count>0</strong><small>Sanitized OpenSea metadata</small></article>
           <article class="metric"><span>Pending approvals</span><strong>0</strong><small>Approval purchases off</small></article>
         </div>
       </section>

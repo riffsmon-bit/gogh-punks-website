@@ -7,9 +7,32 @@
 - Verified Seaport `OrderFulfilled` activity from
   `0x0000000000000068f116a894984e2db1123eb395`.
 - Owner/system allowlisted feeds through an isolated loader interface.
-- Blockscout-derived metadata and OpenSea adapters are architectural extension points; production endpoints and contracts must be verified before activation.
+- A server-only OpenSea v2 display-enrichment adapter for exact Robinhood
+  collection/token identities. It is disabled by default, bounded, cached, and
+  never authoritative for ownership, pricing, risk, policy, or execution.
 
 No single marketplace API is authoritative.
+
+## Display metadata enrichment
+
+The optional OpenSea worker reads exact
+`chainId + collectionAddress + tokenId` candidates from canonical Punk rows,
+recorded Punk Account acquisitions, and canonical Scout opportunities—in that
+priority order. This ensures an NFT acquired or minted by a Punk can receive
+name, image, description, traits, and marketplace attribution in the Gallery
+without allowing provider metadata to alter the acquisition record.
+
+The API key remains server-side. Provider redirects are refused, responses are
+bounded to 1 MB, identity fields must exactly match the requested NFT, text and
+traits are length-limited, and display images are accepted only from OpenSea's
+HTTPS `i.seadn.io` image host. Raw provider payloads and credentials are never
+stored. Available, missing, and failed results have bounded refresh windows so
+the worker cannot repeatedly hammer one token or hold stale metadata forever.
+
+OpenSea enrichment is presentation data. On-chain logs and live `ownerOf`
+remain the authority for asset identity, acquisition provenance, and owner
+control. A metadata image or collection name can never create an executable
+opportunity.
 
 ## Normalized opportunity
 
@@ -140,6 +163,11 @@ unnecessary historical scan. Reorg rewinds are clamped to the selected stream
 boundary.
 
 A detected canonical-hash mismatch performs a chain-wide rewind of raw logs, derived acquisitions, adapter snapshots, and stream checkpoints from the affected block. The manual `npm run broker:index` worker processes streams sequentially under a chain-scoped Postgres advisory lock so concurrent jobs cannot race that recovery transaction. `BROKER_INDEX_MAX_BLOCKS_PER_RUN` limits forward progress independently of the RPC batch size and the result reports `processedThrough` plus `caughtUp`. The default streams are only canonical Gogh Punk transfers and verified Seaport activity; broad `nft_transfers` indexing is opt-in. The reviewed Scout production template starts that stream at block `41380000`, materializes only individual zero-address mint signals, and retains a bounded scan window. This recent boundary is not a claim of complete chain history. The worker refuses to run unless explicitly enabled, given every required start block, and connected to chain ID 4663.
+
+Production schedules core collection/Seaport catch-up separately from the
+opt-in market-wide mint-transfer scan. Both still use the same chain advisory
+lock and reorg rules, so the separation prevents stream starvation without
+allowing concurrent canonical-state mutations.
 
 Reorg recovery also cancels any still-pending proposal derived from an affected
 opportunity and marks the opportunity non-canonical, non-scoutable, and

@@ -1,4 +1,110 @@
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+const OPENSEA_IMAGE_HOST = "i.seadn.io";
+const OPENSEA_ASSET_PREFIX = "/assets/robinhood/";
+
+function trustedProviderUrl(value, { hostname, pathnamePrefix = "/" }) {
+  if (typeof value !== "string") return null;
+  try {
+    const url = new URL(value);
+    if (
+      url.protocol !== "https:"
+      || url.hostname !== hostname
+      || url.username
+      || url.password
+      || url.hash
+      || !url.pathname.startsWith(pathnamePrefix)
+    ) return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function displayMetadata(record) {
+  const metadata = record?.nftMetadata;
+  return metadata && typeof metadata === "object" ? metadata : {};
+}
+
+function renderCardArtwork(card, record, token) {
+  const metadata = displayMetadata(record);
+  const imageUrl = trustedProviderUrl(metadata.imageUrl, { hostname: OPENSEA_IMAGE_HOST });
+  const openSeaUrl = trustedProviderUrl(metadata.openSeaUrl, {
+    hostname: "opensea.io",
+    pathnamePrefix: OPENSEA_ASSET_PREFIX,
+  });
+  const art = card.querySelector("[data-card-art]");
+  if (imageUrl && art) {
+    const image = document.createElement("img");
+    image.className = "nft-art";
+    image.src = imageUrl;
+    image.alt = metadata.name
+      ? `${String(metadata.name)} artwork`
+      : `NFT #${String(token)} artwork from OpenSea metadata`;
+    image.loading = "lazy";
+    image.decoding = "async";
+    image.width = 600;
+    image.height = 600;
+    image.addEventListener("error", () => {
+      image.remove();
+      art.classList.remove("has-art");
+    }, { once: true });
+    art.prepend(image);
+    art.classList.add("has-art");
+  }
+  const attribution = card.querySelector("[data-card-opensea]");
+  if (openSeaUrl && attribution) {
+    attribution.href = openSeaUrl;
+    attribution.hidden = false;
+  }
+  const traitList = card.querySelector("[data-card-traits]");
+  if (traitList && Array.isArray(metadata.traits)) {
+    for (const trait of metadata.traits.slice(0, 3)) {
+      const type = typeof trait?.traitType === "string" ? trait.traitType : null;
+      const value = typeof trait?.value === "string" ? trait.value : null;
+      if (!type || !value) continue;
+      const item = document.createElement("li");
+      item.textContent = `${type}: ${value}`;
+      traitList.append(item);
+    }
+    traitList.hidden = traitList.childElementCount === 0;
+  }
+}
+
+function renderPunkArtwork(artwork, tokenId) {
+  const image = document.querySelector("[data-punk-portrait]");
+  if (!image) return;
+  const imageUrl = trustedProviderUrl(artwork?.imageUrl, { hostname: OPENSEA_IMAGE_HOST });
+  if (imageUrl) {
+    image.src = imageUrl;
+    image.alt = artwork?.name
+      ? `${String(artwork.name)} artwork`
+      : `Gogh Punk #${String(tokenId)} artwork`;
+  }
+  const openSeaUrl = trustedProviderUrl(artwork?.openSeaUrl, {
+    hostname: "opensea.io",
+    pathnamePrefix: OPENSEA_ASSET_PREFIX,
+  });
+  const attribution = document.querySelector("[data-punk-opensea]");
+  if (openSeaUrl && attribution) {
+    attribution.href = openSeaUrl;
+    attribution.hidden = false;
+  }
+}
+
+function publishOwnerSnapshot(punk, tokenId, source) {
+  const address = punk?.owner_snapshot;
+  if (typeof address !== "string") return;
+  const detail = {
+    address,
+    tokenId: String(tokenId),
+    blockNumber: punk?.owner_snapshot_block ?? null,
+    source,
+  };
+  window.__GOGH_OWNER_SNAPSHOT__ = detail;
+  window.dispatchEvent(new CustomEvent("gogh:owner-snapshot", {
+    detail,
+  }));
+}
 
 function formatNativeWei(value) {
   try {
@@ -79,6 +185,13 @@ async function loadStatus() {
   try {
     const response = await fetch("/api/broker/status", { headers: { accept: "application/json" } });
     const payload = await response.json();
+    if (payload.scoutStatus?.punk && payload.scoutStatus?.tokenId !== undefined) {
+      publishOwnerSnapshot(
+        payload.scoutStatus.punk,
+        payload.scoutStatus.tokenId,
+        "scout",
+      );
+    }
     const scoutLive = payload.scoutStatus?.dataStatus === "LIVE";
     statusTargets.forEach((target) => {
       target.textContent = payload.protocol?.deploymentStatus === "NOT_DEPLOYED"
@@ -97,6 +210,9 @@ async function loadStatus() {
     });
     document.querySelectorAll("[data-recommendation-count]").forEach((target) => {
       target.textContent = String(payload.scoutStatus?.recommendationCount ?? 0);
+    });
+    document.querySelectorAll("[data-metadata-count]").forEach((target) => {
+      target.textContent = String(payload.scoutStatus?.metadataCount ?? 0);
     });
     if (payload.scoutStatus?.tokenId) {
       document.querySelectorAll("[data-scout-gallery-link]").forEach((target) => {
@@ -122,15 +238,17 @@ function opportunityCard(opportunity) {
     ?? opportunity.collection
     ?? "Unknown collection";
   const collectionName = metadata.collectionSignals?.identity?.name;
+  const nftMetadata = displayMetadata(opportunity);
   const token = opportunity.token_id ?? opportunity.nft_token_id ?? opportunity.tokenId ?? "—";
   const mintDecision = opportunity.decision_detail?.mintInterest?.decision ?? null;
   card.innerHTML = `
-    <div class="art-placeholder" aria-hidden="true">ART PREVIEW PENDING</div>
+    <div class="art-placeholder" data-card-art><span>ART PREVIEW PENDING</span></div>
     <div class="card-body">
       <div class="card-meta"><span data-card-type></span><span data-card-risk></span></div>
       <h3 data-card-title></h3>
       <p class="signal-note" data-card-signal></p>
       <p class="evidence-note" data-card-evidence></p>
+      <ul class="trait-list" data-card-traits hidden></ul>
       <div class="score-strip" aria-label="Opportunity scores">
         <div><span>Art</span><strong data-score-art></strong></div>
         <div><span>Taste</span><strong data-score-taste></strong></div>
@@ -147,6 +265,7 @@ function opportunityCard(opportunity) {
         <button class="action-button" type="button" disabled>Watch</button>
         <button class="action-button" type="button" disabled>Propose</button>
       </div>
+      <a class="opensea-attribution" data-card-opensea href="https://opensea.io" target="_blank" rel="noopener noreferrer nofollow" hidden>Metadata via OpenSea ↗</a>
       <p class="locked-note">Scout data only. Acquisition controls are disabled.</p>
     </div>`;
   card.querySelector("[data-card-type]").textContent = opportunity.acquisition_mode
@@ -157,8 +276,11 @@ function opportunityCard(opportunity) {
       ? `${opportunity.opportunity_type ?? opportunity.opportunityType ?? "SCOUT"} · ${opportunity.recommendation}`
       : opportunity.opportunity_type ?? opportunity.opportunityType ?? "UNKNOWN";
   card.querySelector("[data-card-risk]").textContent = opportunity.risk_label ?? "UNKNOWN";
-  card.querySelector("[data-card-title]").textContent = collectionName
-    ? `${collectionName} · #${token}`
+  const displayName = typeof nftMetadata.name === "string" && nftMetadata.name
+    ? nftMetadata.name
+    : collectionName;
+  card.querySelector("[data-card-title]").textContent = displayName
+    ? `${displayName} · #${token}`
     : `${String(collection).slice(0, 8)}… · #${token}`;
   card.querySelector("[data-card-signal]").textContent = opportunity.acquisition_mode
     ? `Recorded acquisition · ${opportunity.acquired_at ?? "time unavailable"}`
@@ -216,6 +338,7 @@ function opportunityCard(opportunity) {
     contractRisk === "—" ? contractRisk : `${contractRisk}/100`;
   card.querySelector("[data-score-evidence]").textContent =
     evidenceCoverage === "—" ? evidenceCoverage : `${evidenceCoverage}%`;
+  renderCardArtwork(card, opportunity, token);
   return card;
 }
 
@@ -253,6 +376,8 @@ async function loadPunk() {
       headers: { accept: "application/json" },
     });
     const payload = await response.json();
+    publishOwnerSnapshot(payload.punk, tokenId, "punk");
+    renderPunkArtwork(payload.identity?.artwork, tokenId);
     const account = payload.punk?.account_address ?? "Not activated";
     document.querySelectorAll("[data-punk-account]").forEach((item) => { item.textContent = account; });
     const gallery = document.querySelector("[data-gallery]");

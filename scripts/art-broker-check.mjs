@@ -65,12 +65,21 @@ for (const [name, enabled] of Object.entries(deployment.featureFlags)) {
 }
 
 const brokerClient = readFileSync(resolve(root, "site/broker.js"), "utf8");
+const walletClient = readFileSync(resolve(root, "site/wallet.js"), "utf8");
+for (const requiredReadOnlyWalletAction of ["eth_requestAccounts", "eth_chainId"]) {
+  if (!walletClient.includes(requiredReadOnlyWalletAction)) {
+    throw new Error(`read-only wallet client is missing ${requiredReadOnlyWalletAction}`);
+  }
+}
 for (const forbiddenWalletAction of [
-  "eth_requestAccounts",
+  "eth_sendTransaction",
+  "eth_sign",
+  "personal_sign",
+  "wallet_requestPermissions",
   "wallet_switchEthereumChain",
   "wallet_addEthereumChain",
 ]) {
-  if (brokerClient.includes(forbiddenWalletAction)) {
+  if (`${brokerClient}\n${walletClient}`.includes(forbiddenWalletAction)) {
     throw new Error(`undeployed broker client exposes ${forbiddenWalletAction}`);
   }
 }
@@ -150,6 +159,24 @@ for (const requirement of [
   }
 }
 
+const metadataMigration = readFileSync(
+  resolve(
+    root,
+    "netlify/database/migrations/20260820204500_create_broker_nft_metadata.sql",
+  ),
+  "utf8",
+);
+for (const requirement of [
+  "CREATE TABLE IF NOT EXISTS broker_nft_metadata",
+  "PRIMARY KEY (chain_id, collection_address, token_id)",
+  "display_image_url LIKE 'https://i.seadn.io/%'",
+  "Never authoritative for ownership, execution, price, or safety",
+]) {
+  if (!metadataMigration.includes(requirement)) {
+    throw new Error(`NFT metadata migration missing ${requirement}`);
+  }
+}
+
 const environmentExample = readFileSync(resolve(root, ".env.example"), "utf8");
 for (const requirement of [
   "BROKER_INDEXER_ENABLED=false",
@@ -159,6 +186,8 @@ for (const requirement of [
   "BROKER_INDEX_MAX_BLOCKS_PER_RUN=10000",
   "BROKER_INDEX_STREAMS=gogh_punk_transfers,seaport_activity",
   "BROKER_ANALYSIS_ACTIVITY_LIMIT=200",
+  "BROKER_METADATA_ENABLED=false",
+  "BROKER_METADATA_BATCH_SIZE=12",
 ]) {
   if (!environmentExample.includes(requirement)) {
     throw new Error(`Art Broker environment defaults missing ${requirement}`);

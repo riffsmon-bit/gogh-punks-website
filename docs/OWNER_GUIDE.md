@@ -12,6 +12,12 @@ Before transferring a Punk, review every NFT, token, ETH balance, approval, acti
 
 Use `SCOUT`. It discovers and ranks art without moving money. Treat every contract-risk label as relative and every price/value as an estimate.
 
+The website's wallet button is also read-only: it requests the selected public
+address and chain ID only. It does not request a signature, approval, network
+switch, or transaction. An “indexed owner” match is a display check, not on-chain
+management authorization; live contract ownership must be rechecked before any
+future write operation.
+
 In Discover, `~` means a low-confidence metadata or completed-activity
 heuristic. `—` means the evidence is unavailable; it does not mean a score of
 zero. Sampled owners are not the collection's total holder count, and completed
@@ -33,6 +39,11 @@ sales are not live liquidity.
 A mint-event signal does not prove an open phase or a free price. Until Scout
 has verified the mint adapter, exact contract, phase, selector, total payment,
 recipient, and expiry, it stays research-only even if the Punk wants to join.
+
+When a Punk eventually completes an approved mint or acquisition, its exact
+chain-qualified NFT identity enters the acquisition journal. The optional
+OpenSea display worker can then add sanitized artwork, name, and traits to the
+Gallery. That enrichment does not alter ownership or provenance.
 
 ## Approval-required acquisition
 

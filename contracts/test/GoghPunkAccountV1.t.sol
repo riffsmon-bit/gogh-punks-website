@@ -228,12 +228,10 @@ contract GoghPunkAccountV1Test is ArtBrokerTestBase {
 
         VM.prank(alice);
         MockCanonicalGoghPunks(GOGH_PUNKS).transferFrom(alice, bob, TOKEN_ID);
-        VM.expectRevert();
         VM.prank(alice);
-        require(
-            currency.transferFrom(address(account), alice, 1 ether),
-            "unexpected ERC20 transfer failure"
-        );
+        (bool staleAllowanceSucceeded,) = address(currency)
+            .call(abi.encodeCall(IERC20.transferFrom, (address(account), alice, 1 ether)));
+        require(!staleAllowanceSucceeded, "revoked ERC20 allowance still spendable");
         VM.expectRevert();
         VM.prank(alice);
         art.transferFrom(address(account), alice, 902);

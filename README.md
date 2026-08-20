@@ -14,7 +14,7 @@ Gogh Punks are evolving into autonomous digital art curators native to Robinhood
 
 The Punk owner remains ultimately in control. The AI does not hold the owner's wallet key, cannot call unrestricted account execution, and cannot bypass on-chain policy.
 
-Current status: the account, policy, agent, adapter, indexer, Scout, gallery, and deployment-preparation foundations are staged locally. Confirmed zero-address ERC-721 and ERC-1155 transfer events can be indexed as non-actionable mint signals; verified Seaport settlements are explicitly historical research. A disabled-by-default worker enriches those collections with confirmed-block bytecode, verified-ABI surface, contract identity, bounded owner sampling, on-chain JSON metadata, metadata-only art heuristics, and observed market activity. An observed mint does not prove that a mint phase is open or reveal its price, so unknown mints remain research-only. Source block time—not index time—drives activity windows; liquidity remains unavailable without live listing/bid evidence, and contract risk remains `UNKNOWN` when evidence coverage is insufficient. **No Art Broker contract is deployed and every transaction/autonomous feature is disabled.**
+Current status: the public read-only Scout, mint/sale discovery, recommendation feed, Punk Gallery, and wallet ownership display are live; account, policy, agent, and adapter contracts remain undeployed. Confirmed zero-address ERC-721 and ERC-1155 transfer events are non-actionable mint signals; verified Seaport settlements are explicitly historical research. Disabled-by-default workers enrich collections with confirmed-block contract evidence and add sanitized OpenSea display metadata for exact Punk, acquisition, and opportunity identities. An observed mint does not prove that a phase is open or reveal its price, so unknown mints remain research-only. Source block time—not index time—drives activity windows; liquidity remains unavailable without live listing/bid evidence, and contract risk remains `UNKNOWN` when evidence coverage is insufficient. **No Art Broker contract is deployed and every transaction/autonomous feature is disabled.**
 
 ## Architecture
 
@@ -103,6 +103,13 @@ Set these values in **Netlify → Project configuration → Environment variable
 - `GTD_CAPTURE_CAP`: must remain `200`; the service fails closed if changed.
 - `GTD_MIN_DISCORD_ACCOUNT_AGE_HOURS`: defaults to `24`.
 - `ADMIN_EXPORT_TOKEN`: a random value of at least 32 characters used only for protected CSV exports.
+
+The Art Broker's optional OpenSea artwork enrichment also uses
+`OPENSEA_API_KEY` and must be explicitly enabled with
+`BROKER_METADATA_ENABLED=true`. The key is read only by the scheduled server
+function; it is never included in browser JavaScript or API responses. Keep the
+default `false` value in development and any environment without a configured
+key.
 
 Generate the export token locally, then put it directly into Netlify:
 

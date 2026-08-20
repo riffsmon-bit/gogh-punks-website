@@ -1,4 +1,8 @@
 import { getDatabase } from "@netlify/database";
+import {
+  attachNftDisplayMetadata,
+  NFT_DISPLAY_METADATA_SELECT,
+} from "./_shared/broker-display-metadata.mjs";
 import { json } from "./_shared/http.mjs";
 
 export default async function handler(request) {
@@ -10,23 +14,33 @@ export default async function handler(request) {
     : 24;
   try {
     const result = await getDatabase().pool.query(
-      `SELECT id, chain_id, collection_address, token_id, source, opportunity_type,
-              creator_address, marketplace_address, currency_address, expected_price,
-              maximum_price, supply, metadata, scores, risk_label, confidence,
-              scoutable, autonomous_execution_eligible, discovered_at, expires_at,
-              source_block_number, source_block_hash, source_transaction_hash,
-              source_log_index, canonical, source_block_timestamp
-         FROM broker_opportunities
-        WHERE scoutable = TRUE
-          AND canonical = TRUE
-          AND (expires_at IS NULL OR expires_at > NOW())
-        ORDER BY discovered_at DESC, id
+      `SELECT opportunity.id, opportunity.chain_id, opportunity.collection_address,
+              opportunity.token_id, opportunity.source, opportunity.opportunity_type,
+              opportunity.creator_address, opportunity.marketplace_address,
+              opportunity.currency_address, opportunity.expected_price,
+              opportunity.maximum_price, opportunity.supply, opportunity.metadata,
+              opportunity.scores, opportunity.risk_label, opportunity.confidence,
+              opportunity.scoutable, opportunity.autonomous_execution_eligible,
+              opportunity.discovered_at, opportunity.expires_at,
+              opportunity.source_block_number, opportunity.source_block_hash,
+              opportunity.source_transaction_hash, opportunity.source_log_index,
+              opportunity.canonical, opportunity.source_block_timestamp,
+              ${NFT_DISPLAY_METADATA_SELECT}
+         FROM broker_opportunities AS opportunity
+         LEFT JOIN broker_nft_metadata AS nft_metadata
+           ON nft_metadata.chain_id = opportunity.chain_id
+          AND nft_metadata.collection_address = opportunity.collection_address
+          AND nft_metadata.token_id = opportunity.token_id
+        WHERE opportunity.scoutable = TRUE
+          AND opportunity.canonical = TRUE
+          AND (opportunity.expires_at IS NULL OR opportunity.expires_at > NOW())
+        ORDER BY opportunity.discovered_at DESC, opportunity.id
         LIMIT $1`,
       [limit],
     );
     return json({
       ok: true,
-      opportunities: result.rows,
+      opportunities: result.rows.map(attachNftDisplayMetadata),
       feedMode: "SCOUT",
       analysisMode: "EVIDENCE_ONLY",
       activityMode: "CONFIRMED_HISTORICAL_SALES_AND_MINT_SIGNALS",

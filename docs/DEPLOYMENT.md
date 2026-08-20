@@ -43,7 +43,7 @@ It currently covers four fuzz properties (4,096 generated cases) in addition to 
 
 ## Read-only workers
 
-Both workers are off by default and do not hold an owner or agent key:
+All enrichment workers are off by default and do not hold an owner or agent key:
 
 ```sh
 BROKER_ANALYZER_ENABLED=true npm run broker:analyze
@@ -73,6 +73,23 @@ opportunity.
 `BROKER_ANALYSIS_ACTIVITY_LIMIT` bounds historical sale rows per collection
 (default 200), while owner sampling is independently capped at 32 token IDs.
 The worker never fetches remote NFT metadata and never produces a live quote.
+
+OpenSea display enrichment is a separate scheduled worker. Enable it only after
+the metadata migration is applied and `OPENSEA_API_KEY` is present in Netlify's
+server-side environment:
+
+```text
+BROKER_METADATA_ENABLED=true
+BROKER_METADATA_BATCH_SIZE=12
+BROKER_METADATA_REFRESH_HOURS=24
+BROKER_METADATA_NOT_FOUND_REFRESH_HOURS=24
+BROKER_METADATA_ERROR_REFRESH_HOURS=1
+BROKER_METADATA_TIMEOUT_MS=8000
+```
+
+It caches sanitized artwork/name/trait fields for exact chain-qualified NFTs.
+It cannot update ownership, scoring, policy, execution eligibility, proposals,
+or acquisitions.
 
 ## Fork simulation only
 

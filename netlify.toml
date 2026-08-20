@@ -5,6 +5,11 @@
 [build.environment]
   NODE_VERSION = "24"
 
+[context.production.environment]
+  # Read-only display enrichment is deliberately enabled only in production.
+  # The scheduled worker still skips unless OPENSEA_API_KEY is configured.
+  BROKER_METADATA_ENABLED = "true"
+
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
@@ -18,7 +23,7 @@
   for = "/*"
 
   [headers.values]
-    Content-Security-Policy = "default-src 'self'; base-uri 'none'; connect-src 'self'; font-src 'self'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data:; object-src 'none'; script-src 'self'; style-src 'self'; upgrade-insecure-requests"
+    Content-Security-Policy = "default-src 'self'; base-uri 'none'; connect-src 'self'; font-src 'self'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data: https://i.seadn.io; object-src 'none'; script-src 'self'; style-src 'self'; upgrade-insecure-requests"
     Cross-Origin-Opener-Policy = "same-origin-allow-popups"
     Cross-Origin-Resource-Policy = "same-origin"
     Permissions-Policy = "camera=(), geolocation=(), microphone=(), payment=(), usb=()"

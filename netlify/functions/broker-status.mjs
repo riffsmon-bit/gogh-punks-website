@@ -14,7 +14,7 @@ function configuredScoutToken() {
 async function scoutSnapshot(tokenId) {
   if (!tokenId) return { dataStatus: "NOT_CONFIGURED", tokenId: null };
   try {
-    const [punk, opportunities, recommendations, checkpoint] = await Promise.all([
+    const [punk, opportunities, recommendations, checkpoint, metadata] = await Promise.all([
       getDatabase().pool.query(
         `SELECT token_id, account_address, owner_snapshot, owner_snapshot_block,
                 persona_key, updated_at
@@ -41,6 +41,12 @@ async function scoutSnapshot(tokenId) {
           ORDER BY updated_at DESC`,
         [ROBINHOOD.chainId],
       ),
+      getDatabase().pool.query(
+        `SELECT COUNT(*)::integer AS count
+           FROM broker_nft_metadata
+          WHERE chain_id = $1 AND metadata_status = 'AVAILABLE'`,
+        [ROBINHOOD.chainId],
+      ),
     ]);
     const opportunityCount = Number(opportunities.rows[0]?.count ?? 0);
     return {
@@ -49,6 +55,7 @@ async function scoutSnapshot(tokenId) {
       punk: punk.rows[0] ?? null,
       opportunityCount,
       recommendationCount: Number(recommendations.rows[0]?.count ?? 0),
+      metadataCount: Number(metadata.rows[0]?.count ?? 0),
       checkpoints: checkpoint.rows,
     };
   } catch {
@@ -84,10 +91,12 @@ export default async function handler(request) {
         workerEnabled: process.env.BROKER_SCOUT_ENABLED === "true",
         indexerEnabled: process.env.BROKER_INDEXER_ENABLED === "true",
         analyzerEnabled: process.env.BROKER_ANALYZER_ENABLED === "true",
+        metadataWorkerEnabled: process.env.BROKER_METADATA_ENABLED === "true",
+        metadataProviderConfigured: Boolean(process.env.OPENSEA_API_KEY?.trim()),
         settlementSource: "VERIFIED_SEAPORT_READ_ONLY",
         contractAnalysis: "STAGED_CONFIRMED_BLOCK_EVIDENCE",
         marketAnalysis: "CONFIRMED_HISTORICAL_ACTIVITY_ONLY",
-        metadataAnalysis: "ONCHAIN_JSON_ONLY",
+        metadataAnalysis: "ONCHAIN_EVIDENCE_PLUS_SANITIZED_OPENSEA_DISPLAY",
         holderMetrics: "BOUNDED_SAMPLE_NOT_TOTAL_COUNT",
         liveLiquidityAvailable: false,
         executionEnabled: false,
