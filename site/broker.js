@@ -1,14 +1,17 @@
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
-const OPENSEA_IMAGE_HOST = "i.seadn.io";
+const OPENSEA_IMAGE_HOSTS = new Set(["i.seadn.io", "raw2.seadn.io"]);
 const OPENSEA_ASSET_PREFIX = "/assets/robinhood/";
 
-function trustedProviderUrl(value, { hostname, pathnamePrefix = "/" }) {
+function trustedProviderUrl(value, { hostname, hostnames, pathnamePrefix = "/" }) {
   if (typeof value !== "string") return null;
   try {
     const url = new URL(value);
+    const allowedHostname = hostnames instanceof Set
+      ? hostnames.has(url.hostname)
+      : url.hostname === hostname;
     if (
       url.protocol !== "https:"
-      || url.hostname !== hostname
+      || !allowedHostname
       || url.username
       || url.password
       || url.hash
@@ -27,7 +30,7 @@ function displayMetadata(record) {
 
 function renderCardArtwork(card, record, token) {
   const metadata = displayMetadata(record);
-  const imageUrl = trustedProviderUrl(metadata.imageUrl, { hostname: OPENSEA_IMAGE_HOST });
+  const imageUrl = trustedProviderUrl(metadata.imageUrl, { hostnames: OPENSEA_IMAGE_HOSTS });
   const openSeaUrl = trustedProviderUrl(metadata.openSeaUrl, {
     hostname: "opensea.io",
     pathnamePrefix: OPENSEA_ASSET_PREFIX,
@@ -73,7 +76,7 @@ function renderCardArtwork(card, record, token) {
 function renderPunkArtwork(artwork, tokenId) {
   const image = document.querySelector("[data-punk-portrait]");
   if (!image) return;
-  const imageUrl = trustedProviderUrl(artwork?.imageUrl, { hostname: OPENSEA_IMAGE_HOST });
+  const imageUrl = trustedProviderUrl(artwork?.imageUrl, { hostnames: OPENSEA_IMAGE_HOSTS });
   if (imageUrl) {
     image.src = imageUrl;
     image.alt = artwork?.name

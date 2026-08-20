@@ -1,5 +1,6 @@
 const METADATA_STATUSES = new Set(["AVAILABLE", "NOT_FOUND", "ERROR"]);
 const TOKEN_STANDARDS = new Set(["ERC721", "ERC1155", "UNKNOWN"]);
+const OPENSEA_IMAGE_HOSTS = new Set(["i.seadn.io", "raw2.seadn.io"]);
 const MAX_TRAITS = 64;
 
 function nullableText(value, maximum) {
@@ -8,13 +9,16 @@ function nullableText(value, maximum) {
   return clean ? clean.slice(0, maximum) : null;
 }
 
-function allowlistedUrl(value, { hostname, pathnamePrefix = "/" }) {
+function allowlistedUrl(value, { hostname, hostnames, pathnamePrefix = "/" }) {
   if (typeof value !== "string") return null;
   try {
     const url = new URL(value);
+    const allowedHostname = hostnames instanceof Set
+      ? hostnames.has(url.hostname)
+      : url.hostname === hostname;
     if (
       url.protocol !== "https:"
-      || url.hostname !== hostname
+      || !allowedHostname
       || url.port
       || url.username
       || url.password
@@ -44,7 +48,9 @@ export function nftDisplayMetadata(row = {}) {
       : null,
     name: nullableText(row.nft_metadata_name, 200),
     description: nullableText(row.nft_metadata_description, 2_000),
-    imageUrl: allowlistedUrl(row.nft_metadata_image_url, { hostname: "i.seadn.io" }),
+    imageUrl: allowlistedUrl(row.nft_metadata_image_url, {
+      hostnames: OPENSEA_IMAGE_HOSTS,
+    }),
     collectionSlug: nullableText(row.nft_metadata_collection_slug, 160),
     tokenStandard: TOKEN_STANDARDS.has(row.nft_metadata_token_standard)
       ? row.nft_metadata_token_standard

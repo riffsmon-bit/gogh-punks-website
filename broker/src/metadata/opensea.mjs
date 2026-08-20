@@ -6,6 +6,7 @@ export const OPENSEA_SOURCE = "OPENSEA_V2";
 export const MAX_OPENSEA_RESPONSE_BYTES = 1_000_000;
 
 const MAX_TRAITS = 64;
+const OPENSEA_IMAGE_HOSTS = new Set(["i.seadn.io", "raw2.seadn.io"]);
 
 function boundedText(value, maximum) {
   if (typeof value !== "string") return null;
@@ -33,7 +34,7 @@ function displayImage(value) {
     const url = new URL(text);
     if (
       url.protocol !== "https:"
-      || url.hostname !== "i.seadn.io"
+      || !OPENSEA_IMAGE_HOSTS.has(url.hostname)
       || url.port
       || url.username
       || url.password
@@ -56,11 +57,6 @@ function sanitizedTraits(value) {
     if (!traitType || !traitValue) return [];
     return [Object.freeze({ traitType, value: traitValue })];
   }));
-}
-
-function tokenStandard(value) {
-  const normalized = String(value ?? "").toUpperCase().replace("ERC-", "ERC");
-  return new Set(["ERC721", "ERC1155"]).has(normalized) ? normalized : "UNKNOWN";
 }
 
 function baseRecord(collection, identifier, status) {
@@ -132,30 +128,53 @@ export function failedOpenSeaNft(collection, identifier) {
 export function sanitizeOpenSeaNft(payload, { collection, identifier, payloadHash }) {
   const expectedCollection = normalizeAddress(collection, "OpenSea collection");
   const expectedTokenId = canonicalTokenId(identifier);
-  const nft = payload?.nft;
-  if (!nft || typeof nft !== "object" || Array.isArray(nft)) {
-    throw new TypeError("OpenSea response is missing nft metadata");
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new TypeError("OpenSea metadata response must be an object");
   }
-  // Provider metadata is untrusted. Both identity fields are mandatory and must
-  // exactly match the chain-qualified cache key before any display data is used.
-  if (typeof nft.contract !== "string"
-    || normalizeAddress(nft.contract, "OpenSea response contract") !== expectedCollection) {
+
+  // The current AssetMetadataResponse does not echo an NFT identity. Identity is
+  // therefore bound to the fixed request path (with redirects prohibited). If a
+  // provider revision does echo either identity, it must match before use.
+  const echoedCollection = payload.contract_address ?? payload.contract;
+  if (echoedCollection !== undefined && (
+    typeof echoedCollection !== "string"
+    || normalizeAddress(echoedCollection, "OpenSea response contract") !== expectedCollection
+  )) {
     throw new TypeError("OpenSea response contract does not match the request");
   }
-  if (nft.identifier === undefined || canonicalTokenId(nft.identifier) !== expectedTokenId) {
+  const echoedTokenId = payload.token_id ?? payload.identifier;
+  if (echoedTokenId !== undefined && canonicalTokenId(echoedTokenId) !== expectedTokenId) {
     throw new TypeError("OpenSea response token ID does not match the request");
   }
+
+  // AssetMetadataResponse requires traits. Optional fields are accepted only at
+  // their documented types; a legacy nested `nft` response fails this check.
+  if (!Array.isArray(payload.traits)) {
+    throw new TypeError("OpenSea metadata response traits must be an array");
+  }
+  for (const field of ["name", "description", "image", "animation_url", "external_link"]) {
+    if (
+      payload[field] !== undefined
+      && payload[field] !== null
+      && typeof payload[field] !== "string"
+    ) {
+      throw new TypeError(`OpenSea metadata response ${field} must be null or a string`);
+    }
+  }
+  if (payload.decimals !== undefined && payload.decimals !== null && (
+    !Number.isInteger(payload.decimals)
+    || payload.decimals < -2_147_483_648
+    || payload.decimals > 2_147_483_647
+  )) {
+    throw new TypeError("OpenSea metadata response decimals must be null or a 32-bit integer");
+  }
+
   return Object.freeze({
     ...baseRecord(expectedCollection, expectedTokenId, "AVAILABLE"),
-    name: boundedText(nft.name, 200),
-    description: boundedText(nft.description, 2_000),
-    displayImageUrl: displayImage(nft.display_image_url ?? nft.image_url),
-    collectionSlug: boundedText(
-      typeof nft.collection === "string" ? nft.collection : nft.collection?.slug,
-      160,
-    ),
-    tokenStandard: tokenStandard(nft.token_standard ?? nft.contract_standard),
-    traits: sanitizedTraits(nft.traits),
+    name: boundedText(payload.name, 200),
+    description: boundedText(payload.description, 2_000),
+    displayImageUrl: displayImage(payload.image),
+    traits: sanitizedTraits(payload.traits),
     payloadHash,
   });
 }
@@ -180,7 +199,7 @@ export class OpenSeaMetadataSource {
     const canonicalCollection = normalizeAddress(collection, "OpenSea collection");
     const canonicalId = canonicalTokenId(identifier);
     const endpoint = new URL(
-      `https://api.opensea.io/api/v2/chain/${OPENSEA_CHAIN}/contract/${canonicalCollection}/nfts/${canonicalId}`,
+      `https://api.opensea.io/api/v2/metadata/${OPENSEA_CHAIN}/${canonicalCollection}/${canonicalId}`,
     );
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);

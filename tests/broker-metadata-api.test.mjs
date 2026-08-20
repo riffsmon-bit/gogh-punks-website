@@ -24,9 +24,15 @@ test("display metadata exposes only allowlisted provider URLs", () => {
   assert.match(metadata.openSeaUrl, /^https:\/\/opensea\.io\/assets\/robinhood\//);
   assert.deepEqual(metadata.traits, [{ traitType: "Background", value: "Blue" }]);
 
+  const rawMetadata = nftDisplayMetadata({
+    nft_metadata_status: "AVAILABLE",
+    nft_metadata_image_url: "https://raw2.seadn.io/robinhood/example.svg",
+  });
+  assert.equal(rawMetadata.imageUrl, "https://raw2.seadn.io/robinhood/example.svg");
+
   const rejected = nftDisplayMetadata({
     nft_metadata_status: "UNTRUSTED",
-    nft_metadata_image_url: "https://i.seadn.io.evil.example/tracker.png",
+    nft_metadata_image_url: "https://raw2.seadn.io.evil.example/tracker.png",
     nft_metadata_token_standard: "ERC20",
     nft_metadata_traits: {},
     nft_metadata_opensea_url: "https://opensea.io.evil.example/assets/robinhood/fake",
@@ -42,6 +48,17 @@ test("display metadata exposes only allowlisted provider URLs", () => {
     openSeaUrl: null,
     fetchedAt: null,
   });
+
+  for (const imageUrl of [
+    "http://raw2.seadn.io/a.png",
+    "https://raw2.seadn.io.evil.example/a.png",
+    "https://evil.raw2.seadn.io/a.png",
+    "https://raw2.seadn.io:444/a.png",
+    "https://user:pass@raw2.seadn.io/a.png",
+    "https://raw2.seadn.io/a.png#fragment",
+  ]) {
+    assert.equal(nftDisplayMetadata({ nft_metadata_image_url: imageUrl }).imageUrl, null);
+  }
 });
 
 test("API records receive nullable display metadata without replacing source fields", () => {

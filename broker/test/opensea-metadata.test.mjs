@@ -18,21 +18,17 @@ const COLLECTION = "0x1111111111111111111111111111111111111111";
 
 function payload(overrides = {}) {
   return {
-    nft: {
-      contract: COLLECTION,
-      identifier: "42",
-      name: " Gogh\u0000 Punk   Acquisition ",
-      description: "A\n  carefully curated NFT",
-      display_image_url: "https://i.seadn.io/s/raw/files/example.png",
-      collection: "example-collection",
-      token_standard: "erc-721",
-      traits: [
-        { trait_type: "Style", value: "Pixel\u0007 Art" },
-        { trait_type: "Count", value: 7 },
-        { trait_type: "Nested", value: { unsafe: true } },
-      ],
-      ...overrides,
-    },
+    name: " Gogh\u0000 Punk   Acquisition ",
+    description: "A\n  carefully curated NFT",
+    image: "https://i.seadn.io/s/raw/files/example.png",
+    animation_url: "https://example.invalid/animation.mp4",
+    external_link: "https://example.invalid/artwork",
+    traits: [
+      { trait_type: "Style", value: "Pixel\u0007 Art" },
+      { trait_type: "Count", value: 7 },
+      { trait_type: "Nested", value: { unsafe: true } },
+    ],
+    ...overrides,
   };
 }
 
@@ -48,7 +44,8 @@ test("OpenSea metadata is identity-bound, display-sanitized, and attributed", ()
   assert.equal(record.name, "Gogh Punk Acquisition");
   assert.equal(record.description, "A carefully curated NFT");
   assert.equal(record.displayImageUrl, "https://i.seadn.io/s/raw/files/example.png");
-  assert.equal(record.tokenStandard, "ERC721");
+  assert.equal(record.tokenStandard, "UNKNOWN");
+  assert.equal(record.collectionSlug, null);
   assert.deepEqual(record.traits, [
     { traitType: "Style", value: "Pixel Art" },
     { traitType: "Count", value: "7" },
@@ -59,22 +56,21 @@ test("OpenSea metadata is identity-bound, display-sanitized, and attributed", ()
   assert.equal(Object.hasOwn(record, "price"), false);
 });
 
-test("OpenSea metadata rejects missing or mismatched provider identity", () => {
+test("OpenSea metadata binds official metadata responses to the requested NFT identity", () => {
+  const official = sanitizeOpenSeaNft(payload(), {
+    collection: COLLECTION,
+    identifier: "42",
+    payloadHash: null,
+  });
+  assert.equal(official.collection, COLLECTION);
+  assert.equal(official.tokenId, "42");
   assert.throws(
-    () => sanitizeOpenSeaNft(payload({ contract: undefined }), {
+    () => sanitizeOpenSeaNft(payload({ contract: "0x2222222222222222222222222222222222222222" }), {
       collection: COLLECTION,
       identifier: "42",
       payloadHash: null,
     }),
     /contract does not match/,
-  );
-  assert.throws(
-    () => sanitizeOpenSeaNft(payload({ identifier: undefined }), {
-      collection: COLLECTION,
-      identifier: "42",
-      payloadHash: null,
-    }),
-    /token ID does not match/,
   );
   assert.throws(
     () => sanitizeOpenSeaNft(payload({ identifier: "43" }), {
@@ -86,16 +82,81 @@ test("OpenSea metadata rejects missing or mismatched provider identity", () => {
   );
 });
 
-test("OpenSea metadata allows only the HTTPS i.seadn.io image origin", () => {
+test("OpenSea metadata handles only the current AssetMetadataResponse schema", () => {
+  const nullable = sanitizeOpenSeaNft(payload({
+    animation_url: null,
+    external_link: null,
+    decimals: null,
+  }), {
+    collection: COLLECTION,
+    identifier: "42",
+    payloadHash: null,
+  });
+  assert.equal(nullable.status, "AVAILABLE");
+
+  assert.throws(
+    () => sanitizeOpenSeaNft({ nft: { traits: [] } }, {
+      collection: COLLECTION,
+      identifier: "42",
+      payloadHash: null,
+    }),
+    /traits must be an array/,
+  );
+  assert.throws(
+    () => sanitizeOpenSeaNft(payload({ traits: undefined }), {
+      collection: COLLECTION,
+      identifier: "42",
+      payloadHash: null,
+    }),
+    /traits must be an array/,
+  );
+  assert.throws(
+    () => sanitizeOpenSeaNft(payload({ image: 42 }), {
+      collection: COLLECTION,
+      identifier: "42",
+      payloadHash: null,
+    }),
+    /image must be null or a string/,
+  );
+  assert.throws(
+    () => sanitizeOpenSeaNft(payload({ decimals: 1.5 }), {
+      collection: COLLECTION,
+      identifier: "42",
+      payloadHash: null,
+    }),
+    /decimals must be null or a 32-bit integer/,
+  );
+});
+
+test("OpenSea metadata allows only exact HTTPS SeaDN display-image origins", () => {
+  for (const image of [
+    "https://i.seadn.io/s/raw/files/example.png",
+    "https://raw2.seadn.io/robinhood/collection/token.svg",
+  ]) {
+    const record = sanitizeOpenSeaNft(payload({ image }), {
+      collection: COLLECTION,
+      identifier: "42",
+      payloadHash: null,
+    });
+    assert.equal(record.displayImageUrl, image);
+  }
   for (const image of [
     "http://i.seadn.io/a.png",
     "https://evil.example/a.png",
+    "https://i.seadn.io.evil.example/a.png",
+    "https://evil.i.seadn.io/a.png",
     "https://i.seadn.io:444/a.png",
     "https://user:pass@i.seadn.io/a.png",
     "https://i.seadn.io/a.png#fragment",
+    "http://raw2.seadn.io/a.png",
+    "https://raw2.seadn.io.evil.example/a.png",
+    "https://evil.raw2.seadn.io/a.png",
+    "https://raw2.seadn.io:444/a.png",
+    "https://user:pass@raw2.seadn.io/a.png",
+    "https://raw2.seadn.io/a.png#fragment",
     "javascript:alert(1)",
   ]) {
-    const record = sanitizeOpenSeaNft(payload({ display_image_url: image }), {
+    const record = sanitizeOpenSeaNft(payload({ image }), {
       collection: COLLECTION,
       identifier: "42",
       payloadHash: null,
@@ -122,7 +183,7 @@ test("OpenSea source pins Robinhood, sends the key only in a header, and disable
   assert.equal(requests.length, 1);
   assert.equal(
     requests[0].url,
-    `https://api.opensea.io/api/v2/chain/robinhood/contract/${COLLECTION}/nfts/42`,
+    `https://api.opensea.io/api/v2/metadata/robinhood/${COLLECTION}/42`,
   );
   assert.equal(requests[0].url.includes(apiKey), false);
   assert.equal(requests[0].options.headers["x-api-key"], apiKey);
@@ -252,7 +313,7 @@ test("metadata worker bounds failures and never makes provider metadata authorit
         code: "OPENSEA_HTTP_429",
       });
       return {
-        ...sanitizeOpenSeaNft(payload({ identifier: "43" }), {
+        ...sanitizeOpenSeaNft(payload(), {
           collection: COLLECTION,
           identifier: "43",
           payloadHash: null,
@@ -325,4 +386,39 @@ test("metadata migration and scheduler remain cache-only and fail closed", async
   assert.match(scheduler, /schedule: "3-59\/10 \* \* \* \*"/);
   assert.match(environmentExample, /BROKER_METADATA_ENABLED=false/);
   assert.doesNotMatch(environmentExample, /OPENSEA_API_KEY=\S+/);
+});
+
+test("retired OpenSea 401 cache rows receive one narrow migration retry", async () => {
+  const migration = await readFile(
+    new URL(
+      "../../netlify/database/migrations/20260820204600_retry_retired_opensea_401_metadata.sql",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  assert.match(migration, /UPDATE broker_nft_metadata/);
+  assert.match(migration, /SET refresh_after = NOW\(\)/);
+  assert.match(migration, /source = 'OPENSEA_V2'/);
+  assert.match(migration, /metadata_status = 'ERROR'/);
+  assert.match(migration, /last_error_code = 'OPENSEA_HTTP_401'/);
+  assert.doesNotMatch(migration, /\bDELETE\b|attempt_count\s*=/i);
+  const setClause = migration.match(/\bSET\b([\s\S]*?)\bWHERE\b/i)?.[1] ?? "";
+  assert.match(setClause, /^\s*refresh_after\s*=\s*NOW\(\)\s*$/i);
+});
+
+test("metadata cache migration permits only the two exact SeaDN HTTPS hosts", async () => {
+  const migration = await readFile(
+    new URL(
+      "../../netlify/database/migrations/20260820204700_allow_opensea_raw2_display_images.sql",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  assert.match(migration, /DROP CONSTRAINT IF EXISTS broker_nft_metadata_display_image_url_check/);
+  assert.match(migration, /ADD CONSTRAINT broker_nft_metadata_display_image_url_check/);
+  assert.match(migration, /LIKE 'https:\/\/i\.seadn\.io\/%'/);
+  assert.match(migration, /LIKE 'https:\/\/raw2\.seadn\.io\/%'/);
+  assert.match(migration, /display_image_url NOT LIKE '%#%'/);
+  assert.match(migration, /display_image_url !~ '\[\[:cntrl:\]\]'/);
+  assert.doesNotMatch(migration, /\bDELETE\b|attempt_count\s*=/i);
 });
