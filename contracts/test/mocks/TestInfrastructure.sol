@@ -143,6 +143,7 @@ contract MockCanonicalGoghPunks {
 contract MockERC721 {
     mapping(uint256 tokenId => address owner) private _owners;
     mapping(uint256 tokenId => address approved) private _approvals;
+    mapping(address owner => mapping(address operator => bool approved)) public isApprovedForAll;
 
     function mint(address recipient, uint256 tokenId) external {
         require(recipient != address(0) && _owners[tokenId] == address(0), "invalid mint");
@@ -159,8 +160,20 @@ contract MockERC721 {
         _approvals[tokenId] = approved;
     }
 
+    function getApproved(uint256 tokenId) external view returns (address) {
+        return _approvals[tokenId];
+    }
+
+    function setApprovalForAll(address operator, bool approved) external {
+        isApprovedForAll[msg.sender][operator] = approved;
+    }
+
     function transferFrom(address from, address to, uint256 tokenId) public {
-        require(msg.sender == from || msg.sender == _approvals[tokenId], "not approved");
+        require(
+            msg.sender == from || msg.sender == _approvals[tokenId]
+                || isApprovedForAll[from][msg.sender],
+            "not approved"
+        );
         require(_owners[tokenId] == from && to != address(0), "invalid transfer");
         _owners[tokenId] = to;
         delete _approvals[tokenId];

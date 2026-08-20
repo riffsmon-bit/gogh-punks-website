@@ -84,6 +84,53 @@ function candidate(overrides = {}) {
   };
 }
 
+function addressTopic(address) {
+  return `0x${"0".repeat(24)}${address.slice(2)}`;
+}
+
+function uint256Word(value) {
+  return BigInt(value).toString(16).padStart(64, "0");
+}
+
+function transferMintLog({
+  standard = "ERC721",
+  from = zeroAddress,
+  to = BUYER,
+  tokenId = 42n,
+  amount = 1n,
+  data,
+  topics,
+  transactionHash = `0x${"aa".repeat(32)}`,
+  logIndex = "0x2",
+} = {}) {
+  const resolvedTopics = topics ?? (standard === "ERC721"
+    ? [
+      TRANSFER_TOPIC,
+      addressTopic(from),
+      addressTopic(to),
+      `0x${uint256Word(tokenId)}`,
+    ]
+    : [
+      TRANSFER_SINGLE_TOPIC,
+      addressTopic(SELLER),
+      addressTopic(from),
+      addressTopic(to),
+    ]);
+  const resolvedData = data ?? (standard === "ERC721"
+    ? "0x"
+    : `0x${uint256Word(tokenId)}${uint256Word(amount)}`);
+  return {
+    address: COLLECTION,
+    transactionHash,
+    blockNumber: "0x50",
+    blockHash: `0x${"ef".repeat(32)}`,
+    blockTimestamp: "1786968000",
+    logIndex,
+    topics: resolvedTopics,
+    data: resolvedData,
+  };
+}
+
 test("discovery isolates source failures and defaults execution eligibility off", async () => {
   const engine = new DiscoveryEngine({
     clock: () => new Date("2026-08-15T12:00:00.000Z"),
@@ -287,6 +334,97 @@ test("Seaport indexed logs project to historical Scout evidence, never an execut
     }),
     null,
   );
+});
+
+test("indexed ERC-721 and ERC-1155 mint transfers become non-actionable Scout research", () => {
+  const observedAt = new Date("2026-08-17T12:01:00.000Z");
+  const erc721 = projectScoutLog({
+    chainId: 4663,
+    stream: "nft_transfers",
+    record: transferMintLog(),
+    observedAt,
+  });
+  assert.equal(erc721.collection.address, COLLECTION);
+  assert.equal(erc721.collection.standard, "ERC721");
+  assert.equal(erc721.collection.evidence.mintTransferObserved, true);
+  assert.equal(erc721.opportunity.source, "ROBINHOOD_NFT_TRANSFER_MINT");
+  assert.equal(erc721.opportunity.opportunityType, "MINT");
+  assert.equal(erc721.opportunity.tokenId, "42");
+  assert.equal(erc721.opportunity.expectedPrice, "0");
+  assert.equal(erc721.opportunity.maximumPrice, "0");
+  assert.equal(erc721.opportunity.metadata.priceObserved, false);
+  assert.equal(erc721.opportunity.metadata.mintPriceStatus, "UNKNOWN");
+  assert.equal(erc721.opportunity.metadata.actionableMint, false);
+  assert.equal(erc721.opportunity.metadata.assetAmount, "1");
+  assert.equal(erc721.opportunity.metadata.to, BUYER);
+  assert.equal(erc721.opportunity.metadata.analysisStatus.contract, "PENDING");
+  assert.equal(erc721.opportunity.riskLabel, "UNKNOWN");
+  assert.equal(erc721.opportunity.recommendation, "RESEARCH");
+  assert.equal(erc721.opportunity.scoutable, true);
+  assert.equal(erc721.opportunity.autonomousExecutionEligible, false);
+  assert.equal(erc721.opportunity.canonical, true);
+  assert.equal(erc721.opportunity.sourceBlockNumber, "80");
+  assert.equal(erc721.opportunity.sourceBlockTimestamp, "2026-08-17T12:00:00.000Z");
+  assert.equal(erc721.opportunity.metadata.indexedAt, observedAt.toISOString());
+  assert.equal(erc721.opportunity.sourceLogIndex, 2);
+
+  const erc1155 = projectScoutLog({
+    chainId: 4663,
+    stream: "nft_transfers",
+    record: transferMintLog({ standard: "ERC1155", tokenId: 7n, amount: 5n, logIndex: "0x3" }),
+    observedAt,
+  });
+  assert.equal(erc1155.collection.standard, "ERC1155");
+  assert.equal(erc1155.opportunity.opportunityType, "EDITION");
+  assert.equal(erc1155.opportunity.tokenId, "7");
+  assert.equal(erc1155.opportunity.metadata.assetAmount, "5");
+  assert.equal(erc1155.opportunity.metadata.operator, SELLER);
+  assert.equal(erc1155.opportunity.sourceLogIndex, 3);
+});
+
+test("indexed mint projection rejects transfers, burns, malformed logs, and zero editions", () => {
+  const project = (record, overrides = {}) => projectScoutLog({
+    chainId: 4663,
+    stream: "nft_transfers",
+    record,
+    ...overrides,
+  });
+
+  assert.equal(project(transferMintLog({ from: SELLER })), null);
+  assert.equal(project(transferMintLog({ to: zeroAddress })), null);
+  assert.equal(project(transferMintLog({ standard: "ERC1155", amount: 0n })), null);
+  assert.equal(project(transferMintLog({
+    standard: "ERC1155",
+    topics: [
+      TRANSFER_SINGLE_TOPIC,
+      addressTopic(zeroAddress),
+      addressTopic(zeroAddress),
+      addressTopic(BUYER),
+    ],
+  })), null);
+  assert.equal(project(transferMintLog({ data: `0x${uint256Word(1)}` })), null);
+  assert.equal(project(transferMintLog({ transactionHash: "0x01" })), null);
+  assert.equal(project(transferMintLog({ logIndex: "-1" })), null);
+  assert.equal(project(transferMintLog({
+    topics: [TRANSFER_TOPIC, addressTopic(zeroAddress), addressTopic(BUYER)],
+  })), null);
+  assert.equal(project(transferMintLog({
+    topics: [
+      TRANSFER_TOPIC,
+      `0x${"1".repeat(24)}${zeroAddress.slice(2)}`,
+      addressTopic(BUYER),
+      `0x${uint256Word(42)}`,
+    ],
+  })), null);
+  assert.equal(
+    projectScoutLog({
+      chainId: 4663,
+      stream: "gogh_punk_transfers",
+      record: transferMintLog(),
+    }),
+    null,
+  );
+  assert.equal(project(transferMintLog(), { chainId: 1 }), null);
 });
 
 test("Seaport Scout source rejects the wrong chain and excessive ranges", async () => {
@@ -614,7 +752,7 @@ test("database chain lock keeps all indexer work on the locked connection", asyn
   assert.ok(calls.some((sql) => sql.includes("pg_advisory_unlock")));
 });
 
-test("database atomically materializes Seaport Scout projections and hides reorged rows", async () => {
+test("database atomically materializes read-only Scout projections and hides reorged rows", async () => {
   const calls = [];
   const client = {
     async query(sql, values = []) {
@@ -656,6 +794,34 @@ test("database atomically materializes Seaport Scout projections and hides reorg
   const metadata = JSON.parse(opportunityInsert.values[12]);
   assert.equal(metadata.actionableListing, false);
   assert.equal(metadata.historicalSalePrice, parseEther("0.0003").toString());
+
+  calls.length = 0;
+  const mintRecord = {
+    ...transferMintLog({ standard: "ERC1155", tokenId: 7n, amount: 5n }),
+    id: `nft_transfers:4663:0x${"aa".repeat(32)}:2`,
+    blockNumber: "80",
+  };
+  const mintInserted = await repository.insertLogs(4663, "nft_transfers", [mintRecord]);
+  assert.equal(mintInserted, 1);
+  const mintCollectionInsert = calls.find(({ sql }) =>
+    sql.includes("INSERT INTO broker_collections"));
+  assert.ok(mintCollectionInsert);
+  assert.equal(JSON.parse(mintCollectionInsert.values[3]).mintTransferObserved, true);
+  const mintOpportunityInsert = calls.find(({ sql }) =>
+    sql.includes("INSERT INTO broker_opportunities"));
+  assert.ok(mintOpportunityInsert);
+  assert.equal(mintOpportunityInsert.values[4], "ROBINHOOD_NFT_TRANSFER_MINT");
+  assert.equal(mintOpportunityInsert.values[5], "EDITION");
+  assert.equal(mintOpportunityInsert.values[9], "0");
+  assert.equal(mintOpportunityInsert.values[10], "0");
+  assert.equal(mintOpportunityInsert.values[16], true);
+  assert.equal(mintOpportunityInsert.values[17], false);
+  assert.equal(mintOpportunityInsert.values[23], true);
+  const mintMetadata = JSON.parse(mintOpportunityInsert.values[12]);
+  assert.equal(mintMetadata.mintSignal, true);
+  assert.equal(mintMetadata.priceObserved, false);
+  assert.equal(mintMetadata.actionableMint, false);
+  assert.equal(mintMetadata.assetAmount, "5");
 
   calls.length = 0;
   await repository.insertLogs(4663, "seaport_activity", [], {

@@ -16,6 +16,9 @@ Risk preferences select how aggressively Scout ranks uncertain opportunities. Co
 
 ### Economic settings
 
+- inspect mint activity;
+- permit or decline free mints;
+- permit or decline paid mints;
 - maximum transaction;
 - daily and weekly spend by currency;
 - maximum mint price;
@@ -25,6 +28,18 @@ Risk preferences select how aggressively Scout ranks uncertain opportunities. Co
 - maximum slippage;
 - maximum intent age;
 - venue/currency-specific maximums.
+
+These settings are versioned per chain-qualified Punk identity, not globally per
+wallet or collection. Two Punks owned by the same wallet may have completely
+different mint ceilings, budgets, reserves, styles, and risk tolerance.
+
+Scout uses the fail-closed `ArtMandate` model in `broker/src/mandate.mjs`. If no
+current-owner mandate exists, the Punk may inspect public mint signals but does
+not express a desire to spend. A mint-interest result is advisory and can be
+`IGNORE`, `WATCH`, `RESEARCH`, `OWNER_APPROVAL_REQUIRED`, or
+`AUTONOMOUS_POLICY_ELIGIBLE`. The last label is never sufficient to move funds:
+the live owner, registered adapter, agent authorization, feature flags, budget,
+reserve, and every on-chain permission must independently pass.
 
 ### Permissions
 
@@ -45,6 +60,15 @@ Every permission change increments the on-chain policy version and invalidates p
 - `AUTONOMOUS`: a current, globally approved, owner-authorized agent can execute only typed intents that pass policy.
 
 Fresh accounts are effectively disabled until their owner configures a policy. The product default is Scout; production purchase flags remain off.
+
+## How a Punk decides about a mint
+
+The Punk first inspects confirmed evidence, then compares the opportunity with
+its own Taste Profile and mandate. It considers price status, free-versus-paid
+permission, maximum mint price, Taste Match threshold, contract-risk ceiling,
+allowlists and blocklists. An observed mint transfer with an unknown live phase,
+unknown price, or unknown contract risk remains `RESEARCH`, even when the Punk
+likes the artwork. Personality can change ranking but never relax security.
 
 ## Persona examples
 

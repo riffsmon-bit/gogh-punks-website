@@ -13,12 +13,26 @@
 7. Chain, expected owner, time window, asset type, and slippage fields must be valid.
 8. Adapter must be globally active, code-hash-pinned, and owner-approved.
 9. Marketplace or mint venue must be owner-approved.
-10. Collection denylist is checked before allowlist logic.
+10. Every typed mint requires an explicit collection allowlist entry; its denylist is checked first.
 11. Currency and venue/currency maximum must be configured.
 12. Denied selector wins over an allowed selector.
 13. Execution returned by the adapter must match venue, currency, value, and exact allowance.
 14. Transaction, mint/secondary, daily, weekly, frequency, slippage, and reserve limits must pass.
 15. Usage is consumed before the external call; a downstream revert rolls it back atomically.
+
+## Per-Punk mint controls
+
+Each account has generation-bound switches for owner-approved mints,
+autonomous free mints, and autonomous paid mints. They all default to false and
+are invalidated when ownership/permission generation changes. The global mint
+flags are an additional protocol gate, never a replacement for the Punk owner's
+settings.
+
+`FREE_MINT` must have zero expected price, zero maximum price, and zero actual
+adapter payment. Autonomous free-versus-paid policy is selected from the
+adapter's actual payment—not an AI label. Every autonomous V1 mint is limited to
+one asset unit. Paid mints remain bound by the per-Punk mint ceiling and the
+shared transaction, daily, weekly, reserve, and acquisition-count limits.
 
 ## Currency accounting
 

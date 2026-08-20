@@ -17,6 +17,15 @@ Every record carries a chain-qualified collection/token identity, source, opport
 
 New or unknown collections are `scoutable: true` and `autonomousExecutionEligible: false`.
 
+Confirmed zero-address ERC-721 `Transfer` and ERC-1155 `TransferSingle` events
+are projected as `MINT` and `EDITION` research signals. Their observed recipient,
+token ID, quantity, block, transaction, and log index are retained. They are
+always stored with `mintPriceStatus: UNKNOWN`, `actionableMint: false`, zero
+executable price, `riskLabel: UNKNOWN`, and autonomous execution disabled. Zero
+in the executable price columns means “no price observed,” never “free mint.”
+Ordinary transfers, burns, malformed events, zero-quantity editions, and
+`TransferBatch` are not projected as V1 mint opportunities.
+
 Completed Seaport sales are normalized only as historical collection-research
 signals. They carry `historicalSaleSignal: true` and `actionableListing: false`;
 the Scout must never present a completed sale as an executable listing. Bundles,
@@ -116,7 +125,7 @@ The staged RPC contract inspector verifies chain ID, hashes runtime bytecode, di
 - idempotent raw logs, Scout projections, and the monotonic checkpoint committed
   in one database transaction, so a crash cannot advance provenance past
   materialized evidence;
-- atomic raw-log plus read-only Scout projection for verified Seaport settlements;
+- atomic raw-log plus read-only Scout projection for verified Seaport settlements and confirmed individual mint-transfer signals;
 - explicit source block/hash/transaction/log provenance on projected opportunities;
 - canonical source-block timestamps kept separate from worker insertion time;
 - canonical-state filtering that immediately hides projections invalidated by a reorg;
@@ -130,7 +139,7 @@ activity. A later, reviewed activation block may be chosen to avoid an
 unnecessary historical scan. Reorg rewinds are clamped to the selected stream
 boundary.
 
-A detected canonical-hash mismatch performs a chain-wide rewind of raw logs, derived acquisitions, adapter snapshots, and stream checkpoints from the affected block. The manual `npm run broker:index` worker processes streams sequentially under a chain-scoped Postgres advisory lock so concurrent jobs cannot race that recovery transaction. `BROKER_INDEX_MAX_BLOCKS_PER_RUN` limits forward progress independently of the RPC batch size and the result reports `processedThrough` plus `caughtUp`. The default streams are only canonical Gogh Punk transfers and verified Seaport activity; broad `nft_transfers` indexing is opt-in and has no approved production start. The worker refuses to run unless explicitly enabled, given every required start block, and connected to chain ID 4663.
+A detected canonical-hash mismatch performs a chain-wide rewind of raw logs, derived acquisitions, adapter snapshots, and stream checkpoints from the affected block. The manual `npm run broker:index` worker processes streams sequentially under a chain-scoped Postgres advisory lock so concurrent jobs cannot race that recovery transaction. `BROKER_INDEX_MAX_BLOCKS_PER_RUN` limits forward progress independently of the RPC batch size and the result reports `processedThrough` plus `caughtUp`. The default streams are only canonical Gogh Punk transfers and verified Seaport activity; broad `nft_transfers` indexing is opt-in. The reviewed Scout production template starts that stream at block `41380000`, materializes only individual zero-address mint signals, and retains a bounded scan window. This recent boundary is not a claim of complete chain history. The worker refuses to run unless explicitly enabled, given every required start block, and connected to chain ID 4663.
 
 Reorg recovery also cancels any still-pending proposal derived from an affected
 opportunity and marks the opportunity non-canonical, non-scoutable, and

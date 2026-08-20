@@ -10,11 +10,11 @@ Official website and staged Art Broker foundation for Gogh Punks, a fully on-cha
 
 ## Autonomous digital curators
 
-Gogh Punks are evolving into autonomous digital art curators native to Robinhood. Each Punk can control its own deterministic smart-account wallet, build a persistent NFT gallery, develop a collecting personality, discover new artists and collections, and eventually acquire approved NFTs under strict owner-defined rules.
+Gogh Punks are evolving into autonomous digital art curators native to Robinhood. Each Punk can control its own deterministic smart-account wallet, build a persistent NFT gallery, develop a collecting personality, discover new artists and collections, and eventually acquire approved NFTs under strict owner-defined rules. Every Punk has an independent Art Mandate: its owner can choose whether it inspects free or paid mints, set a paid-mint ceiling, budgets, reserve, collection permissions, risk tolerance, and Taste Profile. The Punk can explain whether it would ignore, research, watch, or want to join a mint.
 
 The Punk owner remains ultimately in control. The AI does not hold the owner's wallet key, cannot call unrestricted account execution, and cannot bypass on-chain policy.
 
-Current status: the account, policy, agent, adapter, indexer, Scout, gallery, and deployment-preparation foundations are staged locally. Verified Seaport settlements can be indexed as explicitly historical, non-actionable Scout research. A disabled-by-default worker enriches those collections with confirmed-block bytecode, verified-ABI surface, contract identity, bounded owner sampling, on-chain JSON metadata, metadata-only art heuristics, and observed market activity. Source block time—not index time—drives activity windows; liquidity remains unavailable without live listing/bid evidence, and contract risk remains `UNKNOWN` when evidence coverage is insufficient. **No Art Broker contract is deployed and every transaction/autonomous feature is disabled.**
+Current status: the account, policy, agent, adapter, indexer, Scout, gallery, and deployment-preparation foundations are staged locally. Confirmed zero-address ERC-721 and ERC-1155 transfer events can be indexed as non-actionable mint signals; verified Seaport settlements are explicitly historical research. A disabled-by-default worker enriches those collections with confirmed-block bytecode, verified-ABI surface, contract identity, bounded owner sampling, on-chain JSON metadata, metadata-only art heuristics, and observed market activity. An observed mint does not prove that a mint phase is open or reveal its price, so unknown mints remain research-only. Source block time—not index time—drives activity windows; liquidity remains unavailable without live listing/bid evidence, and contract risk remains `UNKNOWN` when evidence coverage is insufficient. **No Art Broker contract is deployed and every transaction/autonomous feature is disabled.**
 
 ## Architecture
 
@@ -53,6 +53,34 @@ Requires Node.js 24 and Foundry.
 npm install
 npm run check
 ```
+
+To run only the local autonomous canary rehearsal:
+
+```sh
+npm run broker:canary
+```
+
+Run preflight validation before live canary execution:
+
+```sh
+npm run broker:canary:preflight
+```
+
+Run both checks in one command:
+
+```sh
+npm run broker:canary:drill
+```
+
+Run rehearsal only (skip preflight) with:
+
+```sh
+npm run broker:canary:drill:local
+```
+
+The normal preflight loads an untracked `.env`, requires the authoritative deployment manifest and
+two independent Robinhood RPC providers, and never signs or broadcasts. Skipping preflight is for
+the local mock rehearsal only; it must never precede a live action.
 
 `npm run site:check` is the Netlify-safe frontend/backend validation path. `npm run contracts:check` adds Solidity formatting, build/size, tests, fuzzing, and ABI trust-boundary checks.
 

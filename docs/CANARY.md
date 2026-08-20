@@ -42,7 +42,7 @@ No canary is selected or active. Exactly one Punk may enter each live test stage
 
 ## Transfer authority test
 
-Before risking live gallery assets, run the Alice-to-Bob scenario on a current Robinhood fork and a dedicated test collection. The live Gogh Punks contract currently locks secondary transfers until its mint threshold; do not bypass or alter that rule for this test.
+Before risking live gallery assets, run the Alice-to-Bob scenario on a current Robinhood fork and a dedicated test collection. Canonical Gogh Punks secondary transfers are now unlocked; do not use a valuable Punk or retained gallery assets for the first authority test.
 
 When canonical transfers are live and the owner explicitly accepts the test:
 
@@ -58,6 +58,94 @@ When canonical transfers are live and the owner explicitly accepts the test:
 Autonomous canary requires a new explicit authorization after every previous stage passes. It uses one Punk, dust balance, strict majority reserve, one venue, one collection, one selector, one authorized agent, one acquisition/day, short agent lifetime, short intent expiry, and global pause monitoring. Autonomous minting, unknown collections, and selling remain off.
 
 Stop immediately on any ownership mismatch, unexpected approval, policy mismatch, RPC disagreement, indexer divergence, adapter code-hash change, unexplained transaction, or monitoring outage.
+
+### Preflight gate (required before live canary)
+
+Run this check before enabling any live canary flow:
+
+```sh
+npm run broker:canary:preflight
+```
+
+The command automatically loads an untracked repository-root `.env` when present. Start from
+`ops/canary-live.env.example`, but place provider credentials only in the untracked copy or a
+secret manager.
+
+Required environment:
+
+- `BROKER_CANARY_STAGE=FOUNDATION`
+- `ROBINHOOD_RPC_URL`
+- `ROBINHOOD_SECONDARY_RPC_URL` from a genuinely independent provider
+- `BROKER_CONFIRMATIONS` (default `20`)
+- `BROKER_CANARY_TOKEN_ID`
+- `BROKER_CANARY_EXPECTED_OWNER`
+- `BROKER_CANARY_EXPECTED_ACCOUNT`, calculated independently before the run
+
+`deployments/robinhood.json` is authoritative. It must say `DEPLOYED` and contain complete,
+verified records for all five contracts, including deployment transactions/blocks, constructor
+arguments, bytecode hashes, deployer, guardian, and git commit. Environment address values are
+optional mirrors; when present, they must match the manifest exactly. An environment variable
+cannot override a `NOT_DEPLOYED` manifest.
+
+The preflight pins every read to one confirmed block agreed by both RPC providers. It validates:
+
+- deployment receipts and manifest runtime-code hashes;
+- canonical chain, collection, and ERC-6551 registry bindings;
+- implementation, policy, agent-registry, and adapter-registry wiring;
+- guardian ownership and absence of a pending ownership transfer;
+- fail-closed foundation feature flags and global pause state;
+- the selected Punk's current owner on both providers;
+- the counterfactual account from both the Gogh facade and canonical ERC-6551 registry;
+- an activated account's footer, live owner, canonical identity, and module bindings.
+
+This gate supports the `FOUNDATION` stage only. Approval and autonomous live stages remain blocked
+until their separate audited gates exist. Preflight is read-only and never activates or funds an
+account.
+
+For the quickest recurring validation during live setup, run the canary drill:
+
+```sh
+npm run broker:canary:drill
+```
+
+This performs:
+
+1. `npm run broker:canary:preflight`
+2. local autonomous canary rehearsal (`forge test --offline --match-contract AutonomousCanaryTest -vv`)
+
+You can run only the local rehearsal during pre-deployment with:
+
+```sh
+npm run broker:canary:drill:local
+```
+
+Never use `--skip-preflight` for a live action. A local-only pass proves the mock rehearsal, not a
+deployment, owner, account, adapter, or transaction.
+
+## Next production move (staged)
+
+Use this sequence once a live owner wallet is available:
+
+1. Select one canary token and confirm the current owner controls it on-block (single-chain RPC read).
+2. Compute and save the counterfactual account address twice (registry + contract preview page).
+3. Fund only the canary account with a dust amount and set `minimumNativeReserve` above 90% of it.
+4. After a separate approval-stage security gate exists, configure `APPROVAL_REQUIRED` with one allowlist only:
+   - one adapter
+   - one venue
+   - one collection
+   - one selector
+   - one exact owner-wallet transaction or decoded EIP-712 approval; never a stored owner key
+5. Run one live dry path by building a real typed proposal and checking explorer simulation before signing.
+6. Execute exactly one approved low-value secondary purchase immediately after re-simulation and confirming:
+   - owner, policy version, nonce, and reserve are unchanged
+   - adapter code hash and venue are still allowlisted
+   - opportunity payload has not expired.
+7. Immediately remove or pause venue/collection/selector permissions.
+8. Revoke the canary agent, pause account-specific policy, and keep autonomous mode off.
+9. Transfer the canary Punk out to another wallet and verify:
+   - old owner cannot execute, propose, authorize, or withdraw
+   - old approvals and relay signatures are not accepted.
+10. Execute `policy.setAccountPaused(false)` under the new owner only after a fresh policy and fresh permissions are configured.
 
 ### Local autonomous rehearsal
 

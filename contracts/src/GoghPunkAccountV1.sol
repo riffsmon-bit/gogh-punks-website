@@ -44,7 +44,12 @@ contract GoghPunkAccountV1 is
     uint256 public constant ROBINHOOD_CHAIN_ID = 4663;
     address public constant GOGH_PUNKS = 0xE0F92B3B0E6DeD3654177FE3809Cd300e5ffaDf6;
 
-    bytes4 private constant ERC1271_MAGIC_VALUE = IERC1271.isValidSignature.selector;
+    bytes4 private constant APPROVE_SELECTOR = IERC20.approve.selector;
+    bytes4 private constant SET_APPROVAL_FOR_ALL_SELECTOR = IERC721.setApprovalForAll.selector;
+    bytes4 private constant INCREASE_ALLOWANCE_SELECTOR =
+        bytes4(keccak256("increaseAllowance(address,uint256)"));
+    bytes4 private constant DECREASE_ALLOWANCE_SELECTOR =
+        bytes4(keccak256("decreaseAllowance(address,uint256)"));
     bytes4 private constant TRANSFER_FROM_SELECTOR =
         bytes4(keccak256("transferFrom(address,address,uint256)"));
     bytes4 private constant SAFE_TRANSFER_FROM_SELECTOR =
@@ -84,6 +89,7 @@ contract GoghPunkAccountV1 is
     error AssetAlreadyOwned(address collection, uint256 tokenId);
     error AcquisitionPostconditionFailed(address collection, uint256 tokenId, uint256 expected);
     error InvalidCancellationNonce(uint256 current, uint256 supplied);
+    error PersistentApprovalForbidden(bytes4 selector);
 
     event NativeReceived(address indexed sender, uint256 amount, uint256 indexed state);
     event Executed(
@@ -132,6 +138,14 @@ contract GoghPunkAccountV1 is
     );
     event PendingAcquisitionsCancelled(
         address indexed owner, uint256 previousNonce, uint256 newNonce, uint256 state
+    );
+    event ApprovalRevoked(
+        address indexed owner,
+        address indexed asset,
+        address indexed operator,
+        bytes4 selector,
+        uint256 tokenId,
+        uint256 state
     );
 
     modifier onlyAccount() {
@@ -293,6 +307,52 @@ contract GoghPunkAccountV1 is
         emit PendingAcquisitionsCancelled(msg.sender, previous, newNonce, nextState);
     }
 
+    /// @notice Clears a standard ERC-20 allowance without exposing a path to increase it.
+    function revokeERC20Allowance(address tokenContract, address spender)
+        external
+        onlyTokenOwner
+        nonReentrantExecution
+    {
+        if (tokenContract == address(0) || tokenContract.code.length == 0) {
+            revert InvalidContract(tokenContract);
+        }
+        IERC20(tokenContract).forceApprove(spender, 0);
+        uint256 nextState = _incrementState();
+        emit ApprovalRevoked(msg.sender, tokenContract, spender, APPROVE_SELECTOR, 0, nextState);
+    }
+
+    /// @notice Clears the token-specific approval for an ERC-721 held by this account.
+    function revokeERC721Approval(address collection, uint256 tokenId)
+        external
+        onlyTokenOwner
+        nonReentrantExecution
+    {
+        if (collection == address(0) || collection.code.length == 0) {
+            revert InvalidContract(collection);
+        }
+        IERC721(collection).approve(address(0), tokenId);
+        uint256 nextState = _incrementState();
+        emit ApprovalRevoked(
+            msg.sender, collection, address(0), APPROVE_SELECTOR, tokenId, nextState
+        );
+    }
+
+    /// @notice Clears an ERC-721/ERC-1155 operator approval. The shared standard selector is used.
+    function revokeOperatorApproval(address collection, address operator)
+        external
+        onlyTokenOwner
+        nonReentrantExecution
+    {
+        if (collection == address(0) || collection.code.length == 0) {
+            revert InvalidContract(collection);
+        }
+        IERC721(collection).setApprovalForAll(operator, false);
+        uint256 nextState = _incrementState();
+        emit ApprovalRevoked(
+            msg.sender, collection, operator, SET_APPROVAL_FOR_ALL_SELECTOR, 0, nextState
+        );
+    }
+
     function acquisitionIntentDigest(
         GoghBrokerTypes.AcquisitionIntent calldata intent,
         bytes32 adapterDataHash
@@ -341,17 +401,16 @@ contract GoghPunkAccountV1 is
         return bytes4(0);
     }
 
-    function isValidSignature(bytes32 hash, bytes calldata signature)
+    /// @notice General ERC-1271 signing is intentionally disabled in V1.
+    /// @dev A signature-based permit can create approval state that survives transfer of the
+    ///      controlling Punk. Owner-approved acquisitions use the narrowly typed acquisition
+    ///      digest path instead and validate the live owner's signature directly.
+    function isValidSignature(bytes32, bytes calldata)
         external
-        view
+        pure
         override
         returns (bytes4 magicValue)
     {
-        address currentOwner = owner();
-        if (
-            currentOwner != address(0)
-                && SignatureChecker.isValidSignatureNow(currentOwner, hash, signature)
-        ) return ERC1271_MAGIC_VALUE;
         return bytes4(0);
     }
 
@@ -494,7 +553,17 @@ contract GoghPunkAccountV1 is
 
     function _validateOwnerTarget(address target, bytes calldata data) private view {
         if (target == address(0) || target == address(this)) revert InvalidTarget();
+        _preventPersistentApproval(data);
         _preventSelfControl(target, data);
+    }
+
+    function _preventPersistentApproval(bytes calldata data) private pure {
+        bytes4 selector = _selector(data);
+        if (
+            selector == APPROVE_SELECTOR || selector == SET_APPROVAL_FOR_ALL_SELECTOR
+                || selector == INCREASE_ALLOWANCE_SELECTOR
+                || selector == DECREASE_ALLOWANCE_SELECTOR
+        ) revert PersistentApprovalForbidden(selector);
     }
 
     function _call(address target, uint256 value, bytes memory data)

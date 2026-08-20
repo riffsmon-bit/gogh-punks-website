@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import { ROBINHOOD } from "../broker/src/config.mjs";
 import { RobinhoodJsonRpcSource } from "../broker/src/indexer/json-rpc-source.mjs";
@@ -6,14 +7,14 @@ import { ReorgAwareIndexer } from "../broker/src/indexer/reorg-indexer.mjs";
 import { protocolStreams } from "../broker/src/indexer/streams.mjs";
 import { PostgresIndexerRepository } from "../netlify/functions/broker/indexer-repository.mjs";
 
-function unsignedInteger({
+function unsignedInteger(environment, {
   name,
   required = false,
   fallback,
   minimum = 0,
   maximum = null,
 }) {
-  const configured = process.env[name];
+  const configured = environment[name];
   const value = configured === undefined || configured === "" ? fallback : configured;
   if ((value === undefined || value === "") && required) {
     throw new TypeError(`${name} is required`);
@@ -34,8 +35,12 @@ function unsignedInteger({
   }
 }
 
-async function main() {
-  if (process.env.BROKER_INDEXER_ENABLED !== "true") {
+export async function runBrokerIndexer({
+  environment = process.env,
+  repository = new PostgresIndexerRepository(),
+  source = null,
+} = {}) {
+  if (environment.BROKER_INDEXER_ENABLED !== "true") {
     throw new Error("BROKER_INDEXER_ENABLED must be exactly true");
   }
   const deployment = JSON.parse(
@@ -43,7 +48,7 @@ async function main() {
   );
   const streams = protocolStreams(deployment);
   const requested = (
-    process.env.BROKER_INDEX_STREAMS
+    environment.BROKER_INDEX_STREAMS
       ?? "gogh_punk_transfers,seaport_activity"
   )
     .split(",")
@@ -54,34 +59,33 @@ async function main() {
     if (!Object.hasOwn(streams, stream)) throw new TypeError(`unknown stream ${stream}`);
   }
 
-  const source = new RobinhoodJsonRpcSource({
-    rpcUrl: process.env.ROBINHOOD_RPC_URL,
+  const rpcSource = source ?? new RobinhoodJsonRpcSource({
+    rpcUrl: environment.ROBINHOOD_RPC_URL,
     streams,
   });
-  const remoteChainId = Number(BigInt(await source.call("eth_chainId", [])));
+  const remoteChainId = Number(BigInt(await rpcSource.call("eth_chainId", [])));
   if (remoteChainId !== ROBINHOOD.chainId) {
     throw new Error(`RPC chain mismatch: expected ${ROBINHOOD.chainId}, received ${remoteChainId}`);
   }
 
-  const repository = new PostgresIndexerRepository();
   const indexerConfiguration = {
-    confirmations: unsignedInteger({
+    confirmations: unsignedInteger(environment, {
       name: "BROKER_CONFIRMATIONS",
       fallback: "20",
       maximum: 10_000,
     }),
-    reorgWindow: unsignedInteger({
+    reorgWindow: unsignedInteger(environment, {
       name: "BROKER_REORG_WINDOW",
       fallback: "64",
       maximum: 100_000,
     }),
-    batchSize: unsignedInteger({
+    batchSize: unsignedInteger(environment, {
       name: "BROKER_INDEX_BATCH_SIZE",
       fallback: "1000",
       minimum: 1,
       maximum: 10_000,
     }),
-    maximumBlocksPerRun: unsignedInteger({
+    maximumBlocksPerRun: unsignedInteger(environment, {
       name: "BROKER_INDEX_MAX_BLOCKS_PER_RUN",
       fallback: "10000",
       minimum: 1,
@@ -93,14 +97,14 @@ async function main() {
     const completed = {};
     for (const stream of requested) {
       const streamStartName = `BROKER_INDEX_FROM_BLOCK_${stream.toUpperCase()}`;
-      const startBlock = unsignedInteger({
+      const startBlock = unsignedInteger(environment, {
         name: streamStartName,
         required: true,
-        fallback: process.env.BROKER_INDEX_FROM_BLOCK,
+        fallback: environment.BROKER_INDEX_FROM_BLOCK,
       });
       const indexer = new ReorgAwareIndexer({
         chainId: ROBINHOOD.chainId,
-        source,
+        source: rpcSource,
         repository: lockedRepository,
         startBlock,
         ...indexerConfiguration,
@@ -109,14 +113,23 @@ async function main() {
     }
     return completed;
   });
-  console.log(JSON.stringify({ ok: true, chainId: ROBINHOOD.chainId, results }));
+  return Object.freeze({ chainId: ROBINHOOD.chainId, results });
 }
 
-main().catch((error) => {
-  console.error(JSON.stringify({
-    ok: false,
-    error: error?.name ?? "Error",
-    message: error?.message ?? "Indexer failed",
-  }));
-  process.exitCode = 1;
-});
+function isMainModule() {
+  return process.argv[1]
+    && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
+}
+
+if (isMainModule()) {
+  runBrokerIndexer().then((result) => {
+    console.log(JSON.stringify({ ok: true, ...result }));
+  }).catch((error) => {
+    console.error(JSON.stringify({
+      ok: false,
+      error: error?.name ?? "Error",
+      message: error?.message ?? "Indexer failed",
+    }));
+    process.exitCode = 1;
+  });
+}

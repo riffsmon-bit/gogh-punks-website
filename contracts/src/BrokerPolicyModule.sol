@@ -41,6 +41,14 @@ contract BrokerPolicyModule is Ownable2Step {
         uint256 maxSecondaryPurchasePrice;
     }
 
+    /// @notice Per-Punk mint permissions layered beneath the global feature flags.
+    /// @dev All values default to false and are invalidated with the account's permission generation.
+    struct MintControls {
+        bool ownerApprovedMints;
+        bool autonomousFreeMints;
+        bool autonomousPaidMints;
+    }
+
     struct Usage {
         uint64 dayBucket;
         uint64 weekBucket;
@@ -56,6 +64,11 @@ contract BrokerPolicyModule is Ownable2Step {
 
     struct CurrencyPolicyState {
         CurrencyPolicy policy;
+        uint64 generation;
+    }
+
+    struct MintControlState {
+        MintControls controls;
         uint64 generation;
     }
 
@@ -95,6 +108,7 @@ contract BrokerPolicyModule is Ownable2Step {
         _selectorPermissions;
     mapping(address account => mapping(address currency => Usage usage_)) private _usage;
     mapping(address account => AcquisitionUsage usage_) private _acquisitionUsage;
+    mapping(address account => MintControlState controls) private _mintControls;
 
     error ZeroAddress();
     error InvalidContract(address target);
@@ -126,6 +140,11 @@ contract BrokerPolicyModule is Ownable2Step {
     error PriceLimitExceeded(uint256 maximum, uint256 attempted);
     error SlippageExceeded(uint256 maximum, uint256 attempted);
     error MinimumReserveViolated(uint256 minimum, uint256 resultingBalance);
+    error OwnerApprovedMintsDisabled();
+    error AutonomousFreeMintsDisabled();
+    error AutonomousPaidMintsDisabled();
+    error FreeMintPaymentNotZero(uint256 expectedPrice, uint256 maxPrice, uint256 actualPayment);
+    error AutonomousMintAssetAmountInvalid(uint256 supplied);
 
     event FeatureFlagsChanged(GoghBrokerTypes.FeatureFlags flags);
     event GlobalPolicyPauseChanged(bool paused);
@@ -156,6 +175,14 @@ contract BrokerPolicyModule is Ownable2Step {
     );
     event SelectorPermissionChanged(
         address indexed account, bytes4 indexed selector, bool allowed, bool denied
+    );
+    event MintControlsChanged(
+        address indexed account,
+        address indexed owner,
+        bool ownerApprovedMints,
+        bool autonomousFreeMints,
+        bool autonomousPaidMints,
+        uint64 policyVersion
     );
     event AcquisitionPolicyConsumed(
         address indexed account,
@@ -309,6 +336,22 @@ contract BrokerPolicyModule is Ownable2Step {
         emit SelectorPermissionChanged(account, selector, allowed, denied);
     }
 
+    function setMintControls(address account, MintControls calldata controls) external {
+        _requireOwnerCaller(account);
+        _mintControls[account] = MintControlState({
+            controls: controls, generation: _policies[account].permissionGeneration
+        });
+        _incrementVersion(account);
+        emit MintControlsChanged(
+            account,
+            msg.sender,
+            controls.ownerApprovedMints,
+            controls.autonomousFreeMints,
+            controls.autonomousPaidMints,
+            _policies[account].version
+        );
+    }
+
     function policy(address account) external view returns (PolicyState memory) {
         return _policies[account];
     }
@@ -353,6 +396,11 @@ contract BrokerPolicyModule is Ownable2Step {
 
     function deniedSelectors(address account, bytes4 selector) external view returns (bool) {
         return _permissionDenied(account, _selectorPermissions[account][selector]);
+    }
+
+    function mintControls(address account) external view returns (MintControls memory controls) {
+        MintControlState storage stored = _mintControls[account];
+        if (_isCurrentPermission(account, stored.generation)) return stored.controls;
     }
 
     function venueCurrencyMaximum(address account, address venue, address currency)
@@ -463,6 +511,7 @@ contract BrokerPolicyModule is Ownable2Step {
             msg.sender, intent.collection, expectedKind, ownerApproved, current.config
         );
         _validateExecution(intent, execution);
+        _validateMintControls(msg.sender, intent, execution.paymentAmount, ownerApproved);
 
         bytes4 selector = _selector(execution.callData);
         PermissionState storage selectorPermission = _selectorPermissions[msg.sender][selector];
@@ -623,14 +672,50 @@ contract BrokerPolicyModule is Ownable2Step {
             revert CollectionDenied(collection);
         }
         if (_permissionAllowed(account, collectionPermission)) return;
-        if (config.requireCollectionAllowlist || !config.allowUnknownCollections) {
+        // Every typed mint needs an explicit collection approval. Unknown mints remain Scoutable
+        // and available through the unrestricted owner path, but never through broker execution.
+        if (kind == GoghBrokerTypes.AdapterKind.MINT) {
             revert CollectionNotAllowed(collection);
         }
-        if (kind == GoghBrokerTypes.AdapterKind.MINT && !ownerApproved) {
+        if (config.requireCollectionAllowlist || !config.allowUnknownCollections) {
             revert CollectionNotAllowed(collection);
         }
         if (!ownerApproved && !_features.unknownCollectionExecution) {
             revert FeatureDisabled("UNKNOWN_COLLECTION_EXECUTION");
+        }
+    }
+
+    function _validateMintControls(
+        address account,
+        GoghBrokerTypes.AcquisitionIntent calldata intent,
+        uint256 actualPayment,
+        bool ownerApproved
+    ) private view {
+        if (!_isMint(intent.opportunityType)) return;
+
+        if (
+            intent.opportunityType == GoghBrokerTypes.OpportunityType.FREE_MINT
+                && (intent.expectedPrice != 0 || intent.maxPrice != 0 || actualPayment != 0)
+        ) {
+            revert FreeMintPaymentNotZero(intent.expectedPrice, intent.maxPrice, actualPayment);
+        }
+
+        MintControlState storage stored = _mintControls[account];
+        MintControls memory controls;
+        if (_isCurrentPermission(account, stored.generation)) controls = stored.controls;
+
+        if (ownerApproved) {
+            if (!controls.ownerApprovedMints) revert OwnerApprovedMintsDisabled();
+            return;
+        }
+
+        if (intent.assetAmount != 1) {
+            revert AutonomousMintAssetAmountInvalid(intent.assetAmount);
+        }
+        if (actualPayment == 0) {
+            if (!controls.autonomousFreeMints) revert AutonomousFreeMintsDisabled();
+        } else if (!controls.autonomousPaidMints) {
+            revert AutonomousPaidMintsDisabled();
         }
     }
 

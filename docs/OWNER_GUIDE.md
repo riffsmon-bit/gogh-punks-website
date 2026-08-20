@@ -20,6 +20,7 @@ sales are not live liquidity.
 ## Art Mandate checklist
 
 - Choose a persona and Taste Profile.
+- Choose whether this Punk considers free mints, paid mints, or both.
 - Set maximum mint and secondary prices.
 - Set transaction, daily, and weekly budgets for each currency.
 - Keep a meaningful minimum native reserve.
@@ -28,6 +29,10 @@ sales are not live liquidity.
 - Approve only contracts and selectors you verified.
 - Deny suspicious collections explicitly.
 - Avoid unlimited approvals.
+
+A mint-event signal does not prove an open phase or a free price. Until Scout
+has verified the mint adapter, exact contract, phase, selector, total payment,
+recipient, and expiry, it stays research-only even if the Punk wants to join.
 
 ## Approval-required acquisition
 

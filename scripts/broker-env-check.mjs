@@ -1,4 +1,5 @@
 import { normalizeAddress, readFeatureFlags } from "../broker/src/config.mjs";
+import { PUNK_PERSONAS } from "../broker/src/personas.mjs";
 
 const failures = [];
 const pass = (label) => console.log(`PASS ${label}`);
@@ -62,6 +63,7 @@ if (!new Set(["NOT_DEPLOYED", "STAGED", "DEPLOYED"]).has(deploymentStatus)) {
 for (const [name, fallback] of [
   ["BROKER_INDEXER_ENABLED", "false"],
   ["BROKER_ANALYZER_ENABLED", "false"],
+  ["BROKER_SCOUT_ENABLED", "false"],
   ["BROKER_BLOCKSCOUT_ABI_ENABLED", "true"],
 ]) {
   const value = process.env[name] ?? fallback;
@@ -69,6 +71,45 @@ for (const [name, fallback] of [
     fail(name, "must be exactly true or false");
   } else {
     pass(`${name} explicit boolean`);
+  }
+}
+
+if (process.env.BROKER_SCOUT_ENABLED === "true") {
+  try {
+    const tokenId = BigInt(process.env.BROKER_SCOUT_TOKEN_ID);
+    if (tokenId < 0n || tokenId >= 10_000n) throw new RangeError();
+    pass("BROKER_SCOUT_TOKEN_ID bounded token");
+  } catch {
+    fail("BROKER_SCOUT_TOKEN_ID", "must be an integer between 0 and 9999");
+  }
+  const persona = process.env.BROKER_SCOUT_PERSONA ?? "PIXEL_MAXI";
+  if (!PUNK_PERSONAS[persona]) {
+    fail("BROKER_SCOUT_PERSONA", "must name a supported Punk persona");
+  } else {
+    pass("BROKER_SCOUT_PERSONA supported persona");
+  }
+}
+
+if (process.env.BROKER_INDEXER_ENABLED === "true") {
+  const streams = (process.env.BROKER_INDEX_STREAMS ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const supported = new Set(["gogh_punk_transfers", "seaport_activity", "nft_transfers"]);
+  if (streams.length === 0) fail("BROKER_INDEX_STREAMS", "must name at least one stream");
+  for (const stream of streams) {
+    if (!supported.has(stream)) {
+      fail("BROKER_INDEX_STREAMS", `unsupported stream ${stream}`);
+      continue;
+    }
+    const startName = `BROKER_INDEX_FROM_BLOCK_${stream.toUpperCase()}`;
+    const configured = process.env[startName] ?? process.env.BROKER_INDEX_FROM_BLOCK;
+    try {
+      if (BigInt(configured) < 0n) throw new RangeError();
+      pass(`${startName} configured`);
+    } catch {
+      fail(startName, "must be a non-negative integer for every enabled stream");
+    }
   }
 }
 
@@ -80,6 +121,7 @@ for (const [name, fallback, minimum, maximum] of [
   ["BROKER_ANALYSIS_BATCH_SIZE", "10", 1, 100],
   ["BROKER_ANALYSIS_RETRY_HOURS", "24", 1, 720],
   ["BROKER_ANALYSIS_ACTIVITY_LIMIT", "200", 1, 500],
+  ["BROKER_SCOUT_MAX_RECOMMENDATIONS_PER_RUN", "24", 1, 100],
 ]) {
   const value = Number(process.env[name] ?? fallback);
   if (!Number.isSafeInteger(value) || value < minimum || value > maximum) {

@@ -5,6 +5,10 @@ Minting an unknown contract has a larger call surface than purchasing a known li
 ## Rules
 
 - Unknown mints may be discovered and recommended in Scout Mode.
+- Every Punk has its own free-mint, paid-mint, maximum-price, budget, reserve,
+  count, collection, mint-contract, Taste Match, and risk preferences.
+- A transfer event proves that a token was minted; it does not prove that the
+  phase remains open, that the price is zero, or that calling the contract is safe.
 - An owner may manually inspect and call a contract through the owner account path at their own risk.
 - A typed owner-approved mint requires the approval-purchase feature, a registered mint adapter, approved mint venue, allowed selector/currency, and policy limits.
 - Autonomous minting additionally requires the global autonomous-mint feature and an explicitly approved NFT collection and mint contract.
@@ -28,3 +32,8 @@ Native mints send only the validated value. ERC-20 mints use an exact allowance,
 - cross-chain mints;
 - autonomous batch mints;
 - autonomous minting in production.
+
+The Scout phrase “wants to join” means that the opportunity passed this Punk's
+curatorial preferences and stated economic limits. It is not transaction
+authorization. Until every execution gate is independently verified, the UI
+must render the result as research or owner approval required.

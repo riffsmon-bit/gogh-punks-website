@@ -2,6 +2,7 @@
 pragma solidity ^0.8.34;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IERC1271 } from "@openzeppelin/contracts/interfaces/IERC1271.sol";
 import { GoghPunkAccountRegistry } from "../src/GoghPunkAccountRegistry.sol";
 import { GoghPunkAccountV1 } from "../src/GoghPunkAccountV1.sol";
 import { IGoghAccountBatch } from "../src/interfaces/IGoghAccountStandards.sol";
@@ -169,5 +170,78 @@ contract GoghPunkAccountV1Test is ArtBrokerTestBase {
         );
         VM.prank(alice);
         account.cancelPendingAcquisitions(19);
+    }
+
+    function testPersistentStandardApprovalsAreForbiddenAndRevocable() public {
+        currency.mint(address(account), 100 ether);
+        art.mint(address(account), 902);
+
+        bytes memory erc20Approval = abi.encodeCall(IERC20.approve, (alice, 50 ether));
+        VM.expectRevert(
+            abi.encodeWithSelector(
+                GoghPunkAccountV1.PersistentApprovalForbidden.selector, IERC20.approve.selector
+            )
+        );
+        VM.prank(alice);
+        account.execute(address(currency), 0, erc20Approval, 0);
+
+        bytes memory nftApproval = abi.encodeWithSignature("approve(address,uint256)", alice, 902);
+        VM.expectRevert(
+            abi.encodeWithSelector(
+                GoghPunkAccountV1.PersistentApprovalForbidden.selector, IERC20.approve.selector
+            )
+        );
+        VM.prank(alice);
+        account.execute(address(art), 0, nftApproval, 0);
+
+        bytes4 operatorSelector = bytes4(keccak256("setApprovalForAll(address,bool)"));
+        VM.expectRevert(
+            abi.encodeWithSelector(
+                GoghPunkAccountV1.PersistentApprovalForbidden.selector, operatorSelector
+            )
+        );
+        VM.prank(alice);
+        account.execute(
+            address(art),
+            0,
+            abi.encodeWithSignature("setApprovalForAll(address,bool)", alice, true),
+            0
+        );
+
+        // Simulate legacy/external approval state and prove the explicit owner recovery paths clear it.
+        VM.prank(address(account));
+        currency.approve(alice, 50 ether);
+        VM.prank(address(account));
+        art.approve(alice, 902);
+        VM.prank(address(account));
+        art.setApprovalForAll(alice, true);
+
+        VM.startPrank(alice);
+        account.revokeERC20Allowance(address(currency), alice);
+        account.revokeERC721Approval(address(art), 902);
+        account.revokeOperatorApproval(address(art), alice);
+        VM.stopPrank();
+
+        require(currency.allowance(address(account), alice) == 0, "ERC20 approval remains");
+        require(art.getApproved(902) == address(0), "ERC721 approval remains");
+        require(!art.isApprovedForAll(address(account), alice), "operator approval remains");
+
+        VM.prank(alice);
+        MockCanonicalGoghPunks(GOGH_PUNKS).transferFrom(alice, bob, TOKEN_ID);
+        VM.expectRevert();
+        VM.prank(alice);
+        require(
+            currency.transferFrom(address(account), alice, 1 ether),
+            "unexpected ERC20 transfer failure"
+        );
+        VM.expectRevert();
+        VM.prank(alice);
+        art.transferFrom(address(account), alice, 902);
+    }
+
+    function testGeneralAccountSignaturesAreDisabled() public view {
+        bytes4 result = account.isValidSignature(bytes32(uint256(1)), hex"1234");
+        require(result == bytes4(0), "general account signature enabled");
+        require(result != IERC1271.isValidSignature.selector, "ERC1271 magic returned");
     }
 }

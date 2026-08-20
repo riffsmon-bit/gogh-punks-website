@@ -144,6 +144,12 @@ contract AgentSecurityTest is ArtBrokerTestBase {
         policy.setSelectorPermission(
             address(account), MockMarketplace.mintERC721.selector, true, false
         );
+        policy.setMintControls(
+            address(account),
+            BrokerPolicyModule.MintControls({
+                ownerApprovedMints: false, autonomousFreeMints: false, autonomousPaidMints: true
+            })
+        );
         VM.stopPrank();
 
         GoghBrokerTypes.AcquisitionIntent memory mintIntent = _intent(2030, 0.01 ether);

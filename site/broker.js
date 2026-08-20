@@ -15,6 +15,12 @@ function formatNativeWei(value) {
 
 function scoutSignal(opportunity) {
   const metadata = opportunity.metadata ?? {};
+  if (metadata.mintSignal === true) {
+    const status = metadata.mintPriceStatus ?? "UNKNOWN";
+    return status === "KNOWN"
+      ? `Mint activity observed · price ${String(opportunity.expected_price ?? opportunity.expectedPrice ?? "unknown")} base units · contract review required`
+      : "Mint activity observed · price and callable phase unverified · research only";
+  }
   if (metadata.historicalSaleSignal !== true) return "Research signal · no execution available";
   const price = metadata.historicalSalePrice;
   const currency = String(metadata.historicalSaleCurrency ?? "").toLowerCase();
@@ -73,15 +79,30 @@ async function loadStatus() {
   try {
     const response = await fetch("/api/broker/status", { headers: { accept: "application/json" } });
     const payload = await response.json();
+    const scoutLive = payload.scoutStatus?.dataStatus === "LIVE";
     statusTargets.forEach((target) => {
       target.textContent = payload.protocol?.deploymentStatus === "NOT_DEPLOYED"
-        ? "LOCAL FOUNDATION · NOT DEPLOYED"
+        ? scoutLive ? "SCOUT LIVE · EXECUTION OFF" : "SCOUT SYNCING · EXECUTION OFF"
         : String(payload.protocol?.deploymentStatus ?? "UNAVAILABLE");
       target.classList.remove("loading");
     });
     document.querySelectorAll("[data-autonomy-status]").forEach((target) => {
       target.textContent = payload.autonomyStatus ?? "DISABLED";
     });
+    document.querySelectorAll("[data-scout-token-id]").forEach((target) => {
+      target.textContent = payload.scoutStatus?.tokenId ?? "—";
+    });
+    document.querySelectorAll("[data-opportunity-count]").forEach((target) => {
+      target.textContent = String(payload.scoutStatus?.opportunityCount ?? 0);
+    });
+    document.querySelectorAll("[data-recommendation-count]").forEach((target) => {
+      target.textContent = String(payload.scoutStatus?.recommendationCount ?? 0);
+    });
+    if (payload.scoutStatus?.tokenId) {
+      document.querySelectorAll("[data-scout-gallery-link]").forEach((target) => {
+        target.href = `/punk/${encodeURIComponent(payload.scoutStatus.tokenId)}`;
+      });
+    }
   } catch {
     statusTargets.forEach((target) => {
       target.textContent = "STATUS UNAVAILABLE";
@@ -96,9 +117,13 @@ function opportunityCard(opportunity) {
   const analysisStatus = metadata.analysisStatus ?? null;
   const card = document.createElement("article");
   card.className = "opportunity-card";
-  const collection = opportunity.collection_address ?? opportunity.collection ?? "Unknown collection";
+  const collection = opportunity.collection_address
+    ?? opportunity.nft_collection_address
+    ?? opportunity.collection
+    ?? "Unknown collection";
   const collectionName = metadata.collectionSignals?.identity?.name;
-  const token = opportunity.token_id ?? opportunity.tokenId ?? "—";
+  const token = opportunity.token_id ?? opportunity.nft_token_id ?? opportunity.tokenId ?? "—";
+  const mintDecision = opportunity.decision_detail?.mintInterest?.decision ?? null;
   card.innerHTML = `
     <div class="art-placeholder" aria-hidden="true">ART PREVIEW PENDING</div>
     <div class="card-body">
@@ -124,14 +149,29 @@ function opportunityCard(opportunity) {
       </div>
       <p class="locked-note">Scout data only. Acquisition controls are disabled.</p>
     </div>`;
-  card.querySelector("[data-card-type]").textContent =
-    opportunity.opportunity_type ?? opportunity.opportunityType ?? "UNKNOWN";
+  card.querySelector("[data-card-type]").textContent = opportunity.acquisition_mode
+    ? `ACQUIRED · ${opportunity.acquisition_mode}`
+    : mintDecision
+      ? `${opportunity.opportunity_type ?? opportunity.opportunityType ?? "MINT"} · ${mintDecision.replaceAll("_", " ")}`
+    : opportunity.recommendation
+      ? `${opportunity.opportunity_type ?? opportunity.opportunityType ?? "SCOUT"} · ${opportunity.recommendation}`
+      : opportunity.opportunity_type ?? opportunity.opportunityType ?? "UNKNOWN";
   card.querySelector("[data-card-risk]").textContent = opportunity.risk_label ?? "UNKNOWN";
   card.querySelector("[data-card-title]").textContent = collectionName
     ? `${collectionName} · #${token}`
     : `${String(collection).slice(0, 8)}… · #${token}`;
-  card.querySelector("[data-card-signal]").textContent = scoutSignal(opportunity);
+  card.querySelector("[data-card-signal]").textContent = opportunity.acquisition_mode
+    ? `Recorded acquisition · ${opportunity.acquired_at ?? "time unavailable"}`
+    : scoutSignal(opportunity);
   card.querySelector("[data-card-evidence]").textContent = collectionEvidenceSummary(metadata);
+  if (opportunity.explanation) {
+    card.querySelector("[data-card-evidence]").textContent = `${opportunity.explanation} ${card.querySelector("[data-card-evidence]").textContent}`;
+  }
+  if (mintDecision) {
+    const reasons = opportunity.decision_detail?.mintInterest?.reasons ?? [];
+    const detail = reasons.length ? reasons.join("; ") : "This Punk's configured mint checks passed";
+    card.querySelector("[data-card-evidence]").textContent = `Mint view: ${detail}. ${card.querySelector("[data-card-evidence]").textContent}`;
+  }
   card.querySelector("[data-score-art]").textContent =
     transparentScore(scores, analysisStatus, "artScore", "art");
   card.querySelector("[data-score-taste]").textContent =
@@ -221,6 +261,15 @@ async function loadPunk() {
         ? ""
         : '<p class="empty-state">No indexed acquisitions yet. This gallery is read-only until the canary foundation is deployed and validated.</p>';
       payload.acquisitions?.forEach((acquisition) => gallery.append(opportunityCard(acquisition)));
+    }
+    const recommendations = document.querySelector("[data-punk-recommendations]");
+    if (recommendations) {
+      recommendations.innerHTML = payload.recommendations?.length
+        ? ""
+        : '<p class="empty-state">Scout recommendations are syncing. No transaction capability is active.</p>';
+      payload.recommendations?.forEach((recommendation) => {
+        recommendations.append(opportunityCard(recommendation));
+      });
     }
     const timeline = document.querySelector("[data-decisions]");
     if (timeline) {

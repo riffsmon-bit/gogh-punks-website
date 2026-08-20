@@ -17,7 +17,7 @@
       <nav aria-label="Art Broker navigation">
         <a href="/broker/" aria-current="page">Art Broker</a>
         <a href="/discover/">Discover</a>
-        <a href="/punk/317">Gallery</a>
+        <a href="/punk/1797" data-scout-gallery-link>Scout Gallery</a>
         <a href="/">Collection</a>
       </nav>
       <button class="wallet-button" type="button" disabled aria-disabled="true">Wallet disabled</button>
@@ -40,9 +40,10 @@
       <section class="section-block" aria-labelledby="my-punks-title">
         <div class="section-heading"><div><p class="eyebrow">Owner desk</p><h2 id="my-punks-title">My Punks</h2></div><p>Wallet connection stays disabled until the audited Punk Account contracts are deployed.</p></div>
         <div class="metric-grid">
-          <article class="metric"><span>Owned Punks</span><strong>—</strong><small>Indexer not activated</small></article>
+          <article class="metric"><span>Scout Punk</span><strong>#<span data-scout-token-id>—</span></strong><small>Confirmed owner snapshot</small></article>
           <article class="metric"><span>Punk Accounts</span><strong>0</strong><small>Protocol not deployed</small></article>
-          <article class="metric"><span>Recommendations</span><strong>0</strong><small>Scout feed staged</small></article>
+          <article class="metric"><span>Discoveries</span><strong data-opportunity-count>0</strong><small>Confirmed historical signals</small></article>
+          <article class="metric"><span>Recommendations</span><strong data-recommendation-count>0</strong><small>Read-only Scout</small></article>
           <article class="metric"><span>Pending approvals</span><strong>0</strong><small>Approval purchases off</small></article>
         </div>
       </section>
@@ -55,12 +56,15 @@
             <dl class="setting-list">
               <div class="setting-row"><dt>Mode</dt><dd>SCOUT default</dd></div>
               <div class="setting-row"><dt>Maximum acquisition</dt><dd>Not set</dd></div>
+              <div class="setting-row"><dt>Inspect mints</dt><dd>ON in Scout</dd></div>
+              <div class="setting-row"><dt>Free mints</dt><dd>Owner configurable</dd></div>
+              <div class="setting-row"><dt>Paid mint ceiling</dt><dd>Owner configurable</dd></div>
               <div class="setting-row"><dt>Daily / weekly budget</dt><dd>Not set</dd></div>
               <div class="setting-row"><dt>Minimum reserve</dt><dd>Not set</dd></div>
               <div class="setting-row"><dt>Approved venues</dt><dd>0</dd></div>
               <div class="setting-row"><dt>Approved collections</dt><dd>0</dd></div>
             </dl>
-            <p class="locked-note">Policy editing unlocks only after audited contract deployment and live-owner verification.</p>
+            <p class="locked-note">Every Punk gets its own mandate. Mint preference editing unlocks only after live-owner verification; autonomous mint execution remains disabled.</p>
           </article>
           <article class="panel">
             <div class="panel-header"><h3>Curator identity</h3><span class="tag">Persistent</span></div>

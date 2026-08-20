@@ -29,7 +29,7 @@ export default async function handler(request) {
       opportunities: result.rows,
       feedMode: "SCOUT",
       analysisMode: "EVIDENCE_ONLY",
-      activityMode: "CONFIRMED_HISTORICAL_SALES",
+      activityMode: "CONFIRMED_HISTORICAL_SALES_AND_MINT_SIGNALS",
       holderMode: "BOUNDED_TOKEN_SAMPLE",
       liveLiquidityAvailable: false,
       executionEnabled: false,

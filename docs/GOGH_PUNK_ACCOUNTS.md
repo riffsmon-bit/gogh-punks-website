@@ -31,6 +31,18 @@ No database, indexer, admin, or cron job participates in this authority transiti
 
 The current owner can make ordinary EVM `CALL` operations and atomic batches. V1 rejects every nonzero operation code, so `DELEGATECALL`, `CREATE`, and `CREATE2` are unavailable. The owner path is intentionally independent of global broker pauses, preserving emergency asset recovery if every off-chain service fails.
 
+To prevent an old owner from leaving standard drain rights behind, general
+owner calls cannot create ERC-20/ERC-721 `approve`, ERC-721/ERC-1155
+`setApprovalForAll`, or standard increase/decrease-allowance state. General
+ERC-1271 account signatures are disabled in V1 so signature-based permits cannot
+survive a Punk transfer. Dedicated owner methods can only revoke ERC-20,
+ERC-721, and operator approvals. Typed acquisitions use exact transaction-local
+allowances and clear them atomically.
+
+This protection covers the supported standard approval surfaces. An exotic
+asset with a nonstandard delegation mechanism needs an asset-specific review;
+owners should not deposit such assets into a transferable gallery by default.
+
 The account blocks a call that would transfer its controlling Gogh Punk into itself. It also resolves nested token-bound owners to a bounded depth and fails closed on cycles.
 
 An ERC-721 contract cannot prevent its owner from using unsafe `transferFrom` externally. Sending the controlling Punk directly to its own counterfactual account that way creates an ownership cycle: `owner()` deliberately returns zero and execution stops. The receiver hook blocks safe transfers, and the account blocks self-transfer calldata routed through itself, but owners and marketplaces must also refuse the unsafe destination in their UI/transaction builders. Do not transfer a controlling Punk to its own Punk Account.
