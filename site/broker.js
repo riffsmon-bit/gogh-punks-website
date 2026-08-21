@@ -195,10 +195,12 @@ async function loadStatus() {
         "scout",
       );
     }
-    const scoutLive = payload.scoutStatus?.dataStatus === "LIVE";
+    const scoutDataAvailable = payload.scoutStatus?.dataStatus === "READ_ONLY_DATA_AVAILABLE";
     statusTargets.forEach((target) => {
       target.textContent = payload.protocol?.deploymentStatus === "NOT_DEPLOYED"
-        ? scoutLive ? "SCOUT LIVE · EXECUTION OFF" : "SCOUT SYNCING · EXECUTION OFF"
+        ? scoutDataAvailable
+          ? "ONE-PUNK SCOUT DATA AVAILABLE · EXECUTION OFF"
+          : "SCOUT STATUS NOT CONFIRMED · EXECUTION OFF"
         : String(payload.protocol?.deploymentStatus ?? "UNAVAILABLE");
       target.classList.remove("loading");
     });

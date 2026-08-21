@@ -1,7 +1,12 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createPublicClient, http, keccak256 } from "viem";
 import { FEATURE_DEFAULTS, ROBINHOOD } from "../broker/src/config.mjs";
+import {
+  requireVerifiedManifestAdoption,
+  sourceVerificationCanonicalSha256,
+} from "../broker/src/recommendation/source-verification-adoption.mjs";
 
 const projectRoot = resolve(import.meta.dirname, "..");
 const deploymentPath = resolve(projectRoot, "deployments/robinhood.json");
@@ -16,6 +21,9 @@ const contractSpecifications = Object.freeze([
   ["GoghPunkAccountV1", "GOGH_ACCOUNT_IMPLEMENTATION"],
   ["GoghPunkAccountRegistry", "GOGH_ACCOUNT_REGISTRY"],
 ]);
+const sourceVerifiedContractNames = Object.freeze(
+  contractSpecifications.map(([contractName]) => contractName),
+);
 
 const addressOutput = [{ name: "", type: "address" }];
 const boolOutput = [{ name: "", type: "bool" }];
@@ -141,6 +149,55 @@ function validHash(value) {
   return typeof value === "string" && /^0x[0-9a-fA-F]{64}$/.test(value);
 }
 
+export function evaluateCanonicalRegistryRuntimeEvidence({
+  manifestRuntimeCodeHash,
+  primaryBytecode,
+  secondaryBytecode,
+}, hashBytecode = keccak256) {
+  const expected = ROBINHOOD.canonicalERC6551RegistryRuntimeCodeHash;
+  const manifestHash = validHash(manifestRuntimeCodeHash)
+    ? manifestRuntimeCodeHash.toLowerCase()
+    : null;
+  const validBytecode = (value) => (
+    typeof value === "string" && /^0x(?:[0-9a-fA-F]{2})+$/.test(value)
+  );
+  const runtimeHash = (bytecode) => {
+    if (!validBytecode(bytecode)) return null;
+    try {
+      const value = hashBytecode(bytecode);
+      return validHash(value) ? value.toLowerCase() : null;
+    } catch {
+      return null;
+    }
+  };
+  const primaryHash = runtimeHash(primaryBytecode);
+  const secondaryHash = runtimeHash(secondaryBytecode);
+  return Object.freeze({
+    expected,
+    manifestHash,
+    primaryHash,
+    secondaryHash,
+    manifestMatches: manifestHash === expected,
+    primaryMatches: primaryHash === expected,
+    secondaryMatches: secondaryHash === expected,
+    providersAgree: primaryHash !== null && primaryHash === secondaryHash,
+    valid: manifestHash === expected
+      && primaryHash === expected
+      && secondaryHash === expected,
+  });
+}
+
+export function evaluateDeploymentSourceVerificationAdoption(deployment) {
+  const adoption = requireVerifiedManifestAdoption(
+    deployment,
+    sourceVerifiedContractNames,
+  );
+  return Object.freeze({
+    adoption,
+    sha256: sourceVerificationCanonicalSha256(adoption),
+  });
+}
+
 function validGitCommit(value) {
   return typeof value === "string" && /^[0-9a-fA-F]{40}$/.test(value);
 }
@@ -166,6 +223,7 @@ function summarize() {
 function validateManifest(deployment) {
   const startFailureCount = failures.length;
   const addresses = {};
+  let sourceVerification;
 
   assert(
     deployment?.chain?.chainId === ROBINHOOD.chainId,
@@ -192,6 +250,17 @@ function validateManifest(deployment) {
       canonicalRegistry === ROBINHOOD.canonicalERC6551Registry,
       "manifest canonical ERC-6551 registry is correct",
       `manifest canonical ERC-6551 registry must be ${ROBINHOOD.canonicalERC6551Registry}`,
+    );
+  }
+  const canonicalRegistryRuntimeHash = deployment?.canonicalERC6551RegistryRuntimeCodeHash;
+  if (!validHash(canonicalRegistryRuntimeHash)) {
+    fail("manifest canonicalERC6551RegistryRuntimeCodeHash must be a 32-byte hash");
+  } else {
+    assert(
+      canonicalRegistryRuntimeHash.toLowerCase()
+        === ROBINHOOD.canonicalERC6551RegistryRuntimeCodeHash,
+      "manifest canonical ERC-6551 registry runtime hash is correct",
+      `manifest canonical ERC-6551 registry runtime hash must be ${ROBINHOOD.canonicalERC6551RegistryRuntimeCodeHash}`,
     );
   }
   if (!validHash(deployment?.accountSalt)) {
@@ -269,6 +338,18 @@ function validateManifest(deployment) {
     }
   }
 
+  try {
+    sourceVerification = evaluateDeploymentSourceVerificationAdoption(deployment);
+    pass(
+      `manifest source-verification adoption is bound (${sourceVerification.sha256})`,
+    );
+  } catch (error) {
+    fail(
+      `manifest source-verification adoption is invalid (${error?.code
+        ?? "INVALID_SOURCE_VERIFICATION_ADOPTION"})`,
+    );
+  }
+
   const uniqueAddresses = new Set(Object.values(addresses));
   if (uniqueAddresses.size !== contractSpecifications.length) {
     fail("all five protocol contracts must have distinct manifest addresses");
@@ -290,7 +371,7 @@ function validateManifest(deployment) {
   }
 
   if (failures.length === startFailureCount) pass("authoritative deployment manifest is complete");
-  return { addresses, guardian };
+  return { addresses, guardian, sourceVerification };
 }
 
 function requireCanaryTarget() {
@@ -366,8 +447,8 @@ async function main() {
   }
 
   const confirmations = Number(environmentValue("BROKER_CONFIRMATIONS") ?? "20");
-  if (!Number.isSafeInteger(confirmations) || confirmations < 1 || confirmations > 1_000) {
-    fail("BROKER_CONFIRMATIONS must be an integer between 1 and 1000");
+  if (!Number.isSafeInteger(confirmations) || confirmations < 20 || confirmations > 256) {
+    fail("BROKER_CONFIRMATIONS must be an integer between 20 and 256");
   }
 
   if (
@@ -461,6 +542,10 @@ async function main() {
       "CanonicalERC6551Registry",
       await primary.getCode({ address: ROBINHOOD.canonicalERC6551Registry, blockNumber }),
     ],
+    [
+      "CanonicalERC6551RegistrySecondary",
+      await secondary.getCode({ address: ROBINHOOD.canonicalERC6551Registry, blockNumber }),
+    ],
   ]);
   const codeByName = Object.fromEntries(codeEntries);
   for (const [contractName] of contractSpecifications) {
@@ -481,10 +566,15 @@ async function main() {
     "canonical Gogh Punks bytecode is present",
     "canonical Gogh Punks has no bytecode at the confirmed block",
   );
+  const canonicalRegistryRuntimeEvidence = evaluateCanonicalRegistryRuntimeEvidence({
+    manifestRuntimeCodeHash: deployment.canonicalERC6551RegistryRuntimeCodeHash,
+    primaryBytecode: codeByName.CanonicalERC6551Registry,
+    secondaryBytecode: codeByName.CanonicalERC6551RegistrySecondary,
+  });
   assert(
-    codeByName.CanonicalERC6551Registry && codeByName.CanonicalERC6551Registry !== "0x",
-    "canonical ERC-6551 registry bytecode is present",
-    "canonical ERC-6551 registry has no bytecode at the confirmed block",
+    canonicalRegistryRuntimeEvidence.valid,
+    "canonical ERC-6551 registry runtime hash matches the manifest on both RPC providers",
+    "canonical ERC-6551 registry runtime hash does not match the pinned manifest hash on both RPC providers",
   );
 
   const receipts = await Promise.all(
@@ -685,7 +775,9 @@ async function main() {
   summarize();
 }
 
-main().catch((error) => {
-  fail(error?.shortMessage ?? error?.message ?? "unexpected preflight failure");
-  summarize();
-});
+if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
+  main().catch((error) => {
+    fail(error?.shortMessage ?? error?.message ?? "unexpected preflight failure");
+    summarize();
+  });
+}

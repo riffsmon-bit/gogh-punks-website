@@ -73,7 +73,11 @@ export class ReorgAwareIndexer {
         })(),
         id: `${stream}:${logId(this.chainId, log)}`,
       }));
+      const streamDefinition = typeof this.source.streamDefinition === "function"
+        ? this.source.streamDefinition(stream)
+        : null;
       inserted += await this.repository.insertLogs(this.chainId, stream, records, {
+        streamDefinition,
         checkpoint: {
           blockNumber: checkpointHeader.number,
           blockHash: checkpointHeader.hash,

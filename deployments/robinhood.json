@@ -9,6 +9,7 @@
   },
   "canonicalCollection": "0xE0F92B3B0E6DeD3654177FE3809Cd300e5ffaDf6",
   "canonicalERC6551Registry": "0x000000006551c19487814612e58FE06813775758",
+  "canonicalERC6551RegistryRuntimeCodeHash": "0xda1d5b06e579f9e42e59b00fbc22939896ecb38dc8830d40de0a2508fecd6735",
   "verifiedExternalInfrastructure": {
     "seaport": {
       "address": "0x0000000000000068f116a894984e2db1123eb395",
@@ -88,6 +89,7 @@
       "verificationStatus": "NOT_SUBMITTED"
     }
   },
+  "sourceVerificationAdoption": null,
   "featureFlags": {
     "ENABLE_SCOUT_MODE": true,
     "ENABLE_APPROVAL_PURCHASES": false,

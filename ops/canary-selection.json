@@ -1,0 +1,26 @@
+{
+  "schema": "GOGH_PUNK_CANARY_SELECTION_V1",
+  "status": "OWNER_SELECTED_PREPARATION_ONLY",
+  "chainId": 4663,
+  "collection": "0xE0F92B3B0E6DeD3654177FE3809Cd300e5ffaDf6",
+  "tokenId": "1797",
+  "plannedOneShotArtTokenId": "9001",
+  "expectedOwner": "0xC7f55cE6A7dF9A79cc4A643a5081230F890c7AA6",
+  "ownerSelectionConfirmed": true,
+  "latestReadOnlyObservation": {
+    "rpcOrigin": "https://rpc.mainnet.chain.robinhood.com",
+    "blockNumber": "42041446",
+    "blockHash": "0x1500b930da14dd788fe115cc5fbbee0d952786cfe657f0357033ec9ebe34532a",
+    "blockTimestamp": "2026-08-21T05:46:27.000Z",
+    "observedOwner": "0xC7f55cE6A7dF9A79cc4A643a5081230F890c7AA6"
+  },
+  "authorization": {
+    "releasePreparationAuthorized": true,
+    "deploymentAuthorized": false,
+    "accountActivationAuthorized": false,
+    "configurationAuthorized": false,
+    "mintAuthorized": false,
+    "autonomousExecutionAuthorized": false
+  },
+  "notes": "Punk #1797 is the sole selected canary for preparation. The owner observation is point-in-time and must be reverified through two independent RPC providers before every live stage. This file does not authorize a signature or blockchain transaction."
+}

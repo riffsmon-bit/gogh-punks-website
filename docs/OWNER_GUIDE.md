@@ -2,7 +2,12 @@
 
 ## What a Punk Account means
 
-Your Gogh Punk controls a deterministic account on Robinhood Chain. You control that account only while the canonical Gogh Punks contract reports you as `ownerOf(tokenId)`. If you transfer or sell the Punk, control changes to the new owner; assets left in the Punk Account may remain there.
+The staged design gives each Gogh Punk a deterministic account on Robinhood
+Chain, but the Gogh Punk Account protocol is currently **NOT DEPLOYED**. Once
+deployed and independently verified, account authority is designed to follow
+the canonical collection's live `ownerOf(tokenId)`: transferring the Punk would
+remove the old owner's authority and give it to the new owner, while assets left
+in the Punk Account could remain there.
 
 Never transfer the controlling Gogh Punk itself to its own Punk Account address. Safe transfers are rejected, but an externally initiated unsafe ERC-721 `transferFrom` can create an ownership cycle and make the account fail closed.
 

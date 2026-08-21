@@ -143,14 +143,24 @@ export class RobinhoodJsonRpcSource {
     };
     if (stream.address) filter.address = normalizeAddress(stream.address);
     const logs = await this.call("eth_getLogs", [filter]);
-    return logs.map((log) => ({
-      address: normalizeAddress(log.address),
-      blockNumber: BigInt(log.blockNumber).toString(),
-      blockHash: log.blockHash.toLowerCase(),
-      transactionHash: log.transactionHash.toLowerCase(),
-      logIndex: log.logIndex,
-      topics: log.topics.map((topic) => topic.toLowerCase()),
-      data: log.data.toLowerCase(),
-    }));
+    return logs.map((log) => {
+      const address = normalizeAddress(log.address);
+      if (filter.address && address !== filter.address) {
+        throw new JsonRpcError("eth_getLogs", "FILTER_ADDRESS_MISMATCH");
+      }
+      return {
+        address,
+        blockNumber: BigInt(log.blockNumber).toString(),
+        blockHash: log.blockHash.toLowerCase(),
+        transactionHash: log.transactionHash.toLowerCase(),
+        logIndex: log.logIndex,
+        topics: log.topics.map((topic) => topic.toLowerCase()),
+        data: log.data.toLowerCase(),
+      };
+    });
+  }
+
+  streamDefinition(streamName) {
+    return this.streams[streamName] ?? null;
   }
 }

@@ -6,6 +6,8 @@ export const ROBINHOOD = Object.freeze({
   nativeCurrency: Object.freeze({ name: "Ether", symbol: "ETH", decimals: 18 }),
   canonicalCollection: "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
   canonicalERC6551Registry: "0x000000006551c19487814612e58fe06813775758",
+  canonicalERC6551RegistryRuntimeCodeHash:
+    "0xda1d5b06e579f9e42e59b00fbc22939896ecb38dc8830d40de0a2508fecd6735",
 });
 
 export const FEATURE_DEFAULTS = Object.freeze({

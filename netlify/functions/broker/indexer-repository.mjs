@@ -1,5 +1,11 @@
 import { getDatabase } from "@netlify/database";
+import { ROBINHOOD } from "../../../broker/src/config.mjs";
+import { projectBrokerAccountLog } from "../../../broker/src/indexer/account-event-projection.mjs";
 import { projectScoutLog } from "../../../broker/src/indexer/opportunity-projection.mjs";
+import {
+  materializeBrokerAcquisition,
+  materializePendingAccountAcquisitions,
+} from "./acquisition-materialization.mjs";
 
 const INDEXER_LOCK_NAMESPACE = 0x474f4748;
 const HASH_PATTERN = /^0x[0-9a-f]{64}$/;
@@ -79,7 +85,7 @@ export class PostgresIndexerRepository {
       : null;
   }
 
-  async insertLogs(chainId, stream, records, { checkpoint = null } = {}) {
+  async insertLogs(chainId, stream, records, { checkpoint = null, streamDefinition = null } = {}) {
     if (!Array.isArray(records)) throw new TypeError("records must be an array");
     const safeCheckpoint = validatedCheckpoint(checkpoint);
     if (records.length === 0 && !safeCheckpoint) return 0;
@@ -200,6 +206,103 @@ export class PostgresIndexerRepository {
             ],
           );
         }
+
+        const accountProjection = projectBrokerAccountLog({
+          chainId,
+          stream,
+          record,
+          expectedEmitter: streamDefinition?.address ?? null,
+          expectedImplementation: streamDefinition?.implementation ?? null,
+        });
+        if (accountProjection?.kind === "ACCOUNT_ACTIVATION") {
+          const activation = await client.query(
+            `INSERT INTO broker_punks
+              (chain_id, collection_address, token_id, account_address, account_version,
+               owner_snapshot, owner_snapshot_block, indexed_through_block,
+               account_observation_source, account_observed_block_number,
+               account_observed_block_hash, account_activation_transaction_hash,
+               account_activation_log_index, updated_at)
+             VALUES
+              ($1, $2, $3, $4, $5, $6, $7, $7, 'ACTIVATION_EVENT', $7, $8, $9, $10,
+               NOW())
+             ON CONFLICT (chain_id, collection_address, token_id) DO UPDATE
+               SET account_address = EXCLUDED.account_address,
+                   account_version = EXCLUDED.account_version,
+                   owner_snapshot = CASE
+                     WHEN broker_punks.owner_snapshot_block IS NULL
+                       OR broker_punks.owner_snapshot_block < EXCLUDED.owner_snapshot_block
+                     THEN EXCLUDED.owner_snapshot
+                     ELSE broker_punks.owner_snapshot
+                   END,
+                   owner_snapshot_block = GREATEST(
+                     COALESCE(broker_punks.owner_snapshot_block, EXCLUDED.owner_snapshot_block),
+                     EXCLUDED.owner_snapshot_block
+                   ),
+                   indexed_through_block = GREATEST(
+                     COALESCE(broker_punks.indexed_through_block, EXCLUDED.indexed_through_block),
+                     EXCLUDED.indexed_through_block
+                   ),
+                   account_observation_source = CASE
+                     WHEN broker_punks.account_observed_block_number IS NULL
+                       OR broker_punks.account_observed_block_number
+                         <= EXCLUDED.account_observed_block_number
+                     THEN EXCLUDED.account_observation_source
+                     ELSE broker_punks.account_observation_source
+                   END,
+                   account_observed_block_number = GREATEST(
+                     COALESCE(
+                       broker_punks.account_observed_block_number,
+                       EXCLUDED.account_observed_block_number
+                     ),
+                     EXCLUDED.account_observed_block_number
+                   ),
+                   account_observed_block_hash = CASE
+                     WHEN broker_punks.account_observed_block_number IS NULL
+                       OR broker_punks.account_observed_block_number
+                         <= EXCLUDED.account_observed_block_number
+                     THEN EXCLUDED.account_observed_block_hash
+                     ELSE broker_punks.account_observed_block_hash
+                   END,
+                   account_activation_transaction_hash =
+                     EXCLUDED.account_activation_transaction_hash,
+                   account_activation_log_index = EXCLUDED.account_activation_log_index,
+                   updated_at = NOW()
+             WHERE (
+                 broker_punks.account_address IS NULL
+                 OR broker_punks.account_address = EXCLUDED.account_address
+               )
+               AND (
+                 broker_punks.account_version IS NULL
+                 OR broker_punks.account_version = EXCLUDED.account_version
+               )
+             RETURNING account_address`,
+            [
+              chainId,
+              ROBINHOOD.canonicalCollection,
+              accountProjection.tokenId,
+              accountProjection.account,
+              accountProjection.implementationVersion,
+              accountProjection.owner,
+              accountProjection.blockNumber,
+              accountProjection.blockHash,
+              accountProjection.transactionHash,
+              accountProjection.logIndex,
+            ],
+          );
+          if (activation.rowCount !== 1) {
+            throw new Error("account activation conflicts with an existing Punk Account binding");
+          }
+          await materializePendingAccountAcquisitions(
+            (sql, values) => client.query(sql, values),
+            chainId,
+            accountProjection.account,
+          );
+        } else if (accountProjection?.kind === "ACCOUNT_ACQUISITION") {
+          await materializeBrokerAcquisition(
+            (sql, values) => client.query(sql, values),
+            accountProjection,
+          );
+        }
       }
       if (safeCheckpoint) {
         await client.query(
@@ -247,6 +350,33 @@ export class PostgresIndexerRepository {
       await client.query(
         `DELETE FROM broker_acquisitions
           WHERE chain_id = $1 AND block_number >= $2`,
+        [chainId, fromBlock.toString()],
+      );
+      await client.query(
+        `UPDATE broker_punks
+            SET account_address = NULL,
+                account_version = NULL,
+                account_observation_source = NULL,
+                account_observed_block_number = NULL,
+                account_observed_block_hash = NULL,
+                account_activation_transaction_hash = NULL,
+                account_activation_log_index = NULL,
+                updated_at = NOW()
+          WHERE chain_id = $1
+            AND account_observed_block_number >= $2`,
+        [chainId, fromBlock.toString()],
+      );
+      await client.query(
+        `UPDATE broker_punks
+            SET owner_snapshot = NULL,
+                owner_snapshot_block = NULL,
+                indexed_through_block = CASE
+                  WHEN indexed_through_block >= $2 THEN NULL
+                  ELSE indexed_through_block
+                END,
+                updated_at = NOW()
+          WHERE chain_id = $1
+            AND owner_snapshot_block >= $2`,
         [chainId, fromBlock.toString()],
       );
       await client.query(

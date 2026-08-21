@@ -149,6 +149,13 @@ The staged RPC contract inspector verifies chain ID, hashes runtime bytecode, di
   in one database transaction, so a crash cannot advance provenance past
   materialized evidence;
 - atomic raw-log plus read-only Scout projection for verified Seaport settlements and confirmed individual mint-transfer signals;
+- a registry-address-pinned Punk Account activation stream and a global,
+  topic-only acquisition stream that exist only when the checked deployment
+  manifest is `DEPLOYED`;
+- strict acquisition decoding followed by an atomic join to the unique,
+  chain-qualified canonical Punk Account binding before any public acquisition
+  row is created; a matching topic emitted by an unrelated contract remains
+  only an unauthenticated raw log;
 - explicit source block/hash/transaction/log provenance on projected opportunities;
 - canonical source-block timestamps kept separate from worker insertion time;
 - canonical-state filtering that immediately hides projections invalidated by a reorg;
@@ -162,7 +169,21 @@ activity. A later, reviewed activation block may be chosen to avoid an
 unnecessary historical scan. Reorg rewinds are clamped to the selected stream
 boundary.
 
-A detected canonical-hash mismatch performs a chain-wide rewind of raw logs, derived acquisitions, adapter snapshots, and stream checkpoints from the affected block. The manual `npm run broker:index` worker processes streams sequentially under a chain-scoped Postgres advisory lock so concurrent jobs cannot race that recovery transaction. `BROKER_INDEX_MAX_BLOCKS_PER_RUN` limits forward progress independently of the RPC batch size and the result reports `processedThrough` plus `caughtUp`. The default streams are only canonical Gogh Punk transfers and verified Seaport activity; broad `nft_transfers` indexing is opt-in. The reviewed Scout production template starts that stream at block `41380000`, materializes only individual zero-address mint signals, and retains a bounded scan window. This recent boundary is not a claim of complete chain history. The worker refuses to run unless explicitly enabled, given every required start block, and connected to chain ID 4663.
+After protocol deployment, both `account_activations` and
+`account_acquisitions` require reviewed start blocks at or before their first
+possible events, normally the relevant protocol deployment block. Activation
+is processed before acquisition. The Scout worker also derives a
+Punk Account at one confirmed block from both the deployed Gogh registry and
+the canonical ERC-6551 registry, requires matching fresh observations from two
+distinct RPC origins with bounded head skew, and records the binding only when
+all observations agree. Operators remain responsible for selecting genuinely
+independent providers. Deployed reconciliation requires at least 12
+confirmations (the production default remains 20). This covers an
+account permissionlessly created through the singleton registry without a Gogh
+facade activation event. Confirmed acquisition logs that arrived first remain
+raw and are idempotently backfilled after that binding is proven.
+
+A detected canonical-hash mismatch performs a chain-wide rewind of raw logs, derived acquisitions, adapter snapshots, and stream checkpoints from the affected block. The manual `npm run broker:index` worker processes streams sequentially under a chain-scoped Postgres advisory lock so concurrent jobs cannot race that recovery transaction. `BROKER_INDEX_MAX_BLOCKS_PER_RUN` limits forward progress independently of the RPC batch size and the result reports `processedThrough` plus `caughtUp`. The default streams are only canonical Gogh Punk transfers and verified Seaport activity while the manifest is `NOT_DEPLOYED`. Once it is `DEPLOYED`, the dynamic core default additionally schedules account activation and acquisition streams. Broad `nft_transfers` indexing remains opt-in. The reviewed Scout production template starts that stream at block `41380000`, materializes only individual zero-address mint signals, and retains a bounded scan window. This recent boundary is not a claim of complete chain history. The worker refuses to run unless explicitly enabled, given every required start block, and connected to chain ID 4663.
 
 Production schedules core collection/Seaport catch-up separately from the
 opt-in market-wide mint-transfer scan. Both still use the same chain advisory

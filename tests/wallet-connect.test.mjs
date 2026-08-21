@@ -9,7 +9,7 @@ import {
   walletPresentation,
 } from "../site/wallet.js";
 
-const OWNER = "0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6";
+const OWNER = "0x1234567890123456789012345678901234567890";
 
 test("wallet values are strictly normalized for Robinhood Chain", () => {
   assert.equal(ROBINHOOD_CHAIN_ID, 4663);
@@ -21,7 +21,7 @@ test("wallet values are strictly normalized for Robinhood Chain", () => {
 });
 
 test("wallet presentation distinguishes owner, public viewer, and wrong network", () => {
-  const owner = { address: OWNER, tokenId: "1797" };
+  const owner = { address: OWNER, tokenId: "4242" };
   const verified = walletPresentation({
     available: true,
     pending: false,
@@ -30,7 +30,7 @@ test("wallet presentation distinguishes owner, public viewer, and wrong network"
     owner,
   });
   assert.equal(verified.state, "owner");
-  assert.match(verified.statusText, /Matches the indexed owner of Punk #1797/);
+  assert.match(verified.statusText, /Matches the indexed owner of Punk #4242/);
   assert.match(verified.statusText, /management remains disabled/);
 
   const viewer = walletPresentation({
@@ -104,7 +104,7 @@ test("provider access begins only after a click and remains read-only", async ()
   assert.equal(button.textContent, "Connect wallet");
 
   windowListeners.get("gogh:owner-snapshot")({
-    detail: { address: OWNER, tokenId: "1797", source: "punk" },
+    detail: { address: OWNER, tokenId: "4242", source: "punk" },
   });
   await button.click();
   assert.deepEqual(calls, ["eth_requestAccounts", "eth_chainId"]);

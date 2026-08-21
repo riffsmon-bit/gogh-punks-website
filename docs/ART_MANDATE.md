@@ -35,11 +35,12 @@ different mint ceilings, budgets, reserves, styles, and risk tolerance.
 
 Scout uses the fail-closed `ArtMandate` model in `broker/src/mandate.mjs`. If no
 current-owner mandate exists, the Punk may inspect public mint signals but does
-not express a desire to spend. A mint-interest result is advisory and can be
-`IGNORE`, `WATCH`, `RESEARCH`, `OWNER_APPROVAL_REQUIRED`, or
-`AUTONOMOUS_POLICY_ELIGIBLE`. The last label is never sufficient to move funds:
-the live owner, registered adapter, agent authorization, feature flags, budget,
-reserve, and every on-chain permission must independently pass.
+not express a desire to spend. A local mint-interest result is advisory and can
+be `IGNORE`, `WATCH`, `RECOMMEND`, or `PROPOSE`. `PROPOSE` means only that a
+narrow owner-review artifact may be prepared; it never authorizes execution.
+The exact expected owner must match the mandate's nonzero `configuredBy`, and
+the registered adapter, feature flags, budget, reserve, live ownership, and
+every on-chain permission must still independently pass.
 
 ### Permissions
 
@@ -67,8 +68,11 @@ The Punk first inspects confirmed evidence, then compares the opportunity with
 its own Taste Profile and mandate. It considers price status, free-versus-paid
 permission, maximum mint price, Taste Match threshold, contract-risk ceiling,
 allowlists and blocklists. An observed mint transfer with an unknown live phase,
-unknown price, or unknown contract risk remains `RESEARCH`, even when the Punk
-likes the artwork. Personality can change ranking but never relax security.
+unknown price, invalid or missing bounded contract-risk evidence, or unknown
+contract risk fails closed to `IGNORE` or `WATCH`, even when the Punk likes the
+artwork. Personality can change ranking but never relax security. The local
+proof labels supplied Punk Account and owner identity as unverified until a
+separate confirmed-chain attestation.
 
 ## Persona examples
 

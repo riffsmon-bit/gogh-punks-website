@@ -47,9 +47,12 @@ export async function runBrokerIndexer({
     readFileSync(resolve(process.cwd(), "deployments/robinhood.json"), "utf8"),
   );
   const streams = protocolStreams(deployment);
+  const defaultStreams = deployment.status === "DEPLOYED"
+    ? "gogh_punk_transfers,seaport_activity,account_activations,account_acquisitions"
+    : "gogh_punk_transfers,seaport_activity";
   const requested = (
     environment.BROKER_INDEX_STREAMS
-      ?? "gogh_punk_transfers,seaport_activity"
+      ?? defaultStreams
   )
     .split(",")
     .map((stream) => stream.trim())

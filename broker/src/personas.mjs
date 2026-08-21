@@ -1,4 +1,4 @@
-const DIMENSIONS = [
+export const TASTE_DIMENSIONS = Object.freeze([
   "pixelArt",
   "generativeArt",
   "oneOfOne",
@@ -16,11 +16,11 @@ const DIMENSIONS = [
   "emergingArtists",
   "historicalNFTs",
   "experimentalNFTs",
-];
+]);
 
 function profile(values) {
   return Object.freeze(
-    Object.fromEntries(DIMENSIONS.map((dimension) => [dimension, values[dimension] ?? 25])),
+    Object.fromEntries(TASTE_DIMENSIONS.map((dimension) => [dimension, values[dimension] ?? 25])),
   );
 }
 
@@ -72,14 +72,22 @@ export const PUNK_PERSONAS = Object.freeze({
   }),
 });
 
-export function tasteMatch(persona, artworkDimensions) {
-  const weights = persona?.weights;
-  if (!weights) throw new TypeError("persona is required");
+export function tasteMatchFromWeights(weights, artworkDimensions) {
+  if (!weights || typeof weights !== "object" || Array.isArray(weights)) {
+    throw new TypeError("taste weights are required");
+  }
   let weighted = 0;
   let total = 0;
-  for (const dimension of DIMENSIONS) {
-    const weight = Number(weights[dimension]);
-    const score = Number(artworkDimensions?.[dimension] ?? 0);
+  for (const dimension of TASTE_DIMENSIONS) {
+    const weight = Number(Object.hasOwn(weights, dimension) ? weights[dimension] : 0);
+    const score = Number(
+      artworkDimensions && Object.hasOwn(artworkDimensions, dimension)
+        ? artworkDimensions[dimension]
+        : 0,
+    );
+    if (!Number.isFinite(weight) || weight < 0 || weight > 100) {
+      throw new TypeError(`${dimension} weight must be between 0 and 100`);
+    }
     if (!Number.isFinite(score) || score < 0 || score > 100) {
       throw new TypeError(`${dimension} must be between 0 and 100`);
     }
@@ -87,4 +95,9 @@ export function tasteMatch(persona, artworkDimensions) {
     total += weight;
   }
   return total === 0 ? 0 : Math.round((weighted / total) * 100) / 100;
+}
+
+export function tasteMatch(persona, artworkDimensions) {
+  if (!persona?.weights) throw new TypeError("persona is required");
+  return tasteMatchFromWeights(persona.weights, artworkDimensions);
 }

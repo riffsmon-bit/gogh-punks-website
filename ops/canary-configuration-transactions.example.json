@@ -1,0 +1,69 @@
+{
+  "transactions": [
+    {
+      "id": "CONFIG_OWNER_01_PAUSE_ACCOUNT_BEFORE_STAGING",
+      "order": 1,
+      "hash": "0x1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    {
+      "id": "CONFIG_OWNER_02_CONFIGURE_DISABLED_ZERO_SPEND_POLICY",
+      "order": 2,
+      "hash": "0x2222222222222222222222222222222222222222222222222222222222222222"
+    },
+    {
+      "id": "CONFIG_GUARDIAN_01_REGISTER_EXACT_MINT_ADAPTER",
+      "order": 3,
+      "hash": "0x3333333333333333333333333333333333333333333333333333333333333333"
+    },
+    {
+      "id": "CONFIG_OWNER_03_ALLOW_EXACT_ADAPTER",
+      "order": 4,
+      "hash": "0x4444444444444444444444444444444444444444444444444444444444444444"
+    },
+    {
+      "id": "CONFIG_OWNER_04_ALLOW_EXACT_MINT_VENUE",
+      "order": 5,
+      "hash": "0x5555555555555555555555555555555555555555555555555555555555555555"
+    },
+    {
+      "id": "CONFIG_OWNER_05_ALLOW_EXACT_COLLECTION",
+      "order": 6,
+      "hash": "0x6666666666666666666666666666666666666666666666666666666666666666"
+    },
+    {
+      "id": "CONFIG_OWNER_06_ALLOW_ZERO_NATIVE_CURRENCY",
+      "order": 7,
+      "hash": "0x7777777777777777777777777777777777777777777777777777777777777777"
+    },
+    {
+      "id": "CONFIG_OWNER_07_SET_ZERO_VENUE_MAXIMUM",
+      "order": 8,
+      "hash": "0x8888888888888888888888888888888888888888888888888888888888888888"
+    },
+    {
+      "id": "CONFIG_OWNER_08_ALLOW_EXACT_MINT_SELECTOR",
+      "order": 9,
+      "hash": "0x9999999999999999999999999999999999999999999999999999999999999999"
+    },
+    {
+      "id": "CONFIG_OWNER_09_ENABLE_OWNER_APPROVED_MINTS_ONLY",
+      "order": 10,
+      "hash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "id": "CONFIG_GUARDIAN_02_ENABLE_APPROVAL_PURCHASES_ONLY",
+      "order": 11,
+      "hash": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    {
+      "id": "CONFIG_OWNER_10_SWITCH_TO_APPROVAL_REQUIRED",
+      "order": 12,
+      "hash": "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    },
+    {
+      "id": "CONFIG_OWNER_11_UNPAUSE_ACCOUNT_LAST",
+      "order": 13,
+      "hash": "0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    }
+  ]
+}

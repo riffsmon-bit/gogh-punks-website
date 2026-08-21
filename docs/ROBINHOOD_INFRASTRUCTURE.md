@@ -11,6 +11,7 @@
 | Native currency | ETH, 18 decimals |
 | Verification API | `https://robinhoodchain.blockscout.com/api/` |
 | Canonical ERC-6551 registry | `0x000000006551c19487814612e58FE06813775758` |
+| Canonical ERC-6551 registry runtime hash | `0xda1d5b06e579f9e42e59b00fbc22939896ecb38dc8830d40de0a2508fecd6735` |
 | Canonical Gogh Punks | `0xE0F92B3B0E6DeD3654177FE3809Cd300e5ffaDf6` |
 | Gogh Punks deployment | Block `31277277`, transaction `0x7cd34483503c65b37e7130d73197d399922b7a1cca40318f2a9276e02c38b991` |
 | Gogh Punks SeaDrop | `0x00005EA00Ac477B1030CE78506496e8C2dE24bf5` |
@@ -25,6 +26,13 @@ Sources: [connection settings](https://docs.robinhood.com/chain/connecting/), [c
 ## Account abstraction
 
 Robinhood documents first-class ERC-4337 support. This project does not assume a particular EntryPoint, bundler, paymaster, or gas-sponsorship contract until each address and runtime bytecode is independently verified. V1 Punk Accounts use ERC-6551 identity and ordinary owner transactions; ERC-4337 integration remains an extension point.
+
+The canonical ERC-6551 registry address is additionally pinned to runtime
+bytecode hash
+`0xda1d5b06e579f9e42e59b00fbc22939896ecb38dc8830d40de0a2508fecd6735`.
+Foundation canary checks must reproduce this hash from bytecode read at the same
+confirmed block agreed by both RPC providers; address presence alone is not
+sufficient evidence.
 
 ## NFT infrastructure
 
@@ -62,8 +70,11 @@ path was involved.
 Default finality policy in this repository is 20 confirmations plus a 64-block rewind window. These are operational defaults, not a claim about absolute finality, and must be reviewed against Robinhood's current sequencer/finality documentation before production.
 
 The indexer also limits one invocation to 10,000 blocks by default. Canonical
-Gogh Punk transfers and Seaport activity have independent verified starts;
-market-wide NFT transfers remain excluded from the default stream set.
+Gogh Punk transfers and Seaport activity have independent verified starts.
+After a verified `DEPLOYED` protocol manifest, registry-pinned account
+activations and topic-only account acquisitions require their own deployment
+block lower bounds and join against the canonical chain-qualified Punk Account
+binding. Market-wide NFT transfers remain excluded from the default stream set.
 
 ## UNVERIFIED items
 

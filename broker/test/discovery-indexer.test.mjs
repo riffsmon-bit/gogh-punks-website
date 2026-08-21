@@ -526,16 +526,53 @@ test("JSON-RPC block headers preserve canonical timestamps with bounded concurre
   );
 });
 
+test("JSON-RPC source rejects a provider log outside a pinned stream address", async () => {
+  const expectedAddress = "0x1111111111111111111111111111111111111111";
+  const source = new RobinhoodJsonRpcSource({
+    rpcUrl: "https://rpc.mainnet.chain.robinhood.com",
+    streams: {
+      pinned: { address: expectedAddress, topics: [ACCOUNT_ACTIVATION_TOPIC] },
+    },
+    fetchImpl: async (_url, request) => {
+      const payload = JSON.parse(request.body);
+      return new Response(JSON.stringify({
+        jsonrpc: "2.0",
+        id: payload.id,
+        result: [{
+          address: "0x2222222222222222222222222222222222222222",
+          blockNumber: "0x50",
+          blockHash: `0x${"ab".repeat(32)}`,
+          transactionHash: `0x${"cd".repeat(32)}`,
+          logIndex: "0x0",
+          topics: [ACCOUNT_ACTIVATION_TOPIC],
+          data: "0x",
+        }],
+      }));
+    },
+  });
+  await assert.rejects(
+    () => source.logs("pinned", 80n, 80n),
+    (error) => error?.code === "FILTER_ADDRESS_MISMATCH",
+  );
+});
+
 class MemoryRepository {
   checkpointValue = null;
   logs = new Map();
   rewinds = [];
+  streamDefinitionValue = null;
 
   async checkpoint() {
     return this.checkpointValue;
   }
 
-  async insertLogs(_chainId, _stream, records, { checkpoint = null } = {}) {
+  async insertLogs(
+    _chainId,
+    _stream,
+    records,
+    { checkpoint = null, streamDefinition = null } = {},
+  ) {
+    this.streamDefinitionValue = streamDefinition;
     let inserted = 0;
     for (const record of records) {
       if (!this.logs.has(record.id)) inserted += 1;
@@ -592,6 +629,10 @@ class MemorySource {
       },
     ];
   }
+
+  streamDefinition(stream) {
+    return { name: stream };
+  }
 }
 
 test("indexer uses confirmed blocks, idempotent log IDs, and rewinds on reorg", async () => {
@@ -608,6 +649,7 @@ test("indexer uses confirmed blocks, idempotent log IDs, and rewinds on reorg", 
   const first = await indexer.run("transfers");
   assert.equal(first.safeHead, "100");
   assert.equal(first.inserted, 3);
+  assert.deepEqual(repository.streamDefinitionValue, { name: "transfers" });
   assert.ok([...repository.logs.keys()].every((id) => id.startsWith("transfers:4663:")));
   assert.equal(repository.checkpointValue.blockNumber, "100");
   const second = await indexer.run("transfers");
@@ -716,10 +758,16 @@ test("protocol streams fail closed until a complete deployed manifest exists", (
     status: "DEPLOYED",
     contracts: {
       GoghPunkAccountRegistry: { address: "0x1111111111111111111111111111111111111111" },
+      GoghPunkAccountV1: { address: "0x3333333333333333333333333333333333333333" },
       BrokerPolicyModule: { address: "0x2222222222222222222222222222222222222222" },
     },
   });
   assert.deepEqual(deployed.account_activations.topics, [ACCOUNT_ACTIVATION_TOPIC]);
+  assert.equal(
+    deployed.account_activations.implementation,
+    "0x3333333333333333333333333333333333333333",
+  );
+  assert.equal(Object.hasOwn(deployed.account_acquisitions, "address"), false);
   assert.equal(deployed.policy_activity.address, "0x2222222222222222222222222222222222222222");
 
   assert.throws(

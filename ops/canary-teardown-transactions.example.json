@@ -1,0 +1,59 @@
+{
+  "transactions": [
+    {
+      "id": "TEARDOWN_GUARDIAN_01_DISABLE_APPROVAL_PURCHASES",
+      "order": 1,
+      "hash": "0x1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    {
+      "id": "TEARDOWN_OWNER_01_PAUSE_ACCOUNT",
+      "order": 2,
+      "hash": "0x2222222222222222222222222222222222222222222222222222222222222222"
+    },
+    {
+      "id": "TEARDOWN_OWNER_02_CONFIGURE_DISABLED",
+      "order": 3,
+      "hash": "0x3333333333333333333333333333333333333333333333333333333333333333"
+    },
+    {
+      "id": "TEARDOWN_GUARDIAN_02_DISABLE_ADAPTER",
+      "order": 4,
+      "hash": "0x4444444444444444444444444444444444444444444444444444444444444444"
+    },
+    {
+      "id": "TEARDOWN_OWNER_03_DISABLE_ALL_MINT_CONTROLS",
+      "order": 5,
+      "hash": "0x5555555555555555555555555555555555555555555555555555555555555555"
+    },
+    {
+      "id": "TEARDOWN_OWNER_04_DENY_SELECTOR",
+      "order": 6,
+      "hash": "0x6666666666666666666666666666666666666666666666666666666666666666"
+    },
+    {
+      "id": "TEARDOWN_OWNER_05_REVOKE_ADAPTER",
+      "order": 7,
+      "hash": "0x7777777777777777777777777777777777777777777777777777777777777777"
+    },
+    {
+      "id": "TEARDOWN_OWNER_06_REVOKE_MINT_VENUE",
+      "order": 8,
+      "hash": "0x8888888888888888888888888888888888888888888888888888888888888888"
+    },
+    {
+      "id": "TEARDOWN_OWNER_07_DENY_COLLECTION",
+      "order": 9,
+      "hash": "0x9999999999999999999999999999999999999999999999999999999999999999"
+    },
+    {
+      "id": "TEARDOWN_OWNER_08_DISABLE_CURRENCY",
+      "order": 10,
+      "hash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "id": "TEARDOWN_OWNER_09_KEEP_ZERO_VENUE_MAXIMUM",
+      "order": 11,
+      "hash": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    }
+  ]
+}

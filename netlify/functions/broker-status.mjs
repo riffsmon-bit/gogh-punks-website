@@ -12,7 +12,14 @@ function configuredScoutToken() {
 }
 
 async function scoutSnapshot(tokenId) {
-  if (!tokenId) return { dataStatus: "NOT_CONFIGURED", tokenId: null };
+  if (!tokenId) {
+    return {
+      dataStatus: "NOT_CONFIGURED",
+      scope: "NO_PUNK_CONFIGURED",
+      configuredPunkCount: 0,
+      tokenId: null,
+    };
+  }
   try {
     const [punk, opportunities, recommendations, checkpoint, metadata] = await Promise.all([
       getDatabase().pool.query(
@@ -50,7 +57,9 @@ async function scoutSnapshot(tokenId) {
     ]);
     const opportunityCount = Number(opportunities.rows[0]?.count ?? 0);
     return {
-      dataStatus: opportunityCount > 0 ? "LIVE" : "SYNCING",
+      dataStatus: opportunityCount > 0 ? "READ_ONLY_DATA_AVAILABLE" : "SYNCING",
+      scope: "ONE_CONFIGURED_PUNK",
+      configuredPunkCount: punk.rows.length > 0 ? 1 : 0,
       tokenId,
       punk: punk.rows[0] ?? null,
       opportunityCount,
@@ -59,7 +68,12 @@ async function scoutSnapshot(tokenId) {
       checkpoints: checkpoint.rows,
     };
   } catch {
-    return { dataStatus: "DATABASE_UNAVAILABLE", tokenId };
+    return {
+      dataStatus: "DATABASE_UNAVAILABLE",
+      scope: "ONE_CONFIGURED_PUNK",
+      configuredPunkCount: 0,
+      tokenId,
+    };
   }
 }
 

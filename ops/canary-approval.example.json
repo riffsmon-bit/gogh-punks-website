@@ -1,0 +1,211 @@
+{
+  "schemaVersion": 1,
+  "chainId": 4663,
+  "collection": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+  "accountMode": "APPROVAL_REQUIRED",
+  "globalFeatureFlags": {
+    "ENABLE_SCOUT_MODE": true,
+    "ENABLE_APPROVAL_PURCHASES": true,
+    "ENABLE_AUTONOMOUS_PURCHASES": false,
+    "ENABLE_AUTONOMOUS_MINTS": false,
+    "ENABLE_UNKNOWN_COLLECTION_EXECUTION": false,
+    "ENABLE_SELLING": false,
+    "ENABLE_AUTONOMOUS_SELLING": false
+  },
+  "mintControls": {
+    "ownerApprovedMints": true,
+    "autonomousFreeMints": false,
+    "autonomousPaidMints": false
+  },
+  "punk": {
+    "tokenId": "REPLACE",
+    "expectedOwner": "0x0000000000000000000000000000000000000000",
+    "expectedAccount": "0x0000000000000000000000000000000000000000",
+    "accountDerivations": [
+      {
+        "method": "canonical-registry",
+        "account": "0x0000000000000000000000000000000000000000",
+        "evidenceHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      {
+        "method": "independent-client",
+        "account": "0x0000000000000000000000000000000000000000",
+        "evidenceHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+      }
+    ]
+  },
+  "target": {
+    "opportunityType": "FREE_MINT",
+    "adapter": "0x0000000000000000000000000000000000000000",
+    "venue": "0x0000000000000000000000000000000000000000",
+    "collection": "0x0000000000000000000000000000000000000000",
+    "selector": "0x00000000",
+    "assetStandard": "ERC721",
+    "tokenId": "REPLACE",
+    "amount": "1",
+    "currency": "0x0000000000000000000000000000000000000000",
+    "expectedPriceWei": "0",
+    "maximumPriceWei": "0",
+    "valueWei": "0",
+    "maxSlippageBps": 0
+  },
+  "intent": {
+    "account": "0x0000000000000000000000000000000000000000",
+    "chainId": 4663,
+    "expectedOwner": "0x0000000000000000000000000000000000000000",
+    "nonce": "REPLACE",
+    "policyVersion": 0,
+    "opportunityType": "FREE_MINT",
+    "assetStandard": "ERC721",
+    "adapter": "0x0000000000000000000000000000000000000000",
+    "venue": "0x0000000000000000000000000000000000000000",
+    "collection": "0x0000000000000000000000000000000000000000",
+    "tokenId": "REPLACE",
+    "assetAmount": "1",
+    "currency": "0x0000000000000000000000000000000000000000",
+    "expectedPrice": "0",
+    "maxPrice": "0",
+    "maxSlippageBps": 0,
+    "createdAt": 0,
+    "expiresAt": 0,
+    "opportunityId": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "reasoningHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "adapterCodeHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "adapterDataHash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+    "intentHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "evidence": {
+    "generatedAt": "REPLACE_WITH_STRICT_ISO_UTC_TIMESTAMP",
+    "confirmations": 20,
+    "pinnedBlock": {
+      "number": 0,
+      "hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "timestamp": "REPLACE_WITH_STRICT_ISO_UTC_TIMESTAMP"
+    },
+    "rpcPrimary": {
+      "provider": "REPLACE_PRIMARY",
+      "url": "https://primary-provider.example",
+      "chainId": 4663,
+      "blockNumber": 0,
+      "blockHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "blockTimestamp": "REPLACE_WITH_STRICT_ISO_UTC_TIMESTAMP",
+      "chainHead": 0,
+      "punkTokenId": "REPLACE",
+      "currentOwner": "0x0000000000000000000000000000000000000000",
+      "resolvedAccount": "0x0000000000000000000000000000000000000000",
+      "observedAt": "REPLACE_WITH_STRICT_ISO_UTC_TIMESTAMP",
+      "evidenceHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "rpcSecondary": {
+      "provider": "REPLACE_SECONDARY",
+      "url": "https://secondary-provider.example",
+      "chainId": 4663,
+      "blockNumber": 0,
+      "blockHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "blockTimestamp": "REPLACE_WITH_STRICT_ISO_UTC_TIMESTAMP",
+      "chainHead": 0,
+      "punkTokenId": "REPLACE",
+      "currentOwner": "0x0000000000000000000000000000000000000000",
+      "resolvedAccount": "0x0000000000000000000000000000000000000000",
+      "observedAt": "REPLACE_WITH_STRICT_ISO_UTC_TIMESTAMP",
+      "evidenceHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "permissions": {
+      "account": "0x0000000000000000000000000000000000000000",
+      "adapter": "0x0000000000000000000000000000000000000000",
+      "venue": "0x0000000000000000000000000000000000000000",
+      "collection": "0x0000000000000000000000000000000000000000",
+      "selector": "0x00000000",
+      "assetStandard": "ERC721",
+      "tokenId": "REPLACE",
+      "amount": "1",
+      "currency": "0x0000000000000000000000000000000000000000",
+      "adapterAllowed": true,
+      "venueAllowed": true,
+      "mintContractAllowed": true,
+      "collectionAllowed": true,
+      "selectorAllowed": true,
+      "currencyAllowed": true,
+      "collectionDenied": false,
+      "selectorDenied": false,
+      "policyVersion": 0,
+      "maximumValueWei": "0",
+      "permissionSetHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "counts": {
+        "adapters": 1,
+        "venues": 1,
+        "mintContracts": 1,
+        "collections": 1,
+        "selectors": 1,
+        "currencies": 1
+      },
+      "observedAtBlock": 0
+    },
+    "code": {
+      "account": {
+        "address": "0x0000000000000000000000000000000000000000",
+        "expectedRuntimeCodeHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "observedRuntimeCodeHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "observedAtBlock": 0
+      },
+      "adapter": {
+        "address": "0x0000000000000000000000000000000000000000",
+        "expectedRuntimeCodeHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "observedRuntimeCodeHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "observedAtBlock": 0
+      },
+      "venue": {
+        "address": "0x0000000000000000000000000000000000000000",
+        "expectedRuntimeCodeHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "observedRuntimeCodeHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "observedAtBlock": 0
+      },
+      "collection": {
+        "address": "0x0000000000000000000000000000000000000000",
+        "expectedRuntimeCodeHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "observedRuntimeCodeHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "observedAtBlock": 0
+      }
+    },
+    "simulation": {
+      "status": "PASS",
+      "blockNumber": 0,
+      "blockHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "simulatedAt": "REPLACE_WITH_ISO_TIMESTAMP",
+      "evidenceHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "traceHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "from": "0x0000000000000000000000000000000000000000",
+      "executionAccount": "0x0000000000000000000000000000000000000000",
+      "executionSelector": "0x00000000",
+      "intent": {
+        "account": "0x0000000000000000000000000000000000000000",
+        "chainId": 4663,
+        "expectedOwner": "0x0000000000000000000000000000000000000000",
+        "nonce": "REPLACE",
+        "policyVersion": 0,
+        "opportunityType": "FREE_MINT",
+        "assetStandard": "ERC721",
+        "adapter": "0x0000000000000000000000000000000000000000",
+        "venue": "0x0000000000000000000000000000000000000000",
+        "collection": "0x0000000000000000000000000000000000000000",
+        "tokenId": "REPLACE",
+        "assetAmount": "1",
+        "currency": "0x0000000000000000000000000000000000000000",
+        "expectedPrice": "0",
+        "maxPrice": "0",
+        "maxSlippageBps": 0,
+        "createdAt": 0,
+        "expiresAt": 0,
+        "opportunityId": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "reasoningHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "adapterCodeHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "adapterDataHash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+        "intentHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "nftRecipient": "0x0000000000000000000000000000000000000000",
+      "nativePaymentWei": "0",
+      "approvalChanges": [],
+      "unexpectedCalls": []
+    }
+  }
+}

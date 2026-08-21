@@ -1,5 +1,8 @@
 import { getDatabase } from "@netlify/database";
 import { ROBINHOOD, normalizeAddress } from "../../../broker/src/config.mjs";
+import { materializePendingAccountAcquisitions } from "./acquisition-materialization.mjs";
+
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 function pool() {
   return getDatabase().pool;
@@ -14,29 +17,125 @@ export class PostgresScoutRepository {
     return (this.database ?? pool()).query(text, values);
   }
 
-  async upsertPunk({ tokenId, owner, ownerBlock, personaKey }) {
+  async upsertPunk({
+    tokenId,
+    owner,
+    ownerBlock,
+    personaKey,
+    accountAddress = null,
+    accountVersion = null,
+    accountObservedBlock = null,
+    accountObservedBlockHash = null,
+  }) {
+    const reconciledAccount = accountAddress === null
+      ? null
+      : normalizeAddress(accountAddress, "Scout Punk Account");
+    if (reconciledAccount !== null) {
+      let version;
+      let observedBlock;
+      let confirmedOwnerBlock;
+      try {
+        version = BigInt(accountVersion);
+        observedBlock = BigInt(accountObservedBlock);
+        confirmedOwnerBlock = BigInt(ownerBlock);
+      } catch {
+        throw new TypeError("Scout Punk Account reconciliation evidence is malformed");
+      }
+      if (reconciledAccount === ZERO_ADDRESS || version !== 1n || observedBlock < 0n
+        || observedBlock !== confirmedOwnerBlock
+        || !/^0x[0-9a-f]{64}$/.test(accountObservedBlockHash ?? "")) {
+        throw new TypeError("Scout Punk Account reconciliation evidence is malformed");
+      }
+    } else if (
+      accountVersion !== null || accountObservedBlock !== null || accountObservedBlockHash !== null
+    ) {
+      throw new TypeError("Scout Punk Account evidence requires an account address");
+    }
     const result = await this._query(
       `INSERT INTO broker_punks
-        (chain_id, collection_address, token_id, owner_snapshot,
-         owner_snapshot_block, persona_key, indexed_through_block, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $5, NOW())
+        (chain_id, collection_address, token_id, account_address, account_version,
+         owner_snapshot, owner_snapshot_block, persona_key, indexed_through_block,
+         account_observation_source, account_observed_block_number,
+         account_observed_block_hash, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $7, $9, $10, $11, NOW())
        ON CONFLICT (chain_id, collection_address, token_id) DO UPDATE
-         SET owner_snapshot = EXCLUDED.owner_snapshot,
-             owner_snapshot_block = EXCLUDED.owner_snapshot_block,
+         SET account_address = COALESCE(EXCLUDED.account_address, broker_punks.account_address),
+             account_version = COALESCE(EXCLUDED.account_version, broker_punks.account_version),
+             owner_snapshot = CASE
+               WHEN broker_punks.owner_snapshot_block IS NULL
+                 OR broker_punks.owner_snapshot_block <= EXCLUDED.owner_snapshot_block
+               THEN EXCLUDED.owner_snapshot
+               ELSE broker_punks.owner_snapshot
+             END,
+             owner_snapshot_block = GREATEST(
+               COALESCE(broker_punks.owner_snapshot_block, EXCLUDED.owner_snapshot_block),
+               EXCLUDED.owner_snapshot_block
+             ),
              persona_key = EXCLUDED.persona_key,
-             indexed_through_block = EXCLUDED.indexed_through_block,
+             indexed_through_block = GREATEST(
+               COALESCE(broker_punks.indexed_through_block, EXCLUDED.indexed_through_block),
+               EXCLUDED.indexed_through_block
+             ),
+             account_observation_source = CASE
+               WHEN EXCLUDED.account_observed_block_number IS NOT NULL
+                 AND (
+                   broker_punks.account_observed_block_number IS NULL
+                   OR EXCLUDED.account_observed_block_number
+                     >= broker_punks.account_observed_block_number
+                 )
+               THEN EXCLUDED.account_observation_source
+               ELSE broker_punks.account_observation_source
+             END,
+             account_observed_block_number = GREATEST(
+               COALESCE(
+                 broker_punks.account_observed_block_number,
+                 EXCLUDED.account_observed_block_number
+               ),
+               COALESCE(
+                 EXCLUDED.account_observed_block_number,
+                 broker_punks.account_observed_block_number
+               )
+             ),
+             account_observed_block_hash = CASE
+               WHEN EXCLUDED.account_observed_block_number IS NOT NULL
+                 AND (
+                   broker_punks.account_observed_block_number IS NULL
+                   OR EXCLUDED.account_observed_block_number
+                     >= broker_punks.account_observed_block_number
+                 )
+               THEN EXCLUDED.account_observed_block_hash
+               ELSE broker_punks.account_observed_block_hash
+             END,
              updated_at = NOW()
+       WHERE EXCLUDED.account_address IS NULL
+          OR broker_punks.account_address IS NULL
+          OR broker_punks.account_address = EXCLUDED.account_address
        RETURNING chain_id, collection_address, token_id, account_address,
                  owner_snapshot, owner_snapshot_block, persona_key`,
       [
         ROBINHOOD.chainId,
         ROBINHOOD.canonicalCollection,
         BigInt(tokenId).toString(),
+        reconciledAccount,
+        reconciledAccount === null ? null : BigInt(accountVersion).toString(),
         normalizeAddress(owner, "Scout owner"),
         BigInt(ownerBlock).toString(),
         personaKey,
+        reconciledAccount === null ? null : "REGISTRY_RECONCILIATION",
+        reconciledAccount === null ? null : BigInt(accountObservedBlock).toString(),
+        reconciledAccount === null ? null : accountObservedBlockHash,
       ],
     );
+    if (result.rowCount !== undefined && result.rowCount !== 1) {
+      throw new Error("Scout Punk Account conflicts with its canonical database binding");
+    }
+    if (reconciledAccount !== null) {
+      await materializePendingAccountAcquisitions(
+        (sql, values) => this._query(sql, values),
+        ROBINHOOD.chainId,
+        reconciledAccount,
+      );
+    }
     return result.rows[0];
   }
 

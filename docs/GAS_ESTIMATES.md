@@ -36,3 +36,18 @@ The deployment script completed against Robinhood mainnet chain ID 4663 on 2026-
 - sampled total: `0.000646477781487902 ETH`.
 
 The simulation-created addresses are intentionally not recorded as deployments: they depend on Foundry's simulation sender and are not production addresses. Current prices and actual deployment costs can differ materially.
+
+The no-key, no-broadcast simulation was repeated on 2026-08-20 from the current
+Art Broker worktree with the proposed public guardian address and zero account
+salt. Foundry estimated `10,794,429` total gas at `0.040152001 gwei`, or
+`0.000433417924002429 ETH`. This remains a point-in-time simulation—not a fee
+quote or deployment—and no transaction was signed or broadcast.
+
+The simulation was repeated again on 2026-08-21 after the source-verification and Punk-account
+activation gate tooling was implemented and its local test suites passed. The live gates remain
+blocked while the manifests are `NOT_DEPLOYED`. The simulation used placeholder sender and guardian
+addresses, zero account salt, no wallet, and no `--broadcast` flag. At Robinhood block-head
+conditions observed by Foundry, it estimated `10,902,143` total gas at `0.040332001 gwei`, or
+`0.000439705242378143 ETH`. The returned addresses are simulation-only and must not be treated as
+production predictions until the real deployer and guardian are selected and the clean release is
+rebuilt and simulated again.

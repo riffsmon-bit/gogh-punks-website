@@ -95,7 +95,13 @@ if (process.env.BROKER_INDEXER_ENABLED === "true") {
     .split(",")
     .map((value) => value.trim())
     .filter(Boolean);
-  const supported = new Set(["gogh_punk_transfers", "seaport_activity", "nft_transfers"]);
+  const supported = new Set([
+    "gogh_punk_transfers",
+    "seaport_activity",
+    "nft_transfers",
+    "account_activations",
+    "account_acquisitions",
+  ]);
   if (streams.length === 0) fail("BROKER_INDEX_STREAMS", "must name at least one stream");
   for (const stream of streams) {
     if (!supported.has(stream)) {
@@ -122,6 +128,8 @@ for (const [name, fallback, minimum, maximum] of [
   ["BROKER_ANALYSIS_RETRY_HOURS", "24", 1, 720],
   ["BROKER_ANALYSIS_ACTIVITY_LIMIT", "200", 1, 500],
   ["BROKER_SCOUT_MAX_RECOMMENDATIONS_PER_RUN", "24", 1, 100],
+  ["BROKER_RPC_MAX_HEAD_SKEW", "8", 0, 1_000],
+  ["BROKER_RPC_MAX_BLOCK_AGE_SECONDS", "600", 1, 86_400],
 ]) {
   const value = Number(process.env[name] ?? fallback);
   if (!Number.isSafeInteger(value) || value < minimum || value > maximum) {

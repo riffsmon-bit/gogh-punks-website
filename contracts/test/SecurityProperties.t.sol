@@ -87,6 +87,23 @@ contract SecurityPropertiesTest is ArtBrokerTestBase {
         );
     }
 
+    function testAcquisitionRequiresNonzeroOpportunityAndReasoningProvenance() public {
+        GoghBrokerTypes.AcquisitionIntent memory intent = _intent(3021, 0.01 ether);
+        bytes memory data =
+            _adapterData(MockMarketplaceAdapter.Behavior.NATIVE_PURCHASE, 0.01 ether);
+
+        intent.opportunityId = bytes32(0);
+        VM.expectRevert(GoghPunkAccountV1.InvalidIntent.selector);
+        VM.prank(alice);
+        account.executeApprovedAcquisition(intent, data, "");
+
+        intent = _intent(3021, 0.01 ether);
+        intent.reasoningHash = bytes32(0);
+        VM.expectRevert(GoghPunkAccountV1.InvalidIntent.selector);
+        VM.prank(alice);
+        account.executeApprovedAcquisition(intent, data, "");
+    }
+
     function testUnknownCollectionAutonomyStartsDisabled() public {
         _setFeatures(true, true, false);
         _configurePolicy(GoghBrokerTypes.BrokerMode.AUTONOMOUS);

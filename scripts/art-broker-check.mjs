@@ -28,6 +28,9 @@ const deployment = JSON.parse(
   readFileSync(resolve(root, "deployments/robinhood.json"), "utf8"),
 );
 if (deployment.status !== "NOT_DEPLOYED") throw new Error("deployment must remain NOT_DEPLOYED");
+if (deployment.sourceVerificationAdoption !== null) {
+  throw new Error("undeployed manifest must not contain a source-verification adoption");
+}
 if (deployment.chain.chainId !== 4663) throw new Error("wrong deployment chain");
 if (deployment.canonicalCollection.toLowerCase()
   !== "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6") {

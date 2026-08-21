@@ -1,7 +1,8 @@
 import { runBrokerIndexer } from "../../scripts/run-broker-indexer.mjs";
 
 function coreStreams(environment = process.env) {
-  return (environment.BROKER_INDEX_STREAMS ?? "gogh_punk_transfers,seaport_activity")
+  if (environment.BROKER_INDEX_STREAMS === undefined) return null;
+  return environment.BROKER_INDEX_STREAMS
     .split(",")
     .map((stream) => stream.trim())
     .filter((stream) => stream && stream !== "nft_transfers")
@@ -15,12 +16,14 @@ export default async function handler() {
   }
   try {
     const streams = coreStreams();
-    if (!streams) {
+    if (streams === "") {
       console.log(JSON.stringify({ event: "BROKER_INDEXER_SKIPPED", reason: "NO_CORE_STREAMS" }));
       return;
     }
     const result = await runBrokerIndexer({
-      environment: { ...process.env, BROKER_INDEX_STREAMS: streams },
+      environment: streams === null
+        ? { ...process.env }
+        : { ...process.env, BROKER_INDEX_STREAMS: streams },
     });
     console.log(JSON.stringify({ event: "BROKER_INDEXER_RUN", ...result }));
   } catch (error) {

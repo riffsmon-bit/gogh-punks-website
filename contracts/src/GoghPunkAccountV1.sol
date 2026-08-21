@@ -126,6 +126,10 @@ contract GoghPunkAccountV1 is
         address indexed executor,
         bytes32 indexed opportunityId,
         address indexed collection,
+        GoghBrokerTypes.OpportunityType opportunityType,
+        GoghBrokerTypes.AssetStandard assetStandard,
+        address adapter,
+        address venue,
         uint256 tokenId,
         uint256 assetAmount,
         address currency,
@@ -502,6 +506,10 @@ contract GoghPunkAccountV1 is
             msg.sender,
             intent.opportunityId,
             intent.collection,
+            intent.opportunityType,
+            intent.assetStandard,
+            intent.adapter,
+            intent.venue,
             intent.tokenId,
             intent.assetAmount,
             intent.currency,
@@ -524,6 +532,7 @@ contract GoghPunkAccountV1 is
             currentOwner == address(0) || intent.account != address(this)
                 || intent.chainId != ROBINHOOD_CHAIN_ID || intent.expectedOwner != currentOwner
                 || intent.policyVersion != policyModule.policyVersion(address(this))
+                || intent.opportunityId == bytes32(0) || intent.reasoningHash == bytes32(0)
         ) revert InvalidIntent();
         if (intent.nonce != acquisitionNonce) {
             revert InvalidIntentNonce(acquisitionNonce, intent.nonce);
