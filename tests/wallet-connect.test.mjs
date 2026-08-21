@@ -31,7 +31,7 @@ test("wallet presentation distinguishes owner, public viewer, and wrong network"
   });
   assert.equal(verified.state, "owner");
   assert.match(verified.statusText, /Matches the indexed owner of Punk #4242/);
-  assert.match(verified.statusText, /management remains disabled/);
+  assert.match(verified.statusText, /live authority is rechecked for every gated owner action/);
 
   const viewer = walletPresentation({
     available: true,

@@ -104,3 +104,13 @@ export function getAdminExportToken() {
   }
   return token;
 }
+
+export function getCanaryExecutionReviewToken() {
+  const token = required("CANARY_EXECUTION_REVIEW_TOKEN");
+  if (token.length < 32) {
+    throw new ConfigurationError(
+      "CANARY_EXECUTION_REVIEW_TOKEN must contain at least 32 characters.",
+    );
+  }
+  return token;
+}

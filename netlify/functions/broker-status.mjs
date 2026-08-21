@@ -1,6 +1,8 @@
 import { getDatabase } from "@netlify/database";
 import { FEATURE_DEFAULTS, ROBINHOOD, readFeatureFlags } from "../../broker/src/config.mjs";
 import { json } from "./_shared/http.mjs";
+import { CURRENT_BROKER_DEPLOYMENT_SURFACE } from
+  "./_shared/broker-deployment-surface.mjs";
 
 function configuredScoutToken() {
   try {
@@ -93,12 +95,12 @@ export default async function handler(request) {
       ok: true,
       chain: ROBINHOOD,
       protocol: {
-        deploymentStatus: "NOT_DEPLOYED",
-        accountRegistry: null,
-        accountImplementation: null,
-        policyModule: null,
-        agentRegistry: null,
-        adapterRegistry: null,
+        deploymentStatus: CURRENT_BROKER_DEPLOYMENT_SURFACE.deploymentStatus,
+        accountRegistry: CURRENT_BROKER_DEPLOYMENT_SURFACE.accountRegistry,
+        accountImplementation: CURRENT_BROKER_DEPLOYMENT_SURFACE.accountImplementation,
+        policyModule: CURRENT_BROKER_DEPLOYMENT_SURFACE.policyModule,
+        agentRegistry: CURRENT_BROKER_DEPLOYMENT_SURFACE.agentRegistry,
+        adapterRegistry: CURRENT_BROKER_DEPLOYMENT_SURFACE.adapterRegistry,
       },
       featureFlags,
       scoutStatus: {
@@ -129,7 +131,7 @@ export const config = {
   method: "GET",
   rateLimit: {
     action: "rate_limit",
-    aggregateBy: "ip",
+    aggregateBy: ["ip"],
     windowLimit: 120,
     windowSize: 60,
   },

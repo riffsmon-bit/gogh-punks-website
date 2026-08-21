@@ -1581,3 +1581,348 @@ export function buildOwnerDirectFreeMintExecutionArtifact(inputs, options = {}) 
     },
   });
 }
+
+const EXECUTION_ARTIFACT_HASH_FIELDS = Object.freeze([
+  "proposal", "proposalArtifact", "liveAttestation", "coreManifest", "canaryManifest",
+  "coreSourceVerificationAdoption", "canarySourceVerificationAdoption",
+  "configBundleReviewKeccak256", "configBundleArtifactSha256",
+  "configurationReceiptEvidenceSha256", "configurationReceiptEvidenceArtifactSha256",
+  "intentDigest", "adapterRuntimeCode", "venueRuntimeCode", "collectionRuntimeCode",
+  "punkAccountRuntimeCode",
+]);
+
+/**
+ * Strictly validate the final, encoding-only owner-direct artifact at a later handoff boundary.
+ *
+ * The primary builder above remains the authoritative proof that all upstream manifests and live
+ * attestations agree. This validator is intentionally narrower: it makes sure an artifact handed
+ * to a wallet-review surface is the exact canonical output shape, still live, zero-value,
+ * owner-direct, and ABI-decode-equal. A caller must additionally bind the returned public fields
+ * to its independently reviewed deployment manifest before publishing the artifact hash.
+ */
+export function validateOwnerDirectFreeMintExecutionArtifact(artifact, options = {}) {
+  const snapshot = strictJsonSnapshot(artifact, "executionArtifact", 2_000_000);
+  const optionSnapshot = strictJsonSnapshot(options, "options", 10_000);
+  exactKeys(optionSnapshot, ["nowSeconds"], "options snapshot");
+  const nowSeconds = uint(optionSnapshot.nowSeconds, "nowSeconds", { maximum: MAX_UINT64 });
+
+  exactKeys(snapshot, [
+    "schema", "status", "generatedAt", "transaction", "reviewedAcquisition",
+    "confirmedEvidence", "safetyBoundary",
+  ], "executionArtifact");
+  if (snapshot.schema !== "GOGH_OWNER_DIRECT_FREE_MINT_EXECUTION_ARTIFACT_V1"
+    || snapshot.status !== "ENCODING_ONLY_OWNER_WALLET_REVIEW_REQUIRED") {
+    fail("INVALID_EXECUTION_ARTIFACT", "execution artifact schema or status is invalid");
+  }
+  const generatedAt = uint(snapshot.generatedAt, "execution artifact generation time", {
+    maximum: MAX_UINT64,
+  });
+  if (generatedAt > nowSeconds) {
+    fail("STALE_ARTIFACT", "execution artifact is future-dated");
+  }
+
+  const transaction = snapshot.transaction;
+  exactKeys(transaction, [
+    "chainId", "from", "to", "value", "functionName", "functionSelector", "data",
+    "dataKeccak256",
+  ], "executionArtifact.transaction");
+  same(transaction.chainId, ROBINHOOD.chainId, "WRONG_CHAIN", "transaction chain ID");
+  const from = address(transaction.from, "transaction sender");
+  const to = address(transaction.to, "transaction target");
+  if (transaction.value !== "0" || transaction.functionName !== "executeApprovedAcquisition") {
+    fail("FREE_MINT_ONLY", "transaction must be the zero-value approved-acquisition call");
+  }
+  const expectedFunctionSelector = toFunctionSelector(
+    "executeApprovedAcquisition((address,uint256,address,uint256,uint64,uint8,uint8,address,address,address,uint256,uint256,address,uint256,uint256,uint16,uint64,uint64,bytes32,bytes32,bytes32),bytes,bytes)",
+  );
+  same(transaction.functionSelector, expectedFunctionSelector,
+    "ENCODING_MISMATCH", "transaction function selector");
+  if (typeof transaction.data !== "string" || !/^0x[0-9a-f]+$/.test(transaction.data)
+    || transaction.data.length !== 1_610
+    || !transaction.data.startsWith(expectedFunctionSelector)) {
+    fail("ENCODING_MISMATCH", "transaction calldata is not the exact canonical ABI length");
+  }
+  const dataHash = bytes32(transaction.dataKeccak256, "transaction calldata hash");
+  same(dataHash, keccak256(transaction.data), "ENCODING_MISMATCH", "transaction calldata hash");
+
+  const reviewed = snapshot.reviewedAcquisition;
+  exactKeys(reviewed, [
+    "controllingPunk", "target", "payment", "livePolicyBinding", "timing", "intent",
+    "intentDigest", "adapterData", "ownerSignature",
+  ], "executionArtifact.reviewedAcquisition");
+  exactKeys(reviewed.controllingPunk, [
+    "chainId", "collection", "tokenId", "account", "currentOwner",
+  ], "executionArtifact.reviewedAcquisition.controllingPunk");
+  same(reviewed.controllingPunk.chainId, ROBINHOOD.chainId,
+    "WRONG_CHAIN", "controlling Punk chain ID");
+  same(address(reviewed.controllingPunk.collection, "controlling Punk collection"),
+    ROBINHOOD.canonicalCollection, "NONCANONICAL_COLLECTION", "controlling Punk collection");
+  const punkTokenId = uint(reviewed.controllingPunk.tokenId, "controlling Punk token ID");
+  same(address(reviewed.controllingPunk.account, "reviewed Punk Account"), to,
+    "CANARY_BINDING_MISMATCH", "reviewed Punk Account");
+  same(address(reviewed.controllingPunk.currentOwner, "reviewed current owner"), from,
+    "OWNER_MISMATCH", "reviewed current owner");
+
+  exactKeys(reviewed.target, [
+    "kind", "adapter", "venue", "collection", "mintSelector", "tokenId", "amount",
+  ], "executionArtifact.reviewedAcquisition.target");
+  if (reviewed.target.kind !== "GoghOneShotCanaryArt+GoghOneShotCanaryMintAdapter") {
+    fail("CANARY_BINDING_MISMATCH", "reviewed target is not the one-shot canary");
+  }
+  const adapter = address(reviewed.target.adapter, "reviewed adapter");
+  const venue = address(reviewed.target.venue, "reviewed venue");
+  const collection = address(reviewed.target.collection, "reviewed collection");
+  same(venue, collection, "CANARY_BINDING_MISMATCH", "canary venue and collection");
+  same(reviewed.target.mintSelector, ONE_SHOT_MINT_SELECTOR,
+    "CANARY_BINDING_MISMATCH", "canary mint selector");
+  const tokenId = uint(reviewed.target.tokenId, "reviewed output token ID");
+  if (reviewed.target.amount !== "1") fail("FREE_MINT_ONLY", "reviewed amount must be one");
+
+  exactKeys(reviewed.payment, [
+    "currency", "expectedPrice", "maxPrice", "maxSlippageBps", "transactionValue",
+  ], "executionArtifact.reviewedAcquisition.payment");
+  same(address(reviewed.payment.currency, "reviewed currency", { allowZero: true }), ZERO_ADDRESS,
+    "FREE_MINT_ONLY", "reviewed currency");
+  for (const field of ["expectedPrice", "maxPrice", "maxSlippageBps", "transactionValue"]) {
+    if (reviewed.payment[field] !== "0") {
+      fail("FREE_MINT_ONLY", `reviewed payment ${field} must be zero`);
+    }
+  }
+
+  exactKeys(reviewed.livePolicyBinding, [
+    "nonce", "policyVersion", "modeAttested", "permissionGeneration",
+    "minimumNativeReserve", "maxIntentAgeSeconds", "ownerApprovedMintsAttested",
+    "approvalPurchasesAttested", "autonomousPurchasesAttested", "autonomousMintsAttested",
+  ], "executionArtifact.reviewedAcquisition.livePolicyBinding");
+  const policy = reviewed.livePolicyBinding;
+  if (policy.nonce !== "0" || policy.policyVersion !== "11"
+    || policy.modeAttested !== "APPROVAL_REQUIRED" || policy.permissionGeneration !== "1"
+    || policy.minimumNativeReserve !== "0" || policy.maxIntentAgeSeconds !== "120"
+    || policy.ownerApprovedMintsAttested !== true || policy.approvalPurchasesAttested !== true
+    || policy.autonomousPurchasesAttested !== false || policy.autonomousMintsAttested !== false) {
+    fail("POLICY_MISMATCH", "reviewed live policy is not the exact owner-only canary policy");
+  }
+
+  exactKeys(reviewed.timing, [
+    "createdAt", "expiresAt", "encodedAt", "remainingSeconds", "minimumRequiredSeconds",
+  ], "executionArtifact.reviewedAcquisition.timing");
+  const createdAt = uint(reviewed.timing.createdAt, "reviewed creation time", {
+    maximum: MAX_UINT64,
+  });
+  const expiresAt = uint(reviewed.timing.expiresAt, "reviewed expiry", { maximum: MAX_UINT64 });
+  const encodedAt = uint(reviewed.timing.encodedAt, "reviewed encoding time", {
+    maximum: MAX_UINT64,
+  });
+  if (createdAt > encodedAt || encodedAt !== generatedAt || expiresAt <= createdAt
+    || expiresAt - createdAt > 120n
+    || reviewed.timing.remainingSeconds !== (expiresAt - encodedAt).toString()
+    || reviewed.timing.minimumRequiredSeconds !== MIN_OWNER_SUBMISSION_TTL_SECONDS
+    || expiresAt < nowSeconds
+    || expiresAt - nowSeconds < BigInt(MIN_OWNER_SUBMISSION_TTL_SECONDS)) {
+    fail("STALE_ARTIFACT", "execution artifact lacks the safe owner submission margin");
+  }
+
+  const intent = reviewed.intent;
+  exactKeys(intent, [
+    "account", "chainId", "expectedOwner", "nonce", "policyVersion", "opportunityType",
+    "opportunityTypeValue", "assetStandard", "assetStandardValue", "adapter", "venue",
+    "collection", "tokenId", "assetAmount", "currency", "expectedPrice", "maxPrice",
+    "maxSlippageBps", "createdAt", "expiresAt", "opportunityId", "reasoningHash",
+    "adapterCodeHash", "adapterDataHash",
+  ], "executionArtifact.reviewedAcquisition.intent");
+  const intentDigest = bytes32(reviewed.intentDigest, "reviewed intent digest");
+  const expectedIntent = {
+    account: to,
+    chainId: BigInt(ROBINHOOD.chainId),
+    expectedOwner: from,
+    nonce: 0n,
+    policyVersion: 11n,
+    opportunityType: 2,
+    assetStandard: 0,
+    adapter,
+    venue,
+    collection,
+    tokenId,
+    assetAmount: 1n,
+    currency: ZERO_ADDRESS,
+    expectedPrice: 0n,
+    maxPrice: 0n,
+    maxSlippageBps: 0,
+    createdAt,
+    expiresAt,
+    opportunityId: bytes32(intent.opportunityId, "intent opportunity ID"),
+    reasoningHash: bytes32(intent.reasoningHash, "intent reasoning hash"),
+    adapterCodeHash: bytes32(intent.adapterCodeHash, "intent adapter runtime hash"),
+  };
+  const intentExpectations = {
+    account: to, chainId: String(ROBINHOOD.chainId), expectedOwner: from, nonce: "0",
+    policyVersion: "11", opportunityType: "FREE_MINT", opportunityTypeValue: 2,
+    assetStandard: "ERC721", assetStandardValue: 0, adapter, venue, collection,
+    tokenId: tokenId.toString(), assetAmount: "1", currency: ZERO_ADDRESS,
+    expectedPrice: "0", maxPrice: "0", maxSlippageBps: "0", createdAt: createdAt.toString(),
+    expiresAt: expiresAt.toString(), opportunityId: expectedIntent.opportunityId,
+    reasoningHash: expectedIntent.reasoningHash, adapterCodeHash: expectedIntent.adapterCodeHash,
+    adapterDataHash: EMPTY_BYTES_HASH,
+  };
+  for (const [name, expected] of Object.entries(intentExpectations)) {
+    same(intent[name], expected, "INTENT_MISMATCH", `reviewed intent.${name}`);
+  }
+  if (reviewed.adapterData !== EMPTY_BYTES || reviewed.ownerSignature !== EMPTY_BYTES) {
+    fail("INVALID_EXECUTION_ARTIFACT", "owner-direct adapter data and signature must be empty");
+  }
+
+  let decoded;
+  try {
+    decoded = decodeFunctionData({ abi: OWNER_DIRECT_ACQUISITION_ABI, data: transaction.data });
+  } catch {
+    fail("ENCODING_MISMATCH", "transaction calldata cannot be decoded canonically");
+  }
+  if (decoded.functionName !== "executeApprovedAcquisition" || decoded.args?.length !== 3
+    || decoded.args[1] !== EMPTY_BYTES || decoded.args[2] !== EMPTY_BYTES) {
+    fail("ENCODING_MISMATCH", "transaction calldata is not the owner-direct empty-data call");
+  }
+  assertDecodedIntent(decoded.args[0], expectedIntent);
+  const reencoded = encodeFunctionData({
+    abi: OWNER_DIRECT_ACQUISITION_ABI,
+    functionName: "executeApprovedAcquisition",
+    args: decoded.args,
+  }).toLowerCase();
+  same(reencoded, transaction.data, "ENCODING_MISMATCH", "canonical transaction calldata");
+
+  const evidence = snapshot.confirmedEvidence;
+  exactKeys(evidence, [
+    "status", "simulation", "pinnedBlock", "latestExecutionCheck", "hashes",
+    "canonicalERC6551Registry", "canonicalERC6551RegistryRuntimeCodeHash",
+    "sourceVerification", "configurationHistory",
+  ], "executionArtifact.confirmedEvidence");
+  if (evidence.status !== "READ_ONLY_PASS" || evidence.simulation !== "READ_ONLY_ETH_CALL_PASS") {
+    fail("INVALID_ATTESTATION", "execution artifact does not carry a read-only simulation pass");
+  }
+  exactKeys(evidence.pinnedBlock, ["number", "hash", "timestamp", "confirmations"],
+    "executionArtifact.confirmedEvidence.pinnedBlock");
+  uint(evidence.pinnedBlock.number, "evidence pinned block", { positive: true });
+  bytes32(evidence.pinnedBlock.hash, "evidence pinned block hash");
+  const pinnedTimestamp = uint(evidence.pinnedBlock.timestamp, "evidence pinned timestamp");
+  if (!Number.isSafeInteger(evidence.pinnedBlock.confirmations)
+    || evidence.pinnedBlock.confirmations < MIN_CONFIRMATIONS || pinnedTimestamp > generatedAt) {
+    fail("UNCONFIRMED_ATTESTATION", "execution evidence lacks a confirmed pre-encoding pin");
+  }
+  exactKeys(evidence.latestExecutionCheck, [
+    "number", "hash", "timestamp", "primaryHead", "secondaryHead", "headSkew", "ownerType",
+    "nonce", "policyVersion", "permissionGeneration",
+  ], "executionArtifact.confirmedEvidence.latestExecutionCheck");
+  const latestTimestamp = uint(evidence.latestExecutionCheck.timestamp,
+    "latest execution check timestamp");
+  if (evidence.latestExecutionCheck.ownerType !== "EOA_CURRENT_OWNER_ONLY"
+    || evidence.latestExecutionCheck.nonce !== "0"
+    || evidence.latestExecutionCheck.policyVersion !== "11"
+    || evidence.latestExecutionCheck.permissionGeneration !== "1"
+    || uint(evidence.latestExecutionCheck.headSkew, "latest head skew") > 3n
+    || latestTimestamp > generatedAt) {
+    fail("STALE_ATTESTATION", "latest execution evidence is not the exact owner-direct state");
+  }
+  for (const field of ["number", "primaryHead", "secondaryHead"]) {
+    uint(evidence.latestExecutionCheck[field], `latest execution ${field}`, { positive: true });
+  }
+  bytes32(evidence.latestExecutionCheck.hash, "latest execution block hash");
+  exactKeys(evidence.hashes, EXECUTION_ARTIFACT_HASH_FIELDS,
+    "executionArtifact.confirmedEvidence.hashes");
+  for (const field of EXECUTION_ARTIFACT_HASH_FIELDS) {
+    bytes32(evidence.hashes[field], `execution evidence ${field} hash`);
+  }
+  same(evidence.hashes.intentDigest, intentDigest,
+    "DIGEST_MISMATCH", "execution evidence intent digest");
+  same(evidence.hashes.adapterRuntimeCode, expectedIntent.adapterCodeHash,
+    "CODE_HASH_MISMATCH", "execution evidence adapter code hash");
+  same(evidence.hashes.venueRuntimeCode, evidence.hashes.collectionRuntimeCode,
+    "CODE_HASH_MISMATCH", "execution evidence canary art code hashes");
+  same(address(evidence.canonicalERC6551Registry, "evidence canonical ERC-6551 registry"),
+    ROBINHOOD.canonicalERC6551Registry, "INFRASTRUCTURE_MISMATCH",
+    "evidence canonical ERC-6551 registry");
+  same(bytes32(evidence.canonicalERC6551RegistryRuntimeCodeHash,
+    "evidence canonical ERC-6551 runtime hash"), ROBINHOOD.canonicalERC6551RegistryRuntimeCodeHash,
+  "INFRASTRUCTURE_MISMATCH", "evidence canonical ERC-6551 runtime hash");
+  exactKeys(evidence.sourceVerification, [
+    "status", "coreAdoption", "coreAdoptionSha256", "canaryAdoption", "canaryAdoptionSha256",
+  ], "executionArtifact.confirmedEvidence.sourceVerification");
+  if (evidence.sourceVerification.status !== "VERIFIED_ADOPTIONS_BOUND") {
+    fail("SOURCE_VERIFICATION_NOT_ADOPTED", "execution evidence source verification is not bound");
+  }
+  const coreAdoption = validateSourceVerificationAdoption(
+    evidence.sourceVerification.coreAdoption,
+    { expectedContracts: CORE_CONTRACTS },
+  );
+  const canaryAdoption = validateSourceVerificationAdoption(
+    evidence.sourceVerification.canaryAdoption,
+    { expectedContracts: ["GoghOneShotCanaryArt", "GoghOneShotCanaryMintAdapter"] },
+  );
+  same(sourceVerificationCanonicalSha256(coreAdoption),
+    bytes32(evidence.sourceVerification.coreAdoptionSha256, "core adoption hash"),
+    "SOURCE_VERIFICATION_HASH_MISMATCH", "core source-verification adoption");
+  same(sourceVerificationCanonicalSha256(canaryAdoption),
+    bytes32(evidence.sourceVerification.canaryAdoptionSha256, "canary adoption hash"),
+    "SOURCE_VERIFICATION_HASH_MISMATCH", "canary source-verification adoption");
+  same(evidence.sourceVerification.coreAdoptionSha256,
+    evidence.hashes.coreSourceVerificationAdoption,
+    "SOURCE_VERIFICATION_HASH_MISMATCH", "core adoption evidence hash");
+  same(evidence.sourceVerification.canaryAdoptionSha256,
+    evidence.hashes.canarySourceVerificationAdoption,
+    "SOURCE_VERIFICATION_HASH_MISMATCH", "canary adoption evidence hash");
+  exactKeys(evidence.configurationHistory, [
+    "status", "transactionCount", "preconfigurationBlock", "finalPolicyVersion",
+    "finalPermissionGeneration", "acquisitionNonce", "noOwnershipTransfersDuringEvidenceWindow",
+    "noRelevantMutationsAfterPinnedBlock",
+  ], "executionArtifact.confirmedEvidence.configurationHistory");
+  const history = evidence.configurationHistory;
+  if (history.status !== "EXACT_13_CALL_DUAL_RPC_VERIFIED" || history.transactionCount !== 13
+    || history.finalPolicyVersion !== "11" || history.finalPermissionGeneration !== "1"
+    || history.acquisitionNonce !== "0" || history.noOwnershipTransfersDuringEvidenceWindow !== true
+    || history.noRelevantMutationsAfterPinnedBlock !== true) {
+    fail("CONFIGURATION_HISTORY_MISMATCH", "execution configuration history is not exact");
+  }
+  uint(history.preconfigurationBlock, "configuration prestate block", { positive: true });
+
+  const safety = snapshot.safetyBoundary;
+  exactKeys(safety, [
+    "postEncodingDecodeEqual", "arbitraryCalldataAccepted", "adapterDataPolicy",
+    "ownerSignaturePolicy", "agentRelayerUsed", "transactionAuthorized", "signingPerformed",
+    "submissionPerformed", "rpcPerformed", "deploymentPerformed", "chainWritePerformed",
+    "instruction",
+  ], "executionArtifact.safetyBoundary");
+  if (safety.postEncodingDecodeEqual !== true || safety.arbitraryCalldataAccepted !== false
+    || safety.adapterDataPolicy !== "EMPTY_ONLY"
+    || safety.ownerSignaturePolicy !== "EMPTY_OWNER_DIRECT_ONLY"
+    || safety.agentRelayerUsed !== false || safety.transactionAuthorized !== false
+    || safety.signingPerformed !== false || safety.submissionPerformed !== false
+    || safety.rpcPerformed !== false || safety.deploymentPerformed !== false
+    || safety.chainWritePerformed !== false || typeof safety.instruction !== "string"
+    || safety.instruction.length < 40 || safety.instruction.length > 2_000) {
+    fail("INVALID_EXECUTION_ARTIFACT", "execution artifact safety boundary is invalid");
+  }
+
+  return freeze({
+    artifactSha256: canonicalSha256(snapshot),
+    chainId: ROBINHOOD.chainId,
+    expectedOwner: from,
+    account: to,
+    punkCollection: ROBINHOOD.canonicalCollection,
+    punkTokenId: punkTokenId.toString(),
+    adapter,
+    venue,
+    collection,
+    tokenId: tokenId.toString(),
+    mintSelector: ONE_SHOT_MINT_SELECTOR,
+    functionSelector: expectedFunctionSelector,
+    value: "0",
+    dataKeccak256: dataHash,
+    intentDigest,
+    accountRuntimeCodeHash: evidence.hashes.punkAccountRuntimeCode,
+    adapterRuntimeCodeHash: evidence.hashes.adapterRuntimeCode,
+    artRuntimeCodeHash: evidence.hashes.venueRuntimeCode,
+    coreManifestSha256: evidence.hashes.coreManifest,
+    canaryManifestSha256: evidence.hashes.canaryManifest,
+    nonce: "0",
+    policyVersion: "11",
+    expiresAt: expiresAt.toString(),
+  });
+}

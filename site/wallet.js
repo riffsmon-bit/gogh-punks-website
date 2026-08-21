@@ -37,7 +37,7 @@ export function walletPresentation({ available, pending, account, chainId, owner
   if (!account) {
     return {
       buttonLabel: "Connect wallet",
-      statusText: "Read-only connection · no signatures or transactions",
+      statusText: "Wallet disconnected · no automatic signatures or transactions",
       state: "disconnected",
       disabled: false,
     };
@@ -60,7 +60,7 @@ export function walletPresentation({ available, pending, account, chainId, owner
   if (!ownerAddress) {
     return {
       buttonLabel: shortAddress,
-      statusText: `${shortAddress} connected · Robinhood Chain · ownership data unavailable · read-only`,
+      statusText: `${shortAddress} connected · Robinhood Chain · ownership data unavailable · owner actions remain gated`,
       state: "connected",
       disabled: true,
     };
@@ -68,7 +68,7 @@ export function walletPresentation({ available, pending, account, chainId, owner
   if (ownerAddress === account) {
     return {
       buttonLabel: shortAddress,
-      statusText: `Matches the indexed owner of ${tokenLabel} · read-only management remains disabled`,
+      statusText: `Matches the indexed owner of ${tokenLabel} · live authority is rechecked for every gated owner action`,
       state: "owner",
       disabled: true,
     };
@@ -125,6 +125,17 @@ export function setupReadOnlyWallet({ windowObject, documentObject } = {}) {
     for (const target of statusTargets) {
       target.textContent = presentation.statusText;
       target.dataset.walletStatus = presentation.state;
+    }
+    const detail = Object.freeze({
+      account: state.account,
+      chainId: state.chainId,
+      owner: state.owner ? Object.freeze({ ...state.owner }) : null,
+      status: presentation.state,
+    });
+    browserWindow.__GOGH_WALLET_SNAPSHOT__ = detail;
+    if (typeof browserWindow.dispatchEvent === "function"
+      && typeof browserWindow.CustomEvent === "function") {
+      browserWindow.dispatchEvent(new browserWindow.CustomEvent("gogh:wallet-state", { detail }));
     }
   }
 

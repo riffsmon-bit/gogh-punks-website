@@ -23,7 +23,7 @@
       </nav>
       <div class="wallet-control">
         <button class="wallet-button" type="button" data-wallet-connect>Connect wallet</button>
-        <span class="wallet-state" data-wallet-state aria-live="polite">Read-only connection · no signatures or transactions</span>
+        <span class="wallet-state" data-wallet-state aria-live="polite">Wallet disconnected · no automatic signatures or transactions</span>
       </div>
     </header>
     <main class="broker-main" id="main">
@@ -39,10 +39,10 @@
           <p>Autonomous execution: <strong data-autonomy-status>DISABLED</strong></p>
         </aside>
       </section>
-      <p class="safety-banner"><strong>Security status:</strong> this is a staged, read-only product surface. No Art Broker contract is deployed, no agent holds spending authority, and no purchase button can submit a transaction.</p>
+      <p class="safety-banner"><strong>Security status:</strong> Scout displays are read-only. Any owner action is separately gated by exact deployment evidence, current wallet authority, chain state, and an explicit owner click.</p>
 
       <section class="section-block" aria-labelledby="my-punks-title">
-        <div class="section-heading"><div><p class="eyebrow">Owner desk</p><h2 id="my-punks-title">My Punks</h2></div><p>Connect read-only to compare your address with the current indexed owner. Management and transaction controls remain disabled until the audited Punk Account contracts are deployed.</p></div>
+        <div class="section-heading"><div><p class="eyebrow">Owner desk</p><h2 id="my-punks-title">My Punks</h2></div><p>Connect to compare your address with the current indexed owner. Indexed ownership is display-only; any available owner action must independently verify live contract authority.</p></div>
         <div class="metric-grid">
           <article class="metric"><span>Scout Punk</span><strong>#<span data-scout-token-id>—</span></strong><small>Confirmed owner snapshot</small></article>
           <article class="metric"><span>Punk Accounts</span><strong>0</strong><small>Protocol not deployed</small></article>

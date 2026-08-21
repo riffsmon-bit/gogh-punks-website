@@ -362,7 +362,7 @@ async function loadOpportunities() {
     }
     payload.opportunities.forEach((opportunity) => grid.append(opportunityCard(opportunity)));
   } catch {
-    grid.innerHTML = '<p class="empty-state">Scout data is temporarily unavailable. No transaction capability is active.</p>';
+    grid.innerHTML = '<p class="empty-state">Scout data is temporarily unavailable. This discovery feed does not authorize transactions.</p>';
   }
 }
 
@@ -389,14 +389,14 @@ async function loadPunk() {
     if (gallery) {
       gallery.innerHTML = payload.acquisitions?.length
         ? ""
-        : '<p class="empty-state">No indexed acquisitions yet. This gallery is read-only until the canary foundation is deployed and validated.</p>';
+        : '<p class="empty-state">No confirmed indexed acquisitions are available for this gallery.</p>';
       payload.acquisitions?.forEach((acquisition) => gallery.append(opportunityCard(acquisition)));
     }
     const recommendations = document.querySelector("[data-punk-recommendations]");
     if (recommendations) {
       recommendations.innerHTML = payload.recommendations?.length
         ? ""
-        : '<p class="empty-state">Scout recommendations are syncing. No transaction capability is active.</p>';
+        : '<p class="empty-state">Scout recommendations are syncing. This recommendation feed does not authorize transactions.</p>';
       payload.recommendations?.forEach((recommendation) => {
         recommendations.append(opportunityCard(recommendation));
       });

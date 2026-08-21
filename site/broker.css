@@ -116,6 +116,24 @@ button { font: inherit; }
 .wallet-state[data-wallet-status="owner"] { color: var(--teal); }
 .wallet-state[data-wallet-status="wrong-network"] { color: var(--risk); }
 .action-button:disabled { cursor: not-allowed; opacity: 0.42; }
+.canary-execution[hidden] { display: none; }
+.canary-review-panel { max-width: 980px; }
+.artifact-file-label,
+.canary-confirmation { display: block; color: #d5d3c9; line-height: 1.55; }
+.artifact-file-label { margin-bottom: 9px; font-size: 0.78rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+[data-canary-artifact-file] { width: 100%; padding: 13px; border: 1px solid var(--line); color: var(--cream); background: rgba(3, 7, 11, 0.72); }
+[data-canary-artifact-file]:disabled { cursor: not-allowed; opacity: 0.45; }
+.canary-review-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin: 24px 0; background: rgba(218, 167, 55, 0.16); }
+.canary-review-grid div { min-width: 0; padding: 13px; background: var(--panel); }
+.canary-review-grid dt { margin-bottom: 7px; color: var(--muted); font-size: 0.62rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.canary-review-grid dd { margin: 0; overflow-wrap: anywhere; color: var(--cream); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.7rem; line-height: 1.45; }
+.canary-confirmation { margin: 18px 0; }
+.canary-confirmation input { margin-right: 8px; }
+.canary-submit { justify-self: start; width: 100%; }
+[data-canary-execution-state] { max-width: 420px; text-align: right; }
+[data-canary-execution-state][data-canary-status="ready"] { border-color: rgba(54, 200, 182, 0.38); color: var(--teal); }
+[data-canary-execution-state][data-canary-status="error"] { border-color: rgba(237, 130, 108, 0.38); color: var(--risk); }
+[data-canary-execution-state][data-canary-status="pending"] { border-color: rgba(240, 202, 102, 0.55); color: var(--sun); }
 
 .broker-main { width: var(--page); margin: 0 auto; padding: 68px 0 100px; }
 .broker-hero {
@@ -307,6 +325,9 @@ h3 { font-size: 1.45rem; }
   .layout-two, .metric-grid, .opportunity-grid { grid-template-columns: 1fr; }
   .section-heading { display: block; }
   .section-heading > p { margin-top: 13px; }
+  .canary-review-grid { grid-template-columns: 1fr; }
+  .canary-review-panel .panel-header { align-items: start; flex-direction: column; }
+  [data-canary-execution-state] { text-align: left; }
 }
 
 @media (prefers-reduced-motion: reduce) {

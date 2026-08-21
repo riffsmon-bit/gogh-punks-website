@@ -119,7 +119,9 @@ for (const file of ["styles.css", "main.js", "robots.txt", "site.webmanifest"]) 
   readFileSync(join(root, file));
 }
 
-for (const file of ["broker.css", "broker.js", "wallet.js"]) readFileSync(join(root, file));
+for (const file of ["broker.css", "broker.js", "wallet.js", "canary-execution.js", "keccak256.js"]) {
+  readFileSync(join(root, file));
+}
 
 const brokerPages = pages
   .filter((page) => page.includes("/"))
@@ -132,7 +134,8 @@ for (const required of [
   "Curator Journal",
   "LOWER RISK",
   "data-wallet-connect",
-  "Read-only connection",
+  "Wallet disconnected · no automatic signatures or transactions",
+  "data-canary-execution",
 ]) {
   if (!brokerPages.includes(required)) fail(`broker pages are missing required value ${required}`);
 }
@@ -143,6 +146,8 @@ const searchable = pages
     readFileSync(join(root, "main.js"), "utf8"),
     readFileSync(join(root, "broker.js"), "utf8"),
     readFileSync(join(root, "wallet.js"), "utf8"),
+    readFileSync(join(root, "canary-execution.js"), "utf8"),
+    readFileSync(join(root, "keccak256.js"), "utf8"),
   )
   .join("\n");
 
