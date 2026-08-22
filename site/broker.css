@@ -222,6 +222,16 @@ h3 { font-size: 1.45rem; }
 .mandate-guide li { display: grid; gap: 7px; padding: 16px; background: var(--panel); }
 .mandate-guide strong { color: var(--sun); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; }
 .mandate-guide span { color: var(--muted); font-size: 0.78rem; line-height: 1.5; }
+.activation-section { padding-top: 42px; }
+.activation-panel { display: grid; gap: 18px; }
+.activation-controls { display: grid; grid-template-columns: minmax(180px, 0.55fr) minmax(250px, 1fr); gap: 12px; align-items: end; }
+.activation-controls input { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--line); color: var(--cream); background: #071321; font: inherit; }
+.activation-controls .action-button { justify-self: stretch; }
+.activation-result code { display: block; max-width: 620px; overflow-wrap: anywhere; color: var(--teal); font-size: 0.72rem; }
+.activation-submit { justify-self: stretch; width: 100%; }
+[data-activation-state][data-activation-status="ready"] { color: var(--teal); }
+[data-activation-state][data-activation-status="pending"] { color: var(--sun); }
+[data-activation-state][data-activation-status="error"] { color: var(--risk); }
 .mandate-form { display: grid; gap: 16px; }
 .mandate-field,
 .mandate-range,
@@ -377,6 +387,7 @@ h3 { font-size: 1.45rem; }
   .section-heading > p { margin-top: 13px; }
   .canary-review-grid { grid-template-columns: 1fr; }
   .account-funds-actions { grid-template-columns: 1fr; }
+  .activation-controls { grid-template-columns: 1fr; }
   .canary-review-panel .panel-header { align-items: start; flex-direction: column; }
   [data-canary-execution-state], [data-account-funds-state] { text-align: left; }
 }

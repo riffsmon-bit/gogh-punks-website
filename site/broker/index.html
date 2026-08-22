@@ -11,6 +11,7 @@
     <script src="/broker.js" defer></script>
     <script src="/wallet.js" type="module"></script>
     <script src="/mandate-editor.js" type="module"></script>
+    <script src="/account-activation.js" type="module"></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to Art Broker</a>
@@ -41,6 +42,30 @@
         </aside>
       </section>
       <p class="safety-banner"><strong>Security status:</strong> Scout displays are read-only. Any owner action is separately gated by exact deployment evidence, current wallet authority, chain state, and an explicit owner click.</p>
+
+      <section class="section-block activation-section" aria-labelledby="activation-title" data-account-activation>
+        <div class="section-heading">
+          <div><p class="eyebrow">Start another agent wallet</p><h2 id="activation-title">Activate one of your Punks</h2></div>
+          <p>Activation creates the Punk’s deterministic ERC-6551 account. It does not authorize an AI agent, grant spending permission, or turn on autonomy.</p>
+        </div>
+        <div class="panel activation-panel">
+          <ol class="mandate-guide" aria-label="How to activate another Punk">
+            <li><strong>1. Enter</strong><span>Type a Gogh Punk ID owned by the connected wallet.</span></li>
+            <li><strong>2. Check</strong><span>We verify live ownership and preview its permanent agent-wallet address.</span></li>
+            <li><strong>3. Activate</strong><span>Approve one registry transaction in MetaMask. You pay only network gas.</span></li>
+          </ol>
+          <div class="activation-controls">
+            <label class="mandate-field"><span>Gogh Punk ID</span><input data-activation-token inputmode="numeric" pattern="[0-9]*" placeholder="Example: 1798" autocomplete="off" /></label>
+            <button class="action-button" type="button" data-activation-inspect disabled>Check Punk and preview wallet</button>
+          </div>
+          <dl class="setting-list activation-result">
+            <div class="setting-row"><dt>Agent wallet / Punk Account</dt><dd><code data-activation-account>Check an owned Punk to derive its agent wallet</code></dd></div>
+          </dl>
+          <label class="canary-confirmation"><input type="checkbox" data-activation-confirm /> I reviewed the Punk ID and agent-wallet address. Activate only this account; do not authorize an agent or autonomy.</label>
+          <button class="action-button activation-submit" type="button" data-activation-submit disabled>Activate Punk Account in MetaMask</button>
+          <p class="mandate-state" data-activation-state aria-live="polite">Loading activation status…</p>
+        </div>
+      </section>
 
       <section class="section-block" aria-labelledby="my-punks-title">
         <div class="section-heading"><div><p class="eyebrow">Owner desk</p><h2 id="my-punks-title">My Punks</h2></div><p>Connect to compare your address with the current indexed owner. Indexed ownership is display-only; any available owner action must independently verify live contract authority.</p></div>
