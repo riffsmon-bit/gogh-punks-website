@@ -61,6 +61,34 @@ test("dual-RPC attestor returns one exact non-authorizing mint receipt pass", as
   assert.deepEqual(validateCanaryMintReceiptAttestationArtifact(result, world.fixtures), result);
 });
 
+test("attests a mint after the owner funded the Punk Account", async () => {
+  const primary = createWorld();
+  const secondary = createWorld(primary.fixtures);
+  const intent = primary.fixtures.executionArtifact.reviewedAcquisition.intent;
+  for (const world of [primary, secondary]) {
+    world.parentAccountState = 1n;
+    world.accountState = 3n;
+    world.nativeBalanceBefore = 900_000_000_000_000n;
+    world.nativeBalanceAfter = 900_000_000_000_000n;
+    world.logs[2] = eventLog(CANARY_MINT_RECEIPT_ABIS.erc721ReceivedEvent, {
+      collection: ART, tokenId: 9001n, from: ZERO_ADDRESS, operator: ACCOUNT, state: 2n,
+    }, ACCOUNT, 12n);
+    world.logs[3] = eventLog(CANARY_MINT_RECEIPT_ABIS.acquisitionExecutedEvent, {
+      executor: OWNER, opportunityId: intent.opportunityId, collection: ART,
+      opportunityType: 2, assetStandard: 0, adapter: ADAPTER, venue: ART,
+      tokenId: 9001n, assetAmount: 1n, currency: ZERO_ADDRESS, price: 0n,
+      ownerApproved: true, reasoningHash: intent.reasoningHash, policyVersion: 11n,
+      nonce: 0n, state: 3n,
+    }, ACCOUNT, 13n);
+    world.receipt.logs = world.logs;
+  }
+  const result = await pass(primary, secondary);
+  assert.equal(result.events.ERC721Received.state, "2");
+  assert.equal(result.events.AcquisitionExecuted.state, "3");
+  assert.equal(result.postMintState.accountState, "3");
+  assert.equal(result.confirmedState.nativeBalance, "900000000000000");
+});
+
 test("realistic omitted log.removed and optional undefined viem fields are accepted", async () => {
   const world = createWorld();
   assert.equal(Object.hasOwn(world.logs[0], "removed"), false);

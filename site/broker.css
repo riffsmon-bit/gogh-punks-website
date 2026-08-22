@@ -218,6 +218,51 @@ h3 { font-size: 1.45rem; }
 .setting-row dt { color: var(--muted); }
 .setting-row dd { margin: 0; text-align: right; }
 .locked-note { margin: 18px 0 0; color: var(--muted); font-size: 0.84rem; line-height: 1.55; }
+.mandate-guide { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin: 0 0 18px; padding: 1px; background: rgba(218, 167, 55, 0.2); list-style: none; }
+.mandate-guide li { display: grid; gap: 7px; padding: 16px; background: var(--panel); }
+.mandate-guide strong { color: var(--sun); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; }
+.mandate-guide span { color: var(--muted); font-size: 0.78rem; line-height: 1.5; }
+.mandate-form { display: grid; gap: 16px; }
+.mandate-field,
+.mandate-range,
+.mandate-checks label,
+.taste-editor label { color: #d5d3c9; font-size: 0.78rem; line-height: 1.45; }
+.mandate-field { display: grid; gap: 8px; }
+.mandate-field > span,
+.mandate-range > span,
+.taste-editor legend { color: var(--muted); font-size: 0.66rem; font-weight: 850; letter-spacing: 0.08em; text-transform: uppercase; }
+.mandate-field select {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  color: var(--cream);
+  background: #071321;
+  font: inherit;
+}
+.mandate-checks { display: grid; gap: 10px; }
+.mandate-checks label { display: flex; gap: 9px; align-items: center; }
+.mandate-checks input { width: 17px; height: 17px; accent-color: var(--teal); }
+.mandate-range { display: grid; gap: 8px; }
+.mandate-range > span,
+.taste-editor label > span { display: flex; justify-content: space-between; gap: 12px; }
+.mandate-range output,
+.taste-editor output { color: var(--sun); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.mandate-range input,
+.taste-editor input { width: 100%; accent-color: var(--teal); }
+.taste-editor { display: grid; gap: 13px; margin: 0; padding: 16px; border: 1px solid rgba(218, 167, 55, 0.2); }
+.taste-editor legend { padding: 0 7px; }
+.taste-editor label { display: grid; gap: 6px; }
+.mandate-summary { padding: 15px; border-left: 3px solid var(--teal); background: rgba(54, 200, 182, 0.07); }
+.mandate-summary strong { color: var(--teal); font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; }
+.mandate-summary p { margin: 7px 0 0; color: #d5d3c9; font-size: 0.8rem; line-height: 1.55; }
+.mandate-save { justify-self: stretch; width: 100%; }
+.mandate-state { min-height: 2.8em; margin: 0; color: var(--muted); font-size: 0.76rem; line-height: 1.45; }
+.mandate-state[data-mandate-status="saved"],
+.mandate-state[data-mandate-status="ready"] { color: var(--teal); }
+.mandate-state[data-mandate-status="pending"] { color: var(--sun); }
+.mandate-state[data-mandate-status="error"] { color: var(--risk); }
 .opportunity-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .opportunity-card { overflow: hidden; }
 .art-placeholder {
@@ -327,6 +372,7 @@ h3 { font-size: 1.45rem; }
   .broker-main { width: min(100% - 28px, 1220px); padding-top: 42px; }
   .broker-hero { gap: 24px; }
   .layout-two, .metric-grid, .opportunity-grid { grid-template-columns: 1fr; }
+  .mandate-guide { grid-template-columns: 1fr; }
   .section-heading { display: block; }
   .section-heading > p { margin-top: 13px; }
   .canary-review-grid { grid-template-columns: 1fr; }

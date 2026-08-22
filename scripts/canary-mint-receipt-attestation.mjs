@@ -1162,9 +1162,14 @@ export function validateCanaryMintReceiptAttestationArtifact(attestationValue, i
     "EVENT_MISMATCH", "received from");
   same(address(received.operator, "received operator"), expected.execution.to,
     "EVENT_MISMATCH", "received operator");
-  same(received.state, (expected.cleanState + 1n).toString(), "EVENT_MISMATCH",
-    "received state");
   const executed = attestation.events.AcquisitionExecuted;
+  const receivedState = uint(received.state, "received state");
+  const executedState = uint(executed.state, "executed state");
+  if (receivedState <= expected.cleanState || executedState !== receivedState + 1n) {
+    fail("EVENT_MISMATCH", "mint account states are not two exact sequential increments");
+  }
+  expected.cleanState = receivedState - 1n;
+  expected.postMintState = executedState;
   same(address(executed.executor, "executed executor"), expected.execution.from,
     "EVENT_MISMATCH", "executed executor");
   same(executed.opportunityId, expected.execution.opportunityId,
@@ -1352,8 +1357,6 @@ export async function attestCanaryMintReceipt(
   expected.transactionIndex = receipt.transactionIndex;
   expected.receiptTimestamp = receiptBlock.timestamp;
   expected.policy = expected.core.contracts.BrokerPolicyModule.address;
-  const events = verifyReceiptLogs(receipt, expected);
-
   const parentBlock = await dualCanaryMintRead(clients, "mint parent block", async (client) => {
     const block = await client.getBlock({ blockNumber: receipt.blockNumber - 1n,
       includeTransactions: false });
@@ -1363,12 +1366,16 @@ export async function attestCanaryMintReceipt(
   });
   same(receiptBlock.parentHash, parentBlock.hash, "BLOCK_ANCESTRY_MISMATCH",
     "receipt block parent hash");
-  const [preMinted, preBalance, beforeNativeBalance, receiptNativeBalance] = await Promise.all([
+  const [preMinted, preBalance, preAccountState, beforeNativeBalance,
+    receiptNativeBalance] = await Promise.all([
     dualReadContract(clients, { address: expected.execution.collection, abi: erc721Abi,
       functionName: "minted", blockNumber: parentBlock.number }, "pre-mint minted flag"),
     dualReadContract(clients, { address: expected.execution.collection, abi: erc721Abi,
       functionName: "balanceOf", args: [expected.execution.to], blockNumber: parentBlock.number },
     "pre-mint NFT balance"),
+    dualReadContract(clients, { address: expected.execution.to,
+      abi: LIVE_APPROVAL_PREFLIGHT_ABIS.accountAbi,
+      functionName: "state", blockNumber: parentBlock.number }, "pre-mint account state"),
     dualCanaryMintRead(clients, "pre-mint native balance", (client) => client.getBalance({
       address: expected.execution.to, blockNumber: parentBlock.number })),
     dualCanaryMintRead(clients, "receipt native balance", (client) => client.getBalance({
@@ -1377,9 +1384,16 @@ export async function attestCanaryMintReceipt(
   bool(preMinted, false, "pre-mint minted flag");
   same(uint(preBalance, "pre-mint NFT balance"), 0n, "PRESTATE_MISMATCH",
     "pre-mint NFT balance");
+  const observedPreMintState = uint(preAccountState, "pre-mint account state");
+  if (observedPreMintState < expected.cleanState) {
+    fail("PRESTATE_MISMATCH", "pre-mint account state predates clean preconfiguration");
+  }
+  expected.cleanState = observedPreMintState;
+  expected.postMintState = observedPreMintState + 2n;
   same(uint(beforeNativeBalance, "pre-mint native balance"),
     uint(receiptNativeBalance, "receipt native balance"), "NATIVE_BALANCE_CHANGED",
     "Punk Account native balance across zero-cost mint");
+  const events = verifyReceiptLogs(receipt, expected);
 
   const postMintState = await readExactSecurityState(
     clients, expected, receipt.blockNumber, receiptBlock.timestamp, "receipt state",

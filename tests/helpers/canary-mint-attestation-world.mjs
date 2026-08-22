@@ -117,6 +117,7 @@ export function createCanaryMintWorld(fixtures = buildCanaryMintArtifactFixtures
     operatorApproved: false,
     parentMinted: false,
     parentArtBalance: 0n,
+    parentAccountState: 0n,
     nativeBalanceBefore: 42n,
     nativeBalanceAfter: 42n,
     policyVersion: 11n,
@@ -156,7 +157,10 @@ function readContract(world, request) {
   if (name === "agentRegistry") return core.ArtAgentRegistry.address;
   if (name === "adapterRegistry") return core.ArtAdapterRegistry.address;
   if (name === "acquisitionNonce") return world.accountNonce;
-  if (name === "state") return world.accountState;
+  if (name === "state") {
+    if (blockNumber === RECEIPT_BLOCK_NUMBER - 1n) return world.parentAccountState;
+    return world.accountState;
+  }
   if (name === "ROBINHOOD_CHAIN_ID") return 4663n;
   if (name === "GOGH_PUNKS") return ROBINHOOD.canonicalCollection;
   if (name === "CANONICAL_ERC6551_REGISTRY" || name === "canonicalRegistry") {

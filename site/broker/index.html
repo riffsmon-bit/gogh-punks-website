@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="/broker.css" />
     <script src="/broker.js" defer></script>
     <script src="/wallet.js" type="module"></script>
+    <script src="/mandate-editor.js" type="module"></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to Art Broker</a>
@@ -55,21 +56,61 @@
 
       <section class="section-block" aria-labelledby="mandate-title">
         <div class="section-heading"><div><p class="eyebrow">Owner-controlled rules</p><h2 id="mandate-title">Art Mandate</h2></div><p>Economic and security settings will be enforced on-chain. Artistic preferences guide recommendations but can never override policy.</p></div>
+        <ol class="mandate-guide" aria-label="How to save an Art Mandate">
+          <li><strong>1. Connect</strong><span>Use the wallet that currently owns Punk #1797.</span></li>
+          <li><strong>2. Choose</strong><span>Tell Scout what to research and what deserves owner review.</span></li>
+          <li><strong>3. Sign</strong><span>Sign a free message to save. This is not a transaction and costs no gas.</span></li>
+        </ol>
         <div class="layout-two">
-          <article class="panel">
-            <div class="panel-header"><h3>Broker policy</h3><span class="tag off">Not configured</span></div>
-            <dl class="setting-list">
-              <div class="setting-row"><dt>Mode</dt><dd>SCOUT default</dd></div>
-              <div class="setting-row"><dt>Maximum acquisition</dt><dd>Not set</dd></div>
-              <div class="setting-row"><dt>Inspect mints</dt><dd>ON in Scout</dd></div>
-              <div class="setting-row"><dt>Free mints</dt><dd>Owner configurable</dd></div>
-              <div class="setting-row"><dt>Paid mint ceiling</dt><dd>Owner configurable</dd></div>
-              <div class="setting-row"><dt>Daily / weekly budget</dt><dd>Not set</dd></div>
-              <div class="setting-row"><dt>Minimum reserve</dt><dd>Not set</dd></div>
-              <div class="setting-row"><dt>Approved venues</dt><dd>0</dd></div>
-              <div class="setting-row"><dt>Approved collections</dt><dd>0</dd></div>
-            </dl>
-            <p class="locked-note">Every Punk gets its own mandate. Mint preference editing unlocks only after live-owner verification; autonomous mint execution remains disabled.</p>
+          <article class="panel mandate-panel">
+            <div class="panel-header"><h3>Punk #1797 preferences</h3><span class="tag off" data-mandate-badge>Connect owner</span></div>
+            <form class="mandate-form" data-mandate-form>
+              <label class="mandate-field">
+                <span>Recommendation mode</span>
+                <select name="mode">
+                  <option value="DISABLED">Disabled</option>
+                  <option value="SCOUT" selected>Scout only</option>
+                  <option value="APPROVAL_REQUIRED">Prepare owner review — never auto-mint</option>
+                </select>
+              </label>
+              <div class="mandate-checks">
+                <label><input type="checkbox" name="inspectMints" checked /> Inspect mint opportunities</label>
+                <label><input type="checkbox" name="allowFreeMints" /> Recommend free mints</label>
+              </div>
+              <label class="mandate-field">
+                <span>Maximum free mints per day</span>
+                <select name="maxMintsPerDay">
+                  <option value="0" selected>0 — watch only</option>
+                  <option value="1">1 — can propose one</option>
+                </select>
+              </label>
+              <label class="mandate-field">
+                <span>Unknown contract handling</span>
+                <select name="unknownMintMode">
+                  <option value="IGNORE">Ignore</option>
+                  <option value="SCOUT_ONLY" selected>Research only</option>
+                  <option value="OWNER_APPROVAL">May show for owner review</option>
+                </select>
+              </label>
+              <label class="mandate-range"><span>Maximum contract-risk score <output data-mandate-value="maxContractRiskScore">40</output></span><input type="range" name="maxContractRiskScore" min="0" max="100" value="40" /></label>
+              <label class="mandate-range"><span>Minimum Taste Match <output data-mandate-value="minimumTasteMatch">60</output></span><input type="range" name="minimumTasteMatch" min="0" max="100" value="60" /></label>
+              <fieldset class="taste-editor">
+                <legend>Taste weights</legend>
+                <label><span>Pixel Art <output data-mandate-value="pixelArt">98</output></span><input type="range" name="pixelArt" min="0" max="100" value="98" /></label>
+                <label><span>Generative <output data-mandate-value="generativeArt">82</output></span><input type="range" name="generativeArt" min="0" max="100" value="82" /></label>
+                <label><span>1/1 <output data-mandate-value="oneOfOne">63</output></span><input type="range" name="oneOfOne" min="0" max="100" value="63" /></label>
+                <label><span>Emerging Artists <output data-mandate-value="emergingArtists">91</output></span><input type="range" name="emergingArtists" min="0" max="100" value="91" /></label>
+                <label><span>On-chain Art <output data-mandate-value="onChainArt">80</output></span><input type="range" name="onChainArt" min="0" max="100" value="80" /></label>
+                <label><span>Experimental NFTs <output data-mandate-value="experimentalNFTs">75</output></span><input type="range" name="experimentalNFTs" min="0" max="100" value="75" /></label>
+              </fieldset>
+              <aside class="mandate-summary" aria-label="Current mandate summary">
+                <strong>What this means</strong>
+                <p data-mandate-summary>Scout can research mints, but it will not submit or prepare one until you enable those preferences.</p>
+              </aside>
+              <button class="action-button mandate-save" type="submit" data-mandate-save disabled>Connect Punk #1797 owner to save</button>
+              <p class="mandate-state" data-mandate-state aria-live="polite">Loading the latest saved preferences…</p>
+            </form>
+            <p class="locked-note">Saving requests a message signature—not a transaction. These preferences guide Scout and owner-review proposals only. Paid mints, contract permissions, and autonomous execution remain disabled.</p>
           </article>
           <article class="panel">
             <div class="panel-header"><h3>Curator identity</h3><span class="tag">Persistent</span></div>
