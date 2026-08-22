@@ -547,6 +547,7 @@ test("accepts Blockscout partial status only with an exact Sourcify full match",
       value.is_partially_verified = true;
       value.is_fully_verified = false;
       delete value.minimal_proxy_address_hash;
+      delete value.compiler_settings.compilationTarget;
     }
   });
   assert.equal(result.trustBindings.blockscoutPartialAcceptedOnlyWithSourcifyFullMatch, true);

@@ -1139,8 +1139,20 @@ function normalizeSmartContractEvidence(
     fail("COMPILER_SETTINGS_MISMATCH", `${name} Blockscout compiler identity is wrong`);
   }
   responseRunCount(response, `${name} Blockscout response`);
-  const apiSettings = normalizeCompilerSettings(
+  const apiSettingsInput = strictSnapshot(
     response.compiler_settings,
+    MAX_INPUT_BYTES,
+    `${name} Blockscout compiler settings input`,
+  );
+  if (!Object.hasOwn(apiSettingsInput, "compilationTarget")) {
+    apiSettingsInput.compilationTarget = strictSnapshot(
+      artifact.settings.compilationTarget,
+      MAX_INPUT_BYTES,
+      `${name} compiled compilation target`,
+    );
+  }
+  const apiSettings = normalizeCompilerSettings(
+    apiSettingsInput,
     `${name} Blockscout compiler settings`,
   );
   sameCanonical(apiSettings, artifact.settings, "COMPILER_SETTINGS_MISMATCH",
