@@ -379,6 +379,7 @@ function punkTokenId() {
 function confirmedLiveAssetCard(asset) {
   const card = document.createElement("article");
   card.className = "panel live-acquisition-card";
+  card.dataset.liveCanaryAsset = `${asset.collection}:${asset.tokenId}`;
   const badge = document.createElement("span");
   badge.className = "tag";
   badge.textContent = "CONFIRMED ONCHAIN";
@@ -411,6 +412,51 @@ function confirmedLiveAssetCard(asset) {
   return card;
 }
 
+let loadedPunkPayload = null;
+let pendingLivePunkState = null;
+
+function applyLivePunkState(liveState) {
+  if (!liveState || liveState.status !== "LIVE_ONCHAIN") return;
+  if (!loadedPunkPayload) {
+    pendingLivePunkState = liveState;
+    return;
+  }
+  publishOwnerSnapshot({ owner_snapshot: liveState.owner }, liveState.tokenId, "punk");
+  document.querySelectorAll("[data-punk-account]").forEach((item) => {
+    item.textContent = liveState.activated
+      ? `Activated · ${liveState.account}`
+      : "Not activated";
+    item.title = liveState.activated ? liveState.account : "No live Punk Account found";
+  });
+  const gallery = document.querySelector("[data-gallery]");
+  if (!gallery) return;
+  const acquisitions = Array.isArray(loadedPunkPayload.acquisitions)
+    ? loadedPunkPayload.acquisitions : [];
+  const asset = liveState.canaryAsset;
+  const indexed = asset && acquisitions.some((item) => (
+    String(item.nft_collection_address ?? "").toLowerCase() === asset.collection
+    && String(item.nft_token_id ?? "") === asset.tokenId
+  ));
+  gallery.querySelector("[data-live-canary-asset]")?.remove();
+  gallery.querySelector(".empty-state")?.remove();
+  if (asset && !indexed) gallery.prepend(confirmedLiveAssetCard(asset));
+  if (!gallery.childElementCount) {
+    gallery.innerHTML = '<p class="empty-state">No confirmed acquisitions were found on-chain or in the indexer.</p>';
+  }
+  const count = acquisitions.length + (asset && !indexed ? 1 : 0);
+  document.querySelectorAll("[data-collected-count]").forEach((item) => {
+    item.textContent = String(count);
+  });
+  document.querySelectorAll("[data-collected-detail]").forEach((item) => {
+    item.textContent = asset ? "Includes live on-chain canary" : "Confirmed indexed assets";
+  });
+}
+
+window.addEventListener("gogh:live-punk-state", (event) => {
+  pendingLivePunkState = event?.detail ?? null;
+  applyLivePunkState(pendingLivePunkState);
+});
+
 async function loadPunk() {
   const target = document.querySelector("[data-punk-page]");
   if (!target) return;
@@ -421,6 +467,7 @@ async function loadPunk() {
       headers: { accept: "application/json" },
     });
     const payload = await response.json();
+    loadedPunkPayload = payload;
     const liveState = payload.liveState?.status === "LIVE_ONCHAIN" ? payload.liveState : null;
     publishOwnerSnapshot(liveState
       ? { owner_snapshot: liveState.owner }
@@ -484,6 +531,7 @@ async function loadPunk() {
         timeline.append(item);
       });
     }
+    if (pendingLivePunkState) applyLivePunkState(pendingLivePunkState);
   } catch {
     document.querySelectorAll("[data-punk-account]").forEach((item) => { item.textContent = "Indexer unavailable"; });
   }

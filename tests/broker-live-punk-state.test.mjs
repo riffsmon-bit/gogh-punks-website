@@ -5,6 +5,8 @@ import { ROBINHOOD } from "../broker/src/config.mjs";
 import { findOwnerPunkAccounts, requestedTokenIds } from
   "../netlify/functions/broker-owner-accounts.mjs";
 import { readLivePunkState } from "../netlify/functions/broker-punk.mjs";
+import { findBrowserOwnerAccounts } from "../site/owner-accounts.js";
+import { readBrowserPunkDisplay } from "../site/live-punk-display.js";
 
 const OWNER = "0x1234567890123456789012345678901234567890";
 const OTHER = "0x9999999999999999999999999999999999999999";
@@ -12,6 +14,14 @@ const REGISTRY = "0x1111111111111111111111111111111111111111";
 const ACCOUNT_1797 = "0x2222222222222222222222222222222222222222";
 const ACCOUNT_1639 = "0x3333333333333333333333333333333333333333";
 const ART = "0x4444444444444444444444444444444444444444";
+
+function abiWord(value) {
+  return BigInt(value).toString(16).padStart(64, "0");
+}
+
+function abiAddress(value) {
+  return value.slice(2).padStart(64, "0");
+}
 
 const surface = Object.freeze({
   deploymentStatus: "DEPLOYED",
@@ -78,11 +88,46 @@ test("requested account token hints are strict, bounded, and always include Scou
   assert.deepEqual([...tokens], ["1797", "1639", "9999"]);
 });
 
+test("browser wallet fallback discovers recent activation and the confirmed canary", async () => {
+  const provider = {
+    async request({ method, params = [] }) {
+      if (method === "eth_chainId") return "0x1237";
+      if (method === "eth_blockNumber") return "0x30d40";
+      if (method === "eth_getLogs") return [{ data: `0x${abiWord(1639)}${abiAddress(OWNER)}${abiAddress(OTHER)}${abiWord(1)}` }];
+      if (method === "eth_getCode") return "0x6000";
+      if (method === "eth_call") {
+        const [{ to, data }] = params;
+        if (to === ART && data === "0x4f02c420") return `0x${abiWord(1)}`;
+        const id = BigInt(`0x${data.replace(/^0x/, "").slice(-64)}`).toString();
+        if (to === ROBINHOOD.canonicalCollection) return `0x${abiAddress(OWNER)}`;
+        if (to === REGISTRY) return `0x${abiAddress(id === "1639" ? ACCOUNT_1639 : ACCOUNT_1797)}`;
+        if (to === ART) return `0x${abiAddress(ACCOUNT_1797)}`;
+      }
+      throw new Error(`unexpected ${method}`);
+    },
+  };
+  const gate = { capability: true, bindings: {
+    punkCollection: ROBINHOOD.canonicalCollection, accountRegistry: REGISTRY,
+  } };
+  const accounts = await findBrowserOwnerAccounts(provider, gate, OWNER, []);
+  assert.deepEqual(accounts.map(({ tokenId }) => tokenId), ["1639", "1797"]);
+  const status = {
+    protocol: { deploymentStatus: "DEPLOYED", accountRegistry: REGISTRY },
+    chain: { canonicalCollection: ROBINHOOD.canonicalCollection },
+    canaryDisplay: { status: "DEPLOYED", punkTokenId: "1797", account: ACCOUNT_1797,
+      collection: ART, tokenId: "9001" },
+  };
+  const display = await readBrowserPunkDisplay(provider, status, "1797");
+  assert.equal(display.activated, true);
+  assert.equal(display.canaryAsset.tokenId, "9001");
+});
+
 test("Punk recommendations are collapsed and token metrics avoid nested-label styling", async () => {
-  const [punkHtml, brokerHtml, css] = await Promise.all([
+  const [punkHtml, brokerHtml, css, statusSource] = await Promise.all([
     readFile(new URL("../site/punk/index.html", import.meta.url), "utf8"),
     readFile(new URL("../site/broker/index.html", import.meta.url), "utf8"),
     readFile(new URL("../site/broker.css", import.meta.url), "utf8"),
+    readFile(new URL("../netlify/functions/broker-status.mjs", import.meta.url), "utf8"),
   ]);
   assert.match(punkHtml, /<details class="section-block collapsible-section"/);
   assert.match(punkHtml, /data-punk-recommendation-total/);
@@ -90,4 +135,5 @@ test("Punk recommendations are collapsed and token metrics avoid nested-label st
   assert.match(brokerHtml, /data-punk-account-count/);
   assert.match(css, /\.metric > span/);
   assert.doesNotMatch(css, /\.metric span \{/);
+  assert.match(statusSource, /canaryDisplay:/);
 });

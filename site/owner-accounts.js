@@ -1,5 +1,22 @@
 const CHAIN_ID = 4663;
 const STORAGE_KEY = "gogh:activated-punk-ids:v1";
+const ACTIVATION_TOPIC = "0xbcba1c8ca6488532aba261811803bc402fd692b825e2a41dd2e555ec87989cc3";
+const OWNER_OF = "0x6352211e";
+const ACCOUNT = "0x2dd7c658";
+
+function word(value) {
+  return BigInt(value).toString(16).padStart(64, "0");
+}
+
+function normalizedAddress(value) {
+  return typeof value === "string" && /^0x[0-9a-fA-F]{40}$/.test(value)
+    ? value.toLowerCase() : null;
+}
+
+function decodedAddress(value) {
+  return typeof value === "string" && /^0x0{24}[0-9a-fA-F]{40}$/.test(value)
+    ? `0x${value.slice(-40)}`.toLowerCase() : null;
+}
 
 function knownTokenIds(storage) {
   try {
@@ -67,6 +84,58 @@ export function renderOwnerAccounts(container, accounts) {
   }
 }
 
+export async function findBrowserOwnerAccounts(provider, gate, owner, hints = []) {
+  const bindings = gate?.bindings;
+  const normalizedOwner = normalizedAddress(owner);
+  if (!provider?.request || gate?.capability !== true || !normalizedOwner
+    || !normalizedAddress(bindings?.punkCollection)
+    || !normalizedAddress(bindings?.accountRegistry)) throw new Error("live gate unavailable");
+  const candidates = new Set(["1797", ...hints]);
+  try {
+    const headHex = await provider.request({ method: "eth_blockNumber" });
+    const head = BigInt(headHex);
+    const from = head > 100_000n ? head - 100_000n : 0n;
+    const logs = await provider.request({ method: "eth_getLogs", params: [{
+      address: bindings.accountRegistry,
+      fromBlock: `0x${from.toString(16)}`,
+      toBlock: "latest",
+      topics: [
+        ACTIVATION_TOPIC,
+        null,
+        `0x${word(CHAIN_ID)}`,
+        `0x${bindings.punkCollection.slice(2).padStart(64, "0")}`,
+      ],
+    }] });
+    for (const log of Array.isArray(logs) ? logs : []) {
+      if (typeof log?.data !== "string" || !/^0x[0-9a-fA-F]{256}$/.test(log.data)) continue;
+      const eventOwner = decodedAddress(`0x${log.data.slice(66, 130)}`);
+      const id = BigInt(`0x${log.data.slice(2, 66)}`);
+      if (eventOwner === normalizedOwner && id <= 9999n) candidates.add(id.toString());
+    }
+  } catch {
+    // Exact locally remembered tokens still receive live ownership/code checks below.
+  }
+  const results = await Promise.allSettled([...candidates].slice(0, 21).map(async (tokenId) => {
+    const encoded = word(tokenId);
+    const [ownerRaw, accountRaw] = await Promise.all([
+      provider.request({ method: "eth_call", params: [{ to: bindings.punkCollection,
+        data: `${OWNER_OF}${encoded}` }, "latest"] }),
+      provider.request({ method: "eth_call", params: [{ to: bindings.accountRegistry,
+        data: `${ACCOUNT}${encoded}` }, "latest"] }),
+    ]);
+    const liveOwner = decodedAddress(ownerRaw);
+    const account = decodedAddress(accountRaw);
+    if (liveOwner !== normalizedOwner || !account) return null;
+    const code = await provider.request({ method: "eth_getCode", params: [account, "latest"] });
+    if (typeof code !== "string" || code === "0x") return null;
+    return Object.freeze({ tokenId, account, owner: normalizedOwner,
+      status: "ACTIVATED_ONCHAIN" });
+  }));
+  return results.flatMap((result) => (
+    result.status === "fulfilled" && result.value ? [result.value] : []
+  )).sort((left, right) => Number(left.tokenId) - Number(right.tokenId));
+}
+
 export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction } = {}) {
   const browserWindow = windowObject ?? (typeof window === "undefined" ? null : window);
   const browserDocument = documentObject ?? (typeof document === "undefined" ? null : document);
@@ -94,21 +163,20 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
     }
     container.innerHTML = '<p class="empty-state loading">Checking recent activations and live ownership…</p>';
     try {
-      const tokens = knownTokenIds(browserWindow.localStorage).join(",");
-      const response = await request(
-        `/api/broker/owner-accounts?owner=${encodeURIComponent(wallet.account)}&tokens=${encodeURIComponent(tokens)}`,
-        { headers: { accept: "application/json" }, cache: "no-store" },
+      const gateResponse = await request("/api/broker/account-activation-status", {
+        headers: { accept: "application/json" }, cache: "no-store",
+      });
+      const gatePayload = await gateResponse.json();
+      const accounts = await findBrowserOwnerAccounts(
+        browserWindow.ethereum,
+        gatePayload.activationGate,
+        wallet.account,
+        knownTokenIds(browserWindow.localStorage),
       );
-      const payload = await response.json();
       if (current !== revision) return;
-      if (!response.ok || payload?.ok !== true || !Array.isArray(payload.activatedPunks)) {
-        throw new Error("live account response unavailable");
-      }
-      for (const item of payload.activatedPunks) {
-        rememberActivatedPunk(browserWindow.localStorage, item.tokenId);
-      }
-      setCount(payload.activatedPunks.length, "Live chain verified");
-      renderOwnerAccounts(container, payload.activatedPunks);
+      for (const item of accounts) rememberActivatedPunk(browserWindow.localStorage, item.tokenId);
+      setCount(accounts.length, "Live wallet RPC verified");
+      renderOwnerAccounts(container, accounts);
     } catch {
       if (current !== revision) return;
       setCount(0, "Live check unavailable");

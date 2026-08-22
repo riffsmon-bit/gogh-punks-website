@@ -102,6 +102,15 @@ export default async function handler(request) {
         agentRegistry: CURRENT_BROKER_DEPLOYMENT_SURFACE.agentRegistry,
         adapterRegistry: CURRENT_BROKER_DEPLOYMENT_SURFACE.adapterRegistry,
       },
+      canaryDisplay: CURRENT_BROKER_DEPLOYMENT_SURFACE.canaryStatus === "DEPLOYED"
+        ? {
+          status: "DEPLOYED",
+          punkTokenId: CURRENT_BROKER_DEPLOYMENT_SURFACE.canary.punkTokenId,
+          account: CURRENT_BROKER_DEPLOYMENT_SURFACE.canary.account,
+          collection: CURRENT_BROKER_DEPLOYMENT_SURFACE.canary.collection,
+          tokenId: CURRENT_BROKER_DEPLOYMENT_SURFACE.canary.tokenId,
+        }
+        : null,
       featureFlags,
       scoutStatus: {
         workerEnabled: process.env.BROKER_SCOUT_ENABLED === "true",
