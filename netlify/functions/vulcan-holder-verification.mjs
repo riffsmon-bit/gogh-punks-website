@@ -1,5 +1,4 @@
 import { timingSafeEqual } from "node:crypto";
-import { getRpcUrl } from "./_shared/config.mjs";
 import { json } from "./_shared/http.mjs";
 
 const ROBINHOOD_CHAIN_ID_HEX = "0x1237";
@@ -33,6 +32,20 @@ function sameToken(actual, expected) {
   const left = Buffer.from(token(actual));
   const right = Buffer.from(token(expected));
   return left.length === right.length && timingSafeEqual(left, right);
+}
+
+function configuredRobinhoodRpcUrl() {
+  const raw = process.env.ROBINHOOD_RPC_URL?.trim();
+  let parsed;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    fail("RPC_UNAVAILABLE", 503);
+  }
+  if (parsed.protocol !== "https:" || parsed.username || parsed.password) {
+    fail("RPC_UNAVAILABLE", 503);
+  }
+  return parsed.toString();
 }
 
 function wallet(value) {
@@ -106,7 +119,7 @@ async function rpc(fetchFunction, rpcUrl, method, params, id) {
 
 export async function verifyVulcanHolder(body, dependencies = {}) {
   const fetchFunction = dependencies.fetchFunction ?? fetch;
-  const rpcUrl = dependencies.rpcUrl ?? getRpcUrl();
+  const rpcUrl = dependencies.rpcUrl ?? configuredRobinhoodRpcUrl();
   const addresses = walletsFromBody(body);
   const chainId = await rpc(fetchFunction, rpcUrl, "eth_chainId", [], 1);
   if (chainId.toLowerCase() !== ROBINHOOD_CHAIN_ID_HEX) fail("RPC_WRONG_CHAIN", 503);
