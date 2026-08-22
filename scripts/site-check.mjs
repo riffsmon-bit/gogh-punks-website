@@ -136,6 +136,7 @@ for (const required of [
   "data-wallet-connect",
   "Wallet disconnected · no automatic signatures or transactions",
   "data-canary-execution",
+  "data-account-funds",
 ]) {
   if (!brokerPages.includes(required)) fail(`broker pages are missing required value ${required}`);
 }
@@ -147,6 +148,7 @@ const searchable = pages
     readFileSync(join(root, "broker.js"), "utf8"),
     readFileSync(join(root, "wallet.js"), "utf8"),
     readFileSync(join(root, "canary-execution.js"), "utf8"),
+    readFileSync(join(root, "account-funds.js"), "utf8"),
     readFileSync(join(root, "keccak256.js"), "utf8"),
   )
   .join("\n");

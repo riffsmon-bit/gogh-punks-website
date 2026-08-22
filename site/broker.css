@@ -134,6 +134,12 @@ button { font: inherit; }
 [data-canary-execution-state][data-canary-status="ready"] { border-color: rgba(54, 200, 182, 0.38); color: var(--teal); }
 [data-canary-execution-state][data-canary-status="error"] { border-color: rgba(237, 130, 108, 0.38); color: var(--risk); }
 [data-canary-execution-state][data-canary-status="pending"] { border-color: rgba(240, 202, 102, 0.55); color: var(--sun); }
+.account-funds-amount { width: 100%; box-sizing: border-box; padding: 13px; border: 1px solid var(--line); color: var(--cream); background: rgba(3, 7, 11, 0.72); font: inherit; }
+.account-funds-amount:disabled { cursor: not-allowed; opacity: 0.45; }
+.account-funds-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+[data-account-funds-state] { max-width: 420px; text-align: right; }
+[data-account-funds-state][data-account-funds-status="ready"] { border-color: rgba(54, 200, 182, 0.38); color: var(--teal); }
+[data-account-funds-state][data-account-funds-status="pending"] { border-color: rgba(240, 202, 102, 0.55); color: var(--sun); }
 
 .broker-main { width: var(--page); margin: 0 auto; padding: 68px 0 100px; }
 .broker-hero {
@@ -326,8 +332,9 @@ h3 { font-size: 1.45rem; }
   .section-heading { display: block; }
   .section-heading > p { margin-top: 13px; }
   .canary-review-grid { grid-template-columns: 1fr; }
+  .account-funds-actions { grid-template-columns: 1fr; }
   .canary-review-panel .panel-header { align-items: start; flex-direction: column; }
-  [data-canary-execution-state] { text-align: left; }
+  [data-canary-execution-state], [data-account-funds-state] { text-align: left; }
 }
 
 @media (prefers-reduced-motion: reduce) {

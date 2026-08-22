@@ -11,6 +11,7 @@
     <script src="/broker.js" defer></script>
     <script src="/wallet.js" type="module"></script>
     <script src="/canary-execution.js" type="module"></script>
+    <script src="/account-funds.js" type="module"></script>
   </head>
   <body data-punk-page>
     <a class="skip-link" href="#main">Skip to Punk gallery</a>
@@ -56,6 +57,27 @@
               <label class="canary-confirmation"><input type="checkbox" data-canary-confirm /> I checked the exact owner, Punk Account, NFT collection, token, zero value, intent hash, and expiry above.</label>
               <button class="action-button canary-submit" type="button" data-canary-submit disabled>Open exact transaction in wallet</button>
               <p class="locked-note">The page rechecks chain 4663, the selected account, live Punk ownership, Punk Account owner, nonce, policy module/version, chain time, contract code, the active review hash, and an exact <code>eth_call</code> immediately before requesting the wallet transaction. A returned transaction hash is pending—not proof of success.</p>
+            </article>
+          </section>
+          <section class="section-block canary-execution" data-account-funds hidden aria-labelledby="account-funds-title">
+            <div class="section-heading">
+              <div><p class="eyebrow">Owner-only Punk Account</p><h2 id="account-funds-title">Deposit or withdraw native ETH</h2></div>
+              <p>These controls are fixed to Punk #1797’s verified Punk Account. Deposits go only to that account; withdrawals go only to the live owner wallet. No arbitrary destination or calldata is accepted.</p>
+            </div>
+            <article class="panel canary-review-panel">
+              <div class="panel-header"><h3>Account funds</h3><span class="tag off" data-account-funds-state aria-live="polite">LOCKED · verified account deployment required</span></div>
+              <dl class="canary-review-grid">
+                <div><dt>Punk Account</dt><dd>0x89f6C15bfbF629e9C0D2F5d56bE58A27B01446B3</dd></div>
+                <div><dt>Live native balance</dt><dd data-account-balance>—</dd></div>
+              </dl>
+              <label class="artifact-file-label" for="account-funds-amount">Amount in ETH (maximum 1 ETH per request)</label>
+              <input id="account-funds-amount" class="account-funds-amount" data-account-amount inputmode="decimal" autocomplete="off" placeholder="0.001" disabled />
+              <label class="canary-confirmation"><input type="checkbox" data-account-funds-confirm /> I reviewed the exact amount. Deposit sends only to the Punk Account; withdraw sends only to my live owner wallet.</label>
+              <div class="account-funds-actions">
+                <button class="action-button" type="button" data-account-deposit disabled>Deposit to Punk Account</button>
+                <button class="action-button" type="button" data-account-withdraw disabled>Withdraw to owner wallet</button>
+              </div>
+              <p class="locked-note">Each click rechecks chain 4663, selected wallet, canonical Punk ownership, Punk Account ownership, runtime bytecode, live balance, and an exact simulation before opening one wallet transaction. These are owner actions, never autonomous agent actions.</p>
             </article>
           </section>
           <section class="section-block" aria-labelledby="gallery-title"><p class="eyebrow">Persistent exhibition</p><h2 id="gallery-title">The Punk’s Gallery</h2><p class="lede">Assets held by the deterministic Punk Account may remain associated with the Punk while live control follows current NFT ownership. This gallery shows only confirmed indexed assets; an empty view does not establish the account’s deployment or deposit state.</p><div class="opportunity-grid section-block" data-gallery><p class="empty-state loading">Loading indexed acquisitions…</p></div></section>
