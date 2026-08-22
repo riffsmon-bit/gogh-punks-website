@@ -340,6 +340,18 @@ function addressResponse(fact) {
   };
 }
 
+function sourcifyResponse(fact) {
+  return {
+    matchId: "45075371",
+    creationMatch: "match",
+    runtimeMatch: "match",
+    verifiedAt,
+    match: "match",
+    chainId: "4663",
+    address: fact.address,
+  };
+}
+
 function jsonResponse(url, value, overrides = {}) {
   const body = new TextEncoder().encode(JSON.stringify(value));
   return {
@@ -371,10 +383,14 @@ function makeFetcher(fixture, mutate, responseOverrides) {
     const address = url.slice(url.lastIndexOf("/") + 1).toLowerCase();
     const name = byAddress.get(address);
     assert.ok(name, `unexpected test URL ${url}`);
-    const type = url.includes("/smart-contracts/") ? "smart" : "address";
+    const type = url.includes("sourcify.dev/")
+      ? "sourcify"
+      : url.includes("/smart-contracts/") ? "smart" : "address";
     let value = type === "smart"
       ? smartContractResponse(name, fixture.facts[name])
-      : addressResponse(fixture.facts[name]);
+      : type === "sourcify"
+        ? sourcifyResponse(fixture.facts[name])
+        : addressResponse(fixture.facts[name]);
     value = structuredClone(value);
     mutate?.(type, name, value);
     return jsonResponse(url, value, responseOverrides?.(type, name));
@@ -391,6 +407,7 @@ function provenanceOptions(fixture) {
     runProgram: async (executable, args) => {
       assert.equal(executable, "git");
       if (args[0] === "rev-parse") return { stdout: `${commit}\n` };
+      if (args[0] === "merge-base" && args[1] === "--is-ancestor") return { stdout: "" };
       if (args[0] === "status") return { stdout: "" };
       if (args[0] === "show" && args[1].endsWith(":package-lock.json")) {
         return { stdout: JSON.stringify({ packages: {} }) };
@@ -436,16 +453,20 @@ test("adopts a fully source-verified core proposal without mutating its pending 
     result.manifest.sourceVerificationAdoption.verifiedContracts,
     CORE_CONTRACT_NAMES,
   );
-  assert.equal(calls.length, CORE_CONTRACT_NAMES.length * 2);
+  assert.equal(calls.length, CORE_CONTRACT_NAMES.length * 3);
   for (const call of calls) {
     assert.equal(call.options.method, "GET");
     assert.equal(call.options.redirect, "error");
     assert.deepEqual(call.options.headers, { accept: "application/json" });
-    assert.ok(call.url.startsWith(`${BLOCKSCOUT_ORIGIN}/api/v2/`));
+    assert.ok(call.url.startsWith(`${BLOCKSCOUT_ORIGIN}/api/v2/`)
+      || call.url.startsWith("https://sourcify.dev/server/v2/contract/4663/"));
   }
   for (const name of CORE_CONTRACT_NAMES) {
     assert.equal(result.manifest.contracts[name].verificationStatus, "VERIFIED");
-    assert.equal(result.trustBindings.contracts[name].sourceVerification.fullyVerified, true);
+    assert.equal(
+      result.trustBindings.contracts[name].sourceVerification.fullVerificationEstablished,
+      true,
+    );
   }
   assert.deepEqual(fixture.pendingProposal, before);
   assert.deepEqual(JSON.parse(renderBlockscoutVerifiedManifestProposal(result)), result);
@@ -458,7 +479,7 @@ test("adopts a fully source-verified canary proposal while preserving the immuta
   const fixture = makeFixture("canary");
   const { result, calls } = await build(fixture);
   assert.equal(result.verificationScope, "ROBINHOOD_CANARY");
-  assert.equal(calls.length, CANARY_CONTRACT_NAMES.length * 2);
+  assert.equal(calls.length, CANARY_CONTRACT_NAMES.length * 3);
   assert.deepEqual(Object.keys(result.manifest).sort(), Object.keys(fixture.pendingProposal.manifest).sort());
   for (const name of CANARY_CONTRACT_NAMES) {
     assert.equal(result.manifest.contracts[name].verificationStatus, "VERIFIED");
@@ -468,7 +489,6 @@ test("adopts a fully source-verified canary proposal while preserving the immuta
 });
 
 const smartContractAttacks = [
-  ["partial verification", "NOT_FULLY_VERIFIED", (value) => { value.is_partially_verified = true; }],
   ["changed bytecode", "NOT_FULLY_VERIFIED", (value) => { value.is_changed_bytecode = true; }],
   ["verified twin", "VERIFIED_TWIN_REJECTED", (value) => {
     value.verified_twin_address_hash = guardian;
@@ -519,6 +539,35 @@ for (const [label, code, attack] of smartContractAttacks) {
     );
   });
 }
+
+test("accepts Blockscout partial status only with an exact Sourcify full match", async () => {
+  const fixture = makeFixture("core");
+  const { result } = await build(fixture, (type, _name, value) => {
+    if (type === "smart") {
+      value.is_partially_verified = true;
+      value.is_fully_verified = false;
+      delete value.minimal_proxy_address_hash;
+    }
+  });
+  assert.equal(result.trustBindings.blockscoutPartialAcceptedOnlyWithSourcifyFullMatch, true);
+  for (const name of fixture.names) {
+    const source = result.trustBindings.contracts[name].sourceVerification;
+    assert.equal(source.blockscoutPartiallyVerified, true);
+    assert.equal(source.blockscoutFullyVerified, false);
+    assert.equal(source.sourcifyFullMatch, true);
+  }
+});
+
+test("fails closed when Sourcify does not report an exact creation/runtime match", async () => {
+  const fixture = makeFixture("core");
+  const target = fixture.names[0];
+  await assert.rejects(
+    build(fixture, (type, name, value) => {
+      if (type === "sourcify" && name === target) value.runtimeMatch = "partial_match";
+    }),
+    (error) => error?.code === "NOT_FULLY_VERIFIED",
+  );
+});
 
 test("fails closed on Blockscout address proxy or deployment mismatches", async (context) => {
   const attacks = [

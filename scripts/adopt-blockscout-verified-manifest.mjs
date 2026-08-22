@@ -22,10 +22,13 @@ import {
 
 export const ROBINHOOD_CHAIN_ID = 4663;
 export const BLOCKSCOUT_ORIGIN = "https://robinhoodchain.blockscout.com";
+export const SOURCIFY_ORIGIN = "https://sourcify.dev";
 export const BLOCKSCOUT_SMART_CONTRACT_DOCUMENTATION =
   "https://docs.blockscout.com/api-reference/get-smart-contract";
 export const BLOCKSCOUT_ADDRESS_DOCUMENTATION =
   "https://docs.blockscout.com/api-reference/get-address-info";
+export const SOURCIFY_DOCUMENTATION =
+  "https://docs.sourcify.dev/docs/api/";
 export const CORE_CONTRACT_NAMES = Object.freeze([
   "ArtAdapterRegistry",
   "ArtAgentRegistry",
@@ -81,8 +84,8 @@ const SAFE_FEATURE_FLAGS = Object.freeze({
   ENABLE_AUTONOMOUS_SELLING: false,
 });
 const VERIFIED_MANIFEST_NOTES = Object.freeze({
-  core: "Immutable VERIFIED core deployment manifest proposal. The original complete deployment proposal remains bound by canonical SHA-256. The fixed Robinhood Blockscout v2 smart-contract and address endpoints reported direct, full, unchanged, non-twin, non-proxy verification for every protocol contract. Exact compiler version/settings, complete multi-file source hashes, ABI, creation bytecode, deployed runtime bytecode, constructor arguments, deployment transaction, and deployer matched the clean offline build and live deployment proposal. This read-only gate signed, sent, enabled, and wrote nothing.",
-  canary: "Immutable VERIFIED canary deployment and clean-preconfiguration manifest proposal. The original source-verification-pending canary proposal remains bound by canonical SHA-256. The fixed Robinhood Blockscout v2 smart-contract and address endpoints reported direct, full, unchanged, non-twin, non-proxy verification for both canary contracts. Exact compiler version/settings, complete multi-file source hashes, ABI, creation bytecode, deployed runtime bytecode, constructor arguments, deployment transaction, and deployer matched the clean offline build and live deployment proposal. This historical snapshot must not be mutated after configuration. This read-only gate signed, sent, enabled, and wrote nothing.",
+  core: "Immutable VERIFIED core deployment manifest proposal. The original complete deployment proposal remains bound by canonical SHA-256. Robinhood Blockscout supplied exact unchanged non-twin source, compiler, ABI, bytecode, constructor, deployer, and receipt evidence; direct Sourcify evidence independently reported exact creation and runtime full matches for every protocol contract. Blockscout partial-match labels are accepted only with that exact Sourcify full match and the clean offline build/live deployment bindings. This read-only gate signed, sent, enabled, and wrote nothing.",
+  canary: "Immutable VERIFIED canary deployment and clean-preconfiguration manifest proposal. The original source-verification-pending canary proposal remains bound by canonical SHA-256. Robinhood Blockscout supplied exact unchanged non-twin source, compiler, ABI, bytecode, constructor, deployer, and receipt evidence; direct Sourcify evidence independently reported exact creation and runtime full matches for both canary contracts. Blockscout partial-match labels are accepted only with that exact Sourcify full match and the clean offline build/live deployment bindings. This historical snapshot must not be mutated after configuration. This read-only gate signed, sent, enabled, and wrote nothing.",
 });
 const projectRoot = resolve(import.meta.dirname, "..");
 const execFileAsync = promisify(execFile);
@@ -778,8 +781,16 @@ export async function verifyReadOnlyReleaseSourceProvenance({
     commandText(artifactResult, "Foundry artifact resolution").trim(),
     "resolved Foundry artifact commit",
   );
-  if (head !== normalizedRelease || artifactCommit !== normalizedRelease) {
-    fail("BUILD_BINDING_MISMATCH", "HEAD and Foundry artifact do not resolve to release commit");
+  if (artifactCommit !== normalizedRelease) {
+    fail("BUILD_BINDING_MISMATCH", "Foundry artifact does not resolve to release commit");
+  }
+  await run(
+    "git",
+    ["merge-base", "--is-ancestor", normalizedRelease, head],
+    "release ancestry check",
+  );
+  if (head !== normalizedRelease && !COMMIT_PATTERN.test(head)) {
+    fail("BUILD_BINDING_MISMATCH", "verifier HEAD is invalid");
   }
   if (commandText(statusResult, "worktree status").trim() !== "") {
     fail("DIRTY_RELEASE_TREE", "source verification adoption requires a fully clean worktree");
@@ -844,6 +855,7 @@ export async function verifyReadOnlyReleaseSourceProvenance({
     headCommit: head,
     foundryArtifactCommit: normalizedFoundry,
     artifactResolvedCommit: artifactCommit,
+    releaseCommitAncestorOfVerifierHead: true,
     fullWorktreeClean: true,
     offlineRebuildEvidenceInheritedFromPendingProposal: true,
     trackedSourceCount: Object.keys(trackedSources).length,
@@ -915,22 +927,25 @@ function validateReleaseSourceProvenanceEvidence(value, {
 }) {
   exactKeys(value, [
     "releaseGitCommit", "headCommit", "foundryArtifactCommit", "artifactResolvedCommit",
+    "releaseCommitAncestorOfVerifierHead",
     "fullWorktreeClean", "offlineRebuildEvidenceInheritedFromPendingProposal",
     "trackedSourceCount", "dependencySourceCount", "trackedSourceHashes",
     "dependencySourceHashes", "trackedSourceSetSha256", "dependencySourceSetSha256",
     "dependencyPackages", "packageLockText", "packageLockSha256",
   ], "verified release source provenance");
-  for (const key of ["releaseGitCommit", "headCommit", "artifactResolvedCommit"]) {
+  for (const key of ["releaseGitCommit", "artifactResolvedCommit"]) {
     if (normalizeCommit(value[key], `releaseSourceProvenance.${key}`) !== releaseCommit) {
       fail("BUILD_BINDING_MISMATCH", `releaseSourceProvenance.${key} differs from release`);
     }
   }
+  normalizeCommit(value.headCommit, "releaseSourceProvenance.headCommit");
   const provenanceFoundryCommit = normalizeFoundryCommit(
     value.foundryArtifactCommit,
     "releaseSourceProvenance.foundryArtifactCommit",
   );
   if (provenanceFoundryCommit !== foundryCommit
     || !releaseCommit.startsWith(provenanceFoundryCommit)
+    || value.releaseCommitAncestorOfVerifierHead !== true
     || value.fullWorktreeClean !== true
     || value.offlineRebuildEvidenceInheritedFromPendingProposal !== true) {
     fail("BUILD_BINDING_MISMATCH", "verified release source provenance is not clean and bound");
@@ -1062,23 +1077,59 @@ function apiSourceHashes(response, name, artifact) {
   return hashes;
 }
 
-function normalizeSmartContractEvidence(response, name, artifact, record, observedAtMs) {
+function normalizeSourcifyEvidence(response, name, record, observedAtMs) {
+  exactKeys(response, [
+    "matchId", "creationMatch", "runtimeMatch", "verifiedAt", "match", "chainId", "address",
+  ], `${name} Sourcify response`);
+  if (typeof response.matchId !== "string" || !/^\d+$/.test(response.matchId)
+    || response.creationMatch !== "match" || response.runtimeMatch !== "match"
+    || response.match !== "match" || response.chainId !== String(ROBINHOOD_CHAIN_ID)
+    || normalizeAddress(response.address, `${name} Sourcify address`) !== record.address) {
+    fail("NOT_FULLY_VERIFIED", `${name} lacks an exact Sourcify creation/runtime match`);
+  }
+  return {
+    provider: "SOURCIFY",
+    matchId: response.matchId,
+    chainId: ROBINHOOD_CHAIN_ID,
+    address: record.address,
+    creationMatch: "match",
+    runtimeMatch: "match",
+    overallMatch: "match",
+    verifiedAt: validateTimestamp(response.verifiedAt, `${name} Sourcify verifiedAt`, observedAtMs),
+  };
+}
+
+function normalizeSmartContractEvidence(
+  response,
+  sourcifyEvidence,
+  name,
+  artifact,
+  record,
+  observedAtMs,
+) {
   requireOwn(response, [
     "verified_twin_address_hash", "is_verified", "is_changed_bytecode",
-    "is_partially_verified", "is_fully_verified", "minimal_proxy_address_hash", "name",
+    "is_partially_verified", "is_fully_verified", "name",
     "optimization_enabled", "compiler_version", "evm_version", "verified_at", "abi",
     "source_code", "file_path", "compiler_settings", "constructor_args",
     "additional_sources", "deployed_bytecode", "creation_bytecode", "external_libraries",
     "language", "creation_status",
   ], `${name} Blockscout smart-contract response`);
-  if (response.is_verified !== true || response.is_fully_verified !== true
-    || response.is_partially_verified !== false || response.is_changed_bytecode !== false) {
-    fail("NOT_FULLY_VERIFIED", `${name} is partial, changed, or unverified on Blockscout`);
+  if (response.is_verified !== true || typeof response.is_fully_verified !== "boolean"
+    || typeof response.is_partially_verified !== "boolean"
+    || response.is_changed_bytecode !== false
+    || sourcifyEvidence.creationMatch !== "match"
+    || sourcifyEvidence.runtimeMatch !== "match"
+    || sourcifyEvidence.overallMatch !== "match") {
+    fail("NOT_FULLY_VERIFIED", `${name} lacks unchanged Blockscout and full Sourcify evidence`);
   }
   if (response.verified_twin_address_hash !== null) {
     fail("VERIFIED_TWIN_REJECTED", `${name} source is inherited from a verified twin`);
   }
-  if (response.minimal_proxy_address_hash !== null) {
+  const minimalProxy = Object.hasOwn(response, "minimal_proxy_address_hash")
+    ? response.minimal_proxy_address_hash
+    : null;
+  if (minimalProxy !== null) {
     fail("PROXY_REJECTED", `${name} is reported as a minimal proxy`);
   }
   if (response.name !== name || response.language?.toLowerCase() !== "solidity"
@@ -1119,9 +1170,11 @@ function normalizeSmartContractEvidence(response, name, artifact, record, observ
     fail("LIBRARY_BINDING_MISMATCH", `${name} has external or unexpected libraries`);
   }
   return {
-    fullyVerified: true,
+    fullVerificationEstablished: true,
+    blockscoutFullyVerified: response.is_fully_verified,
+    blockscoutPartiallyVerified: response.is_partially_verified,
+    sourcifyFullMatch: true,
     changedBytecode: false,
-    partiallyVerified: false,
     verifiedTwin: null,
     minimalProxy: null,
     compilerVersion: response.compiler_version,
@@ -1145,8 +1198,8 @@ function normalizeSmartContractEvidence(response, name, artifact, record, observ
 
 function normalizeAddressEvidence(response, name, record) {
   requireOwn(response, [
-    "hash", "creator_address_hash", "creation_transaction_hash", "implementation_address",
-    "implementation_name", "is_contract", "is_verified", "creation_status",
+    "hash", "creator_address_hash", "creation_transaction_hash",
+    "is_contract", "is_verified", "creation_status",
   ], `${name} Blockscout address response`);
   if (normalizeAddress(response.hash, `${name} explorer address`) !== record.address
     || normalizeAddress(response.creator_address_hash, `${name} creator`) !== record.deployer
@@ -1156,7 +1209,13 @@ function normalizeAddressEvidence(response, name, record) {
     || response.creation_status !== "success") {
     fail("DEPLOYMENT_EVIDENCE_MISMATCH", `${name} Blockscout address binding is wrong`);
   }
-  if (response.implementation_address !== null || response.implementation_name !== null) {
+  const implementationAddress = Object.hasOwn(response, "implementation_address")
+    ? response.implementation_address
+    : null;
+  const implementationName = Object.hasOwn(response, "implementation_name")
+    ? response.implementation_name
+    : null;
+  if (implementationAddress !== null || implementationName !== null) {
     fail("PROXY_REJECTED", `${name} has a Blockscout implementation/proxy binding`);
   }
   return {
@@ -1246,6 +1305,10 @@ function addressEndpoint(address) {
   return `${BLOCKSCOUT_ORIGIN}/api/v2/addresses/${address}`;
 }
 
+function sourcifyEndpoint(address) {
+  return `${SOURCIFY_ORIGIN}/server/v2/contract/${ROBINHOOD_CHAIN_ID}/${address}`;
+}
+
 export async function buildBlockscoutVerifiedManifestProposal(input, options = {}) {
   exactKeys(input, ["kind", "pendingProposal", "compiledArtifacts"], "gate input");
   plainObject(options, "gate options");
@@ -1279,18 +1342,30 @@ export async function buildBlockscoutVerifiedManifestProposal(input, options = {
     const record = normalized.records[name];
     const smartContractUrl = sourceEndpoint(record.address);
     const addressUrl = addressEndpoint(record.address);
-    const [smart, address] = await Promise.all([
+    const sourcifyUrl = sourcifyEndpoint(record.address);
+    const [smart, address, sourcify] = await Promise.all([
       fetchEvidenceJson(fetcher, smartContractUrl, `${name} smart-contract evidence`),
       fetchEvidenceJson(fetcher, addressUrl, `${name} address evidence`),
+      fetchEvidenceJson(fetcher, sourcifyUrl, `${name} Sourcify evidence`),
     ]);
+    const sourcifyVerification = normalizeSourcifyEvidence(
+      sourcify.value,
+      name,
+      record,
+      observedAtMs,
+    );
     evidence[name] = {
       address: record.address,
       smartContractEndpoint: smartContractUrl,
       addressEndpoint: addressUrl,
+      sourcifyEndpoint: sourcifyUrl,
       smartContractResponseSha256: smart.rawBodySha256,
       addressResponseSha256: address.rawBodySha256,
+      sourcifyResponseSha256: sourcify.rawBodySha256,
+      sourcifyVerification,
       sourceVerification: normalizeSmartContractEvidence(
         smart.value,
+        sourcifyVerification,
         name,
         artifacts[name],
         record,
@@ -1345,8 +1420,10 @@ export async function buildBlockscoutVerifiedManifestProposal(input, options = {
     trustBindings: {
       chainId: ROBINHOOD_CHAIN_ID,
       explorerOrigin: BLOCKSCOUT_ORIGIN,
+      sourcifyOrigin: SOURCIFY_ORIGIN,
       smartContractApiDocumentation: BLOCKSCOUT_SMART_CONTRACT_DOCUMENTATION,
       addressApiDocumentation: BLOCKSCOUT_ADDRESS_DOCUMENTATION,
+      sourcifyApiDocumentation: SOURCIFY_DOCUMENTATION,
       releaseGitCommit: normalized.releaseCommit,
       foundryArtifactCommit: normalized.foundryCommit,
       compilerVersion: BLOCKSCOUT_COMPILER_VERSION,
@@ -1357,7 +1434,7 @@ export async function buildBlockscoutVerifiedManifestProposal(input, options = {
       metadataBytecodeHash: "none",
       allExpectedContractsVerified: true,
       directVerificationOnly: true,
-      partialVerificationAccepted: false,
+      blockscoutPartialAcceptedOnlyWithSourcifyFullMatch: true,
       changedBytecodeAccepted: false,
       verifiedTwinAccepted: false,
       proxyAccepted: false,
@@ -1419,22 +1496,25 @@ export function validateBlockscoutVerifiedManifestProposal(value) {
   }
   const trust = proposal.trustBindings;
   exactKeys(trust, [
-    "chainId", "explorerOrigin", "smartContractApiDocumentation",
-    "addressApiDocumentation", "releaseGitCommit", "foundryArtifactCommit",
+    "chainId", "explorerOrigin", "sourcifyOrigin", "smartContractApiDocumentation",
+    "addressApiDocumentation", "sourcifyApiDocumentation", "releaseGitCommit", "foundryArtifactCommit",
     "compilerVersion", "evmVersion", "optimizerEnabled", "optimizerRuns", "viaIR",
     "metadataBytecodeHash", "allExpectedContractsVerified", "directVerificationOnly",
-    "partialVerificationAccepted", "changedBytecodeAccepted", "verifiedTwinAccepted",
+    "blockscoutPartialAcceptedOnlyWithSourcifyFullMatch", "changedBytecodeAccepted", "verifiedTwinAccepted",
     "proxyAccepted", "observedAt", "contracts", "releaseSourceProvenance",
     "sourceVerificationAdoption", "transactionCapability",
   ], "verified proposal trustBindings");
   if (trust.chainId !== ROBINHOOD_CHAIN_ID || trust.explorerOrigin !== BLOCKSCOUT_ORIGIN
+    || trust.sourcifyOrigin !== SOURCIFY_ORIGIN
     || trust.smartContractApiDocumentation !== BLOCKSCOUT_SMART_CONTRACT_DOCUMENTATION
     || trust.addressApiDocumentation !== BLOCKSCOUT_ADDRESS_DOCUMENTATION
+    || trust.sourcifyApiDocumentation !== SOURCIFY_DOCUMENTATION
     || trust.compilerVersion !== BLOCKSCOUT_COMPILER_VERSION || trust.evmVersion !== EVM_VERSION
     || trust.optimizerEnabled !== true || trust.optimizerRuns !== OPTIMIZER_RUNS
     || trust.viaIR !== true || trust.metadataBytecodeHash !== "none"
     || trust.allExpectedContractsVerified !== true || trust.directVerificationOnly !== true
-    || trust.partialVerificationAccepted !== false || trust.changedBytecodeAccepted !== false
+    || trust.blockscoutPartialAcceptedOnlyWithSourcifyFullMatch !== true
+    || trust.changedBytecodeAccepted !== false
     || trust.verifiedTwinAccepted !== false || trust.proxyAccepted !== false
     || trust.transactionCapability !== "NONE_READ_ONLY_ADOPTION_PROPOSAL") {
     fail("INVALID_VERIFIED_PROPOSAL", "verified proposal trust policy is wrong");
@@ -1468,28 +1548,47 @@ export function validateBlockscoutVerifiedManifestProposal(value) {
     const address = normalizeAddress(record.address, `${name} pending manifest address`);
     const contractEvidence = trust.contracts[name];
     exactKeys(contractEvidence, [
-      "address", "smartContractEndpoint", "addressEndpoint",
-      "smartContractResponseSha256", "addressResponseSha256", "sourceVerification",
-      "deploymentAndProxyEvidence",
+      "address", "smartContractEndpoint", "addressEndpoint", "sourcifyEndpoint",
+      "smartContractResponseSha256", "addressResponseSha256", "sourcifyResponseSha256",
+      "sourcifyVerification", "sourceVerification", "deploymentAndProxyEvidence",
     ], `${name} verified evidence`);
     if (normalizeAddress(contractEvidence.address, `${name} evidence address`) !== address
       || contractEvidence.smartContractEndpoint !== sourceEndpoint(address)
-      || contractEvidence.addressEndpoint !== addressEndpoint(address)) {
+      || contractEvidence.addressEndpoint !== addressEndpoint(address)
+      || contractEvidence.sourcifyEndpoint !== sourcifyEndpoint(address)) {
       fail("INVALID_VERIFIED_PROPOSAL", `${name} endpoint/address binding is wrong`);
     }
     normalizeHash(contractEvidence.smartContractResponseSha256, `${name} source response hash`);
     normalizeHash(contractEvidence.addressResponseSha256, `${name} address response hash`);
+    normalizeHash(contractEvidence.sourcifyResponseSha256, `${name} Sourcify response hash`);
+    const sourcify = contractEvidence.sourcifyVerification;
+    exactKeys(sourcify, [
+      "provider", "matchId", "chainId", "address", "creationMatch", "runtimeMatch",
+      "overallMatch", "verifiedAt",
+    ], `${name} Sourcify verification`);
+    if (sourcify.provider !== "SOURCIFY" || !/^\d+$/.test(sourcify.matchId)
+      || sourcify.chainId !== ROBINHOOD_CHAIN_ID
+      || normalizeAddress(sourcify.address, `${name} Sourcify address`) !== address
+      || sourcify.creationMatch !== "match" || sourcify.runtimeMatch !== "match"
+      || sourcify.overallMatch !== "match") {
+      fail("INVALID_VERIFIED_PROPOSAL", `${name} Sourcify evidence is not a full match`);
+    }
+    validateTimestamp(sourcify.verifiedAt, `${name} Sourcify verifiedAt`, observedAtMs);
     const source = contractEvidence.sourceVerification;
     const compiledEvidence = compiledEvidenceFor(kind, normalizedPending.trust, name);
     exactKeys(source, [
-      "fullyVerified", "changedBytecode", "partiallyVerified", "verifiedTwin",
+      "fullVerificationEstablished", "blockscoutFullyVerified",
+      "blockscoutPartiallyVerified", "sourcifyFullMatch", "changedBytecode", "verifiedTwin",
       "minimalProxy", "compilerVersion", "evmVersion", "optimizerEnabled", "optimizerRuns",
       "viaIR", "contractName", "filePath", "verifiedAt", "sourceHashes",
       "sourceSetSha256", "compilerSettingsSha256", "abiSha256", "creationBytecodeHash",
       "deploymentInitcodeHash", "runtimeBytecodeHash", "constructorArguments",
     ], `${name} source verification`);
-    if (source.fullyVerified !== true || source.changedBytecode !== false
-      || source.partiallyVerified !== false || source.verifiedTwin !== null
+    if (source.fullVerificationEstablished !== true
+      || typeof source.blockscoutFullyVerified !== "boolean"
+      || typeof source.blockscoutPartiallyVerified !== "boolean"
+      || source.sourcifyFullMatch !== true || source.changedBytecode !== false
+      || source.verifiedTwin !== null
       || source.minimalProxy !== null || source.compilerVersion !== BLOCKSCOUT_COMPILER_VERSION
       || source.evmVersion !== EVM_VERSION || source.optimizerEnabled !== true
       || source.optimizerRuns !== OPTIMIZER_RUNS || source.viaIR !== true
