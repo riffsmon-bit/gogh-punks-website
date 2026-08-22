@@ -16,6 +16,12 @@ const ZERO_WORD = `0x${"00".repeat(32)}`;
 const EMPTY_ADAPTER_DATA_HASH =
   "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470";
 export const MINIMUM_SUBMISSION_MARGIN_SECONDS = 30;
+// Robinhood currently produces several blocks per second, and independently operated RPCs can
+// expose the same canonical chain 5-12 block notifications apart. The attestor still reads the
+// lower common block from both providers, requires its exact hash/timestamp to agree, enforces
+// wall-clock freshness, and rechecks it at close. Sixteen blocks bounds availability skew without
+// allowing a stale chain view to pass those stronger common-block checks.
+export const MAX_LATEST_HEAD_SKEW = 16n;
 const EXPECTED_POLICY_VERSION = 11n;
 const EXPECTED_PERMISSION_GENERATION = 1n;
 const EXPECTED_ACQUISITION_NONCE = 0n;
@@ -1070,6 +1076,70 @@ function logIdentity(log) {
   };
 }
 
+function receiptConsensusView(receipt, label) {
+  // Validate the complete provider object first so accessors, symbols, custom prototypes, and
+  // unsupported values still fail closed. Some RPCs materialize non-applicable EIP-4844 receipt
+  // fields as zero on ordinary EIP-1559 transactions while others omit them. Those fields are not
+  // consensus data for a non-blob transaction, so compare the exact receipt without only those two
+  // non-applicable fields.
+  canonicalRpcValue(receipt, `${label}.raw`);
+  const typeDescriptor = Object.getOwnPropertyDescriptor(receipt, "type");
+  const transactionType = typeDescriptor && Object.hasOwn(typeDescriptor, "value")
+    ? typeDescriptor.value
+    : undefined;
+  const blobTransaction = transactionType === "eip4844" || transactionType === "0x3"
+    || transactionType === 3 || transactionType === 3n;
+  const output = {};
+  for (const key of Reflect.ownKeys(receipt)) {
+    if (typeof key !== "string") fail("INVALID_RPC_RESPONSE", `${label} contains a symbol field`);
+    if (!blobTransaction && (key === "blobGasUsed" || key === "blobGasPrice")) continue;
+    const descriptor = Object.getOwnPropertyDescriptor(receipt, key);
+    if (!descriptor || !Object.hasOwn(descriptor, "value")) {
+      fail("INVALID_RPC_RESPONSE", `${label}.${key} is not an own data field`);
+    }
+    output[key] = descriptor.value;
+  }
+  return output;
+}
+
+function logConsensusView(log, label) {
+  // Validate the full formatted log before projecting it. Viem providers can disagree on the
+  // auxiliary `blockTimestamp` field because it is not part of the eth_getLogs consensus result
+  // (the official Robinhood endpoint currently returns zero while Tenderly supplies the block
+  // timestamp). All transaction-position, emitter, topic, data, removal, and block identity fields
+  // remain exact and are compared by `dual`.
+  canonicalRpcValue(log, `${label}.raw`);
+  if (!log || typeof log !== "object" || Array.isArray(log)) {
+    fail("INVALID_RPC_RESPONSE", `${label} is not a log object`);
+  }
+  const output = {};
+  for (const key of Reflect.ownKeys(log)) {
+    if (typeof key !== "string") fail("INVALID_RPC_RESPONSE", `${label} contains a symbol field`);
+    if (key === "blockTimestamp") continue;
+    const descriptor = Object.getOwnPropertyDescriptor(log, key);
+    if (!descriptor || !Object.hasOwn(descriptor, "value")) {
+      fail("INVALID_RPC_RESPONSE", `${label}.${key} is not an own data field`);
+    }
+    output[key] = descriptor.value;
+  }
+  if (typeof output.removed !== "boolean") {
+    fail("INVALID_RPC_RESPONSE", `${label}.removed is not boolean`);
+  }
+  return output;
+}
+
+function logsConsensusView(logs, label) {
+  canonicalRpcValue(logs, `${label}.raw`);
+  if (!Array.isArray(logs)) fail("INVALID_RPC_RESPONSE", `${label} is not a log array`);
+  return logs.map((log, index) => logConsensusView(log, `${label}[${index}]`));
+}
+
+async function dualLogs(label, primaryClient, secondaryClient, operation) {
+  return dual(label, primaryClient, secondaryClient, async (client) => (
+    logsConsensusView(await operation(client), label)
+  ));
+}
+
 function relevantPolicyLog(log, account) {
   const decoded = decodeKnownEvent(log, policyMutationEventAbi, "policy log");
   const accountArg = eventArg(decoded, "account");
@@ -1128,7 +1198,10 @@ async function verifyConfigurationHistory({
       primaryClient, secondaryClient, (client) => client.getTransaction({ hash: transactionHash }));
     const receipt = await dual(`configuration receipt ${index + 1}`,
       primaryClient, secondaryClient,
-      (client) => client.getTransactionReceipt({ hash: transactionHash }));
+      async (client) => receiptConsensusView(
+        await client.getTransactionReceipt({ hash: transactionHash }),
+        `configuration receipt ${index + 1}`,
+      ));
     same(bytes32(transaction.hash, "configuration transaction hash"), transactionHash,
       "CONFIGURATION_TRANSACTION_MISMATCH", `configuration transaction ${index + 1} hash`);
     const transactionFrom = address(transaction.from, "configuration sender");
@@ -1213,13 +1286,13 @@ async function verifyConfigurationHistory({
 
   const scanFrom = preBlock + 1n;
   const [policyLogs, adapterLogs, agentLogs, accountLogs] = await Promise.all([
-    dual("configuration policy event interval", primaryClient, secondaryClient,
+    dualLogs("configuration policy event interval", primaryClient, secondaryClient,
       (client) => client.getLogs({ address: policy, fromBlock: scanFrom, toBlock: pinned.blockNumber })),
-    dual("configuration adapter event interval", primaryClient, secondaryClient,
+    dualLogs("configuration adapter event interval", primaryClient, secondaryClient,
       (client) => client.getLogs({ address: adapterRegistry, fromBlock: scanFrom, toBlock: pinned.blockNumber })),
-    dual("configuration agent event interval", primaryClient, secondaryClient,
+    dualLogs("configuration agent event interval", primaryClient, secondaryClient,
       (client) => client.getLogs({ address: agentRegistry, fromBlock: scanFrom, toBlock: pinned.blockNumber })),
-    dual("configuration account activity interval", primaryClient, secondaryClient,
+    dualLogs("configuration account activity interval", primaryClient, secondaryClient,
       (client) => client.getLogs({ address: artifact.account, fromBlock: scanFrom, toBlock: pinned.blockNumber })),
   ]);
   if (!Array.isArray(policyLogs) || !Array.isArray(adapterLogs)
@@ -1266,16 +1339,16 @@ async function verifyConfigurationHistory({
   const policyDeploymentBlock = BigInt(deployed.contracts.BrokerPolicyModule.deploymentBlock);
   const adapterDeploymentBlock = BigInt(deployed.contracts.ArtAdapterRegistry.deploymentBlock);
   const [priorPolicyLogs, priorAdapterLogs, priorAgentLogs, priorAccountLogs] = await Promise.all([
-    dual("preconfiguration policy isolation history", primaryClient, secondaryClient,
+    dualLogs("preconfiguration policy isolation history", primaryClient, secondaryClient,
       (client) => client.getLogs({ address: policy, fromBlock: policyDeploymentBlock,
         toBlock: preBlock })),
-    dual("preconfiguration adapter isolation history", primaryClient, secondaryClient,
+    dualLogs("preconfiguration adapter isolation history", primaryClient, secondaryClient,
       (client) => client.getLogs({ address: adapterRegistry, fromBlock: adapterDeploymentBlock,
         toBlock: preBlock })),
-    dual("preconfiguration selected-account agent history", primaryClient, secondaryClient,
+    dualLogs("preconfiguration selected-account agent history", primaryClient, secondaryClient,
       (client) => client.getLogs({ address: agentRegistry,
         fromBlock: BigInt(deployed.contracts.ArtAgentRegistry.deploymentBlock), toBlock: preBlock })),
-    dual("preconfiguration account activity history", primaryClient, secondaryClient,
+    dualLogs("preconfiguration account activity history", primaryClient, secondaryClient,
       (client) => client.getLogs({ address: artifact.account,
         fromBlock: BigInt(deployed.contracts.GoghPunkAccountRegistry.deploymentBlock),
         toBlock: preBlock })),
@@ -1320,7 +1393,7 @@ async function verifyConfigurationHistory({
       "preconfiguration Punk Account activity log");
     fail("NONCLEAN_PRECONFIGURATION", "Punk Account has prior cancellation or acquisition activity");
   }
-  const ownershipTransfers = await dual("configuration Punk ownership transfer interval",
+  const ownershipTransfers = await dualLogs("configuration Punk ownership transfer interval",
     primaryClient, secondaryClient, (client) => client.getLogs({
       address: ROBINHOOD.canonicalCollection,
       event: punkTransferEvent,
@@ -1382,7 +1455,9 @@ async function establishLatestCommonBlock(primaryClient, secondaryClient) {
     fail("INVALID_BLOCK", "latest heads are invalid");
   }
   const skew = primaryHead > secondaryHead ? primaryHead - secondaryHead : secondaryHead - primaryHead;
-  if (skew > 3n) fail("RPC_HEAD_SKEW", "independent RPC heads differ by more than three blocks");
+  if (skew > MAX_LATEST_HEAD_SKEW) {
+    fail("RPC_HEAD_SKEW", `independent RPC heads differ by more than ${MAX_LATEST_HEAD_SKEW} blocks`);
+  }
   const number = primaryHead < secondaryHead ? primaryHead : secondaryHead;
   const block = await dual("latest common block", primaryClient, secondaryClient,
     (client) => client.getBlock({ blockNumber: number }));
@@ -1540,18 +1615,18 @@ async function verifyPostPinIsolation({
   if (latest.number <= pinned.blockNumber) return;
   const fromBlock = pinned.blockNumber + 1n;
   const [policyLogs, adapterLogs, agentLogs, accountLogs, ownershipTransfers] = await Promise.all([
-    dual("post-pin policy isolation", primaryClient, secondaryClient,
+    dualLogs("post-pin policy isolation", primaryClient, secondaryClient,
       (client) => client.getLogs({ address: deployed.contracts.BrokerPolicyModule.address,
         fromBlock, toBlock: latest.number })),
-    dual("post-pin adapter isolation", primaryClient, secondaryClient,
+    dualLogs("post-pin adapter isolation", primaryClient, secondaryClient,
       (client) => client.getLogs({ address: deployed.contracts.ArtAdapterRegistry.address,
         fromBlock, toBlock: latest.number })),
-    dual("post-pin agent isolation", primaryClient, secondaryClient,
+    dualLogs("post-pin agent isolation", primaryClient, secondaryClient,
       (client) => client.getLogs({ address: deployed.contracts.ArtAgentRegistry.address,
         fromBlock, toBlock: latest.number })),
-    dual("post-pin account isolation", primaryClient, secondaryClient,
+    dualLogs("post-pin account isolation", primaryClient, secondaryClient,
       (client) => client.getLogs({ address: artifact.account, fromBlock, toBlock: latest.number })),
-    dual("post-pin Punk ownership isolation", primaryClient, secondaryClient,
+    dualLogs("post-pin Punk ownership isolation", primaryClient, secondaryClient,
       (client) => client.getLogs({ address: ROBINHOOD.canonicalCollection,
         event: punkTransferEvent, args: { tokenId: artifact.punkTokenId },
         fromBlock, toBlock: latest.number })),
@@ -1980,7 +2055,6 @@ export async function attestLiveApproval({
   await recheckPinnedBlock(primaryClient, secondaryClient, pinned);
   const latest = await establishLatestCommonBlock(primaryClient, secondaryClient);
   if (latest.number < pinned.blockNumber || latest.timestamp < pinned.blockTimestamp
-    || latest.timestamp > BigInt(initialNowSeconds) + 30n
     || artifact.createdAt > latest.timestamp || artifact.expiresAt < latest.timestamp) {
     fail("STALE_PROPOSAL", "proposal is not valid at the latest common execution-check block");
   }
@@ -2002,6 +2076,9 @@ export async function attestLiveApproval({
   });
   const finalNowSeconds = clockSeconds(finalClock, "final real time");
   if (finalNowSeconds < initialNowSeconds) fail("INVALID_TIME", "real clock moved backwards");
+  if (latest.timestamp > BigInt(finalNowSeconds) + 30n) {
+    fail("INVALID_BLOCK", "latest common block timestamp is in the future");
+  }
   const remainingSeconds = artifact.expiresAt - BigInt(finalNowSeconds);
   if (remainingSeconds < BigInt(MINIMUM_SUBMISSION_MARGIN_SECONDS)) {
     fail("STALE_PROPOSAL", "intent lacks the minimum owner submission margin after simulation");

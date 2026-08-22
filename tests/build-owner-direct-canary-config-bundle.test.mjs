@@ -387,13 +387,15 @@ function expectCode(fn, code) {
   ));
 }
 
-test("authoritative NOT_DEPLOYED templates fail closed", async () => {
+test("a NOT_DEPLOYED manifest fails closed", async () => {
   const core = JSON.parse(await readFile(
     new URL("../deployments/robinhood.json", import.meta.url), "utf8",
   ));
   const canary = JSON.parse(await readFile(
     new URL("../deployments/robinhood-canary.json", import.meta.url), "utf8",
   ));
+  core.status = "NOT_DEPLOYED";
+  canary.status = "NOT_DEPLOYED";
   expectCode(() => buildOwnerDirectCanaryConfigBundle(core, canary), "NOT_DEPLOYED");
 });
 

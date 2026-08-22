@@ -118,7 +118,7 @@ test("rejects accessors and programmatic Proxies without invoking value getters"
   assert.equal(reads, 0);
 });
 
-test("stdout-only CLI path fails closed on current NOT_DEPLOYED manifests and rejects symlinks", async () => {
+test("stdout-only CLI path rejects an unbound bundle and symlinks", async () => {
   const directory = await mkdtemp(resolve(tmpdir(), "gogh-config-evidence-"));
   try {
     const bundlePath = resolve(directory, "bundle.json");
@@ -133,7 +133,7 @@ test("stdout-only CLI path fails closed on current NOT_DEPLOYED manifests and re
     await assert.rejects(() => buildReceiptEvidenceFromFiles([
       "--config-bundle", bundlePath,
       "--transactions", transactionsPath,
-    ]), /NOT_DEPLOYED/);
+    ]), /not rebuilt exactly from the authoritative manifests/);
 
     const symlinkPath = resolve(directory, "bundle-link.json");
     await symlink(bundlePath, symlinkPath);

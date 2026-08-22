@@ -163,6 +163,7 @@ test("Scout worker pins ownership to a confirmed block and writes read-only reco
     },
     repository,
     source,
+    deployment: { status: "NOT_DEPLOYED" },
   });
   assert.equal(result.executionEnabled, false);
   assert.equal(result.ownerBlock, "80");

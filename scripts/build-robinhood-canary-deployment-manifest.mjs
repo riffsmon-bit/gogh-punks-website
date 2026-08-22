@@ -1345,7 +1345,10 @@ async function verifyCreationOnEndpoint(endpoint, endpointIndex, records, pinned
         !== record.compiled.maskedDeployedBytecodeHash) {
       fail("COMPILED_RUNTIME_MISMATCH", `${record.name} runtime differs from clean compiled output`);
     }
-    const confirmationsObserved = head - BigInt(record.deploymentBlock) + 1n;
+    // Provider heads may differ while both providers agree on the same confirmed pin. Keep the
+    // shared creation evidence deterministic by measuring depth only through that common pin;
+    // each provider's actual head is recorded separately in its observation.
+    const confirmationsObserved = pinned.number - BigInt(record.deploymentBlock) + 1n;
     if (confirmationsObserved < BigInt(MIN_CONFIRMATIONS)) {
       fail("UNCONFIRMED_DEPLOYMENT", `${record.name} has fewer than 20 confirmations`);
     }

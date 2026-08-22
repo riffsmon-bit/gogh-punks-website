@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { requireVerifiedManifestAdoption } from
+  "../broker/src/recommendation/source-verification-adoption.mjs";
 
 const root = process.cwd();
 const requiredDocs = [
@@ -27,9 +29,19 @@ for (const name of requiredDocs) {
 const deployment = JSON.parse(
   readFileSync(resolve(root, "deployments/robinhood.json"), "utf8"),
 );
-if (deployment.status !== "NOT_DEPLOYED") throw new Error("deployment must remain NOT_DEPLOYED");
-if (deployment.sourceVerificationAdoption !== null) {
-  throw new Error("undeployed manifest must not contain a source-verification adoption");
+if (!["NOT_DEPLOYED", "DEPLOYED"].includes(deployment.status)) {
+  throw new Error("deployment status is invalid");
+}
+const deploymentContractNames = [
+  "ArtAdapterRegistry", "ArtAgentRegistry", "BrokerPolicyModule",
+  "GoghPunkAccountV1", "GoghPunkAccountRegistry",
+];
+if (deployment.status === "NOT_DEPLOYED") {
+  if (deployment.sourceVerificationAdoption !== null) {
+    throw new Error("undeployed manifest must not contain a source-verification adoption");
+  }
+} else {
+  requireVerifiedManifestAdoption(deployment, deploymentContractNames);
 }
 if (deployment.chain.chainId !== 4663) throw new Error("wrong deployment chain");
 if (deployment.canonicalCollection.toLowerCase()
@@ -60,7 +72,15 @@ for (const [name, record] of Object.entries(deployment.contracts)) {
   ]) {
     if (!Object.hasOwn(record, field)) throw new Error(`${name} manifest missing ${field}`);
   }
-  if (record.address !== null) throw new Error(`${name} unexpectedly has a deployed address`);
+  if (deployment.status === "NOT_DEPLOYED") {
+    if (record.address !== null) throw new Error(`${name} unexpectedly has a deployed address`);
+  } else if (!/^0x[0-9a-fA-F]{40}$/.test(record.address ?? "")
+    || !/^0x[0-9a-f]{64}$/.test(record.deploymentTransaction ?? "")
+    || !Number.isSafeInteger(record.deploymentBlock) || record.deploymentBlock <= 0
+    || !/^0x[0-9a-f]{64}$/.test(record.runtimeBytecodeHash ?? "")
+    || record.verificationStatus !== "VERIFIED") {
+    throw new Error(`${name} deployed/source-verified record is invalid`);
+  }
 }
 for (const [name, enabled] of Object.entries(deployment.featureFlags)) {
   const expected = name === "ENABLE_SCOUT_MODE";
@@ -198,5 +218,5 @@ for (const requirement of [
 }
 
 console.log(
-  `PASS Art Broker manifest, ${requiredDocs.length} required docs, fail-closed flags, and database entities`,
+  `PASS Art Broker ${deployment.status} manifest, ${requiredDocs.length} required docs, fail-closed flags, and database entities`,
 );

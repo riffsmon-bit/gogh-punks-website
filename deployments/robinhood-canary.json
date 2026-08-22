@@ -1,108 +1,259 @@
 {
-  "status": "NOT_DEPLOYED",
-  "chain": {
-    "name": "Robinhood Chain",
-    "chainId": 4663,
-    "rpcEnvironmentVariable": "ROBINHOOD_RPC_URL",
-    "explorer": "https://robinhoodchain.blockscout.com",
-    "nativeCurrency": "ETH"
-  },
-  "coreDeploymentManifest": "deployments/robinhood.json",
-  "coreDeploymentManifestStatusRequired": "DEPLOYED",
-  "coreDeploymentManifestGitCommit": null,
-  "coreDeploymentManifestSha256": null,
-  "coreGoghPunkAccountRegistry": null,
-  "coreGoghPunkAccountRegistryRuntimeCodeHash": null,
-  "coreGoghPunkAccountImplementation": null,
-  "coreGoghPunkAccountImplementationRuntimeCodeHash": null,
+  "canaryArtTokenId": "9001",
   "canonicalCollection": "0xE0F92B3B0E6DeD3654177FE3809Cd300e5ffaDf6",
   "canonicalERC6551Registry": "0x000000006551c19487814612e58FE06813775758",
   "canonicalERC6551RegistryRuntimeCodeHash": "0xda1d5b06e579f9e42e59b00fbc22939896ecb38dc8830d40de0a2508fecd6735",
-  "controllingPunkTokenId": null,
-  "expectedActivatedPunkAccount": null,
-  "expectedActivatedPunkAccountRuntimeCodeHash": null,
-  "expectedOwnerAtPreparation": null,
-  "canaryArtTokenId": null,
-  "gitCommit": null,
+  "chain": {
+    "chainId": 4663,
+    "explorer": "https://robinhoodchain.blockscout.com",
+    "name": "Robinhood Chain",
+    "nativeCurrency": "ETH",
+    "rpcEnvironmentVariable": "ROBINHOOD_RPC_URL"
+  },
   "compiler": "0.8.34",
-  "evmVersion": "cancun",
-  "optimizerRuns": 500,
-  "contracts": {
-    "GoghOneShotCanaryArt": {
-      "address": null,
-      "deploymentTransaction": null,
-      "deploymentBlock": null,
-      "deploymentBlockHash": null,
-      "receiptStatus": null,
-      "confirmationsRequired": 20,
-      "confirmationsObserved": null,
-      "deployer": null,
-      "constructorArguments": null,
-      "creationBytecodeHash": null,
-      "runtimeBytecodeHash": null,
-      "gitCommit": null,
-      "verificationStatus": "NOT_SUBMITTED"
-    },
-    "GoghOneShotCanaryMintAdapter": {
-      "address": null,
-      "deploymentTransaction": null,
-      "deploymentBlock": null,
-      "deploymentBlockHash": null,
-      "receiptStatus": null,
-      "confirmationsRequired": 20,
-      "confirmationsObserved": null,
-      "deployer": null,
-      "constructorArguments": null,
-      "creationBytecodeHash": null,
-      "runtimeBytecodeHash": null,
-      "gitCommit": null,
-      "verificationStatus": "NOT_SUBMITTED"
-    }
-  },
-  "sourceVerificationAdoption": null,
-  "provenanceGate": {
-    "status": "BLOCKED",
-    "dualRpcAgreementRequired": true,
-    "primaryRpcObservation": null,
-    "secondaryRpcObservation": null,
-    "commonConfirmedBlockNumber": null,
-    "commonConfirmedBlockHash": null,
-    "commonConfirmedBlockTimestamp": null,
-    "confirmationsRequired": 20,
-    "confirmationsObserved": null,
-    "coreManifestHashVerified": false,
-    "coreRegistryRuntimeHashVerified": false,
-    "accountImplementationRuntimeHashVerified": false,
-    "activatedAccountRuntimeHashVerified": false,
-    "canonicalERC6551RegistryRuntimeHashVerified": false,
-    "accountFooterVerified": false,
-    "expectedOwnerVerified": false,
-    "constructorInputsVerified": false,
-    "cleanPreconfigurationState": null,
-    "verifiedAt": null
-  },
-  "ownerObservations": {
-    "preparation": {
-      "expectedOwner": null,
-      "observedOwner": null,
-      "blockNumber": null,
-      "blockHash": null,
-      "blockTimestamp": null
-    },
-    "afterCanaryArtReceipt": null,
-    "afterCanaryAdapterReceipt": null
-  },
   "configuration": {
-    "deploymentAuthorized": false,
-    "broadcastAttempted": false,
     "adapterRegistered": false,
-    "policyConfigured": false,
-    "ownerApprovedMintsEnabled": false,
     "agentAuthorized": false,
     "approvalPurchasesEnabled": false,
-    "autonomousPurchasesEnabled": false,
     "autonomousMintsEnabled": false,
-    "mintExecuted": false
+    "autonomousPurchasesEnabled": false,
+    "broadcastAttempted": true,
+    "deploymentAuthorized": true,
+    "mintExecuted": false,
+    "ownerApprovedMintsEnabled": false,
+    "policyConfigured": false
   },
-  "notes": "Template only. The dual-RPC/core-manifest provenance gate is BLOCKED. No canary contract has been deployed, no adapter has been registered, no policy or feature flag has been changed, and no mint has been signed or broadcast."
+  "contracts": {
+    "GoghOneShotCanaryArt": {
+      "address": "0x12159CcdFB466670563DDE706bbb8853b6840B53",
+      "confirmationsObserved": 3672,
+      "confirmationsRequired": 20,
+      "constructorArguments": [
+        "0xDca07046B4f95e79bbb421C97949473E75dFFc65",
+        "0x89f6C15bfbF629e9C0D2F5d56bE58A27B01446B3",
+        "1797",
+        "9001"
+      ],
+      "creationBytecodeHash": "0x86cf89da484959efdf540f7af5e43b7c84ed796d5aab0d6d804a284070196fb4",
+      "deployer": "0xF868ff40975F7C3AeDDF1B2CE026aE53897bA698",
+      "deploymentBlock": 42869529,
+      "deploymentBlockHash": "0x35aabfd44809e0585b54ff702e1fa6fb8d7f34ac107174cd7806586fa7b5bde7",
+      "deploymentTransaction": "0x5a39ad33bb3a2c68773c709cf32e8afe05ed049821b6bc08c8de7e9ae67681de",
+      "gitCommit": "9cfb64c7de9dac2be7d1cfce8a08129682046dc7",
+      "receiptStatus": "SUCCESS",
+      "runtimeBytecodeHash": "0xf2562aceaadb3d722af960abcb526ab4581285b43109ddd8895a08a3e32c9d25",
+      "verificationStatus": "VERIFIED"
+    },
+    "GoghOneShotCanaryMintAdapter": {
+      "address": "0x1d84932F1ce53967d5f2460BA6B7ccbBa8266d4d",
+      "confirmationsObserved": 3648,
+      "confirmationsRequired": 20,
+      "constructorArguments": [
+        "0x12159CcdFB466670563DDE706bbb8853b6840B53"
+      ],
+      "creationBytecodeHash": "0x90be3d1a02bcb8c8b5f03030835e91a58d2e8e496afba5d16a8f7b46ae28aaaf",
+      "deployer": "0xF868ff40975F7C3AeDDF1B2CE026aE53897bA698",
+      "deploymentBlock": 42869553,
+      "deploymentBlockHash": "0x4b302abf348522efe6e0e94197c3aad1a7e4751a180fc1753d6f07d92236e80c",
+      "deploymentTransaction": "0x0fb7b5458abb79a20767aceb5c6dd7d67aee873dfab8be7d204c7e137df3252f",
+      "gitCommit": "9cfb64c7de9dac2be7d1cfce8a08129682046dc7",
+      "receiptStatus": "SUCCESS",
+      "runtimeBytecodeHash": "0xd727321bb52ad274782d2f41a0797413064cf162f8108fa015a5717f13f0722b",
+      "verificationStatus": "VERIFIED"
+    }
+  },
+  "controllingPunkTokenId": "1797",
+  "coreDeploymentManifest": "deployments/robinhood.json",
+  "coreDeploymentManifestGitCommit": "9cfb64c7de9dac2be7d1cfce8a08129682046dc7",
+  "coreDeploymentManifestSha256": "0x3167775896a9301b00c9b44696051aaa228fe5d004686dea1cd2e0d8eff3487a",
+  "coreDeploymentManifestStatusRequired": "DEPLOYED",
+  "coreGoghPunkAccountImplementation": "0x9fF5c4171613DE51b5D51C87675D3Fbc84581E43",
+  "coreGoghPunkAccountImplementationRuntimeCodeHash": "0x4068ac32a4f440309796c9ec1230c4557b21441226d7a0c0a6e45ba8e55d60bc",
+  "coreGoghPunkAccountRegistry": "0xDca07046B4f95e79bbb421C97949473E75dFFc65",
+  "coreGoghPunkAccountRegistryRuntimeCodeHash": "0x0fdfc176153e405b65f817cc0a4e84a8c5f5faa83d0d44708e9b163075935990",
+  "evmVersion": "cancun",
+  "expectedActivatedPunkAccount": "0x89f6C15bfbF629e9C0D2F5d56bE58A27B01446B3",
+  "expectedActivatedPunkAccountRuntimeCodeHash": "0x07b06c41222293afc978f922bc276ddf0646d08e9347e242de189192b23f7e44",
+  "expectedOwnerAtPreparation": "0xC7f55cE6A7dF9A79cc4A643a5081230F890c7AA6",
+  "gitCommit": "9cfb64c7de9dac2be7d1cfce8a08129682046dc7",
+  "notes": "Immutable VERIFIED canary deployment and clean-preconfiguration manifest proposal. The original source-verification-pending canary proposal remains bound by canonical SHA-256. Robinhood Blockscout supplied exact unchanged non-twin source, compiler, ABI, bytecode, constructor, deployer, and receipt evidence; direct Sourcify evidence independently reported exact creation and runtime full matches for both canary contracts. Blockscout partial-match labels are accepted only with that exact Sourcify full match and the clean offline build/live deployment bindings. This historical snapshot must not be mutated after configuration. This read-only gate signed, sent, enabled, and wrote nothing.",
+  "optimizerRuns": 500,
+  "ownerObservations": {
+    "afterCanaryAdapterReceipt": {
+      "blockHash": "0x4b302abf348522efe6e0e94197c3aad1a7e4751a180fc1753d6f07d92236e80c",
+      "blockNumber": 42869553,
+      "blockTimestamp": "2026-08-22T04:50:59.000Z",
+      "expectedOwner": "0xC7f55cE6A7dF9A79cc4A643a5081230F890c7AA6",
+      "observedOwner": "0xC7f55cE6A7dF9A79cc4A643a5081230F890c7AA6"
+    },
+    "afterCanaryArtReceipt": {
+      "blockHash": "0x35aabfd44809e0585b54ff702e1fa6fb8d7f34ac107174cd7806586fa7b5bde7",
+      "blockNumber": 42869529,
+      "blockTimestamp": "2026-08-22T04:50:57.000Z",
+      "expectedOwner": "0xC7f55cE6A7dF9A79cc4A643a5081230F890c7AA6",
+      "observedOwner": "0xC7f55cE6A7dF9A79cc4A643a5081230F890c7AA6"
+    },
+    "preparation": {
+      "blockHash": "0x90ddb2cbeb92d7a8fa9e4c3c5b3339d59e68c499c5629cb79e93553952eec106",
+      "blockNumber": 42869528,
+      "blockTimestamp": "2026-08-22T04:50:57.000Z",
+      "expectedOwner": "0xC7f55cE6A7dF9A79cc4A643a5081230F890c7AA6",
+      "observedOwner": "0xC7f55cE6A7dF9A79cc4A643a5081230F890c7AA6"
+    }
+  },
+  "provenanceGate": {
+    "accountFooterVerified": true,
+    "accountImplementationRuntimeHashVerified": true,
+    "activatedAccountRuntimeHashVerified": true,
+    "canonicalERC6551RegistryRuntimeHashVerified": true,
+    "cleanPreconfigurationState": {
+      "accountState": "0",
+      "acquisitionNonce": "0",
+      "acquisitionUsage": {
+        "acquisitionsToday": 0
+      },
+      "activeAgents": [],
+      "adapterRecord": {
+        "active": false,
+        "adapterCodeHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "kind": 0,
+        "metadataHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "venue": "0x0000000000000000000000000000000000000000",
+        "venueCodeHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "versionHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "agentAuthorizationEventScan": {
+        "allAgentsRevokedEvents": 0,
+        "authorizedEvents": 0,
+        "evidenceHash": "0x0ab011cff3e2cb161f07a5fb40146ec36ec3933b3e5b186e0be7dd0b7fb81ab7",
+        "fromBlock": 42769366,
+        "passed": true,
+        "revokedEvents": 0,
+        "toBlock": 42873200
+      },
+      "authorizationGeneration": 0,
+      "blockHash": "0x3add3d8015a18c340ab30f66a1467c58945a5d28998edd5fd435d29b6582530f",
+      "blockNumber": 42873200,
+      "blockTimestamp": "2026-08-22T04:57:04.000Z",
+      "evidenceHash": "0x0066ee908a23e3df8d2d991be5df2cc647d87607688f2359870db26da2dc8c47",
+      "featureFlags": {
+        "approvalPurchases": false,
+        "autonomousMints": false,
+        "autonomousPurchases": false,
+        "autonomousSelling": false,
+        "scoutMode": true,
+        "selling": false,
+        "unknownCollectionExecution": false
+      },
+      "globalPauses": {
+        "adapters": false,
+        "agents": false,
+        "policy": false
+      },
+      "isolationEventScan": {
+        "accountScopedPolicyMutationEvents": 0,
+        "evidenceHash": "0xbd420fafe4ff24f9bee261ae7f3b0204823334fbcdd2b6cf15682bb6ea11ab3e",
+        "featureFlagChangeEvents": 0,
+        "fromBlock": 42769397,
+        "passed": true,
+        "toBlock": 42873200
+      },
+      "mintControls": {
+        "autonomousFreeMints": false,
+        "autonomousPaidMints": false,
+        "ownerApprovedMints": false
+      },
+      "nativeUsage": {
+        "acquisitionsToday": 0,
+        "spentThisWeek": "0",
+        "spentToday": "0"
+      },
+      "permissions": {
+        "adapterAllowed": false,
+        "collectionAllowed": false,
+        "collectionDenied": false,
+        "mintContractAllowed": false,
+        "nativeCurrencyPolicy": {
+          "allowed": false,
+          "maxMintPrice": "0",
+          "maxSecondaryPurchasePrice": "0",
+          "maxSpendPerDay": "0",
+          "maxSpendPerTransaction": "0",
+          "maxSpendPerWeek": "0"
+        },
+        "selectorAllowed": false,
+        "selectorDenied": false,
+        "venueCurrencyMaximum": "0"
+      },
+      "policy": {
+        "accountPaused": false,
+        "allowUnknownCollections": false,
+        "configuredBy": "0x0000000000000000000000000000000000000000",
+        "maxAcquisitionsPerDay": 0,
+        "maxIntentAge": 0,
+        "maxMintPrice": "0",
+        "maxSecondaryPurchasePrice": "0",
+        "maxSlippageBps": 0,
+        "maxSpendPerDay": "0",
+        "maxSpendPerTransaction": "0",
+        "maxSpendPerWeek": "0",
+        "minimumNativeReserve": "0",
+        "mode": 0,
+        "permissionGeneration": 0,
+        "requireCollectionAllowlist": false,
+        "version": 0
+      }
+    },
+    "commonConfirmedBlockHash": "0x3add3d8015a18c340ab30f66a1467c58945a5d28998edd5fd435d29b6582530f",
+    "commonConfirmedBlockNumber": 42873200,
+    "commonConfirmedBlockTimestamp": "2026-08-22T04:57:04.000Z",
+    "confirmationsObserved": 3668,
+    "confirmationsRequired": 20,
+    "constructorInputsVerified": true,
+    "coreManifestHashVerified": true,
+    "coreRegistryRuntimeHashVerified": true,
+    "dualRpcAgreementRequired": true,
+    "expectedOwnerVerified": true,
+    "primaryRpcObservation": {
+      "chainId": 4663,
+      "confirmedBlockHash": "0x3add3d8015a18c340ab30f66a1467c58945a5d28998edd5fd435d29b6582530f",
+      "confirmedBlockNumber": 42873200,
+      "confirmedBlockTimestamp": "2026-08-22T04:57:04.000Z",
+      "evidenceHash": "0x8b87fdd41022d4171383f67cd0cb055f0b5a1e2e2d39762ffff8ace554d178fd",
+      "headBlockNumber": 42873220,
+      "observedAt": "2026-08-22T04:57:39.105Z",
+      "origin": "https://rpc.mainnet.chain.robinhood.com",
+      "provider": "rpc.mainnet.chain.robinhood.com"
+    },
+    "secondaryRpcObservation": {
+      "chainId": 4663,
+      "confirmedBlockHash": "0x3add3d8015a18c340ab30f66a1467c58945a5d28998edd5fd435d29b6582530f",
+      "confirmedBlockNumber": 42873200,
+      "confirmedBlockTimestamp": "2026-08-22T04:57:04.000Z",
+      "evidenceHash": "0x5791045807ca5cc63916356950552b8bbb27634d21cc4ce12d0cd7ef980ae035",
+      "headBlockNumber": 42873234,
+      "observedAt": "2026-08-22T04:57:39.105Z",
+      "origin": "https://robinhood-chain.gateway.tenderly.co",
+      "provider": "robinhood-chain.gateway.tenderly.co"
+    },
+    "status": "VERIFIED",
+    "verifiedAt": "2026-08-22T04:57:39.105Z"
+  },
+  "sourceVerificationAdoption": {
+    "chainId": 4663,
+    "explorerOrigin": "https://robinhoodchain.blockscout.com",
+    "gateSchema": "GOGH_BLOCKSCOUT_VERIFIED_MANIFEST_PROPOSAL_V1",
+    "gateVersion": 1,
+    "observedAt": "2026-08-22T05:12:13.506Z",
+    "pendingManifestNotes": "Immutable canary deployment and clean-preconfiguration snapshot proposal. Two distinct read-only RPC origins agreed at one confirmed block on creation transactions, receipts, compiled runtime, constructor/immutable bindings, canonical Punk Account identity and owner, unminted art, absent adapter registration, fresh zero account/policy usage, no agent history, and no prior policy or feature mutation since core deployment. Blockscout source verification remains NOT_SUBMITTED, so this proposal is not ready for authoritative adoption or configuration. This historical manifest must not be mutated after configuration; later configuration and execution evidence are separate artifacts. No transaction was signed, sent, or enabled by this generator.",
+    "pendingManifestSha256": "0x039285a313741078bc9ba908bacdfb488b14c6e745625d7bda5bfc6ee42fd9e2",
+    "pendingProposalSha256": "0xc107bf9d14a176e0c3b939fd6bcae8997807dfaa4a18c357b24d88140d42ff5f",
+    "schema": "GOGH_BLOCKSCOUT_SOURCE_VERIFICATION_ADOPTION_V1",
+    "verificationEvidenceSha256": "0xdf54cb82cb8bed9b206b4e1a6da70341c1a4e5e695552ac6f67dd5b085fd65ef",
+    "verifiedContracts": [
+      "GoghOneShotCanaryArt",
+      "GoghOneShotCanaryMintAdapter"
+    ]
+  },
+  "status": "DEPLOYED"
 }

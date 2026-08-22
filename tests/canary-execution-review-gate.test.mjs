@@ -230,22 +230,22 @@ test("deployment surface requires canonical adoptions and exact successful canar
   }
 });
 
-test("current NOT_DEPLOYED manifests keep both status and activation closed", async () => {
-  assert.equal(CURRENT_BROKER_DEPLOYMENT_SURFACE.deploymentStatus, "NOT_DEPLOYED");
-  assert.equal(brokerDeploymentSurface().deploymentStatus, "NOT_DEPLOYED");
+test("current deployed manifests remain closed without an exact active review", async () => {
+  assert.equal(CURRENT_BROKER_DEPLOYMENT_SURFACE.deploymentStatus, "DEPLOYED");
+  assert.equal(CURRENT_BROKER_DEPLOYMENT_SURFACE.canaryStatus, "DEPLOYED");
+  assert.equal(brokerDeploymentSurface().deploymentStatus, "DEPLOYED");
   const { review } = fixtureReview();
-  const seeded = { ...review, policyModule: "0x7777777777777777777777777777777777777777" };
-  const gate = executionGateSnapshot(CURRENT_BROKER_DEPLOYMENT_SURFACE, seeded);
+  const gate = executionGateSnapshot(CURRENT_BROKER_DEPLOYMENT_SURFACE, null);
   assert.deepEqual(gate, {
-    status: "NOT_DEPLOYED",
+    status: "NO_ACTIVE_REVIEW",
     capability: false,
-    reason: "CORE_MANIFEST_NOT_DEPLOYED",
+    reason: "NO_ACTIVE_EXECUTION_ARTIFACT_HASH",
     expectedArtifactSha256: null,
     bindings: null,
   });
   assert.throws(
     () => bindExecutionReviewToDeployment(review, CURRENT_BROKER_DEPLOYMENT_SURFACE),
-    (error) => error.code === "NOT_DEPLOYED",
+    (error) => error.code === "MANIFEST_BINDING_MISMATCH",
   );
 
   const statusResponse = await statusHandler(new Request(

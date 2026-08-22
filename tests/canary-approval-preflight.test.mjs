@@ -219,11 +219,12 @@ function readyConfig() {
   };
 }
 
-test("current authoritative manifest blocks the approval canary scaffold", async () => {
+test("a NOT_DEPLOYED manifest blocks the approval canary scaffold", async () => {
   const manifest = JSON.parse(await readFile(
     new URL("../deployments/robinhood.json", import.meta.url),
     "utf8",
   ));
+  manifest.status = "NOT_DEPLOYED";
   const failures = validateApprovalManifest(manifest);
   assert.match(failures.join("\n"), /must be DEPLOYED.*NOT_DEPLOYED/);
 });

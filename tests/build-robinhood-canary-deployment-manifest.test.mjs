@@ -49,6 +49,59 @@ const template = JSON.parse(await readFile(
   new URL("../deployments/robinhood-canary.json", import.meta.url),
   "utf8",
 ));
+// The authoritative manifest legitimately transitions to DEPLOYED. Builder tests need an immutable
+// synthetic template boundary, so reconstruct only the canonical predeployment fields instead of
+// depending on the repository's current operational state.
+template.status = "NOT_DEPLOYED";
+for (const field of [
+  "coreDeploymentManifestGitCommit", "coreDeploymentManifestSha256",
+  "coreGoghPunkAccountRegistry", "coreGoghPunkAccountRegistryRuntimeCodeHash",
+  "coreGoghPunkAccountImplementation", "coreGoghPunkAccountImplementationRuntimeCodeHash",
+  "controllingPunkTokenId", "expectedActivatedPunkAccount",
+  "expectedActivatedPunkAccountRuntimeCodeHash", "expectedOwnerAtPreparation",
+  "canaryArtTokenId", "gitCommit",
+]) template[field] = null;
+for (const record of Object.values(template.contracts)) {
+  for (const field of [
+    "address", "deploymentTransaction", "deploymentBlock", "deploymentBlockHash",
+    "receiptStatus", "confirmationsObserved", "deployer", "constructorArguments",
+    "creationBytecodeHash", "runtimeBytecodeHash", "gitCommit",
+  ]) record[field] = null;
+  record.confirmationsRequired = 20;
+  record.verificationStatus = "NOT_SUBMITTED";
+}
+template.sourceVerificationAdoption = null;
+Object.assign(template.provenanceGate, {
+  status: "BLOCKED",
+  dualRpcAgreementRequired: true,
+  primaryRpcObservation: null,
+  secondaryRpcObservation: null,
+  commonConfirmedBlockNumber: null,
+  commonConfirmedBlockHash: null,
+  commonConfirmedBlockTimestamp: null,
+  confirmationsRequired: 20,
+  confirmationsObserved: null,
+  coreManifestHashVerified: false,
+  coreRegistryRuntimeHashVerified: false,
+  accountImplementationRuntimeHashVerified: false,
+  activatedAccountRuntimeHashVerified: false,
+  canonicalERC6551RegistryRuntimeHashVerified: false,
+  accountFooterVerified: false,
+  expectedOwnerVerified: false,
+  constructorInputsVerified: false,
+  cleanPreconfigurationState: null,
+  verifiedAt: null,
+});
+template.ownerObservations = {
+  preparation: {
+    expectedOwner: null, observedOwner: null, blockNumber: null,
+    blockHash: null, blockTimestamp: null,
+  },
+  afterCanaryArtReceipt: null,
+  afterCanaryAdapterReceipt: null,
+};
+for (const key of Object.keys(template.configuration)) template.configuration[key] = false;
+template.notes = "Synthetic canonical NOT_DEPLOYED template used only by builder tests.";
 const canonicalSha256 = (value) => (
   `0x${createHash("sha256").update(canonicalJson(value)).digest("hex")}`
 );

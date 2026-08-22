@@ -1,104 +1,136 @@
 {
-  "status": "NOT_DEPLOYED",
-  "chain": {
-    "name": "Robinhood Chain",
-    "chainId": 4663,
-    "rpcEnvironmentVariable": "ROBINHOOD_RPC_URL",
-    "explorer": "https://robinhoodchain.blockscout.com",
-    "nativeCurrency": "ETH"
-  },
+  "accountSalt": "0x0000000000000000000000000000000000000000000000000000000000000000",
   "canonicalCollection": "0xE0F92B3B0E6DeD3654177FE3809Cd300e5ffaDf6",
   "canonicalERC6551Registry": "0x000000006551c19487814612e58FE06813775758",
   "canonicalERC6551RegistryRuntimeCodeHash": "0xda1d5b06e579f9e42e59b00fbc22939896ecb38dc8830d40de0a2508fecd6735",
+  "chain": {
+    "chainId": 4663,
+    "explorer": "https://robinhoodchain.blockscout.com",
+    "name": "Robinhood Chain",
+    "nativeCurrency": "ETH",
+    "rpcEnvironmentVariable": "ROBINHOOD_RPC_URL"
+  },
+  "compiler": "0.8.34",
+  "contracts": {
+    "ArtAdapterRegistry": {
+      "address": "0x421D51709Fe21736a35fFa2a86B157Df1b030EE2",
+      "constructorArguments": [
+        "0x2b05E3BB4895A00d52894B98839Ae421d4139Ec8"
+      ],
+      "creationBytecodeHash": "0x656463ddfd13206c8e689a1b55648d44ebbc53009d6bb9749d67c8c6ff9227ad",
+      "deployer": "0xF868ff40975F7C3AeDDF1B2CE026aE53897bA698",
+      "deploymentBlock": 42769340,
+      "deploymentTransaction": "0xbf910e427f1e70ee1cba72c92f3867e63159cfebd6931a4fc19cf1a01a9a0188",
+      "gitCommit": "9cfb64c7de9dac2be7d1cfce8a08129682046dc7",
+      "implementationVersion": "1",
+      "runtimeBytecodeHash": "0x62a299587d51870717e2c1f4603d53386b5813cd74fb7d2bac949323b8564532",
+      "verificationStatus": "VERIFIED"
+    },
+    "ArtAgentRegistry": {
+      "address": "0xbffbccd20E796e0f3E745B274De60EF17a485Dde",
+      "constructorArguments": [
+        "0x2b05E3BB4895A00d52894B98839Ae421d4139Ec8"
+      ],
+      "creationBytecodeHash": "0x2c295f95b4052f17a51e8e62c0a6400d1c3d89c2424a94cb77ed9b2fb102df1e",
+      "deployer": "0xF868ff40975F7C3AeDDF1B2CE026aE53897bA698",
+      "deploymentBlock": 42769366,
+      "deploymentTransaction": "0x3557c76ce0bd9be8b6bab5ddec252dcfccbb9da39ce539a22d5b8383df4e2495",
+      "gitCommit": "9cfb64c7de9dac2be7d1cfce8a08129682046dc7",
+      "implementationVersion": "1",
+      "runtimeBytecodeHash": "0x3915ea566fa7b6fb11769f2b3109f69a4b65142e5140cc574b063cb608ff76b0",
+      "verificationStatus": "VERIFIED"
+    },
+    "BrokerPolicyModule": {
+      "address": "0x1EAf71Aa4C82ad649322EacaBefE4B6378cE9F27",
+      "constructorArguments": [
+        "0x2b05E3BB4895A00d52894B98839Ae421d4139Ec8",
+        "0x421D51709Fe21736a35fFa2a86B157Df1b030EE2"
+      ],
+      "creationBytecodeHash": "0x897db40d3b9ad05dd57086c924921f224a610477f3c67eef8d5b154383e19290",
+      "deployer": "0xF868ff40975F7C3AeDDF1B2CE026aE53897bA698",
+      "deploymentBlock": 42769397,
+      "deploymentTransaction": "0x0560fba8f5380332a6ca38365ecee6d61469e2d946aa412e296a3d328937cc18",
+      "gitCommit": "9cfb64c7de9dac2be7d1cfce8a08129682046dc7",
+      "implementationVersion": "1",
+      "runtimeBytecodeHash": "0xfcf5a11d6b906b9c587bc80cd3bd13b91064a19120eb5b8d08c897439830edb5",
+      "verificationStatus": "VERIFIED"
+    },
+    "GoghPunkAccountRegistry": {
+      "address": "0xDca07046B4f95e79bbb421C97949473E75dFFc65",
+      "constructorArguments": [
+        "0x9fF5c4171613DE51b5D51C87675D3Fbc84581E43",
+        "0x0000000000000000000000000000000000000000000000000000000000000000"
+      ],
+      "creationBytecodeHash": "0x95e20b056a4f026f3b812f24801b7888aae7907e6af7a9fe2e52465fba52bf70",
+      "deployer": "0xF868ff40975F7C3AeDDF1B2CE026aE53897bA698",
+      "deploymentBlock": 42769449,
+      "deploymentTransaction": "0x22232930886fd0106b788face8375430b44b2767cbcf33e3f46d9d58c133be7f",
+      "gitCommit": "9cfb64c7de9dac2be7d1cfce8a08129682046dc7",
+      "implementationVersion": "1",
+      "runtimeBytecodeHash": "0x0fdfc176153e405b65f817cc0a4e84a8c5f5faa83d0d44708e9b163075935990",
+      "verificationStatus": "VERIFIED"
+    },
+    "GoghPunkAccountV1": {
+      "address": "0x9fF5c4171613DE51b5D51C87675D3Fbc84581E43",
+      "constructorArguments": [
+        "0x1EAf71Aa4C82ad649322EacaBefE4B6378cE9F27",
+        "0xbffbccd20E796e0f3E745B274De60EF17a485Dde",
+        "0x421D51709Fe21736a35fFa2a86B157Df1b030EE2"
+      ],
+      "creationBytecodeHash": "0x98254a77d76c8478ad94e881909e7870e7f4779f5c20ce08e21d194a23fced8a",
+      "deployer": "0xF868ff40975F7C3AeDDF1B2CE026aE53897bA698",
+      "deploymentBlock": 42769427,
+      "deploymentTransaction": "0x1fc8b2cbefe5d15e3cc4f17580de23c69b54804200eaf6141e72d7f609f723ad",
+      "gitCommit": "9cfb64c7de9dac2be7d1cfce8a08129682046dc7",
+      "implementationVersion": "1",
+      "runtimeBytecodeHash": "0x4068ac32a4f440309796c9ec1230c4557b21441226d7a0c0a6e45ba8e55d60bc",
+      "verificationStatus": "VERIFIED"
+    }
+  },
+  "evmVersion": "cancun",
+  "featureFlags": {
+    "ENABLE_APPROVAL_PURCHASES": false,
+    "ENABLE_AUTONOMOUS_MINTS": false,
+    "ENABLE_AUTONOMOUS_PURCHASES": false,
+    "ENABLE_AUTONOMOUS_SELLING": false,
+    "ENABLE_SCOUT_MODE": true,
+    "ENABLE_SELLING": false,
+    "ENABLE_UNKNOWN_COLLECTION_EXECUTION": false
+  },
+  "gitCommit": "9cfb64c7de9dac2be7d1cfce8a08129682046dc7",
+  "notes": "Immutable VERIFIED core deployment manifest proposal. The original complete deployment proposal remains bound by canonical SHA-256. Robinhood Blockscout supplied exact unchanged non-twin source, compiler, ABI, bytecode, constructor, deployer, and receipt evidence; direct Sourcify evidence independently reported exact creation and runtime full matches for every protocol contract. Blockscout partial-match labels are accepted only with that exact Sourcify full match and the clean offline build/live deployment bindings. This read-only gate signed, sent, enabled, and wrote nothing.",
+  "optimizerRuns": 500,
+  "protocolGuardian": "0x2b05E3BB4895A00d52894B98839Ae421d4139Ec8",
+  "sourceVerificationAdoption": {
+    "chainId": 4663,
+    "explorerOrigin": "https://robinhoodchain.blockscout.com",
+    "gateSchema": "GOGH_BLOCKSCOUT_VERIFIED_MANIFEST_PROPOSAL_V1",
+    "gateVersion": 1,
+    "observedAt": "2026-08-22T04:14:13.700Z",
+    "pendingManifestNotes": "COMPLETE MANIFEST PROPOSAL only. Clean-HEAD offline compiler outputs, live creation transactions, receipts, critical immutable getters, deployment blocks, protocol runtime code, and the canonical ERC-6551 registry runtime pin passed read-only agreement checks at a common confirmed block. RPC provider independence and guardian contract/multisig status remain UNVERIFIED. Blockscout source verification is NOT_SUBMITTED. No transaction feature is enabled.",
+    "pendingManifestSha256": "0x0b0a5d128749929dbad93cac835eabaec8de45c66dd73731246a89f4349a72aa",
+    "pendingProposalSha256": "0x9326fd252b8be44a6e2098a8a1f8510098bda2220d040de20c762caf8b8ff678",
+    "schema": "GOGH_BLOCKSCOUT_SOURCE_VERIFICATION_ADOPTION_V1",
+    "verificationEvidenceSha256": "0xe04a7c2deccd8ee40fb3b2352a4c0549614d35703050be78d5d350fedbafe4fe",
+    "verifiedContracts": [
+      "ArtAdapterRegistry",
+      "ArtAgentRegistry",
+      "BrokerPolicyModule",
+      "GoghPunkAccountV1",
+      "GoghPunkAccountRegistry"
+    ]
+  },
+  "status": "DEPLOYED",
   "verifiedExternalInfrastructure": {
     "seaport": {
       "address": "0x0000000000000068f116a894984e2db1123eb395",
-      "name": "Seaport",
       "compiler": "v0.8.24+commit.e11b9ed9",
-      "deploymentTransaction": "0x4320260396b5fbb69618a9b95de358a865fb6c305d5b5dda35c21452b30ee39d",
       "deploymentBlock": 605917,
+      "deploymentTransaction": "0x4320260396b5fbb69618a9b95de358a865fb6c305d5b5dda35c21452b30ee39d",
+      "executionApproved": false,
+      "name": "Seaport",
       "runtimeCodeHash": "0x95809b70c9659c30188db5fdd87103e24b1a55379af8c851fca393aba0224a00",
-      "verificationStatus": "VERIFIED_READ_ONLY_SCOUT",
-      "executionApproved": false
+      "verificationStatus": "VERIFIED_READ_ONLY_SCOUT"
     }
-  },
-  "accountSalt": "0x0000000000000000000000000000000000000000000000000000000000000000",
-  "gitCommit": null,
-  "compiler": "0.8.34",
-  "evmVersion": "cancun",
-  "optimizerRuns": 500,
-  "contracts": {
-    "ArtAdapterRegistry": {
-      "address": null,
-      "deploymentTransaction": null,
-      "deploymentBlock": null,
-      "deployer": null,
-      "implementationVersion": "1",
-      "constructorArguments": null,
-      "creationBytecodeHash": null,
-      "runtimeBytecodeHash": null,
-      "gitCommit": null,
-      "verificationStatus": "NOT_SUBMITTED"
-    },
-    "ArtAgentRegistry": {
-      "address": null,
-      "deploymentTransaction": null,
-      "deploymentBlock": null,
-      "deployer": null,
-      "implementationVersion": "1",
-      "constructorArguments": null,
-      "creationBytecodeHash": null,
-      "runtimeBytecodeHash": null,
-      "gitCommit": null,
-      "verificationStatus": "NOT_SUBMITTED"
-    },
-    "BrokerPolicyModule": {
-      "address": null,
-      "deploymentTransaction": null,
-      "deploymentBlock": null,
-      "deployer": null,
-      "implementationVersion": "1",
-      "constructorArguments": null,
-      "creationBytecodeHash": null,
-      "runtimeBytecodeHash": null,
-      "gitCommit": null,
-      "verificationStatus": "NOT_SUBMITTED"
-    },
-    "GoghPunkAccountV1": {
-      "address": null,
-      "deploymentTransaction": null,
-      "deploymentBlock": null,
-      "deployer": null,
-      "implementationVersion": "1",
-      "constructorArguments": null,
-      "creationBytecodeHash": null,
-      "runtimeBytecodeHash": null,
-      "gitCommit": null,
-      "verificationStatus": "NOT_SUBMITTED"
-    },
-    "GoghPunkAccountRegistry": {
-      "address": null,
-      "deploymentTransaction": null,
-      "deploymentBlock": null,
-      "deployer": null,
-      "implementationVersion": "1",
-      "constructorArguments": null,
-      "creationBytecodeHash": null,
-      "runtimeBytecodeHash": null,
-      "gitCommit": null,
-      "verificationStatus": "NOT_SUBMITTED"
-    }
-  },
-  "sourceVerificationAdoption": null,
-  "featureFlags": {
-    "ENABLE_SCOUT_MODE": true,
-    "ENABLE_APPROVAL_PURCHASES": false,
-    "ENABLE_AUTONOMOUS_PURCHASES": false,
-    "ENABLE_AUTONOMOUS_MINTS": false,
-    "ENABLE_UNKNOWN_COLLECTION_EXECUTION": false,
-    "ENABLE_SELLING": false,
-    "ENABLE_AUTONOMOUS_SELLING": false
-  },
-  "protocolGuardian": null,
-  "notes": "Template only. No production transactions have been signed or broadcast."
+  }
 }

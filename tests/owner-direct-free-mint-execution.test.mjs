@@ -636,10 +636,12 @@ test("strictly rejects unknown fields, accessors, symbols, and custom prototypes
   assert.throws(() => build(customPrototype), (error) => error.code === "INVALID_PROTOTYPE");
 });
 
-test("the current authoritative NOT_DEPLOYED manifests block the CLI boundary", async () => {
+test("NOT_DEPLOYED manifests block the CLI boundary", async () => {
   const value = fixtures();
   const currentCore = JSON.parse(await readFile(AUTHORITATIVE_CORE_MANIFEST_PATH, "utf8"));
   const currentCanary = JSON.parse(await readFile(AUTHORITATIVE_CANARY_MANIFEST_PATH, "utf8"));
+  currentCore.status = "NOT_DEPLOYED";
+  currentCanary.status = "NOT_DEPLOYED";
   await assert.rejects(runOwnerDirectExecutionArtifactCli([
     "--proposal", "proposal.json",
     "--attestation", "attestation.json",

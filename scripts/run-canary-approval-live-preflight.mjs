@@ -6,6 +6,7 @@ import { createPublicClient, defineChain, http } from "viem";
 import {
   attestLiveApproval,
   LiveApprovalPreflightError,
+  MAX_LATEST_HEAD_SKEW,
 } from "./canary-approval-live-preflight.mjs";
 import { ROBINHOOD } from "../broker/src/config.mjs";
 import {
@@ -477,7 +478,7 @@ function assertReadOnlyPass(result, expectedConfirmations) {
   assertHash(result.latestExecutionCheck.hash, "latest execution block hash");
   assertAddress(result.latestExecutionCheck.currentOwner, "latest current owner");
   if (result.latestExecutionCheck.currentOwner.toLowerCase() !== result.punk.currentOwner.toLowerCase()
-    || BigInt(result.latestExecutionCheck.headSkew) > 3n) {
+    || BigInt(result.latestExecutionCheck.headSkew) > MAX_LATEST_HEAD_SKEW) {
     fail("INVALID_ATTESTATION_RESULT", "latest execution owner or head skew is invalid");
   }
   for (const field of ["preconfigurationBlock", "lastTransactionBlock"]) {

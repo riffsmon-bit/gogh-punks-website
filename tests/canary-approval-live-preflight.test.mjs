@@ -454,6 +454,8 @@ function buildChainState({ guardianSafe = false } = {}) {
     guardianSafe,
     chainIds: { primary: 4663, secondary: 4663 },
     headReads: { primary: 0, secondary: 0 },
+    latestHeads: { primary: 5_022n, secondary: LATEST_BLOCK },
+    latestTimestamp: LATEST_TIMESTAMP,
     blockReads: { primary: new Map(), secondary: new Map() },
     changedPinnedHash: {},
     transactions: new Map(),
@@ -596,7 +598,7 @@ function blockFor(state, role, blockNumber) {
       blobGasUsed: undefined, excessBlobGas: undefined };
   }
   if (blockNumber === LATEST_BLOCK) {
-    return { number: blockNumber, hash: hash("51"), timestamp: LATEST_TIMESTAMP,
+    return { number: blockNumber, hash: hash("51"), timestamp: state.latestTimestamp,
       blobGasUsed: undefined, excessBlobGas: undefined };
   }
   throw new Error(`unexpected block ${blockNumber}`);
@@ -619,7 +621,7 @@ function makeClient(state, role, calls) {
       calls.push([role, "getBlockNumber"]);
       state.headReads[role] += 1;
       if (state.headReads[role] === 1) return role === "primary" ? 5_020n : 5_021n;
-      return role === "primary" ? 5_022n : LATEST_BLOCK;
+      return state.latestHeads[role];
     },
     async getBlock({ blockNumber }) {
       calls.push([role, "getBlock", blockNumber]);
@@ -639,31 +641,45 @@ function makeClient(state, role, calls) {
     },
     async getTransactionReceipt({ hash: transactionHash }) {
       calls.push([role, "getTransactionReceipt", transactionHash]);
-      return state.receipts.get(transactionHash);
+      const receipt = state.receipts.get(transactionHash);
+      // Real Robinhood providers disagree on representation only: Tenderly supplies zero for the
+      // non-applicable blob field on ordinary EIP-1559 receipts while the official RPC omits it.
+      return role === "secondary" ? { ...receipt, blobGasUsed: 0n } : receipt;
     },
     async getLogs(request) {
       calls.push([role, "getLogs", request]);
       const target = request.address.toLowerCase();
       const fromBlock = request.fromBlock;
+      let logs;
       if (target === ROBINHOOD.canonicalCollection) {
-        return fromBlock === BigInt(CLEAN_BLOCK) + 1n
+        logs = fromBlock === BigInt(CLEAN_BLOCK) + 1n
           ? state.configurationOwnershipTransfers : state.postOwnershipTransfers;
-      }
-      if (fromBlock <= BigInt(CLEAN_BLOCK)) return [];
-      if (fromBlock === BigInt(CLEAN_BLOCK) + 1n) {
+      } else if (fromBlock <= BigInt(CLEAN_BLOCK)) {
+        logs = [];
+      } else if (fromBlock === BigInt(CLEAN_BLOCK) + 1n) {
         if (target === state.core.contracts.BrokerPolicyModule.address) {
-          return [...state.policyIntervalLogs, ...state.extraPolicyIntervalLogs];
+          logs = [...state.policyIntervalLogs, ...state.extraPolicyIntervalLogs];
+        } else if (target === state.core.contracts.ArtAdapterRegistry.address) {
+          logs = [...state.adapterIntervalLogs, ...state.extraAdapterIntervalLogs];
+        } else {
+          logs = [];
         }
-        if (target === state.core.contracts.ArtAdapterRegistry.address) {
-          return [...state.adapterIntervalLogs, ...state.extraAdapterIntervalLogs];
-        }
-        return [];
+      } else if (target === state.core.contracts.BrokerPolicyModule.address) {
+        logs = state.postPolicyLogs;
+      } else if (target === state.core.contracts.ArtAdapterRegistry.address) {
+        logs = state.postAdapterLogs;
+      } else if (target === state.core.contracts.ArtAgentRegistry.address) {
+        logs = state.postAgentLogs;
+      } else if (target === ACCOUNT) {
+        logs = state.postAccountLogs;
+      } else {
+        logs = [];
       }
-      if (target === state.core.contracts.BrokerPolicyModule.address) return state.postPolicyLogs;
-      if (target === state.core.contracts.ArtAdapterRegistry.address) return state.postAdapterLogs;
-      if (target === state.core.contracts.ArtAgentRegistry.address) return state.postAgentLogs;
-      if (target === ACCOUNT) return state.postAccountLogs;
-      return [];
+      // eth_getLogs has no consensus blockTimestamp field. Real providers currently differ here:
+      // the official endpoint materializes zero while Tenderly supplies the actual timestamp.
+      return role === "secondary"
+        ? logs.map((log) => ({ ...log, blockTimestamp: 1_787_376_447n }))
+        : logs.map((log) => ({ ...log, blockTimestamp: 0n }));
     },
     async readContract(request) {
       const { address: targetAddress, functionName, blockNumber } = request;
@@ -792,6 +808,19 @@ test("dual-RPC attestation proves exact receipts, history, latest state, and EOA
   assert.equal(fixture.calls.filter((call) => call[1] === "getTransactionReceipt").length, 26);
   assert.equal(fixture.calls.filter((call) => call[1] === "simulateContract").length, 4);
   assert.ok(fixture.calls.some((call) => call[1] === "getLogs"));
+});
+
+test("fast-chain provider notification skew is bounded while the exact common block stays pinned", async () => {
+  const bounded = readyFixture();
+  bounded.state.latestHeads.primary = LATEST_BLOCK + 16n;
+  const pass = await attest(bounded);
+  assert.equal(pass.latestExecutionCheck.headSkew, "16");
+
+  const excessive = readyFixture();
+  excessive.state.latestHeads.primary = LATEST_BLOCK + 17n;
+  await assert.rejects(() => attest(excessive), (error) => (
+    error instanceof LiveApprovalPreflightError && error.code === "RPC_HEAD_SKEW"
+  ));
 });
 
 test("guardian Safe receipts use logical bundle caller and exact target events", async () => {
@@ -926,6 +955,10 @@ test("pinned reorg and final-clock expiry fail after read-only verification", as
   await assert.rejects(() => attest(stale, { clock: () => ticks.shift() }), (error) => (
     error.code === "STALE_PROPOSAL" && /after simulation/.test(error.message)
   ));
+
+  const future = readyFixture();
+  future.state.latestTimestamp = 1_081n;
+  await assert.rejects(() => attest(future), (error) => error.code === "INVALID_BLOCK");
 });
 
 test("live preflight source contains no signing, submission, wallet, or deployment path", async () => {

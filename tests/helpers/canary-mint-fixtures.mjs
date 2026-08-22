@@ -90,7 +90,11 @@ function deployedCoreManifest() {
   manifest.gitCommit = COMMIT;
   manifest.protocolGuardian = GUARDIAN;
   const digits = ["7", "8", "9", "a", "b"];
-  Object.entries(manifest.contracts).forEach(([name, record], index) => {
+  // Never derive fixture code/address assignments from manifest JSON key order. Authoritative
+  // manifests are rewritten canonically at adoption time and their object key order is not an ABI
+  // or deployment-order commitment.
+  CORE_CONTRACT_NAMES.forEach((name, index) => {
+    const record = manifest.contracts[name];
     record.address = fixtureAddress(digits[index]);
     record.deploymentTransaction = fixtureHash(String(index + 1));
     record.deploymentBlock = 1_000 + index;
