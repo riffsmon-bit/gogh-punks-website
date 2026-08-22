@@ -174,7 +174,7 @@ function validateGate(gate) {
   exactKeys(gate, [
     "status", "capability", "reason", "expectedArtifactSha256", "bindings",
   ], "executionGate");
-  if (gate.status !== "READY_FOR_OWNER_FILE_REVIEW" || gate.capability !== true
+  if (gate.status !== "READY_FOR_OWNER_REVIEW" || gate.capability !== true
     || gate.reason !== null) fail("GATE_CLOSED", "server execution review gate is closed");
   const artifactSha256 = bytes32(gate.expectedArtifactSha256, "expected artifact hash");
   const bindings = gate.bindings;
@@ -600,7 +600,7 @@ export async function submitCanaryTransaction(provider, validated, options = {})
   return Object.freeze({ hash, validated: fresh });
 }
 
-async function fetchExecutionGate(fetchFunction = globalThis.fetch) {
+export async function fetchCanaryExecutionReview(fetchFunction = globalThis.fetch, options = {}) {
   const response = await fetchFunction("/api/broker/canary-execution-status", {
     headers: { accept: "application/json" },
     cache: "no-store",
@@ -610,7 +610,22 @@ async function fetchExecutionGate(fetchFunction = globalThis.fetch) {
   if (!payload?.ok || payload.chainId !== CHAIN_ID) {
     fail("STATUS_UNAVAILABLE", "execution status response is invalid");
   }
-  return payload.executionGate;
+  if (payload.autonomyStatus !== "DISABLED") {
+    fail("STATUS_UNAVAILABLE", "autonomous execution must remain disabled");
+  }
+  const gate = payload.executionGate;
+  if (gate?.capability !== true) {
+    if (payload.executionArtifact !== null) {
+      fail("STATUS_UNAVAILABLE", "a closed gate exposed an execution artifact");
+    }
+    return Object.freeze({ gate, validated: null });
+  }
+  if (!payload.executionArtifact || typeof payload.executionArtifact !== "object"
+    || Array.isArray(payload.executionArtifact)) {
+    fail("STATUS_UNAVAILABLE", "the active reviewed artifact is unavailable");
+  }
+  const validated = await validateCanaryExecutionArtifact(payload.executionArtifact, gate, options);
+  return Object.freeze({ gate, validated });
 }
 
 function routePunkTokenId(windowObject) {
@@ -628,7 +643,6 @@ export function setupCanaryExecution({ windowObject, documentObject, fetchFuncti
     return null;
   }
   panel.hidden = false;
-  const fileInput = panel.querySelector("[data-canary-artifact-file]");
   const confirmation = panel.querySelector("[data-canary-confirm]");
   const submit = panel.querySelector("[data-canary-submit]");
   const status = panel.querySelector("[data-canary-execution-state]");
@@ -646,7 +660,6 @@ export function setupCanaryExecution({ windowObject, documentObject, fetchFuncti
   function clearArtifact() {
     state.validated = null;
     confirmation.checked = false;
-    if (fileInput) fileInput.value = "";
     fields.forEach((element) => { element.textContent = "—"; });
   }
 
@@ -657,7 +670,6 @@ export function setupCanaryExecution({ windowObject, documentObject, fetchFuncti
 
   function render() {
     const readyGate = state.gate?.capability === true;
-    if (fileInput) fileInput.disabled = !readyGate || state.submitting;
     const walletOwner = state.wallet?.account?.toLowerCase?.()
       === state.validated?.expected.expectedOwner;
     const rightChain = state.wallet?.chainId === CHAIN_ID;
@@ -665,7 +677,7 @@ export function setupCanaryExecution({ windowObject, documentObject, fetchFuncti
       && confirmation.checked && !state.submitting);
     if (state.notice) setStatus(state.notice.text, state.notice.kind);
     else if (!readyGate) setStatus("LOCKED · verified deployment and active review hash required");
-    else if (!state.validated) setStatus("READY · choose the exact reviewed JSON artifact", "ready");
+    else if (!state.validated) setStatus("LOCKED · reviewed artifact unavailable", "error");
     else if (!walletOwner || !rightChain) {
       setStatus("LOCKED · connect the reviewed owner on Robinhood Chain 4663");
     } else setStatus("REVIEWED · confirm the exact fields before wallet submission", "ready");
@@ -691,7 +703,7 @@ export function setupCanaryExecution({ windowObject, documentObject, fetchFuncti
   async function refreshGate() {
     state.notice = null;
     try {
-      const gate = await fetchExecutionGate(fetchFunction);
+      const { gate, validated } = await fetchCanaryExecutionReview(fetchFunction);
       const priorGate = JSON.stringify(state.gate);
       const nextGate = JSON.stringify(gate);
       if (priorGate !== nextGate) {
@@ -699,6 +711,8 @@ export function setupCanaryExecution({ windowObject, documentObject, fetchFuncti
         clearArtifact();
       }
       state.gate = gate;
+      state.validated = validated;
+      if (validated) display(validated);
     } catch {
       state.revision += 1;
       state.gate = null;
@@ -707,38 +721,10 @@ export function setupCanaryExecution({ windowObject, documentObject, fetchFuncti
     render();
   }
 
-  async function loadFile() {
-    state.notice = null;
-    clearArtifact();
-    const file = fileInput.files?.[0];
-    if (!file) return render();
-    if (!state.gate?.capability || !Number.isSafeInteger(file.size)
-      || file.size <= 0 || file.size > MAX_FILE_BYTES) {
-      state.notice = {
-        text: "REJECTED · artifact file is unavailable or exceeds 2 MB",
-        kind: "error",
-      };
-      return render();
-    }
-    try {
-      const artifact = JSON.parse(await file.text());
-      state.validated = await validateCanaryExecutionArtifact(artifact, state.gate);
-      display(state.validated);
-    } catch (error) {
-      clearArtifact();
-      state.notice = {
-        text: `REJECTED · ${error instanceof CanaryExecutionError ? error.code : "INVALID_JSON"}`,
-        kind: "error",
-      };
-    }
-    render();
-  }
-
   function walletChanged(event) {
     const next = event?.detail ?? browserWindow.__GOGH_WALLET_SNAPSHOT__ ?? null;
     if (state.wallet?.account !== next?.account || state.wallet?.chainId !== next?.chainId) {
       state.revision += 1;
-      clearArtifact();
       state.notice = null;
     }
     state.wallet = next;
@@ -747,7 +733,6 @@ export function setupCanaryExecution({ windowObject, documentObject, fetchFuncti
 
   function providerStateChanged() {
     state.revision += 1;
-    clearArtifact();
     state.notice = null;
     render();
   }
@@ -757,13 +742,13 @@ export function setupCanaryExecution({ windowObject, documentObject, fetchFuncti
     state.submitting = true;
     render();
     const selected = state.validated;
-    const selectedArtifact = selected.artifact;
     const submissionRevision = state.revision;
     try {
       const { hash } = await submitCanaryTransaction(browserWindow.ethereum, selected, {
         refreshValidated: async () => {
-          const freshGate = await fetchExecutionGate(fetchFunction);
-          return validateCanaryExecutionArtifact(selectedArtifact, freshGate);
+          const fresh = await fetchCanaryExecutionReview(fetchFunction);
+          if (!fresh.validated) fail("STATUS_CHANGED", "the active review gate is closed");
+          return fresh.validated;
         },
         isCurrent: () => state.revision === submissionRevision
           && state.validated === selected
@@ -788,7 +773,6 @@ export function setupCanaryExecution({ windowObject, documentObject, fetchFuncti
     }
   }
 
-  fileInput?.addEventListener("change", loadFile);
   confirmation?.addEventListener("change", render);
   submit?.addEventListener("click", submitReviewed);
   browserWindow.addEventListener("gogh:wallet-state", walletChanged);
@@ -800,7 +784,6 @@ export function setupCanaryExecution({ windowObject, documentObject, fetchFuncti
   return {
     refreshGate,
     destroy() {
-      fileInput?.removeEventListener("change", loadFile);
       confirmation?.removeEventListener("change", render);
       submit?.removeEventListener("click", submitReviewed);
       browserWindow.removeEventListener("gogh:wallet-state", walletChanged);

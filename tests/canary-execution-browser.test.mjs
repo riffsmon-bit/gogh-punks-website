@@ -7,6 +7,7 @@ import { canonicalSha256 } from
 import {
   canonicalExecutionSha256,
   encodeReviewedOwnerDirectCalldata,
+  fetchCanaryExecutionReview,
   preflightCanaryTransaction,
   submitCanaryTransaction,
   validateCanaryExecutionArtifact,
@@ -31,7 +32,7 @@ async function browserFixture() {
   const intent = artifact.reviewedAcquisition.intent;
   const policyModule = fixtures.coreManifest.contracts.BrokerPolicyModule.address.toLowerCase();
   const gate = {
-    status: "READY_FOR_OWNER_FILE_REVIEW",
+    status: "READY_FOR_OWNER_REVIEW",
     capability: true,
     reason: null,
     expectedArtifactSha256: artifactHash,
@@ -132,6 +133,47 @@ test("browser and Node canonical SHA-256 agree and calldata re-encodes byte-for-
     data: artifact.transaction.data,
   });
   assert.equal(validated.remainingSeconds, 50n);
+});
+
+test("browser automatically loads only the exact active server-reviewed artifact", async () => {
+  const { artifact, gate } = await browserFixture();
+  const active = await fetchCanaryExecutionReview(async () => new Response(JSON.stringify({
+    ok: true,
+    chainId: 4663,
+    executionGate: gate,
+    executionArtifact: artifact,
+    autonomyStatus: "DISABLED",
+  }), { status: 200, headers: { "content-type": "application/json" } }), {
+    nowSeconds: 1_070,
+  });
+  assert.equal(active.validated.artifactSha256, gate.expectedArtifactSha256);
+  assert.equal(active.validated.transaction.data, artifact.transaction.data);
+
+  const closedGate = {
+    status: "NO_ACTIVE_REVIEW",
+    capability: false,
+    reason: "NO_ACTIVE_EXECUTION_ARTIFACT_HASH",
+    expectedArtifactSha256: null,
+    bindings: null,
+  };
+  const closed = await fetchCanaryExecutionReview(async () => new Response(JSON.stringify({
+    ok: true,
+    chainId: 4663,
+    executionGate: closedGate,
+    executionArtifact: null,
+    autonomyStatus: "DISABLED",
+  }), { status: 200, headers: { "content-type": "application/json" } }));
+  assert.equal(closed.validated, null);
+  await assert.rejects(
+    fetchCanaryExecutionReview(async () => new Response(JSON.stringify({
+      ok: true,
+      chainId: 4663,
+      executionGate: closedGate,
+      executionArtifact: artifact,
+      autonomyStatus: "DISABLED",
+    }), { status: 200, headers: { "content-type": "application/json" } })),
+    /closed gate exposed/,
+  );
 });
 
 test("browser rejects status, hash, calldata, intent, price, owner, Punk, and TTL drift", async () => {
@@ -267,11 +309,12 @@ test("browser source keeps sending isolated, single-click, and outside read-only
   ]);
   assert.equal((executionSource.match(/"eth_sendTransaction"/g) ?? []).length, 1);
   assert.doesNotMatch(walletSource, /eth_sendTransaction/);
-  assert.match(executionSource, /fetchExecutionGate/);
+  assert.match(executionSource, /fetchCanaryExecutionReview/);
   assert.match(executionSource, /preflightCanaryTransaction/);
   assert.match(executionSource, /if \(submit\.disabled \|\| state\.submitting/);
   assert.doesNotMatch(executionSource, /localStorage|sessionStorage|privateKey|mnemonic/);
-  assert.match(html, /type="file"/);
+  assert.doesNotMatch(html, /type="file"/);
+  assert.match(html, /loaded automatically/);
   assert.match(html, /Punk #1797/);
   assert.match(html, /pays network gas/);
 });

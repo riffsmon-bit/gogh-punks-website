@@ -1,6 +1,6 @@
 import { CURRENT_BROKER_DEPLOYMENT_SURFACE } from
   "./_shared/broker-deployment-surface.mjs";
-import { getCurrentCanaryExecutionReview } from "./_shared/canary-execution-store.mjs";
+import { getCurrentCanaryExecutionRecord } from "./_shared/canary-execution-store.mjs";
 import { json } from "./_shared/http.mjs";
 
 function disabled(status, reason) {
@@ -64,7 +64,7 @@ export function executionGateSnapshot(surface, review, options = {}) {
     return disabled("REVIEW_EXPIRED", "ACTIVE_REVIEW_LACKS_SUBMISSION_MARGIN");
   }
   return Object.freeze({
-    status: "READY_FOR_OWNER_FILE_REVIEW",
+    status: "READY_FOR_OWNER_REVIEW",
     capability: true,
     reason: null,
     expectedArtifactSha256: review.artifactSha256,
@@ -100,22 +100,29 @@ export default async function handler(request) {
   if (request.method !== "GET") {
     return json({ ok: false, code: "METHOD_NOT_ALLOWED" }, 405);
   }
-  let review = null;
+  let record = null;
   if (CURRENT_BROKER_DEPLOYMENT_SURFACE.deploymentStatus === "DEPLOYED"
     && CURRENT_BROKER_DEPLOYMENT_SURFACE.canaryStatus === "DEPLOYED") {
     try {
-      review = await getCurrentCanaryExecutionReview();
+      record = await getCurrentCanaryExecutionRecord();
     } catch {
       // A missing migration, database outage, or malformed row must leave execution disabled.
     }
+  }
+  let executionGate = executionGateSnapshot(
+    CURRENT_BROKER_DEPLOYMENT_SURFACE,
+    record?.review ?? null,
+    { nowSeconds: Math.floor(Date.now() / 1_000) },
+  );
+  if (executionGate.capability === true && !record?.artifact) {
+    executionGate = disabled("REVIEW_ARTIFACT_UNAVAILABLE", "ACTIVE_REVIEW_ARTIFACT_UNAVAILABLE");
   }
   return json(
     {
       ok: true,
       chainId: 4663,
-      executionGate: executionGateSnapshot(CURRENT_BROKER_DEPLOYMENT_SURFACE, review, {
-        nowSeconds: Math.floor(Date.now() / 1_000),
-      }),
+      executionGate,
+      executionArtifact: executionGate.capability === true ? record.artifact : null,
       autonomyStatus: "DISABLED",
     },
     200,

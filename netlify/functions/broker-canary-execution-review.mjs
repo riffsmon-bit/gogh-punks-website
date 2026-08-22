@@ -101,6 +101,7 @@ export default async function handler(request) {
     const activated = await activateCanaryExecutionReview(
       bound,
       CURRENT_BROKER_DEPLOYMENT_SURFACE.canary.policyModule,
+      body.artifact,
     );
     return json(
       { ok: true, status: "REVIEW_HASH_ACTIVE", executionGate: activated },

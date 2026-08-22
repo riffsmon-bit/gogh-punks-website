@@ -37,10 +37,8 @@
               <p>The reviewed NFT mints into Punk #1797’s Punk Account. The mint value is exactly zero; your owner wallet still pays network gas. This panel never accepts a target, amount, price, or calldata typed into the page.</p>
             </div>
             <article class="panel canary-review-panel">
-              <div class="panel-header"><h3>Short-lived execution artifact</h3><span class="tag off" data-canary-execution-state aria-live="polite">LOCKED · checking reviewed hash</span></div>
-              <label class="artifact-file-label" for="canary-artifact-file">Choose the exact locally generated JSON artifact</label>
-              <input id="canary-artifact-file" data-canary-artifact-file type="file" accept="application/json,.json" disabled />
-              <p class="locked-note">The file is read locally in this browser. It is hash-matched to the short-lived server review record and is not uploaded by this page.</p>
+              <div class="panel-header"><h3>Short-lived execution review</h3><span class="tag off" data-canary-execution-state aria-live="polite">LOCKED · checking reviewed hash</span></div>
+              <p class="locked-note">The exact public artifact is loaded automatically only while its server-reviewed hash is active. The page independently hashes, decodes, and verifies every displayed transaction field before enabling your wallet.</p>
               <dl class="canary-review-grid">
                 <div><dt>Artifact SHA-256</dt><dd data-canary-field="artifactHash">—</dd></div>
                 <div><dt>Calldata Keccak-256</dt><dd data-canary-field="dataHash">—</dd></div>

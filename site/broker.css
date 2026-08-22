@@ -121,8 +121,6 @@ button { font: inherit; }
 .artifact-file-label,
 .canary-confirmation { display: block; color: #d5d3c9; line-height: 1.55; }
 .artifact-file-label { margin-bottom: 9px; font-size: 0.78rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
-[data-canary-artifact-file] { width: 100%; padding: 13px; border: 1px solid var(--line); color: var(--cream); background: rgba(3, 7, 11, 0.72); }
-[data-canary-artifact-file]:disabled { cursor: not-allowed; opacity: 0.45; }
 .canary-review-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin: 24px 0; background: rgba(218, 167, 55, 0.16); }
 .canary-review-grid div { min-width: 0; padding: 13px; background: var(--panel); }
 .canary-review-grid dt { margin-bottom: 7px; color: var(--muted); font-size: 0.62rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }

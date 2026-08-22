@@ -1,6 +1,7 @@
 import { getDatabase } from "@netlify/database";
 
 const REVIEW_LOCK_ID = 4_663_1_797;
+const MAX_ARTIFACT_BYTES = 2_000_000;
 
 function rowValue(row, snake, camel) {
   return row?.[snake] ?? row?.[camel] ?? null;
@@ -44,7 +45,33 @@ export function executionReviewFromRow(row) {
   });
 }
 
-export async function activateCanaryExecutionReview(review, policyModule) {
+export function executionArtifactFromRow(row) {
+  const stored = rowValue(row, "execution_artifact_json", "executionArtifactJson");
+  if (stored === null) return null;
+  if (typeof stored !== "string" || Buffer.byteLength(stored, "utf8") > MAX_ARTIFACT_BYTES) {
+    throw new Error("stored canary execution artifact is malformed");
+  }
+  const artifact = JSON.parse(stored);
+  if (!artifact || typeof artifact !== "object" || Array.isArray(artifact)) {
+    throw new Error("stored canary execution artifact is not an object");
+  }
+  return artifact;
+}
+
+function serializedArtifact(artifact) {
+  if (!artifact || typeof artifact !== "object" || Array.isArray(artifact)) {
+    throw new Error("canary execution artifact must be an object");
+  }
+  const serialized = JSON.stringify(artifact);
+  const bytes = Buffer.byteLength(serialized, "utf8");
+  if (bytes <= 0 || bytes > MAX_ARTIFACT_BYTES) {
+    throw new Error("canary execution artifact exceeds its storage boundary");
+  }
+  return serialized;
+}
+
+export async function activateCanaryExecutionReview(review, policyModule, artifact) {
+  const artifactJson = serializedArtifact(artifact);
   const client = await getDatabase().pool.connect();
   try {
     await client.query("BEGIN");
@@ -61,11 +88,12 @@ export async function activateCanaryExecutionReview(review, policyModule) {
          output_token_id, function_selector, mint_selector, transaction_value,
          data_keccak256, intent_digest, account_runtime_code_hash,
          adapter_runtime_code_hash, art_runtime_code_hash, core_manifest_sha256,
-         canary_manifest_sha256, acquisition_nonce, policy_version, expires_at)
+         canary_manifest_sha256, acquisition_nonce, policy_version, expires_at,
+         execution_artifact_json)
        VALUES
         ($1, $2, $3, $4, $5, $6, $7::numeric, $8, $9, $10, $11::numeric, $12, $13,
          $14::numeric, $15, $16, $17, $18, $19, $20, $21, $22::numeric, $23,
-         to_timestamp($24::numeric))
+         to_timestamp($24::numeric), $25)
        ON CONFLICT (artifact_sha256) DO UPDATE SET
          chain_id = EXCLUDED.chain_id,
          expected_owner = EXCLUDED.expected_owner,
@@ -90,6 +118,7 @@ export async function activateCanaryExecutionReview(review, policyModule) {
          acquisition_nonce = EXCLUDED.acquisition_nonce,
          policy_version = EXCLUDED.policy_version,
          expires_at = EXCLUDED.expires_at,
+         execution_artifact_json = EXCLUDED.execution_artifact_json,
          reviewed_at = NOW(),
          revoked_at = NULL
        RETURNING *, FLOOR(EXTRACT(EPOCH FROM expires_at))::bigint::text AS expires_at_seconds`,
@@ -118,6 +147,7 @@ export async function activateCanaryExecutionReview(review, policyModule) {
         review.nonce,
         review.policyVersion,
         review.expiresAt,
+        artifactJson,
       ],
     );
     await client.query("COMMIT");
@@ -131,14 +161,23 @@ export async function activateCanaryExecutionReview(review, policyModule) {
 }
 
 export async function getCurrentCanaryExecutionReview() {
+  return (await getCurrentCanaryExecutionRecord())?.review ?? null;
+}
+
+export async function getCurrentCanaryExecutionRecord() {
   const result = await getDatabase().pool.query(
     `SELECT *, FLOOR(EXTRACT(EPOCH FROM expires_at))::bigint::text AS expires_at_seconds
        FROM broker_canary_execution_reviews
       WHERE revoked_at IS NULL
         AND expires_at >= NOW() + INTERVAL '30 seconds'
+        AND execution_artifact_json IS NOT NULL
       ORDER BY reviewed_at DESC
       LIMIT 2`,
   );
   if (result.rows.length > 1) throw new Error("multiple active canary execution reviews");
-  return executionReviewFromRow(result.rows[0]);
+  if (!result.rows[0]) return null;
+  return Object.freeze({
+    review: executionReviewFromRow(result.rows[0]),
+    artifact: executionArtifactFromRow(result.rows[0]),
+  });
 }

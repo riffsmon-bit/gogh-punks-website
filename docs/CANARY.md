@@ -706,8 +706,8 @@ of the first live owner-direct canary.
 
 The owner-direct execution artifact is valid for at most 120 seconds and must retain at least 30
 seconds at submission, so it must never be committed as a static website asset. After the exact
-artifact builder succeeds, an operator may publish only its reviewed public hash and decoded
-bindings to the short-lived Netlify Database gate:
+artifact builder succeeds, an operator may publish the exact public artifact, its reviewed hash,
+and decoded bindings to the short-lived Netlify Database gate:
 
 ```sh
 node --env-file=.env scripts/publish-canary-execution-review.mjs \
@@ -718,11 +718,14 @@ node --env-file=.env scripts/publish-canary-execution-review.mjs \
 must be present in the untracked environment. The token never belongs in browser JavaScript, a URL,
 the artifact, stdout, or the database. The endpoint rejects activation unless the authoritative core
 and canary manifests in the deployed release are both `DEPLOYED`, source-verified, and exactly bound
-to the artifact's manifest hashes. It stores no calldata, signature, key, password, or RPC secret.
+to the artifact's manifest hashes. The database temporarily stores the public zero-value calldata
+and evidence so the owner does not need to locate a local file. The strict artifact schema requires
+an empty owner signature and contains no key, password, bearer token, mnemonic, or RPC credential.
 
-On `/punk/1797`, the owner deliberately selects the same local JSON file. The browser recomputes its
-canonical SHA-256, checks every fixed zero-value intent and canonical ABI word, and requires the exact
-active server hash/bindings. Immediately before the one explicit wallet click, it refetches the
+On `/punk/1797`, the browser automatically loads that artifact only while the reviewed hash is
+active. It recomputes its canonical SHA-256, checks every fixed zero-value intent and canonical ABI
+word, and requires the exact active server hash/bindings. Immediately before the one explicit wallet
+click, it refetches the
 uncached gate and rechecks chain 4663, selected account, canonical `ownerOf(1797)`, account `owner()`,
 nonce, policy module/version, latest chain time, contract-code presence, and the exact transaction by
 `eth_call`. It constructs a new transaction from only the reviewed `from`, `to`, zero `value`, and

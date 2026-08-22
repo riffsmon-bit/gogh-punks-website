@@ -11,7 +11,7 @@ import {
   CURRENT_BROKER_DEPLOYMENT_SURFACE,
   brokerDeploymentSurface,
 } from "../netlify/functions/_shared/broker-deployment-surface.mjs";
-import { executionReviewFromRow } from
+import { executionArtifactFromRow, executionReviewFromRow } from
   "../netlify/functions/_shared/canary-execution-store.mjs";
 import reviewHandler, {
   bindExecutionReviewToDeployment,
@@ -271,8 +271,8 @@ test("current deployed manifests remain closed without an exact active review", 
   assert.deepEqual(brokerStatusConfig.rateLimit.aggregateBy, ["ip"]);
 });
 
-test("database rows expose only the public fixed review bindings", () => {
-  const { review } = fixtureReview();
+test("database rows keep the public artifact separate from fixed review bindings", () => {
+  const { fixtures, review } = fixtureReview();
   const row = executionReviewFromRow({
     artifact_sha256: review.artifactSha256,
     chain_id: review.chainId,
@@ -302,6 +302,12 @@ test("database rows expose only the public fixed review bindings", () => {
   assert.equal(row.artifactSha256, review.artifactSha256);
   assert.equal(Object.hasOwn(row, "data"), false);
   assert.equal(Object.hasOwn(row, "signature"), false);
+  const storedArtifact = executionArtifactFromRow({
+    execution_artifact_json: JSON.stringify(fixtures.executionArtifact),
+  });
+  assert.deepEqual(storedArtifact, fixtures.executionArtifact);
+  assert.equal(storedArtifact.reviewedAcquisition.ownerSignature, "0x");
+  assert.throws(() => executionArtifactFromRow({ execution_artifact_json: "[]" }));
 });
 
 test("runtime gate sources contain no key value, relay, signer, or private material", async () => {
