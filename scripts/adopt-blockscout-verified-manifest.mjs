@@ -1082,7 +1082,8 @@ function normalizeApiAbi(value, label) {
     }
   }
   if (!Array.isArray(abi) || abi.length > 2_000) fail("ABI_MISMATCH", `${label} is invalid`);
-  return strictSnapshot(abi, MAX_INPUT_BYTES, label);
+  const snapshot = strictSnapshot(abi, MAX_INPUT_BYTES, label);
+  return snapshot.sort((left, right) => canonicalJson(left).localeCompare(canonicalJson(right)));
 }
 
 function apiSourceHashes(response, name, artifact) {
@@ -1193,7 +1194,8 @@ function normalizeSmartContractEvidence(
   sameCanonical(apiSettings, artifact.settings, "COMPILER_SETTINGS_MISMATCH",
     `${name} Blockscout compiler settings`);
   const apiAbi = normalizeApiAbi(response.abi, `${name} Blockscout ABI`);
-  sameCanonical(apiAbi, artifact.abi, "ABI_MISMATCH", `${name} Blockscout ABI`);
+  const compiledAbi = normalizeApiAbi(artifact.abi, `${name} compiled ABI comparison`);
+  sameCanonical(apiAbi, compiledAbi, "ABI_MISMATCH", `${name} Blockscout ABI`);
   const sourceHashes = apiSourceHashes(response, name, artifact);
   const creationBytecode = normalizeBytecode(
     response.creation_bytecode,
