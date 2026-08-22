@@ -1,4 +1,5 @@
 import { getDatabase } from "@netlify/database";
+import { createPublicClient, defineChain, http, parseAbi } from "viem";
 import { ROBINHOOD } from "../../broker/src/config.mjs";
 import {
   attachNftDisplayMetadata,
@@ -6,6 +7,94 @@ import {
   nftDisplayMetadata,
 } from "./_shared/broker-display-metadata.mjs";
 import { json } from "./_shared/http.mjs";
+import { getRpcUrl } from "./_shared/config.mjs";
+import { CURRENT_BROKER_DEPLOYMENT_SURFACE } from
+  "./_shared/broker-deployment-surface.mjs";
+
+const PUNK_ABI = parseAbi(["function ownerOf(uint256 tokenId) view returns (address)"]);
+const REGISTRY_ABI = parseAbi([
+  "function account(uint256 tokenId) view returns (address)",
+  "function isAccountCreated(uint256 tokenId) view returns (bool)",
+]);
+const ACCOUNT_ABI = parseAbi([
+  "function owner() view returns (address)",
+  "function token() view returns (uint256 chainId,address tokenContract,uint256 tokenId)",
+]);
+const CANARY_ART_ABI = parseAbi([
+  "function minted() view returns (bool)",
+  "function ownerOf(uint256 tokenId) view returns (address)",
+]);
+
+function liveClient() {
+  const rpcUrl = getRpcUrl();
+  const chain = defineChain({
+    id: ROBINHOOD.chainId,
+    name: "Robinhood Chain",
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+    rpcUrls: { default: { http: [rpcUrl] } },
+  });
+  return createPublicClient({ chain, transport: http(rpcUrl) });
+}
+
+export async function readLivePunkState(
+  tokenId,
+  surface = CURRENT_BROKER_DEPLOYMENT_SURFACE,
+  client = liveClient(),
+) {
+  if (surface?.deploymentStatus !== "DEPLOYED" || !surface.accountRegistry) return null;
+  const id = BigInt(tokenId);
+  const [owner, account, created] = await Promise.all([
+    client.readContract({ address: ROBINHOOD.canonicalCollection, abi: PUNK_ABI,
+      functionName: "ownerOf", args: [id] }),
+    client.readContract({ address: surface.accountRegistry, abi: REGISTRY_ABI,
+      functionName: "account", args: [id] }),
+    client.readContract({ address: surface.accountRegistry, abi: REGISTRY_ABI,
+      functionName: "isAccountCreated", args: [id] }),
+  ]);
+  const code = await client.getCode({ address: account });
+  const deployed = created === true && typeof code === "string" && code !== "0x";
+  if (created !== deployed) throw new Error("live Punk Account creation signals disagree");
+  if (deployed) {
+    const [accountOwner, footer] = await Promise.all([
+      client.readContract({ address: account, abi: ACCOUNT_ABI, functionName: "owner" }),
+      client.readContract({ address: account, abi: ACCOUNT_ABI, functionName: "token" }),
+    ]);
+    if (accountOwner.toLowerCase() !== owner.toLowerCase()
+      || BigInt(footer[0]) !== BigInt(ROBINHOOD.chainId)
+      || footer[1].toLowerCase() !== ROBINHOOD.canonicalCollection
+      || BigInt(footer[2]) !== id) throw new Error("live Punk Account binding mismatch");
+  }
+  let canaryAsset = null;
+  if (surface.canaryStatus === "DEPLOYED" && surface.canary?.punkTokenId === tokenId
+    && surface.canary.account === account.toLowerCase()) {
+    const outputTokenId = BigInt(surface.canary.tokenId);
+    const minted = await client.readContract({ address: surface.canary.collection,
+      abi: CANARY_ART_ABI, functionName: "minted" });
+    if (minted) {
+      const assetOwner = await client.readContract({ address: surface.canary.collection,
+        abi: CANARY_ART_ABI, functionName: "ownerOf", args: [outputTokenId] });
+      if (assetOwner.toLowerCase() !== account.toLowerCase()) {
+        throw new Error("live canary owner differs from Punk Account");
+      }
+      canaryAsset = Object.freeze({
+        status: "CONFIRMED_ONCHAIN",
+        collection: surface.canary.collection,
+        tokenId: surface.canary.tokenId,
+        owner: account.toLowerCase(),
+        name: `Gogh One-Shot Canary #${surface.canary.tokenId}`,
+        standard: "ERC721",
+      });
+    }
+  }
+  return Object.freeze({
+    status: "LIVE_ONCHAIN",
+    tokenId,
+    owner: owner.toLowerCase(),
+    account: account.toLowerCase(),
+    activated: deployed,
+    canaryAsset,
+  });
+}
 
 function tokenIdFrom(request) {
   const match = new URL(request.url).pathname.match(/^\/api\/punk\/(\d+)$/);
@@ -23,7 +112,7 @@ export default async function handler(request) {
   const tokenId = tokenIdFrom(request);
   if (tokenId === null) return json({ ok: false, code: "INVALID_TOKEN_ID" }, 400);
   try {
-    const [punkResult, acquisitionResult, recommendationResult, decisionResult] = await Promise.all([
+    const [punkResult, acquisitionResult, recommendationResult, decisionResult, liveState] = await Promise.all([
       getDatabase().pool.query(
         `SELECT punk.*, ${NFT_DISPLAY_METADATA_SELECT}
            FROM broker_punks AS punk
@@ -78,15 +167,16 @@ export default async function handler(request) {
             AND recommendation.punk_token_id = $3
             AND opportunity.canonical = TRUE
           ORDER BY recommendation.created_at DESC, recommendation.id
-          LIMIT 100`,
+          LIMIT 24`,
         [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, tokenId],
       ),
       getDatabase().pool.query(
         `SELECT * FROM broker_decision_logs
           WHERE punk_chain_id = $1 AND punk_collection_address = $2 AND punk_token_id = $3
-          ORDER BY occurred_at DESC LIMIT 100`,
+          ORDER BY occurred_at DESC LIMIT 24`,
         [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, tokenId],
       ),
+      readLivePunkState(tokenId).catch(() => null),
     ]);
     const rawPunk = punkResult.rows[0] ?? null;
     const punk = attachNftDisplayMetadata(rawPunk);
@@ -102,6 +192,7 @@ export default async function handler(request) {
       acquisitions: acquisitionResult.rows.map(attachNftDisplayMetadata),
       recommendations: recommendationResult.rows.map(attachNftDisplayMetadata),
       decisions: decisionResult.rows,
+      liveState,
       managementEnabled: false,
     });
   } catch (error) {
@@ -118,6 +209,7 @@ export default async function handler(request) {
         acquisitions: [],
         recommendations: [],
         decisions: [],
+        liveState: null,
         managementEnabled: false,
         dataStatus: "INDEXER_NOT_READY",
       },
@@ -132,7 +224,7 @@ export const config = {
   method: "GET",
   rateLimit: {
     action: "rate_limit",
-    aggregateBy: "ip",
+    aggregateBy: ["ip"],
     windowLimit: 120,
     windowSize: 60,
   },

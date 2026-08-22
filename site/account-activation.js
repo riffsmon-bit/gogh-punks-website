@@ -1,4 +1,5 @@
 import { keccak256Hex } from "./keccak256.js";
+import { rememberActivatedPunk } from "./owner-accounts.js";
 
 const CHAIN_ID = 4663;
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
@@ -259,6 +260,7 @@ export function setupAccountActivation({ windowObject, documentObject, fetchFunc
       const result = await inspectPunkActivation(provider, gate, input.value);
       if (started !== revision) throw new AccountActivationError("STATE_CHANGED", "Wallet changed");
       reviewed = result;
+      if (result.activated) rememberActivatedPunk(browserWindow.localStorage, result.tokenId);
       render(result.activated
         ? `Punk #${result.tokenId} is already activated. Its agent wallet is ready to fund.`
         : `Punk #${result.tokenId} is owned by this wallet and can be activated. Review the address, check the box, then activate.`,
@@ -286,6 +288,10 @@ export function setupAccountActivation({ windowObject, documentObject, fetchFunc
         ? "This Punk Account was already activated."
         : `Activation submitted: ${result.hash}. Wait for confirmation, then check the Punk again.`,
       "ready");
+      rememberActivatedPunk(browserWindow.localStorage, reviewed.tokenId);
+      browserWindow.dispatchEvent(new browserWindow.CustomEvent("gogh:wallet-state", {
+        detail: browserWindow.__GOGH_WALLET_SNAPSHOT__,
+      }));
       if (!result.alreadyActivated) reviewed = null;
     } catch (error) {
       render(error?.message ?? "Activation was cancelled or rejected.", "error");

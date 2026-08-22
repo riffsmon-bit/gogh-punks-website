@@ -210,6 +210,11 @@ async function loadStatus() {
     document.querySelectorAll("[data-scout-token-id]").forEach((target) => {
       target.textContent = payload.scoutStatus?.tokenId ?? "—";
     });
+    document.querySelectorAll("[data-scout-token-display]").forEach((target) => {
+      target.textContent = payload.scoutStatus?.tokenId
+        ? `#${payload.scoutStatus.tokenId}`
+        : "—";
+    });
     document.querySelectorAll("[data-opportunity-count]").forEach((target) => {
       target.textContent = String(payload.scoutStatus?.opportunityCount ?? 0);
     });
@@ -371,6 +376,41 @@ function punkTokenId() {
   return pathMatch?.[1] ?? new URLSearchParams(window.location.search).get("tokenId") ?? "317";
 }
 
+function confirmedLiveAssetCard(asset) {
+  const card = document.createElement("article");
+  card.className = "panel live-acquisition-card";
+  const badge = document.createElement("span");
+  badge.className = "tag";
+  badge.textContent = "CONFIRMED ONCHAIN";
+  const title = document.createElement("h3");
+  title.textContent = asset.name;
+  const details = document.createElement("dl");
+  for (const [label, value] of [
+    ["Standard", asset.standard],
+    ["Token ID", `#${asset.tokenId}`],
+    ["Held by", asset.owner],
+  ]) {
+    const row = document.createElement("div");
+    const term = document.createElement("dt");
+    const description = document.createElement("dd");
+    term.textContent = label;
+    description.textContent = value;
+    row.append(term, description);
+    details.append(row);
+  }
+  const explorer = document.createElement("a");
+  explorer.className = "opensea-attribution";
+  explorer.href = `https://robinhoodchain.blockscout.com/token/${asset.collection}/instance/${asset.tokenId}`;
+  explorer.target = "_blank";
+  explorer.rel = "noopener noreferrer";
+  explorer.textContent = "View NFT on Blockscout ↗";
+  const note = document.createElement("p");
+  note.className = "locked-note";
+  note.textContent = "Read directly from the verified canary NFT contract while indexer materialization catches up.";
+  card.append(badge, title, details, explorer, note);
+  return card;
+}
+
 async function loadPunk() {
   const target = document.querySelector("[data-punk-page]");
   if (!target) return;
@@ -381,18 +421,45 @@ async function loadPunk() {
       headers: { accept: "application/json" },
     });
     const payload = await response.json();
-    publishOwnerSnapshot(payload.punk, tokenId, "punk");
+    const liveState = payload.liveState?.status === "LIVE_ONCHAIN" ? payload.liveState : null;
+    publishOwnerSnapshot(liveState
+      ? { owner_snapshot: liveState.owner }
+      : payload.punk, tokenId, "punk");
     renderPunkArtwork(payload.identity?.artwork, tokenId);
-    const account = payload.punk?.account_address ?? "Not activated";
-    document.querySelectorAll("[data-punk-account]").forEach((item) => { item.textContent = account; });
+    const account = liveState?.activated
+      ? liveState.account
+      : payload.punk?.account_address ?? null;
+    document.querySelectorAll("[data-punk-account]").forEach((item) => {
+      item.textContent = account ? `Activated · ${account}` : "Not activated";
+      item.title = account ?? "No live Punk Account found";
+    });
     const gallery = document.querySelector("[data-gallery]");
     if (gallery) {
-      gallery.innerHTML = payload.acquisitions?.length
-        ? ""
-        : '<p class="empty-state">No confirmed indexed acquisitions are available for this gallery.</p>';
-      payload.acquisitions?.forEach((acquisition) => gallery.append(opportunityCard(acquisition)));
+      const acquisitions = Array.isArray(payload.acquisitions) ? payload.acquisitions : [];
+      const liveAsset = liveState?.canaryAsset ?? null;
+      const indexedLiveAsset = liveAsset && acquisitions.some((item) => (
+        String(item.nft_collection_address ?? "").toLowerCase() === liveAsset.collection
+        && String(item.nft_token_id ?? "") === liveAsset.tokenId
+      ));
+      gallery.replaceChildren();
+      if (liveAsset && !indexedLiveAsset) gallery.append(confirmedLiveAssetCard(liveAsset));
+      acquisitions.forEach((acquisition) => gallery.append(opportunityCard(acquisition)));
+      if (!gallery.childElementCount) {
+        gallery.innerHTML = '<p class="empty-state">No confirmed acquisitions were found on-chain or in the indexer.</p>';
+      }
+      const collectedCount = acquisitions.length + (liveAsset && !indexedLiveAsset ? 1 : 0);
+      document.querySelectorAll("[data-collected-count]").forEach((item) => {
+        item.textContent = String(collectedCount);
+      });
+      document.querySelectorAll("[data-collected-detail]").forEach((item) => {
+        item.textContent = liveAsset ? "Includes live on-chain canary" : "Confirmed indexed assets";
+      });
     }
     const recommendations = document.querySelector("[data-punk-recommendations]");
+    const recommendationCount = payload.recommendations?.length ?? 0;
+    document.querySelectorAll("[data-punk-recommendation-total]").forEach((item) => {
+      item.textContent = recommendationCount ? `${recommendationCount} LATEST` : "EMPTY";
+    });
     if (recommendations) {
       recommendations.innerHTML = payload.recommendations?.length
         ? ""

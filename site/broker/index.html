@@ -12,6 +12,7 @@
     <script src="/wallet.js" type="module"></script>
     <script src="/mandate-editor.js" type="module"></script>
     <script src="/account-activation.js" type="module"></script>
+    <script src="/owner-accounts.js" type="module"></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to Art Broker</a>
@@ -68,15 +69,16 @@
       </section>
 
       <section class="section-block" aria-labelledby="my-punks-title">
-        <div class="section-heading"><div><p class="eyebrow">Owner desk</p><h2 id="my-punks-title">My Punks</h2></div><p>Connect to compare your address with the current indexed owner. Indexed ownership is display-only; any available owner action must independently verify live contract authority.</p></div>
+        <div class="section-heading"><div><p class="eyebrow">Owner desk</p><h2 id="my-punks-title">My activated Punks</h2></div><p>Connect the owner wallet to load recently activated Punk Accounts directly from Robinhood Chain. Activation creates the wallet; it does not authorize an agent or autonomy.</p></div>
         <div class="metric-grid">
-          <article class="metric"><span>Scout Punk</span><strong>#<span data-scout-token-id>—</span></strong><small>Confirmed owner snapshot</small></article>
-          <article class="metric"><span>Punk Accounts</span><strong>0</strong><small>Protocol not deployed</small></article>
+          <article class="metric"><span>Scout Punk</span><strong data-scout-token-display>#—</strong><small>Configured hosted Scout</small></article>
+          <article class="metric"><span>Punk Accounts</span><strong data-punk-account-count>0</strong><small data-punk-account-detail>Connect owner wallet</small></article>
           <article class="metric"><span>Discoveries</span><strong data-opportunity-count>0</strong><small>Confirmed historical signals</small></article>
           <article class="metric"><span>Recommendations</span><strong data-recommendation-count>0</strong><small>Read-only Scout</small></article>
           <article class="metric"><span>NFT artwork</span><strong data-metadata-count>0</strong><small>Sanitized OpenSea metadata</small></article>
           <article class="metric"><span>Pending approvals</span><strong>0</strong><small>Approval purchases off</small></article>
         </div>
+        <div class="owner-account-grid section-block-compact" data-owner-accounts><p class="empty-state">Connect the owner wallet on Robinhood Chain to load activated Punk Accounts.</p></div>
       </section>
 
       <section class="section-block" aria-labelledby="mandate-title">
