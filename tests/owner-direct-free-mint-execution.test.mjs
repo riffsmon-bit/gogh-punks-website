@@ -615,6 +615,19 @@ test("requires the attestor final-clock margin at artifact encoding time", () =>
   assert.throws(() => build(futureDated, 1_070), /future-dated/);
 });
 
+test("accepts the reviewed fast-chain RPC skew bound and rejects the next block", () => {
+  const atBound = fixtures();
+  atBound.liveAttestation.latestExecutionCheck.headSkew = "16";
+  const artifact = build(atBound);
+  assert.equal(artifact.confirmedEvidence.latestExecutionCheck.headSkew, "16");
+
+  const beyondBound = fixtures();
+  beyondBound.liveAttestation.latestExecutionCheck.headSkew = "17";
+  assert.throws(() => build(beyondBound), (error) => (
+    error instanceof OwnerDirectExecutionArtifactError && error.code === "STALE_ATTESTATION"
+  ));
+});
+
 test("strictly rejects unknown fields, accessors, symbols, and custom prototypes", () => {
   const unknown = fixtures();
   unknown.liveAttestation.arbitraryCalldata = "0xdeadbeef";

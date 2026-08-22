@@ -23,6 +23,7 @@ const EMPTY_BYTES_HASH = keccak256(EMPTY_BYTES);
 const MAX_UINT256 = (1n << 256n) - 1n;
 const MAX_UINT64 = (1n << 64n) - 1n;
 const MIN_CONFIRMATIONS = 20;
+const MAX_OWNER_RPC_HEAD_SKEW = 16n;
 export const MIN_OWNER_SUBMISSION_TTL_SECONDS = 30;
 export const ONE_SHOT_MINT_SELECTOR = toFunctionSelector("mint(address,uint256)");
 
@@ -1265,7 +1266,9 @@ function validateAttestation(attestation, proposal, core, canary, config, nowSec
     secondaryHead: uint(latest.secondaryHead, "latest secondary head"),
     headSkew: uint(latest.headSkew, "latest head skew"),
   };
-  if (latestBlock.headSkew > 3n) fail("STALE_ATTESTATION", "latest RPC head skew exceeds three blocks");
+  if (latestBlock.headSkew > MAX_OWNER_RPC_HEAD_SKEW) {
+    fail("STALE_ATTESTATION", "latest RPC head skew exceeds the reviewed bound");
+  }
 
   exactKeys(attestation.pinnedBlock, ["confirmations", "hash", "number", "timestamp"],
     "liveAttestation.pinnedBlock");
@@ -1817,7 +1820,8 @@ export function validateOwnerDirectFreeMintExecutionArtifact(artifact, options =
     || evidence.latestExecutionCheck.nonce !== "0"
     || evidence.latestExecutionCheck.policyVersion !== "11"
     || evidence.latestExecutionCheck.permissionGeneration !== "1"
-    || uint(evidence.latestExecutionCheck.headSkew, "latest head skew") > 3n
+    || uint(evidence.latestExecutionCheck.headSkew, "latest head skew")
+      > MAX_OWNER_RPC_HEAD_SKEW
     || latestTimestamp > generatedAt) {
     fail("STALE_ATTESTATION", "latest execution evidence is not the exact owner-direct state");
   }
