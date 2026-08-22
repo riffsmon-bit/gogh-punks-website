@@ -111,6 +111,17 @@ export default async function handler(request) {
           tokenId: CURRENT_BROKER_DEPLOYMENT_SURFACE.canary.tokenId,
         }
         : null,
+      autonomousCanaryDisplay: {
+        status: "COMPLETED_AND_CONTAINED",
+        punkTokenId: "1639",
+        account: "0xb492268ab6f5b2791ff03ba4e536c22dac78de1f",
+        collection: "0xa06763a30584585bae8dcbaf6999c4037f8444ba",
+        tokenId: "9002",
+        runtimeCodeHash: "0x949102366c9d82bbaf40d852e7558b00077e35bff8ade55e6354fdb4944caa25",
+        transactionHash: "0xf56639e4f43d95f0bf69d3b7b7ee7e11dad3f0079e645d4523d570ab6735c00d",
+        executionMode: "AUTONOMOUS_FREE_MINT",
+        containment: "AUTONOMY_OFF_AGENT_REVOKED_ACCOUNT_PAUSED_DISABLED",
+      },
       featureFlags,
       scoutStatus: {
         workerEnabled: process.env.BROKER_SCOUT_ENABLED === "true",
@@ -127,7 +138,7 @@ export default async function handler(request) {
         executionEnabled: false,
         ...scout,
       },
-      autonomyStatus: "DISABLED",
+      autonomyStatus: "DISABLED_AFTER_SUCCESSFUL_BOUNDED_CANARY",
       riskNotice: "Scout findings and valuation fields are estimates, not safety or profit claims.",
     },
     200,

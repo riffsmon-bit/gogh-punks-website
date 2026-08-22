@@ -1,3 +1,5 @@
+import { keccak256Hex } from "./keccak256.js";
+
 const CHAIN_ID = 4663;
 const OWNER_OF = "0x6352211e";
 const ACCOUNT = "0x2dd7c658";
@@ -34,9 +36,18 @@ export async function readBrowserPunkDisplay(provider, status, tokenId) {
   const code = await rpc(provider, "eth_getCode", [account, "latest"]);
   const activated = typeof code === "string" && code !== "0x";
   let canaryAsset = null;
-  const canary = status.canaryDisplay;
-  if (activated && canary?.status === "DEPLOYED" && canary.punkTokenId === tokenId
-    && canary.account === account) {
+  const canary = [status.canaryDisplay, status.autonomousCanaryDisplay].find((candidate) => (
+    candidate && ["DEPLOYED", "COMPLETED_AND_CONTAINED"].includes(candidate.status)
+      && candidate.punkTokenId === tokenId && candidate.account === account
+  ));
+  if (activated && canary) {
+    if (canary.runtimeCodeHash) {
+      const runtime = await rpc(provider, "eth_getCode", [canary.collection, "latest"]);
+      if (keccak256Hex(runtime).toLowerCase() !== canary.runtimeCodeHash.toLowerCase()) {
+        return Object.freeze({ status: "LIVE_ONCHAIN", tokenId, owner, account, activated,
+          canaryAsset: null });
+      }
+    }
     const mintedRaw = await rpc(provider, "eth_call", [{ to: canary.collection, data: MINTED },
       "latest"]);
     if (BigInt(mintedRaw) === 1n) {
@@ -48,8 +59,13 @@ export async function readBrowserPunkDisplay(provider, status, tokenId) {
           collection: canary.collection,
           tokenId: canary.tokenId,
           owner: account,
-          name: `Gogh One-Shot Canary #${canary.tokenId}`,
+          name: canary.executionMode === "AUTONOMOUS_FREE_MINT"
+            ? `Gogh Autonomous Canary #${canary.tokenId}`
+            : `Gogh One-Shot Canary #${canary.tokenId}`,
           standard: "ERC721",
+          executionMode: canary.executionMode ?? "OWNER_APPROVED_FREE_MINT",
+          transactionHash: canary.transactionHash ?? null,
+          containment: canary.containment ?? null,
         });
       }
     }

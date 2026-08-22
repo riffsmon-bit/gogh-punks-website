@@ -7,6 +7,7 @@ import { findOwnerPunkAccounts, requestedTokenIds } from
 import { readLivePunkState } from "../netlify/functions/broker-punk.mjs";
 import { findBrowserOwnerAccounts } from "../site/owner-accounts.js";
 import { readBrowserPunkDisplay } from "../site/live-punk-display.js";
+import { keccak256Hex } from "../site/keccak256.js";
 
 const OWNER = "0x1234567890123456789012345678901234567890";
 const OTHER = "0x9999999999999999999999999999999999999999";
@@ -122,6 +123,38 @@ test("browser wallet fallback discovers recent activation and the confirmed cana
   assert.equal(display.canaryAsset.tokenId, "9001");
 });
 
+test("browser wallet verifies and displays the completed contained autonomous canary", async () => {
+  const runtime = "0x6000";
+  const provider = {
+    async request({ method, params = [] }) {
+      if (method === "eth_chainId") return "0x1237";
+      if (method === "eth_getCode") return runtime;
+      if (method === "eth_call") {
+        const [{ to, data }] = params;
+        if (to === ROBINHOOD.canonicalCollection) return `0x${abiAddress(OWNER)}`;
+        if (to === REGISTRY) return `0x${abiAddress(ACCOUNT_1639)}`;
+        if (to === ART && data === "0x4f02c420") return `0x${abiWord(1)}`;
+        if (to === ART) return `0x${abiAddress(ACCOUNT_1639)}`;
+      }
+      throw new Error(`unexpected ${method}`);
+    },
+  };
+  const status = {
+    protocol: { deploymentStatus: "DEPLOYED", accountRegistry: REGISTRY },
+    chain: { canonicalCollection: ROBINHOOD.canonicalCollection },
+    autonomousCanaryDisplay: {
+      status: "COMPLETED_AND_CONTAINED", punkTokenId: "1639", account: ACCOUNT_1639,
+      collection: ART, tokenId: "9002", runtimeCodeHash: keccak256Hex(runtime),
+      transactionHash: `0x${"12".repeat(32)}`, executionMode: "AUTONOMOUS_FREE_MINT",
+      containment: "AUTONOMY_OFF_AGENT_REVOKED_ACCOUNT_PAUSED_DISABLED",
+    },
+  };
+  const display = await readBrowserPunkDisplay(provider, status, "1639");
+  assert.equal(display.canaryAsset.tokenId, "9002");
+  assert.equal(display.canaryAsset.executionMode, "AUTONOMOUS_FREE_MINT");
+  assert.equal(display.canaryAsset.owner, ACCOUNT_1639);
+});
+
 test("Punk recommendations are collapsed and token metrics avoid nested-label styling", async () => {
   const [punkHtml, brokerHtml, css, statusSource] = await Promise.all([
     readFile(new URL("../site/punk/index.html", import.meta.url), "utf8"),
@@ -136,4 +169,5 @@ test("Punk recommendations are collapsed and token metrics avoid nested-label st
   assert.match(css, /\.metric > span/);
   assert.doesNotMatch(css, /\.metric span \{/);
   assert.match(statusSource, /canaryDisplay:/);
+  assert.match(statusSource, /autonomousCanaryDisplay:/);
 });

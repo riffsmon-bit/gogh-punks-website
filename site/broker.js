@@ -382,7 +382,9 @@ function confirmedLiveAssetCard(asset) {
   card.dataset.liveCanaryAsset = `${asset.collection}:${asset.tokenId}`;
   const badge = document.createElement("span");
   badge.className = "tag";
-  badge.textContent = "CONFIRMED ONCHAIN";
+  badge.textContent = asset.executionMode === "AUTONOMOUS_FREE_MINT"
+    ? "AUTONOMOUS · CONTAINED"
+    : "CONFIRMED ONCHAIN";
   const title = document.createElement("h3");
   title.textContent = asset.name;
   const details = document.createElement("dl");
@@ -390,6 +392,9 @@ function confirmedLiveAssetCard(asset) {
     ["Standard", asset.standard],
     ["Token ID", `#${asset.tokenId}`],
     ["Held by", asset.owner],
+    ["Execution", asset.executionMode === "AUTONOMOUS_FREE_MINT"
+      ? "Separate agent · zero-value free mint"
+      : "Owner approved"],
   ]) {
     const row = document.createElement("div");
     const term = document.createElement("dt");
@@ -405,10 +410,22 @@ function confirmedLiveAssetCard(asset) {
   explorer.target = "_blank";
   explorer.rel = "noopener noreferrer";
   explorer.textContent = "View NFT on Blockscout ↗";
+  const transaction = document.createElement("a");
+  transaction.className = "opensea-attribution";
+  transaction.target = "_blank";
+  transaction.rel = "noopener noreferrer";
+  transaction.href = asset.transactionHash
+    ? `https://robinhoodchain.blockscout.com/tx/${asset.transactionHash}`
+    : explorer.href;
+  transaction.textContent = asset.transactionHash
+    ? "View acquisition transaction ↗"
+    : "View NFT transaction evidence ↗";
   const note = document.createElement("p");
   note.className = "locked-note";
-  note.textContent = "Read directly from the verified canary NFT contract while indexer materialization catches up.";
-  card.append(badge, title, details, explorer, note);
+  note.textContent = asset.executionMode === "AUTONOMOUS_FREE_MINT"
+    ? "Minted by the separately authorized agent. Autonomy is now off, the agent is revoked, and this Punk policy is paused and disabled."
+    : "Read directly from the verified canary NFT contract while indexer materialization catches up.";
+  card.append(badge, title, details, explorer, transaction, note);
   return card;
 }
 
