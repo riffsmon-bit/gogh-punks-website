@@ -506,6 +506,16 @@ function normalizePendingProposal(kind, value) {
 }
 
 function normalizeCompilerSettings(settings, label) {
+  plainObject(settings, label);
+  const allowedSettings = new Set([
+    "compilationTarget", "evmVersion", "libraries", "metadata", "optimizer", "remappings",
+    "viaIR", "outputSelection",
+  ]);
+  for (const key of Reflect.ownKeys(settings)) {
+    if (typeof key !== "string" || !allowedSettings.has(key)) {
+      fail("COMPILER_SETTINGS_MISMATCH", `${label} contains an unsupported setting`);
+    }
+  }
   requireOwn(settings, [
     "compilationTarget", "evmVersion", "libraries", "metadata", "optimizer", "remappings",
     "viaIR",
@@ -514,13 +524,38 @@ function normalizeCompilerSettings(settings, label) {
   plainObject(settings.libraries, `${label}.libraries`);
   plainObject(settings.metadata, `${label}.metadata`);
   plainObject(settings.optimizer, `${label}.optimizer`);
+  const allowedMetadata = new Set(["bytecodeHash", "appendCBOR", "useLiteralContent"]);
+  for (const key of Reflect.ownKeys(settings.metadata)) {
+    if (typeof key !== "string" || !allowedMetadata.has(key)) {
+      fail("COMPILER_SETTINGS_MISMATCH", `${label}.metadata contains an unsupported setting`);
+    }
+  }
+  exactKeys(settings.optimizer, ["enabled", "runs"], `${label}.optimizer`);
   if (!Array.isArray(settings.remappings)) fail("MISSING_EVIDENCE", `${label}.remappings is missing`);
   if (settings.evmVersion !== EVM_VERSION || settings.viaIR !== true
     || settings.optimizer.enabled !== true || settings.optimizer.runs !== OPTIMIZER_RUNS
-    || settings.metadata.bytecodeHash !== "none") {
+    || settings.metadata.bytecodeHash !== "none"
+    || (Object.hasOwn(settings.metadata, "appendCBOR")
+      && settings.metadata.appendCBOR !== true)
+    || (Object.hasOwn(settings.metadata, "useLiteralContent")
+      && settings.metadata.useLiteralContent !== false)) {
     fail("COMPILER_SETTINGS_MISMATCH", `${label} is not the canonical release configuration`);
   }
-  return strictSnapshot(settings, MAX_INPUT_BYTES, label);
+  const remappings = settings.remappings.map((value) => {
+    if (typeof value !== "string" || value.length === 0 || value.length > 2_048) {
+      fail("COMPILER_SETTINGS_MISMATCH", `${label}.remappings contains an invalid entry`);
+    }
+    return value.startsWith(":") ? value.slice(1) : value;
+  });
+  return strictSnapshot({
+    compilationTarget: settings.compilationTarget,
+    evmVersion: settings.evmVersion,
+    libraries: settings.libraries,
+    metadata: { bytecodeHash: settings.metadata.bytecodeHash },
+    optimizer: settings.optimizer,
+    remappings,
+    viaIR: settings.viaIR,
+  }, MAX_INPUT_BYTES, label);
 }
 
 function normalizeArtifact(name, artifact, pending) {
@@ -616,7 +651,7 @@ function normalizeArtifact(name, artifact, pending) {
     creationHash,
     deployedBytecode,
     settings,
-    settingsSha256: canonicalSha256(settings),
+    settingsSha256: canonicalSha256(metadata.settings),
     sourceHashes,
     sourceSetSha256: canonicalSha256(sourceHashes),
     rawMetadataSha256: sha256Text(artifact.rawMetadata),

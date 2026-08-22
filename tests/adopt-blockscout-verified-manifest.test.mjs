@@ -548,6 +548,9 @@ test("accepts Blockscout partial status only with an exact Sourcify full match",
       value.is_fully_verified = false;
       delete value.minimal_proxy_address_hash;
       delete value.compiler_settings.compilationTarget;
+      value.compiler_settings.metadata.appendCBOR = true;
+      value.compiler_settings.metadata.useLiteralContent = false;
+      value.compiler_settings.outputSelection = { "*": { "": ["*"], "*": ["*"] } };
     }
   });
   assert.equal(result.trustBindings.blockscoutPartialAcceptedOnlyWithSourcifyFullMatch, true);
