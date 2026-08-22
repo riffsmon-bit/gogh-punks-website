@@ -464,6 +464,7 @@ function buildChainState({ guardianSafe = false } = {}) {
     adapterIntervalLogs: [],
     extraPolicyIntervalLogs: [],
     extraAdapterIntervalLogs: [],
+    configurationAccountLogs: [],
     postPolicyLogs: [],
     postAdapterLogs: [],
     postAgentLogs: [],
@@ -661,6 +662,8 @@ function makeClient(state, role, calls) {
           logs = [...state.policyIntervalLogs, ...state.extraPolicyIntervalLogs];
         } else if (target === state.core.contracts.ArtAdapterRegistry.address) {
           logs = [...state.adapterIntervalLogs, ...state.extraAdapterIntervalLogs];
+        } else if (target === ACCOUNT) {
+          logs = state.configurationAccountLogs;
         } else {
           logs = [];
         }
@@ -808,6 +811,49 @@ test("dual-RPC attestation proves exact receipts, history, latest state, and EOA
   assert.equal(fixture.calls.filter((call) => call[1] === "getTransactionReceipt").length, 26);
   assert.equal(fixture.calls.filter((call) => call[1] === "simulateContract").length, 4);
   assert.ok(fixture.calls.some((call) => call[1] === "getLogs"));
+});
+
+test("owner funding is bound as native account activity without becoming an acquisition", async () => {
+  const fixture = readyFixture();
+  fixture.state.configurationAccountLogs.push(eventLog(
+    LIVE_APPROVAL_PREFLIGHT_ABIS.accountActivityEventAbi,
+    "NativeReceived",
+    { sender: OWNER, amount: 900_000_000_000_000n, state: 1n },
+    {
+      address: ACCOUNT,
+      blockHash: hash("81"),
+      blockNumber: 1_220n,
+      transactionHash: hash("82"),
+      transactionIndex: 0n,
+      logIndex: 0n,
+    },
+  ));
+  fixture.state.accountState = 1n;
+  const result = await attest(fixture);
+  assert.equal(result.status, "READ_ONLY_PASS");
+  assert.equal(result.latestExecutionCheck.nonce, "0");
+  assert.equal(result.latestExecutionCheck.exactState.acquisitionsToday, "0");
+});
+
+test("native funding from any address other than the current owner fails closed", async () => {
+  const fixture = readyFixture();
+  fixture.state.configurationAccountLogs.push(eventLog(
+    LIVE_APPROVAL_PREFLIGHT_ABIS.accountActivityEventAbi,
+    "NativeReceived",
+    { sender: RELAYER, amount: 1n, state: 1n },
+    {
+      address: ACCOUNT,
+      blockHash: hash("83"),
+      blockNumber: 1_220n,
+      transactionHash: hash("84"),
+      transactionIndex: 0n,
+      logIndex: 0n,
+    },
+  ));
+  fixture.state.accountState = 1n;
+  await assert.rejects(() => attest(fixture), (error) => (
+    error instanceof LiveApprovalPreflightError && error.code === "UNEXPECTED_ACCOUNT_ACTIVITY"
+  ));
 });
 
 test("fast-chain provider notification skew is bounded while the exact common block stays pinned", async () => {

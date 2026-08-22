@@ -350,6 +350,11 @@ const adapterMutationEventAbi = [
 ];
 
 const accountActivityEventAbi = [
+  { type: "event", name: "NativeReceived", inputs: [
+    { name: "sender", type: "address", indexed: true },
+    { name: "amount", type: "uint256", indexed: false },
+    { name: "state", type: "uint256", indexed: true },
+  ] },
   { type: "event", name: "PendingAcquisitionsCancelled", inputs: [
     { name: "owner", type: "address", indexed: true },
     { name: "previousNonce", type: "uint256", indexed: false },
@@ -375,6 +380,8 @@ const accountActivityEventAbi = [
     { name: "state", type: "uint256", indexed: false },
   ] },
 ];
+
+const MAX_REVIEWED_OWNER_FUNDING_WEI = 1_000_000_000_000_000_000n;
 
 const agentMutationEventAbi = [
   { type: "event", name: "OwnershipTransferred", inputs: [
@@ -1140,6 +1147,31 @@ async function dualLogs(label, primaryClient, secondaryClient, operation) {
   ));
 }
 
+function verifyReviewedOwnerFunding(logs, expectedOwner, cleanAccountState) {
+  let expectedState = cleanAccountState;
+  let totalAmount = 0n;
+  for (const log of logs) {
+    const decoded = decodeKnownEvent(log, accountActivityEventAbi, "Punk Account funding log");
+    if (decoded.eventName !== "NativeReceived") {
+      fail("UNEXPECTED_ACCOUNT_ACTIVITY",
+        `Punk Account emitted ${decoded.eventName} after clean preconfiguration`);
+    }
+    same(address(eventArg(decoded, "sender"), "native funding sender"), expectedOwner,
+      "UNEXPECTED_ACCOUNT_ACTIVITY", "native funding sender");
+    const amount = uint(eventArg(decoded, "amount"), "native funding amount");
+    if (amount === 0n || amount > MAX_REVIEWED_OWNER_FUNDING_WEI
+      || totalAmount + amount > MAX_REVIEWED_OWNER_FUNDING_WEI) {
+      fail("UNEXPECTED_ACCOUNT_ACTIVITY",
+        "reviewed owner funding must total more than zero and at most 1 ETH");
+    }
+    expectedState += 1n;
+    same(uint(eventArg(decoded, "state"), "native funding account state"), expectedState,
+      "ACCOUNT_ACTIVITY_MISMATCH", "native funding account state");
+    totalAmount += amount;
+  }
+  return Object.freeze({ accountState: expectedState, totalAmount });
+}
+
 function relevantPolicyLog(log, account) {
   const decoded = decodeKnownEvent(log, policyMutationEventAbi, "policy log");
   const accountArg = eventArg(decoded, "account");
@@ -1188,20 +1220,30 @@ async function verifyConfigurationHistory({
   same(new Date(Number(cleanTimestamp) * 1_000).toISOString(),
     config.evidence.evidence.preconfigurationBlock.timestamp,
     "CONFIGURATION_EVIDENCE_MISMATCH", "clean preconfiguration block timestamp");
+  const transactionRecords = await Promise.all(config.calls.map(async (_planned, index) => {
+    const transactionHash = config.evidence.evidence.transactions[index].hash;
+    const [transaction, receipt] = await Promise.all([
+      dual(`configuration transaction ${index + 1}`,
+        primaryClient, secondaryClient, (client) => client.getTransaction({ hash: transactionHash })),
+      dual(`configuration receipt ${index + 1}`,
+        primaryClient, secondaryClient,
+        async (client) => receiptConsensusView(
+          await client.getTransactionReceipt({ hash: transactionHash }),
+          `configuration receipt ${index + 1}`,
+        )),
+    ]);
+    const blockNumber = rpcUint(receipt.blockNumber, "configuration receipt block");
+    const receiptBlock = await dual(`configuration block ${index + 1}`,
+      primaryClient, secondaryClient, (client) => client.getBlock({ blockNumber }));
+    return { transactionHash, transaction, receipt, blockNumber, receiptBlock };
+  }));
   const expectedReceiptLogs = [];
   let previousPosition = null;
   for (let index = 0; index < config.calls.length; index += 1) {
     const planned = config.calls[index];
     const guardianCall = planned.role === "GUARDIAN";
-    const transactionHash = config.evidence.evidence.transactions[index].hash;
-    const transaction = await dual(`configuration transaction ${index + 1}`,
-      primaryClient, secondaryClient, (client) => client.getTransaction({ hash: transactionHash }));
-    const receipt = await dual(`configuration receipt ${index + 1}`,
-      primaryClient, secondaryClient,
-      async (client) => receiptConsensusView(
-        await client.getTransactionReceipt({ hash: transactionHash }),
-        `configuration receipt ${index + 1}`,
-      ));
+    const { transactionHash, transaction, receipt, blockNumber, receiptBlock } =
+      transactionRecords[index];
     same(bytes32(transaction.hash, "configuration transaction hash"), transactionHash,
       "CONFIGURATION_TRANSACTION_MISMATCH", `configuration transaction ${index + 1} hash`);
     const transactionFrom = address(transaction.from, "configuration sender");
@@ -1230,7 +1272,6 @@ async function verifyConfigurationHistory({
     same(address(receipt.to, "receipt destination"),
       indirectGuardianCall ? deployed.guardian : planned.to,
       "CONFIGURATION_RECEIPT_MISMATCH", `configuration receipt ${index + 1} destination`);
-    const blockNumber = rpcUint(receipt.blockNumber, "configuration receipt block");
     const transactionIndex = rpcUint(receipt.transactionIndex, "configuration receipt index");
     const blockHash = bytes32(receipt.blockHash, "configuration receipt block hash");
     same(rpcUint(transaction.blockNumber, "configuration transaction block"), blockNumber,
@@ -1247,8 +1288,6 @@ async function verifyConfigurationHistory({
       fail("CONFIGURATION_ORDER_MISMATCH", "configuration transactions are not strictly chronological");
     }
     previousPosition = { block: blockNumber, index: transactionIndex };
-    const receiptBlock = await dual(`configuration block ${index + 1}`,
-      primaryClient, secondaryClient, (client) => client.getBlock({ blockNumber }));
     same(rpcUint(receiptBlock.number, "configuration block number"), blockNumber,
       "CONFIGURATION_RECEIPT_MISMATCH", `configuration block ${index + 1} number`);
     same(bytes32(receiptBlock.hash, "configuration block hash"), blockHash,
@@ -1316,11 +1355,13 @@ async function verifyConfigurationHistory({
       fail("UNEXPECTED_EVENT", `configuration interval contains ${decoded.eventName}`);
     }
   }
-  if (accountLogs.length !== 0) {
-    for (const log of accountLogs) decodeKnownEvent(log, accountActivityEventAbi, "Punk Account activity log");
-    fail("UNEXPECTED_ACCOUNT_ACTIVITY",
-      "Punk Account emitted cancellation or acquisition activity during configuration");
-  }
+  const cleanAccountState = uint(config.clean.accountState,
+    "clean preconfiguration account state");
+  const reviewedFunding = verifyReviewedOwnerFunding(
+    accountLogs,
+    artifact.expectedOwner,
+    cleanAccountState,
+  );
   const position = (item) => [BigInt(item.blockNumber), BigInt(item.transactionIndex), BigInt(item.logIndex)];
   const sorter = (left, right) => {
     const a = position(left); const b = position(right);
@@ -1410,6 +1451,8 @@ async function verifyConfigurationHistory({
     firstBlock: preBlock + 1n,
     lastTransactionBlock: previousPosition.block,
     receiptEvidenceHash: config.evidence.evidenceHash,
+    accountState: reviewedFunding.accountState,
+    ownerFundingAmount: reviewedFunding.totalAmount,
   };
 }
 
@@ -1475,7 +1518,7 @@ async function establishLatestCommonBlock(primaryClient, secondaryClient) {
 }
 
 async function verifyLatestExecutionState({
-  primaryClient, secondaryClient, latest, artifact, deployed, config,
+  primaryClient, secondaryClient, latest, artifact, deployed, config, expectedAccountState,
 }) {
   const policy = deployed.contracts.BrokerPolicyModule.address;
   const currentOwner = await dualRead(primaryClient, secondaryClient, latest.number,
@@ -1579,7 +1622,7 @@ async function verifyLatestExecutionState({
   ], "latest adapter record");
   const accountState = await dualRead(primaryClient, secondaryClient, latest.number,
     { address: artifact.account, abi: accountAbi, functionName: "state" }, "latest account state");
-  same(accountState, uint(config.clean.accountState, "clean preconfiguration account state"),
+  same(accountState, expectedAccountState,
     "ACCOUNT_ACTIVITY_MISMATCH", "latest account state");
   const runtimeTargets = [
     [artifact.account, config.accountRuntimeCodeHash, "latest Punk Account"],
@@ -1670,14 +1713,14 @@ async function assertCode(primaryClient, secondaryClient, blockNumber, target, e
 }
 
 async function rejectProxy(primaryClient, secondaryClient, blockNumber, target, label) {
-  for (const [slotName, slot] of Object.entries(EIP1967_SLOTS)) {
+  await Promise.all(Object.entries(EIP1967_SLOTS).map(async ([slotName, slot]) => {
     const value = await dual(`${label} ${slotName} slot`, primaryClient, secondaryClient,
       (client) => client.getStorageAt({ address: target, slot, blockNumber }));
     if (typeof value !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(value)
       || value.toLowerCase() !== ZERO_WORD) {
       fail("PROXY_UNSUPPORTED", `${label} has a nonzero EIP-1967 ${slotName} slot`);
     }
-  }
+  }));
 }
 
 function requireTuple(value, expected, label) {
@@ -1774,34 +1817,44 @@ export async function attestLiveApproval({
     fail("STALE_PROPOSAL", "intent is not valid at the confirmed pinned block");
   }
 
-  for (const name of REQUIRED_CONTRACTS) {
-    await assertCode(primaryClient, secondaryClient, pinned.blockNumber,
-      deployed.contracts[name].address, deployed.contracts[name].runtimeBytecodeHash, name);
-  }
-  await assertCode(primaryClient, secondaryClient, pinned.blockNumber,
-    ROBINHOOD.canonicalERC6551Registry, deployed.canonicalRegistryRuntimeCodeHash,
-    "canonical ERC-6551 registry");
-  const accountHash = await assertCode(primaryClient, secondaryClient, pinned.blockNumber,
-    artifact.account, config.accountRuntimeCodeHash, "Punk Account");
-  const ownerCode = await dual("current owner runtime code", primaryClient, secondaryClient,
-    async (client) => (await client.getCode({
-      address: artifact.expectedOwner,
-      blockNumber: pinned.blockNumber,
-    })) ?? "0x");
+  await Promise.all([
+    ...REQUIRED_CONTRACTS.map((name) => assertCode(
+      primaryClient,
+      secondaryClient,
+      pinned.blockNumber,
+      deployed.contracts[name].address,
+      deployed.contracts[name].runtimeBytecodeHash,
+      name,
+    )),
+    assertCode(primaryClient, secondaryClient, pinned.blockNumber,
+      ROBINHOOD.canonicalERC6551Registry, deployed.canonicalRegistryRuntimeCodeHash,
+      "canonical ERC-6551 registry"),
+  ]);
+  const [accountHash, ownerCode, adapterHash, venueHash, collectionHash] = await Promise.all([
+    assertCode(primaryClient, secondaryClient, pinned.blockNumber,
+      artifact.account, config.accountRuntimeCodeHash, "Punk Account"),
+    dual("current owner runtime code", primaryClient, secondaryClient,
+      async (client) => (await client.getCode({
+        address: artifact.expectedOwner,
+        blockNumber: pinned.blockNumber,
+      })) ?? "0x"),
+    assertCode(primaryClient, secondaryClient, pinned.blockNumber,
+      artifact.adapter, artifact.proposal.intent.adapterCodeHash, "mint adapter"),
+    assertCode(primaryClient, secondaryClient, pinned.blockNumber,
+      artifact.venue, null, "mint venue"),
+    assertCode(primaryClient, secondaryClient, pinned.blockNumber,
+      artifact.collection, null, "mint collection"),
+  ]);
   if (ownerCode !== undefined && ownerCode !== null && ownerCode !== "0x") {
     fail("SMART_CONTRACT_OWNER_UNSUPPORTED",
       "owner-direct empty-signature execution requires the current Punk owner to be an EOA");
   }
-  const adapterHash = await assertCode(primaryClient, secondaryClient, pinned.blockNumber,
-    artifact.adapter, artifact.proposal.intent.adapterCodeHash, "mint adapter");
-  const venueHash = await assertCode(primaryClient, secondaryClient, pinned.blockNumber,
-    artifact.venue, null, "mint venue");
-  const collectionHash = await assertCode(primaryClient, secondaryClient, pinned.blockNumber,
-    artifact.collection, null, "mint collection");
-  for (const [target, label] of [
+  await Promise.all([
     [artifact.adapter, "mint adapter"], [artifact.venue, "mint venue"],
     [artifact.collection, "mint collection"],
-  ]) await rejectProxy(primaryClient, secondaryClient, pinned.blockNumber, target, label);
+  ].map(([target, label]) => rejectProxy(
+    primaryClient, secondaryClient, pinned.blockNumber, target, label,
+  )));
 
   const configurationHistory = await verifyConfigurationHistory({
     primaryClient,
@@ -1969,7 +2022,7 @@ export async function attestLiveApproval({
   same(nonce, EXPECTED_ACQUISITION_NONCE, "NONCE_MISMATCH", "account nonce");
   const accountState = await dualRead(primaryClient, secondaryClient, pinned.blockNumber,
     { address: artifact.account, abi: accountAbi, functionName: "state" }, "account state");
-  same(accountState, uint(config.clean.accountState, "clean preconfiguration account state"),
+  same(accountState, configurationHistory.accountState,
     "ACCOUNT_ACTIVITY_MISMATCH", "account state");
   const controls = await dualRead(primaryClient, secondaryClient, pinned.blockNumber,
     { address: policy, abi: policyAbi, functionName: "mintControls", args: [artifact.account] },
@@ -2073,6 +2126,7 @@ export async function attestLiveApproval({
     artifact,
     deployed,
     config,
+    expectedAccountState: configurationHistory.accountState,
   });
   const finalNowSeconds = clockSeconds(finalClock, "final real time");
   if (finalNowSeconds < initialNowSeconds) fail("INVALID_TIME", "real clock moved backwards");

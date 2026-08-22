@@ -30,7 +30,42 @@
           <div class="identity-copy"><p class="eyebrow">Digital curator</p><h2>Gogh Punk #<span data-punk-id>317</span></h2><p class="locked-note">Persona: not configured</p><code data-punk-account>Loading Punk Account…</code><a class="opensea-attribution" data-punk-opensea href="https://opensea.io" target="_blank" rel="noopener noreferrer nofollow" hidden>Metadata via OpenSea ↗</a></div>
         </aside>
         <div>
-          <section aria-labelledby="recommendation-title"><p class="eyebrow">Read-only curator</p><h1 id="recommendation-title">Scout Recommendations</h1><p class="lede">This page displays historical read-only recommendations for the one configured Scout Punk when data is available. The hosted worker does not currently supply confirmed owner, budget-usage, or reserve evidence to the local per-Punk mint-decision proof, so this feed does not claim that an arbitrary Punk has decided to join a mint. Nothing shown here is an executable listing or purchase instruction.</p><div class="opportunity-grid section-block" data-punk-recommendations><p class="empty-state loading">Loading Scout recommendations…</p></div></section>
+          <section aria-labelledby="owner-setup-title">
+            <p class="eyebrow">Punk #1797 owner setup</p>
+            <h1 id="owner-setup-title">Activate, fund, and run the live beta</h1>
+            <p class="lede">Your Punk Account is the agent wallet. Connect the current Punk owner on Robinhood Chain, review its address and balance, then approve one exact zero-value canary mint when a short-lived review is active.</p>
+            <article class="panel canary-review-panel section-block">
+              <div class="panel-header"><h3>Live beta checklist</h3><span class="tag">OWNER-APPROVED · AUTONOMY OFF</span></div>
+              <dl class="canary-review-grid">
+                <div><dt>1 · Connect owner</dt><dd>Use the Connect wallet button above with the current owner of Punk #1797 on chain 4663.</dd></div>
+                <div><dt>2 · Agent wallet</dt><dd><a href="https://robinhoodchain.blockscout.com/address/0x89f6C15bfbF629e9C0D2F5d56bE58A27B01446B3" target="_blank" rel="noopener noreferrer">0x89f6C15bfbF629e9C0D2F5d56bE58A27B01446B3 ↗</a></dd></div>
+                <div><dt>3 · Fund or withdraw</dt><dd>Use the owner-only account controls immediately below. Funding is optional for a zero-value mint; the owner wallet pays transaction gas.</dd></div>
+                <div><dt>4 · Test one mint</dt><dd>When the reviewed target is ready, verify every field, check the confirmation box, and open the exact transaction in your wallet.</dd></div>
+              </dl>
+              <p class="locked-note">Activation is already complete for Punk #1797. This beta does not authorize an agent key or automatic minting. The first live run remains one owner-reviewed free-mint canary.</p>
+            </article>
+          </section>
+          <section class="section-block canary-execution" data-account-funds hidden aria-labelledby="account-funds-title">
+            <div class="section-heading">
+              <div><p class="eyebrow">Owner-only Punk Account</p><h2 id="account-funds-title">Deposit or withdraw native ETH</h2></div>
+              <p>These controls are fixed to Punk #1797’s verified Punk Account. Deposits go only to that account; withdrawals go only to the live owner wallet. No arbitrary destination or calldata is accepted.</p>
+            </div>
+            <article class="panel canary-review-panel">
+              <div class="panel-header"><h3>Account funds</h3><span class="tag off" data-account-funds-state aria-live="polite">LOCKED · verified account deployment required</span></div>
+              <dl class="canary-review-grid">
+                <div><dt>Agent wallet / Punk Account</dt><dd><a href="https://robinhoodchain.blockscout.com/address/0x89f6C15bfbF629e9C0D2F5d56bE58A27B01446B3" target="_blank" rel="noopener noreferrer">0x89f6C15bfbF629e9C0D2F5d56bE58A27B01446B3 ↗</a></dd></div>
+                <div><dt>Live native balance</dt><dd data-account-balance>—</dd></div>
+              </dl>
+              <label class="artifact-file-label" for="account-funds-amount">Amount in ETH (maximum 1 ETH per request)</label>
+              <input id="account-funds-amount" class="account-funds-amount" data-account-amount inputmode="decimal" autocomplete="off" placeholder="0.001" disabled />
+              <label class="canary-confirmation"><input type="checkbox" data-account-funds-confirm /> I reviewed the exact amount. Deposit sends only to the Punk Account; withdraw sends only to my live owner wallet.</label>
+              <div class="account-funds-actions">
+                <button class="action-button" type="button" data-account-deposit disabled>Deposit to Punk Account</button>
+                <button class="action-button" type="button" data-account-withdraw disabled>Withdraw to owner wallet</button>
+              </div>
+              <p class="locked-note">Each click rechecks chain 4663, selected wallet, canonical Punk ownership, Punk Account ownership, runtime bytecode, live balance, and an exact simulation before opening one wallet transaction. These are owner actions, never autonomous agent actions.</p>
+            </article>
+          </section>
           <section class="section-block canary-execution" data-canary-execution hidden aria-labelledby="canary-execution-title">
             <div class="section-heading">
               <div><p class="eyebrow">Owner-only live canary</p><h2 id="canary-execution-title">Review one exact free mint</h2></div>
@@ -57,27 +92,7 @@
               <p class="locked-note">The page rechecks chain 4663, the selected account, live Punk ownership, Punk Account owner, nonce, policy module/version, chain time, contract code, the active review hash, and an exact <code>eth_call</code> immediately before requesting the wallet transaction. A returned transaction hash is pending—not proof of success.</p>
             </article>
           </section>
-          <section class="section-block canary-execution" data-account-funds hidden aria-labelledby="account-funds-title">
-            <div class="section-heading">
-              <div><p class="eyebrow">Owner-only Punk Account</p><h2 id="account-funds-title">Deposit or withdraw native ETH</h2></div>
-              <p>These controls are fixed to Punk #1797’s verified Punk Account. Deposits go only to that account; withdrawals go only to the live owner wallet. No arbitrary destination or calldata is accepted.</p>
-            </div>
-            <article class="panel canary-review-panel">
-              <div class="panel-header"><h3>Account funds</h3><span class="tag off" data-account-funds-state aria-live="polite">LOCKED · verified account deployment required</span></div>
-              <dl class="canary-review-grid">
-                <div><dt>Punk Account</dt><dd>0x89f6C15bfbF629e9C0D2F5d56bE58A27B01446B3</dd></div>
-                <div><dt>Live native balance</dt><dd data-account-balance>—</dd></div>
-              </dl>
-              <label class="artifact-file-label" for="account-funds-amount">Amount in ETH (maximum 1 ETH per request)</label>
-              <input id="account-funds-amount" class="account-funds-amount" data-account-amount inputmode="decimal" autocomplete="off" placeholder="0.001" disabled />
-              <label class="canary-confirmation"><input type="checkbox" data-account-funds-confirm /> I reviewed the exact amount. Deposit sends only to the Punk Account; withdraw sends only to my live owner wallet.</label>
-              <div class="account-funds-actions">
-                <button class="action-button" type="button" data-account-deposit disabled>Deposit to Punk Account</button>
-                <button class="action-button" type="button" data-account-withdraw disabled>Withdraw to owner wallet</button>
-              </div>
-              <p class="locked-note">Each click rechecks chain 4663, selected wallet, canonical Punk ownership, Punk Account ownership, runtime bytecode, live balance, and an exact simulation before opening one wallet transaction. These are owner actions, never autonomous agent actions.</p>
-            </article>
-          </section>
+          <section class="section-block" aria-labelledby="recommendation-title"><p class="eyebrow">Read-only curator</p><h2 id="recommendation-title">Scout Recommendations</h2><p class="lede">This page displays historical read-only recommendations for the one configured Scout Punk when data is available. The hosted worker does not currently supply confirmed owner, budget-usage, or reserve evidence to the local per-Punk mint-decision proof, so this feed does not claim that an arbitrary Punk has decided to join a mint. Nothing shown here is an executable listing or purchase instruction.</p><div class="opportunity-grid section-block" data-punk-recommendations><p class="empty-state loading">Loading Scout recommendations…</p></div></section>
           <section class="section-block" aria-labelledby="gallery-title"><p class="eyebrow">Persistent exhibition</p><h2 id="gallery-title">The Punk’s Gallery</h2><p class="lede">Assets held by the deterministic Punk Account may remain associated with the Punk while live control follows current NFT ownership. This gallery shows only confirmed indexed assets; an empty view does not establish the account’s deployment or deposit state.</p><div class="opportunity-grid section-block" data-gallery><p class="empty-state loading">Loading indexed acquisitions…</p></div></section>
           <section class="section-block" aria-labelledby="journal-title"><div class="section-heading"><div><p class="eyebrow">Provenance</p><h2 id="journal-title">Curator Journal</h2></div><p>Recommendations, approvals, acquisitions, policy versions, and reasoning hashes form an auditable timeline.</p></div><div class="timeline" data-decisions><p class="empty-state loading">Loading journal…</p></div></section>
           <section class="section-block" aria-labelledby="performance-title"><div class="section-heading"><div><p class="eyebrow">Curator reputation</p><h2 id="performance-title">More than price performance.</h2></div><p>Future statistics include artist diversity, style diversity, early discoveries, Taste Match, holding time, and clearly labeled valuation estimates.</p></div><div class="metric-grid"><article class="metric"><span>NFTs collected</span><strong>0</strong></article><article class="metric"><span>Unique artists</span><strong>0</strong></article><article class="metric"><span>Autonomous acquisitions</span><strong>0</strong></article><article class="metric"><span>Gallery value</span><strong>Unpriced</strong><small>Estimate only</small></article></div></section>
