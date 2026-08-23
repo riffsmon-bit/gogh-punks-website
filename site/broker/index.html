@@ -14,6 +14,7 @@
     <script src="/account-activation.js" type="module"></script>
     <script src="/owner-accounts.js" type="module"></script>
     <script src="/owner-policy-controls.js" type="module"></script>
+    <script src="/autonomous-minting.js" type="module"></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to Art Broker</a>
@@ -49,7 +50,8 @@
         <a href="#activation-title"><span>2</span> Activate wallet</a>
         <a href="#mandate-title"><span>3</span> Set preferences</a>
         <a href="#policy-controls-title"><span>4</span> Limits &amp; funds</a>
-        <a href="#results-title"><span>5</span> View results</a>
+        <a href="#automation-title"><span>5</span> Start automation</a>
+        <a href="#results-title"><span>6</span> View results</a>
       </nav>
 
       <details class="getting-started-guide">
@@ -60,7 +62,7 @@
           <article><span>03</span><h3>Keep a little gas available</h3><p>Activation and on-chain settings require network gas. Saving an Art Mandate uses a free message signature. The interface tells you which is which.</p></article>
           <article><span>04</span><h3>Limits stay enforceable</h3><p>Daily mint caps, reviewed adapters, collection permissions, prices, reserves, agent authorization, pause, and revocation are checked on-chain—not trusted to website copy.</p></article>
           <article><span>05</span><h3>Approve setup, not every mint</h3><p>After one bounded on-chain setup, the encrypted agent can collect from the approved target set without another wallet popup for each mint. It stops at its cap, expiry, reserve, pause, or revocation.</p></article>
-          <article><span>06</span><h3>New targets require review</h3><p>The current contracts never grant an agent permission to mint from an unknown collection. Each new target must pass review and receive its own bound adapter and permissions before it enters an unattended queue.</p></article>
+          <article><span>06</span><h3>Every target is screened twice</h3><p>The continuous V2 route does not require a wallet prompt per mint. The worker screens each candidate, then the on-chain adapter independently accepts only an active zero-price SeaDrop mint from the pinned canonical clone runtime. Paid mints, approvals, arbitrary calldata, and selling stay impossible.</p></article>
         </div>
       </details>
 
@@ -239,8 +241,35 @@
           </div>
         </details>
 
+        <details class="workflow-step collapsible-section" id="automation-title" data-autonomous-minting open>
+          <summary><span><span class="workflow-number">5</span><strong>Continuous free-mint automation</strong></span><small>Separate V2 wallet · bounded and revocable</small></summary>
+          <div class="collapsible-content">
+            <p class="workflow-help">This is the one-time setup for continuous zero-price SeaDrop collection. Choose a Punk, set a hard daily cap, and authorize the hosted agent for a limited period. After setup, eligible mints do not require another wallet popup. The agent pays transaction gas; the Punk Account receives each NFT.</p>
+            <div class="metric-grid policy-live-grid">
+              <article class="metric"><span>V2 readiness</span><strong data-v2-status>CHECKING</strong><small>Deployment, source, guardian, and worker gates</small></article>
+              <article class="metric"><span>Selected Punk</span><strong data-v2-punk>Choose a Punk</strong><small>Must be live-owned by the connected wallet</small></article>
+              <article class="metric"><span>Automation wallet</span><strong data-v2-account>Checking V2 deployment</strong><small>Separate from the existing V1 curator wallet</small></article>
+              <article class="metric"><span>Per-mint payment</span><strong>0 ETH</strong><small>Gas only · paid mints remain blocked</small></article>
+            </div>
+            <div class="layout-two owner-control-layout">
+              <article class="panel">
+                <div class="panel-header"><h3>One-time owner setup</h3><span class="tag off">NOT LIVE YET</span></div>
+                <label class="mandate-field"><span>Hard daily maximum</span><select disabled><option>1 free mint per UTC day</option><option>3 free mints per UTC day</option><option>5 free mints per UTC day</option><option>10 free mints per UTC day</option></select></label>
+                <label class="mandate-field"><span>Agent authorization</span><select disabled><option>7 days</option><option>14 days</option><option>30 days maximum</option></select></label>
+                <button class="action-button" type="button" data-v2-setup disabled>Review one-time setup in wallet</button>
+                <p class="locked-note">This button unlocks only after the separate V2 contracts are deployed, fully verified, configured by the guardian, and checked against live chain state. Saving an Art Mandate alone never starts it.</p>
+              </article>
+              <article class="panel">
+                <div class="panel-header"><h3>What it may do</h3><span class="tag">FIXED SAFETY ENVELOPE</span></div>
+                <ul class="plain-safety-list"><li>Canonical OpenSea SeaDrop clone only</li><li>Active public drop with mint price exactly 0</li><li>One ERC-721 per transaction</li><li>No token approvals or arbitrary calldata</li><li>Stops at daily cap, expiry, low gas, pause, or revocation</li></ul>
+                <button class="action-button danger-action" type="button" data-v2-stop disabled>Stop and revoke automation</button>
+              </article>
+            </div>
+          </div>
+        </details>
+
         <details class="workflow-step collapsible-section public-scout-step" id="results-title">
-          <summary><span><span class="workflow-number">5</span><strong>Research and mint results</strong></span><small>Public read-only activity</small></summary>
+          <summary><span><span class="workflow-number">6</span><strong>Research and mint results</strong></span><small>Public read-only activity</small></summary>
           <div class="collapsible-content">
             <p class="workflow-help">Review what Scout found and what each Punk actually collected. This public data is separate from connected-wallet ownership and never selects a Punk for you.</p>
             <div class="workspace-actions" aria-label="Research and results links">

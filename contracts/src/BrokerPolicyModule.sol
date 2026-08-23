@@ -89,26 +89,26 @@ contract BrokerPolicyModule is Ownable2Step {
     GoghBrokerTypes.FeatureFlags private _features;
     bool public globallyPaused;
 
-    mapping(address account => PolicyState state_) private _policies;
-    mapping(address account => mapping(address adapter => PermissionState permission)) private
+    mapping(address account => PolicyState state_) internal _policies;
+    mapping(address account => mapping(address adapter => PermissionState permission)) internal
         _adapterPermissions;
-    mapping(address account => mapping(address venue => PermissionState permission)) private
+    mapping(address account => mapping(address venue => PermissionState permission)) internal
         _marketplacePermissions;
-    mapping(address account => mapping(address mintContract => PermissionState permission)) private
+    mapping(address account => mapping(address mintContract => PermissionState permission)) internal
         _mintContractPermissions;
-    mapping(address account => mapping(address collection => PermissionState permission)) private
+    mapping(address account => mapping(address collection => PermissionState permission)) internal
         _collectionPermissions;
-    mapping(address account => mapping(address currency => CurrencyPolicyState policy)) private
+    mapping(address account => mapping(address currency => CurrencyPolicyState policy)) internal
         _currencyPolicies;
     mapping(
         address account
             => mapping(address venue => mapping(address currency => VenueLimitState limit))
-    ) private _venueCurrencyMaximums;
-    mapping(address account => mapping(bytes4 selector => PermissionState permission)) private
+    ) internal _venueCurrencyMaximums;
+    mapping(address account => mapping(bytes4 selector => PermissionState permission)) internal
         _selectorPermissions;
     mapping(address account => mapping(address currency => Usage usage_)) private _usage;
     mapping(address account => AcquisitionUsage usage_) private _acquisitionUsage;
-    mapping(address account => MintControlState controls) private _mintControls;
+    mapping(address account => MintControlState controls) internal _mintControls;
 
     error ZeroAddress();
     error InvalidContract(address target);
@@ -507,9 +507,7 @@ contract BrokerPolicyModule is Ownable2Step {
                 intent.adapter, expectedKind, intent.venue, intent.adapterCodeHash
             )) revert AdapterNotAllowed(intent.adapter);
         _validateVenue(msg.sender, intent.venue, expectedKind);
-        _validateCollection(
-            msg.sender, intent.collection, expectedKind, ownerApproved, current.config
-        );
+        _validateCollection(intent, expectedKind, ownerApproved, current.config);
         _validateExecution(intent, execution);
         _validateMintControls(msg.sender, intent, execution.paymentAmount, ownerApproved);
 
@@ -661,17 +659,19 @@ contract BrokerPolicyModule is Ownable2Step {
     }
 
     function _validateCollection(
-        address account,
-        address collection,
+        GoghBrokerTypes.AcquisitionIntent calldata intent,
         GoghBrokerTypes.AdapterKind kind,
         bool ownerApproved,
         GoghBrokerTypes.PolicyConfig storage config
-    ) private view {
+    ) internal view virtual {
+        address account = intent.account;
+        address collection = intent.collection;
         PermissionState storage collectionPermission = _collectionPermissions[account][collection];
         if (_permissionDenied(account, collectionPermission)) {
             revert CollectionDenied(collection);
         }
         if (_permissionAllowed(account, collectionPermission)) return;
+        if (_allowAutomatedMintCollection(intent, kind, ownerApproved, config)) return;
         // Every typed mint needs an explicit collection approval. Unknown mints remain Scoutable
         // and available through the unrestricted owner path, but never through broker execution.
         if (kind == GoghBrokerTypes.AdapterKind.MINT) {
@@ -683,6 +683,17 @@ contract BrokerPolicyModule is Ownable2Step {
         if (!ownerApproved && !_features.unknownCollectionExecution) {
             revert FeatureDisabled("UNKNOWN_COLLECTION_EXECUTION");
         }
+    }
+
+    /// @dev V1 always returns false. A later implementation may admit a collection only through
+    ///      a stricter registered adapter while preserving explicit deny precedence above.
+    function _allowAutomatedMintCollection(
+        GoghBrokerTypes.AcquisitionIntent calldata,
+        GoghBrokerTypes.AdapterKind,
+        bool,
+        GoghBrokerTypes.PolicyConfig storage
+    ) internal view virtual returns (bool) {
+        return false;
     }
 
     function _validateMintControls(
@@ -845,7 +856,7 @@ contract BrokerPolicyModule is Ownable2Step {
         }
     }
 
-    function _requireCurrentOwner(address account) private view returns (address currentOwner) {
+    function _requireCurrentOwner(address account) internal view returns (address currentOwner) {
         if (account == address(0) || account.code.length == 0 || !_isCanonicalAccount(account)) {
             revert InvalidAccount(account);
         }

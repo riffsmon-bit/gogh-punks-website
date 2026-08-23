@@ -72,7 +72,7 @@ contract GoghPunkAccountRegistry {
     }
 
     function implementationForVersion(uint256 version) external view returns (address) {
-        if (version != IMPLEMENTATION_VERSION) revert InvalidConfiguration();
+        if (version != _implementationVersion()) revert InvalidConfiguration();
         return implementation;
     }
 
@@ -101,7 +101,7 @@ contract GoghPunkAccountRegistry {
             tokenId,
             currentOwner,
             implementation,
-            IMPLEMENTATION_VERSION
+            _implementationVersion()
         );
     }
 
@@ -135,5 +135,9 @@ contract GoghPunkAccountRegistry {
             implementation_ != implementation || salt_ != accountSalt
                 || chainId_ != ROBINHOOD_CHAIN_ID || collection_ != GOGH_PUNKS
         ) revert InvalidConfiguration();
+    }
+
+    function _implementationVersion() internal pure virtual returns (uint256) {
+        return IMPLEMENTATION_VERSION;
     }
 }

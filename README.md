@@ -168,7 +168,7 @@ floods the channel with historical sales.
 
 The deployment script is simulation-only unless a human explicitly adds Foundry's `--broadcast` flag. Production deployment requires an independent audit, verified marketplace adapters, separated multisig/agent roles, a completed address manifest, and explicit authorization.
 
-See [architecture](docs/ART_BROKER_ARCHITECTURE.md), [threat model](docs/THREAT_MODEL.md), [curator reputation](docs/CURATOR_REPUTATION.md), [notifications](docs/NOTIFICATIONS.md), [gas estimates](docs/GAS_ESTIMATES.md), [deployment](docs/DEPLOYMENT.md), and [canary plan](docs/CANARY.md).
+See [architecture](docs/ART_BROKER_ARCHITECTURE.md), [threat model](docs/THREAT_MODEL.md), [continuous zero-price SeaDrop automation V2](docs/AUTOMATED_SEADROP_V2.md), [curator reputation](docs/CURATOR_REPUTATION.md), [notifications](docs/NOTIFICATIONS.md), [gas estimates](docs/GAS_ESTIMATES.md), [deployment](docs/DEPLOYMENT.md), and [canary plan](docs/CANARY.md).
 
 ## Legacy GTD functions
 

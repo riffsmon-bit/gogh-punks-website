@@ -1,0 +1,37 @@
+{
+  "schema": "GOGH_AUTOMATED_SEADROP_V2_DEPLOYMENT_MANIFEST",
+  "version": 1,
+  "status": "NOT_DEPLOYED",
+  "chainId": 4663,
+  "sourceVerificationAdoption": null,
+  "contracts": {
+    "AutomatedSeaDropFreeMintAdapter": null,
+    "BrokerPolicyModuleV2": null,
+    "GoghPunkAccountV2": null,
+    "GoghPunkAccountRegistryV2": null
+  },
+  "reusedContracts": {
+    "ArtAdapterRegistry": "0x421D51709Fe21736a35fFa2a86B157Df1b030EE2",
+    "ArtAgentRegistry": "0xbffbccd20E796e0f3E745B274De60EF17a485Dde"
+  },
+  "infrastructure": {
+    "seaDrop": "0x00005EA00Ac477B1030CE78506496e8C2dE24bf5",
+    "seaDropRuntimeCodeHash": "0x53e4b9339cf624803c9a7d0195576cca5b917920813508d86b3eb93dcbabeb5c",
+    "cloneImplementation": "0x09a26fC8FCEF18192E267D7A6da9dFb4be81Dd6A",
+    "cloneImplementationRuntimeCodeHash": "0xda60742d810ae5de9c087af2e82b05fb84e9112cfade927fca0db6490ea52519",
+    "collectionRuntimeCodeHash": "0xe3e252831cdd0c11e1327d04a57ddd9bfa11ef49d50edb524040d98bfb228bc4"
+  },
+  "configuration": {
+    "adapterRegistered": false,
+    "featureFlagsEnabled": false,
+    "globalAgentApproved": false,
+    "workerEnabled": false
+  },
+  "authorization": {
+    "deploymentAuthorized": false,
+    "configurationAuthorized": false,
+    "agentAuthorizationGranted": false,
+    "automaticSubmissionEnabled": false
+  },
+  "notes": "Historical NOT_DEPLOYED template. Continuous automation remains unavailable until a separately reviewed deployment, source-verification adoption, guardian configuration, worker key boundary, and live receipt evidence are installed."
+}

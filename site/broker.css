@@ -486,6 +486,8 @@ h3 { font-size: 1.45rem; }
 .opensea-attribution:focus-visible { text-decoration: underline; }
 .opensea-attribution[hidden] { display: none; }
 .empty-state { grid-column: 1 / -1; padding: 38px; border: 1px dashed var(--line); color: var(--muted); text-align: center; }
+.plain-safety-list { margin: 18px 0 24px; padding-left: 20px; color: var(--muted); line-height: 1.75; }
+.plain-safety-list li::marker { color: var(--aqua); }
 .gallery-shell { display: grid; grid-template-columns: 310px minmax(0, 1fr); gap: 28px; }
 .punk-identity { position: sticky; top: 94px; align-self: start; }
 .punk-portrait { width: 100%; aspect-ratio: 1; object-fit: cover; image-rendering: pixelated; border: 1px solid var(--line); }
