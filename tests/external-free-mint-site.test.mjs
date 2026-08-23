@@ -29,7 +29,7 @@ test("external free-mint site status accepts only bounded non-executable evidenc
   assert.equal(normalizeExternalFreeMintStatus({ externalFreeMintTest: candidate }).candidate.name, "Test");
   for (const mutate of [
     (value) => { value.executionEnabled = true; },
-    (value) => { value.punkTokenId = "1797"; },
+    (value) => { value.punkTokenId = "10000"; },
     (value) => { value.candidate.mintPriceWei = "1"; },
     (value) => { value.candidate.quantity = "2"; },
     (value) => { value.controls.tokenApprovalsAllowed = true; },
@@ -51,6 +51,8 @@ test("Punk page loads the separate external-mint module and displays contained e
   assert.match(html, /data-external-free-mint-test/);
   assert.match(html, /site does not hold the agent key/i);
   assert.match(source, /executionEnabled.*!== true/s);
+  assert.doesNotMatch(source, /EXPECTED_PUNK/);
+  assert.match(source, /routeToken !== normalized\.status\.punkTokenId/);
   assert.match(status, /COMPLETED_AND_CONTAINED/);
   assert.match(evidence, /36c6cc619a3a3a2d634627e02f8ad233eda9180a9fe04724845b2dcbf7a1d833/);
   assert.match(evidence, /ccb0c093d1c37736b13c553fa9ff10482e41cdd851952da529099a66fbd7eeed/);

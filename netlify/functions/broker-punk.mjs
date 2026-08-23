@@ -203,13 +203,11 @@ export default async function handler(request) {
         [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, tokenId],
       ),
       readLivePunkState(tokenId).catch((error) => {
-        console.error(JSON.stringify({
-          event: "BROKER_PUNK_LIVE_READ_FAILED",
-          type: error?.name ?? "Error",
-          code: error?.code ?? null,
-          functionName: error?.functionName ?? error?.cause?.functionName ?? null,
-          contractAddress: error?.contractAddress ?? error?.cause?.contractAddress ?? null,
-        }));
+        const type = String(error?.name ?? "Error").replace(/[^A-Za-z0-9_]/g, "");
+        const code = String(error?.code ?? "NONE").replace(/[^A-Za-z0-9_-]/g, "");
+        const functionName = String(error?.functionName ?? error?.cause?.functionName ?? "NONE")
+          .replace(/[^A-Za-z0-9_]/g, "");
+        console.error(`BROKER_PUNK_LIVE_READ_FAILED type=${type} code=${code} function=${functionName}`);
         return null;
       }),
     ]);

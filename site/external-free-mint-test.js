@@ -1,6 +1,6 @@
 const EXPECTED_SCHEMA = "GOGH_EXTERNAL_FREE_MINT_SITE_STATUS_V1";
-const EXPECTED_PUNK = "1639";
 const ADDRESS = /^0x[0-9a-f]{40}$/;
+const PUNK_TOKEN_ID = /^(0|[1-9]\d{0,3})$/;
 
 function own(record, key) {
   return record && Object.hasOwn(record, key) ? record[key] : undefined;
@@ -33,7 +33,7 @@ export function normalizeExternalFreeMintStatus(payload) {
   const result = own(status, "result");
   if (
     own(status, "schema") !== EXPECTED_SCHEMA
-    || own(status, "punkTokenId") !== EXPECTED_PUNK
+    || !PUNK_TOKEN_ID.test(own(status, "punkTokenId"))
     || own(status, "executionEnabled") !== false
     || !ADDRESS.test(own(status, "account"))
     || !ADDRESS.test(own(status, "agent"))
@@ -121,15 +121,16 @@ async function boot() {
   const root = document.querySelector("[data-external-free-mint-test]");
   if (!root) return;
   const routeToken = location.pathname.match(/^\/punk\/(\d+)\/?$/)?.[1];
-  if (routeToken !== EXPECTED_PUNK) return;
-  root.hidden = false;
   try {
     const response = await fetch("/api/broker/status", {
       cache: "no-store",
       headers: { accept: "application/json" },
     });
     if (!response.ok) throw new Error("STATUS_UNAVAILABLE");
-    renderExternalFreeMintStatus(root, normalizeExternalFreeMintStatus(await response.json()));
+    const normalized = normalizeExternalFreeMintStatus(await response.json());
+    if (routeToken !== normalized.status.punkTokenId) return;
+    root.hidden = false;
+    renderExternalFreeMintStatus(root, normalized);
   } catch {
     text(root.querySelector("[data-external-mint-state]"), "LOCKED · status unavailable");
     text(root.querySelector("[data-external-mint-warning]"), "The reviewed external-mint state could not be verified. No execution is available.");
