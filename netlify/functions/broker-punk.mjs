@@ -27,6 +27,34 @@ const CANARY_ART_ABI = parseAbi([
   "function ownerOf(uint256 tokenId) view returns (address)",
 ]);
 
+export function externalFreeMintJournalEntries(tokenId) {
+  return COMPLETED_EXTERNAL_FREE_MINTS
+    .filter((item) => item.punkTokenId === String(tokenId)
+      && item.status === "COMPLETED_AND_CONTAINED"
+      && item.result?.transactionHash)
+    .map((item) => Object.freeze({
+      id: `external-free-mint:${item.result.transactionHash}`,
+      event_type: "AUTONOMOUS_FREE_MINT_COMPLETED_AND_CONTAINED",
+      occurred_at: item.result.completedAt,
+      title: `${item.candidate.name} #${item.result.tokenId} collected`,
+      summary: `The authorized agent minted one ERC-721 for 0 ETH through the target-bound SeaDrop adapter. The asset is held by Punk #${item.punkTokenId}'s account and execution permissions were contained after the run.`,
+      source: "CONFIRMED_ONCHAIN_EXTERNAL_FREE_MINT",
+      transaction_hash: item.result.transactionHash,
+      transaction_url: `${ROBINHOOD.explorerUrl}/tx/${item.result.transactionHash}`,
+      collection_address: item.candidate.collection,
+      nft_token_id: item.result.tokenId,
+      agent_address: item.agent,
+      adapter_address: item.adapter,
+      policy_version: item.result.executionPolicyVersion ?? null,
+      acquisition_nonce: item.result.executionNonce ?? null,
+      acquisitions_today_after: item.result.acquisitionsTodayAfter ?? null,
+      gas_used: item.result.gasUsed ?? null,
+      effective_gas_price_wei: item.result.effectiveGasPriceWei ?? null,
+      transaction_gas_cost_wei: item.result.transactionGasCostWei ?? null,
+      containment: item.result.containment,
+    }));
+}
+
 function liveClient() {
   const rpcUrl = getRpcUrl();
   const chain = defineChain({
@@ -213,6 +241,16 @@ export default async function handler(request) {
     ]);
     const rawPunk = punkResult.rows[0] ?? null;
     const punk = attachNftDisplayMetadata(rawPunk);
+    const externalJournal = externalFreeMintJournalEntries(tokenId);
+    const decisionsByIdentity = new Map();
+    for (const decision of [...externalJournal, ...decisionResult.rows]) {
+      const identity = decision.transaction_hash
+        ? `transaction:${String(decision.transaction_hash).toLowerCase()}`
+        : `row:${decision.id ?? `${decision.event_type ?? "UNKNOWN"}:${decision.occurred_at ?? ""}`}`;
+      if (!decisionsByIdentity.has(identity)) decisionsByIdentity.set(identity, decision);
+    }
+    const decisions = [...decisionsByIdentity.values()]
+      .sort((left, right) => String(right.occurred_at ?? "").localeCompare(String(left.occurred_at ?? "")));
     return json({
       ok: true,
       identity: {
@@ -224,7 +262,7 @@ export default async function handler(request) {
       punk,
       acquisitions: acquisitionResult.rows.map(attachNftDisplayMetadata),
       recommendations: recommendationResult.rows.map(attachNftDisplayMetadata),
-      decisions: decisionResult.rows,
+      decisions,
       liveState,
       managementEnabled: false,
     });
@@ -241,7 +279,7 @@ export default async function handler(request) {
         punk: null,
         acquisitions: [],
         recommendations: [],
-        decisions: [],
+        decisions: externalFreeMintJournalEntries(tokenId),
         liveState: null,
         managementEnabled: false,
         dataStatus: "INDEXER_NOT_READY",

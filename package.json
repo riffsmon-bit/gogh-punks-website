@@ -5,6 +5,7 @@
   "description": "Official public website for the Gogh Punks collection",
   "type": "module",
   "scripts": {
+    "broker:autonomy:plan": "node scripts/build-reviewed-free-mint-run-plan.mjs",
     "check": "npm run site:check && npm run contracts:check",
     "code:check": "node scripts/code-check.mjs",
     "contracts:build": "forge build --offline && forge build --offline --sizes contracts/src",

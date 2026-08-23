@@ -220,7 +220,7 @@ async function loadStatus() {
       target.textContent = deployed
         ? autonomous
           ? "Contracts are live and autonomous execution is enabled. Every action still passes current on-chain policy."
-          : "Contracts and Punk Accounts are live. Continuous automation is off after the completed, contained canary. Activation and preference saving do not start minting."
+          : "Contracts and Punk Accounts are live. Automated collection is currently paused. Activation and saved preferences remain available while execution permissions stay off."
         : "Execution is not live. Public Scout data may still be available for read-only browsing.";
     });
     document.querySelectorAll("[data-scout-token-id]").forEach((target) => {
@@ -384,7 +384,7 @@ async function loadOpportunities() {
     const payload = await response.json();
     grid.replaceChildren();
     if (!payload.ok || !payload.opportunities?.length) {
-      grid.innerHTML = '<p class="empty-state">The Scout index is staged but has not published any Robinhood discoveries yet.</p>';
+      grid.innerHTML = '<p class="empty-state">Scout has not published any Robinhood discoveries yet.</p>';
       return;
     }
     payload.opportunities.forEach((opportunity) => grid.append(opportunityCard(opportunity)));
@@ -564,9 +564,46 @@ async function loadPunk() {
         item.className = "timeline-item";
         const time = document.createElement("time");
         time.textContent = decision.occurred_at ?? "Pending";
+        if (decision.title) {
+          const title = document.createElement("h3");
+          title.textContent = decision.title;
+          item.append(time, title);
+        } else {
+          item.append(time);
+        }
         const description = document.createElement("p");
-        description.textContent = decision.event_type ?? "SCOUT";
-        item.append(time, description);
+        description.textContent = decision.summary ?? decision.event_type ?? "SCOUT";
+        item.append(description);
+        const evidence = [
+          ["Event", decision.event_type],
+          ["Token", decision.nft_token_id ? `#${decision.nft_token_id}` : null],
+          ["Policy", decision.policy_version],
+          ["Nonce", decision.acquisition_nonce],
+          ["Gas used", decision.gas_used],
+        ].filter((entry) => entry[1] !== null && entry[1] !== undefined);
+        if (evidence.length) {
+          const list = document.createElement("dl");
+          list.className = "journal-evidence";
+          evidence.forEach(([label, value]) => {
+            const row = document.createElement("div");
+            const term = document.createElement("dt");
+            const detail = document.createElement("dd");
+            term.textContent = label;
+            detail.textContent = String(value);
+            row.append(term, detail);
+            list.append(row);
+          });
+          item.append(list);
+        }
+        if (typeof decision.transaction_url === "string") {
+          const link = document.createElement("a");
+          link.className = "opensea-attribution";
+          link.href = decision.transaction_url;
+          link.target = "_blank";
+          link.rel = "noopener noreferrer";
+          link.textContent = "View transaction ↗";
+          item.append(link);
+        }
         timeline.append(item);
       });
     }

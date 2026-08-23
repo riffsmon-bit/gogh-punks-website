@@ -33,24 +33,24 @@
         </aside>
         <div>
           <section aria-labelledby="owner-setup-title">
-            <p class="eyebrow">Punk #1797 owner setup</p>
-            <h1 id="owner-setup-title">Activate, fund, and run the live beta</h1>
-            <p class="lede">Your Punk Account is the agent wallet. Connect the current Punk owner on Robinhood Chain, review its address and balance, then approve one exact zero-value canary mint when a short-lived review is active.</p>
+            <p class="eyebrow">Punk Account workspace</p>
+            <h1 id="owner-setup-title">Fund, manage, and follow your curator.</h1>
+            <p class="lede">The Punk Account is the agent wallet. Connect the current holder on Robinhood Chain to view its address, manage its native balance, review activity, and use any execution action that is currently available for this Punk.</p>
             <article class="panel canary-review-panel section-block">
-              <div class="panel-header"><h3>Live beta checklist</h3><span class="tag">OWNER-APPROVED · AUTONOMY OFF</span></div>
+              <div class="panel-header"><h3>Punk Account checklist</h3><span class="tag">LIVE ON-CHAIN CONTROLS</span></div>
               <dl class="canary-review-grid">
-                <div><dt>1 · Connect owner</dt><dd>Use the Connect wallet button above with the current owner of Punk #1797 on chain 4663.</dd></div>
-                <div><dt>2 · Agent wallet</dt><dd><a href="https://robinhoodchain.blockscout.com/address/0x89f6C15bfbF629e9C0D2F5d56bE58A27B01446B3" target="_blank" rel="noopener noreferrer">0x89f6C15bfbF629e9C0D2F5d56bE58A27B01446B3 ↗</a></dd></div>
-                <div><dt>3 · Fund or withdraw</dt><dd>Use the owner-only account controls immediately below. Funding is optional for a zero-value mint; the owner wallet pays transaction gas.</dd></div>
-                <div><dt>4 · Test one mint</dt><dd>When the reviewed target is ready, verify every field, check the confirmation box, and open the exact transaction in your wallet.</dd></div>
+                <div><dt>1 · Connect holder</dt><dd>Connect the wallet that currently owns this Punk on Robinhood Chain.</dd></div>
+                <div><dt>2 · Verify agent wallet</dt><dd>The permanent Punk Account address and live status appear beside the Punk portrait.</dd></div>
+                <div><dt>3 · Manage gas funds</dt><dd>Deposit native ETH to the Punk Account or return it to the current holder using the fixed controls below.</dd></div>
+                <div><dt>4 · Follow activity</dt><dd>Review discoveries, completed acquisitions, transaction evidence, gallery assets, and containment status.</dd></div>
               </dl>
-              <p class="locked-note">Activation is already complete for Punk #1797. This beta does not authorize an agent key or automatic minting. The first live run remains one owner-reviewed free-mint canary.</p>
+              <p class="locked-note">Agent authorization, target permissions, spending limits, and automation are governed separately from account activation. The current on-chain status determines which actions are available.</p>
             </article>
           </section>
           <section class="section-block canary-execution" data-account-funds hidden aria-labelledby="account-funds-title">
             <div class="section-heading">
-              <div><p class="eyebrow">Owner-only Punk Account</p><h2 id="account-funds-title">Deposit or withdraw native ETH</h2></div>
-              <p>These controls are fixed to Punk #1797’s verified Punk Account. Deposits go only to that account; withdrawals go only to the live owner wallet. No arbitrary destination or calldata is accepted.</p>
+              <div><p class="eyebrow">Punk Account funds</p><h2 id="account-funds-title">Deposit or withdraw native ETH</h2></div>
+              <p>Deposits go only to this verified Punk Account. Withdrawals return only to the wallet that currently holds the Punk. No arbitrary destination or calldata is accepted.</p>
             </div>
             <article class="panel canary-review-panel">
               <div class="panel-header"><h3>Account funds</h3><span class="tag off" data-account-funds-state aria-live="polite">LOCKED · verified account deployment required</span></div>
@@ -65,12 +65,12 @@
                 <button class="action-button" type="button" data-account-deposit disabled>Deposit to Punk Account</button>
                 <button class="action-button" type="button" data-account-withdraw disabled>Withdraw to owner wallet</button>
               </div>
-              <p class="locked-note">Each click rechecks chain 4663, selected wallet, canonical Punk ownership, Punk Account ownership, runtime bytecode, live balance, and an exact simulation before opening one wallet transaction. These are owner actions, never autonomous agent actions.</p>
+              <p class="locked-note">Each click rechecks chain 4663, the connected wallet, current Punk ownership, Punk Account ownership, runtime bytecode, live balance, and an exact simulation before opening one wallet transaction. These account funding controls are never autonomous agent actions.</p>
             </article>
           </section>
           <section class="section-block canary-execution" data-canary-execution hidden aria-labelledby="canary-execution-title">
             <div class="section-heading">
-              <div><p class="eyebrow">Owner-only live canary</p><h2 id="canary-execution-title">Review one exact free mint</h2></div>
+              <div><p class="eyebrow">Direct acquisition review</p><h2 id="canary-execution-title">Review one exact free mint</h2></div>
               <p>The reviewed NFT mints into Punk #1797’s Punk Account. The mint value is exactly zero; your owner wallet still pays network gas. This panel never accepts a target, amount, price, or calldata typed into the page.</p>
             </div>
             <article class="panel canary-review-panel">
@@ -96,8 +96,8 @@
           </section>
           <section class="section-block canary-execution" data-external-free-mint-test hidden aria-labelledby="external-free-mint-title">
             <div class="section-heading">
-              <div><p class="eyebrow">Production-style agent test</p><h2 id="external-free-mint-title">One bounded external free mint</h2></div>
-              <p>This panel follows the latest completed Punk live test. Scout evidence is displayed first; the owner mandate, target-specific adapter, agent authorization, and on-chain safety state must all agree before one short-lived execution can be armed.</p>
+              <div><p class="eyebrow">Autonomous acquisition record</p><h2 id="external-free-mint-title">Bounded external free mint</h2></div>
+              <p>This panel follows the latest completed Punk acquisition. Scout evidence, the Art Mandate, target-specific adapter, agent authorization, and on-chain safety state must all agree before execution.</p>
             </div>
             <article class="panel canary-review-panel">
               <div class="panel-header"><h3 data-external-mint-name>External candidate</h3><span class="tag off" data-external-mint-state aria-live="polite">LOCKED · loading reviewed state</span></div>
@@ -120,7 +120,7 @@
                 <a class="action-button" data-external-mint-transaction href="https://robinhoodchain.blockscout.com" target="_blank" rel="noopener noreferrer" hidden>View mint transaction ↗</a>
                 <button class="action-button" type="button" data-external-mint-run disabled>Arm one exact agent mint</button>
               </div>
-              <p class="locked-note">The site does not hold the agent key. The final transaction is sent by the locally encrypted agent runner only after the owner and guardian steps are complete. This test never enables paid mints, approvals, arbitrary calldata, generic targets, selling, or more than one external mint.</p>
+              <p class="locked-note">The site does not hold the agent key. Agent transactions use an encrypted runner and reviewed on-chain permissions. This route does not enable paid mints, token approvals, arbitrary calldata, generic targets, or selling.</p>
             </article>
           </section>
           <details class="section-block collapsible-section" aria-labelledby="recommendation-title">

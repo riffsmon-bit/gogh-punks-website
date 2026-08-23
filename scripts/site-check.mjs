@@ -67,12 +67,12 @@ for (const required of [
   "5,016",
   "maxSupply() equals the historical mint count",
   "Trade on OpenSea",
-  "Coming next · The Art Broker",
+  "Live on Robinhood Chain · The Art Broker",
   "Punk Account",
   "Art Scout",
   "Living Gallery",
   "Art Mandate",
-  "transaction features remain",
+  "spending limits, pause, and recovery remain separate controls",
 ]) {
   if (!index.includes(required)) fail(`home page is missing required value ${required}`);
 }

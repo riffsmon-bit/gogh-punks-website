@@ -195,7 +195,7 @@ export function setupMandateEditor({ windowObject, documentObject, fetchFunction
     event.preventDefault();
     if (!ownerReady() || pending) return;
     pending = true;
-    render("Preparing an owner-only preference signature…", "pending");
+    render("Preparing a current-holder preference signature…", "pending");
     const expectedAccount = wallet.account.toLowerCase();
     const expectedTokenId = selectedTokenId;
     try {

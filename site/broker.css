@@ -217,6 +217,31 @@ h3 { font-size: 1.45rem; }
   color: var(--sun);
   font-size: 0.65rem;
 }
+.getting-started-guide {
+  margin-top: 14px;
+  border: 1px solid rgba(54, 200, 182, 0.26);
+  background: rgba(8, 29, 49, 0.5);
+}
+.getting-started-guide > summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 15px 18px;
+  cursor: pointer;
+  color: var(--cream);
+}
+.getting-started-guide > summary span { color: var(--muted); font-size: 0.75rem; }
+.getting-started-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  border-top: 1px solid rgba(54, 200, 182, 0.2);
+  background: rgba(54, 200, 182, 0.12);
+}
+.getting-started-grid article { padding: 18px; background: var(--panel); }
+.getting-started-grid article > span { color: var(--teal); font-size: 0.65rem; font-weight: 850; letter-spacing: 0.12em; }
+.getting-started-grid h3 { margin-top: 8px; font-size: 1.15rem; }
+.getting-started-grid p { margin: 8px 0 0; color: var(--muted); font-size: 0.78rem; line-height: 1.55; }
 .section-block { padding-top: 62px; }
 .owner-workspace { padding-top: 38px; }
 .owner-workspace-heading { margin-bottom: 18px; }
@@ -459,6 +484,11 @@ h3 { font-size: 1.45rem; }
 .timeline-item { padding: 19px; }
 .timeline-item time { color: var(--sun); font-size: 0.7rem; letter-spacing: 0.08em; }
 .timeline-item p { margin: 10px 0 0; color: var(--muted); line-height: 1.55; }
+.timeline-item h3 { margin-top: 9px; }
+.journal-evidence { display: flex; flex-wrap: wrap; gap: 7px; margin: 14px 0 0; }
+.journal-evidence div { padding: 7px 9px; border: 1px solid rgba(54, 200, 182, 0.2); background: rgba(54, 200, 182, 0.05); }
+.journal-evidence dt { color: var(--muted); font-size: 0.55rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.journal-evidence dd { margin: 3px 0 0; color: var(--cream); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.68rem; }
 .broker-footer { width: var(--page); margin: 0 auto; padding: 30px 0 45px; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.78rem; line-height: 1.5; }
 .loading { animation: pulse 1.4s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: 0.45; } }
@@ -488,6 +518,8 @@ h3 { font-size: 1.45rem; }
   .activation-controls { grid-template-columns: 1fr; }
   .workspace-jump-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .workspace-jump-nav a { min-height: 48px; padding: 9px; font-size: 0.66rem; }
+  .getting-started-guide > summary { display: grid; gap: 5px; }
+  .getting-started-grid { grid-template-columns: 1fr; }
   .workflow-step > summary { align-items: flex-start; }
   .workflow-step > summary > small { display: none; }
   .workflow-step .collapsible-content { padding-inline: 12px; }

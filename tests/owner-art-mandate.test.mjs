@@ -213,11 +213,10 @@ test("mandate owner verification pins Robinhood before accepting the selected Pu
 test("broker mandate UI distinguishes autonomous preference from on-chain readiness", async () => {
   const html = await readFile(new URL("../site/broker/index.html", import.meta.url), "utf8");
   assert.match(html, /Autonomous free mints — on-chain setup required/);
-  assert.match(html, /cannot enable contracts, permissions, or an agent/);
+  assert.match(html, /matching on-chain policy, reviewed target adapter, permissions, gas limits, and agent authorization/);
   assert.match(html, /10 — high-volume hard maximum/);
   assert.match(html, /There is deliberately no unlimited option/);
-  assert.match(html, /agent or relayer pays transaction gas/);
-  assert.match(html, /\/punk\/1639#external-free-mint-title/);
-  assert.match(html, /Preference only/);
-  assert.match(html, /does not start agent/);
+  assert.match(html, /\/punk\/1797#external-free-mint-title/);
+  assert.match(html, /Define the operating profile/);
+  assert.match(html, /separate on-chain policy remains the final authority/);
 });

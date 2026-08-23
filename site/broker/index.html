@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="The staged Gogh Punks Art Broker and Punk Account dashboard." />
+    <meta name="description" content="Activate a Gogh Punk Account, set its Art Mandate, and manage its on-chain curator workspace." />
     <meta name="theme-color" content="#071321" />
     <title>Art Broker · Gogh Punks</title>
     <link rel="icon" href="/assets/favicon.png" type="image/png" />
@@ -30,15 +30,15 @@
     <main class="broker-main" id="main">
       <section class="broker-hero broker-hero-compact">
         <div>
-          <p class="eyebrow">Owner console · Robinhood Chain</p>
-          <h1>Set up your Punk agent.</h1>
-          <p class="lede">Connect once, choose one of your live-owned Punks, then activate its wallet or edit its preferences. Each step below states whether it is a transaction.</p>
+          <p class="eyebrow">Gogh Punk agent setup · Robinhood Chain</p>
+          <h1>Turn your Punk into an art curator.</h1>
+          <p class="lede">Connect your wallet, choose a Gogh Punk you own, activate its permanent Punk Account, and define exactly what it may research or collect. The page labels every signature and transaction before you approve it.</p>
         </div>
         <aside class="status-panel" aria-label="Protocol status">
           <div class="status-line"><span class="status-dot"></span><strong data-protocol-status class="loading">CHECKING FOUNDATION</strong></div>
           <p><strong data-owner-execution-status>Checking execution state…</strong></p>
           <p>Autonomous execution: <strong data-autonomy-status>OFF</strong></p>
-          <p class="status-explainer">A saved preference does not start an agent.</p>
+          <p class="status-explainer">Saved preferences and on-chain execution permissions are separate controls.</p>
         </aside>
       </section>
       <p class="safety-banner"><strong>Live status:</strong> <span data-live-summary>Checking deployed contracts and execution controls…</span></p>
@@ -50,6 +50,18 @@
         <a href="#results-title"><span>4</span> View results</a>
       </nav>
 
+      <details class="getting-started-guide">
+        <summary><strong>Before you begin</strong><span>Wallet, gas, custody, and safety details</span></summary>
+        <div class="getting-started-grid">
+          <article><span>01</span><h3>Use the current holder wallet</h3><p>Connect the wallet that currently owns the Gogh Punk. Ownership is checked directly against the collection on Robinhood Chain before each gated action.</p></article>
+          <article><span>02</span><h3>Activation is permanent</h3><p>Each Punk receives one deterministic ERC-6551 Punk Account. Control follows the Punk’s current holder; activation does not transfer the Punk or its assets.</p></article>
+          <article><span>03</span><h3>Keep a little gas available</h3><p>Activation and on-chain settings require network gas. Saving an Art Mandate uses a free message signature. The interface tells you which is which.</p></article>
+          <article><span>04</span><h3>Limits stay enforceable</h3><p>Daily mint caps, reviewed adapters, collection permissions, prices, reserves, agent authorization, pause, and revocation are checked on-chain—not trusted to website copy.</p></article>
+          <article><span>05</span><h3>Approve setup, not every mint</h3><p>After one bounded on-chain setup, the encrypted agent can collect from the approved target set without another wallet popup for each mint. It stops at its cap, expiry, reserve, pause, or revocation.</p></article>
+          <article><span>06</span><h3>New targets require review</h3><p>The current contracts never grant an agent permission to mint from an unknown collection. Each new target must pass review and receive its own bound adapter and permissions before it enters an unattended queue.</p></article>
+        </div>
+      </details>
+
       <section class="section-block owner-workspace" aria-labelledby="owner-workspace-title">
         <div class="section-heading owner-workspace-heading">
           <div><p class="eyebrow">One-page setup</p><h2 id="owner-workspace-title">Your Punk workspace</h2></div>
@@ -59,7 +71,7 @@
           <article class="metric"><span>Wallet-owned Punks</span><strong data-owned-punk-count>—</strong><small data-owned-punk-detail>Connect owner wallet</small></article>
           <article class="metric"><span>Activated agent wallets</span><strong data-punk-account-count>—</strong><small data-punk-account-detail>Connect owner wallet</small></article>
           <article class="metric"><span>Selected Punk</span><strong data-selected-punk-display>—</strong><small>Chosen by you in a control below</small></article>
-          <article class="metric"><span>Agent execution</span><strong data-autonomy-status>OFF</strong><small>Preferences alone cannot enable it</small></article>
+          <article class="metric"><span>Agent execution</span><strong data-autonomy-status>OFF</strong><small>Controlled separately on-chain</small></article>
         </div>
 
         <details class="workflow-step collapsible-section" name="owner-workflow" open>
@@ -97,7 +109,7 @@
         <details class="workflow-step collapsible-section" name="owner-workflow" id="mandate-title">
           <summary><span><span class="workflow-number">3</span><strong>Choose Art Mandate preferences</strong></span><small>Free message signature · does not start agent</small></summary>
           <div class="collapsible-content">
-            <p class="workflow-help"><strong>Preference only:</strong> choose which wallet-owned Punk these settings belong to. Saving does not submit a transaction or enable on-chain autonomy.</p>
+            <p class="workflow-help"><strong>Define the operating profile:</strong> choose which wallet-owned Punk these settings belong to. Saving signs a free message; the separate on-chain policy remains the final authority.</p>
         <ol class="mandate-guide" aria-label="How to save an Art Mandate">
           <li><strong>1. Select</strong><span>Choose a live-verified Punk from your connected owner wallet.</span></li>
           <li><strong>2. Choose</strong><span>Tell Scout what to research and what deserves owner review.</span></li>
@@ -157,7 +169,7 @@
                   <button class="action-button mandate-save" type="submit" data-mandate-save disabled>Choose one of your Punks</button>
               <p class="mandate-state" data-mandate-state aria-live="polite">Loading the latest saved preferences…</p>
             </form>
-                <p class="locked-note">Saving requests a message signature—not a transaction. An autonomous selection records a requested profile but cannot enable contracts, permissions, or an agent. There is deliberately no unlimited option; the authorized agent or relayer pays transaction gas. The completed external canary for <a href="/punk/1639#external-free-mint-title">Punk #1639 ↗</a> was separately configured on-chain and then contained.</p>
+                <p class="locked-note">Saving requests a message signature—not a transaction. An autonomous profile becomes active only when its matching on-chain policy, reviewed target adapter, permissions, gas limits, and agent authorization are configured. There is deliberately no unlimited option. View a completed autonomous acquisition in <a href="/punk/1797#external-free-mint-title">Punk #1797’s activity ↗</a>.</p>
           </article>
           <article class="panel">
             <div class="panel-header"><h3>Curator identity</h3><span class="tag">Persistent</span></div>
@@ -169,7 +181,7 @@
               <div class="setting-row"><dt>Emerging Artists</dt><dd>91</dd></div>
               <div class="setting-row"><dt>Agent status</dt><dd>None authorized</dd></div>
             </dl>
-            <p class="locked-note">Example profile only. Saved profiles will be versioned and tied to a chain-qualified Punk identity.</p>
+            <p class="locked-note">The selected Punk’s saved profile is versioned and tied to its chain-qualified identity.</p>
           </article>
         </div>
           </div>
@@ -198,7 +210,7 @@
         <div class="metric-grid">
           <article class="metric"><span>Pause agent</span><strong>Owner</strong><small>Independent of Scout service</small></article>
           <article class="metric"><span>Revoke agent</span><strong>Owner</strong><small>Immediate on-chain check</small></article>
-          <article class="metric"><span>Withdraw assets</span><strong>Owner only</strong><small>No protocol-admin path</small></article>
+          <article class="metric"><span>Withdraw assets</span><strong>Current holder</strong><small>No protocol-admin withdrawal path</small></article>
           <article class="metric"><span>Autonomous selling</span><strong>OFF</strong><small>Not implemented in v1</small></article>
         </div>
       </section>

@@ -301,7 +301,7 @@ export async function validateCanaryExecutionArtifact(artifact, gate, options = 
     || policy.minimumNativeReserve !== "0" || policy.maxIntentAgeSeconds !== "120"
     || policy.ownerApprovedMintsAttested !== true || policy.approvalPurchasesAttested !== true
     || policy.autonomousPurchasesAttested !== false || policy.autonomousMintsAttested !== false) {
-    fail("POLICY_MISMATCH", "artifact policy is not the exact owner-only canary policy");
+    fail("POLICY_MISMATCH", "artifact policy is not the exact current-holder direct policy");
   }
 
   exactKeys(reviewed.timing, [

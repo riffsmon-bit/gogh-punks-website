@@ -4,7 +4,7 @@ import test from "node:test";
 import { ROBINHOOD } from "../broker/src/config.mjs";
 import { findOwnerPunkAccounts, requestedTokenIds } from
   "../netlify/functions/broker-owner-accounts.mjs";
-import { readLivePunkState } from "../netlify/functions/broker-punk.mjs";
+import { externalFreeMintJournalEntries, readLivePunkState } from "../netlify/functions/broker-punk.mjs";
 import { findBrowserOwnerAccounts } from "../site/owner-accounts.js";
 import { readBrowserPunkDisplay } from "../site/live-punk-display.js";
 import { keccak256Hex } from "../site/keccak256.js";
@@ -70,6 +70,18 @@ test("live Punk state exposes an activated account and confirmed canary NFT", as
   assert.equal(result.account, ACCOUNT_1797);
   assert.equal(result.canaryAsset.tokenId, "9001");
   assert.equal(result.canaryAsset.status, "CONFIRMED_ONCHAIN");
+});
+
+test("Curator Journal exposes the confirmed #1797 autonomous mint and containment", () => {
+  const entries = externalFreeMintJournalEntries("1797");
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].event_type, "AUTONOMOUS_FREE_MINT_COMPLETED_AND_CONTAINED");
+  assert.equal(entries[0].nft_token_id, "233");
+  assert.equal(entries[0].policy_version, "29");
+  assert.equal(entries[0].acquisition_nonce, "1");
+  assert.equal(entries[0].gas_used, "334751");
+  assert.match(entries[0].transaction_url, /ccb0c093/);
+  assert.deepEqual(externalFreeMintJournalEntries("1755"), []);
 });
 
 test("owner account discovery merges recent activation logs with requested Punk IDs", async () => {
@@ -213,4 +225,5 @@ test("Punk recommendations are collapsed and token metrics avoid nested-label st
   assert.doesNotMatch(css, /\.metric span \{/);
   assert.match(statusSource, /canaryDisplay:/);
   assert.match(statusSource, /autonomousCanaryDisplay:/);
+  assert.match(css, /\.journal-evidence/);
 });

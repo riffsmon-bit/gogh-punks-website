@@ -23,3 +23,6 @@ ops/canary-mint-receipt-attestation.json
 ops/canary-teardown-transactions.json
 ops/canary-teardown-receipt-evidence.json
 ops/canary-final-teardown-attestation.json
+ops/reviewed-free-mint-queue.json
+ops/reviewed-free-mint-live-state.json
+ops/reviewed-free-mint-run-plan.json
