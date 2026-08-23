@@ -18,10 +18,8 @@
     <a class="skip-link" href="#main">Skip to Art Broker</a>
     <header class="broker-header">
       <a class="broker-brand" href="/"><img src="/assets/favicon.png" alt="" /><span>GOGH PUNKS</span></a>
-      <nav aria-label="Art Broker navigation">
+      <nav aria-label="Primary navigation">
         <a href="/broker/" aria-current="page">Art Broker</a>
-        <a href="/discover/">Discover</a>
-        <a href="/punk/1797" data-scout-gallery-link>Scout Gallery</a>
         <a href="/">Collection</a>
       </nav>
       <div class="wallet-control">
@@ -44,6 +42,13 @@
         </aside>
       </section>
       <p class="safety-banner"><strong>Live status:</strong> <span data-live-summary>Checking deployed contracts and execution controls…</span></p>
+
+      <nav class="workspace-jump-nav" aria-label="Art Broker setup steps">
+        <a href="#owner-workspace-title"><span>1</span> Choose Punk</a>
+        <a href="#activation-title"><span>2</span> Activate wallet</a>
+        <a href="#mandate-title"><span>3</span> Set preferences</a>
+        <a href="#results-title"><span>4</span> View results</a>
+      </nav>
 
       <section class="section-block owner-workspace" aria-labelledby="owner-workspace-title">
         <div class="section-heading owner-workspace-heading">
@@ -170,10 +175,14 @@
           </div>
         </details>
 
-        <details class="workflow-step collapsible-section public-scout-step">
-          <summary><span><span class="workflow-number">i</span><strong>Public hosted Scout feed</strong></span><small>Not connected-wallet ownership</small></summary>
+        <details class="workflow-step collapsible-section public-scout-step" id="results-title">
+          <summary><span><span class="workflow-number">4</span><strong>Research and mint results</strong></span><small>Public read-only activity</small></summary>
           <div class="collapsible-content">
-            <p class="workflow-help">This is public read-only site data. Its configured Scout Punk is not inferred from your wallet and does not mean you own or selected it.</p>
+            <p class="workflow-help">Review what Scout found and what each Punk actually collected. This public data is separate from connected-wallet ownership and never selects a Punk for you.</p>
+            <div class="workspace-actions" aria-label="Research and results links">
+              <a class="action-link" href="/discover/">Browse Scout discoveries</a>
+              <a class="action-link" href="/punk/1797" data-scout-gallery-link>Open Punk activity and gallery</a>
+            </div>
             <div class="metric-grid public-scout-metrics">
               <article class="metric"><span>Public Scout Punk</span><strong data-public-scout-token-display>—</strong><small>Hosted site configuration</small></article>
               <article class="metric"><span>Discoveries</span><strong data-opportunity-count>0</strong><small>Historical signals</small></article>

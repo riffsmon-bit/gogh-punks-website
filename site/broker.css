@@ -185,6 +185,38 @@ h3 { font-size: 1.45rem; }
   background: rgba(218, 167, 55, 0.08);
   line-height: 1.55;
 }
+.workspace-jump-nav {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  background: var(--line);
+}
+.workspace-jump-nav a {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-height: 54px;
+  padding: 12px 14px;
+  color: var(--cream);
+  background: var(--panel);
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+.workspace-jump-nav a:hover,
+.workspace-jump-nav a:focus-visible { color: var(--sun); background: var(--panel-high); }
+.workspace-jump-nav span {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--line);
+  color: var(--sun);
+  font-size: 0.65rem;
+}
 .section-block { padding-top: 62px; }
 .owner-workspace { padding-top: 38px; }
 .owner-workspace-heading { margin-bottom: 18px; }
@@ -201,6 +233,23 @@ h3 { font-size: 1.45rem; }
 .workflow-step .collapsible-content.panel { margin: 0 14px 14px; padding: 20px; }
 .workflow-number { display: inline-grid; width: 30px; height: 30px; place-items: center; border: 1px solid var(--line); color: var(--sun); font-size: 0.76rem; font-weight: 850; }
 .workflow-help { margin: 0 0 16px; color: var(--muted); line-height: 1.55; }
+.workspace-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 18px; }
+.action-link {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  color: var(--sun);
+  background: rgba(8, 29, 49, 0.7);
+  font-size: 0.7rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+.action-link:hover,
+.action-link:focus-visible { border-color: var(--gold); background: rgba(218, 167, 55, 0.12); }
 .public-scout-step { margin-top: 18px; }
 .public-scout-metrics .metric { min-height: 104px; }
 .section-heading { display: flex; justify-content: space-between; gap: 30px; align-items: end; margin-bottom: 25px; }
@@ -437,6 +486,8 @@ h3 { font-size: 1.45rem; }
   .account-funds-actions { grid-template-columns: 1fr; }
   .external-mint-progress { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .activation-controls { grid-template-columns: 1fr; }
+  .workspace-jump-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .workspace-jump-nav a { min-height: 48px; padding: 9px; font-size: 0.66rem; }
   .workflow-step > summary { align-items: flex-start; }
   .workflow-step > summary > small { display: none; }
   .workflow-step .collapsible-content { padding-inline: 12px; }
