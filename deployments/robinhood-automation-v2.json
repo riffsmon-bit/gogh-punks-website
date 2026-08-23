@@ -1,14 +1,89 @@
 {
   "schema": "GOGH_AUTOMATED_SEADROP_V2_DEPLOYMENT_MANIFEST",
   "version": 1,
-  "status": "NOT_DEPLOYED",
+  "status": "DEPLOYED",
   "chainId": 4663,
+  "gitCommit": "f75f72b8407a4f01fb6497a24cd67946a0845930",
+  "compiler": "0.8.34",
+  "evmVersion": "cancun",
+  "optimizerRuns": 500,
   "sourceVerificationAdoption": null,
+  "protocolGuardian": "0x2b05E3BB4895A00d52894B98839Ae421d4139Ec8",
   "contracts": {
-    "AutomatedSeaDropFreeMintAdapter": null,
-    "BrokerPolicyModuleV2": null,
-    "GoghPunkAccountV2": null,
-    "GoghPunkAccountRegistryV2": null
+    "AutomatedSeaDropFreeMintAdapter": {
+      "address": "0x70e8b0361b36bab3b398ab9dD0D9E370A70912b2",
+      "deploymentTransaction": "0x2b5e25fec719fcd7e972773bdc8425552b3e6520b19176e30babcd392746af90",
+      "deploymentBlock": 44152349,
+      "deploymentBlockHash": "0x86a9a42de76e0ecb893039c4777025eeb1b0bd48cbc9ad5e250217c49b0fc607",
+      "receiptStatus": "SUCCESS",
+      "confirmationsRequired": 20,
+      "confirmationsObserved": 16056,
+      "deployer": "0xF868ff40975F7C3AeDDF1B2CE026aE53897bA698",
+      "constructorArguments": [
+        "0x53e4b9339cf624803c9a7d0195576cca5b917920813508d86b3eb93dcbabeb5c",
+        "0xda60742d810ae5de9c087af2e82b05fb84e9112cfade927fca0db6490ea52519"
+      ],
+      "creationBytecodeHash": "0x60cb24e44b84da7ba4a7d134e27c0f161dccef58bdfe5a4bdfbf8df06ce2fd74",
+      "runtimeBytecodeHash": "0xd5499d9f14a603562db1c7038f58b95f00c07db67276ffb281e5bd4dc24a5b96",
+      "gitCommit": "f75f72b8407a4f01fb6497a24cd67946a0845930",
+      "verificationStatus": "NOT_SUBMITTED"
+    },
+    "BrokerPolicyModuleV2": {
+      "address": "0x4a80F21513C788884B4935edC27d119D059c0a9B",
+      "deploymentTransaction": "0x4d30fd95c7b99fa574a10f1cd969560ce4a683fe2828cadec75d50350376eafb",
+      "deploymentBlock": 44152375,
+      "deploymentBlockHash": "0x9c318046fe42840a6e6457fa50083843db30744dc965e90cc6f943c1089fe296",
+      "receiptStatus": "SUCCESS",
+      "confirmationsRequired": 20,
+      "confirmationsObserved": 16030,
+      "deployer": "0xF868ff40975F7C3AeDDF1B2CE026aE53897bA698",
+      "constructorArguments": [
+        "0x2b05E3BB4895A00d52894B98839Ae421d4139Ec8",
+        "0x421D51709Fe21736a35fFa2a86B157Df1b030EE2",
+        "0x70e8b0361b36bab3b398ab9dD0D9E370A70912b2"
+      ],
+      "creationBytecodeHash": "0x40b691b8dc26051687e683be80cf5ade326043d793002d74c94e660658113378",
+      "runtimeBytecodeHash": "0xce3d889d61861b294fa18ebcfd39c5e1ea7c2e8e2c97ddf0d7382cc77603fd16",
+      "gitCommit": "f75f72b8407a4f01fb6497a24cd67946a0845930",
+      "verificationStatus": "NOT_SUBMITTED"
+    },
+    "GoghPunkAccountV2": {
+      "address": "0xa2f76E063f50178FCe534E50E40a6Daab83F4eAd",
+      "deploymentTransaction": "0xd02bc0729db0c5fd3850762096722019408bbd84a0d41c222db9babed292e52b",
+      "deploymentBlock": 44152401,
+      "deploymentBlockHash": "0x19b92db3fc8c148fb8cddf157bdea65ddfca5c3fb5766ab7fe0a0196482503dc",
+      "receiptStatus": "SUCCESS",
+      "confirmationsRequired": 20,
+      "confirmationsObserved": 16004,
+      "deployer": "0xF868ff40975F7C3AeDDF1B2CE026aE53897bA698",
+      "constructorArguments": [
+        "0x4a80F21513C788884B4935edC27d119D059c0a9B",
+        "0xbffbccd20E796e0f3E745B274De60EF17a485Dde",
+        "0x421D51709Fe21736a35fFa2a86B157Df1b030EE2"
+      ],
+      "creationBytecodeHash": "0x98254a77d76c8478ad94e881909e7870e7f4779f5c20ce08e21d194a23fced8a",
+      "runtimeBytecodeHash": "0x8edb02b5173bbdad95cdf90ff654b2c4de2358d96d7f71dee7728eee020659c7",
+      "gitCommit": "f75f72b8407a4f01fb6497a24cd67946a0845930",
+      "verificationStatus": "NOT_SUBMITTED"
+    },
+    "GoghPunkAccountRegistryV2": {
+      "address": "0x00E7D2A869cc6a8f61A4cE11A66A8874db1F78e3",
+      "deploymentTransaction": "0x9bcb825d89617ebfb4bf43204fff2084b8576e4e3660246834ccf4b93c07eeed",
+      "deploymentBlock": 44152426,
+      "deploymentBlockHash": "0x36987bdaaad3ae8b4e7d0245ec64842cd44a5719dcc361c2a6695064468e0944",
+      "receiptStatus": "SUCCESS",
+      "confirmationsRequired": 20,
+      "confirmationsObserved": 15979,
+      "deployer": "0xF868ff40975F7C3AeDDF1B2CE026aE53897bA698",
+      "constructorArguments": [
+        "0xa2f76E063f50178FCe534E50E40a6Daab83F4eAd",
+        "0x0000000000000000000000000000000000000000000000000000000000000000"
+      ],
+      "creationBytecodeHash": "0x06bf531a7f16a5b61407c1ae10e8e105f862ee487287ba2a2602f76d686d0248",
+      "runtimeBytecodeHash": "0xd77d8085c97dd9175bbaee60c96eb699b15d6cfbbc2f44ec42238719b8db0df0",
+      "gitCommit": "f75f72b8407a4f01fb6497a24cd67946a0845930",
+      "verificationStatus": "NOT_SUBMITTED"
+    }
   },
   "reusedContracts": {
     "ArtAdapterRegistry": "0x421D51709Fe21736a35fFa2a86B157Df1b030EE2",
@@ -28,10 +103,10 @@
     "workerEnabled": false
   },
   "authorization": {
-    "deploymentAuthorized": false,
+    "deploymentAuthorized": true,
     "configurationAuthorized": false,
     "agentAuthorizationGranted": false,
     "automaticSubmissionEnabled": false
   },
-  "notes": "Historical NOT_DEPLOYED template. Continuous automation remains unavailable until a separately reviewed deployment, source-verification adoption, guardian configuration, worker key boundary, and live receipt evidence are installed."
+  "notes": "Immutable V2 deployment proposal from a clean release build and exact four-CREATE broadcast. Two distinct RPC provider domains agreed on final receipts, transaction inclusion, runtime code, and critical immutable/module bindings at one common confirmed block. Source verification remains NOT_SUBMITTED. No adapter registration, feature enablement, account activation, agent authorization, worker enablement, or mint is authorized by this proposal."
 }

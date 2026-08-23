@@ -79,6 +79,14 @@ const SOURCE_PATHS = Object.freeze({
   GoghPunkAccountV2: "contracts/src/GoghPunkAccountV1.sol",
   GoghPunkAccountRegistryV2: "contracts/src/GoghPunkAccountRegistryV2.sol",
 });
+const SOURCE_CONTRACT_NAMES = Object.freeze({
+  ...Object.fromEntries([
+    ...CORE_CONTRACT_NAMES,
+    ...CANARY_CONTRACT_NAMES,
+    ...AUTOMATION_V2_CONTRACT_NAMES,
+  ].map((name) => [name, name])),
+  GoghPunkAccountV2: "GoghPunkAccountV1",
+});
 const ARTIFACT_PATHS = Object.freeze({
   ...Object.fromEntries(
     [...CORE_CONTRACT_NAMES, ...CANARY_CONTRACT_NAMES].map((name) => [
@@ -709,7 +717,7 @@ function normalizeArtifact(name, artifact, pending) {
   }
   const settings = normalizeCompilerSettings(metadata.settings, `${name} metadata settings`);
   const expectedPath = SOURCE_PATHS[name];
-  sameCanonical(settings.compilationTarget, { [expectedPath]: name },
+  sameCanonical(settings.compilationTarget, { [expectedPath]: SOURCE_CONTRACT_NAMES[name] },
     "COMPILER_SETTINGS_MISMATCH", `${name} compilation target`);
   const sources = plainObject(metadata.sources, `${name} metadata sources`);
   const sourcePaths = Object.keys(sources).sort();
@@ -1283,7 +1291,8 @@ function normalizeSmartContractEvidence(
   if (minimalProxy !== null) {
     fail("PROXY_REJECTED", `${name} is reported as a minimal proxy`);
   }
-  if (response.name !== name || response.language?.toLowerCase() !== "solidity"
+  if (response.name !== SOURCE_CONTRACT_NAMES[name]
+    || response.language?.toLowerCase() !== "solidity"
     || response.compiler_version !== BLOCKSCOUT_COMPILER_VERSION
     || response.evm_version !== EVM_VERSION || response.optimization_enabled !== true
     || response.creation_status !== "success") {
@@ -1877,17 +1886,22 @@ export function parseSourceVerificationArguments(argv) {
   for (let index = 0; index < argv.length; index += 2) {
     const flag = argv[index];
     const value = argv[index + 1];
-    if (!["--kind", "--proposal"].includes(flag) || typeof value !== "string"
+    if (!["--kind", "--proposal", "--release-root"].includes(flag) || typeof value !== "string"
       || value.length === 0 || value.startsWith("--") || Object.hasOwn(parsed, flag)) {
-      fail("INVALID_ARGUMENTS", "required exactly once: --kind core|canary|automation --proposal PATH");
+      fail("INVALID_ARGUMENTS", "required: --kind core|canary|automation --proposal PATH; optional: --release-root PATH");
     }
     parsed[flag] = value;
   }
-  if (Object.keys(parsed).length !== 2
+  if (![2, 3].includes(Object.keys(parsed).length)
     || !["core", "canary", "automation"].includes(parsed["--kind"])) {
-    fail("INVALID_ARGUMENTS", "required exactly once: --kind core|canary|automation --proposal PATH");
+    fail("INVALID_ARGUMENTS", "required: --kind core|canary|automation --proposal PATH; optional: --release-root PATH");
   }
-  return { kind: parsed["--kind"], proposalPath: parsed["--proposal"] };
+  const result = {
+    kind: parsed["--kind"],
+    proposalPath: parsed["--proposal"],
+  };
+  if (parsed["--release-root"]) result.releaseRoot = resolve(parsed["--release-root"]);
+  return result;
 }
 
 export async function readSourceVerificationJsonFile(path, maximum = MAX_INPUT_BYTES, label = "JSON") {
@@ -1900,13 +1914,13 @@ export async function readSourceVerificationJsonFile(path, maximum = MAX_INPUT_B
   }
 }
 
-async function loadCompiledArtifacts(kind) {
+async function loadCompiledArtifacts(kind, releaseRoot = projectRoot) {
   const names = kind === "core" ? CORE_CONTRACT_NAMES
     : kind === "canary" ? CANARY_CONTRACT_NAMES : AUTOMATION_V2_CONTRACT_NAMES;
   return Object.fromEntries(await Promise.all(names.map(async (name) => [
     name,
     await readSourceVerificationJsonFile(
-      resolve(projectRoot, ARTIFACT_PATHS[name]),
+      resolve(releaseRoot, ARTIFACT_PATHS[name]),
       MAX_INPUT_BYTES,
       `${name} compiled artifact`,
     ),
@@ -1914,18 +1928,20 @@ async function loadCompiledArtifacts(kind) {
 }
 
 async function main() {
-  const { kind, proposalPath } = parseSourceVerificationArguments(process.argv.slice(2));
+  const { kind, proposalPath, releaseRoot = projectRoot } = parseSourceVerificationArguments(
+    process.argv.slice(2),
+  );
   const pendingProposal = await readSourceVerificationJsonFile(
     resolve(process.cwd(), proposalPath),
     MAX_INPUT_BYTES,
     "pending manifest proposal",
   );
-  const compiledArtifacts = await loadCompiledArtifacts(kind);
+  const compiledArtifacts = await loadCompiledArtifacts(kind, releaseRoot);
   const proposal = await buildBlockscoutVerifiedManifestProposal({
     kind,
     pendingProposal,
     compiledArtifacts,
-  });
+  }, { cwd: releaseRoot });
   process.stdout.write(renderBlockscoutVerifiedManifestProposal(proposal));
 }
 

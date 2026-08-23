@@ -114,6 +114,10 @@ transports, proves all four creation transactions and receipt inclusion, masks o
 confirmed block. It leaves registration, protocol features, global agent approval, the worker, and
 automatic submission false.
 
+If evidence tooling was committed after the deployed contract release, run it from the newer repo
+with `--release-root /absolute/path/to/clean-deployed-release-worktree`; the broadcast artifact,
+compiled artifacts, clean Git status, and resolved commit are then all read from that worktree.
+
 After all four contracts are available through Blockscout and exact Sourcify full-match evidence,
 adopt and extract the immutable verified proposal:
 
@@ -121,6 +125,7 @@ adopt and extract the immutable verified proposal:
 npm run broker:manifest:source-verification -- \
   --kind automation \
   --proposal /absolute/path/automation-v2-pending-proposal.json \
+  --release-root /absolute/path/to/clean-deployed-release-worktree \
   > /absolute/path/automation-v2-verified-wrapper.json
 
 npm run broker:manifest:extract-verified -- \

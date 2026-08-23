@@ -66,10 +66,6 @@ const COLLECTION_RUNTIME_HASH =
 const CANONICAL_COLLECTION = "0xE0F92B3B0E6DeD3654177FE3809Cd300e5ffaDf6";
 const CANONICAL_ERC6551_REGISTRY = "0x000000006551c19487814612e58FE06813775758";
 const projectRoot = resolve(import.meta.dirname, "..");
-const broadcastRoot = resolve(
-  projectRoot,
-  "broadcast/DeployAutomatedSeaDropV2.s.sol/4663",
-);
 const execFileAsync = promisify(execFile);
 
 export class AutomationV2ManifestError extends Error {
@@ -731,7 +727,7 @@ function parseArguments(argv) {
   for (let index = 0; index < argv.length; index += 2) {
     const flag = argv[index];
     const value = argv[index + 1];
-    if (!["--artifact", "--git-commit", "--confirmations"].includes(flag)
+    if (!["--artifact", "--git-commit", "--confirmations", "--release-root"].includes(flag)
       || typeof value !== "string" || !value || value.startsWith("--")
       || Object.hasOwn(parsed, flag)) fail("INVALID_ARGUMENTS", "invalid V2 manifest arguments");
     parsed[flag] = value;
@@ -742,9 +738,13 @@ function parseArguments(argv) {
   return parsed;
 }
 
-function assertBroadcastPath(path) {
+function assertBroadcastPath(path, releaseRoot = projectRoot) {
   const resolved = resolve(path);
-  const within = relative(broadcastRoot, resolved);
+  const expectedRoot = resolve(
+    releaseRoot,
+    "broadcast/DeployAutomatedSeaDropV2.s.sol/4663",
+  );
+  const within = relative(expectedRoot, resolved);
   if (within.startsWith(`..${sep}`) || within === ".." || within.includes(sep)
     || !/^run-(?:latest|\d+)\.json$/.test(basename(resolved))) {
     fail("INVALID_ARTIFACT_PATH", "broadcast artifact must be the fixed V2 chain-4663 run file");
@@ -752,17 +752,18 @@ function assertBroadcastPath(path) {
   return resolved;
 }
 
-async function loadCompiledArtifacts() {
+async function loadCompiledArtifacts(releaseRoot = projectRoot) {
   return Object.fromEntries(await Promise.all(AUTOMATION_V2_DEPLOYMENT_ORDER.map(async (name) => [
     name,
-    await readBoundedJsonFile(resolve(projectRoot, ARTIFACT_PATHS[name]), MAX_FILE_BYTES,
+    await readBoundedJsonFile(resolve(releaseRoot, ARTIFACT_PATHS[name]), MAX_FILE_BYTES,
       `${name} compiled artifact`),
   ])));
 }
 
 async function main() {
   const args = parseArguments(process.argv.slice(2));
-  const artifactPath = assertBroadcastPath(args["--artifact"]);
+  const releaseRoot = args["--release-root"] ? resolve(args["--release-root"]) : projectRoot;
+  const artifactPath = assertBroadcastPath(args["--artifact"], releaseRoot);
   const broadcastArtifact = await readBoundedJsonFile(artifactPath, MAX_FILE_BYTES,
     "V2 broadcast artifact");
   const releaseGitCommit = commit(args["--git-commit"], "release commit");
@@ -771,8 +772,9 @@ async function main() {
   const sourceProvenance = await verifyAutomationV2SourceProvenance({
     releaseGitCommit,
     foundryArtifactCommit,
+    cwd: releaseRoot,
   });
-  const compiledArtifacts = await loadCompiledArtifacts();
+  const compiledArtifacts = await loadCompiledArtifacts(releaseRoot);
   const primary = process.env.ROBINHOOD_RPC_URL;
   const secondary = process.env.ROBINHOOD_SECONDARY_RPC_URL;
   if (!primary || !secondary) fail("MISSING_RPC", "both Robinhood RPC URLs are required");

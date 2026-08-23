@@ -28,6 +28,10 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
       ? state.gate.reason === null ? "READY" : "FINAL UI GATE PENDING"
       : state.gate?.status === "DEPLOYED_AWAITING_LIVE_GATE"
         ? "DEPLOYED · LIVE GATE PENDING"
+        : state.gate?.status === "DEPLOYED_CONFIGURATION_PENDING"
+          ? "DEPLOYED · GUARDIAN + WORKER PENDING"
+          : state.gate?.status === "DEPLOYED_SOURCE_VERIFICATION_PENDING"
+            ? "DEPLOYED · SOURCE ADOPTION PENDING"
         : "V2 DEPLOYMENT IN PREPARATION";
     status.classList.toggle("off", !ready);
   }

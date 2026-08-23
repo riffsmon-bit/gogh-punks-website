@@ -8,7 +8,7 @@ import { autonomyV2Status } from "../netlify/functions/broker-autonomy-v2-status
 const A = (digit) => `0x${digit.repeat(40)}`;
 const H = (digit) => `0x${digit.repeat(64)}`;
 
-function deployedManifest() {
+function deployedManifest({ configured = true } = {}) {
   const record = (digit) => ({
     address: A(digit),
     runtimeBytecodeHash: H(digit),
@@ -29,12 +29,12 @@ function deployedManifest() {
       GoghPunkAccountRegistryV2: record("4"),
     },
     configuration: {
-      adapterRegistered: true,
-      featureFlagsEnabled: true,
-      globalAgentApproved: true,
-      workerEnabled: true,
+      adapterRegistered: configured,
+      featureFlagsEnabled: configured,
+      globalAgentApproved: configured,
+      workerEnabled: configured,
     },
-    authorization: { automaticSubmissionEnabled: true },
+    authorization: { automaticSubmissionEnabled: configured },
     notes: "Pending source verification",
   };
   const pending = structuredClone(manifest);
@@ -60,8 +60,28 @@ function deployedManifest() {
   return manifest;
 }
 
-test("current V2 template keeps every browser automation capability closed", async () => {
-  const result = autonomyV2Status();
+function sourcePendingManifest() {
+  const manifest = deployedManifest();
+  manifest.sourceVerificationAdoption = null;
+  for (const name of Object.keys(manifest.contracts)) {
+    manifest.contracts[name].verificationStatus = "NOT_SUBMITTED";
+  }
+  manifest.configuration = {
+    adapterRegistered: false,
+    featureFlagsEnabled: false,
+    globalAgentApproved: false,
+    workerEnabled: false,
+  };
+  manifest.authorization.automaticSubmissionEnabled = false;
+  return manifest;
+}
+
+function configurationPendingManifest() {
+  return deployedManifest({ configured: false });
+}
+
+test("an absent V2 deployment keeps every browser automation capability closed", async () => {
+  const result = autonomyV2Status({});
   assert.deepEqual(result, {
     status: "PREPARING_V2",
     capability: false,
@@ -70,6 +90,15 @@ test("current V2 template keeps every browser automation capability closed", asy
     reason: "AUTOMATION_V2_NOT_DEPLOYED",
     bindings: null,
   });
+});
+
+test("current deployed V2 record is visible as source-pending and remains closed", () => {
+  const result = autonomyV2Status();
+  assert.equal(result.status, "DEPLOYED_SOURCE_VERIFICATION_PENDING");
+  assert.equal(result.capability, false);
+  assert.equal(result.reason, "AUTOMATION_V2_SOURCE_ADOPTION_PENDING");
+  assert.equal(result.bindings.accountRegistry,
+    "0x00e7d2a869cc6a8f61a4ce11a66a8874db1f78e3");
 });
 
 test("deployed records still keep every capability closed until the live gate is released", () => {
@@ -82,16 +111,50 @@ test("deployed records still keep every capability closed until the live gate is
   assert.equal(result.bindings.accountRegistry, A("4"));
 });
 
-test("every deployment, source, configuration, and worker mutation fails closed", () => {
+test("deployed source-pending records are visible but non-operable", () => {
+  const result = autonomyV2Status(sourcePendingManifest());
+  assert.equal(result.status, "DEPLOYED_SOURCE_VERIFICATION_PENDING");
+  assert.equal(result.capability, false);
+  assert.equal(result.automaticSubmission, false);
+  assert.equal(result.setupTransactionAvailable, false);
+  assert.equal(result.reason, "AUTOMATION_V2_SOURCE_ADOPTION_PENDING");
+  assert.equal(result.bindings.adapter, A("1"));
+  assert.equal(result.bindings.accountRegistry, A("4"));
+});
+
+test("source-adopted records remain locked until guardian and worker configuration", () => {
+  const result = autonomyV2Status(configurationPendingManifest());
+  assert.equal(result.status, "DEPLOYED_CONFIGURATION_PENDING");
+  assert.equal(result.capability, false);
+  assert.equal(result.automaticSubmission, false);
+  assert.equal(result.setupTransactionAvailable, false);
+  assert.equal(result.reason, "AUTOMATION_V2_GUARDIAN_AND_WORKER_PENDING");
+  assert.equal(result.bindings.policyModule, A("2"));
+});
+
+test("invalid deployment identity fails closed without exposing bindings", () => {
   const mutations = [
     (m) => { m.status = "NOT_DEPLOYED"; },
     (m) => { m.chainId = 1; },
+    (m) => { m.contracts.GoghPunkAccountV2.receiptStatus = "FAILED"; },
+    (m) => { m.contracts.GoghPunkAccountRegistryV2.runtimeBytecodeHash = null; },
+    (m) => { m.contracts.BrokerPolicyModuleV2.verificationStatus = "PARTIAL"; },
+  ];
+  for (const mutate of mutations) {
+    const manifest = deployedManifest();
+    mutate(manifest);
+    const result = autonomyV2Status(manifest);
+    assert.equal(result.capability, false);
+    assert.equal(result.automaticSubmission, false);
+    assert.equal(result.bindings, null);
+  }
+});
+
+test("source, configuration, and worker mutations stay visible but never operable", () => {
+  const mutations = [
     (m) => { m.sourceVerificationAdoption = null; },
     (m) => { m.sourceVerificationAdoption.pendingManifestSha256 = H("f"); },
     (m) => { m.sourceVerificationAdoption.verifiedContracts.reverse(); },
-    (m) => { m.contracts.BrokerPolicyModuleV2.verificationStatus = "PARTIAL"; },
-    (m) => { m.contracts.GoghPunkAccountV2.receiptStatus = "FAILED"; },
-    (m) => { m.contracts.GoghPunkAccountRegistryV2.runtimeBytecodeHash = null; },
     (m) => { m.configuration.adapterRegistered = false; },
     (m) => { m.configuration.featureFlagsEnabled = false; },
     (m) => { m.configuration.globalAgentApproved = false; },
@@ -104,6 +167,7 @@ test("every deployment, source, configuration, and worker mutation fails closed"
     const result = autonomyV2Status(manifest);
     assert.equal(result.capability, false);
     assert.equal(result.automaticSubmission, false);
-    assert.equal(result.bindings, null);
+    assert.notEqual(result.bindings, null);
+    assert.match(result.status, /^DEPLOYED_/);
   }
 });

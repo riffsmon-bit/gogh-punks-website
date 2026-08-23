@@ -29,21 +29,15 @@ export function autonomyV2Status(manifest = automationManifest) {
   } catch {
     adoptionVerified = false;
   }
-  const deployed = manifest?.schema === "GOGH_AUTOMATED_SEADROP_V2_DEPLOYMENT_MANIFEST"
+  const deployedRecords = manifest?.schema === "GOGH_AUTOMATED_SEADROP_V2_DEPLOYMENT_MANIFEST"
     && manifest?.version === 1 && manifest?.status === "DEPLOYED" && manifest?.chainId === 4663
-    && adoptionVerified
     && CONTRACT_NAMES.every((name) => {
       const record = contracts?.[name];
       return address(record?.address) && hash(record?.runtimeBytecodeHash)
         && hash(record?.deploymentTransaction) && record?.receiptStatus === "SUCCESS"
-        && record?.verificationStatus === "VERIFIED";
-    })
-    && manifest?.configuration?.adapterRegistered === true
-    && manifest?.configuration?.featureFlagsEnabled === true
-    && manifest?.configuration?.globalAgentApproved === true
-    && manifest?.configuration?.workerEnabled === true
-    && manifest?.authorization?.automaticSubmissionEnabled === true;
-  if (!deployed) {
+        && ["NOT_SUBMITTED", "VERIFIED"].includes(record?.verificationStatus);
+    });
+  if (!deployedRecords) {
     return Object.freeze({
       status: "PREPARING_V2",
       capability: false,
@@ -53,29 +47,57 @@ export function autonomyV2Status(manifest = automationManifest) {
       bindings: null,
     });
   }
+  const bindings = Object.freeze({
+    chainId: 4663,
+    adapter: address(contracts.AutomatedSeaDropFreeMintAdapter.address),
+    adapterRuntimeCodeHash: hash(
+      contracts.AutomatedSeaDropFreeMintAdapter.runtimeBytecodeHash,
+    ),
+    policyModule: address(contracts.BrokerPolicyModuleV2.address),
+    policyModuleRuntimeCodeHash: hash(contracts.BrokerPolicyModuleV2.runtimeBytecodeHash),
+    accountImplementation: address(contracts.GoghPunkAccountV2.address),
+    accountImplementationRuntimeCodeHash: hash(
+      contracts.GoghPunkAccountV2.runtimeBytecodeHash,
+    ),
+    accountRegistry: address(contracts.GoghPunkAccountRegistryV2.address),
+    accountRegistryRuntimeCodeHash: hash(
+      contracts.GoghPunkAccountRegistryV2.runtimeBytecodeHash,
+    ),
+  });
+  if (!adoptionVerified || CONTRACT_NAMES.some((name) => (
+    contracts[name].verificationStatus !== "VERIFIED"
+  ))) {
+    return Object.freeze({
+      status: "DEPLOYED_SOURCE_VERIFICATION_PENDING",
+      capability: false,
+      setupTransactionAvailable: false,
+      automaticSubmission: false,
+      reason: "AUTOMATION_V2_SOURCE_ADOPTION_PENDING",
+      bindings,
+    });
+  }
+  const configured = manifest?.configuration?.adapterRegistered === true
+    && manifest?.configuration?.featureFlagsEnabled === true
+    && manifest?.configuration?.globalAgentApproved === true
+    && manifest?.configuration?.workerEnabled === true
+    && manifest?.authorization?.automaticSubmissionEnabled === true;
+  if (!configured) {
+    return Object.freeze({
+      status: "DEPLOYED_CONFIGURATION_PENDING",
+      capability: false,
+      setupTransactionAvailable: false,
+      automaticSubmission: false,
+      reason: "AUTOMATION_V2_GUARDIAN_AND_WORKER_PENDING",
+      bindings,
+    });
+  }
   return Object.freeze({
     status: "DEPLOYED_AWAITING_LIVE_GATE",
     capability: false,
     setupTransactionAvailable: false,
     automaticSubmission: false,
     reason: "V2_LIVE_EVIDENCE_GATE_NOT_RELEASED",
-    bindings: Object.freeze({
-      chainId: 4663,
-      adapter: address(contracts.AutomatedSeaDropFreeMintAdapter.address),
-      adapterRuntimeCodeHash: hash(
-        contracts.AutomatedSeaDropFreeMintAdapter.runtimeBytecodeHash,
-      ),
-      policyModule: address(contracts.BrokerPolicyModuleV2.address),
-      policyModuleRuntimeCodeHash: hash(contracts.BrokerPolicyModuleV2.runtimeBytecodeHash),
-      accountImplementation: address(contracts.GoghPunkAccountV2.address),
-      accountImplementationRuntimeCodeHash: hash(
-        contracts.GoghPunkAccountV2.runtimeBytecodeHash,
-      ),
-      accountRegistry: address(contracts.GoghPunkAccountRegistryV2.address),
-      accountRegistryRuntimeCodeHash: hash(
-        contracts.GoghPunkAccountRegistryV2.runtimeBytecodeHash,
-      ),
-    }),
+    bindings,
   });
 }
 
