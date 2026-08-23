@@ -1,4 +1,4 @@
-export const COMPLETED_EXTERNAL_FREE_MINT = Object.freeze({
+const PUNK_1639_EXTERNAL_FREE_MINT = Object.freeze({
   schema: "GOGH_EXTERNAL_FREE_MINT_SITE_STATUS_V1",
   status: "COMPLETED_AND_CONTAINED",
   executionEnabled: false,
@@ -62,3 +62,76 @@ export const COMPLETED_EXTERNAL_FREE_MINT = Object.freeze({
   }),
   notice: "Live autonomous free-mint test succeeded. Token #224 is held by Punk #1639's account. Autonomy is off, the agent and adapter are disabled, the account is paused in DISABLED mode, and every target permission is revoked.",
 });
+
+const PUNK_1797_EXTERNAL_FREE_MINT = Object.freeze({
+  schema: "GOGH_EXTERNAL_FREE_MINT_SITE_STATUS_V1",
+  status: "COMPLETED_AND_CONTAINED",
+  executionEnabled: false,
+  executionMode: "AUTONOMOUS_FREE_MINT",
+  punkTokenId: "1797",
+  account: "0x89f6c15bfbf629e9c0d2f5d56be58a27b01446b3",
+  agent: "0x3bb2ebf6b3c4d7f5e5781cdf2091428f7750af7d",
+  adapter: "0x3a3ccea091c0048c146d245849e8f51d604e2875",
+  adapterRuntimeCodeHash: "0x541c8d790a7426e85a36caf0ada57830a34b94c6b3d9e55a4afb57838964d779",
+  candidate: Object.freeze({
+    name: "The Trading Floor",
+    collection: "0x401b038400fe07ba1848e34059afa10e94420469",
+    collectionRuntimeCodeHash: "0xe3e252831cdd0c11e1327d04a57ddd9bfa11ef49d50edb524040d98bfb228bc4",
+    venue: "0x00005ea00ac477b1030ce78506496e8c2de24bf5",
+    opportunityType: "FREE_MINT",
+    assetStandard: "ERC721",
+    quantity: "1",
+    mintPriceWei: "0",
+    maximumWalletMints: "1",
+    observedSupply: "232",
+    maximumSupply: "10000",
+    observedNextTokenId: "233",
+    observedAt: "2026-08-23T03:17:18.000Z",
+    openSeaUrl: "https://opensea.io/collection/the-trading-floor",
+    verification: "UNVERIFIED_COLLECTION",
+    openSeaSafetySnapshot: "NOT_DISABLED_NOT_COMPROMISED_UNVERIFIED",
+  }),
+  controls: Object.freeze({
+    nativeValueWei: "0",
+    tokenQuantity: "1",
+    opaqueAdapterDataAllowed: false,
+    tokenApprovalsAllowed: false,
+    arbitraryTargetsAllowed: false,
+    genericMintPermissionAllowed: false,
+    accountDailyAcquisitionLimitForTest: "10",
+    runExpiresSecondsAfterCreation: 120,
+    containImmediatelyAfterRun: true,
+  }),
+  readiness: Object.freeze({
+    reviewedAdapterSource: true,
+    noBroadcastSimulationPassed: true,
+    adapterDeployed: true,
+    adapterRegistered: true,
+    ownerMandateArmed: true,
+    agentAuthorized: true,
+    autonomousMintFeatureEnabled: true,
+    exactExecutionPrepared: true,
+    executionCompleted: true,
+    containmentCompleted: true,
+  }),
+  result: Object.freeze({
+    tokenId: "233",
+    transactionHash: "0xccb0c093d1c37736b13c553fa9ff10482e41cdd851952da529099a66fbd7eeed",
+    blockNumber: "43676523",
+    blockHash: "0xaacde186a6d62b98719fcfd90fbe88893b56713fc88e0a00712b6c4b9f73ca92",
+    completedAt: "2026-08-23T03:19:55Z",
+    nftOwner: "0x89f6c15bfbf629e9c0d2f5d56be58a27b01446b3",
+    acquisitionNonceAfter: "2",
+    policyVersionAfterContainment: "38",
+    containment: "AUTONOMY_OFF_AGENT_REVOKED_ACCOUNT_PAUSED_DISABLED_TARGET_PERMISSIONS_REVOKED",
+  }),
+  notice: "Live autonomous free-mint test succeeded. Token #233 is held by Punk #1797's account. Autonomy is off, the agent and adapter are disabled, the account is paused in DISABLED mode, and every target permission is revoked.",
+});
+
+export const COMPLETED_EXTERNAL_FREE_MINTS = Object.freeze([
+  PUNK_1639_EXTERNAL_FREE_MINT,
+  PUNK_1797_EXTERNAL_FREE_MINT,
+]);
+
+// The newest completed run is published in the status endpoint for the shared live-test panel.
+export const COMPLETED_EXTERNAL_FREE_MINT = PUNK_1797_EXTERNAL_FREE_MINT;

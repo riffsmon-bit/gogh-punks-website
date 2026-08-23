@@ -10,7 +10,7 @@ import { json } from "./_shared/http.mjs";
 import { getRpcUrl } from "./_shared/config.mjs";
 import { CURRENT_BROKER_DEPLOYMENT_SURFACE } from
   "./_shared/broker-deployment-surface.mjs";
-import { COMPLETED_EXTERNAL_FREE_MINT } from
+import { COMPLETED_EXTERNAL_FREE_MINTS } from
   "./_shared/external-free-mint-display.mjs";
 
 const PUNK_ABI = parseAbi(["function ownerOf(uint256 tokenId) view returns (address)"]);
@@ -67,9 +67,10 @@ export async function readLivePunkState(
       || BigInt(footer[2]) !== id) throw new Error("live Punk Account binding mismatch");
   }
   let canaryAsset = null;
-  const external = COMPLETED_EXTERNAL_FREE_MINT;
-  if (deployed && external.status === "COMPLETED_AND_CONTAINED"
-    && external.punkTokenId === tokenId && external.account === account.toLowerCase()) {
+  const external = COMPLETED_EXTERNAL_FREE_MINTS.find((item) => (
+    item.punkTokenId === tokenId && item.account === account.toLowerCase()
+  ));
+  if (deployed && external?.status === "COMPLETED_AND_CONTAINED") {
     const collectionCode = await client.getCode({ address: external.candidate.collection });
     if (typeof collectionCode === "string" && collectionCode !== "0x"
       && keccak256(collectionCode) === external.candidate.collectionRuntimeCodeHash) {

@@ -53,5 +53,7 @@ test("Punk page loads the separate external-mint module and displays contained e
   assert.match(source, /executionEnabled.*!== true/s);
   assert.match(status, /COMPLETED_AND_CONTAINED/);
   assert.match(evidence, /36c6cc619a3a3a2d634627e02f8ad233eda9180a9fe04724845b2dcbf7a1d833/);
+  assert.match(evidence, /ccb0c093d1c37736b13c553fa9ff10482e41cdd851952da529099a66fbd7eeed/);
+  assert.match(evidence, /PUNK_1797_EXTERNAL_FREE_MINT/);
   assert.match(evidence, /UNVERIFIED_COLLECTION/);
 });
