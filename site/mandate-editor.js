@@ -1,6 +1,5 @@
 const CHAIN_ID = 4663;
 const COLLECTION = "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6";
-const TOKEN_ID = "1797";
 const DIMENSIONS = [
   "pixelArt",
   "generativeArt",
@@ -18,7 +17,10 @@ function integer(input) {
   return value;
 }
 
-function currentMandate(form) {
+function currentMandate(form, tokenId) {
+  if (typeof tokenId !== "string" || !/^(0|[1-9]\d{0,3})$/.test(tokenId)) {
+    throw new TypeError("Choose a wallet-owned Punk before editing its mandate.");
+  }
   const element = (name) => {
     const target = form.elements.namedItem(name);
     if (!target) throw new TypeError(`Missing mandate field ${name}`);
@@ -27,7 +29,7 @@ function currentMandate(form) {
   return {
     chainId: CHAIN_ID,
     collection: COLLECTION,
-    tokenId: TOKEN_ID,
+    tokenId,
     mode: element("mode").value,
     economicSettings: {
       inspectMints: element("inspectMints").checked,
@@ -91,15 +93,20 @@ export function setupMandateEditor({ windowObject, documentObject, fetchFunction
   const stateTarget = browserDocument.querySelector("[data-mandate-state]");
   const badge = browserDocument.querySelector("[data-mandate-badge]");
   const summary = browserDocument.querySelector("[data-mandate-summary]");
+  const heading = browserDocument.querySelector("[data-mandate-punk-heading]");
   let wallet = browserWindow.__GOGH_WALLET_SNAPSHOT__ ?? null;
   let pending = false;
   let version = null;
+  let selectedTokenId = null;
+  let selectionOwner = null;
+  let loadRevision = 0;
 
   function ownerReady() {
     return Boolean(provider?.request
-      && wallet?.status === "owner"
       && wallet?.chainId === CHAIN_ID
-      && /^0x[0-9a-fA-F]{40}$/.test(wallet?.account ?? ""));
+      && /^0x[0-9a-fA-F]{40}$/.test(wallet?.account ?? "")
+      && selectedTokenId !== null
+      && selectionOwner === wallet.account.toLowerCase());
   }
 
   function render(message = null, status = null) {
@@ -109,8 +116,10 @@ export function setupMandateEditor({ windowObject, documentObject, fetchFunction
       ? "Waiting for wallet…"
       : ready
         ? "Sign and save preferences"
-        : `Connect Punk #${TOKEN_ID} owner to save`;
-    badge.textContent = version === null ? (ready ? "Owner ready" : "Connect owner") : `Saved v${version}`;
+        : selectedTokenId ? `Connect Punk #${selectedTokenId} owner to save` : "Choose one of your Punks";
+    badge.textContent = version === null
+      ? (ready ? "Owner ready" : selectedTokenId ? "Owner check required" : "Choose Punk")
+      : `Saved v${version}`;
     badge.classList.toggle("off", version === null && !ready);
     if (message) stateTarget.textContent = message;
     stateTarget.dataset.mandateStatus = status ?? (ready ? "ready" : "locked");
@@ -129,7 +138,11 @@ export function setupMandateEditor({ windowObject, documentObject, fetchFunction
       if (input) output.value = input.value;
     }
     if (summary) {
-      const selected = currentMandate(form);
+      if (!selectedTokenId) {
+        summary.textContent = "Choose a live-verified Punk above to load or create its own Art Mandate.";
+        return;
+      }
+      const selected = currentMandate(form, selectedTokenId);
       const action = selected.mode === "DISABLED"
         ? "Scout will ignore mint opportunities for this Punk."
         : !selected.economicSettings.inspectMints
@@ -150,14 +163,21 @@ export function setupMandateEditor({ windowObject, documentObject, fetchFunction
     }
   }
 
-  async function load() {
+  async function load(tokenId) {
+    const current = ++loadRevision;
     try {
-      const payload = await responseJson(await request("/api/broker/mandate", {
+      const payload = await responseJson(await request(
+        `/api/broker/mandate?tokenId=${encodeURIComponent(tokenId)}`, {
         method: "GET",
         headers: { accept: "application/json" },
         cache: "no-store",
       }));
+      if (current !== loadRevision || selectedTokenId !== tokenId) return;
+      if (String(payload.tokenId) !== tokenId) throw new Error("The mandate response belongs to another Punk.");
       if (payload.mandate) {
+        if (String(payload.mandate.tokenId) !== tokenId) {
+          throw new Error("The saved mandate belongs to another Punk.");
+        }
         applyMandate(form, payload.mandate);
         version = payload.mandate.version;
         render(`Saved version ${version} is loaded. Connect the current owner to update it.`, "saved");
@@ -166,6 +186,7 @@ export function setupMandateEditor({ windowObject, documentObject, fetchFunction
       }
       syncOutputs();
     } catch (error) {
+      if (current !== loadRevision || selectedTokenId !== tokenId) return;
       render(error.message, "error");
     }
   }
@@ -176,6 +197,7 @@ export function setupMandateEditor({ windowObject, documentObject, fetchFunction
     pending = true;
     render("Preparing an owner-only preference signature…", "pending");
     const expectedAccount = wallet.account.toLowerCase();
+    const expectedTokenId = selectedTokenId;
     try {
       const prepared = await responseJson(await request("/api/broker/mandate", {
         method: "POST",
@@ -183,7 +205,7 @@ export function setupMandateEditor({ windowObject, documentObject, fetchFunction
         body: JSON.stringify({
           action: "prepare",
           walletAddress: expectedAccount,
-          mandate: currentMandate(form),
+          mandate: currentMandate(form, expectedTokenId),
         }),
       }));
       const signature = await provider.request({
@@ -195,7 +217,8 @@ export function setupMandateEditor({ windowObject, documentObject, fetchFunction
         provider.request({ method: "eth_chainId" }),
       ]);
       if (!Array.isArray(accounts) || accounts[0]?.toLowerCase() !== expectedAccount
-        || Number.parseInt(chainHex, 16) !== CHAIN_ID) {
+        || Number.parseInt(chainHex, 16) !== CHAIN_ID
+        || selectedTokenId !== expectedTokenId) {
         throw new Error("Wallet account or network changed before the preference was saved.");
       }
       const completed = await responseJson(await request("/api/broker/mandate", {
@@ -227,20 +250,50 @@ export function setupMandateEditor({ windowObject, documentObject, fetchFunction
 
   function walletChanged(event) {
     wallet = event?.detail ?? null;
+    if (!wallet?.account || wallet.account.toLowerCase() !== selectionOwner) {
+      selectedTokenId = null;
+      selectionOwner = null;
+      version = null;
+      loadRevision += 1;
+      if (heading) heading.textContent = "Select a Punk";
+    }
     render();
+  }
+
+  function punkSelected(event) {
+    const tokenId = String(event?.detail?.tokenId ?? "");
+    const owner = String(event?.detail?.owner ?? "").toLowerCase();
+    if (!/^(0|[1-9]\d{0,3})$/.test(tokenId)
+      || !ownerReadyForSelection(owner)) return;
+    selectedTokenId = tokenId;
+    selectionOwner = owner;
+    version = null;
+    form.reset?.();
+    if (heading) heading.textContent = `Punk #${tokenId}`;
+    render(`Loading Punk #${tokenId}'s saved preferences…`, "pending");
+    syncOutputs();
+    load(tokenId);
+  }
+
+  function ownerReadyForSelection(owner) {
+    return wallet?.chainId === CHAIN_ID
+      && /^0x[0-9a-f]{40}$/.test(owner)
+      && wallet?.account?.toLowerCase() === owner;
   }
 
   form.addEventListener("input", syncOutputs);
   form.addEventListener("submit", submit);
   browserWindow.addEventListener("gogh:wallet-state", walletChanged);
+  browserWindow.addEventListener("gogh:mandate-punk-selected", punkSelected);
   render();
-  load();
+  syncOutputs();
   return Object.freeze({
-    currentMandate: () => currentMandate(form),
+    currentMandate: () => selectedTokenId ? currentMandate(form, selectedTokenId) : null,
     destroy() {
       form.removeEventListener("input", syncOutputs);
       form.removeEventListener("submit", submit);
       browserWindow.removeEventListener("gogh:wallet-state", walletChanged);
+      browserWindow.removeEventListener("gogh:mandate-punk-selected", punkSelected);
     },
   });
 }

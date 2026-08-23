@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { indexedOwnerPunkIds } from "../netlify/functions/broker-owner-punks.mjs";
+import {
+  indexedOwnerPunkIds,
+  openSeaOwnerPunkIds,
+} from "../netlify/functions/broker-owner-punks.mjs";
 import { findBrowserOwnedPunks } from "../site/owner-accounts.js";
 
 const OWNER = "0x1234567890123456789012345678901234567890";
@@ -24,6 +27,36 @@ test("indexed owner picker candidates are bounded, ordered, and explicitly non-a
   assert.match(captured.sql, /LOWER\(owner_snapshot\)/);
   assert.equal(captured.values[2], OWNER.toLowerCase());
   assert.equal(captured.values[3], 51);
+});
+
+test("OpenSea supplies bounded discovery hints while foreign NFTs are ignored", async () => {
+  const calls = [];
+  const result = await openSeaOwnerPunkIds(OWNER, {
+    apiKey: "server-side-test-key",
+    fetchFn: async (url, options) => {
+      calls.push({ url: String(url), options });
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        text: async () => JSON.stringify({
+          nfts: [
+            { identifier: "1639", collection: "gogh-punks-255843210", contract: COLLECTION },
+            { identifier: "1755", collection: "gogh-punks-255843210", contract: COLLECTION },
+            { identifier: "9", collection: "foreign", contract: COLLECTION },
+            { identifier: "1797", collection: "gogh-punks-255843210",
+              contract: "0x9999999999999999999999999999999999999999" },
+          ],
+          next: null,
+        }),
+      };
+    },
+  });
+  assert.deepEqual(result, ["1639", "1755"]);
+  assert.match(calls[0].url, /chain\/robinhood\/account\/0x1234/);
+  assert.match(calls[0].url, /collection=gogh-punks-255843210/);
+  assert.equal(calls[0].options.redirect, "error");
+  assert.equal(calls[0].options.headers["x-api-key"], "server-side-test-key");
 });
 
 test("wallet rechecks ownership and labels activated versus activatable Punks", async () => {
@@ -56,10 +89,12 @@ test("picker UI selects a live-verified Punk while preserving manual entry", asy
     readFile(new URL("../netlify/functions/broker-owner-punks.mjs", import.meta.url), "utf8"),
   ]);
   assert.match(html, /data-owned-punk-picker/);
+  assert.match(html, /data-mandate-punk-picker/);
   assert.match(html, /data-activation-token/);
   assert.match(accounts, /findBrowserOwnedPunks/);
   assert.match(accounts, /gogh:punk-selected/);
   assert.match(activation, /gogh:punk-selected/);
-  assert.match(endpoint, /INDEXED_CANDIDATES_ONLY_EACH_SELECTION_REQUIRES_LIVE_WALLET_OWNER_CHECK/);
+  assert.match(endpoint, /DISCOVERY_CANDIDATES_ONLY_EACH_SELECTION_REQUIRES_LIVE_WALLET_OWNER_CHECK/);
+  assert.match(endpoint, /OPENSEA_API_KEY/);
   assert.doesNotMatch(endpoint, /eth_send|privateKey|mnemonic/);
 });

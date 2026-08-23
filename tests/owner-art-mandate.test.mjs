@@ -56,12 +56,16 @@ test("accepts only the narrow autonomous request and keeps execution disabled", 
   assert.equal(stored.economicSettings.allowPaidMints, false);
 });
 
-test("rejects unsafe autonomy, alternate Punks, excess daily mints, and ambiguous fields", () => {
+test("accepts any canonical Punk ID while rejecting unsafe autonomy and ambiguous identities", () => {
+  const another = structuredClone(mandate());
+  another.tokenId = "1639";
+  assert.equal(normalizeOwnerArtMandate(another).tokenId, "1639");
   for (const mutate of [
     (value) => { value.mode = "AUTONOMOUS"; value.economicSettings.allowFreeMints = false; },
     (value) => { value.mode = "AUTONOMOUS"; value.economicSettings.inspectMints = false; },
     (value) => { value.mode = "AUTONOMOUS"; value.economicSettings.maxMintsPerDay = 0; },
-    (value) => { value.tokenId = "1798"; },
+    (value) => { value.tokenId = "01798"; },
+    (value) => { value.tokenId = "10000"; },
     (value) => { value.economicSettings.maxMintsPerDay = 11; },
     (value) => { value.economicSettings.allowPaidMints = true; },
     (value) => { value.artisticPreferences.dimensions.hidden = 100; },
@@ -102,6 +106,7 @@ function browserFixture() {
     textContent: "",
     classList: { toggle() {} },
   };
+  const heading = { textContent: "" };
   const outputs = Object.keys(values)
     .filter((name) => !["mode", "inspectMints", "allowFreeMints", "maxMintsPerDay", "unknownMintMode"].includes(name))
     .map((name) => ({ dataset: { mandateValue: name }, value: "" }));
@@ -112,6 +117,7 @@ function browserFixture() {
         "[data-mandate-save]": save,
         "[data-mandate-state]": state,
         "[data-mandate-badge]": badge,
+        "[data-mandate-punk-heading]": heading,
       })[selector] ?? null;
     },
     querySelectorAll: () => outputs,
@@ -140,7 +146,10 @@ test("browser editor requires the live owner and saves with personal_sign only",
   const fetchCalls = [];
   const fetchFunction = async (url, options = {}) => {
     fetchCalls.push({ url, options });
-    if (options.method === "GET") return { ok: true, json: async () => ({ ok: true, mandate: null }) };
+    if (options.method === "GET") return {
+      ok: true,
+      json: async () => ({ ok: true, tokenId: "1797", mandate: null }),
+    };
     const body = JSON.parse(options.body);
     if (body.action === "prepare") {
       return { ok: true, json: async () => ({
@@ -160,6 +169,10 @@ test("browser editor requires the live owner and saves with personal_sign only",
   fixture.windowListeners["gogh:wallet-state"]({
     detail: { account: OWNER, chainId: 4663, status: "owner" },
   });
+  fixture.windowListeners["gogh:mandate-punk-selected"]({
+    detail: { tokenId: "1797", owner: OWNER },
+  });
+  await new Promise((resolve) => setImmediate(resolve));
   assert.equal(fixture.save.disabled, false);
   await fixture.formListeners.submit({ preventDefault() {} });
   assert.deepEqual(fixture.providerCalls.map((call) => call.method), [

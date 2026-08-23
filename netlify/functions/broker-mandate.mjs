@@ -5,7 +5,7 @@ import { createSiweMessage, generateSiweNonce } from "viem/siwe";
 import { ROBINHOOD } from "../../broker/src/config.mjs";
 import {
   normalizeOwnerArtMandate,
-  OWNER_MANDATE_TOKEN_ID,
+  normalizeOwnerMandateTokenId,
   ownerArtMandateSha256,
   storedOwnerArtMandate,
 } from "../../broker/src/owner-art-mandate.mjs";
@@ -15,7 +15,6 @@ import { normalizeWalletAddress, verifyWalletSignature } from "./_shared/verific
 
 const OWNER_ABI = parseAbi(["function ownerOf(uint256 tokenId) view returns (address)"]);
 const CHALLENGE_SECONDS = 10 * 60;
-const LOCK_ID = 4_663_1_797;
 
 function exactBody(body, keys, label) {
   if (!body || typeof body !== "object" || Array.isArray(body)
@@ -52,18 +51,18 @@ function publicClient() {
   return createPublicClient({ chain, transport: http(rpcUrl) });
 }
 
-async function requireLiveOwner(walletAddress, client = publicClient()) {
+async function requireLiveOwner(walletAddress, tokenId, client = publicClient()) {
   const owner = normalizeWalletAddress(await client.readContract({
     address: getAddress(ROBINHOOD.canonicalCollection),
     abi: OWNER_ABI,
     functionName: "ownerOf",
-    args: [BigInt(OWNER_MANDATE_TOKEN_ID)],
+    args: [BigInt(tokenId)],
   }));
   if (owner !== walletAddress) {
     throw new PublicError(
       403,
       "NOT_CURRENT_OWNER",
-      `The connected wallet is not the current owner of Punk #${OWNER_MANDATE_TOKEN_ID}.`,
+      `The connected wallet is not the current owner of Punk #${tokenId}.`,
     );
   }
   return owner;
@@ -91,7 +90,7 @@ function mandateFromRow(row) {
   );
 }
 
-async function latestMandate(pool) {
+async function latestMandate(pool, tokenId) {
   const result = await pool.query(
     `SELECT chain_id, collection_address, token_id, version, mode,
             economic_settings, risk_settings, artistic_preferences,
@@ -99,7 +98,7 @@ async function latestMandate(pool) {
        FROM broker_art_mandates
       WHERE chain_id = $1 AND collection_address = $2 AND token_id = $3
       ORDER BY version DESC LIMIT 1`,
-    [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, OWNER_MANDATE_TOKEN_ID],
+    [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, tokenId],
   );
   const mandate = mandateFromRow(result.rows[0]);
   return mandate ? Object.freeze({ ...mandate, savedAt: result.rows[0].created_at }) : null;
@@ -114,7 +113,7 @@ async function prepare(body, pool) {
   } catch {
     throw new PublicError(400, "INVALID_MANDATE", "The Art Mandate settings are invalid.");
   }
-  await requireLiveOwner(walletAddress);
+  await requireLiveOwner(walletAddress, mandate.tokenId);
   const challengeId = randomUUID();
   const now = new Date();
   const expirationTime = new Date(now.getTime() + CHALLENGE_SECONDS * 1_000);
@@ -129,7 +128,7 @@ async function prepare(body, pool) {
     nonce: generateSiweNonce(),
     requestId: challengeId,
     resources: [`${siteUrl}/broker/#mandate-${mandateSha256.slice(2)}`],
-    statement: `Save off-chain Scout preferences for Gogh Punk #${OWNER_MANDATE_TOKEN_ID}. This signature is not a transaction or token approval and cannot enable autonomous execution.`,
+    statement: `Save off-chain Scout preferences for Gogh Punk #${mandate.tokenId}. This signature is not a transaction or token approval and cannot enable autonomous execution.`,
     uri: `${siteUrl}/broker/`,
     version: "1",
   });
@@ -139,7 +138,7 @@ async function prepare(body, pool) {
        mandate_sha256, mandate_json, expires_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9)`,
     [challengeId, ROBINHOOD.chainId, ROBINHOOD.canonicalCollection,
-      OWNER_MANDATE_TOKEN_ID, walletAddress, message, mandateSha256,
+      mandate.tokenId, walletAddress, message, mandateSha256,
       JSON.stringify(mandate), expirationTime],
   );
   return json({ ok: true, action: "SIGN_MANDATE", challengeId, message, expirationTime });
@@ -153,7 +152,7 @@ async function complete(body, pool) {
   }
   const walletAddress = normalizeWalletAddress(body.walletAddress);
   const found = await pool.query(
-    `SELECT id, wallet_address, message, mandate_sha256, mandate_json, expires_at, used_at
+    `SELECT id, token_id, wallet_address, message, mandate_sha256, mandate_json, expires_at, used_at
        FROM broker_mandate_challenges WHERE id = $1`,
     [body.challengeId],
   );
@@ -165,17 +164,19 @@ async function complete(body, pool) {
   let mandate;
   try {
     mandate = normalizeOwnerArtMandate(challenge.mandate_json);
-    if (ownerArtMandateSha256(mandate) !== challenge.mandate_sha256) throw new Error();
+    if (ownerArtMandateSha256(mandate) !== challenge.mandate_sha256
+      || mandate.tokenId !== String(challenge.token_id)) throw new Error();
   } catch {
     throw new PublicError(409, "CHALLENGE_MISMATCH", "The saved mandate challenge is invalid.");
   }
   await verifyWalletSignature({ walletAddress, message: challenge.message, signature: body.signature });
-  await requireLiveOwner(walletAddress);
+  await requireLiveOwner(walletAddress, mandate.tokenId);
 
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    await client.query("SELECT pg_advisory_xact_lock($1)", [LOCK_ID]);
+    const lockId = (BigInt(ROBINHOOD.chainId) * 10_000n + BigInt(mandate.tokenId)).toString();
+    await client.query("SELECT pg_advisory_xact_lock($1)", [lockId]);
     const locked = await client.query(
       `SELECT used_at, expires_at FROM broker_mandate_challenges WHERE id = $1 FOR UPDATE`,
       [body.challengeId],
@@ -188,17 +189,26 @@ async function complete(body, pool) {
       `SELECT COALESCE(MAX(version), 0)::text AS version
          FROM broker_art_mandates
         WHERE chain_id = $1 AND collection_address = $2 AND token_id = $3`,
-      [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, OWNER_MANDATE_TOKEN_ID],
+      [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, mandate.tokenId],
     );
     const version = Number(BigInt(versionResult.rows[0].version) + 1n);
     const stored = storedOwnerArtMandate(mandate, walletAddress, version);
+    await client.query(
+      `INSERT INTO broker_punks
+        (chain_id, collection_address, token_id, owner_snapshot)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (chain_id, collection_address, token_id) DO UPDATE
+         SET owner_snapshot = EXCLUDED.owner_snapshot,
+             updated_at = NOW()`,
+      [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, mandate.tokenId, walletAddress],
+    );
     await client.query(
       `INSERT INTO broker_art_mandates
         (chain_id, collection_address, token_id, version, mode, economic_settings,
          risk_settings, artistic_preferences, marketplace_permissions, configured_by,
          onchain_policy_version)
        VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb, $9::jsonb, $10, NULL)`,
-      [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, OWNER_MANDATE_TOKEN_ID,
+      [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, mandate.tokenId,
         version, stored.mode, JSON.stringify(stored.economicSettings),
         JSON.stringify(stored.riskSettings), JSON.stringify(stored.artisticPreferences),
         JSON.stringify(stored.mintPermissions), walletAddress],
@@ -221,7 +231,13 @@ export default async function handler(request) {
   const pool = getDatabase().pool;
   try {
     if (request.method === "GET") {
-      return json({ ok: true, tokenId: OWNER_MANDATE_TOKEN_ID, mandate: await latestMandate(pool) });
+      let tokenId;
+      try {
+        tokenId = normalizeOwnerMandateTokenId(new URL(request.url).searchParams.get("tokenId"));
+      } catch {
+        throw new PublicError(400, "INVALID_TOKEN_ID", "Choose a valid Gogh Punk ID.");
+      }
+      return json({ ok: true, tokenId, mandate: await latestMandate(pool, tokenId) });
     }
     if (request.method !== "POST") return json({ ok: false, code: "METHOD_NOT_ALLOWED" }, 405);
     requireSameOrigin(request);

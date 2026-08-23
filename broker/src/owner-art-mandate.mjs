@@ -42,6 +42,17 @@ function integer(value, label, minimum, maximum) {
   return value;
 }
 
+export function normalizeOwnerMandateTokenId(value) {
+  if (typeof value !== "string" || !/^(0|[1-9]\d{0,3})$/.test(value)) {
+    throw new TypeError("Art Mandate token must be a canonical Punk ID");
+  }
+  const tokenId = Number(value);
+  if (!Number.isSafeInteger(tokenId) || tokenId < 0 || tokenId > 9_999) {
+    throw new TypeError("Art Mandate token is outside the supported Punk range");
+  }
+  return String(tokenId);
+}
+
 export function normalizeOwnerArtMandate(value) {
   exactKeys(value, [
     "chainId", "collection", "tokenId", "mode", "economicSettings",
@@ -51,9 +62,7 @@ export function normalizeOwnerArtMandate(value) {
   if (String(value.collection).toLowerCase() !== ROBINHOOD.canonicalCollection) {
     throw new TypeError("Art Mandate collection is invalid");
   }
-  if (value.tokenId !== OWNER_MANDATE_TOKEN_ID) {
-    throw new TypeError(`Art Mandate token must be ${OWNER_MANDATE_TOKEN_ID}`);
-  }
+  const tokenId = normalizeOwnerMandateTokenId(value.tokenId);
   if (!MODES.has(value.mode)) throw new TypeError("Art Mandate mode is invalid");
 
   exactKeys(value.economicSettings,
@@ -111,7 +120,7 @@ export function normalizeOwnerArtMandate(value) {
   return Object.freeze({
     chainId: ROBINHOOD.chainId,
     collection: ROBINHOOD.canonicalCollection,
-    tokenId: OWNER_MANDATE_TOKEN_ID,
+    tokenId,
     mode: value.mode,
     economicSettings: Object.freeze({
       inspectMints: value.economicSettings.inspectMints,
