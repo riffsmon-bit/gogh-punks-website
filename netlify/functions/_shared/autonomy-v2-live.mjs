@@ -76,7 +76,7 @@ function tuple(value, key, index) {
 
 function normalizeGlobal(values, nowSeconds) {
   const [adapterRecord, adapterPaused, flags, policyPaused, agentRecord, agentPaused,
-    adapterCode, policyCode, registryCode] = values;
+    adapterCode, policyCode, registryCode, agentCode, agentBalance] = values;
   const normalized = {
     adapter: {
       kind: Number(tuple(adapterRecord, "kind", 0)),
@@ -105,6 +105,8 @@ function normalizeGlobal(values, nowSeconds) {
       versionHash: tuple(agentRecord, "versionHash", 3).toLowerCase(),
       metadataHash: tuple(agentRecord, "metadataHash", 4).toLowerCase(),
       globallyPaused: agentPaused,
+      codeFree: agentCode === "0x",
+      balanceWei: BigInt(agentBalance).toString(),
     },
     runtime: {
       adapter: keccak256(adapterCode),
@@ -129,6 +131,7 @@ function normalizeGlobal(values, nowSeconds) {
     && normalized.features.autonomousSelling === false
     && normalized.features.globallyPaused === false
     && normalized.agent.approved === true && normalized.agent.globallyPaused === false
+    && normalized.agent.codeFree === true
     && BigInt(normalized.agent.validAfter) <= BigInt(nowSeconds)
     && BigInt(normalized.agent.validUntil) > BigInt(nowSeconds + 7 * 86_400)
     && normalized.runtime.adapter === expected.adapter
@@ -143,7 +146,7 @@ async function readGlobal(clientValue) {
   const registry = getAddress(automationManifest.contracts.GoghPunkAccountRegistryV2.address);
   const agentRegistry = getAddress(coreManifest.contracts.ArtAgentRegistry.address);
   const [adapterRecord, adapterPaused, flags, policyPaused, agentRecord, agentPaused,
-    adapterCode, policyCode, registryCode] = await Promise.all([
+    adapterCode, policyCode, registryCode, agentCode, agentBalance] = await Promise.all([
     clientValue.readContract({ address: getAddress(coreManifest.contracts.ArtAdapterRegistry.address), abi: ADAPTER_ABI, functionName: "adapterRecord", args: [adapter] }),
     clientValue.readContract({ address: getAddress(coreManifest.contracts.ArtAdapterRegistry.address), abi: ADAPTER_ABI, functionName: "globallyPaused" }),
     clientValue.readContract({ address: policy, abi: POLICY_ABI, functionName: "featureFlags" }),
@@ -153,12 +156,14 @@ async function readGlobal(clientValue) {
     clientValue.getCode({ address: adapter }),
     clientValue.getCode({ address: policy }),
     clientValue.getCode({ address: registry }),
+    clientValue.getCode({ address: getAddress(AUTOMATION_V2_AGENT) }).then((value) => value ?? "0x"),
+    clientValue.getBalance({ address: getAddress(AUTOMATION_V2_AGENT) }),
   ]);
   if (![adapterCode, policyCode, registryCode].every((value) => typeof value === "string" && value !== "0x")) {
     throw new TypeError("V2 runtime code is unavailable");
   }
   return [adapterRecord, adapterPaused, flags, policyPaused, agentRecord, agentPaused,
-    adapterCode, policyCode, registryCode];
+    adapterCode, policyCode, registryCode, agentCode, agentBalance];
 }
 
 export async function readAutomationV2GlobalState(environment = process.env, options = {}) {

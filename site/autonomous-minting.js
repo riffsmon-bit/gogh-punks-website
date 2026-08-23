@@ -2,6 +2,32 @@ function shortAddress(value) {
   return `${value.slice(0, 8)}…${value.slice(-6)}`;
 }
 
+const FUNDING_VALUES = new Set([
+  "500000000000000", "1000000000000000", "2000000000000000",
+]);
+
+function canonicalAddress(value, label) {
+  if (typeof value !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(value)) {
+    throw new TypeError(`${label} is invalid.`);
+  }
+  return value.toLowerCase();
+}
+
+export function formatAutomationGasBalance(value) {
+  if (typeof value !== "string" || !/^(?:0|[1-9][0-9]*)$/.test(value)) return "— ETH";
+  const padded = value.padStart(19, "0");
+  const whole = padded.slice(0, -18).replace(/^0+(?=\d)/, "");
+  const fraction = padded.slice(-18).slice(0, 9).replace(/0+$/, "");
+  return `${whole}${fraction ? `.${fraction}` : ""} ETH`;
+}
+
+export function buildAutomationGasFundingTransaction(fromValue, agentValue, amountWei) {
+  const from = canonicalAddress(fromValue, "connected wallet");
+  const to = canonicalAddress(agentValue, "hosted gas wallet");
+  if (!FUNDING_VALUES.has(amountWei)) throw new TypeError("Choose a supported gas amount.");
+  return Object.freeze({ from, to, value: `0x${BigInt(amountWei).toString(16)}`, data: "0x" });
+}
+
 export function setupAutonomousMinting({ windowObject, documentObject, fetchFunction } = {}) {
   const browserWindow = windowObject ?? (typeof window === "undefined" ? null : window);
   const browserDocument = documentObject ?? (typeof document === "undefined" ? null : document);
@@ -11,6 +37,15 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
   const status = panel.querySelector("[data-v2-status]");
   const punk = panel.querySelector("[data-v2-punk]");
   const account = panel.querySelector("[data-v2-account]");
+  const agent = panel.querySelector("[data-v2-agent]");
+  const agentFull = panel.querySelector("[data-v2-agent-full]");
+  const agentBalance = panel.querySelector("[data-v2-agent-balance]");
+  const agentBalanceLarge = panel.querySelector("[data-v2-agent-balance-large]");
+  const agentCopy = panel.querySelector("[data-v2-agent-copy]");
+  const agentFundAmount = panel.querySelector("[data-v2-agent-fund-amount]");
+  const agentFundConfirm = panel.querySelector("[data-v2-agent-fund-confirm]");
+  const agentFund = panel.querySelector("[data-v2-agent-fund]");
+  const agentFundState = panel.querySelector("[data-v2-agent-fund-state]");
   const worker = panel.querySelector("[data-v2-worker]");
   const workerDetail = panel.querySelector("[data-v2-worker-detail]");
   const setup = panel.querySelector("[data-v2-setup]");
@@ -19,7 +54,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
   const days = panel.querySelector("[data-v2-days]");
   const badge = panel.querySelector("[data-v2-badge]");
   const message = panel.querySelector("[data-v2-message]");
-  const state = { gate: null, selection: null };
+  const state = { gate: null, selection: null, funding: false };
 
   function heartbeatLabel(value) {
     if (!value) return "No worker check recorded yet";
@@ -94,6 +129,19 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
       : state.gate?.bindings?.accountRegistry
         ? `Derived after V2 activation · ${shortAddress(state.gate.bindings.accountRegistry)}`
       : "V2 automation wallet not available";
+    const gasAgent = state.gate?.agent;
+    const gasReady = state.gate?.capability === true && gasAgent?.codeFree === true
+      && /^0x[0-9a-f]{40}$/.test(gasAgent.address ?? "")
+      && /^(?:0|[1-9][0-9]*)$/.test(gasAgent.balanceWei ?? "");
+    const balanceLabel = formatAutomationGasBalance(gasAgent?.balanceWei);
+    agent.textContent = gasReady ? shortAddress(gasAgent.address) : "UNAVAILABLE";
+    agentFull.textContent = gasReady ? gasAgent.address : "Waiting for verified live status…";
+    agentBalance.textContent = gasReady ? `${balanceLabel} available for worker gas`
+      : "Live balance unavailable";
+    agentBalanceLarge.textContent = balanceLabel;
+    agentCopy.disabled = !gasReady;
+    agentFundAmount.disabled = !gasReady || state.funding;
+    agentFund.disabled = !gasReady || state.funding || !agentFundConfirm.checked;
     const ready = state.gate?.capability === true
       && state.gate?.setupTransactionAvailable === true && Boolean(state.selection);
     setup.disabled = !ready;
@@ -126,6 +174,75 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
       message.textContent = `Agent is live for Punk #${selectedState.tokenId}. ${heartbeatLabel(state.gate?.heartbeat)}. Today: ${selectedState.acquisitionsToday} of ${selectedState.maxAcquisitionsPerDay} mints.`;
     } else if (active) {
       message.textContent = `Punk #${selectedState.tokenId} remains authorized on-chain, but the hosted worker heartbeat is not current. Automatic submission is paused until it recovers. You can still stop and revoke it here.`;
+    }
+  }
+
+  async function copyAgentAddress() {
+    const value = state.gate?.agent?.address;
+    if (!/^0x[0-9a-f]{40}$/.test(value ?? "")) return;
+    try {
+      await browserWindow.navigator?.clipboard?.writeText(value);
+      agentFundState.textContent = "Hosted gas-wallet address copied. Verify it before sending.";
+    } catch {
+      agentFundState.textContent = `Copy unavailable. Select this exact address: ${value}`;
+    }
+  }
+
+  async function fundAgent() {
+    if (state.funding || !agentFundConfirm.checked) return;
+    const provider = browserWindow.ethereum;
+    if (!provider?.request) {
+      agentFundState.textContent = "Connect MetaMask before funding automation gas.";
+      return;
+    }
+    state.funding = true;
+    render();
+    let providerChanged = false;
+    const changed = () => { providerChanged = true; };
+    for (const eventName of ["accountsChanged", "chainChanged", "disconnect"]) {
+      provider.on?.(eventName, changed);
+    }
+    try {
+      const expectedAgent = canonicalAddress(state.gate?.agent?.address, "hosted gas wallet");
+      if (state.gate?.agent?.codeFree !== true) throw new Error("Hosted gas wallet is not verified as code-free.");
+      const chain = await rpc("eth_chainId");
+      if (BigInt(chain) !== 4663n) throw new Error("Switch MetaMask to Robinhood Chain.");
+      const accounts = await rpc("eth_requestAccounts");
+      const from = canonicalAddress(accounts?.[0], "connected wallet");
+      providerChanged = false;
+      const transaction = buildAutomationGasFundingTransaction(
+        from, expectedAgent, agentFundAmount.value,
+      );
+      const [code, gas] = await Promise.all([
+        rpc("eth_getCode", [expectedAgent, "latest"]),
+        rpc("eth_estimateGas", [transaction]),
+      ]);
+      if (code !== "0x" || typeof gas !== "string" || BigInt(gas) === 0n) {
+        throw new Error("Hosted gas wallet failed the final live check.");
+      }
+      await rpc("eth_call", [transaction, "latest"]);
+      const [finalChain, finalAccounts] = await Promise.all([
+        rpc("eth_chainId"), rpc("eth_accounts"),
+      ]);
+      if (providerChanged || BigInt(finalChain) !== 4663n
+        || canonicalAddress(finalAccounts?.[0], "connected wallet") !== from
+        || state.gate?.agent?.address !== expectedAgent || !agentFundConfirm.checked) {
+        throw new Error("Wallet, chain, or verified gas address changed. Nothing was submitted.");
+      }
+      agentFundState.textContent = "Confirm the fixed gas-wallet contribution in MetaMask.";
+      const hash = await rpc("eth_sendTransaction", [transaction]);
+      await receipt(hash);
+      agentFundState.textContent = `Gas funding confirmed: ${hash}`;
+      agentFundConfirm.checked = false;
+      await load();
+    } catch (error) {
+      agentFundState.textContent = error?.message ?? "Gas funding was not submitted.";
+    } finally {
+      for (const eventName of ["accountsChanged", "chainChanged", "disconnect"]) {
+        provider.removeListener?.(eventName, changed);
+      }
+      state.funding = false;
+      render();
     }
   }
 
@@ -168,6 +285,9 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
       render();
     }
   });
+  agentCopy.addEventListener("click", copyAgentAddress);
+  agentFundConfirm.addEventListener("change", render);
+  agentFund.addEventListener("click", fundAgent);
   stop.addEventListener("click", async () => {
     stop.disabled = true;
     try {

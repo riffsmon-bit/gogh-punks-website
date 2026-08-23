@@ -136,7 +136,12 @@ export default async function handler(request) {
         automaticSubmission: ready,
         reason: ready ? null : globallyReady ? "AUTOMATION_V2_HEARTBEAT_PENDING"
           : live.configured ? "AUTOMATION_V2_WORKER_PENDING" : "AUTOMATION_V2_GUARDIAN_PENDING",
-        agent: { address: AUTOMATION_V2_AGENT, validUntil: live.agent.validUntil },
+        agent: {
+          address: AUTOMATION_V2_AGENT,
+          validUntil: live.agent.validUntil,
+          balanceWei: live.agent.balanceWei,
+          codeFree: live.agent.codeFree,
+        },
         live: { adapterRegistered: live.adapter.active, featureFlagsEnabled: live.configured, globalAgentApproved: live.agent.approved, workerEnabled: live.worker.enabled, workerOnline },
         heartbeat: heartbeat ? { ...heartbeat, online: workerOnline } : null,
         punk,
