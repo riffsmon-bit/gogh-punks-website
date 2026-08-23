@@ -49,7 +49,7 @@ export function renderOwnerAccounts(container, accounts) {
   if (!accounts.length) {
     const empty = document.createElement("p");
     empty.className = "empty-state";
-    empty.textContent = "No activated Punk Accounts were found in the live checked range.";
+    empty.textContent = "No wallet-owned Punks were found from the indexed candidates. You can still enter a Punk ID manually above.";
     container.append(empty);
     return;
   }
@@ -59,7 +59,7 @@ export function renderOwnerAccounts(container, accounts) {
     const identity = document.createElement("div");
     const eyebrow = document.createElement("p");
     eyebrow.className = "eyebrow";
-    eyebrow.textContent = "Activated Punk Account";
+    eyebrow.textContent = item.activated ? "Activated Punk Account" : "Owned Punk · ready to activate";
     const title = document.createElement("h3");
     const gallery = document.createElement("a");
     gallery.href = `/punk/${encodeURIComponent(item.tokenId)}`;
@@ -67,7 +67,9 @@ export function renderOwnerAccounts(container, accounts) {
     title.append(gallery);
     const label = document.createElement("p");
     label.className = "locked-note";
-    label.textContent = "Agent wallet address (no agent authority or autonomy implied)";
+    label.textContent = item.activated
+      ? "Agent wallet address (no agent authority or autonomy implied)"
+      : "Deterministic future agent-wallet address";
     const account = document.createElement("a");
     account.className = "owner-account-address";
     account.href = `https://robinhoodchain.blockscout.com/address/${item.account}`;
@@ -78,10 +80,62 @@ export function renderOwnerAccounts(container, accounts) {
     identity.append(eyebrow, title, label, account);
     const badge = document.createElement("span");
     badge.className = "tag";
-    badge.textContent = "ACTIVATED ONCHAIN";
+    badge.classList.toggle("off", !item.activated);
+    badge.textContent = item.activated ? "ACTIVATED ONCHAIN" : "READY TO ACTIVATE";
     card.append(identity, badge);
     container.append(card);
   }
+}
+
+export async function findBrowserOwnedPunks(provider, gate, owner, tokenIds = []) {
+  const bindings = gate?.bindings;
+  const normalizedOwner = normalizedAddress(owner);
+  if (!provider?.request || gate?.capability !== true || !normalizedOwner
+    || !normalizedAddress(bindings?.punkCollection)
+    || !normalizedAddress(bindings?.accountRegistry)) throw new Error("live gate unavailable");
+  const candidates = [...new Set(tokenIds.map(String).filter(
+    (value) => /^(0|[1-9]\d{0,3})$/.test(value),
+  ))].slice(0, 50);
+  const output = [];
+  for (let offset = 0; offset < candidates.length; offset += 6) {
+    const batch = await Promise.allSettled(candidates.slice(offset, offset + 6).map(async (tokenId) => {
+      const encoded = word(tokenId);
+      const [ownerRaw, accountRaw] = await Promise.all([
+        provider.request({ method: "eth_call", params: [{ to: bindings.punkCollection,
+          data: `${OWNER_OF}${encoded}` }, "latest"] }),
+        provider.request({ method: "eth_call", params: [{ to: bindings.accountRegistry,
+          data: `${ACCOUNT}${encoded}` }, "latest"] }),
+      ]);
+      const liveOwner = decodedAddress(ownerRaw);
+      const account = decodedAddress(accountRaw);
+      if (liveOwner !== normalizedOwner || !account) return null;
+      const code = await provider.request({ method: "eth_getCode", params: [account, "latest"] });
+      if (typeof code !== "string" || !/^0x(?:[0-9a-fA-F]{2})*$/.test(code)) return null;
+      return Object.freeze({ tokenId, account, owner: normalizedOwner,
+        activated: code !== "0x", status: code === "0x" ? "READY_TO_ACTIVATE" : "ACTIVATED_ONCHAIN" });
+    }));
+    output.push(...batch.flatMap((result) => (
+      result.status === "fulfilled" && result.value ? [result.value] : []
+    )));
+  }
+  return output.sort((left, right) => Number(left.tokenId) - Number(right.tokenId));
+}
+
+function renderPunkPicker(picker, accounts) {
+  if (!picker) return;
+  const documentObject = picker.ownerDocument ?? globalThis.document;
+  const placeholder = documentObject.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = accounts.length
+    ? "Choose a Punk to inspect or activate"
+    : "No wallet-owned Punks found · enter an ID manually";
+  picker.replaceChildren(placeholder, ...accounts.map((item) => {
+    const option = documentObject.createElement("option");
+    option.value = item.tokenId;
+    option.textContent = `Punk #${item.tokenId} — ${item.activated ? "activated" : "ready to activate"}`;
+    return option;
+  }));
+  picker.disabled = accounts.length === 0;
 }
 
 export async function findBrowserOwnerAccounts(provider, gate, owner, hints = []) {
@@ -142,6 +196,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
   const browserWindow = windowObject ?? (typeof window === "undefined" ? null : window);
   const browserDocument = documentObject ?? (typeof document === "undefined" ? null : document);
   const container = browserDocument?.querySelector?.("[data-owner-accounts]");
+  const picker = browserDocument?.querySelector?.("[data-owned-punk-picker]");
   if (!browserWindow || !container) return null;
   const request = fetchFunction ?? browserWindow.fetch.bind(browserWindow);
   let revision = 0;
@@ -160,33 +215,51 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
     const current = ++revision;
     if (!wallet?.account || wallet.chainId !== CHAIN_ID) {
       setCount(0, "Connect owner wallet");
+      renderPunkPicker(picker, []);
       container.innerHTML = '<p class="empty-state">Connect the owner wallet on Robinhood Chain to load activated Punk Accounts.</p>';
       return;
     }
-    container.innerHTML = '<p class="empty-state loading">Checking recent activations and live ownership…</p>';
+    container.innerHTML = '<p class="empty-state loading">Loading indexed candidates and checking each live owner…</p>';
     try {
-      const gateResponse = await request("/api/broker/account-activation-status", {
-        headers: { accept: "application/json" }, cache: "no-store",
-      });
-      const gatePayload = await gateResponse.json();
-      const accounts = await findBrowserOwnerAccounts(
-        browserWindow.ethereum,
-        gatePayload.activationGate,
-        wallet.account,
-        knownTokenIds(browserWindow.localStorage),
-      );
+      const [gateResponse, candidatesResponse] = await Promise.all([
+        request("/api/broker/account-activation-status", {
+          headers: { accept: "application/json" }, cache: "no-store",
+        }),
+        request(`/api/broker/owner-punks?owner=${encodeURIComponent(wallet.account)}`, {
+          headers: { accept: "application/json" }, cache: "no-store",
+        }),
+      ]);
+      const [gatePayload, candidatesPayload] = await Promise.all([
+        gateResponse.json(), candidatesResponse.json(),
+      ]);
+      const indexed = candidatesResponse.ok && candidatesPayload?.ok === true
+        && Array.isArray(candidatesPayload.candidateTokenIds)
+        ? candidatesPayload.candidateTokenIds : [];
+      const candidates = [...new Set([
+        "1639", "1797", ...knownTokenIds(browserWindow.localStorage), ...indexed,
+      ])];
+      const accounts = await findBrowserOwnedPunks(browserWindow.ethereum,
+        gatePayload.activationGate, wallet.account, candidates);
       if (current !== revision) return;
       for (const item of accounts) rememberActivatedPunk(browserWindow.localStorage, item.tokenId);
-      setCount(accounts.length, "Live wallet RPC verified");
+      setCount(accounts.length, "Live ownership verified");
+      renderPunkPicker(picker, accounts);
       renderOwnerAccounts(container, accounts);
     } catch {
       if (current !== revision) return;
       setCount(0, "Live check unavailable");
+      renderPunkPicker(picker, []);
       container.innerHTML = '<p class="empty-state">Activated accounts could not be checked right now. No account status was inferred from stale indexed data.</p>';
     }
   }
 
   browserWindow.addEventListener("gogh:wallet-state", refresh);
+  picker?.addEventListener("change", () => {
+    if (!picker.value) return;
+    browserWindow.dispatchEvent(new browserWindow.CustomEvent("gogh:punk-selected", {
+      detail: { tokenId: picker.value },
+    }));
+  });
   refresh({ detail: browserWindow.__GOGH_WALLET_SNAPSHOT__ });
   return Object.freeze({ refresh });
 }

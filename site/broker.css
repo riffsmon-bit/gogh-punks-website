@@ -232,6 +232,8 @@ h3 { font-size: 1.45rem; }
 .activation-controls { display: grid; grid-template-columns: minmax(180px, 0.55fr) minmax(250px, 1fr); gap: 12px; align-items: end; }
 .activation-controls input { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--line); color: var(--cream); background: #071321; font: inherit; }
 .activation-controls .action-button { justify-self: stretch; }
+.activation-picker-field { display: grid; gap: 8px; margin: 18px 0 8px; }
+.activation-picker-field select { width: 100%; min-height: 48px; padding: 10px 12px; border: 1px solid var(--sun); color: var(--cream); background: #071321; font: inherit; }
 .activation-result code { display: block; max-width: 620px; overflow-wrap: anywhere; color: var(--teal); font-size: 0.72rem; }
 .activation-submit { justify-self: stretch; width: 100%; }
 .section-block-compact { padding-top: 22px; }

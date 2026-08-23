@@ -55,6 +55,8 @@
             <li><strong>2. Check</strong><span>We verify live ownership and preview its permanent agent-wallet address.</span></li>
             <li><strong>3. Activate</strong><span>Approve one registry transaction in MetaMask. You pay only network gas.</span></li>
           </ol>
+          <label class="mandate-field activation-picker-field"><span>Select one of my live-verified Punks</span><select data-owned-punk-picker disabled><option value="">Connect wallet to load your Punks</option></select></label>
+          <p class="locked-note">The index supplies candidate IDs only. Your wallet rechecks live ownership and derives the exact Punk Account before this list is shown. You can still enter an ID manually below.</p>
           <div class="activation-controls">
             <label class="mandate-field"><span>Gogh Punk ID</span><input data-activation-token inputmode="numeric" pattern="[0-9]*" placeholder="Example: 1798" autocomplete="off" /></label>
             <button class="action-button" type="button" data-activation-inspect disabled>Check Punk and preview wallet</button>
@@ -69,7 +71,7 @@
       </section>
 
       <section class="section-block" aria-labelledby="my-punks-title">
-        <div class="section-heading"><div><p class="eyebrow">Owner desk</p><h2 id="my-punks-title">My activated Punks</h2></div><p>Connect the owner wallet to load recently activated Punk Accounts directly from Robinhood Chain. Activation creates the wallet; it does not authorize an agent or autonomy.</p></div>
+        <div class="section-heading"><div><p class="eyebrow">Owner desk</p><h2 id="my-punks-title">My Punks and agent wallets</h2></div><p>Connect the owner wallet to load indexed candidate IDs, recheck ownership live, and see which Punk Accounts are activated. Selecting a Punk above never authorizes an agent or autonomy.</p></div>
         <div class="metric-grid">
           <article class="metric"><span>Scout Punk</span><strong data-scout-token-display>#—</strong><small>Configured hosted Scout</small></article>
           <article class="metric"><span>Punk Accounts</span><strong data-punk-account-count>0</strong><small data-punk-account-detail>Connect owner wallet</small></article>

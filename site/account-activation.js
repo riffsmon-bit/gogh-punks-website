@@ -314,6 +314,16 @@ export function setupAccountActivation({ windowObject, documentObject, fetchFunc
     revision += 1; reviewed = null; confirm.checked = false; render();
   });
   browserWindow.addEventListener("gogh:wallet-state", walletChanged);
+  browserWindow.addEventListener("gogh:punk-selected", (event) => {
+    const selected = event?.detail?.tokenId;
+    if (!/^(0|[1-9]\d{0,3})$/.test(String(selected ?? ""))) return;
+    input.value = String(selected);
+    revision += 1;
+    reviewed = null;
+    confirm.checked = false;
+    render(`Checking selected Punk #${selected}…`, "pending");
+    if (gate && connected() && !busy) check();
+  });
   fetchGate(request).then((value) => {
     gate = value;
     render("Connect the owner wallet, enter a Punk ID, then check it.");
