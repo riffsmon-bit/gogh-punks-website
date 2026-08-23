@@ -56,6 +56,8 @@ const MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
 const MAX_SOURCE_FILES = 512;
 const MAX_BYTECODE_BYTES = 1_500_000;
 const FETCH_TIMEOUT_MS = 20_000;
+const FETCH_MAX_ATTEMPTS = 6;
+const FETCH_RETRY_BASE_MS = 250;
 const HASH_PATTERN = /^0x[0-9a-fA-F]{64}$/;
 const TX_HASH_PATTERN = /^0x[0-9a-fA-F]{64}$/;
 const COMMIT_PATTERN = /^[0-9a-f]{40}$/;
@@ -1456,16 +1458,33 @@ async function readBoundedResponse(response, expectedUrl, label) {
 }
 
 async function fetchEvidenceJson(fetcher, url, label) {
-  let response;
-  try {
-    response = await fetcher(url, {
-      method: "GET",
-      headers: { accept: "application/json" },
-      redirect: "error",
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
-  } catch {
-    fail("BLOCKSCOUT_FETCH_FAILED", `${label} request failed closed`);
+  let response = null;
+  let fetchFailed = false;
+  for (let attempt = 1; attempt <= FETCH_MAX_ATTEMPTS; attempt += 1) {
+    fetchFailed = false;
+    try {
+      response = await fetcher(url, {
+        method: "GET",
+        headers: { accept: "application/json" },
+        redirect: "error",
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+    } catch {
+      fetchFailed = true;
+      response = null;
+    }
+    const retryableStatus = response?.status === 429
+      || (Number.isInteger(response?.status) && response.status >= 500);
+    if (!fetchFailed && !retryableStatus) break;
+    try { await response?.body?.cancel?.(); } catch { /* ignore retry cleanup failure */ }
+    if (attempt === FETCH_MAX_ATTEMPTS) {
+      if (fetchFailed) {
+        fail("BLOCKSCOUT_FETCH_FAILED", `${label} request failed closed`);
+      }
+      break;
+    }
+    const delay = Math.min(FETCH_RETRY_BASE_MS * (2 ** (attempt - 1)), 2_000);
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, delay));
   }
   return readBoundedResponse(response, url, label);
 }

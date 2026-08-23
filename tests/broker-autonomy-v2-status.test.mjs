@@ -92,11 +92,11 @@ test("an absent V2 deployment keeps every browser automation capability closed",
   });
 });
 
-test("current deployed V2 record is visible as source-pending and remains closed", () => {
+test("current source-adopted V2 record is visible as configuration-pending and remains closed", () => {
   const result = autonomyV2Status();
-  assert.equal(result.status, "DEPLOYED_SOURCE_VERIFICATION_PENDING");
+  assert.equal(result.status, "DEPLOYED_CONFIGURATION_PENDING");
   assert.equal(result.capability, false);
-  assert.equal(result.reason, "AUTOMATION_V2_SOURCE_ADOPTION_PENDING");
+  assert.equal(result.reason, "AUTOMATION_V2_GUARDIAN_AND_WORKER_PENDING");
   assert.equal(result.bindings.accountRegistry,
     "0x00e7d2a869cc6a8f61a4ce11a66a8874db1f78e3");
 });

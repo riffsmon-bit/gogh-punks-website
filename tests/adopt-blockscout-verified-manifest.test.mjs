@@ -617,6 +617,34 @@ test("fails closed on redirects, final-URL changes, and oversized responses", as
   }
 });
 
+test("retries a transient Blockscout server failure without weakening response checks", async () => {
+  const fixture = makeFixture("core");
+  const { fetcher: stableFetcher, calls } = makeFetcher(fixture);
+  const target = fixture.facts[fixture.names[0]].address.toLowerCase();
+  let injected = false;
+  const fetcher = async (url, options) => {
+    if (!injected && url.includes("/smart-contracts/")
+      && url.toLowerCase().endsWith(target)) {
+      injected = true;
+      calls.push({ url, options });
+      return jsonResponse(url, { error: "temporary" }, { status: 500, ok: false });
+    }
+    return stableFetcher(url, options);
+  };
+  const result = await buildBlockscoutVerifiedManifestProposal({
+    kind: fixture.kind,
+    pendingProposal: fixture.pendingProposal,
+    compiledArtifacts: fixture.compiledArtifacts,
+  }, {
+    fetcher,
+    clock: () => observedAt,
+    ...provenanceOptions(fixture),
+  });
+  assert.equal(result.proposalStatus, "VERIFIED_MANIFEST_PROPOSAL");
+  assert.equal(injected, true);
+  assert.equal(calls.length, CORE_CONTRACT_NAMES.length * 3 + 1);
+});
+
 test("rejects already-adopted or build-unbound pending proposals before fetching", async (context) => {
   await context.test("already verified contract", async () => {
     const fixture = makeFixture("core");

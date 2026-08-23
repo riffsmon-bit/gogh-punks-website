@@ -154,6 +154,7 @@ Do not expose the setup or start buttons until all of these are complete:
 - one-Punk capped live canary followed by immediate disable/revocation and final-state attestation;
 - independent security review of the frozen release.
 
-The authoritative V2 template is `deployments/robinhood-automation-v2.json`. It remains
-`NOT_DEPLOYED`, every authorization boolean is false, and the site remains locked until these gates
-are installed and revalidated.
+The authoritative V2 manifest is `deployments/robinhood-automation-v2.json`. It records the
+confirmed four-contract deployment and exact Blockscout-plus-Sourcify source adoption. Every
+configuration and automatic-submission boolean remains false, so the site stays locked until the
+guardian, worker, account-specific setup, and live evidence gates are separately completed.
