@@ -13,6 +13,7 @@
     <script src="/canary-execution.js" type="module"></script>
     <script src="/account-funds.js" type="module"></script>
     <script src="/live-punk-display.js" type="module"></script>
+    <script src="/external-free-mint-test.js" type="module"></script>
   </head>
   <body data-punk-page>
     <a class="skip-link" href="#main">Skip to Punk gallery</a>
@@ -91,6 +92,34 @@
               <label class="canary-confirmation"><input type="checkbox" data-canary-confirm /> I checked the exact owner, Punk Account, NFT collection, token, zero value, intent hash, and expiry above.</label>
               <button class="action-button canary-submit" type="button" data-canary-submit disabled>Open exact transaction in wallet</button>
               <p class="locked-note">The page rechecks chain 4663, the selected account, live Punk ownership, Punk Account owner, nonce, policy module/version, chain time, contract code, the active review hash, and an exact <code>eth_call</code> immediately before requesting the wallet transaction. A returned transaction hash is pending—not proof of success.</p>
+            </article>
+          </section>
+          <section class="section-block canary-execution" data-external-free-mint-test hidden aria-labelledby="external-free-mint-title">
+            <div class="section-heading">
+              <div><p class="eyebrow">Production-style agent test</p><h2 id="external-free-mint-title">One bounded external free mint</h2></div>
+              <p>This is the live-site path for Punk #1639. Scout evidence is displayed first; the owner mandate, target-specific adapter, agent authorization, and on-chain safety state must all agree before one short-lived execution can be armed.</p>
+            </div>
+            <article class="panel canary-review-panel">
+              <div class="panel-header"><h3 data-external-mint-name>External candidate</h3><span class="tag off" data-external-mint-state aria-live="polite">LOCKED · loading reviewed state</span></div>
+              <p class="external-mint-warning" data-external-mint-warning>Loading the server-reviewed candidate and containment plan…</p>
+              <dl class="canary-review-grid">
+                <div><dt>Activated Punk</dt><dd data-external-mint-field="punk">—</dd></div>
+                <div><dt>Agent wallet</dt><dd data-external-mint-field="agent">—</dd></div>
+                <div><dt>Punk Account</dt><dd data-external-mint-field="account">—</dd></div>
+                <div><dt>NFT collection</dt><dd data-external-mint-field="collection">—</dd></div>
+                <div><dt>Venue</dt><dd data-external-mint-field="venue">—</dd></div>
+                <div><dt>Cost / quantity</dt><dd data-external-mint-field="economics">—</dd></div>
+                <div><dt>Supply snapshot</dt><dd data-external-mint-field="supply">—</dd></div>
+                <div><dt>Collection evidence</dt><dd data-external-mint-field="risk">—</dd></div>
+                <div><dt>Execution engine</dt><dd data-external-mint-field="runner">—</dd></div>
+                <div><dt>Containment</dt><dd data-external-mint-field="containment">—</dd></div>
+              </dl>
+              <div class="external-mint-progress" data-external-mint-progress aria-label="External mint readiness"></div>
+              <div class="account-funds-actions">
+                <a class="action-button" data-external-mint-opensea href="https://opensea.io" target="_blank" rel="noopener noreferrer nofollow">Review collection on OpenSea</a>
+                <button class="action-button" type="button" data-external-mint-run disabled>Arm one exact agent mint</button>
+              </div>
+              <p class="locked-note">The site does not hold the agent key. The final transaction is sent by the locally encrypted agent runner only after the owner and guardian steps are complete. This test never enables paid mints, approvals, arbitrary calldata, generic targets, selling, or more than one external mint.</p>
             </article>
           </section>
           <details class="section-block collapsible-section" aria-labelledby="recommendation-title">

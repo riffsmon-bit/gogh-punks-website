@@ -218,6 +218,11 @@ h3 { font-size: 1.45rem; }
 .setting-row dt { color: var(--muted); }
 .setting-row dd { margin: 0; text-align: right; }
 .locked-note { margin: 18px 0 0; color: var(--muted); font-size: 0.84rem; line-height: 1.55; }
+.external-mint-warning { padding: 13px 15px; border: 1px solid rgba(237, 130, 108, 0.38); color: var(--risk); background: rgba(83, 28, 23, 0.22); line-height: 1.55; }
+.external-mint-progress { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 18px 0; }
+.external-mint-step { padding: 10px; border: 1px solid var(--line); color: var(--muted); background: rgba(3, 7, 11, 0.5); font-size: 0.68rem; line-height: 1.4; text-transform: uppercase; letter-spacing: 0.06em; }
+.external-mint-step.complete { border-color: rgba(54, 200, 182, 0.38); color: var(--teal); }
+.external-mint-step.pending { border-color: rgba(240, 202, 102, 0.38); color: var(--sun); }
 .mandate-guide { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin: 0 0 18px; padding: 1px; background: rgba(218, 167, 55, 0.2); list-style: none; }
 .mandate-guide li { display: grid; gap: 7px; padding: 16px; background: var(--panel); }
 .mandate-guide strong { color: var(--sun); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; }
@@ -407,6 +412,7 @@ h3 { font-size: 1.45rem; }
   .section-heading > p { margin-top: 13px; }
   .canary-review-grid { grid-template-columns: 1fr; }
   .account-funds-actions { grid-template-columns: 1fr; }
+  .external-mint-progress { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .activation-controls { grid-template-columns: 1fr; }
   .canary-review-panel .panel-header { align-items: start; flex-direction: column; }
   [data-canary-execution-state], [data-account-funds-state] { text-align: left; }
