@@ -115,7 +115,7 @@ export function setupMandateEditor({ windowObject, documentObject, fetchFunction
     save.textContent = pending
       ? "Waiting for wallet…"
       : ready
-        ? "Sign and save preferences"
+        ? "Sign & save preference only"
         : selectedTokenId ? `Connect Punk #${selectedTokenId} owner to save` : "Choose one of your Punks";
     badge.textContent = version === null
       ? (ready ? "Owner ready" : selectedTokenId ? "Owner check required" : "Choose Punk")
@@ -180,7 +180,7 @@ export function setupMandateEditor({ windowObject, documentObject, fetchFunction
         }
         applyMandate(form, payload.mandate);
         version = payload.mandate.version;
-        render(`Saved version ${version} is loaded. Connect the current owner to update it.`, "saved");
+        render(`Saved version ${version} is loaded for Punk #${tokenId}. It is a preference only; no agent was started.`, "saved");
       } else {
         render("No owner-signed mandate is saved yet. The conservative Scout defaults are shown.");
       }
@@ -236,8 +236,8 @@ export function setupMandateEditor({ windowObject, documentObject, fetchFunction
       syncOutputs();
       render(
         completed.mandate.autonomyRequested
-          ? `Saved version ${version}. Autonomous free-mint preparation was requested, but remains locked until the separate on-chain readiness gates pass. No transaction was sent.`
-          : `Saved version ${version}. Scout will use it on its next run. No transaction was sent.`,
+          ? `Saved version ${version} for Punk #${expectedTokenId}. Preference saved only: no agent was started and no transaction was sent. Agent automation remains off until a separate on-chain setup is completed.`
+          : `Saved version ${version} for Punk #${expectedTokenId}. Scout may use this preference on a later run; no agent was started and no transaction was sent.`,
         "saved",
       );
     } catch (error) {

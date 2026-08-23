@@ -205,12 +205,28 @@ async function loadStatus() {
       target.classList.remove("loading");
     });
     document.querySelectorAll("[data-autonomy-status]").forEach((target) => {
-      target.textContent = payload.autonomyStatus ?? "DISABLED";
+      target.textContent = payload.autonomyStatus === "ENABLED" ? "ON" : "OFF";
+    });
+    document.querySelectorAll("[data-owner-execution-status]").forEach((target) => {
+      const deployed = payload.protocol?.deploymentStatus === "DEPLOYED";
+      const autonomous = payload.autonomyStatus === "ENABLED";
+      target.textContent = deployed
+        ? autonomous ? "Contracts live · agent automation on" : "Contracts live · agent automation off"
+        : "Execution is not live";
+    });
+    document.querySelectorAll("[data-live-summary]").forEach((target) => {
+      const deployed = payload.protocol?.deploymentStatus === "DEPLOYED";
+      const autonomous = payload.autonomyStatus === "ENABLED";
+      target.textContent = deployed
+        ? autonomous
+          ? "Contracts are live and autonomous execution is enabled. Every action still passes current on-chain policy."
+          : "Contracts and Punk Accounts are live. Continuous automation is off after the completed, contained canary. Activation and preference saving do not start minting."
+        : "Execution is not live. Public Scout data may still be available for read-only browsing.";
     });
     document.querySelectorAll("[data-scout-token-id]").forEach((target) => {
       target.textContent = payload.scoutStatus?.tokenId ?? "—";
     });
-    document.querySelectorAll("[data-scout-token-display]").forEach((target) => {
+    document.querySelectorAll("[data-public-scout-token-display]").forEach((target) => {
       target.textContent = payload.scoutStatus?.tokenId
         ? `#${payload.scoutStatus.tokenId}`
         : "—";
@@ -233,6 +249,12 @@ async function loadStatus() {
     statusTargets.forEach((target) => {
       target.textContent = "STATUS UNAVAILABLE";
       target.classList.remove("loading");
+    });
+    document.querySelectorAll("[data-owner-execution-status]").forEach((target) => {
+      target.textContent = "Execution status unavailable";
+    });
+    document.querySelectorAll("[data-live-summary]").forEach((target) => {
+      target.textContent = "Live execution status could not be confirmed. No execution capability is inferred.";
     });
   }
 }

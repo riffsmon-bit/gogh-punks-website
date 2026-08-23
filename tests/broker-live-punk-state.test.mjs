@@ -202,6 +202,13 @@ test("Punk recommendations are collapsed and token metrics avoid nested-label st
   assert.match(punkHtml, /data-punk-recommendation-total/);
   assert.match(brokerHtml, /data-owner-accounts/);
   assert.match(brokerHtml, /data-punk-account-count/);
+  assert.match(brokerHtml, /data-owned-punk-count/);
+  assert.match(brokerHtml, /data-selected-punk-display/);
+  assert.match(brokerHtml, /data-public-scout-token-display/);
+  assert.doesNotMatch(brokerHtml, /data-scout-token-display/);
+  assert.match(brokerHtml, /Nothing is selected while the wallet is disconnected/);
+  assert.match(brokerHtml, /data-live-summary/);
+  assert.match(brokerHtml, /name="owner-workflow"/);
   assert.match(css, /\.metric > span/);
   assert.doesNotMatch(css, /\.metric span \{/);
   assert.match(statusSource, /canaryDisplay:/);

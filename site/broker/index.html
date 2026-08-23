@@ -30,35 +30,54 @@
       </div>
     </header>
     <main class="broker-main" id="main">
-      <section class="broker-hero">
+      <section class="broker-hero broker-hero-compact">
         <div>
-          <p class="eyebrow">The Collection Desk · Robinhood Chain</p>
-          <h1>Every Punk becomes a digital curator.</h1>
-          <p class="lede">A Punk-bound gallery, owner-defined Art Mandate, and read-only Scout engine—built so the AI can recommend art but never outrank the smart contracts.</p>
+          <p class="eyebrow">Owner console · Robinhood Chain</p>
+          <h1>Set up your Punk agent.</h1>
+          <p class="lede">Connect once, choose one of your live-owned Punks, then activate its wallet or edit its preferences. Each step below states whether it is a transaction.</p>
         </div>
         <aside class="status-panel" aria-label="Protocol status">
           <div class="status-line"><span class="status-dot"></span><strong data-protocol-status class="loading">CHECKING FOUNDATION</strong></div>
-          <p>Canonical collection: 0xe0f92b…adf6</p>
-          <p>Autonomous execution: <strong data-autonomy-status>DISABLED</strong></p>
+          <p><strong data-owner-execution-status>Checking execution state…</strong></p>
+          <p>Autonomous execution: <strong data-autonomy-status>OFF</strong></p>
+          <p class="status-explainer">A saved preference does not start an agent.</p>
         </aside>
       </section>
-      <p class="safety-banner"><strong>Security status:</strong> Scout displays are read-only. Any owner action is separately gated by exact deployment evidence, current wallet authority, chain state, and an explicit owner click.</p>
+      <p class="safety-banner"><strong>Live status:</strong> <span data-live-summary>Checking deployed contracts and execution controls…</span></p>
 
-      <section class="section-block activation-section" aria-labelledby="activation-title" data-account-activation>
-        <div class="section-heading">
-          <div><p class="eyebrow">Start another agent wallet</p><h2 id="activation-title">Activate one of your Punks</h2></div>
-          <p>Activation creates the Punk’s deterministic ERC-6551 account. It does not authorize an AI agent, grant spending permission, or turn on autonomy.</p>
+      <section class="section-block owner-workspace" aria-labelledby="owner-workspace-title">
+        <div class="section-heading owner-workspace-heading">
+          <div><p class="eyebrow">One-page setup</p><h2 id="owner-workspace-title">Your Punk workspace</h2></div>
+          <p>Only Punks proven to belong to the connected wallet appear here. Nothing is selected while the wallet is disconnected.</p>
         </div>
-        <div class="panel activation-panel">
+        <div class="metric-grid owner-metrics">
+          <article class="metric"><span>Wallet-owned Punks</span><strong data-owned-punk-count>—</strong><small data-owned-punk-detail>Connect owner wallet</small></article>
+          <article class="metric"><span>Activated agent wallets</span><strong data-punk-account-count>—</strong><small data-punk-account-detail>Connect owner wallet</small></article>
+          <article class="metric"><span>Selected Punk</span><strong data-selected-punk-display>—</strong><small>Chosen by you in a control below</small></article>
+          <article class="metric"><span>Agent execution</span><strong data-autonomy-status>OFF</strong><small>Preferences alone cannot enable it</small></article>
+        </div>
+
+        <details class="workflow-step collapsible-section" name="owner-workflow" open>
+          <summary><span><span class="workflow-number">1</span><strong>My Punks and agent wallets</strong></span><small>Wallet-derived live state</small></summary>
+          <div class="collapsible-content">
+            <p class="workflow-help">Connect the owner wallet to scan the collection, verify ownership live, and show activated Punk Account addresses.</p>
+            <div class="owner-account-grid section-block-compact" data-owner-accounts><p class="empty-state">Connect the owner wallet on Robinhood Chain to load your Punks.</p></div>
+          </div>
+        </details>
+
+        <details class="workflow-step collapsible-section" name="owner-workflow" id="activation-title" data-account-activation>
+          <summary><span><span class="workflow-number">2</span><strong>Activate a Punk wallet</strong></span><small>One MetaMask transaction</small></summary>
+          <div class="collapsible-content panel activation-panel">
+            <p class="workflow-help">Activation creates the Punk’s deterministic ERC-6551 wallet. It does not authorize an AI agent, grant spending permission, or turn on autonomy.</p>
           <ol class="mandate-guide" aria-label="How to activate another Punk">
-            <li><strong>1. Enter</strong><span>Type a Gogh Punk ID owned by the connected wallet.</span></li>
-            <li><strong>2. Check</strong><span>We verify live ownership and preview its permanent agent-wallet address.</span></li>
-            <li><strong>3. Activate</strong><span>Approve one registry transaction in MetaMask. You pay only network gas.</span></li>
+              <li><strong>Choose</strong><span>Select a Punk proven to belong to this wallet.</span></li>
+              <li><strong>Review</strong><span>Preview its permanent agent-wallet address.</span></li>
+              <li><strong>Activate</strong><span>Approve one registry transaction in MetaMask.</span></li>
           </ol>
           <label class="mandate-field activation-picker-field"><span>Select one of my live-verified Punks</span><select data-owned-punk-picker disabled><option value="">Connect wallet to load your Punks</option></select></label>
-          <p class="locked-note">The index supplies candidate IDs only. Your wallet rechecks live ownership and derives the exact Punk Account before this list is shown. You can still enter an ID manually below.</p>
+            <p class="locked-note">Prefer the wallet-derived list. Manual entry remains available for recovery if an index is delayed.</p>
           <div class="activation-controls">
-            <label class="mandate-field"><span>Gogh Punk ID</span><input data-activation-token inputmode="numeric" pattern="[0-9]*" placeholder="Example: 1798" autocomplete="off" /></label>
+              <label class="mandate-field"><span>Manual Punk ID (optional)</span><input data-activation-token inputmode="numeric" pattern="[0-9]*" placeholder="Example: 1798" autocomplete="off" /></label>
             <button class="action-button" type="button" data-activation-inspect disabled>Check Punk and preview wallet</button>
           </div>
           <dl class="setting-list activation-result">
@@ -67,28 +86,17 @@
           <label class="canary-confirmation"><input type="checkbox" data-activation-confirm /> I reviewed the Punk ID and agent-wallet address. Activate only this account; do not authorize an agent or autonomy.</label>
           <button class="action-button activation-submit" type="button" data-activation-submit disabled>Activate Punk Account in MetaMask</button>
           <p class="mandate-state" data-activation-state aria-live="polite">Loading activation status…</p>
-        </div>
-      </section>
+          </div>
+        </details>
 
-      <section class="section-block" aria-labelledby="my-punks-title">
-        <div class="section-heading"><div><p class="eyebrow">Owner desk</p><h2 id="my-punks-title">My Punks and agent wallets</h2></div><p>Connect the owner wallet to load indexed candidate IDs, recheck ownership live, and see which Punk Accounts are activated. Selecting a Punk above never authorizes an agent or autonomy.</p></div>
-        <div class="metric-grid">
-          <article class="metric"><span>Scout Punk</span><strong data-scout-token-display>#—</strong><small>Configured hosted Scout</small></article>
-          <article class="metric"><span>Punk Accounts</span><strong data-punk-account-count>0</strong><small data-punk-account-detail>Connect owner wallet</small></article>
-          <article class="metric"><span>Discoveries</span><strong data-opportunity-count>0</strong><small>Confirmed historical signals</small></article>
-          <article class="metric"><span>Recommendations</span><strong data-recommendation-count>0</strong><small>Read-only Scout</small></article>
-          <article class="metric"><span>NFT artwork</span><strong data-metadata-count>0</strong><small>Sanitized OpenSea metadata</small></article>
-          <article class="metric"><span>Pending approvals</span><strong>0</strong><small>Approval purchases off</small></article>
-        </div>
-        <div class="owner-account-grid section-block-compact" data-owner-accounts><p class="empty-state">Connect the owner wallet on Robinhood Chain to load activated Punk Accounts.</p></div>
-      </section>
-
-      <section class="section-block" aria-labelledby="mandate-title">
-        <div class="section-heading"><div><p class="eyebrow">Owner-controlled rules</p><h2 id="mandate-title">Art Mandate</h2></div><p>Economic and security settings will be enforced on-chain. Artistic preferences guide recommendations but can never override policy.</p></div>
+        <details class="workflow-step collapsible-section" name="owner-workflow" id="mandate-title">
+          <summary><span><span class="workflow-number">3</span><strong>Choose Art Mandate preferences</strong></span><small>Free message signature · does not start agent</small></summary>
+          <div class="collapsible-content">
+            <p class="workflow-help"><strong>Preference only:</strong> choose which wallet-owned Punk these settings belong to. Saving does not submit a transaction or enable on-chain autonomy.</p>
         <ol class="mandate-guide" aria-label="How to save an Art Mandate">
           <li><strong>1. Select</strong><span>Choose a live-verified Punk from your connected owner wallet.</span></li>
           <li><strong>2. Choose</strong><span>Tell Scout what to research and what deserves owner review.</span></li>
-          <li><strong>3. Sign</strong><span>Sign a free message to save. This is not a transaction and costs no gas.</span></li>
+              <li><strong>3. Save</strong><span>Sign a free message. This saves preferences only.</span></li>
         </ol>
         <div class="layout-two">
           <article class="panel mandate-panel">
@@ -141,10 +149,10 @@
                 <strong>What this means</strong>
                 <p data-mandate-summary>Scout can research mints, but it will not submit or prepare one until you enable those preferences.</p>
               </aside>
-              <button class="action-button mandate-save" type="submit" data-mandate-save disabled>Connect Punk #1797 owner to save</button>
+                  <button class="action-button mandate-save" type="submit" data-mandate-save disabled>Choose one of your Punks</button>
               <p class="mandate-state" data-mandate-state aria-live="polite">Loading the latest saved preferences…</p>
             </form>
-            <p class="locked-note">Saving requests a message signature—not a transaction. An autonomous selection records the owner’s requested operating profile but cannot enable contracts, permissions, or an agent. There is deliberately no unlimited option. The authorized agent or relayer pays transaction gas; the Punk Account balance does not automatically determine a safe mint count. The current external live-test state belongs to <a href="/punk/1639#external-free-mint-title">Punk #1639 ↗</a>.</p>
+                <p class="locked-note">Saving requests a message signature—not a transaction. An autonomous selection records a requested profile but cannot enable contracts, permissions, or an agent. There is deliberately no unlimited option; the authorized agent or relayer pays transaction gas. The completed external canary for <a href="/punk/1639#external-free-mint-title">Punk #1639 ↗</a> was separately configured on-chain and then contained.</p>
           </article>
           <article class="panel">
             <div class="panel-header"><h3>Curator identity</h3><span class="tag">Persistent</span></div>
@@ -159,6 +167,21 @@
             <p class="locked-note">Example profile only. Saved profiles will be versioned and tied to a chain-qualified Punk identity.</p>
           </article>
         </div>
+          </div>
+        </details>
+
+        <details class="workflow-step collapsible-section public-scout-step">
+          <summary><span><span class="workflow-number">i</span><strong>Public hosted Scout feed</strong></span><small>Not connected-wallet ownership</small></summary>
+          <div class="collapsible-content">
+            <p class="workflow-help">This is public read-only site data. Its configured Scout Punk is not inferred from your wallet and does not mean you own or selected it.</p>
+            <div class="metric-grid public-scout-metrics">
+              <article class="metric"><span>Public Scout Punk</span><strong data-public-scout-token-display>—</strong><small>Hosted site configuration</small></article>
+              <article class="metric"><span>Discoveries</span><strong data-opportunity-count>0</strong><small>Historical signals</small></article>
+              <article class="metric"><span>Recommendations</span><strong data-recommendation-count>0</strong><small>Read-only Scout</small></article>
+              <article class="metric"><span>NFT artwork</span><strong data-metadata-count>0</strong><small>Sanitized metadata</small></article>
+            </div>
+          </div>
+        </details>
       </section>
 
       <section class="section-block" aria-labelledby="controls-title">

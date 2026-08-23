@@ -148,6 +148,9 @@ button { font: inherit; }
   padding-bottom: 52px;
   border-bottom: 1px solid var(--line);
 }
+.broker-hero-compact { align-items: center; padding-bottom: 32px; }
+.broker-hero-compact h1 { font-size: clamp(2.5rem, 5vw, 4.7rem); }
+.broker-hero-compact .lede { margin-bottom: 0; }
 .eyebrow {
   margin: 0 0 15px;
   color: var(--sun);
@@ -183,6 +186,23 @@ h3 { font-size: 1.45rem; }
   line-height: 1.55;
 }
 .section-block { padding-top: 62px; }
+.owner-workspace { padding-top: 38px; }
+.owner-workspace-heading { margin-bottom: 18px; }
+.owner-metrics { margin-bottom: 20px; }
+.owner-metrics .metric { min-height: 112px; }
+.owner-metrics .metric > span { margin-bottom: 14px; }
+.workflow-step { border: 1px solid rgba(218, 167, 55, 0.3); border-bottom: 0; background: rgba(5, 13, 21, 0.72); }
+.workflow-step:last-child { border-bottom: 1px solid rgba(218, 167, 55, 0.3); }
+.workflow-step > summary { padding: 18px 20px; }
+.workflow-step > summary > span { display: flex; align-items: center; gap: 13px; }
+.workflow-step > summary strong { margin: 0; font-size: clamp(1.35rem, 2.5vw, 2rem); }
+.workflow-step > summary small { color: var(--muted); text-align: right; }
+.workflow-step .collapsible-content { padding: 0 20px 20px; }
+.workflow-step .collapsible-content.panel { margin: 0 14px 14px; padding: 20px; }
+.workflow-number { display: inline-grid; width: 30px; height: 30px; place-items: center; border: 1px solid var(--line); color: var(--sun); font-size: 0.76rem; font-weight: 850; }
+.workflow-help { margin: 0 0 16px; color: var(--muted); line-height: 1.55; }
+.public-scout-step { margin-top: 18px; }
+.public-scout-metrics .metric { min-height: 104px; }
 .section-heading { display: flex; justify-content: space-between; gap: 30px; align-items: end; margin-bottom: 25px; }
 .section-heading > p { max-width: 520px; margin: 0; color: var(--muted); line-height: 1.6; }
 .metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 13px; }
@@ -417,6 +437,10 @@ h3 { font-size: 1.45rem; }
   .account-funds-actions { grid-template-columns: 1fr; }
   .external-mint-progress { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .activation-controls { grid-template-columns: 1fr; }
+  .workflow-step > summary { align-items: flex-start; }
+  .workflow-step > summary > small { display: none; }
+  .workflow-step .collapsible-content { padding-inline: 12px; }
+  .workflow-step .collapsible-content.panel { margin-inline: 6px; }
   .canary-review-panel .panel-header { align-items: start; flex-direction: column; }
   [data-canary-execution-state], [data-account-funds-state] { text-align: left; }
 }

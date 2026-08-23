@@ -218,4 +218,6 @@ test("broker mandate UI distinguishes autonomous preference from on-chain readin
   assert.match(html, /There is deliberately no unlimited option/);
   assert.match(html, /agent or relayer pays transaction gas/);
   assert.match(html, /\/punk\/1639#external-free-mint-title/);
+  assert.match(html, /Preference only/);
+  assert.match(html, /does not start agent/);
 });

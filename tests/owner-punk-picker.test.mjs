@@ -131,11 +131,15 @@ test("picker UI selects a live-verified Punk while preserving manual entry", asy
   assert.match(html, /data-owned-punk-picker/);
   assert.match(html, /data-mandate-punk-picker/);
   assert.match(html, /data-activation-token/);
+  assert.match(html, /data-owned-punk-count/);
+  assert.match(html, /data-selected-punk-display/);
+  assert.doesNotMatch(html, /Scout Punk<\/span><strong data-scout-token-display/);
   assert.match(accounts, /findBrowserOwnedPunks/);
   assert.match(accounts, /gogh:punk-selected/);
   assert.match(activation, /gogh:punk-selected/);
   assert.match(endpoint, /DISCOVERY_CANDIDATES_ONLY_EACH_SELECTION_REQUIRES_LIVE_WALLET_OWNER_CHECK/);
   assert.match(endpoint, /OPENSEA_API_KEY/);
   assert.match(accounts, /discoverWalletOwnedPunkIds/);
+  assert.doesNotMatch(accounts, /accounts\.find\(\(\{ tokenId \}\) => tokenId === "1797"\)/);
   assert.doesNotMatch(endpoint, /eth_send|privateKey|mnemonic/);
 });

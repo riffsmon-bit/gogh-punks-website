@@ -312,12 +312,24 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
   const request = fetchFunction ?? browserWindow.fetch.bind(browserWindow);
   let revision = 0;
 
-  function setCount(count, detail) {
+  function setCounts(owned, activated, detail) {
+    browserDocument.querySelectorAll("[data-owned-punk-count]").forEach((target) => {
+      target.textContent = owned === null ? "—" : String(owned);
+    });
+    browserDocument.querySelectorAll("[data-owned-punk-detail]").forEach((target) => {
+      target.textContent = owned === null ? detail : "Live wallet ownership verified";
+    });
     browserDocument.querySelectorAll("[data-punk-account-count]").forEach((target) => {
-      target.textContent = String(count);
+      target.textContent = activated === null ? "—" : String(activated);
     });
     browserDocument.querySelectorAll("[data-punk-account-detail]").forEach((target) => {
       target.textContent = detail;
+    });
+  }
+
+  function setSelected(tokenId = "") {
+    browserDocument.querySelectorAll("[data-selected-punk-display]").forEach((target) => {
+      target.textContent = tokenId ? `#${tokenId}` : "—";
     });
   }
 
@@ -325,7 +337,8 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
     const wallet = event?.detail ?? browserWindow.__GOGH_WALLET_SNAPSHOT__ ?? null;
     const current = ++revision;
     if (!wallet?.account || wallet.chainId !== CHAIN_ID) {
-      setCount(0, "Connect owner wallet");
+      setCounts(null, null, "Connect owner wallet");
+      setSelected();
       renderPunkPicker(picker, []);
       renderPunkPicker(mandatePicker, []);
       container.innerHTML = '<p class="empty-state">Connect the owner wallet on Robinhood Chain to load activated Punk Accounts.</p>';
@@ -381,14 +394,14 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       }
       const activatedCount = accounts.filter(({ activated }) => activated).length;
       const readyCount = accounts.length - activatedCount;
-      setCount(activatedCount, readyCount > 0
+      setCounts(accounts.length, activatedCount, readyCount > 0
         ? `${readyCount} more owned ${readyCount === 1 ? "Punk" : "Punks"} ready to activate`
         : "Live ownership verified");
       renderPunkPicker(picker, accounts);
       const previousMandate = mandatePicker?.value ?? "";
       const mandateTokenId = accounts.some(({ tokenId }) => tokenId === previousMandate)
         ? previousMandate
-        : accounts.find(({ tokenId }) => tokenId === "1797")?.tokenId ?? accounts[0]?.tokenId ?? "";
+        : "";
       renderPunkPicker(mandatePicker, accounts, mandateTokenId);
       renderOwnerAccounts(container, accounts);
       if (mandateTokenId) {
@@ -398,7 +411,8 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       }
     } catch {
       if (current !== revision) return;
-      setCount(0, "Live check unavailable");
+      setCounts(null, null, "Live check unavailable");
+      setSelected();
       renderPunkPicker(picker, []);
       renderPunkPicker(mandatePicker, []);
       container.innerHTML = '<p class="empty-state">Activated accounts could not be checked right now. No account status was inferred from stale indexed data.</p>';
@@ -407,12 +421,14 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
 
   browserWindow.addEventListener("gogh:wallet-state", refresh);
   picker?.addEventListener("change", () => {
+    setSelected(picker.value);
     if (!picker.value) return;
     browserWindow.dispatchEvent(new browserWindow.CustomEvent("gogh:punk-selected", {
       detail: { tokenId: picker.value },
     }));
   });
   mandatePicker?.addEventListener("change", () => {
+    setSelected(mandatePicker.value);
     if (!mandatePicker.value) return;
     const wallet = browserWindow.__GOGH_WALLET_SNAPSHOT__ ?? null;
     if (!wallet?.account) return;
