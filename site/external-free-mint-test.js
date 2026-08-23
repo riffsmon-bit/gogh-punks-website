@@ -30,6 +30,7 @@ export function normalizeExternalFreeMintStatus(payload) {
   const candidate = own(status, "candidate");
   const controls = own(status, "controls");
   const readiness = own(status, "readiness");
+  const result = own(status, "result");
   if (
     own(status, "schema") !== EXPECTED_SCHEMA
     || own(status, "punkTokenId") !== EXPECTED_PUNK
@@ -51,10 +52,16 @@ export function normalizeExternalFreeMintStatus(payload) {
     || own(controls, "genericMintPermissionAllowed") !== false
     || own(controls, "containImmediatelyAfterRun") !== true
     || typeof readiness !== "object"
+    || (own(status, "status") === "COMPLETED_AND_CONTAINED" && (
+      !ADDRESS.test(own(result, "nftOwner"))
+      || !/^\d+$/.test(own(result, "tokenId"))
+      || !/^0x[0-9a-f]{64}$/.test(own(result, "transactionHash"))
+      || own(result, "nftOwner") !== own(status, "account")
+    ))
   ) throw new Error("INVALID_EXTERNAL_MINT_STATUS");
   const openSeaUrl = validHttps(own(candidate, "openSeaUrl"), "opensea.io");
   if (!openSeaUrl) throw new Error("INVALID_EXTERNAL_MINT_LINK");
-  return Object.freeze({ status, candidate, controls, readiness, openSeaUrl });
+  return Object.freeze({ status, candidate, controls, readiness, result, openSeaUrl });
 }
 
 function renderProgress(root, readiness) {
@@ -77,7 +84,7 @@ function renderProgress(root, readiness) {
 }
 
 export function renderExternalFreeMintStatus(root, normalized) {
-  const { status, candidate, controls, readiness, openSeaUrl } = normalized;
+  const { status, candidate, controls, readiness, result, openSeaUrl } = normalized;
   text(root.querySelector("[data-external-mint-name]"), own(candidate, "name"));
   const badge = root.querySelector("[data-external-mint-state]");
   text(badge, own(status, "status").replaceAll("_", " "));
@@ -88,7 +95,9 @@ export function renderExternalFreeMintStatus(root, normalized) {
   field(root, "collection", own(candidate, "collection"));
   field(root, "venue", own(candidate, "venue"));
   field(root, "economics", "0 ETH · 1 ERC-721 · no approvals");
-  field(root, "supply", `${own(candidate, "observedSupply")} / ${own(candidate, "maximumSupply")} at ${own(candidate, "observedAt")} · expected token ${own(candidate, "observedNextTokenId")}`);
+  field(root, "supply", result
+    ? `Minted token #${own(result, "tokenId")} at block ${own(result, "blockNumber")}`
+    : `${own(candidate, "observedSupply")} / ${own(candidate, "maximumSupply")} at ${own(candidate, "observedAt")} · expected token ${own(candidate, "observedNextTokenId")}`);
   field(root, "risk", `${own(candidate, "verification")} · ${own(candidate, "openSeaSafetySnapshot")}`);
   field(root, "runner", own(status, "executionMode").replaceAll("_", " "));
   field(root, "containment", controls.containImmediatelyAfterRun
@@ -97,8 +106,15 @@ export function renderExternalFreeMintStatus(root, normalized) {
   text(root.querySelector("[data-external-mint-warning]"), own(status, "notice"));
   const link = root.querySelector("[data-external-mint-opensea]");
   link.href = openSeaUrl;
+  const transaction = root.querySelector("[data-external-mint-transaction]");
+  if (transaction && result) {
+    transaction.hidden = false;
+    transaction.href = `https://robinhoodchain.blockscout.com/tx/${own(result, "transactionHash")}`;
+  }
   renderProgress(root.querySelector("[data-external-mint-progress]"), readiness);
-  root.querySelector("[data-external-mint-run]").disabled = own(status, "executionEnabled") !== true;
+  const run = root.querySelector("[data-external-mint-run]");
+  run.disabled = own(status, "executionEnabled") !== true;
+  if (result) run.textContent = "Mint complete · contained";
 }
 
 async function boot() {

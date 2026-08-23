@@ -25,7 +25,7 @@ const candidate = {
   readiness: { reviewedAdapterSource: true },
 };
 
-test("external free-mint site status accepts only the bounded disabled preparation", () => {
+test("external free-mint site status accepts only bounded non-executable evidence", () => {
   assert.equal(normalizeExternalFreeMintStatus({ externalFreeMintTest: candidate }).candidate.name, "Test");
   for (const mutate of [
     (value) => { value.executionEnabled = true; },
@@ -41,15 +41,17 @@ test("external free-mint site status accepts only the bounded disabled preparati
   }
 });
 
-test("Punk page loads the separate external-mint module and remains explicit about local execution", async () => {
-  const [html, source, status] = await Promise.all([
+test("Punk page loads the separate external-mint module and displays contained evidence", async () => {
+  const [html, source, status, evidence] = await Promise.all([
     readFile(new URL("../site/punk/index.html", import.meta.url), "utf8"),
     readFile(new URL("../site/external-free-mint-test.js", import.meta.url), "utf8"),
     readFile(new URL("../netlify/functions/broker-status.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../netlify/functions/_shared/external-free-mint-display.mjs", import.meta.url), "utf8"),
   ]);
   assert.match(html, /data-external-free-mint-test/);
   assert.match(html, /site does not hold the agent key/i);
   assert.match(source, /executionEnabled.*!== true/s);
-  assert.match(status, /ADAPTER_REVIEWED_NOT_DEPLOYED/);
-  assert.match(status, /UNVERIFIED_COLLECTION/);
+  assert.match(status, /COMPLETED_AND_CONTAINED/);
+  assert.match(evidence, /36c6cc619a3a3a2d634627e02f8ad233eda9180a9fe04724845b2dcbf7a1d833/);
+  assert.match(evidence, /UNVERIFIED_COLLECTION/);
 });

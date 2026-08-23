@@ -1,5 +1,5 @@
 import { getDatabase } from "@netlify/database";
-import { createPublicClient, defineChain, http, parseAbi } from "viem";
+import { createPublicClient, defineChain, http, keccak256, parseAbi } from "viem";
 import { ROBINHOOD } from "../../broker/src/config.mjs";
 import {
   attachNftDisplayMetadata,
@@ -10,6 +10,8 @@ import { json } from "./_shared/http.mjs";
 import { getRpcUrl } from "./_shared/config.mjs";
 import { CURRENT_BROKER_DEPLOYMENT_SURFACE } from
   "./_shared/broker-deployment-surface.mjs";
+import { COMPLETED_EXTERNAL_FREE_MINT } from
+  "./_shared/external-free-mint-display.mjs";
 
 const PUNK_ABI = parseAbi(["function ownerOf(uint256 tokenId) view returns (address)"]);
 const REGISTRY_ABI = parseAbi([
@@ -65,7 +67,30 @@ export async function readLivePunkState(
       || BigInt(footer[2]) !== id) throw new Error("live Punk Account binding mismatch");
   }
   let canaryAsset = null;
-  if (surface.canaryStatus === "DEPLOYED" && surface.canary?.punkTokenId === tokenId
+  const external = COMPLETED_EXTERNAL_FREE_MINT;
+  if (deployed && external.status === "COMPLETED_AND_CONTAINED"
+    && external.punkTokenId === tokenId && external.account === account.toLowerCase()) {
+    const collectionCode = await client.getCode({ address: external.candidate.collection });
+    if (typeof collectionCode === "string" && collectionCode !== "0x"
+      && keccak256(collectionCode) === external.candidate.collectionRuntimeCodeHash) {
+      const assetOwner = await client.readContract({ address: external.candidate.collection,
+        abi: CANARY_ART_ABI, functionName: "ownerOf", args: [BigInt(external.result.tokenId)] });
+      if (assetOwner.toLowerCase() === account.toLowerCase()) {
+        canaryAsset = Object.freeze({
+          status: "CONFIRMED_ONCHAIN",
+          collection: external.candidate.collection,
+          tokenId: external.result.tokenId,
+          owner: account.toLowerCase(),
+          name: `${external.candidate.name} #${external.result.tokenId}`,
+          standard: "ERC721",
+          executionMode: external.executionMode,
+          transactionHash: external.result.transactionHash,
+          containment: external.result.containment,
+        });
+      }
+    }
+  }
+  if (!canaryAsset && surface.canaryStatus === "DEPLOYED" && surface.canary?.punkTokenId === tokenId
     && surface.canary.account === account.toLowerCase()) {
     const outputTokenId = BigInt(surface.canary.tokenId);
     const minted = await client.readContract({ address: surface.canary.collection,

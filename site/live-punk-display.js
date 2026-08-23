@@ -36,11 +36,35 @@ export async function readBrowserPunkDisplay(provider, status, tokenId) {
   const code = await rpc(provider, "eth_getCode", [account, "latest"]);
   const activated = typeof code === "string" && code !== "0x";
   let canaryAsset = null;
+  const external = status.externalFreeMintTest;
+  if (activated && external?.status === "COMPLETED_AND_CONTAINED"
+    && external.punkTokenId === tokenId && external.account === account
+    && external.result?.nftOwner === account) {
+    const runtime = await rpc(provider, "eth_getCode", [external.candidate.collection, "latest"]);
+    if (keccak256Hex(runtime).toLowerCase()
+      === external.candidate.collectionRuntimeCodeHash.toLowerCase()) {
+      const assetOwnerRaw = await rpc(provider, "eth_call", [{ to: external.candidate.collection,
+        data: `${OWNER_OF}${word(external.result.tokenId)}` }, "latest"]);
+      if (decodedAddress(assetOwnerRaw) === account) {
+        canaryAsset = Object.freeze({
+          status: "CONFIRMED_ONCHAIN",
+          collection: external.candidate.collection,
+          tokenId: external.result.tokenId,
+          owner: account,
+          name: `${external.candidate.name} #${external.result.tokenId}`,
+          standard: "ERC721",
+          executionMode: external.executionMode,
+          transactionHash: external.result.transactionHash,
+          containment: external.result.containment,
+        });
+      }
+    }
+  }
   const canary = [status.canaryDisplay, status.autonomousCanaryDisplay].find((candidate) => (
     candidate && ["DEPLOYED", "COMPLETED_AND_CONTAINED"].includes(candidate.status)
       && candidate.punkTokenId === tokenId && candidate.account === account
   ));
-  if (activated && canary) {
+  if (activated && !canaryAsset && canary) {
     if (canary.runtimeCodeHash) {
       const runtime = await rpc(provider, "eth_getCode", [canary.collection, "latest"]);
       if (keccak256Hex(runtime).toLowerCase() !== canary.runtimeCodeHash.toLowerCase()) {

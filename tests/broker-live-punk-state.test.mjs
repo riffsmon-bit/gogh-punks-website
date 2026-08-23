@@ -155,6 +155,42 @@ test("browser wallet verifies and displays the completed contained autonomous ca
   assert.equal(display.canaryAsset.owner, ACCOUNT_1639);
 });
 
+test("browser wallet verifies and displays the contained external free mint", async () => {
+  const runtime = "0x6001";
+  const EXTERNAL = "0x5555555555555555555555555555555555555555";
+  const provider = {
+    async request({ method, params = [] }) {
+      if (method === "eth_chainId") return "0x1237";
+      if (method === "eth_getCode") {
+        return params[0] === EXTERNAL ? runtime : "0x6000";
+      }
+      if (method === "eth_call") {
+        const [{ to }] = params;
+        if (to === ROBINHOOD.canonicalCollection) return `0x${abiAddress(OWNER)}`;
+        if (to === REGISTRY) return `0x${abiAddress(ACCOUNT_1639)}`;
+        if (to === EXTERNAL) return `0x${abiAddress(ACCOUNT_1639)}`;
+      }
+      throw new Error(`unexpected ${method}`);
+    },
+  };
+  const status = {
+    protocol: { deploymentStatus: "DEPLOYED", accountRegistry: REGISTRY },
+    chain: { canonicalCollection: ROBINHOOD.canonicalCollection },
+    externalFreeMintTest: {
+      status: "COMPLETED_AND_CONTAINED", punkTokenId: "1639", account: ACCOUNT_1639,
+      executionMode: "AUTONOMOUS_FREE_MINT",
+      candidate: { name: "External", collection: EXTERNAL,
+        collectionRuntimeCodeHash: keccak256Hex(runtime) },
+      result: { tokenId: "224", nftOwner: ACCOUNT_1639,
+        transactionHash: `0x${"34".repeat(32)}`, containment: "CONTAINED" },
+    },
+  };
+  const display = await readBrowserPunkDisplay(provider, status, "1639");
+  assert.equal(display.canaryAsset.tokenId, "224");
+  assert.equal(display.canaryAsset.name, "External #224");
+  assert.equal(display.canaryAsset.owner, ACCOUNT_1639);
+});
+
 test("Punk recommendations are collapsed and token metrics avoid nested-label styling", async () => {
   const [punkHtml, brokerHtml, css, statusSource] = await Promise.all([
     readFile(new URL("../site/punk/index.html", import.meta.url), "utf8"),
