@@ -202,7 +202,16 @@ export default async function handler(request) {
           ORDER BY occurred_at DESC LIMIT 24`,
         [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, tokenId],
       ),
-      readLivePunkState(tokenId).catch(() => null),
+      readLivePunkState(tokenId).catch((error) => {
+        console.error(JSON.stringify({
+          event: "BROKER_PUNK_LIVE_READ_FAILED",
+          type: error?.name ?? "Error",
+          code: error?.code ?? null,
+          functionName: error?.functionName ?? error?.cause?.functionName ?? null,
+          contractAddress: error?.contractAddress ?? error?.cause?.contractAddress ?? null,
+        }));
+        return null;
+      }),
     ]);
     const rawPunk = punkResult.rows[0] ?? null;
     const punk = attachNftDisplayMetadata(rawPunk);
