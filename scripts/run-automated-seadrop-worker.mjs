@@ -1,0 +1,272 @@
+import { getDatabase } from "@netlify/database";
+import {
+  createPublicClient, createWalletClient, getAddress, http, keccak256, parseAbi,
+  stringToHex,
+} from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+
+import manifest from "../deployments/robinhood-automation-v2.json" with { type: "json" };
+import coreManifest from "../deployments/robinhood.json" with { type: "json" };
+import { ROBINHOOD } from "../broker/src/config.mjs";
+import { tasteMatchFromWeights } from "../broker/src/personas.mjs";
+import { attestAutomatedSeaDropCandidateLive } from
+  "../broker/src/discovery/automated-seadrop-live-screen.mjs";
+import { buildAutomatedSeaDropExecutionBatch } from
+  "../broker/src/recommendation/automated-seadrop-execution-batch.mjs";
+import {
+  COLLECTION_RUNTIME_CODE_HASH, CLONE_IMPLEMENTATION, CLONE_IMPLEMENTATION_CODE_HASH,
+  NATIVE_CURRENCY, SEA_DROP, SEA_DROP_CODE_HASH, SEA_DROP_MINT_PUBLIC_SELECTOR,
+} from "../broker/src/recommendation/automated-seadrop-run-plan.mjs";
+import { AUTOMATION_V2_AGENT, readAutomationV2GlobalState } from
+  "../netlify/functions/_shared/autonomy-v2-live.mjs";
+import { PUBLIC_DROP_UPDATED_EVENT } from
+  "../broker/src/discovery/seadrop-public-drop-index.mjs";
+
+const ACCOUNT_ABI = parseAbi([
+  "function owner() view returns (address)",
+  "function acquisitionNonce() view returns (uint256)",
+]);
+const REGISTRY_ABI = parseAbi(["function account(uint256 tokenId) view returns (address)"]);
+const AGENT_ABI = parseAbi(["function isAuthorized(address account,address agent) view returns (bool)"]);
+const POLICY_ABI = [{
+  type: "function", name: "policy", stateMutability: "view", inputs: [{ type: "address" }],
+  outputs: [{ type: "tuple", components: [
+    { name: "config", type: "tuple", components: [
+      { name: "mode", type: "uint8" }, { name: "maxSpendPerTransaction", type: "uint256" },
+      { name: "maxSpendPerDay", type: "uint256" }, { name: "maxSpendPerWeek", type: "uint256" },
+      { name: "maxMintPrice", type: "uint256" }, { name: "maxSecondaryPurchasePrice", type: "uint256" },
+      { name: "minimumNativeReserve", type: "uint256" }, { name: "maxAcquisitionsPerDay", type: "uint32" },
+      { name: "maxIntentAge", type: "uint32" }, { name: "maxSlippageBps", type: "uint16" },
+      { name: "requireCollectionAllowlist", type: "bool" }, { name: "allowUnknownCollections", type: "bool" },
+    ] },
+    { name: "configuredBy", type: "address" }, { name: "version", type: "uint64" },
+    { name: "permissionGeneration", type: "uint64" }, { name: "accountPaused", type: "bool" },
+  ] }],
+}, ...parseAbi([
+  "function featureFlags() view returns ((bool scoutMode,bool approvalPurchases,bool autonomousPurchases,bool autonomousMints,bool unknownCollectionExecution,bool selling,bool autonomousSelling))",
+  "function acquisitionUsage(address account) view returns ((uint64 dayBucket,uint32 acquisitionsToday))",
+  "function approvedAdapters(address account,address adapter) view returns (bool)",
+  "function approvedMintContracts(address account,address venue) view returns (bool)",
+  "function approvedSelectors(address account,bytes4 selector) view returns (bool)",
+  "function currencyPolicy(address account,address currency) view returns ((bool allowed,uint256 maxSpendPerTransaction,uint256 maxSpendPerDay,uint256 maxSpendPerWeek,uint256 maxMintPrice,uint256 maxSecondaryPurchasePrice))",
+  "function venueCurrencyMaximum(address account,address venue,address currency) view returns (uint256)",
+  "function mintControls(address account) view returns ((bool ownerApprovedMints,bool autonomousFreeMints,bool autonomousPaidMints))",
+])];
+
+const CHAIN = {
+  id: 4663, name: "Robinhood Chain",
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: { default: { http: [ROBINHOOD.rpcUrl] } },
+};
+
+function httpsUrl(name, value) {
+  const url = new URL(value ?? "");
+  if (url.protocol !== "https:" || url.hash) throw new TypeError(`${name} must be HTTPS`);
+  return url.href;
+}
+
+function readClient(url) {
+  return createPublicClient({ chain: CHAIN, transport: http(url, { retryCount: 1, timeout: 10_000 }) });
+}
+
+function readFacade(raw, url) {
+  return Object.freeze({
+    transport: Object.freeze({ url }),
+    getBlockNumber: raw.getBlockNumber.bind(raw), getBlock: raw.getBlock.bind(raw),
+    getCodeEvidence: async (request) => {
+      const code = (await raw.getCode(request)) ?? "0x";
+      if (code === "0x") throw new TypeError("runtime code missing");
+      return Object.freeze({ codeHash: keccak256(code), length: (code.length - 2) / 2 });
+    },
+    readContract: raw.readContract.bind(raw), simulateContract: raw.simulateContract.bind(raw),
+    estimateContractGas: raw.estimateContractGas.bind(raw),
+  });
+}
+
+function jsonEqual(left, right) {
+  const encode = (value) => JSON.stringify(value, (_, item) => typeof item === "bigint" ? item.toString() : item);
+  return encode(left) === encode(right);
+}
+
+function field(value, name, index) {
+  const selected = value?.[name] ?? value?.[index];
+  if (selected === undefined) throw new TypeError(`missing ${name}`);
+  return selected;
+}
+
+async function accountState(client, blockNumber, account, agent) {
+  const policyAddress = getAddress(manifest.contracts.BrokerPolicyModuleV2.address);
+  const agentRegistry = getAddress(coreManifest.contracts.ArtAgentRegistry.address);
+  const adapter = getAddress(manifest.contracts.AutomatedSeaDropFreeMintAdapter.address);
+  const request = (functionName, args = []) => client.readContract({ address: policyAddress, abi: POLICY_ABI, functionName, args, blockNumber });
+  const [owner, nonce, policy, usage, flags, authorized, adapterAllowed, venueAllowed,
+    selectorAllowed, currency, venueMaximum, controls, balance, block] = await Promise.all([
+    client.readContract({ address: account, abi: ACCOUNT_ABI, functionName: "owner", blockNumber }),
+    client.readContract({ address: account, abi: ACCOUNT_ABI, functionName: "acquisitionNonce", blockNumber }),
+    request("policy", [account]), request("acquisitionUsage", [account]), request("featureFlags"),
+    client.readContract({ address: agentRegistry, abi: AGENT_ABI, functionName: "isAuthorized", args: [account, agent], blockNumber }),
+    request("approvedAdapters", [account, adapter]), request("approvedMintContracts", [account, getAddress(SEA_DROP)]),
+    request("approvedSelectors", [account, SEA_DROP_MINT_PUBLIC_SELECTOR]), request("currencyPolicy", [account, NATIVE_CURRENCY]),
+    request("venueCurrencyMaximum", [account, getAddress(SEA_DROP), NATIVE_CURRENCY]), request("mintControls", [account]),
+    client.getBalance({ address: agent, blockNumber }), client.getBlock({ blockNumber }),
+  ]);
+  return { owner, nonce, policy, usage, flags, authorized, adapterAllowed, venueAllowed,
+    selectorAllowed, currency, venueMaximum, controls, balance, block };
+}
+
+function artMatch(row, mandate) {
+  const art = row.collection_signals?.art;
+  const dimensions = art?.dimensions;
+  if (!dimensions || typeof dimensions !== "object" || art.status === "UNAVAILABLE") return 0;
+  return Math.round(tasteMatchFromWeights(mandate.artistic_preferences.dimensions, dimensions));
+}
+
+async function eligibleProfiles(pool) {
+  const result = await pool.query(`
+    SELECT DISTINCT ON (m.token_id) m.token_id, m.configured_by, m.economic_settings,
+           m.risk_settings, m.artistic_preferences
+      FROM broker_art_mandates m
+     WHERE m.chain_id = $1 AND m.collection_address = $2 AND m.mode = 'AUTONOMOUS'
+     ORDER BY m.token_id, m.version DESC
+     LIMIT 32`, [4663, ROBINHOOD.canonicalCollection]);
+  return result.rows;
+}
+
+async function analyzedCandidates(pool, collections) {
+  if (collections.length === 0) return [];
+  const result = await pool.query(`
+    SELECT DISTINCT ON (o.collection_address) o.collection_address, o.id,
+           o.metadata->'collectionSignals' AS collection_signals,
+           c.risk_score
+      FROM broker_opportunities o
+      JOIN broker_collections c USING (chain_id, collection_address)
+     WHERE o.chain_id = $1 AND o.collection_address = ANY($2::char(42)[])
+       AND o.canonical = TRUE AND o.scoutable = TRUE
+       AND o.metadata ? 'collectionSignals' AND c.risk_score IS NOT NULL
+     ORDER BY o.collection_address, o.discovered_at DESC`, [4663, collections]);
+  return result.rows;
+}
+
+async function recentSeaDropCollections(client, confirmations = 20n) {
+  const head = await client.getBlockNumber();
+  const toBlock = head - confirmations;
+  const fromBlock = toBlock > 100_000n ? toBlock - 100_000n : 0n;
+  const logs = await client.getLogs({ address: getAddress(SEA_DROP), event: PUBLIC_DROP_UPDATED_EVENT, fromBlock, toBlock });
+  return [...new Set(logs.map((log) => getAddress(log.args.nftContract).toLowerCase()))].slice(0, 128);
+}
+
+function liveState(profile, state, screen, maxFeePerGasWei) {
+  const config = field(state.policy, "config", 0);
+  const value = (object, name, index) => field(object, name, index);
+  return {
+    schema: "GOGH_AUTOMATED_SEADROP_LIVE_STATE_V1", chainId: 4663,
+    checkedAt: screen.checkedAt, blockNumber: Number(screen.pinnedBlock.number),
+    blockHash: screen.pinnedBlock.hash, blockTimestamp: screen.pinnedBlock.timestamp,
+    owner: getAddress(state.owner).toLowerCase(), account: profile.punk.account, agent: profile.agent,
+    policyVersion: BigInt(value(state.policy, "version", 2)).toString(), nonce: BigInt(state.nonce).toString(),
+    acquisitionsToday: Number(value(state.usage, "acquisitionsToday", 1)),
+    agentBalanceWei: state.balance.toString(), maxFeePerGasWei: maxFeePerGasWei.toString(),
+    accountPaused: value(state.policy, "accountPaused", 4), agentAuthorized: state.authorized,
+    featureFlags: {
+      scoutMode: value(state.flags, "scoutMode", 0), approvalPurchases: value(state.flags, "approvalPurchases", 1),
+      autonomousPurchases: value(state.flags, "autonomousPurchases", 2), autonomousMints: value(state.flags, "autonomousMints", 3),
+      unknownCollectionExecution: value(state.flags, "unknownCollectionExecution", 4), selling: value(state.flags, "selling", 5),
+      autonomousSelling: value(state.flags, "autonomousSelling", 6),
+    },
+    policy: {
+      mode: Number(value(config, "mode", 0)) === 3 ? "AUTONOMOUS" : "OTHER",
+      maxSpendPerTransaction: BigInt(value(config, "maxSpendPerTransaction", 1)).toString(),
+      maxSpendPerDay: BigInt(value(config, "maxSpendPerDay", 2)).toString(), maxSpendPerWeek: BigInt(value(config, "maxSpendPerWeek", 3)).toString(),
+      maxMintPrice: BigInt(value(config, "maxMintPrice", 4)).toString(), maxSecondaryPurchasePrice: BigInt(value(config, "maxSecondaryPurchasePrice", 5)).toString(),
+      minimumNativeReserve: BigInt(value(config, "minimumNativeReserve", 6)).toString(), maxAcquisitionsPerDay: Number(value(config, "maxAcquisitionsPerDay", 7)),
+      maxIntentAge: Number(value(config, "maxIntentAge", 8)), maxSlippageBps: Number(value(config, "maxSlippageBps", 9)),
+      requireCollectionAllowlist: value(config, "requireCollectionAllowlist", 10), allowUnknownCollections: value(config, "allowUnknownCollections", 11),
+      autonomousFreeMints: value(state.controls, "autonomousFreeMints", 1), autonomousPaidMints: value(state.controls, "autonomousPaidMints", 2),
+    },
+    permissions: { adapterActive: true, adapterAllowed: state.adapterAllowed, venueAllowed: state.venueAllowed,
+      selectorAllowed: state.selectorAllowed, currencyAllowed: value(state.currency, "allowed", 0), venueCurrencyMaximumWei: BigInt(state.venueMaximum).toString() },
+    targets: [screen.screen.target],
+  };
+}
+
+export async function runAutomatedSeaDropWorker(environment = process.env, dependencies = {}) {
+  if (environment.BROKER_AUTOMATION_V2_ENABLED !== "true") return { status: "DISABLED", submitted: 0 };
+  const key = environment.BROKER_AUTOMATION_V2_AGENT_PRIVATE_KEY;
+  if (typeof key !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(key)) throw new TypeError("agent signer is unavailable");
+  const account = privateKeyToAccount(key);
+  if (account.address.toLowerCase() !== AUTOMATION_V2_AGENT) throw new TypeError("agent signer address mismatch");
+  const primaryUrl = httpsUrl("ROBINHOOD_RPC_URL", environment.ROBINHOOD_RPC_URL ?? environment.RPC_URL);
+  const secondaryUrl = httpsUrl("ROBINHOOD_SECONDARY_RPC_URL", environment.ROBINHOOD_SECONDARY_RPC_URL);
+  const primary = dependencies.primary ?? readClient(primaryUrl);
+  const secondary = dependencies.secondary ?? readClient(secondaryUrl);
+  const global = await readAutomationV2GlobalState(environment, { clients: [primary, secondary] });
+  if (!global.configured || !global.worker.enabled) throw new TypeError("global V2 gate is closed");
+  const database = dependencies.database ?? getDatabase().pool;
+  const profiles = await eligibleProfiles(database);
+  if (profiles.length === 0) return { status: "NO_AUTONOMOUS_MANDATES", submitted: 0 };
+  const collections = await recentSeaDropCollections(primary);
+  const candidates = await analyzedCandidates(database, collections);
+  if (candidates.length === 0) return { status: "NO_ANALYZED_ACTIVE_TARGETS", submitted: 0 };
+  const registry = getAddress(manifest.contracts.GoghPunkAccountRegistryV2.address);
+  const policyModule = getAddress(manifest.contracts.BrokerPolicyModuleV2.address);
+  const agent = getAddress(AUTOMATION_V2_AGENT);
+  for (const row of profiles) {
+    const tokenId = String(row.token_id);
+    const accountAddress = await primary.readContract({ address: registry, abi: REGISTRY_ABI, functionName: "account", args: [BigInt(tokenId)] });
+    if (((await primary.getCode({ address: accountAddress })) ?? "0x") === "0x") continue;
+    for (const target of candidates) {
+      const tasteMatch = artMatch(target, row);
+      const risk = Math.round(Number(target.risk_score));
+      if (risk > Number(row.risk_settings.maxContractRiskScore) || tasteMatch < Number(row.artistic_preferences.minimumTasteMatch)) continue;
+      const latestNonce = await primary.readContract({ address: accountAddress, abi: ACCOUNT_ABI, functionName: "acquisitionNonce" });
+      const latestPolicy = await primary.readContract({ address: policyModule, abi: POLICY_ABI, functionName: "policy", args: [accountAddress] });
+      const nowSeconds = Math.floor(Date.now() / 1_000);
+      const candidate = {
+        collection: target.collection_address, opportunityId: keccak256(stringToHex(`seadrop:${target.collection_address}:${target.id}`)),
+        reasoningHash: keccak256(stringToHex(`analyzed-zero-price-seadrop:${target.id}:${risk}:${tasteMatch}`)),
+        contractRiskScore: risk, tasteMatch, metadataSanitized: true, analysisComplete: true,
+      };
+      const scope = {
+        account: accountAddress, agent, expectedOwner: row.configured_by, policyModule,
+        adapter: manifest.contracts.AutomatedSeaDropFreeMintAdapter.address,
+        adapterCodeHash: manifest.contracts.AutomatedSeaDropFreeMintAdapter.runtimeBytecodeHash,
+        nonce: BigInt(latestNonce).toString(), policyVersion: BigInt(field(latestPolicy, "version", 2)).toString(),
+        createdAt: String(nowSeconds), expiresAt: String(nowSeconds + 120),
+      };
+      let screen;
+      try {
+        screen = await attestAutomatedSeaDropCandidateLive(candidate, scope,
+          { primaryUrl, secondaryUrl }, { confirmations: 20, maximumEvidenceAgeSeconds: 30 },
+          { primary: readFacade(primary, primaryUrl), secondary: readFacade(secondary, secondaryUrl) });
+      } catch { continue; }
+      const pinned = BigInt(screen.pinnedBlock.number);
+      const [first, second] = await Promise.all([
+        accountState(primary, pinned, accountAddress, agent), accountState(secondary, pinned, accountAddress, agent),
+      ]);
+      if (!jsonEqual(first, second)) continue;
+      const maxFee = (await primary.estimateFeesPerGas()).maxFeePerGas ?? 1n;
+      const cap = Number(row.economic_settings.maxMintsPerDay);
+      const profile = {
+        schema: "GOGH_AUTOMATED_SEADROP_PROFILE_V1", version: 1, chainId: 4663,
+        punk: { tokenId, collection: ROBINHOOD.canonicalCollection, account: accountAddress, expectedOwner: row.configured_by }, agent,
+        infrastructure: { adapter: manifest.contracts.AutomatedSeaDropFreeMintAdapter.address,
+          adapterCodeHash: manifest.contracts.AutomatedSeaDropFreeMintAdapter.runtimeBytecodeHash,
+          seaDrop: SEA_DROP, seaDropCodeHash: SEA_DROP_CODE_HASH, cloneImplementation: CLONE_IMPLEMENTATION,
+          cloneImplementationCodeHash: CLONE_IMPLEMENTATION_CODE_HASH, collectionRuntimeCodeHash: COLLECTION_RUNTIME_CODE_HASH },
+        limits: { maxMintsPerUtcDay: cap, maxMintsPerRun: 1, maxGasPerMint: 700000,
+          maxGasWeiPerRun: first.balance.toString(), minAgentReserveWei: "10000000000000", intentTtlSeconds: 120,
+          maxEvidenceAgeSeconds: 30, maxContractRiskScore: Number(row.risk_settings.maxContractRiskScore),
+          minimumTasteMatch: Number(row.artistic_preferences.minimumTasteMatch), stopOnFailure: true },
+      };
+      const batch = buildAutomatedSeaDropExecutionBatch(profile, liveState(profile, first, screen, maxFee), { nowSeconds });
+      const tx = batch.transactions[0];
+      await primary.call({ account: agent, to: getAddress(tx.to), data: tx.data, value: 0n });
+      const wallet = createWalletClient({ account, chain: CHAIN, transport: http(primaryUrl, { retryCount: 0, timeout: 10_000 }) });
+      const hash = await wallet.sendTransaction({ account, to: getAddress(tx.to), data: tx.data, value: 0n });
+      const receipt = await primary.waitForTransactionReceipt({ hash, confirmations: 1, timeout: 60_000 });
+      if (receipt.status !== "success") throw new TypeError("autonomous mint reverted");
+      return { status: "MINT_CONFIRMED", submitted: 1, tokenId, account: accountAddress.toLowerCase(), collection: target.collection_address, transactionHash: hash };
+    }
+  }
+  return { status: "NO_ELIGIBLE_TARGETS", submitted: 0 };
+}

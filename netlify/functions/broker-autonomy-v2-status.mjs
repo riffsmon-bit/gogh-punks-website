@@ -2,6 +2,7 @@ import automationManifest from "../../deployments/robinhood-automation-v2.json" 
 import { requireVerifiedManifestAdoption } from
   "../../broker/src/recommendation/source-verification-adoption.mjs";
 import { json } from "./_shared/http.mjs";
+import { AUTOMATION_V2_AGENT, readAutomationV2GlobalState } from "./_shared/autonomy-v2-live.mjs";
 
 const CONTRACT_NAMES = Object.freeze([
   "AutomatedSeaDropFreeMintAdapter",
@@ -101,9 +102,29 @@ export function autonomyV2Status(manifest = automationManifest) {
   });
 }
 
-export default function handler(request) {
+export default async function handler(request) {
   if (request.method !== "GET") return json({ ok: false, code: "METHOD_NOT_ALLOWED" }, 405);
-  return json({ ok: true, automation: autonomyV2Status() }, 200, {
+  const base = autonomyV2Status();
+  let automation = base;
+  if (base.status === "DEPLOYED_CONFIGURATION_PENDING") {
+    try {
+      const live = await readAutomationV2GlobalState();
+      const ready = live.configured === true && live.worker.enabled === true;
+      automation = Object.freeze({
+        ...base,
+        status: ready ? "READY" : "DEPLOYED_CONFIGURATION_PENDING",
+        capability: ready,
+        setupTransactionAvailable: ready,
+        automaticSubmission: ready,
+        reason: ready ? null : live.configured ? "AUTOMATION_V2_WORKER_PENDING" : "AUTOMATION_V2_GUARDIAN_PENDING",
+        agent: { address: AUTOMATION_V2_AGENT, validUntil: live.agent.validUntil },
+        live: { adapterRegistered: live.adapter.active, featureFlagsEnabled: live.configured, globalAgentApproved: live.agent.approved, workerEnabled: live.worker.enabled },
+      });
+    } catch {
+      automation = Object.freeze({ ...base, reason: "AUTOMATION_V2_LIVE_READ_UNAVAILABLE" });
+    }
+  }
+  return json({ ok: true, automation }, 200, {
     "cache-control": "no-store, max-age=0",
     "netlify-cdn-cache-control": "no-store",
   });

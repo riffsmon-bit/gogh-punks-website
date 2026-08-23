@@ -13,7 +13,61 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
   const account = panel.querySelector("[data-v2-account]");
   const setup = panel.querySelector("[data-v2-setup]");
   const stop = panel.querySelector("[data-v2-stop]");
+  const cap = panel.querySelector("[data-v2-cap]");
+  const days = panel.querySelector("[data-v2-days]");
+  const badge = panel.querySelector("[data-v2-badge]");
+  const message = panel.querySelector("[data-v2-message]");
   const state = { gate: null, selection: null };
+
+  async function rpc(method, params = []) {
+    if (!browserWindow.ethereum?.request) throw new Error("Connect MetaMask first.");
+    return browserWindow.ethereum.request({ method, params });
+  }
+
+  async function receipt(hash) {
+    for (let attempt = 0; attempt < 90; attempt += 1) {
+      const value = await rpc("eth_getTransactionReceipt", [hash]);
+      if (value) {
+        if (BigInt(value.status) !== 1n) throw new Error("A setup transaction reverted.");
+        return value;
+      }
+      await new Promise((resolve) => browserWindow.setTimeout(resolve, 1_000));
+    }
+    throw new Error("The transaction is still pending. Check MetaMask before retrying.");
+  }
+
+  async function artifact() {
+    const params = new URLSearchParams({
+      tokenId: state.selection.tokenId,
+      cap: cap.value,
+      days: days.value,
+    });
+    const response = await request(`/api/broker/autonomy-v2-owner-setup?${params}`, {
+      headers: { accept: "application/json" }, cache: "no-store",
+    });
+    const payload = await response.json();
+    if (!response.ok || payload?.ok !== true) throw new Error(payload?.message ?? "V2 setup is unavailable.");
+    return payload.artifact;
+  }
+
+  async function submit(transactions, label) {
+    const originalChain = await rpc("eth_chainId");
+    if (BigInt(originalChain) !== 4663n) throw new Error("Switch MetaMask to Robinhood Chain.");
+    const accounts = await rpc("eth_requestAccounts");
+    for (let index = 0; index < transactions.length; index += 1) {
+      const transaction = transactions[index];
+      const [freshChain, freshAccounts] = await Promise.all([
+        rpc("eth_chainId"), rpc("eth_accounts"),
+      ]);
+      if (freshChain !== originalChain || freshAccounts[0]?.toLowerCase() !== transaction.from) {
+        throw new Error("Wallet or chain changed during setup. Nothing else was submitted.");
+      }
+      message.textContent = `${label} ${index + 1} of ${transactions.length}: confirm ${transaction.purpose.replaceAll("_", " ").toLowerCase()} in MetaMask.`;
+      await rpc("eth_call", [{ from: transaction.from, to: transaction.to, value: "0x0", data: transaction.data }, "latest"]);
+      const hash = await rpc("eth_sendTransaction", [{ from: transaction.from, to: transaction.to, value: "0x0", data: transaction.data }]);
+      await receipt(hash);
+    }
+  }
 
   function render() {
     punk.textContent = state.selection?.tokenId ? `#${state.selection.tokenId}` : "Choose a Punk";
@@ -23,7 +77,11 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     const ready = state.gate?.capability === true
       && state.gate?.setupTransactionAvailable === true && Boolean(state.selection);
     setup.disabled = !ready;
-    stop.disabled = true;
+    stop.disabled = !ready;
+    cap.disabled = state.gate?.capability !== true;
+    days.disabled = state.gate?.capability !== true;
+    badge.textContent = state.gate?.capability === true ? "LIVE" : "LOCKED";
+    badge.classList.toggle("off", state.gate?.capability !== true);
     status.textContent = state.gate?.capability === true
       ? state.gate.reason === null ? "READY" : "FINAL UI GATE PENDING"
       : state.gate?.status === "DEPLOYED_AWAITING_LIVE_GATE"
@@ -57,10 +115,33 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     state.selection = event.detail?.tokenId ? event.detail : null;
     render();
   });
-  setup.addEventListener("click", () => {
-    status.textContent = "One-time setup remains locked until every V2 deployment gate passes.";
+  setup.addEventListener("click", async () => {
+    setup.disabled = true;
+    try {
+      const review = await artifact();
+      account.textContent = shortAddress(review.punk.account);
+      await submit(review.setupTransactions, "Setup");
+      message.textContent = `Automation is active for Punk #${review.punk.tokenId} until ${new Date(Number(review.limits.authorizationValidUntil) * 1_000).toLocaleString()}. The agent remains bounded by the selected daily cap.`;
+      status.textContent = "ACTIVE";
+    } catch (error) {
+      message.textContent = error?.message ?? "Setup stopped safely.";
+    } finally {
+      render();
+    }
   });
-  stop.addEventListener("click", () => {});
+  stop.addEventListener("click", async () => {
+    stop.disabled = true;
+    try {
+      const review = await artifact();
+      await submit(review.stopTransactions, "Stop");
+      message.textContent = "Automation was disabled and the hosted agent was revoked for this Punk.";
+      status.textContent = "STOPPED";
+    } catch (error) {
+      message.textContent = error?.message ?? "Stop sequence halted; inspect the last confirmed transaction.";
+    } finally {
+      render();
+    }
+  });
   render();
   load();
   return Object.freeze({ refresh: load });
