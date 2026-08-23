@@ -55,7 +55,7 @@
         <a href="#owner-workspace-title"><span>1</span> Choose Punk</a>
         <a href="#activation-title"><span>2</span> Activate wallet</a>
         <a href="#mandate-title"><span>3</span> Set preferences</a>
-        <a href="#policy-controls-title"><span>4</span> Limits &amp; funds</a>
+        <a href="#policy-controls-title"><span>4</span> Legacy wallet</a>
         <a href="#automation-title"><span>5</span> Start automation</a>
         <a href="#results-title"><span>6</span> View results</a>
       </nav>
@@ -205,10 +205,10 @@
           </div>
         </details>
 
-        <details class="workflow-step collapsible-section" id="policy-controls-title" data-owner-policy-controls open>
-          <summary><span><span class="workflow-number">4</span><strong>On-chain limits and account funds</strong></span><small>Owner transactions · live rechecks</small></summary>
+        <details class="workflow-step collapsible-section" id="policy-controls-title" data-owner-policy-controls>
+          <summary><span><span class="workflow-number">4</span><strong>Legacy V1 Punk wallet controls</strong></span><small>Contained account · owner recovery only</small></summary>
           <div class="collapsible-content">
-            <p class="workflow-help">These controls act on the Punk selected above. The page derives its permanent Punk Account from the reviewed registry, verifies the current owner and contract modules live, simulates the exact action, then asks MetaMask for one confirmation.</p>
+            <p class="workflow-help"><strong>This is not the autonomous V2 worker.</strong> These recovery controls act on the earlier V1 Punk Account shown below. A disabled/paused state here does not mean V2 automation is offline. Use section 5 for live autonomous status, cap, authorization, and hosted-worker gas.</p>
             <div class="metric-grid policy-live-grid">
               <article class="metric"><span>Selected Punk</span><strong data-policy-token>—</strong><small data-policy-selection-detail>Select an activated Punk</small></article>
               <article class="metric"><span>Punk asset wallet</span><strong data-policy-account-short>—</strong><small><a data-policy-account-link hidden target="_blank" rel="noopener noreferrer">View full address ↗</a></small></article>

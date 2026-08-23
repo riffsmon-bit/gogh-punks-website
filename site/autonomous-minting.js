@@ -258,6 +258,16 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
         throw new Error("status unavailable");
       }
       state.gate = payload.automation;
+      const selectedState = state.gate?.punk?.tokenId === state.selection?.tokenId
+        ? state.gate.punk : null;
+      if (selectedState?.active === true
+        && [1, 3, 5, 10].includes(selectedState.maxAcquisitionsPerDay)
+        && (cap.dataset.liveToken !== selectedState.tokenId
+          || cap.dataset.userEdited !== "true")) {
+        cap.value = String(selectedState.maxAcquisitionsPerDay);
+        cap.dataset.liveToken = selectedState.tokenId;
+        cap.dataset.userEdited = "false";
+      }
     } catch {
       state.gate = null;
       status.textContent = "STATUS UNAVAILABLE";
@@ -267,6 +277,8 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
 
   browserWindow.addEventListener("gogh:punk-selected", (event) => {
     state.selection = event.detail?.tokenId ? event.detail : null;
+    cap.dataset.userEdited = "false";
+    cap.dataset.liveToken = "";
     if (state.gate) state.gate = { ...state.gate, punk: null };
     render();
     void load();
@@ -278,6 +290,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
       account.textContent = shortAddress(review.punk.account);
       await submit(review.setupTransactions, "Setup");
       message.textContent = `Automation is active for Punk #${review.punk.tokenId} until ${new Date(Number(review.limits.authorizationValidUntil) * 1_000).toLocaleString()}. The agent remains bounded by the selected daily cap.`;
+      cap.dataset.userEdited = "false";
       await load();
     } catch (error) {
       message.textContent = error?.message ?? "Setup stopped safely.";
@@ -288,6 +301,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
   agentCopy.addEventListener("click", copyAgentAddress);
   agentFundConfirm.addEventListener("change", render);
   agentFund.addEventListener("click", fundAgent);
+  cap.addEventListener("change", () => { cap.dataset.userEdited = "true"; });
   stop.addEventListener("click", async () => {
     stop.disabled = true;
     try {

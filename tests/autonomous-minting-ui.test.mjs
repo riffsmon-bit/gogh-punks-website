@@ -14,6 +14,9 @@ test("automation panel exposes only the reviewed V2 setup and stop sequence", as
     readFile(new URL("site/autonomous-minting.js", root), "utf8"),
   ]);
   assert.match(html, /Continuous free-mint automation/);
+  assert.match(html, /Legacy V1 Punk wallet controls/);
+  assert.match(html, /This is not the autonomous V2 worker/);
+  assert.doesNotMatch(html, /data-owner-policy-controls open/);
   assert.match(html, /data-v2-setup disabled/);
   assert.match(html, /data-v2-stop disabled/);
   assert.match(html, /data-v2-cap disabled/);
@@ -37,6 +40,8 @@ test("automation panel exposes only the reviewed V2 setup and stop sequence", as
   assert.match(browser, /ACTIVE · SCANNING/);
   assert.match(browser, /heartbeatLabel/);
   assert.match(browser, /acquisitionsToday/);
+  assert.match(browser, /maxAcquisitionsPerDay/);
+  assert.match(browser, /dataset\.userEdited/);
   assert.match(browser, /AUTOMATION_V2_NOT_DEPLOYED|PREPARATION|LIVE GATE PENDING/i);
   assert.match(browser, /eth_getCode/);
   assert.match(browser, /eth_estimateGas/);

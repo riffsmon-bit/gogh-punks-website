@@ -221,7 +221,9 @@ test("Punk recommendations are collapsed and token metrics avoid nested-label st
   assert.match(brokerHtml, /Nothing is selected while the wallet is disconnected/);
   assert.match(brokerHtml, /data-live-summary/);
   assert.doesNotMatch(brokerHtml, /name="owner-workflow"/);
-  assert.match(brokerHtml, /data-owner-policy-controls open/);
+  assert.match(brokerHtml, /data-owner-policy-controls>/);
+  assert.doesNotMatch(brokerHtml, /data-owner-policy-controls open/);
+  assert.match(brokerHtml, /Legacy V1 Punk wallet controls/);
   assert.match(brokerHtml, /data-workspace-punk-picker/);
   assert.match(css, /\.metric > span/);
   assert.doesNotMatch(css, /\.metric span \{/);
