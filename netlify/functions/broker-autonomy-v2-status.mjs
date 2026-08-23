@@ -1,4 +1,6 @@
 import automationManifest from "../../deployments/robinhood-automation-v2.json" with { type: "json" };
+import { requireVerifiedManifestAdoption } from
+  "../../broker/src/recommendation/source-verification-adoption.mjs";
 import { json } from "./_shared/http.mjs";
 
 const CONTRACT_NAMES = Object.freeze([
@@ -20,10 +22,16 @@ function hash(value) {
 
 export function autonomyV2Status(manifest = automationManifest) {
   const contracts = manifest?.contracts;
+  let adoptionVerified = false;
+  try {
+    requireVerifiedManifestAdoption(manifest, CONTRACT_NAMES);
+    adoptionVerified = true;
+  } catch {
+    adoptionVerified = false;
+  }
   const deployed = manifest?.schema === "GOGH_AUTOMATED_SEADROP_V2_DEPLOYMENT_MANIFEST"
     && manifest?.version === 1 && manifest?.status === "DEPLOYED" && manifest?.chainId === 4663
-    && manifest?.sourceVerificationAdoption?.schema
-      === "GOGH_BLOCKSCOUT_SOURCE_VERIFICATION_ADOPTION_V1"
+    && adoptionVerified
     && CONTRACT_NAMES.every((name) => {
       const record = contracts?.[name];
       return address(record?.address) && hash(record?.runtimeBytecodeHash)

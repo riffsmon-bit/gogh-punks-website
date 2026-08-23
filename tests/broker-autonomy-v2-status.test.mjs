@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { sourceVerificationCanonicalSha256 } from
+  "../broker/src/recommendation/source-verification-adoption.mjs";
 import { autonomyV2Status } from "../netlify/functions/broker-autonomy-v2-status.mjs";
 
 const A = (digit) => `0x${digit.repeat(40)}`;
@@ -14,14 +16,12 @@ function deployedManifest() {
     receiptStatus: "SUCCESS",
     verificationStatus: "VERIFIED",
   });
-  return {
+  const manifest = {
     schema: "GOGH_AUTOMATED_SEADROP_V2_DEPLOYMENT_MANIFEST",
     version: 1,
     status: "DEPLOYED",
     chainId: 4663,
-    sourceVerificationAdoption: {
-      schema: "GOGH_BLOCKSCOUT_SOURCE_VERIFICATION_ADOPTION_V1",
-    },
+    sourceVerificationAdoption: null,
     contracts: {
       AutomatedSeaDropFreeMintAdapter: record("1"),
       BrokerPolicyModuleV2: record("2"),
@@ -35,7 +35,29 @@ function deployedManifest() {
       workerEnabled: true,
     },
     authorization: { automaticSubmissionEnabled: true },
+    notes: "Pending source verification",
   };
+  const pending = structuredClone(manifest);
+  for (const name of Object.keys(pending.contracts)) {
+    pending.contracts[name].verificationStatus = "NOT_SUBMITTED";
+  }
+  manifest.sourceVerificationAdoption = {
+    schema: "GOGH_BLOCKSCOUT_SOURCE_VERIFICATION_ADOPTION_V1",
+    gateSchema: "GOGH_BLOCKSCOUT_VERIFIED_MANIFEST_PROPOSAL_V1",
+    gateVersion: 1,
+    chainId: 4663,
+    explorerOrigin: "https://robinhoodchain.blockscout.com",
+    pendingProposalSha256: H("a"),
+    pendingManifestSha256: sourceVerificationCanonicalSha256(pending),
+    pendingManifestNotes: pending.notes,
+    verificationEvidenceSha256: H("b"),
+    verifiedContracts: [
+      "AutomatedSeaDropFreeMintAdapter", "BrokerPolicyModuleV2",
+      "GoghPunkAccountV2", "GoghPunkAccountRegistryV2",
+    ],
+    observedAt: "2026-08-23T12:00:00.000Z",
+  };
+  return manifest;
 }
 
 test("current V2 template keeps every browser automation capability closed", async () => {
@@ -65,6 +87,8 @@ test("every deployment, source, configuration, and worker mutation fails closed"
     (m) => { m.status = "NOT_DEPLOYED"; },
     (m) => { m.chainId = 1; },
     (m) => { m.sourceVerificationAdoption = null; },
+    (m) => { m.sourceVerificationAdoption.pendingManifestSha256 = H("f"); },
+    (m) => { m.sourceVerificationAdoption.verifiedContracts.reverse(); },
     (m) => { m.contracts.BrokerPolicyModuleV2.verificationStatus = "PARTIAL"; },
     (m) => { m.contracts.GoghPunkAccountV2.receiptStatus = "FAILED"; },
     (m) => { m.contracts.GoghPunkAccountRegistryV2.runtimeBytecodeHash = null; },
