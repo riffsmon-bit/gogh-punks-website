@@ -48,13 +48,18 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
   const agentFundState = panel.querySelector("[data-v2-agent-fund-state]");
   const worker = panel.querySelector("[data-v2-worker]");
   const workerDetail = panel.querySelector("[data-v2-worker-detail]");
+  const refresh = panel.querySelector("[data-v2-refresh]");
+  const refreshed = panel.querySelector("[data-v2-refreshed]");
   const setup = panel.querySelector("[data-v2-setup]");
   const stop = panel.querySelector("[data-v2-stop]");
   const cap = panel.querySelector("[data-v2-cap]");
   const days = panel.querySelector("[data-v2-days]");
   const badge = panel.querySelector("[data-v2-badge]");
   const message = panel.querySelector("[data-v2-message]");
-  const state = { gate: null, selection: null, funding: false };
+  const state = {
+    gate: null, selection: null, funding: false, refreshing: false,
+    lastSyncedAt: null, lastRefreshFailedAt: null, loadSequence: 0,
+  };
 
   function heartbeatLabel(value) {
     if (!value) return "No worker check recorded yet";
@@ -155,6 +160,13 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     worker.textContent = state.gate?.heartbeat?.online === true ? "LIVE · SCANNING"
       : state.gate?.status === "WORKER_STARTING" ? "STARTING" : "OFFLINE";
     workerDetail.textContent = heartbeatLabel(state.gate?.heartbeat);
+    refresh.disabled = state.refreshing;
+    refresh.textContent = state.refreshing ? "Refreshing…" : "Refresh live status";
+    refreshed.textContent = state.lastSyncedAt
+      ? `Page synced ${state.lastSyncedAt.toLocaleTimeString()} · automatic check every 30 seconds`
+      : state.lastRefreshFailedAt
+        ? `Refresh failed ${state.lastRefreshFailedAt.toLocaleTimeString()} · retrying automatically`
+        : "Page has not synced yet";
     status.textContent = agentLive
       ? "ACTIVE · SCANNING"
       : active ? "AUTHORIZED · WORKER OFFLINE"
@@ -247,9 +259,13 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
   }
 
   async function load() {
+    const sequence = ++state.loadSequence;
+    state.refreshing = true;
+    render();
     try {
-      const query = state.selection?.tokenId
-        ? `?tokenId=${encodeURIComponent(state.selection.tokenId)}` : "";
+      const params = new URLSearchParams({ refresh: String(Date.now()) });
+      if (state.selection?.tokenId) params.set("tokenId", state.selection.tokenId);
+      const query = `?${params}`;
       const response = await request(`/api/broker/autonomy-v2-status${query}`, {
         headers: { accept: "application/json" }, cache: "no-store",
       });
@@ -257,7 +273,10 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
       if (!response.ok || payload?.ok !== true || typeof payload?.automation !== "object") {
         throw new Error("status unavailable");
       }
+      if (sequence !== state.loadSequence) return;
       state.gate = payload.automation;
+      state.lastSyncedAt = new Date();
+      state.lastRefreshFailedAt = null;
       const selectedState = state.gate?.punk?.tokenId === state.selection?.tokenId
         ? state.gate.punk : null;
       if (selectedState?.active === true
@@ -269,10 +288,15 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
         cap.dataset.userEdited = "false";
       }
     } catch {
+      if (sequence !== state.loadSequence) return;
       state.gate = null;
+      state.lastRefreshFailedAt = new Date();
       status.textContent = "STATUS UNAVAILABLE";
+    } finally {
+      if (sequence !== state.loadSequence) return;
+      state.refreshing = false;
+      render();
     }
-    render();
   }
 
   browserWindow.addEventListener("gogh:punk-selected", (event) => {
@@ -299,6 +323,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     }
   });
   agentCopy.addEventListener("click", copyAgentAddress);
+  refresh.addEventListener("click", () => { void load(); });
   agentFundConfirm.addEventListener("change", render);
   agentFund.addEventListener("click", fundAgent);
   cap.addEventListener("change", () => { cap.dataset.userEdited = "true"; });
@@ -317,7 +342,12 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
   });
   render();
   load();
-  browserWindow.setInterval?.(() => { void load(); }, 60_000);
+  browserWindow.setInterval?.(() => { void load(); }, 30_000);
+  browserWindow.addEventListener?.("focus", () => { void load(); });
+  browserWindow.addEventListener?.("pageshow", () => { void load(); });
+  browserDocument.addEventListener?.("visibilitychange", () => {
+    if (browserDocument.visibilityState === "visible") void load();
+  });
   return Object.freeze({ refresh: load });
 }
 

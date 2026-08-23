@@ -184,6 +184,10 @@
                 <strong>What this means</strong>
                 <p data-mandate-summary>Scout can research mints, but it will not submit or prepare one until you enable those preferences.</p>
               </aside>
+              <aside class="mandate-summary" aria-label="Recommended autonomous mint profile">
+                <strong>Recommended live mint settings</strong>
+                <p>Choose Autonomous free mints, a daily maximum up to 10, Research only for unknown contracts, maximum contract risk 75, and minimum Taste Match 10. Keep paid mints, arbitrary contracts, approvals, and selling off. Saving this profile changes discovery preferences only; the V2 adapter and on-chain cap still enforce zero-price SeaDrop mints.</p>
+              </aside>
                   <button class="action-button mandate-save" type="submit" data-mandate-save disabled>Choose one of your Punks</button>
               <p class="mandate-state" data-mandate-state aria-live="polite">Loading the latest saved preferences…</p>
             </form>
@@ -257,7 +261,7 @@
               <article class="metric"><span>Punk NFT wallet</span><strong data-v2-account>Checking V2 deployment</strong><small>Receives NFTs; does not pay hosted-worker gas</small></article>
               <article class="metric"><span>Hosted gas payer</span><strong data-v2-agent>CHECKING</strong><small data-v2-agent-balance>Live balance unavailable</small></article>
               <article class="metric"><span>Per-mint payment</span><strong>0 ETH</strong><small>Gas only · paid mints remain blocked</small></article>
-              <article class="metric"><span>Hosted agent</span><strong data-v2-worker>CHECKING</strong><small data-v2-worker-detail>Waiting for a verified worker heartbeat</small></article>
+              <article class="metric automation-worker-metric"><span>Hosted agent</span><strong data-v2-worker>CHECKING</strong><small data-v2-worker-detail>Waiting for a verified worker heartbeat</small><button class="status-refresh-button" type="button" data-v2-refresh>Refresh live status</button><small data-v2-refreshed aria-live="polite">Page has not synced yet</small></article>
             </div>
             <aside class="automation-gas-card" aria-labelledby="automation-gas-title">
               <div>

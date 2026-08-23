@@ -360,6 +360,20 @@ h3 { font-size: 1.45rem; }
 .automation-gas-actions > strong { color: var(--sun); font: 400 1.55rem/1.2 var(--display); }
 .automation-gas-actions .action-button { width: 100%; }
 .automation-gas-actions .canary-confirmation { margin: 0; }
+.automation-worker-metric .status-refresh-button { align-self: flex-start; margin-top: 0.65rem; }
+.status-refresh-button {
+  border: 1px solid rgba(87, 207, 196, 0.55);
+  background: transparent;
+  color: var(--aqua);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 0.45rem 0.6rem;
+  text-transform: uppercase;
+}
+.status-refresh-button:disabled { cursor: wait; opacity: 0.6; }
 .owner-control-layout { align-items: stretch; }
 .owner-control-layout .panel { height: 100%; }
 .owner-fund-actions { display: grid; grid-template-columns: 1fr 1fr; }

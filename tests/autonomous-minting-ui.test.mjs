@@ -24,6 +24,11 @@ test("automation panel exposes only the reviewed V2 setup and stop sequence", as
   assert.match(html, /One ERC-721 per transaction/i);
   assert.match(html, /paid mints/i);
   assert.match(html, /data-v2-worker/);
+  assert.match(html, /data-v2-refresh/);
+  assert.match(html, /data-v2-refreshed/);
+  assert.match(html, /Recommended live mint settings/);
+  assert.match(html, /maximum contract risk 75/);
+  assert.match(html, /minimum Taste Match 10/);
   assert.match(html, /Fund the hosted automation agent/);
   assert.match(html, /does not pay hosted-worker gas/i);
   assert.match(html, /data-v2-agent-full/);
@@ -39,6 +44,10 @@ test("automation panel exposes only the reviewed V2 setup and stop sequence", as
   assert.match(browser, /disableAutomatedSeaDropPolicy|stopTransactions/i);
   assert.match(browser, /ACTIVE · SCANNING/);
   assert.match(browser, /heartbeatLabel/);
+  assert.match(browser, /automatic check every 30 seconds/);
+  assert.match(browser, /visibilitychange/);
+  assert.match(browser, /addEventListener\?\.\("focus"/);
+  assert.match(browser, /refresh: String\(Date\.now\(\)\)/);
   assert.match(browser, /acquisitionsToday/);
   assert.match(browser, /maxAcquisitionsPerDay/);
   assert.match(browser, /dataset\.userEdited/);
