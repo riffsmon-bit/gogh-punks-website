@@ -55,16 +55,20 @@ An explicit collection denial still overrides the automated collection path.
 Human target review is not required for this V2 route. It is replaced by a fail-closed automated
 evidence chain:
 
-1. Candidate analysis must be complete and metadata must be sanitized.
-2. Two RPC origins on different registrable provider domains must agree byte-for-byte on a fresh
+1. `npm run broker:autonomy:v2-discover` scans the last 100,000 confirmed blocks of the canonical
+   SeaDrop `PublicDropUpdated` event on the credential-free official RPC. It emits discovery hints
+   only; it cannot authorize or submit a mint. A persistent worker must backfill from the SeaDrop
+   deployment block and then advance its cursor without gaps.
+2. Candidate analysis must be complete and metadata must be sanitized.
+3. Two RPC origins on different registrable provider domains must agree byte-for-byte on a fresh
    block, collection runtime, SeaDrop runtime, public-drop parameters, wallet mint count, supply,
    explicit-denial state, next token ID, and exact account simulation.
-3. The owner-defined maximum contract-risk score and minimum Taste Match are applied.
-4. The planner rechecks live owner, V2 account, agent authorization, policy version, nonce, hard
+4. The owner-defined maximum contract-risk score and minimum Taste Match are applied.
+5. The planner rechecks live owner, V2 account, agent authorization, policy version, nonce, hard
    daily cap, zero-spend policy, permissions, agent gas reserve, and gas budget.
-5. The execution batch rebuilds the plan and ABI-decodes its own calldata for equality. It emits
+6. The execution batch rebuilds the plan and ABI-decodes its own calldata for equality. It emits
    only `executeAutonomousAcquisition(intent, 0x)` calls with transaction value zero.
-6. A production worker must refresh and resimulate each single action at latest, submit one nonce,
+7. A production worker must refresh and resimulate each single action at latest, submit one nonce,
    wait for and attest its receipt, then rebuild before considering the next action.
 
 The screen, plan, and execution batch artifacts do not sign, submit, authorize, or write chain
