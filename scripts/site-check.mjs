@@ -119,7 +119,10 @@ for (const file of ["styles.css", "main.js", "robots.txt", "site.webmanifest"]) 
   readFileSync(join(root, file));
 }
 
-for (const file of ["broker.css", "broker.js", "wallet.js", "canary-execution.js", "keccak256.js"]) {
+for (const file of [
+  "broker.css", "broker.js", "wallet.js", "canary-execution.js", "keccak256.js",
+  "owner-policy-controls.js",
+]) {
   readFileSync(join(root, file));
 }
 
@@ -149,6 +152,7 @@ const searchable = pages
     readFileSync(join(root, "wallet.js"), "utf8"),
     readFileSync(join(root, "canary-execution.js"), "utf8"),
     readFileSync(join(root, "account-funds.js"), "utf8"),
+    readFileSync(join(root, "owner-policy-controls.js"), "utf8"),
     readFileSync(join(root, "keccak256.js"), "utf8"),
   )
   .join("\n");

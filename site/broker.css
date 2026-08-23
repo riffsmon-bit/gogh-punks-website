@@ -187,7 +187,7 @@ h3 { font-size: 1.45rem; }
 }
 .workspace-jump-nav {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 1px;
   margin-top: 14px;
   border: 1px solid var(--line);
@@ -332,6 +332,17 @@ h3 { font-size: 1.45rem; }
 .activation-submit { justify-self: stretch; width: 100%; }
 .section-block-compact { padding-top: 22px; }
 .owner-account-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; }
+.workspace-master-picker { margin: 22px 0; padding: 18px 20px; border: 1px solid rgba(82, 207, 197, 0.5); background: rgba(9, 34, 48, 0.88); }
+.workspace-master-picker small { color: var(--muted); line-height: 1.55; }
+.policy-live-grid { margin: 16px 0 22px; }
+.owner-control-layout { align-items: stretch; }
+.owner-control-layout .panel { height: 100%; }
+.owner-fund-actions { display: grid; grid-template-columns: 1fr 1fr; }
+.owner-fund-actions button { width: 100%; }
+.owner-safety-control { margin-top: 18px; }
+.secondary-action { color: var(--cream); border-color: rgba(239, 226, 191, 0.45); }
+.danger-action { border-color: #ff7f66; color: #ff9a86; }
+.policy-live-grid strong { overflow-wrap: anywhere; }
 .owner-account-summary { grid-column: 1 / -1; }
 .owner-account-card { display: flex; justify-content: space-between; gap: 18px; align-items: start; }
 .owner-account-card h3 { margin: 5px 0 0; font-size: 1.5rem; }
