@@ -8,6 +8,7 @@ import {
 } from "../broker/src/owner-art-mandate.mjs";
 import { setupMandateEditor } from "../site/mandate-editor.js";
 import { requireLiveOwner } from "../netlify/functions/broker-mandate.mjs";
+import { requireSameOrigin } from "../netlify/functions/_shared/http.mjs";
 
 const OWNER = "0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6";
 const COLLECTION = "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6";
@@ -192,6 +193,30 @@ test("mandate endpoint is same-origin, owner verified, rate limited, and has no 
   assert.match(source, /robinhood-chain\.gateway\.tenderly\.co/);
   assert.match(source, /aggregateBy: \["ip"\]/);
   assert.doesNotMatch(source, /eth_send|sendTransaction|privateKey|mnemonic/);
+});
+
+test("same-origin mutation gate accepts only the canonical root and app hostnames", () => {
+  const previous = process.env.SITE_URL;
+  process.env.SITE_URL = "https://goghpunks.xyz";
+  try {
+    for (const origin of ["https://goghpunks.xyz", "https://app.goghpunks.xyz"]) {
+      assert.doesNotThrow(() => requireSameOrigin(new Request("https://goghpunks.xyz/api", {
+        headers: { origin },
+      })));
+    }
+    for (const origin of [
+      "https://gogh-punks.netlify.app",
+      "https://6a8af74ec923ea246eae9983--gogh-punks.netlify.app",
+      "https://evil.example",
+    ]) {
+      assert.throws(() => requireSameOrigin(new Request("https://goghpunks.xyz/api", {
+        headers: { origin },
+      })), /request origin was rejected/i);
+    }
+  } finally {
+    if (previous === undefined) delete process.env.SITE_URL;
+    else process.env.SITE_URL = previous;
+  }
 });
 
 test("mandate owner verification pins Robinhood before accepting the selected Punk owner", async () => {

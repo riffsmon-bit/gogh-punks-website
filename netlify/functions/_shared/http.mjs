@@ -38,7 +38,12 @@ export async function readJson(request, maximumBytes = 16_384) {
 
 export function requireSameOrigin(request) {
   const origin = request.headers.get("origin");
-  if (!origin || origin !== getSiteUrl()) {
+  const configuredOrigin = getSiteUrl();
+  const allowedOrigins = new Set([configuredOrigin]);
+  if (configuredOrigin === "https://goghpunks.xyz") {
+    allowedOrigins.add("https://app.goghpunks.xyz");
+  }
+  if (!origin || !allowedOrigins.has(origin)) {
     throw new PublicError(403, "ORIGIN_REJECTED", "The request origin was rejected.");
   }
 }
