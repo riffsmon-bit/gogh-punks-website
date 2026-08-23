@@ -121,7 +121,8 @@ export function setupMandateEditor({ windowObject, documentObject, fetchFunction
     if (mode?.value === "AUTONOMOUS") {
       form.elements.namedItem("inspectMints").checked = true;
       form.elements.namedItem("allowFreeMints").checked = true;
-      form.elements.namedItem("maxMintsPerDay").value = "1";
+      const dailyLimit = form.elements.namedItem("maxMintsPerDay");
+      if (dailyLimit.value === "0") dailyLimit.value = "1";
     }
     for (const output of browserDocument.querySelectorAll("[data-mandate-value]")) {
       const input = form.elements.namedItem(output.dataset.mandateValue);
@@ -140,8 +141,8 @@ export function setupMandateEditor({ windowObject, documentObject, fetchFunction
             : selected.mode === "AUTONOMOUS"
               && selected.economicSettings.inspectMints
               && selected.economicSettings.allowFreeMints
-              && selected.economicSettings.maxMintsPerDay === 1
-              ? "You are requesting at most one autonomous free mint per day. Saving this preference does not arm the contracts; the target adapter, owner policy, guardian feature gate, and short-lived agent authorization must still pass on-chain."
+              && selected.economicSettings.maxMintsPerDay >= 1
+              ? `You are requesting at most ${selected.economicSettings.maxMintsPerDay} autonomous free ${selected.economicSettings.maxMintsPerDay === 1 ? "mint" : "mints"} per day. Saving this preference does not arm the contracts; each target adapter, the owner policy, guardian feature gate, and short-lived agent authorization must still pass on-chain.`
             : "Scout can research mint opportunities and show them to you, but it cannot prepare or submit a mint.";
       summary.textContent = selected.mode === "AUTONOMOUS"
         ? `${action} Paid mints, unknown-collection execution, approvals, and selling stay disabled.`

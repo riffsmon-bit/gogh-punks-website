@@ -110,6 +110,9 @@
                 <select name="maxMintsPerDay">
                   <option value="0" selected>0 — watch only</option>
                   <option value="1">1 — hard daily maximum</option>
+                  <option value="3">3 — bounded daily maximum</option>
+                  <option value="5">5 — higher daily maximum</option>
+                  <option value="10">10 — high-volume hard maximum</option>
                 </select>
               </label>
               <label class="mandate-field">
@@ -138,7 +141,7 @@
               <button class="action-button mandate-save" type="submit" data-mandate-save disabled>Connect Punk #1797 owner to save</button>
               <p class="mandate-state" data-mandate-state aria-live="polite">Loading the latest saved preferences…</p>
             </form>
-            <p class="locked-note">Saving requests a message signature—not a transaction. An autonomous selection records the owner’s requested operating profile but cannot enable contracts, permissions, or an agent. The current external live-test state belongs to <a href="/punk/1639#external-free-mint-title">Punk #1639 ↗</a>.</p>
+            <p class="locked-note">Saving requests a message signature—not a transaction. An autonomous selection records the owner’s requested operating profile but cannot enable contracts, permissions, or an agent. There is deliberately no unlimited option. The authorized agent or relayer pays transaction gas; the Punk Account balance does not automatically determine a safe mint count. The current external live-test state belongs to <a href="/punk/1639#external-free-mint-title">Punk #1639 ↗</a>.</p>
           </article>
           <article class="panel">
             <div class="panel-header"><h3>Curator identity</h3><span class="tag">Persistent</span></div>

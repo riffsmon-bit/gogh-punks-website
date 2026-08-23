@@ -14,6 +14,7 @@ export const OWNER_MANDATE_DIMENSIONS = Object.freeze([
 
 const MODES = new Set(["DISABLED", "SCOUT", "APPROVAL_REQUIRED", "AUTONOMOUS"]);
 const UNKNOWN_MODES = new Set(["IGNORE", "SCOUT_ONLY", "OWNER_APPROVAL"]);
+const MAX_OWNER_MINTS_PER_DAY = 10;
 
 function exactKeys(value, expected, label) {
   if (!value || typeof value !== "object" || Array.isArray(value)
@@ -65,18 +66,18 @@ export function normalizeOwnerArtMandate(value) {
     value.economicSettings.maxMintsPerDay,
     "maxMintsPerDay",
     0,
-    1,
+    MAX_OWNER_MINTS_PER_DAY,
   );
   if (
     value.mode === "AUTONOMOUS"
     && (
       value.economicSettings.inspectMints !== true
       || value.economicSettings.allowFreeMints !== true
-      || maxMintsPerDay !== 1
+      || maxMintsPerDay < 1
     )
   ) {
     throw new TypeError(
-      "Autonomous preference requires mint inspection, free mints, and an exact daily cap of one",
+      `Autonomous preference requires mint inspection, free mints, and a daily cap between one and ${MAX_OWNER_MINTS_PER_DAY}`,
     );
   }
 

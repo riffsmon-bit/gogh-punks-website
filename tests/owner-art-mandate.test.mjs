@@ -48,9 +48,11 @@ test("normalizes a narrow owner mandate and forces paid/autonomous authority off
 test("accepts only the narrow autonomous request and keeps execution disabled", () => {
   const value = mandate();
   value.mode = "AUTONOMOUS";
+  value.economicSettings.maxMintsPerDay = 10;
   const stored = storedOwnerArtMandate(normalizeOwnerArtMandate(value), OWNER, 4);
   assert.equal(stored.autonomyRequested, true);
   assert.equal(stored.autonomyEnabled, false);
+  assert.equal(stored.economicSettings.maxMintsPerDay, 10);
   assert.equal(stored.economicSettings.allowPaidMints, false);
 });
 
@@ -60,7 +62,7 @@ test("rejects unsafe autonomy, alternate Punks, excess daily mints, and ambiguou
     (value) => { value.mode = "AUTONOMOUS"; value.economicSettings.inspectMints = false; },
     (value) => { value.mode = "AUTONOMOUS"; value.economicSettings.maxMintsPerDay = 0; },
     (value) => { value.tokenId = "1798"; },
-    (value) => { value.economicSettings.maxMintsPerDay = 2; },
+    (value) => { value.economicSettings.maxMintsPerDay = 11; },
     (value) => { value.economicSettings.allowPaidMints = true; },
     (value) => { value.artisticPreferences.dimensions.hidden = 100; },
     (value) => { value.unknown = true; },
@@ -181,5 +183,8 @@ test("broker mandate UI distinguishes autonomous preference from on-chain readin
   const html = await readFile(new URL("../site/broker/index.html", import.meta.url), "utf8");
   assert.match(html, /Autonomous free mints — on-chain setup required/);
   assert.match(html, /cannot enable contracts, permissions, or an agent/);
+  assert.match(html, /10 — high-volume hard maximum/);
+  assert.match(html, /There is deliberately no unlimited option/);
+  assert.match(html, /agent or relayer pays transaction gas/);
   assert.match(html, /\/punk\/1639#external-free-mint-title/);
 });
