@@ -86,7 +86,7 @@ test("owner account discovery merges recent activation logs with requested Punk 
 
 test("requested account token hints are strict, bounded, and always include Scout Punk", () => {
   const tokens = requestedTokenIds("https://example.test/api?tokens=1639,01,9999,10000,nope");
-  assert.deepEqual([...tokens], ["1797", "1639", "9999"]);
+  assert.deepEqual([...tokens], ["1639", "1797", "9999"]);
 });
 
 test("browser wallet fallback discovers recent activation and the confirmed canary", async () => {

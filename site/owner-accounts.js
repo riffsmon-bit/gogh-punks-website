@@ -90,7 +90,9 @@ export async function findBrowserOwnerAccounts(provider, gate, owner, hints = []
   if (!provider?.request || gate?.capability !== true || !normalizedOwner
     || !normalizedAddress(bindings?.punkCollection)
     || !normalizedAddress(bindings?.accountRegistry)) throw new Error("live gate unavailable");
-  const candidates = new Set(["1797", ...hints]);
+  // Punk #1639's confirmed autonomous-canary activation is older than the bounded log scan. It is
+  // only a discovery hint: live owner, derived account, and deployed code are still rechecked.
+  const candidates = new Set(["1639", "1797", ...hints]);
   try {
     const headHex = await provider.request({ method: "eth_blockNumber" });
     const head = BigInt(headHex);

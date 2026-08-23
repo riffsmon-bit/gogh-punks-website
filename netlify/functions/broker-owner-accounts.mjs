@@ -24,7 +24,9 @@ function address(value) {
 
 export function requestedTokenIds(url) {
   const values = new URL(url).searchParams.get("tokens")?.split(",") ?? [];
-  const unique = new Set(["1797"]);
+  // These two accounts are independently confirmed by the deployed canary records. Keep them as
+  // live-check hints even after their activation events age out of the bounded log window.
+  const unique = new Set(["1639", "1797"]);
   for (const value of values) {
     if (unique.size >= MAX_REQUESTED_TOKENS + 1) break;
     const token = value.trim();
