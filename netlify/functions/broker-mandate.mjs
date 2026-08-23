@@ -9,12 +9,13 @@ import {
   ownerArtMandateSha256,
   storedOwnerArtMandate,
 } from "../../broker/src/owner-art-mandate.mjs";
-import { getRpcUrl, getSiteUrl } from "./_shared/config.mjs";
+import { getSiteUrl } from "./_shared/config.mjs";
 import { json, PublicError, readJson, requireSameOrigin } from "./_shared/http.mjs";
 import { normalizeWalletAddress, verifyWalletSignature } from "./_shared/verification.mjs";
 
 const OWNER_ABI = parseAbi(["function ownerOf(uint256 tokenId) view returns (address)"]);
 const CHALLENGE_SECONDS = 10 * 60;
+const PUBLIC_FALLBACK_RPC = "https://robinhood-chain.gateway.tenderly.co/";
 
 function exactBody(body, keys, label) {
   if (!body || typeof body !== "object" || Array.isArray(body)
@@ -40,31 +41,62 @@ function publicFailure(error) {
   }, 503);
 }
 
-function publicClient() {
-  const rpcUrl = getRpcUrl();
+function publicClient(rpcUrl) {
   const chain = defineChain({
     id: ROBINHOOD.chainId,
     name: "Robinhood Chain",
     nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
     rpcUrls: { default: { http: [rpcUrl] } },
   });
-  return createPublicClient({ chain, transport: http(rpcUrl) });
+  return createPublicClient({ chain, transport: http(rpcUrl, { retryCount: 0, timeout: 5_000 }) });
 }
 
-async function requireLiveOwner(walletAddress, tokenId, client = publicClient()) {
-  const owner = normalizeWalletAddress(await client.readContract({
+async function ownerFromClient(tokenId, client) {
+  const chainId = await client.getChainId();
+  if (chainId !== ROBINHOOD.chainId) throw new TypeError("Mandate RPC is on the wrong chain");
+  return normalizeWalletAddress(await client.readContract({
     address: getAddress(ROBINHOOD.canonicalCollection),
     abi: OWNER_ABI,
     functionName: "ownerOf",
     args: [BigInt(tokenId)],
   }));
-  if (owner !== walletAddress) {
-    throw new PublicError(
-      403,
-      "NOT_CURRENT_OWNER",
-      `The connected wallet is not the current owner of Punk #${tokenId}.`,
-    );
+}
+
+function mandateRpcUrls() {
+  const values = [
+    process.env.ROBINHOOD_SECONDARY_RPC_URL,
+    process.env.RPC_URL,
+    PUBLIC_FALLBACK_RPC,
+  ];
+  return [...new Set(values.flatMap((value) => {
+    if (typeof value !== "string" || !value.trim()) return [];
+    try {
+      const url = new URL(value.trim());
+      return url.protocol === "https:" ? [url.toString()] : [];
+    } catch {
+      return [];
+    }
+  }))];
+}
+
+export async function requireLiveOwner(walletAddress, tokenId, client = null) {
+  const clients = client ? [client] : mandateRpcUrls().map((rpcUrl) => publicClient(rpcUrl));
+  let owner = null;
+  let lastError;
+  for (const candidate of clients) {
+    try {
+      owner = await ownerFromClient(tokenId, candidate);
+      break;
+    } catch (error) {
+      lastError = error;
+    }
   }
+  if (!owner) throw lastError ?? new TypeError("No mandate RPC is available");
+  if (owner !== walletAddress) throw new PublicError(
+    403,
+    "NOT_CURRENT_OWNER",
+    `The connected wallet is not the current owner of Punk #${tokenId}.`,
+  );
   return owner;
 }
 
