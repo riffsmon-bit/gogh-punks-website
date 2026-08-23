@@ -1,17 +1,26 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { encodeFunctionData, encodeFunctionResult, parseAbi } from "viem";
 import {
   indexedOwnerPunkIds,
   openSeaOwnerPunkIds,
 } from "../netlify/functions/broker-owner-punks.mjs";
-import { findBrowserOwnedPunks } from "../site/owner-accounts.js";
+import {
+  decodeOwnerOfMulticall,
+  discoverWalletOwnedPunkIds,
+  encodeOwnerOfMulticall,
+  findBrowserOwnedPunks,
+} from "../site/owner-accounts.js";
 
 const OWNER = "0x1234567890123456789012345678901234567890";
 const COLLECTION = "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6";
 const REGISTRY = "0x1111111111111111111111111111111111111111";
 const ACCOUNT_A = "0x2222222222222222222222222222222222222222";
 const ACCOUNT_B = "0x3333333333333333333333333333333333333333";
+const MULTICALL_ABI = parseAbi([
+  "function aggregate3((address target,bool allowFailure,bytes callData)[] calls) payable returns ((bool success,bytes returnData)[])",
+]);
 
 function addressWord(value) {
   return `0x${value.slice(2).padStart(64, "0")}`;
@@ -26,7 +35,7 @@ test("indexed owner picker candidates are bounded, ordered, and explicitly non-a
   assert.deepEqual(result, ["12", "1639"]);
   assert.match(captured.sql, /LOWER\(owner_snapshot\)/);
   assert.equal(captured.values[2], OWNER.toLowerCase());
-  assert.equal(captured.values[3], 51);
+  assert.equal(captured.values[3], 201);
 });
 
 test("OpenSea supplies bounded discovery hints while foreign NFTs are ignored", async () => {
@@ -81,6 +90,37 @@ test("wallet rechecks ownership and labels activated versus activatable Punks", 
   ]);
 });
 
+test("wallet scan ABI-matches Multicall3 and discovers every owned token in the bounded supply", async () => {
+  const tokenIds = ["0", "1", "2"];
+  const calls = tokenIds.map((tokenId) => ({
+    target: COLLECTION,
+    allowFailure: true,
+    callData: `0x6352211e${BigInt(tokenId).toString(16).padStart(64, "0")}`,
+  }));
+  assert.equal(encodeOwnerOfMulticall(COLLECTION, tokenIds), encodeFunctionData({
+    abi: MULTICALL_ABI,
+    functionName: "aggregate3",
+    args: [calls],
+  }));
+  const ownerWord = addressWord(OWNER);
+  const result = encodeFunctionResult({
+    abi: MULTICALL_ABI,
+    functionName: "aggregate3",
+    result: [[true, ownerWord], [false, "0x"], [true, addressWord(REGISTRY)]],
+  });
+  assert.deepEqual(decodeOwnerOfMulticall(result, tokenIds, OWNER), ["0"]);
+
+  const providerCalls = [];
+  const provider = { async request(call) {
+    providerCalls.push(call);
+    if (providerCalls.length === 1) return `0x${2n.toString(16).padStart(64, "0")}`;
+    return result;
+  } };
+  assert.deepEqual(await discoverWalletOwnedPunkIds(provider, COLLECTION, OWNER), ["0"]);
+  assert.equal(providerCalls[1].params[0].to,
+    "0xca11bde05977b3631167028862be2a173976ca11");
+});
+
 test("picker UI selects a live-verified Punk while preserving manual entry", async () => {
   const [html, accounts, activation, endpoint] = await Promise.all([
     readFile(new URL("../site/broker/index.html", import.meta.url), "utf8"),
@@ -96,5 +136,6 @@ test("picker UI selects a live-verified Punk while preserving manual entry", asy
   assert.match(activation, /gogh:punk-selected/);
   assert.match(endpoint, /DISCOVERY_CANDIDATES_ONLY_EACH_SELECTION_REQUIRES_LIVE_WALLET_OWNER_CHECK/);
   assert.match(endpoint, /OPENSEA_API_KEY/);
+  assert.match(accounts, /discoverWalletOwnedPunkIds/);
   assert.doesNotMatch(endpoint, /eth_send|privateKey|mnemonic/);
 });

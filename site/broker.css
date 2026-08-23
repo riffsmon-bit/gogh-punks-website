@@ -238,6 +238,7 @@ h3 { font-size: 1.45rem; }
 .activation-submit { justify-self: stretch; width: 100%; }
 .section-block-compact { padding-top: 22px; }
 .owner-account-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; }
+.owner-account-summary { grid-column: 1 / -1; }
 .owner-account-card { display: flex; justify-content: space-between; gap: 18px; align-items: start; }
 .owner-account-card h3 { margin: 5px 0 0; font-size: 1.5rem; }
 .owner-account-card h3 a { color: var(--cream); text-decoration: none; }

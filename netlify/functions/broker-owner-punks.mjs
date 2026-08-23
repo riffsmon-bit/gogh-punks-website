@@ -2,7 +2,7 @@ import { getDatabase } from "@netlify/database";
 import { ROBINHOOD } from "../../broker/src/config.mjs";
 import { json } from "./_shared/http.mjs";
 
-const MAX_CANDIDATES = 50;
+const MAX_CANDIDATES = 200;
 const OPENSEA_COLLECTION_SLUG = "gogh-punks-255843210";
 const OPENSEA_RESPONSE_BYTES = 1_000_000;
 const OPENSEA_PAGE_LIMIT = 200;
@@ -44,19 +44,19 @@ function punkTokenId(value) {
   return Number.isSafeInteger(parsed) && parsed >= 0 && parsed <= 9_999 ? String(parsed) : null;
 }
 
-async function boundedJson(response) {
+async function boundedJson(response, source = "Owner candidate") {
   const declared = response.headers?.get?.("content-length");
   if (declared && /^\d+$/.test(declared) && Number(declared) > OPENSEA_RESPONSE_BYTES) {
-    throw new RangeError("OpenSea owner response is too large");
+    throw new RangeError(`${source} response is too large`);
   }
   const body = await response.text();
   if (Buffer.byteLength(body, "utf8") > OPENSEA_RESPONSE_BYTES) {
-    throw new RangeError("OpenSea owner response is too large");
+    throw new RangeError(`${source} response is too large`);
   }
   try {
     return JSON.parse(body);
   } catch {
-    throw new TypeError("OpenSea owner response is not valid JSON");
+    throw new TypeError(`${source} response is not valid JSON`);
   }
 }
 
@@ -97,7 +97,7 @@ export async function openSeaOwnerPunkIds(owner, {
       if (!response?.ok) {
         throw new Error(`OpenSea owner request failed (${response?.status ?? "unknown"})`);
       }
-      const payload = await boundedJson(response);
+      const payload = await boundedJson(response, "OpenSea owner");
       if (!payload || typeof payload !== "object" || Array.isArray(payload)
         || !Array.isArray(payload.nfts) || payload.nfts.length > OPENSEA_PAGE_LIMIT) {
         throw new TypeError("OpenSea owner response has an invalid NFT list");

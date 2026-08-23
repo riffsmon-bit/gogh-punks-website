@@ -3,6 +3,9 @@ const STORAGE_KEY = "gogh:activated-punk-ids:v1";
 const ACTIVATION_TOPIC = "0xbcba1c8ca6488532aba261811803bc402fd692b825e2a41dd2e555ec87989cc3";
 const OWNER_OF = "0x6352211e";
 const ACCOUNT = "0x2dd7c658";
+const MAX_SUPPLY = "0xd5abeb01";
+const MULTICALL3 = "0xca11bde05977b3631167028862be2a173976ca11";
+const AGGREGATE3 = "0x82ad56cb";
 
 function word(value) {
   return BigInt(value).toString(16).padStart(64, "0");
@@ -16,6 +19,104 @@ function normalizedAddress(value) {
 function decodedAddress(value) {
   return typeof value === "string" && /^0x0{24}[0-9a-fA-F]{40}$/.test(value)
     ? `0x${value.slice(-40)}`.toLowerCase() : null;
+}
+
+function byteLength(value) {
+  return (value.length - 2) / 2;
+}
+
+function abiWordAt(value, byteOffset) {
+  const start = 2 + byteOffset * 2;
+  const wordValue = value.slice(start, start + 64);
+  if (wordValue.length !== 64) throw new TypeError("Multicall response is truncated");
+  return BigInt(`0x${wordValue}`);
+}
+
+export function encodeOwnerOfMulticall(collection, tokenIds) {
+  const target = normalizedAddress(collection);
+  if (!target || !Array.isArray(tokenIds) || tokenIds.length < 1 || tokenIds.length > 250
+    || tokenIds.some((tokenId) => !/^(0|[1-9]\d{0,3})$/.test(String(tokenId)))) {
+    throw new TypeError("Owner multicall input is invalid");
+  }
+  const bodies = tokenIds.map((tokenId) => [
+    target.slice(2).padStart(64, "0"),
+    word(1),
+    word(96),
+    word(36),
+    `${OWNER_OF.slice(2)}${word(tokenId)}`.padEnd(128, "0"),
+  ].join(""));
+  let offset = tokenIds.length * 32;
+  const offsets = bodies.map((body) => {
+    const current = word(offset);
+    offset += body.length / 2;
+    return current;
+  });
+  return `${AGGREGATE3}${word(32)}${word(tokenIds.length)}${offsets.join("")}${bodies.join("")}`;
+}
+
+export function decodeOwnerOfMulticall(value, tokenIds, expectedOwner) {
+  const owner = normalizedAddress(expectedOwner);
+  if (!owner || !Array.isArray(tokenIds) || tokenIds.length < 1 || tokenIds.length > 250
+    || tokenIds.some((tokenId) => !/^(0|[1-9]\d{0,3})$/.test(String(tokenId)))
+    || typeof value !== "string" || !/^0x(?:[0-9a-fA-F]{2})+$/.test(value)
+    || byteLength(value) > 100_000 || abiWordAt(value, 0) !== 32n) {
+    throw new TypeError("Owner multicall response is invalid");
+  }
+  const arrayStart = 32;
+  if (abiWordAt(value, arrayStart) !== BigInt(tokenIds.length)) {
+    throw new TypeError("Owner multicall result count changed");
+  }
+  const output = [];
+  for (let index = 0; index < tokenIds.length; index += 1) {
+    const relative = abiWordAt(value, arrayStart + 32 + index * 32);
+    if (relative > BigInt(byteLength(value))) throw new TypeError("Owner multicall offset is invalid");
+    const tupleStart = arrayStart + 32 + Number(relative);
+    const success = abiWordAt(value, tupleStart);
+    const bytesOffset = abiWordAt(value, tupleStart + 32);
+    if (success > 1n || bytesOffset !== 64n) throw new TypeError("Owner multicall tuple is invalid");
+    const resultLength = abiWordAt(value, tupleStart + Number(bytesOffset));
+    if (success === 0n) continue;
+    if (resultLength !== 32n) throw new TypeError("ownerOf returned an invalid address word");
+    const dataStart = tupleStart + Number(bytesOffset) + 32;
+    const resultWord = value.slice(2 + dataStart * 2, 2 + (dataStart + 32) * 2);
+    if (!/^0{24}[0-9a-fA-F]{40}$/.test(resultWord)) {
+      throw new TypeError("ownerOf returned a noncanonical address");
+    }
+    if (`0x${resultWord.slice(-40)}`.toLowerCase() === owner) output.push(String(tokenIds[index]));
+  }
+  return output;
+}
+
+export async function discoverWalletOwnedPunkIds(provider, collection, owner) {
+  const target = normalizedAddress(collection);
+  const expectedOwner = normalizedAddress(owner);
+  if (!provider?.request || !target || !expectedOwner) throw new TypeError("Wallet scan is unavailable");
+  const maximumRaw = await provider.request({
+    method: "eth_call",
+    params: [{ to: target, data: MAX_SUPPLY }, "latest"],
+  });
+  if (typeof maximumRaw !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(maximumRaw)) {
+    throw new TypeError("Collection maxSupply is unavailable");
+  }
+  const maximum = Number(BigInt(maximumRaw));
+  if (!Number.isSafeInteger(maximum) || maximum < 1 || maximum > 9_999) {
+    throw new RangeError("Collection maxSupply is outside the bounded scan range");
+  }
+  const chunks = [];
+  for (let first = 0; first <= maximum; first += 200) {
+    chunks.push(Array.from({ length: Math.min(200, maximum - first + 1) },
+      (_, index) => String(first + index)));
+  }
+  const output = [];
+  for (const tokenIds of chunks) {
+    const response = await provider.request({
+      method: "eth_call",
+      params: [{ to: MULTICALL3, data: encodeOwnerOfMulticall(target, tokenIds) }, "latest"],
+    });
+    output.push(...decodeOwnerOfMulticall(response, tokenIds, expectedOwner));
+    if (output.length > 200) throw new RangeError("Wallet owns more Punks than the UI can display");
+  }
+  return Object.freeze(output.sort((left, right) => Number(left) - Number(right)));
 }
 
 function knownTokenIds(storage) {
@@ -53,7 +154,15 @@ export function renderOwnerAccounts(container, accounts) {
     container.append(empty);
     return;
   }
-  for (const item of accounts) {
+  const activatedAccounts = accounts.filter(({ activated }) => activated);
+  const readyCount = accounts.length - activatedAccounts.length;
+  if (readyCount > 0) {
+    const summary = document.createElement("p");
+    summary.className = "empty-state owner-account-summary";
+    summary.textContent = `${readyCount} additional wallet-owned ${readyCount === 1 ? "Punk is" : "Punks are"} ready in the activation selector above.`;
+    container.append(summary);
+  }
+  for (const item of activatedAccounts) {
     const card = document.createElement("article");
     card.className = "panel owner-account-card";
     const identity = document.createElement("div");
@@ -95,10 +204,10 @@ export async function findBrowserOwnedPunks(provider, gate, owner, tokenIds = []
     || !normalizedAddress(bindings?.accountRegistry)) throw new Error("live gate unavailable");
   const candidates = [...new Set(tokenIds.map(String).filter(
     (value) => /^(0|[1-9]\d{0,3})$/.test(value),
-  ))].slice(0, 50);
+  ))].slice(0, 200);
   const output = [];
-  for (let offset = 0; offset < candidates.length; offset += 6) {
-    const batch = await Promise.allSettled(candidates.slice(offset, offset + 6).map(async (tokenId) => {
+  for (let offset = 0; offset < candidates.length; offset += 12) {
+    const batch = await Promise.allSettled(candidates.slice(offset, offset + 12).map(async (tokenId) => {
       const encoded = word(tokenId);
       const [ownerRaw, accountRaw] = await Promise.all([
         provider.request({ method: "eth_call", params: [{ to: bindings.punkCollection,
@@ -132,7 +241,7 @@ function renderPunkPicker(picker, accounts, preferredTokenId = "") {
   picker.replaceChildren(placeholder, ...accounts.map((item) => {
     const option = documentObject.createElement("option");
     option.value = item.tokenId;
-    option.textContent = `Punk #${item.tokenId} — ${item.activated ? "activated" : "ready to activate"}`;
+    option.textContent = `Punk #${item.tokenId} — ${item.activated ? "activated" : "owned · inspect account"}`;
     return option;
   }));
   picker.disabled = accounts.length === 0;
@@ -238,14 +347,43 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       const indexed = candidatesResponse.ok && candidatesPayload?.ok === true
         && Array.isArray(candidatesPayload.candidateTokenIds)
         ? candidatesPayload.candidateTokenIds : [];
+      let walletOwned = [];
+      try {
+        walletOwned = await discoverWalletOwnedPunkIds(browserWindow.ethereum,
+          gatePayload.activationGate?.bindings?.punkCollection, wallet.account);
+      } catch {
+        // The bounded server and local candidates remain available and are each rechecked live.
+      }
+      const remembered = knownTokenIds(browserWindow.localStorage);
       const candidates = [...new Set([
-        "1639", "1797", ...knownTokenIds(browserWindow.localStorage), ...indexed,
+        "1639", "1797", ...remembered, ...indexed, ...walletOwned,
       ])];
-      const accounts = await findBrowserOwnedPunks(browserWindow.ethereum,
-        gatePayload.activationGate, wallet.account, candidates);
+      let accounts;
+      if (walletOwned.length > 0) {
+        const activated = await findBrowserOwnerAccounts(browserWindow.ethereum,
+          gatePayload.activationGate, wallet.account, [...remembered, ...indexed]);
+        const activatedById = new Map(activated.map((item) => [item.tokenId,
+          Object.freeze({ ...item, activated: true })]));
+        accounts = walletOwned.map((tokenId) => activatedById.get(tokenId) ?? Object.freeze({
+          tokenId,
+          account: null,
+          owner: wallet.account.toLowerCase(),
+          activated: false,
+          status: "OWNED_LIVE_ACCOUNT_STATUS_CHECKED_ON_SELECTION",
+        }));
+      } else {
+        accounts = await findBrowserOwnedPunks(browserWindow.ethereum,
+          gatePayload.activationGate, wallet.account, candidates);
+      }
       if (current !== revision) return;
-      for (const item of accounts) rememberActivatedPunk(browserWindow.localStorage, item.tokenId);
-      setCount(accounts.length, "Live ownership verified");
+      for (const item of accounts) {
+        if (item.activated) rememberActivatedPunk(browserWindow.localStorage, item.tokenId);
+      }
+      const activatedCount = accounts.filter(({ activated }) => activated).length;
+      const readyCount = accounts.length - activatedCount;
+      setCount(activatedCount, readyCount > 0
+        ? `${readyCount} more owned ${readyCount === 1 ? "Punk" : "Punks"} ready to activate`
+        : "Live ownership verified");
       renderPunkPicker(picker, accounts);
       const previousMandate = mandatePicker?.value ?? "";
       const mandateTokenId = accounts.some(({ tokenId }) => tokenId === previousMandate)
