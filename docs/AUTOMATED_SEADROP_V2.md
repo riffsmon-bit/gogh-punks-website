@@ -1,6 +1,7 @@
 # Continuous zero-price SeaDrop automation (V2)
 
-Status: **implemented and locally tested, not deployed or authorized**.
+Status: **four inert contracts deployed and dual-RPC checked; manifest adoption, guardian
+configuration, worker release, account setup, and automatic submission remain disabled**.
 
 The existing V1 Punk Accounts remain unchanged. V2 creates a separate deterministic wallet for
 each Punk and a separate policy module. Assets already held by a V1 account do not move
@@ -93,6 +94,43 @@ the agent twice, estimates gas twice, and closes with a block/reorg and real-clo
 exposes only read methods and an inert frozen transport descriptor. The result still does not sign
 or submit. Programmatic dependency-injected results are local test evidence; only this default CLI
 path counts as genuine transport-bound evidence.
+
+## Deployment evidence workflow
+
+The V2 deployment is a separate immutable release from V1. After the four deployment receipts have
+at least 20 confirmations, build the source-verification-pending proposal from the exact Foundry
+broadcast artifact and full clean release commit:
+
+```sh
+npm run broker:autonomy:v2-deployment-manifest-proposal -- \
+  --artifact broadcast/DeployAutomatedSeaDropV2.s.sol/4663/run-latest.json \
+  --git-commit FULL_40_CHARACTER_RELEASE_COMMIT \
+  --confirmations 20 > /absolute/path/automation-v2-pending-proposal.json
+```
+
+The generator rebuilds offline, rejects dirty compiler inputs, binds both configured RPC
+transports, proves all four creation transactions and receipt inclusion, masks only compiler-declared
+32-byte immutable ranges, and dual-reads every critical constructor/module getter at one common
+confirmed block. It leaves registration, protocol features, global agent approval, the worker, and
+automatic submission false.
+
+After all four contracts are available through Blockscout and exact Sourcify full-match evidence,
+adopt and extract the immutable verified proposal:
+
+```sh
+npm run broker:manifest:source-verification -- \
+  --kind automation \
+  --proposal /absolute/path/automation-v2-pending-proposal.json \
+  > /absolute/path/automation-v2-verified-wrapper.json
+
+npm run broker:manifest:extract-verified -- \
+  --proposal /absolute/path/automation-v2-verified-wrapper.json \
+  > /absolute/path/robinhood-automation-v2.verified.json
+```
+
+Installing the verified deployment snapshot still does not unlock the site. Guardian configuration,
+published agent custody, live worker evidence, and a separately reviewed capability transition are
+required afterward.
 
 ## Release gates
 

@@ -9,6 +9,7 @@
     "broker:autonomy:v2-plan": "node scripts/build-automated-seadrop-run-plan.mjs",
     "broker:autonomy:v2-discover": "node scripts/discover-active-seadrop-free-mints.mjs",
     "broker:autonomy:v2-screen-live": "node --env-file-if-exists=.env scripts/screen-automated-seadrop-live.mjs",
+    "broker:autonomy:v2-deployment-manifest-proposal": "node --env-file-if-exists=.env scripts/build-automated-seadrop-v2-deployment-manifest.mjs",
     "check": "npm run site:check && npm run contracts:check",
     "code:check": "node scripts/code-check.mjs",
     "contracts:build": "forge build --offline && forge build --offline --sizes contracts/src",

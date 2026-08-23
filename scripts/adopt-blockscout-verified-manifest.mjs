@@ -40,6 +40,12 @@ export const CANARY_CONTRACT_NAMES = Object.freeze([
   "GoghOneShotCanaryArt",
   "GoghOneShotCanaryMintAdapter",
 ]);
+export const AUTOMATION_V2_CONTRACT_NAMES = Object.freeze([
+  "AutomatedSeaDropFreeMintAdapter",
+  "BrokerPolicyModuleV2",
+  "GoghPunkAccountV2",
+  "GoghPunkAccountRegistryV2",
+]);
 
 const COMPILER_VERSION = "0.8.34+commit.80d5c536";
 const BLOCKSCOUT_COMPILER_VERSION = `v${COMPILER_VERSION}`;
@@ -67,13 +73,26 @@ const SOURCE_PATHS = Object.freeze({
   GoghOneShotCanaryArt: "contracts/src/canary/GoghOneShotCanaryArt.sol",
   GoghOneShotCanaryMintAdapter:
     "contracts/src/adapters/GoghOneShotCanaryMintAdapter.sol",
+  AutomatedSeaDropFreeMintAdapter:
+    "contracts/src/adapters/AutomatedSeaDropFreeMintAdapter.sol",
+  BrokerPolicyModuleV2: "contracts/src/BrokerPolicyModuleV2.sol",
+  GoghPunkAccountV2: "contracts/src/GoghPunkAccountV1.sol",
+  GoghPunkAccountRegistryV2: "contracts/src/GoghPunkAccountRegistryV2.sol",
 });
-const ARTIFACT_PATHS = Object.freeze(Object.fromEntries(
-  [...CORE_CONTRACT_NAMES, ...CANARY_CONTRACT_NAMES].map((name) => [
+const ARTIFACT_PATHS = Object.freeze({
+  ...Object.fromEntries(
+    [...CORE_CONTRACT_NAMES, ...CANARY_CONTRACT_NAMES].map((name) => [
     name,
     `contracts/out/${name}.sol/${name}.json`,
-  ]),
-));
+    ]),
+  ),
+  AutomatedSeaDropFreeMintAdapter:
+    "contracts/out/AutomatedSeaDropFreeMintAdapter.sol/AutomatedSeaDropFreeMintAdapter.json",
+  BrokerPolicyModuleV2: "contracts/out/BrokerPolicyModuleV2.sol/BrokerPolicyModuleV2.json",
+  GoghPunkAccountV2: "contracts/out/GoghPunkAccountV1.sol/GoghPunkAccountV1.json",
+  GoghPunkAccountRegistryV2:
+    "contracts/out/GoghPunkAccountRegistryV2.sol/GoghPunkAccountRegistryV2.json",
+});
 const SAFE_FEATURE_FLAGS = Object.freeze({
   ENABLE_SCOUT_MODE: true,
   ENABLE_APPROVAL_PURCHASES: false,
@@ -86,6 +105,7 @@ const SAFE_FEATURE_FLAGS = Object.freeze({
 const VERIFIED_MANIFEST_NOTES = Object.freeze({
   core: "Immutable VERIFIED core deployment manifest proposal. The original complete deployment proposal remains bound by canonical SHA-256. Robinhood Blockscout supplied exact unchanged non-twin source, compiler, ABI, bytecode, constructor, deployer, and receipt evidence; direct Sourcify evidence independently reported exact creation and runtime full matches for every protocol contract. Blockscout partial-match labels are accepted only with that exact Sourcify full match and the clean offline build/live deployment bindings. This read-only gate signed, sent, enabled, and wrote nothing.",
   canary: "Immutable VERIFIED canary deployment and clean-preconfiguration manifest proposal. The original source-verification-pending canary proposal remains bound by canonical SHA-256. Robinhood Blockscout supplied exact unchanged non-twin source, compiler, ABI, bytecode, constructor, deployer, and receipt evidence; direct Sourcify evidence independently reported exact creation and runtime full matches for both canary contracts. Blockscout partial-match labels are accepted only with that exact Sourcify full match and the clean offline build/live deployment bindings. This historical snapshot must not be mutated after configuration. This read-only gate signed, sent, enabled, and wrote nothing.",
+  automation: "Immutable VERIFIED V2 automated SeaDrop deployment manifest proposal. The original source-verification-pending proposal remains bound by canonical SHA-256. Robinhood Blockscout supplied exact unchanged non-twin source, compiler, ABI, bytecode, constructor, deployer, and receipt evidence; direct Sourcify evidence independently reported exact creation and runtime full matches for all four V2 contracts. No adapter registration, protocol feature, account activation, agent authorization, worker, automatic submission, or mint is enabled by this historical deployment snapshot.",
 });
 const projectRoot = resolve(import.meta.dirname, "..");
 const execFileAsync = promisify(execFile);
@@ -280,7 +300,8 @@ function validateChain(chain) {
 }
 
 function validateSourceProvenance(value, kind, releaseCommit, foundryCommit) {
-  const cleanKey = kind === "core" ? "compilerInputsClean" : "fullWorktreeClean";
+  const cleanKey = ["core", "automation"].includes(kind)
+    ? "compilerInputsClean" : "fullWorktreeClean";
   exactKeys(value, [
     "releaseGitCommit", "headCommit", "artifactResolvedCommit", "foundryArtifactCommit",
     cleanKey, "offlineBuildCompleted", "offlineBuildCommand",
@@ -335,7 +356,7 @@ function validateContractRecord(record, name, kind, releaseCommit) {
   if (kind === "core" && record.implementationVersion !== "1") {
     fail("BUILD_BINDING_MISMATCH", `${name} implementation version is not v1`);
   }
-  if (kind === "canary") {
+  if (kind === "canary" || kind === "automation") {
     normalizeHash(record.deploymentBlockHash, `${name} deployment block hash`);
     if (record.receiptStatus !== "SUCCESS" || record.confirmationsRequired !== 20
       || !Number.isSafeInteger(record.confirmationsObserved)
@@ -494,14 +515,107 @@ function validateCanaryPendingProposal(proposal) {
   return { manifest, trust, releaseCommit, foundryCommit, records };
 }
 
+function validateAutomationPendingProposal(proposal) {
+  exactKeys(proposal, ["schema", "proposalStatus", "trustBindings", "manifest"],
+    "pendingProposal");
+  if (proposal.schema !== "GOGH_AUTOMATED_SEADROP_V2_DEPLOYMENT_MANIFEST_PROPOSAL_V1"
+    || proposal.proposalStatus
+      !== "AUTOMATION_V2_MANIFEST_PROPOSAL_SOURCE_VERIFICATION_PENDING") {
+    fail("WRONG_PENDING_PROPOSAL", "automation input is not the canonical pending proposal");
+  }
+  const manifest = plainObject(proposal.manifest, "pendingProposal.manifest");
+  exactKeys(manifest, [
+    "schema", "version", "status", "chainId", "gitCommit", "compiler", "evmVersion",
+    "optimizerRuns", "sourceVerificationAdoption", "protocolGuardian", "contracts",
+    "reusedContracts", "infrastructure", "configuration", "authorization", "notes",
+  ], "pendingProposal.manifest");
+  if (manifest.schema !== "GOGH_AUTOMATED_SEADROP_V2_DEPLOYMENT_MANIFEST"
+    || manifest.version !== 1 || manifest.status !== "DEPLOYED"
+    || manifest.chainId !== ROBINHOOD_CHAIN_ID || manifest.compiler !== "0.8.34"
+    || manifest.evmVersion !== EVM_VERSION || manifest.optimizerRuns !== OPTIMIZER_RUNS
+    || manifest.sourceVerificationAdoption !== null
+    || normalizeAddress(manifest.protocolGuardian, "automation guardian")
+      !== getAddress("0x2b05E3BB4895A00d52894B98839Ae421d4139Ec8")) {
+    fail("BUILD_BINDING_MISMATCH", "automation deployment identity is wrong");
+  }
+  exactKeys(manifest.reusedContracts, ["ArtAdapterRegistry", "ArtAgentRegistry"],
+    "automation reused contracts");
+  if (normalizeAddress(manifest.reusedContracts.ArtAdapterRegistry, "adapter registry")
+      !== getAddress("0x421D51709Fe21736a35fFa2a86B157Df1b030EE2")
+    || normalizeAddress(manifest.reusedContracts.ArtAgentRegistry, "agent registry")
+      !== getAddress("0xbffbccd20E796e0f3E745B274De60EF17a485Dde")) {
+    fail("CHAIN_BINDING_MISMATCH", "automation reused registry binding is wrong");
+  }
+  exactKeys(manifest.infrastructure, [
+    "seaDrop", "seaDropRuntimeCodeHash", "cloneImplementation",
+    "cloneImplementationRuntimeCodeHash", "collectionRuntimeCodeHash",
+  ], "automation infrastructure");
+  if (normalizeAddress(manifest.infrastructure.seaDrop, "SeaDrop")
+      !== getAddress("0x00005EA00Ac477B1030CE78506496e8C2dE24bf5")
+    || normalizeHash(manifest.infrastructure.seaDropRuntimeCodeHash, "SeaDrop runtime")
+      !== "0x53e4b9339cf624803c9a7d0195576cca5b917920813508d86b3eb93dcbabeb5c"
+    || normalizeAddress(manifest.infrastructure.cloneImplementation, "clone implementation")
+      !== getAddress("0x09a26fC8FCEF18192E267D7A6da9dFb4be81Dd6A")
+    || normalizeHash(manifest.infrastructure.cloneImplementationRuntimeCodeHash,
+      "clone runtime")
+      !== "0xda60742d810ae5de9c087af2e82b05fb84e9112cfade927fca0db6490ea52519"
+    || normalizeHash(manifest.infrastructure.collectionRuntimeCodeHash, "collection runtime")
+      !== "0xe3e252831cdd0c11e1327d04a57ddd9bfa11ef49d50edb524040d98bfb228bc4") {
+    fail("CHAIN_BINDING_MISMATCH", "automation external infrastructure is wrong");
+  }
+  exactKeys(manifest.configuration, [
+    "adapterRegistered", "featureFlagsEnabled", "globalAgentApproved", "workerEnabled",
+  ], "automation configuration");
+  if (Object.values(manifest.configuration).some((value) => value !== false)) {
+    fail("UNSAFE_MANIFEST", "automation configuration is not a clean disabled snapshot");
+  }
+  exactKeys(manifest.authorization, [
+    "deploymentAuthorized", "configurationAuthorized", "agentAuthorizationGranted",
+    "automaticSubmissionEnabled",
+  ], "automation authorization");
+  if (manifest.authorization.deploymentAuthorized !== true
+    || Object.entries(manifest.authorization).some(([key, value]) => (
+      key !== "deploymentAuthorized" && value !== false
+    ))) fail("UNSAFE_MANIFEST", "automation authorization is not deployment-only");
+  const releaseCommit = normalizeCommit(manifest.gitCommit, "automation release commit");
+  exactKeys(manifest.contracts, AUTOMATION_V2_CONTRACT_NAMES, "automation contracts");
+  const trust = proposal.trustBindings;
+  exactKeys(trust, [
+    "chainId", "releaseGitCommit", "foundryArtifactCommit", "sourceProvenance",
+    "deploymentOrder", "commonConfirmedBlock", "rpcOrigins", "providerIndependence",
+    "contractEvidence", "immutableBindings", "blockscoutSourceVerification",
+    "transactionCapability",
+  ], "pendingProposal.trustBindings");
+  const foundryCommit = normalizeFoundryCommit(trust.foundryArtifactCommit,
+    "Foundry artifact commit");
+  if (trust.chainId !== ROBINHOOD_CHAIN_ID
+    || normalizeCommit(trust.releaseGitCommit, "trust release commit") !== releaseCommit
+    || trust.blockscoutSourceVerification !== "NOT_SUBMITTED"
+    || trust.transactionCapability !== "NONE_READ_ONLY_PROPOSAL") {
+    fail("BUILD_BINDING_MISMATCH", "automation proposal trust binding is wrong");
+  }
+  sameCanonical(trust.deploymentOrder, AUTOMATION_V2_CONTRACT_NAMES,
+    "BUILD_BINDING_MISMATCH", "automation deployment order");
+  validateSourceProvenance(trust.sourceProvenance, "automation", releaseCommit, foundryCommit);
+  exactKeys(trust.contractEvidence, AUTOMATION_V2_CONTRACT_NAMES,
+    "automation contract evidence");
+  const records = Object.fromEntries(AUTOMATION_V2_CONTRACT_NAMES.map((name) => [
+    name,
+    validateContractRecord(manifest.contracts[name], name, "automation", releaseCommit),
+  ]));
+  return { manifest, trust, releaseCommit, foundryCommit, records };
+}
+
 function normalizePendingProposal(kind, value) {
-  if (kind !== "core" && kind !== "canary") {
-    fail("INVALID_KIND", "kind must be core or canary");
+  if (!["core", "canary", "automation"].includes(kind)) {
+    fail("INVALID_KIND", "kind must be core, canary, or automation");
   }
   const proposal = strictSnapshot(value, MAX_INPUT_BYTES, "pending proposal");
   const normalized = kind === "core"
     ? validateCorePendingProposal(proposal)
-    : validateCanaryPendingProposal(proposal);
+    : kind === "canary"
+      ? validateCanaryPendingProposal(proposal)
+      : validateAutomationPendingProposal(proposal);
   return { proposal, ...normalized };
 }
 
@@ -692,7 +806,8 @@ function compiledEvidenceFor(kind, trust, name) {
 }
 
 function normalizeArtifacts(kind, artifacts, normalizedPending) {
-  const names = kind === "core" ? CORE_CONTRACT_NAMES : CANARY_CONTRACT_NAMES;
+  const names = kind === "core" ? CORE_CONTRACT_NAMES
+    : kind === "canary" ? CANARY_CONTRACT_NAMES : AUTOMATION_V2_CONTRACT_NAMES;
   const snapshot = strictSnapshot(artifacts, MAX_INPUT_BYTES * 2, "compiled artifacts");
   exactKeys(snapshot, names, "compiled artifacts");
   return Object.fromEntries(names.map((name) => [name, normalizeArtifact(name, snapshot[name], {
@@ -1385,7 +1500,8 @@ export async function buildBlockscoutVerifiedManifestProposal(input, options = {
   if (!Number.isFinite(observedAtMs) || observedAtMs < 0) {
     fail("INVALID_CLOCK", "clock returned an invalid timestamp");
   }
-  const names = kind === "core" ? CORE_CONTRACT_NAMES : CANARY_CONTRACT_NAMES;
+  const names = kind === "core" ? CORE_CONTRACT_NAMES
+    : kind === "canary" ? CANARY_CONTRACT_NAMES : AUTOMATION_V2_CONTRACT_NAMES;
   const evidence = {};
   for (const name of names) {
     const record = normalized.records[name];
@@ -1459,7 +1575,8 @@ export async function buildBlockscoutVerifiedManifestProposal(input, options = {
   return {
     schema: "GOGH_BLOCKSCOUT_VERIFIED_MANIFEST_PROPOSAL_V1",
     proposalStatus: "VERIFIED_MANIFEST_PROPOSAL",
-    verificationScope: kind === "core" ? "ROBINHOOD_CORE" : "ROBINHOOD_CANARY",
+    verificationScope: kind === "core" ? "ROBINHOOD_CORE"
+      : kind === "canary" ? "ROBINHOOD_CANARY" : "ROBINHOOD_AUTOMATION_V2",
     sourceProposal: {
       schema: normalized.proposal.schema,
       proposalStatus: normalized.proposal.proposalStatus,
@@ -1509,21 +1626,28 @@ export function validateBlockscoutVerifiedManifestProposal(value) {
   ], "verified manifest proposal");
   if (proposal.schema !== SOURCE_VERIFICATION_GATE_SCHEMA
     || proposal.proposalStatus !== "VERIFIED_MANIFEST_PROPOSAL"
-    || !["ROBINHOOD_CORE", "ROBINHOOD_CANARY"].includes(proposal.verificationScope)) {
+    || !["ROBINHOOD_CORE", "ROBINHOOD_CANARY", "ROBINHOOD_AUTOMATION_V2"]
+      .includes(proposal.verificationScope)) {
     fail("INVALID_VERIFIED_PROPOSAL", "verified proposal identity is wrong");
   }
   const names = proposal.verificationScope === "ROBINHOOD_CORE"
     ? CORE_CONTRACT_NAMES
-    : CANARY_CONTRACT_NAMES;
+    : proposal.verificationScope === "ROBINHOOD_CANARY"
+      ? CANARY_CONTRACT_NAMES : AUTOMATION_V2_CONTRACT_NAMES;
   const expectedSourceProposal = proposal.verificationScope === "ROBINHOOD_CORE"
     ? {
       schema: "GOGH_ROBINHOOD_DEPLOYMENT_MANIFEST_PROPOSAL_V2",
       proposalStatus: "COMPLETE_MANIFEST_PROPOSAL",
     }
-    : {
-      schema: "GOGH_ROBINHOOD_CANARY_DEPLOYMENT_MANIFEST_PROPOSAL_V1",
-      proposalStatus: "CANARY_MANIFEST_PROPOSAL_SOURCE_VERIFICATION_PENDING",
-    };
+    : proposal.verificationScope === "ROBINHOOD_CANARY"
+      ? {
+        schema: "GOGH_ROBINHOOD_CANARY_DEPLOYMENT_MANIFEST_PROPOSAL_V1",
+        proposalStatus: "CANARY_MANIFEST_PROPOSAL_SOURCE_VERIFICATION_PENDING",
+      }
+      : {
+        schema: "GOGH_AUTOMATED_SEADROP_V2_DEPLOYMENT_MANIFEST_PROPOSAL_V1",
+        proposalStatus: "AUTOMATION_V2_MANIFEST_PROPOSAL_SOURCE_VERIFICATION_PENDING",
+      };
   exactKeys(proposal.sourceProposal, ["schema", "proposalStatus", "canonicalSha256"],
     "verified proposal sourceProposal");
   if (proposal.sourceProposal.schema !== expectedSourceProposal.schema
@@ -1537,7 +1661,8 @@ export function validateBlockscoutVerifiedManifestProposal(value) {
   if (canonicalSha256(proposal.pendingProposal) !== pendingHash) {
     fail("SOURCE_VERIFICATION_HASH_MISMATCH", "embedded pending proposal hash differs");
   }
-  const kind = proposal.verificationScope === "ROBINHOOD_CORE" ? "core" : "canary";
+  const kind = proposal.verificationScope === "ROBINHOOD_CORE" ? "core"
+    : proposal.verificationScope === "ROBINHOOD_CANARY" ? "canary" : "automation";
   const normalizedPending = normalizePendingProposal(kind, proposal.pendingProposal);
   if (normalizedPending.proposal.schema !== expectedSourceProposal.schema
     || normalizedPending.proposal.proposalStatus !== expectedSourceProposal.proposalStatus) {
@@ -1754,12 +1879,13 @@ export function parseSourceVerificationArguments(argv) {
     const value = argv[index + 1];
     if (!["--kind", "--proposal"].includes(flag) || typeof value !== "string"
       || value.length === 0 || value.startsWith("--") || Object.hasOwn(parsed, flag)) {
-      fail("INVALID_ARGUMENTS", "required exactly once: --kind core|canary --proposal PATH");
+      fail("INVALID_ARGUMENTS", "required exactly once: --kind core|canary|automation --proposal PATH");
     }
     parsed[flag] = value;
   }
-  if (Object.keys(parsed).length !== 2 || !["core", "canary"].includes(parsed["--kind"])) {
-    fail("INVALID_ARGUMENTS", "required exactly once: --kind core|canary --proposal PATH");
+  if (Object.keys(parsed).length !== 2
+    || !["core", "canary", "automation"].includes(parsed["--kind"])) {
+    fail("INVALID_ARGUMENTS", "required exactly once: --kind core|canary|automation --proposal PATH");
   }
   return { kind: parsed["--kind"], proposalPath: parsed["--proposal"] };
 }
@@ -1775,7 +1901,8 @@ export async function readSourceVerificationJsonFile(path, maximum = MAX_INPUT_B
 }
 
 async function loadCompiledArtifacts(kind) {
-  const names = kind === "core" ? CORE_CONTRACT_NAMES : CANARY_CONTRACT_NAMES;
+  const names = kind === "core" ? CORE_CONTRACT_NAMES
+    : kind === "canary" ? CANARY_CONTRACT_NAMES : AUTOMATION_V2_CONTRACT_NAMES;
   return Object.fromEntries(await Promise.all(names.map(async (name) => [
     name,
     await readSourceVerificationJsonFile(

@@ -717,6 +717,9 @@ test("CLI argument parser is exact and non-extensible", () => {
   assert.deepEqual(parseSourceVerificationArguments([
     "--kind", "core", "--proposal", "/tmp/pending.json",
   ]), { kind: "core", proposalPath: "/tmp/pending.json" });
+  assert.deepEqual(parseSourceVerificationArguments([
+    "--kind", "automation", "--proposal", "/tmp/v2-pending.json",
+  ]), { kind: "automation", proposalPath: "/tmp/v2-pending.json" });
   assert.throws(() => parseSourceVerificationArguments([
     "--kind", "core", "--proposal", "x", "--url", "https://evil.example",
   ]), (error) => error?.code === "INVALID_ARGUMENTS");
