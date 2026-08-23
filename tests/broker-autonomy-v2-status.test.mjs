@@ -4,6 +4,8 @@ import test from "node:test";
 import { sourceVerificationCanonicalSha256 } from
   "../broker/src/recommendation/source-verification-adoption.mjs";
 import { autonomyV2Status } from "../netlify/functions/broker-autonomy-v2-status.mjs";
+import { readAutomationV2PunkState } from
+  "../netlify/functions/_shared/autonomy-v2-live.mjs";
 
 const A = (digit) => `0x${digit.repeat(40)}`;
 const H = (digit) => `0x${digit.repeat(64)}`;
@@ -170,4 +172,60 @@ test("source, configuration, and worker mutations stay visible but never operabl
     assert.notEqual(result.bindings, null);
     assert.match(result.status, /^DEPLOYED_/);
   }
+});
+
+test("selected Punk status requires the complete live autonomous envelope", async () => {
+  const account = A("8");
+  const owner = A("7");
+  const policyModule = "0x4a80f21513c788884b4935edc27d119d059c0a9b";
+  function rpc() {
+    return {
+      async getCode() { return "0x6000"; },
+      async readContract(request) {
+        switch (request.functionName) {
+          case "account": return account;
+          case "owner": return owner;
+          case "policyModule": return policyModule;
+          case "acquisitionNonce": return 0n;
+          case "policy": return {
+            config: {
+              mode: 3, maxSpendPerTransaction: 0n, maxSpendPerDay: 0n,
+              maxSpendPerWeek: 0n, maxMintPrice: 0n, maxSecondaryPurchasePrice: 0n,
+              minimumNativeReserve: 0n, maxAcquisitionsPerDay: 1,
+              maxIntentAge: 120, maxSlippageBps: 0,
+              requireCollectionAllowlist: false, allowUnknownCollections: true,
+            },
+            configuredBy: owner, version: 2n, permissionGeneration: 1n,
+            accountPaused: false,
+          };
+          case "acquisitionUsage": return { dayBucket: 20_688n, acquisitionsToday: 0 };
+          case "mintControls": return {
+            ownerApprovedMints: false, autonomousFreeMints: true, autonomousPaidMints: false,
+          };
+          case "accountAuthorization": return {
+            active: true, authorizingOwner: owner, validUntil: 2_000_000_000n, generation: 0n,
+          };
+          case "isAuthorized":
+          case "approvedAdapters":
+          case "approvedMintContracts":
+          case "approvedSelectors": return true;
+          case "currencyPolicy": return {
+            allowed: true, maxSpendPerTransaction: 0n, maxSpendPerDay: 0n,
+            maxSpendPerWeek: 0n, maxMintPrice: 0n, maxSecondaryPurchasePrice: 0n,
+          };
+          case "venueCurrencyMaximum": return 0n;
+          default: throw new Error(`unexpected ${request.functionName}`);
+        }
+      },
+    };
+  }
+  const result = await readAutomationV2PunkState("1797", {
+    ROBINHOOD_RPC_URL: "https://primary.example/rpc",
+    ROBINHOOD_SECONDARY_RPC_URL: "https://secondary.example/rpc",
+  }, { clients: [rpc(), rpc()], nowSeconds: 1_800_000_000 });
+  assert.equal(result.active, true);
+  assert.equal(result.account, account);
+  assert.equal(result.mode, 3);
+  assert.equal(result.maxAcquisitionsPerDay, 1);
+  assert.equal(result.authorization.effective, true);
 });

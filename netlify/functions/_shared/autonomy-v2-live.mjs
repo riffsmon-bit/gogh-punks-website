@@ -3,6 +3,9 @@ import { createPublicClient, getAddress, http, keccak256, parseAbi } from "viem"
 import automationManifest from "../../../deployments/robinhood-automation-v2.json" with { type: "json" };
 import coreManifest from "../../../deployments/robinhood.json" with { type: "json" };
 import { ROBINHOOD } from "../../../broker/src/config.mjs";
+import {
+  NATIVE_CURRENCY, SEA_DROP_MINT_PUBLIC_SELECTOR,
+} from "../../../broker/src/recommendation/automated-seadrop-run-plan.mjs";
 
 export const AUTOMATION_V2_AGENT = "0x3bb2ebf6b3c4d7f5e5781cdf2091428f7750af7d";
 export const SEA_DROP = "0x00005ea00ac477b1030ce78506496e8c2de24bf5";
@@ -21,6 +24,38 @@ const AGENT_ABI = parseAbi([
   "function globallyPaused() view returns (bool)",
   "function globalAgent(address agent) view returns ((bool approved,uint64 validAfter,uint64 validUntil,bytes32 versionHash,bytes32 metadataHash))",
 ]);
+const ACCOUNT_ABI = parseAbi([
+  "function owner() view returns (address)",
+  "function policyModule() view returns (address)",
+  "function acquisitionNonce() view returns (uint256)",
+]);
+const ACCOUNT_AGENT_ABI = parseAbi([
+  "function accountAuthorization(address account,address agent) view returns ((bool active,address authorizingOwner,uint64 validUntil,uint64 generation))",
+  "function isAuthorized(address account,address agent) view returns (bool)",
+]);
+const ACCOUNT_POLICY_ABI = [{
+  type: "function", name: "policy", stateMutability: "view", inputs: [{ type: "address" }],
+  outputs: [{ type: "tuple", components: [
+    { name: "config", type: "tuple", components: [
+      { name: "mode", type: "uint8" }, { name: "maxSpendPerTransaction", type: "uint256" },
+      { name: "maxSpendPerDay", type: "uint256" }, { name: "maxSpendPerWeek", type: "uint256" },
+      { name: "maxMintPrice", type: "uint256" }, { name: "maxSecondaryPurchasePrice", type: "uint256" },
+      { name: "minimumNativeReserve", type: "uint256" }, { name: "maxAcquisitionsPerDay", type: "uint32" },
+      { name: "maxIntentAge", type: "uint32" }, { name: "maxSlippageBps", type: "uint16" },
+      { name: "requireCollectionAllowlist", type: "bool" }, { name: "allowUnknownCollections", type: "bool" },
+    ] },
+    { name: "configuredBy", type: "address" }, { name: "version", type: "uint64" },
+    { name: "permissionGeneration", type: "uint64" }, { name: "accountPaused", type: "bool" },
+  ] }],
+}, ...parseAbi([
+  "function acquisitionUsage(address account) view returns ((uint64 dayBucket,uint32 acquisitionsToday))",
+  "function approvedAdapters(address account,address adapter) view returns (bool)",
+  "function approvedMintContracts(address account,address venue) view returns (bool)",
+  "function approvedSelectors(address account,bytes4 selector) view returns (bool)",
+  "function currencyPolicy(address account,address currency) view returns ((bool allowed,uint256 maxSpendPerTransaction,uint256 maxSpendPerDay,uint256 maxSpendPerWeek,uint256 maxMintPrice,uint256 maxSecondaryPurchasePrice))",
+  "function venueCurrencyMaximum(address account,address venue,address currency) view returns (uint256)",
+  "function mintControls(address account) view returns ((bool ownerApprovedMints,bool autonomousFreeMints,bool autonomousPaidMints))",
+])];
 
 function requiredHttps(name, value) {
   if (typeof value !== "string" || value.length > 2_048) throw new TypeError(`${name} is unavailable`);
@@ -143,6 +178,98 @@ export async function readAutomationV2GlobalState(environment = process.env, opt
     && /^[0-9a-f]{40}$/.test(workerRelease)
     && (environment.BROKER_AUTOMATION_V2_AGENT_ADDRESS ?? "").toLowerCase() === AUTOMATION_V2_AGENT;
   return Object.freeze({ ...first, worker: { enabled: workerEnabled, release: workerRelease || null } });
+}
+
+async function readPunk(clientValue, tokenId, nowSeconds) {
+  const registry = getAddress(automationManifest.contracts.GoghPunkAccountRegistryV2.address);
+  const policyModule = getAddress(automationManifest.contracts.BrokerPolicyModuleV2.address);
+  const agentRegistry = getAddress(coreManifest.contracts.ArtAgentRegistry.address);
+  const adapter = getAddress(automationManifest.contracts.AutomatedSeaDropFreeMintAdapter.address);
+  const account = await clientValue.readContract({
+    address: registry, abi: REGISTRY_ABI, functionName: "account", args: [tokenId],
+  });
+  const code = (await clientValue.getCode({ address: account })) ?? "0x";
+  if (code === "0x") return { tokenId: tokenId.toString(), account: account.toLowerCase(), created: false, active: false };
+  const policyRead = (functionName, args = []) => clientValue.readContract({
+    address: policyModule, abi: ACCOUNT_POLICY_ABI, functionName, args,
+  });
+  const [owner, module, nonce, policy, usage, controls, authorization, authorized,
+    adapterAllowed, venueAllowed, selectorAllowed, currency, venueMaximum] = await Promise.all([
+    clientValue.readContract({ address: account, abi: ACCOUNT_ABI, functionName: "owner" }),
+    clientValue.readContract({ address: account, abi: ACCOUNT_ABI, functionName: "policyModule" }),
+    clientValue.readContract({ address: account, abi: ACCOUNT_ABI, functionName: "acquisitionNonce" }),
+    policyRead("policy", [account]), policyRead("acquisitionUsage", [account]),
+    policyRead("mintControls", [account]),
+    clientValue.readContract({ address: agentRegistry, abi: ACCOUNT_AGENT_ABI, functionName: "accountAuthorization", args: [account, getAddress(AUTOMATION_V2_AGENT)] }),
+    clientValue.readContract({ address: agentRegistry, abi: ACCOUNT_AGENT_ABI, functionName: "isAuthorized", args: [account, getAddress(AUTOMATION_V2_AGENT)] }),
+    policyRead("approvedAdapters", [account, adapter]),
+    policyRead("approvedMintContracts", [account, getAddress(SEA_DROP)]),
+    policyRead("approvedSelectors", [account, SEA_DROP_MINT_PUBLIC_SELECTOR]),
+    policyRead("currencyPolicy", [account, NATIVE_CURRENCY]),
+    policyRead("venueCurrencyMaximum", [account, getAddress(SEA_DROP), NATIVE_CURRENCY]),
+  ]);
+  const config = tuple(policy, "config", 0);
+  const normalized = {
+    tokenId: tokenId.toString(), account: account.toLowerCase(), created: true,
+    owner: getAddress(owner).toLowerCase(), policyModule: getAddress(module).toLowerCase(),
+    nonce: BigInt(nonce).toString(), policyVersion: BigInt(tuple(policy, "version", 2)).toString(),
+    permissionGeneration: BigInt(tuple(policy, "permissionGeneration", 3)).toString(),
+    accountPaused: tuple(policy, "accountPaused", 4),
+    mode: Number(tuple(config, "mode", 0)),
+    maxAcquisitionsPerDay: Number(tuple(config, "maxAcquisitionsPerDay", 7)),
+    acquisitionsToday: Number(tuple(usage, "acquisitionsToday", 1)),
+    mintControls: {
+      ownerApprovedMints: tuple(controls, "ownerApprovedMints", 0),
+      autonomousFreeMints: tuple(controls, "autonomousFreeMints", 1),
+      autonomousPaidMints: tuple(controls, "autonomousPaidMints", 2),
+    },
+    authorization: {
+      active: tuple(authorization, "active", 0),
+      authorizingOwner: getAddress(tuple(authorization, "authorizingOwner", 1)).toLowerCase(),
+      validUntil: BigInt(tuple(authorization, "validUntil", 2)).toString(),
+      generation: BigInt(tuple(authorization, "generation", 3)).toString(),
+      effective: authorized,
+    },
+  };
+  const zeroConfig = [1, 2, 3, 4, 5, 6].every((index) => BigInt(tuple(config, [
+    "", "maxSpendPerTransaction", "maxSpendPerDay", "maxSpendPerWeek", "maxMintPrice",
+    "maxSecondaryPurchasePrice", "minimumNativeReserve",
+  ][index], index)) === 0n);
+  const zeroCurrency = [1, 2, 3, 4, 5].every((index) => BigInt(tuple(currency, [
+    "", "maxSpendPerTransaction", "maxSpendPerDay", "maxSpendPerWeek", "maxMintPrice",
+    "maxSecondaryPurchasePrice",
+  ][index], index)) === 0n);
+  normalized.active = normalized.policyModule === policyModule.toLowerCase()
+    && normalized.owner === getAddress(tuple(policy, "configuredBy", 1)).toLowerCase()
+    && normalized.mode === 3 && normalized.accountPaused === false && zeroConfig
+    && [1, 3, 5, 10].includes(normalized.maxAcquisitionsPerDay)
+    && Number(tuple(config, "maxIntentAge", 8)) === 120
+    && Number(tuple(config, "maxSlippageBps", 9)) === 0
+    && tuple(config, "requireCollectionAllowlist", 10) === false
+    && tuple(config, "allowUnknownCollections", 11) === true
+    && normalized.mintControls.ownerApprovedMints === false
+    && normalized.mintControls.autonomousFreeMints === true
+    && normalized.mintControls.autonomousPaidMints === false
+    && adapterAllowed === true && venueAllowed === true && selectorAllowed === true
+    && tuple(currency, "allowed", 0) === true && zeroCurrency && BigInt(venueMaximum) === 0n
+    && normalized.authorization.active === true
+    && normalized.authorization.authorizingOwner === normalized.owner
+    && normalized.authorization.effective === true
+    && BigInt(normalized.authorization.validUntil) > BigInt(nowSeconds + 30);
+  return normalized;
+}
+
+export async function readAutomationV2PunkState(tokenIdValue, environment = process.env, options = {}) {
+  if (typeof tokenIdValue !== "string" || !/^(?:0|[1-9][0-9]{0,3})$/.test(tokenIdValue)) {
+    throw new TypeError("Choose a valid Gogh Punk ID");
+  }
+  const primaryUrl = requiredHttps("ROBINHOOD_RPC_URL", environment.ROBINHOOD_RPC_URL ?? environment.RPC_URL);
+  const secondaryUrl = requiredHttps("ROBINHOOD_SECONDARY_RPC_URL", environment.ROBINHOOD_SECONDARY_RPC_URL);
+  const clients = options.clients ?? [client(primaryUrl), client(secondaryUrl)];
+  const nowSeconds = options.nowSeconds ?? Math.floor(Date.now() / 1_000);
+  const states = await Promise.all(clients.map((rpc) => readPunk(rpc, BigInt(tokenIdValue), nowSeconds)));
+  if (JSON.stringify(states[0]) !== JSON.stringify(states[1])) throw new TypeError("V2 Punk providers disagree");
+  return Object.freeze(states[0]);
 }
 
 export async function buildLiveOwnerSetupInput(tokenIdValue, limits, environment = process.env) {

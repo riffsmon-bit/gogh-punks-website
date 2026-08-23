@@ -2,7 +2,12 @@ import automationManifest from "../../deployments/robinhood-automation-v2.json" 
 import { requireVerifiedManifestAdoption } from
   "../../broker/src/recommendation/source-verification-adoption.mjs";
 import { json } from "./_shared/http.mjs";
-import { AUTOMATION_V2_AGENT, readAutomationV2GlobalState } from "./_shared/autonomy-v2-live.mjs";
+import {
+  AUTOMATION_V2_AGENT, readAutomationV2GlobalState, readAutomationV2PunkState,
+} from "./_shared/autonomy-v2-live.mjs";
+import {
+  getAutomationV2WorkerHeartbeat, workerHeartbeatIsCurrent,
+} from "./_shared/automation-v2-worker-state.mjs";
 
 const CONTRACT_NAMES = Object.freeze([
   "AutomatedSeaDropFreeMintAdapter",
@@ -106,19 +111,35 @@ export default async function handler(request) {
   if (request.method !== "GET") return json({ ok: false, code: "METHOD_NOT_ALLOWED" }, 405);
   const base = autonomyV2Status();
   let automation = base;
+  let punk = null;
   if (base.status === "DEPLOYED_CONFIGURATION_PENDING") {
     try {
-      const live = await readAutomationV2GlobalState();
-      const ready = live.configured === true && live.worker.enabled === true;
+      const params = new URL(request.url).searchParams;
+      const tokenId = params.get("tokenId");
+      const [live, heartbeat] = await Promise.all([
+        readAutomationV2GlobalState(),
+        getAutomationV2WorkerHeartbeat().catch(() => null),
+      ]);
+      if (tokenId !== null) punk = await readAutomationV2PunkState(tokenId);
+      const globallyReady = live.configured === true && live.worker.enabled === true;
+      const workerOnline = workerHeartbeatIsCurrent(
+        heartbeat,
+        live.worker.release,
+        Date.now(),
+      );
+      const ready = globallyReady && workerOnline;
       automation = Object.freeze({
         ...base,
-        status: ready ? "READY" : "DEPLOYED_CONFIGURATION_PENDING",
+        status: ready ? "READY" : globallyReady ? "WORKER_STARTING" : "DEPLOYED_CONFIGURATION_PENDING",
         capability: ready,
         setupTransactionAvailable: ready,
         automaticSubmission: ready,
-        reason: ready ? null : live.configured ? "AUTOMATION_V2_WORKER_PENDING" : "AUTOMATION_V2_GUARDIAN_PENDING",
+        reason: ready ? null : globallyReady ? "AUTOMATION_V2_HEARTBEAT_PENDING"
+          : live.configured ? "AUTOMATION_V2_WORKER_PENDING" : "AUTOMATION_V2_GUARDIAN_PENDING",
         agent: { address: AUTOMATION_V2_AGENT, validUntil: live.agent.validUntil },
-        live: { adapterRegistered: live.adapter.active, featureFlagsEnabled: live.configured, globalAgentApproved: live.agent.approved, workerEnabled: live.worker.enabled },
+        live: { adapterRegistered: live.adapter.active, featureFlagsEnabled: live.configured, globalAgentApproved: live.agent.approved, workerEnabled: live.worker.enabled, workerOnline },
+        heartbeat: heartbeat ? { ...heartbeat, online: workerOnline } : null,
+        punk,
       });
     } catch {
       automation = Object.freeze({ ...base, reason: "AUTOMATION_V2_LIVE_READ_UNAVAILABLE" });
