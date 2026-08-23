@@ -77,9 +77,22 @@ signature.
 
 The pure screen accepts already-collected RPC observations. Its provider origins and agreement are
 therefore supplied evidence, not proof that those observations came from the declared transports.
-The production worker must bind each actual client transport URL to its credential-free declared
-origin, reject shared registrable provider domains, and reproduce every comparison before it may
-enable submission.
+The genuine live collector is now available as:
+
+```sh
+npm run broker:autonomy:v2-screen-live -- \
+  --candidate /absolute/path/analyzed-candidate.json \
+  --scope /absolute/path/selected-punk-scope.json \
+  --confirmations 20 > /absolute/path/live-screen-evidence.json
+```
+
+It reads `ROBINHOOD_RPC_URL` and `ROBINHOOD_SECONDARY_RPC_URL`, binds each actual client transport
+URL, rejects shared registrable provider domains, pins a common confirmed block, reads exact code
+and drop state twice, simulates the full `executeAutonomousAcquisition(intent, 0x)` entry point from
+the agent twice, estimates gas twice, and closes with a block/reorg and real-clock check. The facade
+exposes only read methods and an inert frozen transport descriptor. The result still does not sign
+or submit. Programmatic dependency-injected results are local test evidence; only this default CLI
+path counts as genuine transport-bound evidence.
 
 ## Release gates
 

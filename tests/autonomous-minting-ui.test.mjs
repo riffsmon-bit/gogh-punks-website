@@ -14,6 +14,8 @@ test("automation panel is present, explanatory, and locked by default", async ()
   assert.match(html, /data-v2-stop disabled/);
   assert.match(html, /One ERC-721 per transaction/i);
   assert.match(html, /paid mints/i);
+  assert.match(html, /Tester checkpoint:/);
+  assert.match(html, /no saved preference can silently start it/i);
   assert.doesNotMatch(browser, /eth_sendTransaction|personal_sign|eth_signTypedData/i);
   assert.match(browser, /AUTOMATION_V2_NOT_DEPLOYED|PREPARATION|LIVE GATE PENDING/i);
 });

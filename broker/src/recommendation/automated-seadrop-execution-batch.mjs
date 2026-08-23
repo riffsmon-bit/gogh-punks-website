@@ -9,7 +9,7 @@ import {
 
 export const AUTOMATED_EXECUTION_BATCH_SCHEMA = "GOGH_AUTOMATED_SEADROP_EXECUTION_BATCH_V1";
 
-const ACCOUNT_ABI = Object.freeze([{
+export const AUTOMATED_ACCOUNT_EXECUTION_ABI = Object.freeze([{
   type: "function",
   name: "executeAutonomousAcquisition",
   stateMutability: "nonpayable",
@@ -83,11 +83,11 @@ function encodedAction(action, agent) {
     adapterCodeHash: action.adapterCodeHash,
   };
   const data = encodeFunctionData({
-    abi: ACCOUNT_ABI,
+    abi: AUTOMATED_ACCOUNT_EXECUTION_ABI,
     functionName: "executeAutonomousAcquisition",
     args: [intent, "0x"],
   });
-  const decoded = decodeFunctionData({ abi: ACCOUNT_ABI, data });
+  const decoded = decodeFunctionData({ abi: AUTOMATED_ACCOUNT_EXECUTION_ABI, data });
   if (decoded.functionName !== "executeAutonomousAcquisition"
     || decoded.args[1] !== "0x" || decoded.args[0].account.toLowerCase() !== action.account
     || decoded.args[0].collection.toLowerCase() !== action.collection
