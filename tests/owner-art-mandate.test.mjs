@@ -45,9 +45,20 @@ test("normalizes a narrow owner mandate and forces paid/autonomous authority off
   assert.match(ownerArtMandateSha256(normalized), /^0x[0-9a-f]{64}$/);
 });
 
-test("rejects autonomy, alternate Punks, excess daily mints, and ambiguous fields", () => {
+test("accepts only the narrow autonomous request and keeps execution disabled", () => {
+  const value = mandate();
+  value.mode = "AUTONOMOUS";
+  const stored = storedOwnerArtMandate(normalizeOwnerArtMandate(value), OWNER, 4);
+  assert.equal(stored.autonomyRequested, true);
+  assert.equal(stored.autonomyEnabled, false);
+  assert.equal(stored.economicSettings.allowPaidMints, false);
+});
+
+test("rejects unsafe autonomy, alternate Punks, excess daily mints, and ambiguous fields", () => {
   for (const mutate of [
-    (value) => { value.mode = "AUTONOMOUS"; },
+    (value) => { value.mode = "AUTONOMOUS"; value.economicSettings.allowFreeMints = false; },
+    (value) => { value.mode = "AUTONOMOUS"; value.economicSettings.inspectMints = false; },
+    (value) => { value.mode = "AUTONOMOUS"; value.economicSettings.maxMintsPerDay = 0; },
     (value) => { value.tokenId = "1798"; },
     (value) => { value.economicSettings.maxMintsPerDay = 2; },
     (value) => { value.economicSettings.allowPaidMints = true; },
@@ -164,4 +175,11 @@ test("mandate endpoint is same-origin, owner verified, rate limited, and has no 
   assert.match(source, /verifyWalletSignature/);
   assert.match(source, /aggregateBy: \["ip"\]/);
   assert.doesNotMatch(source, /eth_send|sendTransaction|privateKey|mnemonic/);
+});
+
+test("broker mandate UI distinguishes autonomous preference from on-chain readiness", async () => {
+  const html = await readFile(new URL("../site/broker/index.html", import.meta.url), "utf8");
+  assert.match(html, /Autonomous free mints — on-chain setup required/);
+  assert.match(html, /cannot enable contracts, permissions, or an agent/);
+  assert.match(html, /\/punk\/1639#external-free-mint-title/);
 });

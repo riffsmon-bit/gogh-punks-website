@@ -117,6 +117,12 @@ export function setupMandateEditor({ windowObject, documentObject, fetchFunction
   }
 
   function syncOutputs() {
+    const mode = form.elements.namedItem("mode");
+    if (mode?.value === "AUTONOMOUS") {
+      form.elements.namedItem("inspectMints").checked = true;
+      form.elements.namedItem("allowFreeMints").checked = true;
+      form.elements.namedItem("maxMintsPerDay").value = "1";
+    }
     for (const output of browserDocument.querySelectorAll("[data-mandate-value]")) {
       const input = form.elements.namedItem(output.dataset.mandateValue);
       if (input) output.value = input.value;
@@ -131,8 +137,15 @@ export function setupMandateEditor({ windowObject, documentObject, fetchFunction
             && selected.economicSettings.allowFreeMints
             && selected.economicSettings.maxMintsPerDay === 1
             ? "Scout may recommend one free mint per day for your review. You must still approve every mint in your wallet."
+            : selected.mode === "AUTONOMOUS"
+              && selected.economicSettings.inspectMints
+              && selected.economicSettings.allowFreeMints
+              && selected.economicSettings.maxMintsPerDay === 1
+              ? "You are requesting at most one autonomous free mint per day. Saving this preference does not arm the contracts; the target adapter, owner policy, guardian feature gate, and short-lived agent authorization must still pass on-chain."
             : "Scout can research mint opportunities and show them to you, but it cannot prepare or submit a mint.";
-      summary.textContent = `${action} Paid mints and autonomous execution stay disabled.`;
+      summary.textContent = selected.mode === "AUTONOMOUS"
+        ? `${action} Paid mints, unknown-collection execution, approvals, and selling stay disabled.`
+        : `${action} Paid mints and autonomous execution stay disabled.`;
     }
   }
 
@@ -197,7 +210,12 @@ export function setupMandateEditor({ windowObject, documentObject, fetchFunction
       version = completed.mandate.version;
       applyMandate(form, completed.mandate);
       syncOutputs();
-      render(`Saved version ${version}. Scout will use it on its next run. No transaction was sent.`, "saved");
+      render(
+        completed.mandate.autonomyRequested
+          ? `Saved version ${version}. Autonomous free-mint preparation was requested, but remains locked until the separate on-chain readiness gates pass. No transaction was sent.`
+          : `Saved version ${version}. Scout will use it on its next run. No transaction was sent.`,
+        "saved",
+      );
     } catch (error) {
       render(error?.message ?? "The preference signature was cancelled or rejected.", "error");
     } finally {

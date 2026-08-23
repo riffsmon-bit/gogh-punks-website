@@ -90,7 +90,7 @@
         </ol>
         <div class="layout-two">
           <article class="panel mandate-panel">
-            <div class="panel-header"><h3>Punk #1797 preferences</h3><span class="tag off" data-mandate-badge>Connect owner</span></div>
+            <div class="panel-header"><h3>Punk #1797 hosted Scout preferences</h3><span class="tag off" data-mandate-badge>Connect owner</span></div>
             <form class="mandate-form" data-mandate-form>
               <label class="mandate-field">
                 <span>Recommendation mode</span>
@@ -98,17 +98,18 @@
                   <option value="DISABLED">Disabled</option>
                   <option value="SCOUT" selected>Scout only</option>
                   <option value="APPROVAL_REQUIRED">Prepare owner review — never auto-mint</option>
+                  <option value="AUTONOMOUS">Autonomous free mints — on-chain setup required</option>
                 </select>
               </label>
               <div class="mandate-checks">
                 <label><input type="checkbox" name="inspectMints" checked /> Inspect mint opportunities</label>
-                <label><input type="checkbox" name="allowFreeMints" /> Recommend free mints</label>
+                <label><input type="checkbox" name="allowFreeMints" /> Recommend or request free mints</label>
               </div>
               <label class="mandate-field">
                 <span>Maximum free mints per day</span>
                 <select name="maxMintsPerDay">
                   <option value="0" selected>0 — watch only</option>
-                  <option value="1">1 — can propose one</option>
+                  <option value="1">1 — hard daily maximum</option>
                 </select>
               </label>
               <label class="mandate-field">
@@ -137,7 +138,7 @@
               <button class="action-button mandate-save" type="submit" data-mandate-save disabled>Connect Punk #1797 owner to save</button>
               <p class="mandate-state" data-mandate-state aria-live="polite">Loading the latest saved preferences…</p>
             </form>
-            <p class="locked-note">Saving requests a message signature—not a transaction. These preferences guide Scout and owner-review proposals only. Paid mints, contract permissions, and autonomous execution remain disabled.</p>
+            <p class="locked-note">Saving requests a message signature—not a transaction. An autonomous selection records the owner’s requested operating profile but cannot enable contracts, permissions, or an agent. The current external live-test state belongs to <a href="/punk/1639#external-free-mint-title">Punk #1639 ↗</a>.</p>
           </article>
           <article class="panel">
             <div class="panel-header"><h3>Curator identity</h3><span class="tag">Persistent</span></div>

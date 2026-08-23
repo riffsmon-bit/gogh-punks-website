@@ -12,7 +12,7 @@ export const OWNER_MANDATE_DIMENSIONS = Object.freeze([
   "experimentalNFTs",
 ]);
 
-const MODES = new Set(["DISABLED", "SCOUT", "APPROVAL_REQUIRED"]);
+const MODES = new Set(["DISABLED", "SCOUT", "APPROVAL_REQUIRED", "AUTONOMOUS"]);
 const UNKNOWN_MODES = new Set(["IGNORE", "SCOUT_ONLY", "OWNER_APPROVAL"]);
 
 function exactKeys(value, expected, label) {
@@ -67,6 +67,18 @@ export function normalizeOwnerArtMandate(value) {
     0,
     1,
   );
+  if (
+    value.mode === "AUTONOMOUS"
+    && (
+      value.economicSettings.inspectMints !== true
+      || value.economicSettings.allowFreeMints !== true
+      || maxMintsPerDay !== 1
+    )
+  ) {
+    throw new TypeError(
+      "Autonomous preference requires mint inspection, free mints, and an exact daily cap of one",
+    );
+  }
 
   exactKeys(value.riskSettings,
     ["unknownMintMode", "maxContractRiskScore"], "riskSettings");
@@ -140,6 +152,7 @@ export function storedOwnerArtMandate(normalized, configuredBy, version) {
       blockedCollections: Object.freeze([]),
     }),
     onchainPolicyVersion: null,
+    autonomyRequested: normalized.mode === "AUTONOMOUS",
     autonomyEnabled: false,
   });
 }
