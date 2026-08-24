@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   confirmedIntentWindow,
   runAutomatedSeaDropWorker,
+  selectActiveZeroPriceSeaDropCollections,
 } from "../scripts/run-automated-seadrop-worker.mjs";
 
 test("worker anchors its 120-second intent at the confirmed evidence horizon", () => {
@@ -12,6 +13,29 @@ test("worker anchors its 120-second intent at the confirmed evidence horizon", (
   assert.equal(1_090 - 970, 120);
   assert.throws(() => confirmedIntentWindow(30), /invalid confirmed intent time window/);
   assert.throws(() => confirmedIntentWindow(1_000, 31), /invalid confirmed intent time window/);
+});
+
+test("worker prefilter selects only currently active native zero-price public drops", () => {
+  const collections = ["free", "paid", "closed", "failed"];
+  const now = 1_000n;
+  const drop = (overrides = {}) => ({
+    mintPrice: 0n, startTime: 900n, endTime: 1_100n,
+    maxTotalMintableByWallet: 1, feeBps: 0, restrictFeeRecipients: false,
+    ...overrides,
+  });
+  const results = [
+    { status: "success", result: drop() },
+    { status: "success", result: drop({ mintPrice: 1n }) },
+    { status: "success", result: drop({ endTime: 999n }) },
+    { status: "failure", error: new Error("rpc") },
+  ];
+  assert.deepEqual(
+    selectActiveZeroPriceSeaDropCollections(collections, results, now), ["free"],
+  );
+  assert.throws(
+    () => selectActiveZeroPriceSeaDropCollections(collections, results.slice(1), now),
+    /invalid SeaDrop prefilter evidence/,
+  );
 });
 
 test("hosted worker is disabled by default and requires the exact published signer", async () => {
@@ -37,5 +61,8 @@ test("worker source fixes the account entry point, zero value, one action, and s
   assert.match(source, /readOnly === true/);
   assert.match(source, /liveScreenRejections/);
   assert.match(source, /executionSimulationsPassed/);
+  assert.match(source, /1_000_000n/);
+  assert.match(source, /selectActiveZeroPriceSeaDropCollections/);
+  assert.doesNotMatch(source, /analyzedCandidates|mandateThresholdRejections/);
   assert.doesNotMatch(source, /approve\(|setApprovalForAll|execute\(address,uint256,bytes/);
 });

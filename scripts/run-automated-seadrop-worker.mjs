@@ -8,7 +8,6 @@ import { privateKeyToAccount } from "viem/accounts";
 import manifest from "../deployments/robinhood-automation-v2.json" with { type: "json" };
 import coreManifest from "../deployments/robinhood.json" with { type: "json" };
 import { ROBINHOOD } from "../broker/src/config.mjs";
-import { tasteMatchFromWeights } from "../broker/src/personas.mjs";
 import { attestAutomatedSeaDropCandidateLive } from
   "../broker/src/discovery/automated-seadrop-live-screen.mjs";
 import { buildAutomatedSeaDropExecutionBatch } from
@@ -52,6 +51,18 @@ const POLICY_ABI = [{
   "function venueCurrencyMaximum(address account,address venue,address currency) view returns (uint256)",
   "function mintControls(address account) view returns ((bool ownerApprovedMints,bool autonomousFreeMints,bool autonomousPaidMints))",
 ])];
+const PUBLIC_DROP_ABI = Object.freeze([{
+  type: "function", name: "getPublicDrop", stateMutability: "view",
+  inputs: [{ name: "nftContract", type: "address" }],
+  outputs: [{
+    name: "drop", type: "tuple", components: [
+      { name: "mintPrice", type: "uint80" }, { name: "startTime", type: "uint48" },
+      { name: "endTime", type: "uint48" },
+      { name: "maxTotalMintableByWallet", type: "uint16" },
+      { name: "feeBps", type: "uint16" }, { name: "restrictFeeRecipients", type: "bool" },
+    ],
+  }],
+}]);
 
 const CHAIN = {
   id: 4663, name: "Robinhood Chain",
@@ -114,20 +125,12 @@ async function accountState(client, blockNumber, account, agent) {
     selectorAllowed, currency, venueMaximum, controls, balance, block };
 }
 
-function artMatch(row, mandate) {
-  const art = row.collection_signals?.art;
-  const dimensions = art?.dimensions;
-  if (!dimensions || typeof dimensions !== "object" || art.status === "UNAVAILABLE") return 0;
-  return Math.round(tasteMatchFromWeights(mandate.artistic_preferences.dimensions, dimensions));
-}
-
 function rejectionDiagnostics(profiles, collections, candidates) {
   return {
     profiles: profiles.length,
     recentSeaDropCollections: collections.length,
-    analyzedCandidates: candidates.length,
+    onchainZeroPriceCandidates: candidates.length,
     missingActivatedAccounts: 0,
-    mandateThresholdRejections: 0,
     liveScreenRejections: {},
     providerStateDisagreements: 0,
     executionSimulationsPassed: 0,
@@ -168,27 +171,45 @@ async function eligibleProfiles(pool) {
   return result.rows;
 }
 
-async function analyzedCandidates(pool, collections) {
-  if (collections.length === 0) return [];
-  const result = await pool.query(`
-    SELECT DISTINCT ON (o.collection_address) o.collection_address, o.id,
-           o.metadata->'collectionSignals' AS collection_signals,
-           c.risk_score
-      FROM broker_opportunities o
-      JOIN broker_collections c USING (chain_id, collection_address)
-     WHERE o.chain_id = $1 AND o.collection_address = ANY($2::char(42)[])
-       AND o.canonical = TRUE AND o.scoutable = TRUE
-       AND o.metadata ? 'collectionSignals' AND c.risk_score IS NOT NULL
-     ORDER BY o.collection_address, o.discovered_at DESC`, [4663, collections]);
-  return result.rows;
-}
-
 async function recentSeaDropCollections(client, confirmations = 20n) {
   const head = await client.getBlockNumber();
   const toBlock = head - confirmations;
-  const fromBlock = toBlock > 100_000n ? toBlock - 100_000n : 0n;
+  const fromBlock = toBlock > 1_000_000n ? toBlock - 1_000_000n : 0n;
   const logs = await client.getLogs({ address: getAddress(SEA_DROP), event: PUBLIC_DROP_UPDATED_EVENT, fromBlock, toBlock });
-  return [...new Set(logs.map((log) => getAddress(log.args.nftContract).toLowerCase()))].slice(0, 128);
+  return [...new Set(logs.toReversed()
+    .map((log) => getAddress(log.args.nftContract).toLowerCase()))].slice(0, 512);
+}
+
+export function selectActiveZeroPriceSeaDropCollections(collections, results, blockTimestamp) {
+  if (!Array.isArray(collections) || !Array.isArray(results)
+    || collections.length !== results.length || typeof blockTimestamp !== "bigint") {
+    throw new TypeError("invalid SeaDrop prefilter evidence");
+  }
+  return collections.filter((collection, index) => {
+    const entry = results[index];
+    if (entry?.status !== "success") return false;
+    const drop = entry.result;
+    return drop?.mintPrice === 0n && drop.startTime <= blockTimestamp
+      && drop.endTime >= blockTimestamp && drop.maxTotalMintableByWallet > 0;
+  });
+}
+
+async function activeZeroPriceSeaDropCollections(client, collections, confirmations = 20n) {
+  if (collections.length === 0) return [];
+  const head = await client.getBlockNumber();
+  const blockNumber = head - confirmations;
+  const [block, results] = await Promise.all([
+    client.getBlock({ blockNumber }),
+    client.multicall({
+      allowFailure: true,
+      blockNumber,
+      contracts: collections.map((collection) => ({
+        address: getAddress(SEA_DROP), abi: PUBLIC_DROP_ABI,
+        functionName: "getPublicDrop", args: [collection],
+      })),
+    }),
+  ]);
+  return selectActiveZeroPriceSeaDropCollections(collections, results, block.timestamp);
 }
 
 function liveState(profile, state, screen, maxFeePerGasWei) {
@@ -248,7 +269,7 @@ export async function runAutomatedSeaDropWorker(environment = process.env, depen
   const profiles = await eligibleProfiles(database);
   if (profiles.length === 0) return { status: "NO_AUTONOMOUS_MANDATES", submitted: 0 };
   const collections = await recentSeaDropCollections(primary);
-  const candidates = await analyzedCandidates(database, collections);
+  const candidates = await activeZeroPriceSeaDropCollections(primary, collections);
   if (candidates.length === 0) return { status: "NO_ANALYZED_ACTIVE_TARGETS", submitted: 0 };
   const diagnostics = rejectionDiagnostics(profiles, collections, candidates);
   const registry = getAddress(manifest.contracts.GoghPunkAccountRegistryV2.address);
@@ -261,22 +282,17 @@ export async function runAutomatedSeaDropWorker(environment = process.env, depen
       diagnostics.missingActivatedAccounts += 1;
       continue;
     }
-    for (const target of candidates) {
-      const tasteMatch = artMatch(target, row);
-      const risk = Math.round(Number(target.risk_score));
-      if (risk > Number(row.risk_settings.maxContractRiskScore)
-        || tasteMatch < Number(row.artistic_preferences.minimumTasteMatch)) {
-        diagnostics.mandateThresholdRejections += 1;
-        continue;
-      }
+    for (const collection of candidates) {
       const latestNonce = await primary.readContract({ address: accountAddress, abi: ACCOUNT_ABI, functionName: "acquisitionNonce" });
       const latestPolicy = await primary.readContract({ address: policyModule, abi: POLICY_ABI, functionName: "policy", args: [accountAddress] });
       const nowSeconds = Math.floor(Date.now() / 1_000);
       const intentWindow = confirmedIntentWindow(nowSeconds);
       const candidate = {
-        collection: target.collection_address, opportunityId: keccak256(stringToHex(`seadrop:${target.collection_address}:${target.id}`)),
-        reasoningHash: keccak256(stringToHex(`analyzed-zero-price-seadrop:${target.id}:${risk}:${tasteMatch}`)),
-        contractRiskScore: risk, tasteMatch, metadataSanitized: true, analysisComplete: true,
+        collection,
+        opportunityId: keccak256(stringToHex(`canonical-live-seadrop:${collection}`)),
+        reasoningHash: keccak256(stringToHex(`exact-clone-active-zero-price:${collection}`)),
+        contractRiskScore: 100, tasteMatch: 0,
+        metadataSanitized: true, analysisComplete: true,
       };
       const scope = {
         account: accountAddress, agent, expectedOwner: row.configured_by, policyModule,
@@ -326,7 +342,7 @@ export async function runAutomatedSeaDropWorker(environment = process.env, depen
           submitted: 0,
           tokenId,
           account: accountAddress.toLowerCase(),
-          collection: target.collection_address,
+          collection,
           diagnostics,
         };
       }
@@ -334,7 +350,7 @@ export async function runAutomatedSeaDropWorker(environment = process.env, depen
       const hash = await wallet.sendTransaction({ account: signingAccount, to: getAddress(tx.to), data: tx.data, value: 0n });
       const receipt = await primary.waitForTransactionReceipt({ hash, confirmations: 1, timeout: 60_000 });
       if (receipt.status !== "success") throw new TypeError("autonomous mint reverted");
-      return { status: "MINT_CONFIRMED", submitted: 1, tokenId, account: accountAddress.toLowerCase(), collection: target.collection_address, transactionHash: hash };
+      return { status: "MINT_CONFIRMED", submitted: 1, tokenId, account: accountAddress.toLowerCase(), collection, transactionHash: hash };
     }
   }
   return { status: "NO_ELIGIBLE_TARGETS", submitted: 0, diagnostics };
