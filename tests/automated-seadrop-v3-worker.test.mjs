@@ -62,13 +62,27 @@ test("V3 worker source binds both runtime families and no paid or approval path"
   assert.doesNotMatch(source, /approve\(|setApprovalForAll|execute\(address,uint256,bytes/);
 });
 
-test("the authoritative NOT_DEPLOYED V3 manifest keeps the public capability closed", () => {
+test("the verified V3 deployment remains closed until Guardian and worker configuration", () => {
   assert.deepEqual(autonomyV3Status(), {
-    status: "PREPARING_V3",
+    status: "DEPLOYED_CONFIGURATION_PENDING",
     capability: false,
     setupTransactionAvailable: false,
     automaticSubmission: false,
-    reason: "AUTOMATION_V3_NOT_DEPLOYED",
-    bindings: null,
+    reason: "AUTOMATION_V3_GUARDIAN_AND_WORKER_PENDING",
+    bindings: {
+      chainId: 4663,
+      adapter: "0xd4316dfbcfa3f51f1a9de77aaa5d9e6edf848777",
+      adapterRuntimeCodeHash:
+        "0x8e99aa5602225a4aadcccc2ee4e0e5c42477ed40b5d927ee964e81d204b8b56b",
+      policyModule: "0x555a0533b2575f765fe7a8c7bcf604120e76e1cd",
+      policyModuleRuntimeCodeHash:
+        "0x6b6e2ca26fb3c02bb620b05a21799b17f4d93a1c4d8b2af5ee83724c0b3cd88d",
+      accountImplementation: "0xb24199845ca42966e755b2dad7c8a9a490afeb13",
+      accountImplementationRuntimeCodeHash:
+        "0x63b26b5f3bce8b3adb52d1c1d9c9067c9c24cc63e5c961a6d9e399dbf4396520",
+      accountRegistry: "0x7d4f654cd95104dc22c64fc8c70937f32fcbac52",
+      accountRegistryRuntimeCodeHash:
+        "0x6aa5390e63f46d3712dad94040d41b8051d8d6c273c7bfb28ac7308bae63c645",
+    },
   });
 });

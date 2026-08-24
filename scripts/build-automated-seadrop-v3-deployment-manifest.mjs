@@ -25,13 +25,18 @@ export const AUTOMATION_V3_DEPLOYMENT_ORDER = Object.freeze([
 
 const BROADCAST_CONTRACT_NAMES = Object.freeze([
   "AutomatedSeaDropStudioFreeMintAdapter",
-  "BrokerPolicyModuleV3",
+  // Forge records this derived deployment under the artifact identity selected by
+  // its identical inherited creation bytecode. The initcode and constructor
+  // checks below remain the authoritative V3 binding.
+  "BrokerPolicyModuleV2",
   "GoghPunkAccountV1",
   "GoghPunkAccountRegistryV3",
 ]);
 const ARTIFACT_PATHS = Object.freeze({
   AutomatedSeaDropStudioFreeMintAdapter:
     "contracts/out/AutomatedSeaDropStudioFreeMintAdapter.sol/AutomatedSeaDropStudioFreeMintAdapter.json",
+  // Preserve the complete V3 source-set commitment even though Forge records
+  // the byte-for-byte identical deployment under its inherited V2 name.
   BrokerPolicyModuleV3: "contracts/out/BrokerPolicyModuleV3.sol/BrokerPolicyModuleV3.json",
   GoghPunkAccountV3: "contracts/out/GoghPunkAccountV1.sol/GoghPunkAccountV1.json",
   GoghPunkAccountRegistryV3:

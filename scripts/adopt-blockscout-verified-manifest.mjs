@@ -88,7 +88,7 @@ const SOURCE_PATHS = Object.freeze({
   GoghPunkAccountRegistryV2: "contracts/src/GoghPunkAccountRegistryV2.sol",
   AutomatedSeaDropStudioFreeMintAdapter:
     "contracts/src/adapters/AutomatedSeaDropStudioFreeMintAdapter.sol",
-  BrokerPolicyModuleV3: "contracts/src/BrokerPolicyModuleV3.sol",
+  BrokerPolicyModuleV3: "contracts/src/BrokerPolicyModuleV2.sol",
   GoghPunkAccountV3: "contracts/src/GoghPunkAccountV1.sol",
   GoghPunkAccountRegistryV3: "contracts/src/GoghPunkAccountRegistryV3.sol",
 });
@@ -100,7 +100,16 @@ const SOURCE_CONTRACT_NAMES = Object.freeze({
     ...AUTOMATION_V3_CONTRACT_NAMES,
   ].map((name) => [name, name])),
   GoghPunkAccountV2: "GoghPunkAccountV1",
+  BrokerPolicyModuleV3: "BrokerPolicyModuleV2",
   GoghPunkAccountV3: "GoghPunkAccountV1",
+});
+const COMPILED_SOURCE_PATHS = Object.freeze({
+  ...SOURCE_PATHS,
+  BrokerPolicyModuleV3: "contracts/src/BrokerPolicyModuleV3.sol",
+});
+const COMPILED_CONTRACT_NAMES = Object.freeze({
+  ...SOURCE_CONTRACT_NAMES,
+  BrokerPolicyModuleV3: "BrokerPolicyModuleV3",
 });
 const ARTIFACT_PATHS = Object.freeze({
   ...Object.fromEntries(
@@ -785,13 +794,15 @@ function normalizeArtifact(name, artifact, pending) {
     fail("COMPILER_SETTINGS_MISMATCH", `${name} compiler identity is wrong`);
   }
   const settings = normalizeCompilerSettings(metadata.settings, `${name} metadata settings`);
-  const expectedPath = SOURCE_PATHS[name];
-  sameCanonical(settings.compilationTarget, { [expectedPath]: SOURCE_CONTRACT_NAMES[name] },
+  const compiledPath = COMPILED_SOURCE_PATHS[name];
+  sameCanonical(settings.compilationTarget, {
+    [compiledPath]: COMPILED_CONTRACT_NAMES[name],
+  },
     "COMPILER_SETTINGS_MISMATCH", `${name} compilation target`);
   const sources = plainObject(metadata.sources, `${name} metadata sources`);
   const sourcePaths = Object.keys(sources).sort();
   if (sourcePaths.length === 0 || sourcePaths.length > MAX_SOURCE_FILES
-    || !sourcePaths.includes(expectedPath)) {
+    || !sourcePaths.includes(compiledPath) || !sourcePaths.includes(SOURCE_PATHS[name])) {
     fail("SOURCE_IDENTITY_MISMATCH", `${name} metadata source set is invalid`);
   }
   const sourceHashes = Object.fromEntries(sourcePaths.map((path) => {
@@ -835,7 +846,7 @@ function normalizeArtifact(name, artifact, pending) {
   }
   return {
     name,
-    expectedPath,
+    expectedPath: SOURCE_PATHS[name],
     abi: artifact.abi,
     abiSha256: canonicalSha256(artifact.abi),
     creationBytecode,
@@ -1374,16 +1385,23 @@ function normalizeSmartContractEvidence(
   );
   if (!Object.hasOwn(apiSettingsInput, "compilationTarget")) {
     apiSettingsInput.compilationTarget = strictSnapshot(
-      artifact.settings.compilationTarget,
+      { [SOURCE_PATHS[name]]: SOURCE_CONTRACT_NAMES[name] },
       MAX_INPUT_BYTES,
-      `${name} compiled compilation target`,
+      `${name} Blockscout compilation target inferred from its exact main source identity`,
     );
   }
   const apiSettings = normalizeCompilerSettings(
     apiSettingsInput,
     `${name} Blockscout compiler settings`,
   );
-  sameCanonical(apiSettings, artifact.settings, "COMPILER_SETTINGS_MISMATCH",
+  sameCanonical(apiSettings.compilationTarget, {
+    [SOURCE_PATHS[name]]: SOURCE_CONTRACT_NAMES[name],
+  }, "COMPILER_SETTINGS_MISMATCH", `${name} Blockscout compilation target`);
+  const comparableApiSettings = {
+    ...apiSettings,
+    compilationTarget: artifact.settings.compilationTarget,
+  };
+  sameCanonical(comparableApiSettings, artifact.settings, "COMPILER_SETTINGS_MISMATCH",
     `${name} Blockscout compiler settings`);
   const apiAbi = normalizeApiAbi(response.abi, `${name} Blockscout ABI`);
   const compiledAbi = normalizeApiAbi(artifact.abi, `${name} compiled ABI comparison`);

@@ -18,11 +18,22 @@ Unknown implementations, custom SeaDrop contracts, paid mints, allowlist proofs,
 arbitrary calldata, approvals, ERC-1155, selling, and Phase 2 paid minting remain
 outside V3.
 
+`BrokerPolicyModuleV3` is the logical V3 deployment role. Its Solidity wrapper
+adds no executable code over `BrokerPolicyModuleV2`, so the compiler emits
+identical creation and runtime bytecode and Forge, Sourcify, and Blockscout use
+`BrokerPolicyModuleV2` as the canonical compiled/source identity. The V3
+manifest still binds the deployed policy address to the V3 adapter constructor,
+the Guardian Safe, and the existing adapter registry. The V3 Punk Account is
+similarly verified under its canonical `GoghPunkAccountV1` bytecode identity.
+
 ## Current status
 
-`deployments/robinhood-automation-v3.json` is intentionally `NOT_DEPLOYED`.
-The V3 public status and owner-setup endpoints therefore fail closed. The V2
-worker and site remain unchanged while V3 is reviewed.
+`deployments/robinhood-automation-v3.json` records the four source-verified V3
+deployments. V3 configuration remains deliberately disabled: the adapter is not
+registered, the Guardian feature flags and global agent approval are off, the
+worker is not enabled, and automatic submission is not authorized. The public
+status and owner-setup endpoints therefore remain fail closed while V2 stays
+available.
 
 ## Release sequence
 

@@ -23,7 +23,7 @@ const H = (digit) => `0x${digit.repeat(64)}`;
 
 const names = AUTOMATION_V3_DEPLOYMENT_ORDER;
 const broadcastNames = [
-  "AutomatedSeaDropStudioFreeMintAdapter", "BrokerPolicyModuleV3",
+  "AutomatedSeaDropStudioFreeMintAdapter", "BrokerPolicyModuleV2",
   "GoghPunkAccountV1", "GoghPunkAccountRegistryV3",
 ];
 const addresses = {

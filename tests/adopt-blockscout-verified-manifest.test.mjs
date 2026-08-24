@@ -48,24 +48,33 @@ const sourcePath = (name) => ({
   GoghPunkAccountRegistryV2: "contracts/src/GoghPunkAccountRegistryV2.sol",
   AutomatedSeaDropStudioFreeMintAdapter:
     "contracts/src/adapters/AutomatedSeaDropStudioFreeMintAdapter.sol",
-  BrokerPolicyModuleV3: "contracts/src/BrokerPolicyModuleV3.sol",
+  BrokerPolicyModuleV3: "contracts/src/BrokerPolicyModuleV2.sol",
   GoghPunkAccountV3: "contracts/src/GoghPunkAccountV1.sol",
   GoghPunkAccountRegistryV3: "contracts/src/GoghPunkAccountRegistryV3.sol",
 }[name] ?? `contracts/src/${name}.sol`);
-const sourceContractName = (name) => ["GoghPunkAccountV2", "GoghPunkAccountV3"].includes(name)
-  ? "GoghPunkAccountV1" : name;
+const sourceContractName = (name) => ({
+  GoghPunkAccountV2: "GoghPunkAccountV1",
+  BrokerPolicyModuleV3: "BrokerPolicyModuleV2",
+  GoghPunkAccountV3: "GoghPunkAccountV1",
+}[name] ?? name);
 const addressFor = (index) => `0x${(index + 3).toString(16).repeat(40)}`;
 const txFor = (index) => `0x${(index + 1).toString(16).repeat(64)}`;
 const blockHashFor = (index) => `0x${(index + 9).toString(16).repeat(64)}`;
 
 function artifactFor(name, index) {
-  const contractName = sourceContractName(name);
-  const source = `// SPDX-License-Identifier: MIT\npragma solidity 0.8.34; contract ${contractName} { constructor(address guardian) { require(guardian != address(0)); } }\n`;
+  const explorerContractName = sourceContractName(name);
   const path = sourcePath(name);
+  const compiledContractName = name === "BrokerPolicyModuleV3" ? name : explorerContractName;
+  const compiledPath = name === "BrokerPolicyModuleV3"
+    ? "contracts/src/BrokerPolicyModuleV3.sol"
+    : path;
+  const source = `// SPDX-License-Identifier: MIT\npragma solidity 0.8.34; contract ${explorerContractName} { constructor(address guardian) { require(guardian != address(0)); } }\n`;
+  const compiledSource = compiledPath === path ? source
+    : `// SPDX-License-Identifier: MIT\npragma solidity 0.8.34; import { ${explorerContractName} } from "./BrokerPolicyModuleV2.sol"; contract ${compiledContractName} is ${explorerContractName} { constructor(address guardian) ${explorerContractName}(guardian) {} }\n`;
   const creation = `0x60${(index + 1).toString(16).padStart(2, "0")}600052`;
   const runtime = `0x60${(index + 1).toString(16).padStart(2, "0")}600055`;
   const settings = {
-    compilationTarget: { [path]: contractName },
+    compilationTarget: { [compiledPath]: compiledContractName },
     evmVersion: "cancun",
     libraries: {},
     metadata: { bytecodeHash: "none" },
@@ -94,7 +103,15 @@ function artifactFor(name, index) {
         language: "Solidity",
         output: { abi },
         settings,
-        sources: { [path]: { keccak256: keccak256(stringToBytes(source)), license: "MIT" } },
+        sources: {
+          [path]: { keccak256: keccak256(stringToBytes(source)), license: "MIT" },
+          ...(compiledPath === path ? {} : {
+            [compiledPath]: {
+              keccak256: keccak256(stringToBytes(compiledSource)),
+              license: "MIT",
+            },
+          }),
+        },
         version: 1,
       }),
       metadata: {},
@@ -104,7 +121,13 @@ function artifactFor(name, index) {
     creation,
     runtime,
     settings,
+    explorerSettings: {
+      ...settings,
+      compilationTarget: { [path]: explorerContractName },
+    },
     source,
+    compiledSource,
+    compiledPath,
     path,
   };
 }
@@ -412,9 +435,12 @@ function smartContractResponse(name, fact) {
     abi: JSON.stringify(fact.abi),
     source_code: fact.source,
     file_path: fact.path,
-    compiler_settings: fact.settings,
+    compiler_settings: fact.explorerSettings,
     constructor_args: constructorArgs,
-    additional_sources: [],
+    additional_sources: fact.compiledPath === fact.path ? [] : [{
+      file_path: fact.compiledPath,
+      source_code: fact.compiledSource,
+    }],
     deployed_bytecode: fact.runtime,
     creation_bytecode: `${fact.creation}${constructorArgs.slice(2)}`,
     external_libraries: [],
@@ -495,10 +521,12 @@ function makeFetcher(fixture, mutate, responseOverrides) {
 }
 
 function provenanceOptions(fixture) {
-  const sourceByPath = new Map(fixture.names.map((name) => [
-    fixture.facts[name].path,
-    fixture.facts[name].source,
-  ]));
+  const sourceByPath = new Map(fixture.names.flatMap((name) => {
+    const fact = fixture.facts[name];
+    return fact.compiledPath === fact.path
+      ? [[fact.path, fact.source]]
+      : [[fact.path, fact.source], [fact.compiledPath, fact.compiledSource]];
+  }));
   return {
     runProgram: async (executable, args) => {
       assert.equal(executable, "git");
@@ -587,7 +615,11 @@ test("adopts a fully source-verified canary proposal while preserving the immuta
 test("adopts the exact V3 OpenSea Studio proposal without enabling automation", async () => {
   const fixture = makeFixture("automation-v3");
   const before = structuredClone(fixture.pendingProposal);
-  const { result, calls } = await build(fixture);
+  const { result, calls } = await build(fixture, (type, name, value) => {
+    if (type === "smart" && name === "BrokerPolicyModuleV3") {
+      delete value.compiler_settings.compilationTarget;
+    }
+  });
   assert.equal(result.verificationScope, "ROBINHOOD_AUTOMATION_V3");
   assert.equal(calls.length, AUTOMATION_V3_CONTRACT_NAMES.length * 3);
   assert.deepEqual(

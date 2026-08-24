@@ -3,7 +3,7 @@
     "agentAuthorizationGranted": false,
     "automaticSubmissionEnabled": false,
     "configurationAuthorized": false,
-    "deploymentAuthorized": false
+    "deploymentAuthorized": true
   },
   "chainId": 4663,
   "compiler": "0.8.34",
@@ -14,13 +14,84 @@
     "workerEnabled": false
   },
   "contracts": {
-    "AutomatedSeaDropStudioFreeMintAdapter": null,
-    "BrokerPolicyModuleV3": null,
-    "GoghPunkAccountRegistryV3": null,
-    "GoghPunkAccountV3": null
+    "AutomatedSeaDropStudioFreeMintAdapter": {
+      "address": "0xD4316dfbCFa3f51F1a9De77aAA5D9E6eDf848777",
+      "confirmationsObserved": 63063,
+      "confirmationsRequired": 20,
+      "constructorArguments": [
+        "0x53e4b9339cf624803c9a7d0195576cca5b917920813508d86b3eb93dcbabeb5c",
+        "0xda60742d810ae5de9c087af2e82b05fb84e9112cfade927fca0db6490ea52519",
+        "0x69e7a7158f30acb817dc83a4e21af19a216c3a2ae57db423599ca82f321e3041"
+      ],
+      "creationBytecodeHash": "0xe58f781203897e4e05bb98d8775a96c7b0a26ab43624f87726f23e3784633fde",
+      "deployer": "0xF868ff40975F7C3AeDDF1B2CE026aE53897bA698",
+      "deploymentBlock": 44842614,
+      "deploymentBlockHash": "0x7c423a5c3493e5e09f86010c75eabfe60d4ae4e9c9aeed34a9f87d9f4d3b0f75",
+      "deploymentTransaction": "0xbcb8b95c4e8652112e65dbda6a28bd2abf3f4f6ea88de0d2df3592ee5bbfabe5",
+      "gitCommit": "68e859f50ac657accc25f69ba05cb3f2225f7292",
+      "receiptStatus": "SUCCESS",
+      "runtimeBytecodeHash": "0x8e99aa5602225a4aadcccc2ee4e0e5c42477ed40b5d927ee964e81d204b8b56b",
+      "verificationStatus": "VERIFIED"
+    },
+    "BrokerPolicyModuleV3": {
+      "address": "0x555A0533B2575F765Fe7A8c7BcF604120e76e1cd",
+      "confirmationsObserved": 63037,
+      "confirmationsRequired": 20,
+      "constructorArguments": [
+        "0x2b05E3BB4895A00d52894B98839Ae421d4139Ec8",
+        "0x421D51709Fe21736a35fFa2a86B157Df1b030EE2",
+        "0xD4316dfbCFa3f51F1a9De77aAA5D9E6eDf848777"
+      ],
+      "creationBytecodeHash": "0x40b691b8dc26051687e683be80cf5ade326043d793002d74c94e660658113378",
+      "deployer": "0xF868ff40975F7C3AeDDF1B2CE026aE53897bA698",
+      "deploymentBlock": 44842640,
+      "deploymentBlockHash": "0xd5a6d6a9922b286bb6a0c0508a1ceb849fc0dec7591c2af57ef619ffa4e3c803",
+      "deploymentTransaction": "0x454182730eda3720385c473f7753f02d2837132d36f75db43fe50737a6458519",
+      "gitCommit": "68e859f50ac657accc25f69ba05cb3f2225f7292",
+      "receiptStatus": "SUCCESS",
+      "runtimeBytecodeHash": "0x6b6e2ca26fb3c02bb620b05a21799b17f4d93a1c4d8b2af5ee83724c0b3cd88d",
+      "verificationStatus": "VERIFIED"
+    },
+    "GoghPunkAccountRegistryV3": {
+      "address": "0x7d4f654cD95104dc22c64Fc8C70937F32FcbAc52",
+      "confirmationsObserved": 62989,
+      "confirmationsRequired": 20,
+      "constructorArguments": [
+        "0xb24199845ca42966E755B2DaD7C8a9A490AfEB13",
+        "0x0000000000000000000000000000000000000000000000000000000000000000"
+      ],
+      "creationBytecodeHash": "0x257ce66f4025a00a627f38686211b44939803f2d1cf1d8625a07632f71a0f465",
+      "deployer": "0xF868ff40975F7C3AeDDF1B2CE026aE53897bA698",
+      "deploymentBlock": 44842688,
+      "deploymentBlockHash": "0x6e383c08625f5afacf5b64957214e4f026903e2023496fbe17bbe4fc452db640",
+      "deploymentTransaction": "0x26f9853bbbc878bb370497bf74c0bd765af954ba39b8104778600b9638eeb7fd",
+      "gitCommit": "68e859f50ac657accc25f69ba05cb3f2225f7292",
+      "receiptStatus": "SUCCESS",
+      "runtimeBytecodeHash": "0x6aa5390e63f46d3712dad94040d41b8051d8d6c273c7bfb28ac7308bae63c645",
+      "verificationStatus": "VERIFIED"
+    },
+    "GoghPunkAccountV3": {
+      "address": "0xb24199845ca42966E755B2DaD7C8a9A490AfEB13",
+      "confirmationsObserved": 63014,
+      "confirmationsRequired": 20,
+      "constructorArguments": [
+        "0x555A0533B2575F765Fe7A8c7BcF604120e76e1cd",
+        "0xbffbccd20E796e0f3E745B274De60EF17a485Dde",
+        "0x421D51709Fe21736a35fFa2a86B157Df1b030EE2"
+      ],
+      "creationBytecodeHash": "0x98254a77d76c8478ad94e881909e7870e7f4779f5c20ce08e21d194a23fced8a",
+      "deployer": "0xF868ff40975F7C3AeDDF1B2CE026aE53897bA698",
+      "deploymentBlock": 44842663,
+      "deploymentBlockHash": "0x4fd5999c4eda961986a4042bcec9d4cb80839ba6143cbc81b70df789ba4e9cfd",
+      "deploymentTransaction": "0x7313a0178df8a72da93f57c6a19c04fe6653819c12335f9e67873801a33e14b3",
+      "gitCommit": "68e859f50ac657accc25f69ba05cb3f2225f7292",
+      "receiptStatus": "SUCCESS",
+      "runtimeBytecodeHash": "0x63b26b5f3bce8b3adb52d1c1d9c9067c9c24cc63e5c961a6d9e399dbf4396520",
+      "verificationStatus": "VERIFIED"
+    }
   },
   "evmVersion": "cancun",
-  "gitCommit": null,
+  "gitCommit": "68e859f50ac657accc25f69ba05cb3f2225f7292",
   "infrastructure": {
     "cloneCollectionRuntimeCodeHash": "0xe3e252831cdd0c11e1327d04a57ddd9bfa11ef49d50edb524040d98bfb228bc4",
     "cloneImplementation": "0x09a26fC8FCEF18192E267D7A6da9dFb4be81Dd6A",
@@ -30,7 +101,7 @@
     "studioCollectionRuntimeCodeHash": "0x69e7a7158f30acb817dc83a4e21af19a216c3a2ae57db423599ca82f321e3041",
     "studioReferenceCollection": "0xC73Ee4987FDAd897e691EEccfa65C80Efb97f6f4"
   },
-  "notes": "V3 free-only OpenSea Studio deployment has not occurred. This template authorizes no deployment, registration, feature change, account activation, agent authorization, worker submission, paid mint, approval, arbitrary calldata, sale, or transfer.",
+  "notes": "Immutable VERIFIED V3 OpenSea Studio free-mint deployment manifest proposal. The original source-verification-pending proposal remains bound by canonical SHA-256. Robinhood Blockscout supplied exact unchanged non-twin source, compiler, ABI, bytecode, constructor, deployer, and receipt evidence; direct Sourcify evidence independently reported exact creation and runtime full matches for all four V3 contracts. No adapter registration, protocol feature, account activation, agent authorization, worker, automatic submission, paid mint, approval, arbitrary calldata, sale, or transfer is enabled by this historical deployment snapshot.",
   "optimizerRuns": 500,
   "protocolGuardian": "0x2b05E3BB4895A00d52894B98839Ae421d4139Ec8",
   "reusedContracts": {
@@ -38,7 +109,24 @@
     "ArtAgentRegistry": "0xbffbccd20E796e0f3E745B274De60EF17a485Dde"
   },
   "schema": "GOGH_AUTOMATED_SEADROP_V3_DEPLOYMENT_MANIFEST",
-  "sourceVerificationAdoption": null,
-  "status": "NOT_DEPLOYED",
+  "sourceVerificationAdoption": {
+    "chainId": 4663,
+    "explorerOrigin": "https://robinhoodchain.blockscout.com",
+    "gateSchema": "GOGH_BLOCKSCOUT_VERIFIED_MANIFEST_PROPOSAL_V1",
+    "gateVersion": 1,
+    "observedAt": "2026-08-24T14:00:43.814Z",
+    "pendingManifestNotes": "Immutable V3 deployment proposal from a clean release build and exact four-CREATE broadcast. Two distinct RPC provider domains agreed on final receipts, transaction inclusion, runtime code, and critical immutable/module bindings at one common confirmed block. Source verification remains NOT_SUBMITTED. No adapter registration, feature enablement, account activation, agent authorization, worker enablement, or mint is authorized by this proposal.",
+    "pendingManifestSha256": "0x4c8c3d34a7c35e730d29983d275b1b99e86807f5475a2b3e0bfe43b392c8216f",
+    "pendingProposalSha256": "0xabed813872e41da0e9fb25ae3d58c698b4ed9eb3f3a0b4018a8609146e7e4627",
+    "schema": "GOGH_BLOCKSCOUT_SOURCE_VERIFICATION_ADOPTION_V1",
+    "verificationEvidenceSha256": "0x480067d93c0c6083bfb2802b0242d14df7169f497192ae9408fdc02bffbb3530",
+    "verifiedContracts": [
+      "AutomatedSeaDropStudioFreeMintAdapter",
+      "BrokerPolicyModuleV3",
+      "GoghPunkAccountV3",
+      "GoghPunkAccountRegistryV3"
+    ]
+  },
+  "status": "DEPLOYED",
   "version": 1
 }
