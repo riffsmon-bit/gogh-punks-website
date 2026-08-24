@@ -182,7 +182,8 @@ test("picker UI selects a live-verified Punk while preserving manual entry", asy
   assert.match(endpoint, /DISCOVERY_CANDIDATES_ONLY_EACH_SELECTION_REQUIRES_LIVE_WALLET_OWNER_CHECK/);
   assert.match(endpoint, /OPENSEA_API_KEY/);
   assert.match(accounts, /discoverWalletOwnedPunkIds/);
-  assert.match(accounts, /Copy wallet address/);
+  assert.match(accounts, /Copy V1 wallet address/);
+  assert.match(accounts, /Legacy V1 Punk wallet/);
   assert.match(accounts, /https:\/\/opensea\.io\/\$\{item\.account\}/);
   assert.doesNotMatch(accounts, /accounts\.find\(\(\{ tokenId \}\) => tokenId === "1797"\)/);
   assert.doesNotMatch(endpoint, /eth_send|privateKey|mnemonic/);

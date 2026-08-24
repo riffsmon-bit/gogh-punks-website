@@ -28,6 +28,10 @@ export function buildAutomationGasFundingTransaction(fromValue, agentValue, amou
   return Object.freeze({ from, to, value: `0x${BigInt(amountWei).toString(16)}`, data: "0x" });
 }
 
+export function automationPunkWalletOpenSeaUrl(value) {
+  return `https://opensea.io/${canonicalAddress(value, "Punk NFT wallet")}`;
+}
+
 export function setupAutonomousMinting({ windowObject, documentObject, fetchFunction } = {}) {
   const browserWindow = windowObject ?? (typeof window === "undefined" ? null : window);
   const browserDocument = documentObject ?? (typeof document === "undefined" ? null : document);
@@ -37,6 +41,9 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
   const status = panel.querySelector("[data-v2-status]");
   const punk = panel.querySelector("[data-v2-punk]");
   const account = panel.querySelector("[data-v2-account]");
+  const accountCopy = panel.querySelector("[data-v3-account-copy]");
+  const accountOpenSea = panel.querySelector("[data-v3-account-opensea]");
+  const accountCopyState = panel.querySelector("[data-v3-account-copy-state]");
   const agent = panel.querySelector("[data-v2-agent]");
   const agentFull = panel.querySelector("[data-v2-agent-full]");
   const agentBalance = panel.querySelector("[data-v2-agent-balance]");
@@ -142,11 +149,20 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     const active = selectedState?.active === true;
     const agentLive = active && state.gate?.capability === true
       && state.gate?.heartbeat?.online === true;
-    account.textContent = selectedState?.account
-      ? shortAddress(selectedState.account)
+    const punkWallet = /^0x[0-9a-fA-F]{40}$/.test(selectedState?.account ?? "")
+      ? selectedState.account.toLowerCase() : null;
+    account.textContent = punkWallet
+      ? shortAddress(punkWallet)
       : state.gate?.bindings?.accountRegistry
         ? `Derived after V${state.version} activation · ${shortAddress(state.gate.bindings.accountRegistry)}`
       : `V${state.version} automation wallet not available`;
+    accountCopy.disabled = !punkWallet;
+    accountOpenSea.hidden = !punkWallet;
+    if (punkWallet) accountOpenSea.href = automationPunkWalletOpenSeaUrl(punkWallet);
+    else accountOpenSea.removeAttribute("href");
+    accountCopyState.textContent = punkWallet
+      ? "This exact V3 wallet receives the selected Punk’s autonomous mints."
+      : "Select a live-verified Punk to reveal its NFT wallet.";
     const gasAgent = state.gate?.agent;
     const gasReady = state.gate?.capability === true && gasAgent?.codeFree === true
       && /^0x[0-9a-f]{40}$/.test(gasAgent.address ?? "")
@@ -213,6 +229,23 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     } catch {
       agentFundState.textContent = `Copy unavailable. Select this exact address: ${value}`;
     }
+  }
+
+  async function copyPunkWalletAddress() {
+    const selectedState = state.gate?.punk?.tokenId === state.selection?.tokenId
+      ? state.gate.punk : null;
+    const value = selectedState?.account;
+    if (!/^0x[0-9a-fA-F]{40}$/.test(value ?? "")) return;
+    try {
+      await browserWindow.navigator?.clipboard?.writeText(value.toLowerCase());
+      accountCopy.textContent = "V3 address copied";
+      accountCopyState.textContent = "Copied the selected Punk’s V3 NFT wallet—not the hosted gas payer.";
+    } catch {
+      accountCopyState.textContent = `Copy unavailable. Select this exact V3 wallet: ${value.toLowerCase()}`;
+    }
+    browserWindow.setTimeout?.(() => {
+      accountCopy.textContent = "Copy V3 wallet address";
+    }, 1_800);
   }
 
   async function fundAgent() {
@@ -384,6 +417,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     }
   });
   runNow.addEventListener("click", runAgentNow);
+  accountCopy.addEventListener("click", copyPunkWalletAddress);
   agentCopy.addEventListener("click", copyAgentAddress);
   refresh.addEventListener("click", () => { void load(); });
   agentFundConfirm.addEventListener("change", render);

@@ -390,6 +390,9 @@ h3 { font-size: 1.45rem; }
 .owner-account-address { display: inline-block; margin-top: 8px; color: var(--teal); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
 .owner-account-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 .owner-account-opensea { display: inline-flex; align-items: center; text-decoration: none; }
+.automation-wallet-metric { align-content: start; }
+.automation-wallet-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.automation-wallet-actions .status-refresh-button { flex: 1 1 165px; justify-content: center; text-align: center; }
 .collapsible-section { border-top: 1px solid var(--line); }
 .collapsible-section > summary { display: flex; justify-content: space-between; align-items: center; gap: 18px; padding: 22px 0; cursor: pointer; list-style: none; }
 .collapsible-section > summary::-webkit-details-marker { display: none; }

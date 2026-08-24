@@ -186,7 +186,7 @@ export function renderOwnerAccounts(container, accounts) {
     const label = document.createElement("p");
     label.className = "locked-note";
     label.textContent = item.activated
-      ? "Agent wallet address (no agent authority or autonomy implied)"
+      ? "Legacy V1 Punk wallet · separate from the V3 automation NFT wallet"
       : "Deterministic future agent-wallet address";
     const account = document.createElement("a");
     account.className = "owner-account-address";
@@ -200,8 +200,8 @@ export function renderOwnerAccounts(container, accounts) {
     const copy = document.createElement("button");
     copy.type = "button";
     copy.className = "status-refresh-button";
-    copy.textContent = "Copy wallet address";
-    copy.setAttribute("aria-label", `Copy Punk #${item.tokenId} wallet address`);
+    copy.textContent = "Copy V1 wallet address";
+    copy.setAttribute("aria-label", `Copy Punk #${item.tokenId} legacy V1 wallet address`);
     copy.addEventListener("click", async () => {
       copy.disabled = true;
       try {
@@ -212,7 +212,7 @@ export function renderOwnerAccounts(container, accounts) {
         copy.textContent = "Copy unavailable";
       }
       container.ownerDocument?.defaultView?.setTimeout?.(() => {
-        copy.textContent = "Copy wallet address";
+        copy.textContent = "Copy V1 wallet address";
         copy.disabled = false;
       }, 1_800);
     });
@@ -221,7 +221,7 @@ export function renderOwnerAccounts(container, accounts) {
     openSea.href = `https://opensea.io/${item.account}`;
     openSea.target = "_blank";
     openSea.rel = "noopener noreferrer";
-    openSea.textContent = "View NFTs on OpenSea ↗";
+    openSea.textContent = "View V1 NFTs on OpenSea ↗";
     actions.append(copy, openSea);
     identity.append(eyebrow, title, label, account, actions);
     const badge = document.createElement("span");

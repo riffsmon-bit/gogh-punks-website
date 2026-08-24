@@ -259,7 +259,16 @@
             <div class="metric-grid policy-live-grid automation-live-grid">
               <article class="metric"><span>Automation readiness</span><strong data-v2-status>CHECKING</strong><small>Deployment, source, guardian, and worker gates</small></article>
               <article class="metric"><span>Selected Punk</span><strong data-v2-punk>Choose a Punk</strong><small>Must be live-owned by the connected wallet</small></article>
-              <article class="metric"><span>Punk NFT wallet</span><strong data-v2-account>Checking verified deployment</strong><small>Receives NFTs; does not pay hosted-worker gas</small></article>
+              <article class="metric automation-wallet-metric">
+                <span>Punk NFT wallet</span>
+                <strong data-v2-account>Checking verified deployment</strong>
+                <small>Receives this Punk’s autonomous mints; it is not the hosted gas payer</small>
+                <div class="automation-wallet-actions">
+                  <button class="status-refresh-button" type="button" data-v3-account-copy disabled>Copy V3 wallet address</button>
+                  <a class="status-refresh-button owner-account-opensea" data-v3-account-opensea href="#" target="_blank" rel="noopener noreferrer" hidden>View this Punk’s NFTs on OpenSea ↗</a>
+                </div>
+                <small data-v3-account-copy-state aria-live="polite">Select a live-verified Punk to reveal its NFT wallet.</small>
+              </article>
               <article class="metric"><span>Hosted gas payer</span><strong data-v2-agent>CHECKING</strong><small data-v2-agent-balance>Live balance unavailable</small></article>
               <article class="metric"><span>Per-mint payment</span><strong>0 ETH</strong><small>Gas only · paid mints remain blocked</small></article>
               <article class="metric automation-worker-metric"><span>Hosted agent</span><strong data-v2-worker>CHECKING</strong><small data-v2-worker-detail>Waiting for a verified worker heartbeat</small><button class="status-refresh-button" type="button" data-v2-refresh>Refresh live status</button><small data-v2-refreshed aria-live="polite">Page has not synced yet</small></article>

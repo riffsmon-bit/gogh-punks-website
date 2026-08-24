@@ -3,7 +3,8 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
-  buildAutomationGasFundingTransaction, formatAutomationGasBalance,
+  automationPunkWalletOpenSeaUrl, buildAutomationGasFundingTransaction,
+  formatAutomationGasBalance,
 } from "../site/autonomous-minting.js";
 
 const root = new URL("../", import.meta.url);
@@ -37,6 +38,10 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.match(html, /data-mandate-maximum-coverage/);
   assert.match(html, /Fund the hosted automation agent/);
   assert.match(html, /does not pay hosted-worker gas/i);
+  assert.match(html, /data-v3-account-copy disabled/);
+  assert.match(html, /Copy V3 wallet address/);
+  assert.match(html, /data-v3-account-opensea/);
+  assert.match(html, /View this Punk’s NFTs on OpenSea/);
   assert.match(html, /data-v2-agent-full/);
   assert.match(html, /data-v2-agent-balance-large/);
   assert.match(html, /data-v2-agent-fund disabled/);
@@ -69,6 +74,15 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.match(browser, /eth_getCode/);
   assert.match(browser, /eth_estimateGas/);
   assert.match(browser, /eth_sendTransaction/);
+  assert.match(browser, /automationPunkWalletOpenSeaUrl/);
+  assert.match(browser, /Copied the selected Punk’s V3 NFT wallet—not the hosted gas payer/);
+});
+
+test("the V3 Punk NFT wallet link is exact and rejects malformed addresses", () => {
+  const wallet = `0x${"aB".repeat(20)}`;
+  assert.equal(automationPunkWalletOpenSeaUrl(wallet),
+    `https://opensea.io/0x${"ab".repeat(20)}`);
+  assert.throws(() => automationPunkWalletOpenSeaUrl("0x1234"), /invalid/);
 });
 
 test("hosted gas funding has a fixed recipient, fixed amounts, and empty calldata", () => {
