@@ -56,8 +56,9 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
   const days = panel.querySelector("[data-v2-days]");
   const badge = panel.querySelector("[data-v2-badge]");
   const message = panel.querySelector("[data-v2-message]");
+  const v3Upgrade = panel.querySelector("[data-v3-upgrade]");
   const state = {
-    gate: null, selection: null, funding: false, refreshing: false,
+    gate: null, v3Gate: null, version: 2, selection: null, funding: false, refreshing: false,
     lastSyncedAt: null, lastRefreshFailedAt: null, loadSequence: 0,
   };
 
@@ -95,11 +96,13 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
       cap: cap.value,
       days: days.value,
     });
-    const response = await request(`/api/broker/autonomy-v2-owner-setup?${params}`, {
+    const response = await request(`/api/broker/autonomy-v${state.version}-owner-setup?${params}`, {
       headers: { accept: "application/json" }, cache: "no-store",
     });
     const payload = await response.json();
-    if (!response.ok || payload?.ok !== true) throw new Error(payload?.message ?? "V2 setup is unavailable.");
+    if (!response.ok || payload?.ok !== true) {
+      throw new Error(payload?.message ?? `V${state.version} setup is unavailable.`);
+    }
     return payload.artifact;
   }
 
@@ -123,6 +126,13 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
   }
 
   function render() {
+    if (v3Upgrade) {
+      v3Upgrade.textContent = state.version === 3
+        ? "V3 is active: exact reviewed OpenSea Studio clone and full-contract runtimes are supported."
+        : state.v3Gate?.status === "PREPARING_V3"
+          ? "V2 remains active while the broader V3 OpenSea Studio release is prepared and verified."
+          : "V2 remains active until every V3 deployment, source, guardian, and worker gate passes.";
+    }
     punk.textContent = state.selection?.tokenId ? `#${state.selection.tokenId}` : "Choose a Punk";
     const selectedState = state.gate?.punk?.tokenId === state.selection?.tokenId
       ? state.gate.punk : null;
@@ -132,8 +142,8 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     account.textContent = selectedState?.account
       ? shortAddress(selectedState.account)
       : state.gate?.bindings?.accountRegistry
-        ? `Derived after V2 activation · ${shortAddress(state.gate.bindings.accountRegistry)}`
-      : "V2 automation wallet not available";
+        ? `Derived after V${state.version} activation · ${shortAddress(state.gate.bindings.accountRegistry)}`
+      : `V${state.version} automation wallet not available`;
     const gasAgent = state.gate?.agent;
     const gasReady = state.gate?.capability === true && gasAgent?.codeFree === true
       && /^0x[0-9a-f]{40}$/.test(gasAgent.address ?? "")
@@ -180,7 +190,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
           ? "DEPLOYED · GUARDIAN + WORKER PENDING"
           : state.gate?.status === "DEPLOYED_SOURCE_VERIFICATION_PENDING"
             ? "DEPLOYED · SOURCE ADOPTION PENDING"
-        : "V2 DEPLOYMENT IN PREPARATION";
+        : `V${state.version} DEPLOYMENT IN PREPARATION`;
     status.classList.toggle("off", !agentLive && !ready);
     if (agentLive) {
       message.textContent = `Agent is live for Punk #${selectedState.tokenId}. ${heartbeatLabel(state.gate?.heartbeat)}. Today: ${selectedState.acquisitionsToday} of ${selectedState.maxAcquisitionsPerDay} mints.`;
@@ -266,15 +276,26 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
       const params = new URLSearchParams({ refresh: String(Date.now()) });
       if (state.selection?.tokenId) params.set("tokenId", state.selection.tokenId);
       const query = `?${params}`;
-      const response = await request(`/api/broker/autonomy-v2-status${query}`, {
-        headers: { accept: "application/json" }, cache: "no-store",
-      });
-      const payload = await response.json();
-      if (!response.ok || payload?.ok !== true || typeof payload?.automation !== "object") {
-        throw new Error("status unavailable");
-      }
+      const fetchGate = async (version) => {
+        const response = await request(`/api/broker/autonomy-v${version}-status${query}`, {
+          headers: { accept: "application/json" }, cache: "no-store",
+        });
+        const payload = await response.json();
+        if (!response.ok || payload?.ok !== true || typeof payload?.automation !== "object") {
+          throw new Error(`V${version} status unavailable`);
+        }
+        return payload.automation;
+      };
+      const [v3Result, v2Result] = await Promise.allSettled([fetchGate(3), fetchGate(2)]);
+      const v3Gate = v3Result.status === "fulfilled" ? v3Result.value : null;
+      const v2Gate = v2Result.status === "fulfilled" ? v2Result.value : null;
+      const v3Ready = v3Gate?.capability === true
+        && v3Gate?.setupTransactionAvailable === true;
+      if (!v3Ready && !v2Gate) throw new Error("automation status unavailable");
       if (sequence !== state.loadSequence) return;
-      state.gate = payload.automation;
+      state.v3Gate = v3Gate;
+      state.version = v3Ready ? 3 : 2;
+      state.gate = v3Ready ? v3Gate : v2Gate;
       state.lastSyncedAt = new Date();
       state.lastRefreshFailedAt = null;
       const selectedState = state.gate?.punk?.tokenId === state.selection?.tokenId

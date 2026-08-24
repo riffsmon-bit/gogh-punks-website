@@ -7,6 +7,8 @@ import test from "node:test";
 import { encodeAbiParameters, keccak256, stringToBytes } from "viem";
 import {
   BLOCKSCOUT_ORIGIN,
+  AUTOMATION_V2_CONTRACT_NAMES,
+  AUTOMATION_V3_CONTRACT_NAMES,
   buildBlockscoutVerifiedManifestProposal,
   CANARY_CONTRACT_NAMES,
   CORE_CONTRACT_NAMES,
@@ -39,18 +41,31 @@ const sourcePath = (name) => ({
   GoghOneShotCanaryArt: "contracts/src/canary/GoghOneShotCanaryArt.sol",
   GoghOneShotCanaryMintAdapter:
     "contracts/src/adapters/GoghOneShotCanaryMintAdapter.sol",
+  AutomatedSeaDropFreeMintAdapter:
+    "contracts/src/adapters/AutomatedSeaDropFreeMintAdapter.sol",
+  BrokerPolicyModuleV2: "contracts/src/BrokerPolicyModuleV2.sol",
+  GoghPunkAccountV2: "contracts/src/GoghPunkAccountV1.sol",
+  GoghPunkAccountRegistryV2: "contracts/src/GoghPunkAccountRegistryV2.sol",
+  AutomatedSeaDropStudioFreeMintAdapter:
+    "contracts/src/adapters/AutomatedSeaDropStudioFreeMintAdapter.sol",
+  BrokerPolicyModuleV3: "contracts/src/BrokerPolicyModuleV3.sol",
+  GoghPunkAccountV3: "contracts/src/GoghPunkAccountV1.sol",
+  GoghPunkAccountRegistryV3: "contracts/src/GoghPunkAccountRegistryV3.sol",
 }[name] ?? `contracts/src/${name}.sol`);
+const sourceContractName = (name) => ["GoghPunkAccountV2", "GoghPunkAccountV3"].includes(name)
+  ? "GoghPunkAccountV1" : name;
 const addressFor = (index) => `0x${(index + 3).toString(16).repeat(40)}`;
 const txFor = (index) => `0x${(index + 1).toString(16).repeat(64)}`;
 const blockHashFor = (index) => `0x${(index + 9).toString(16).repeat(64)}`;
 
 function artifactFor(name, index) {
-  const source = `// SPDX-License-Identifier: MIT\npragma solidity 0.8.34; contract ${name} { constructor(address guardian) { require(guardian != address(0)); } }\n`;
+  const contractName = sourceContractName(name);
+  const source = `// SPDX-License-Identifier: MIT\npragma solidity 0.8.34; contract ${contractName} { constructor(address guardian) { require(guardian != address(0)); } }\n`;
   const path = sourcePath(name);
   const creation = `0x60${(index + 1).toString(16).padStart(2, "0")}600052`;
   const runtime = `0x60${(index + 1).toString(16).padStart(2, "0")}600055`;
   const settings = {
-    compilationTarget: { [path]: name },
+    compilationTarget: { [path]: contractName },
     evmVersion: "cancun",
     libraries: {},
     metadata: { bytecodeHash: "none" },
@@ -100,7 +115,8 @@ function sourceProvenance(kind) {
     headCommit: commit,
     artifactResolvedCommit: commit,
     foundryArtifactCommit: foundryCommit,
-    [kind === "core" ? "compilerInputsClean" : "fullWorktreeClean"]: true,
+    [["core", "automation", "automation-v3"].includes(kind)
+      ? "compilerInputsClean" : "fullWorktreeClean"]: true,
     offlineBuildCompleted: true,
     offlineBuildCommand: ["forge", "build", "--offline", "--force"],
   };
@@ -117,7 +133,9 @@ function chain() {
 }
 
 function makeFixture(kind = "core") {
-  const names = kind === "core" ? CORE_CONTRACT_NAMES : CANARY_CONTRACT_NAMES;
+  const names = kind === "core" ? CORE_CONTRACT_NAMES
+    : kind === "canary" ? CANARY_CONTRACT_NAMES
+      : kind === "automation" ? AUTOMATION_V2_CONTRACT_NAMES : AUTOMATION_V3_CONTRACT_NAMES;
   const compiledArtifacts = {};
   const facts = {};
   const contracts = {};
@@ -227,7 +245,7 @@ function makeFixture(kind = "core") {
         notes: "Pending source verification.",
       },
     };
-  } else {
+  } else if (kind === "canary") {
     pendingProposal = {
       schema: "GOGH_ROBINHOOD_CANARY_DEPLOYMENT_MANIFEST_PROPOSAL_V1",
       proposalStatus: "CANARY_MANIFEST_PROPOSAL_SOURCE_VERIFICATION_PENDING",
@@ -291,6 +309,84 @@ function makeFixture(kind = "core") {
         notes: "Pending source verification.",
       },
     };
+  } else {
+    const isV3 = kind === "automation-v3";
+    pendingProposal = {
+      schema: isV3
+        ? "GOGH_AUTOMATED_SEADROP_V3_DEPLOYMENT_MANIFEST_PROPOSAL_V1"
+        : "GOGH_AUTOMATED_SEADROP_V2_DEPLOYMENT_MANIFEST_PROPOSAL_V1",
+      proposalStatus: isV3
+        ? "AUTOMATION_V3_MANIFEST_PROPOSAL_SOURCE_VERIFICATION_PENDING"
+        : "AUTOMATION_V2_MANIFEST_PROPOSAL_SOURCE_VERIFICATION_PENDING",
+      trustBindings: {
+        chainId: 4663,
+        releaseGitCommit: commit,
+        foundryArtifactCommit: foundryCommit,
+        sourceProvenance: sourceProvenance(kind),
+        deploymentOrder: [...names],
+        commonConfirmedBlock: { number: 2_000 },
+        rpcOrigins: ["https://rpc-one.example", "https://rpc-two.example"],
+        providerIndependence: "UNVERIFIED_BEYOND_DISTINCT_REGISTRABLE_PROVIDER_DOMAINS",
+        contractEvidence: compiledEvidence,
+        immutableBindings: {},
+        blockscoutSourceVerification: "NOT_SUBMITTED",
+        transactionCapability: "NONE_READ_ONLY_PROPOSAL",
+      },
+      manifest: {
+        schema: isV3
+          ? "GOGH_AUTOMATED_SEADROP_V3_DEPLOYMENT_MANIFEST"
+          : "GOGH_AUTOMATED_SEADROP_V2_DEPLOYMENT_MANIFEST",
+        version: 1,
+        status: "DEPLOYED",
+        chainId: 4663,
+        gitCommit: commit,
+        compiler: "0.8.34",
+        evmVersion: "cancun",
+        optimizerRuns: 500,
+        sourceVerificationAdoption: null,
+        protocolGuardian: "0x2b05E3BB4895A00d52894B98839Ae421d4139Ec8",
+        contracts,
+        reusedContracts: {
+          ArtAdapterRegistry: "0x421D51709Fe21736a35fFa2a86B157Df1b030EE2",
+          ArtAgentRegistry: "0xbffbccd20E796e0f3E745B274De60EF17a485Dde",
+        },
+        infrastructure: isV3 ? {
+          seaDrop: "0x00005EA00Ac477B1030CE78506496e8C2dE24bf5",
+          seaDropRuntimeCodeHash:
+            "0x53e4b9339cf624803c9a7d0195576cca5b917920813508d86b3eb93dcbabeb5c",
+          cloneImplementation: "0x09a26fC8FCEF18192E267D7A6da9dFb4be81Dd6A",
+          cloneImplementationRuntimeCodeHash:
+            "0xda60742d810ae5de9c087af2e82b05fb84e9112cfade927fca0db6490ea52519",
+          cloneCollectionRuntimeCodeHash:
+            "0xe3e252831cdd0c11e1327d04a57ddd9bfa11ef49d50edb524040d98bfb228bc4",
+          studioReferenceCollection: "0xC73Ee4987FDAd897e691EEccfa65C80Efb97f6f4",
+          studioCollectionRuntimeCodeHash:
+            "0x69e7a7158f30acb817dc83a4e21af19a216c3a2ae57db423599ca82f321e3041",
+        } : {
+          seaDrop: "0x00005EA00Ac477B1030CE78506496e8C2dE24bf5",
+          seaDropRuntimeCodeHash:
+            "0x53e4b9339cf624803c9a7d0195576cca5b917920813508d86b3eb93dcbabeb5c",
+          cloneImplementation: "0x09a26fC8FCEF18192E267D7A6da9dFb4be81Dd6A",
+          cloneImplementationRuntimeCodeHash:
+            "0xda60742d810ae5de9c087af2e82b05fb84e9112cfade927fca0db6490ea52519",
+          collectionRuntimeCodeHash:
+            "0xe3e252831cdd0c11e1327d04a57ddd9bfa11ef49d50edb524040d98bfb228bc4",
+        },
+        configuration: {
+          adapterRegistered: false,
+          featureFlagsEnabled: false,
+          globalAgentApproved: false,
+          workerEnabled: false,
+        },
+        authorization: {
+          deploymentAuthorized: true,
+          configurationAuthorized: false,
+          agentAuthorizationGranted: false,
+          automaticSubmissionEnabled: false,
+        },
+        notes: isV3 ? "Pending V3 source verification." : "Pending V2 source verification.",
+      },
+    };
   }
   return { kind, names, pendingProposal, compiledArtifacts, facts };
 }
@@ -307,7 +403,7 @@ function smartContractResponse(name, fact) {
     is_partially_verified: false,
     is_fully_verified: true,
     minimal_proxy_address_hash: null,
-    name,
+    name: sourceContractName(name),
     optimization_enabled: true,
     optimizations_runs: 500,
     compiler_version: "v0.8.34+commit.80d5c536",
@@ -486,6 +582,42 @@ test("adopts a fully source-verified canary proposal while preserving the immuta
   }
   assert.equal(result.manifest.configuration.policyConfigured, false);
   assert.equal(result.manifest.provenanceGate.status, "VERIFIED");
+});
+
+test("adopts the exact V3 OpenSea Studio proposal without enabling automation", async () => {
+  const fixture = makeFixture("automation-v3");
+  const before = structuredClone(fixture.pendingProposal);
+  const { result, calls } = await build(fixture);
+  assert.equal(result.verificationScope, "ROBINHOOD_AUTOMATION_V3");
+  assert.equal(calls.length, AUTOMATION_V3_CONTRACT_NAMES.length * 3);
+  assert.deepEqual(
+    result.manifest.sourceVerificationAdoption.verifiedContracts,
+    AUTOMATION_V3_CONTRACT_NAMES,
+  );
+  for (const name of AUTOMATION_V3_CONTRACT_NAMES) {
+    assert.equal(result.manifest.contracts[name].verificationStatus, "VERIFIED");
+  }
+  assert.equal(result.manifest.configuration.adapterRegistered, false);
+  assert.equal(result.manifest.configuration.workerEnabled, false);
+  assert.equal(result.manifest.authorization.automaticSubmissionEnabled, false);
+  assert.equal(result.manifest.infrastructure.studioCollectionRuntimeCodeHash,
+    "0x69e7a7158f30acb817dc83a4e21af19a216c3a2ae57db423599ca82f321e3041");
+  assert.deepEqual(fixture.pendingProposal, before);
+  assert.deepEqual(extractBlockscoutVerifiedManifest(result), result.manifest);
+});
+
+test("preserves the existing V2 automation source-adoption path", async () => {
+  const fixture = makeFixture("automation");
+  const { result, calls } = await build(fixture);
+  assert.equal(result.verificationScope, "ROBINHOOD_AUTOMATION_V2");
+  assert.equal(calls.length, AUTOMATION_V2_CONTRACT_NAMES.length * 3);
+  assert.deepEqual(
+    result.manifest.sourceVerificationAdoption.verifiedContracts,
+    AUTOMATION_V2_CONTRACT_NAMES,
+  );
+  assert.equal(result.manifest.configuration.adapterRegistered, false);
+  assert.equal(result.manifest.authorization.automaticSubmissionEnabled, false);
+  assert.deepEqual(extractBlockscoutVerifiedManifest(result), result.manifest);
 });
 
 const smartContractAttacks = [

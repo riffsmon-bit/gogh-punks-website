@@ -44,7 +44,23 @@ worker and site remain unchanged while V3 is reviewed.
    ```
 
 5. Verify all four contracts from the same clean release, adopt the source
-   evidence, and install the reviewed authoritative manifest separately.
+   evidence, and install the reviewed authoritative manifest separately:
+
+   ```sh
+   npm run broker:manifest:source-verification -- \
+     --kind automation-v3 \
+     --proposal /absolute/path/automation-v3-pending.json \
+     --release-root /absolute/path/to/clean-release \
+     > /absolute/path/automation-v3-verified-wrapper.json
+
+   npm run broker:manifest:extract-verified -- \
+     --proposal /absolute/path/automation-v3-verified-wrapper.json \
+     > /absolute/path/robinhood-automation-v3.verified.json
+   ```
+
+   Review both files before replacing the authoritative manifest. The extractor
+   permits only the exact pending-to-`VERIFIED` source transition; it cannot
+   enable configuration or automatic submission.
 6. The Guardian Safe registers only the V3 adapter and enables the bounded V3
    feature tuple. Publish the worker release with V3 disabled first, confirm the
    public status remains closed, then explicitly enable the worker.

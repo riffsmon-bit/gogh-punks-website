@@ -46,7 +46,7 @@
       <p class="safety-banner"><strong>Live status:</strong> <span data-live-summary>Checking deployed contracts and execution controls…</span></p>
 
       <aside class="safety-banner beta-test-banner" aria-label="Current automation scope">
-        <strong>Automation checkpoint:</strong> The page shows live V2 readiness, worker heartbeat,
+        <strong>Automation checkpoint:</strong> The page shows the active automation generation, worker heartbeat,
         Punk authorization, and hosted-agent gas separately. A saved preference cannot silently
         start automation, and funding a Punk Account does not fund the hosted transaction signer.
       </aside>
@@ -68,7 +68,7 @@
           <article><span>03</span><h3>Know which wallet pays gas</h3><p>Your connected owner wallet pays one-time setup transactions. The hosted automation agent pays later mint gas. The Punk Account receives NFTs and does not pay hosted-worker gas.</p></article>
           <article><span>04</span><h3>Limits stay enforceable</h3><p>Daily mint caps, reviewed adapters, collection permissions, prices, reserves, agent authorization, pause, and revocation are checked on-chain—not trusted to website copy.</p></article>
           <article><span>05</span><h3>Approve setup, not every mint</h3><p>After one bounded on-chain setup, the encrypted agent can collect from the approved target set without another wallet popup for each mint. It stops at its cap, expiry, reserve, pause, or revocation.</p></article>
-          <article><span>06</span><h3>Every target is screened twice</h3><p>The continuous V2 route does not require a wallet prompt per mint. The worker screens each candidate, then the on-chain adapter independently accepts only an active zero-price SeaDrop mint from the pinned canonical clone runtime. Paid mints, approvals, arbitrary calldata, and selling stay impossible.</p></article>
+          <article><span>06</span><h3>Every target is screened twice</h3><p>The continuous route does not require a wallet prompt per mint. The worker screens each candidate, then the on-chain adapter independently accepts only an active zero-price SeaDrop mint from an exactly reviewed OpenSea Studio runtime. Paid mints, approvals, arbitrary calldata, and selling stay impossible.</p></article>
         </div>
       </details>
 
@@ -253,13 +253,13 @@
         </details>
 
         <details class="workflow-step collapsible-section" id="automation-title" data-autonomous-minting open>
-          <summary><span><span class="workflow-number">5</span><strong>Continuous free-mint automation</strong></span><small>Separate V2 wallet · bounded and revocable</small></summary>
+          <summary><span><span class="workflow-number">5</span><strong>Continuous free-mint automation</strong></span><small>Best verified generation · bounded and revocable</small></summary>
           <div class="collapsible-content">
             <p class="workflow-help">This is the one-time setup for continuous zero-price SeaDrop collection. Choose a Punk, set a hard daily cap, and authorize the hosted agent for a limited period. After setup, eligible mints do not require another wallet popup. The agent pays transaction gas; the Punk Account receives each NFT.</p>
             <div class="metric-grid policy-live-grid automation-live-grid">
-              <article class="metric"><span>V2 readiness</span><strong data-v2-status>CHECKING</strong><small>Deployment, source, guardian, and worker gates</small></article>
+              <article class="metric"><span>Automation readiness</span><strong data-v2-status>CHECKING</strong><small>Deployment, source, guardian, and worker gates</small></article>
               <article class="metric"><span>Selected Punk</span><strong data-v2-punk>Choose a Punk</strong><small>Must be live-owned by the connected wallet</small></article>
-              <article class="metric"><span>Punk NFT wallet</span><strong data-v2-account>Checking V2 deployment</strong><small>Receives NFTs; does not pay hosted-worker gas</small></article>
+              <article class="metric"><span>Punk NFT wallet</span><strong data-v2-account>Checking verified deployment</strong><small>Receives NFTs; does not pay hosted-worker gas</small></article>
               <article class="metric"><span>Hosted gas payer</span><strong data-v2-agent>CHECKING</strong><small data-v2-agent-balance>Live balance unavailable</small></article>
               <article class="metric"><span>Per-mint payment</span><strong>0 ETH</strong><small>Gas only · paid mints remain blocked</small></article>
               <article class="metric automation-worker-metric"><span>Hosted agent</span><strong data-v2-worker>CHECKING</strong><small data-v2-worker-detail>Waiting for a verified worker heartbeat</small><button class="status-refresh-button" type="button" data-v2-refresh>Refresh live status</button><small data-v2-refreshed aria-live="polite">Page has not synced yet</small></article>
@@ -286,11 +286,12 @@
                 <label class="mandate-field"><span>Hard daily maximum</span><select data-v2-cap disabled><option value="1">1 free mint per UTC day</option><option value="3">3 free mints per UTC day</option><option value="5">5 free mints per UTC day</option><option value="10">10 free mints per UTC day</option></select></label>
                 <label class="mandate-field"><span>Agent authorization</span><select data-v2-days disabled><option value="7">7 days</option><option value="14">14 days</option><option value="30">30 days maximum</option></select></label>
                 <button class="action-button" type="button" data-v2-setup disabled>Review one-time setup in wallet</button>
-                <p class="locked-note" data-v2-message>This button unlocks only after the separate V2 contracts are deployed, fully verified, configured by the guardian, and checked against live chain state. Saving an Art Mandate alone never starts it.</p>
+                <p class="locked-note" data-v2-message>This button unlocks only after the selected automation generation is deployed, fully verified, configured by the guardian, and checked against live chain state. Saving an Art Mandate alone never starts it.</p>
+                <p class="locked-note" data-v3-upgrade>Checking the broader V3 OpenSea Studio release.</p>
               </article>
               <article class="panel">
                 <div class="panel-header"><h3>What it may do</h3><span class="tag">FIXED SAFETY ENVELOPE</span></div>
-                <ul class="plain-safety-list"><li>Canonical OpenSea SeaDrop clone only</li><li>Active public drop with mint price exactly 0</li><li>One ERC-721 per transaction</li><li>No token approvals or arbitrary calldata</li><li>Stops at daily cap, expiry, low gas, pause, or revocation</li></ul>
+                <ul class="plain-safety-list"><li>Exact reviewed OpenSea Studio runtime only</li><li>Active public drop with mint price exactly 0</li><li>One ERC-721 per transaction</li><li>No token approvals or arbitrary calldata</li><li>Stops at daily cap, expiry, low gas, pause, or revocation</li></ul>
                 <button class="action-button danger-action" type="button" data-v2-stop disabled>Stop and revoke automation</button>
               </article>
             </div>

@@ -8,12 +8,15 @@ import {
 
 const root = new URL("../", import.meta.url);
 
-test("automation panel exposes only the reviewed V2 setup and stop sequence", async () => {
+test("automation panel selects the best fully ready generation and preserves the bounded setup", async () => {
   const [html, browser] = await Promise.all([
     readFile(new URL("site/broker/index.html", root), "utf8"),
     readFile(new URL("site/autonomous-minting.js", root), "utf8"),
   ]);
   assert.match(html, /Continuous free-mint automation/);
+  assert.match(html, /Best verified generation/);
+  assert.match(html, /exact reviewed OpenSea Studio runtime/i);
+  assert.match(html, /data-v3-upgrade/);
   assert.match(html, /Legacy V1 Punk wallet controls/);
   assert.match(html, /This is not the autonomous V2 worker/);
   assert.doesNotMatch(html, /data-owner-policy-controls open/);
@@ -41,7 +44,13 @@ test("automation panel exposes only the reviewed V2 setup and stop sequence", as
   assert.match(html, /saved preference cannot silently/i);
   assert.match(browser, /eth_sendTransaction/);
   assert.doesNotMatch(browser, /personal_sign|eth_signTypedData|wallet_addEthereumChain/i);
-  assert.match(browser, /AUTOMATION_V2_OWNER_SETUP|autonomy-v2-owner-setup/i);
+  assert.match(browser, /autonomy-v\$\{state\.version\}-owner-setup/i);
+  assert.match(browser, /autonomy-v\$\{version\}-status/i);
+  assert.match(browser, /Promise\.allSettled\(\[fetchGate\(3\), fetchGate\(2\)\]\)/);
+  assert.match(browser, /v3Gate\?\.capability === true/);
+  assert.match(browser, /v3Gate\?\.setupTransactionAvailable === true/);
+  assert.match(browser, /state\.version = v3Ready \? 3 : 2/);
+  assert.match(browser, /state\.gate = v3Ready \? v3Gate : v2Gate/);
   assert.match(browser, /disableAutomatedSeaDropPolicy|stopTransactions/i);
   assert.match(browser, /ACTIVE · SCANNING/);
   assert.match(browser, /heartbeatLabel/);
