@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
+  configuredSeaDropCollections,
   confirmedIntentWindow,
   runAutomatedSeaDropV3Worker,
   selectActiveZeroPriceSeaDropCollections,
@@ -47,6 +48,24 @@ test("V3 prefilter retains only active zero-price public drops", () => {
   ], 1_000n), ["free"]);
 });
 
+test("V3 directed targets are exact, bounded, and cannot be ambiguous", () => {
+  const first = "0x1111111111111111111111111111111111111111";
+  const second = "0x2222222222222222222222222222222222222222";
+  assert.equal(configuredSeaDropCollections({}), null);
+  assert.deepEqual(configuredSeaDropCollections({
+    BROKER_AUTOMATION_V3_TARGET_COLLECTIONS: `${first},${second}`,
+  }), [first, second]);
+  assert.throws(() => configuredSeaDropCollections({
+    BROKER_AUTOMATION_V3_TARGET_COLLECTIONS: `${first},${first}`,
+  }), /duplicate directed/);
+  assert.throws(() => configuredSeaDropCollections({
+    BROKER_AUTOMATION_V3_TARGET_COLLECTIONS: `${first}, ${second}`,
+  }), /invalid directed/);
+  assert.throws(() => configuredSeaDropCollections({
+    BROKER_AUTOMATION_V3_TARGET_COLLECTIONS: "0x1234",
+  }));
+});
+
 test("V3 worker source binds both runtime families and no paid or approval path", async () => {
   const source = await readFile(
     new URL("../scripts/run-automated-seadrop-v3-worker.mjs", import.meta.url),
@@ -60,6 +79,8 @@ test("V3 worker source binds both runtime families and no paid or approval path"
   assert.match(source, /value: 0n/);
   assert.match(source, /buildAutomatedSeaDropV3ExecutionBatch/);
   assert.match(source, /DISCOVERY_COLLECTION_LIMIT = 128/);
+  assert.match(source, /DIRECTED_COLLECTION_LIMIT = 8/);
+  assert.match(source, /BROKER_AUTOMATION_V3_TARGET_COLLECTIONS/);
   assert.match(source, /DISCOVERY_BATCH_SIZE = 8/);
   assert.match(source, /DISCOVERY_RUNTIME_BATCH_SIZE = 4/);
   assert.match(source, /DISCOVERY_BATCH_DELAY_MS = 250/);

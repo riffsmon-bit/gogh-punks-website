@@ -87,6 +87,7 @@ function readClient(url) {
 }
 
 const DISCOVERY_COLLECTION_LIMIT = 128;
+const DIRECTED_COLLECTION_LIMIT = 8;
 const DISCOVERY_BATCH_SIZE = 8;
 const DISCOVERY_RUNTIME_BATCH_SIZE = 4;
 const DISCOVERY_BATCH_DELAY_MS = 250;
@@ -237,6 +238,24 @@ async function recentSeaDropCollections(client, confirmations = 20n) {
     .slice(0, DISCOVERY_COLLECTION_LIMIT);
 }
 
+export function configuredSeaDropCollections(environment = {}) {
+  const raw = environment.BROKER_AUTOMATION_V3_TARGET_COLLECTIONS;
+  if (raw === undefined || raw === "") return null;
+  if (typeof raw !== "string" || raw.trim() !== raw || raw.length > 512) {
+    throw new TypeError("invalid directed SeaDrop collection list");
+  }
+  const entries = raw.split(",");
+  if (entries.length < 1 || entries.length > DIRECTED_COLLECTION_LIMIT
+    || entries.some((entry) => entry === "" || entry.trim() !== entry)) {
+    throw new TypeError("invalid directed SeaDrop collection list");
+  }
+  const normalized = entries.map((entry) => getAddress(entry).toLowerCase());
+  if (new Set(normalized).size !== normalized.length) {
+    throw new TypeError("duplicate directed SeaDrop collection");
+  }
+  return Object.freeze(normalized);
+}
+
 export function selectActiveZeroPriceSeaDropCollections(collections, results, blockTimestamp) {
   if (!Array.isArray(collections) || !Array.isArray(results)
     || collections.length !== results.length || typeof blockTimestamp !== "bigint") {
@@ -369,7 +388,12 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   const database = dependencies.database ?? getDatabase().pool;
   const profiles = await eligibleProfiles(database);
   if (profiles.length === 0) return { status: "NO_AUTONOMOUS_MANDATES", submitted: 0 };
-  const collections = await recentSeaDropCollections(primary);
+  // A reviewed operator may temporarily constrain discovery to a small exact set.
+  // This does not bypass any runtime, public-drop, dual-provider, policy, or simulation
+  // gate below; it only prevents another eligible collection from consuming the Punk's
+  // daily slot before a specifically selected launch.
+  const directedCollections = configuredSeaDropCollections(environment);
+  const collections = directedCollections ?? await recentSeaDropCollections(primary);
   // Use the archive provider for the indexed public-drop reads, then move the much
   // smaller active set to the canonical endpoint for runtime classification. This
   // avoids exhausting either provider's per-second allowance. Every selected target
@@ -377,9 +401,11 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   const candidates = await activeZeroPriceSeaDropCollections(secondary, primary, collections);
   if (candidates.length === 0) return {
     status: "NO_ANALYZED_ACTIVE_TARGETS", submitted: 0,
-    diagnostics: { profiles: profiles.length, recentSeaDropCollections: collections.length, onchainZeroPriceCandidates: 0 },
+    diagnostics: { profiles: profiles.length, recentSeaDropCollections: collections.length,
+      directedTargetCollections: directedCollections?.length ?? 0, onchainZeroPriceCandidates: 0 },
   };
   const diagnostics = rejectionDiagnostics(profiles, collections, candidates);
+  diagnostics.directedTargetCollections = directedCollections?.length ?? 0;
   const registry = getAddress(manifest.contracts.GoghPunkAccountRegistryV3.address);
   const policyModule = getAddress(manifest.contracts.BrokerPolicyModuleV3.address);
   const agent = getAddress(AUTOMATION_V3_AGENT);
