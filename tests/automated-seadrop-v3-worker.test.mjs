@@ -3,8 +3,10 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
+  configuredPrioritySeaDropCollections,
   configuredSeaDropCollections,
   confirmedIntentWindow,
+  mergePrioritySeaDropCollections,
   runAutomatedSeaDropV3Worker,
   selectActiveZeroPriceSeaDropCollections,
   selectReviewedStudioCollections,
@@ -64,6 +66,12 @@ test("V3 directed targets are exact, bounded, and cannot be ambiguous", () => {
   assert.throws(() => configuredSeaDropCollections({
     BROKER_AUTOMATION_V3_TARGET_COLLECTIONS: "0x1234",
   }));
+  assert.deepEqual(configuredPrioritySeaDropCollections({
+    BROKER_AUTOMATION_V3_PRIORITY_COLLECTIONS: second,
+  }), [second]);
+  assert.deepEqual(mergePrioritySeaDropCollections(
+    [second], [first, second],
+  ), [second, first]);
 });
 
 test("V3 worker source binds both runtime families and no paid or approval path", async () => {
@@ -81,6 +89,9 @@ test("V3 worker source binds both runtime families and no paid or approval path"
   assert.match(source, /DISCOVERY_COLLECTION_LIMIT = 128/);
   assert.match(source, /DIRECTED_COLLECTION_LIMIT = 8/);
   assert.match(source, /BROKER_AUTOMATION_V3_TARGET_COLLECTIONS/);
+  assert.match(source, /BROKER_AUTOMATION_V3_PRIORITY_COLLECTIONS/);
+  assert.match(source, /prioritySlotReservations/);
+  assert.match(source, /acquisitionsToday >= liveCap - 1/);
   assert.match(source, /DISCOVERY_BATCH_SIZE = 8/);
   assert.match(source, /DISCOVERY_RUNTIME_BATCH_SIZE = 4/);
   assert.match(source, /DISCOVERY_BATCH_DELAY_MS = 250/);

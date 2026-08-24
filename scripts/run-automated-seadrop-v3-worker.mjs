@@ -64,6 +64,9 @@ const PUBLIC_DROP_ABI = Object.freeze([{
     ],
   }],
 }]);
+const MINT_STATS_ABI = parseAbi([
+  "function getMintStats(address minter) view returns ((uint256 minterNumMinted,uint256 currentTotalSupply,uint256 maxSupply))",
+]);
 
 const CHAIN = {
   id: 4663, name: "Robinhood Chain",
@@ -217,14 +220,19 @@ export function confirmedIntentWindow(nowSeconds, evidenceHorizonSeconds = 30) {
   });
 }
 
-async function eligibleProfiles(pool) {
+async function eligibleProfiles(pool, requestedTokenId = null) {
+  if (requestedTokenId !== null
+    && (typeof requestedTokenId !== "string" || !/^(?:0|[1-9][0-9]{0,3})$/.test(requestedTokenId))) {
+    throw new TypeError("invalid requested Punk token ID");
+  }
   const result = await pool.query(`
     SELECT DISTINCT ON (m.token_id) m.token_id, m.configured_by, m.economic_settings,
            m.risk_settings, m.artistic_preferences
       FROM broker_art_mandates m
      WHERE m.chain_id = $1 AND m.collection_address = $2 AND m.mode = 'AUTONOMOUS'
+       AND ($3::numeric IS NULL OR m.token_id = $3::numeric)
      ORDER BY m.token_id, m.version DESC
-     LIMIT 32`, [4663, ROBINHOOD.canonicalCollection]);
+     LIMIT 32`, [4663, ROBINHOOD.canonicalCollection, requestedTokenId]);
   return result.rows;
 }
 
@@ -238,22 +246,66 @@ async function recentSeaDropCollections(client, confirmations = 20n) {
     .slice(0, DISCOVERY_COLLECTION_LIMIT);
 }
 
-export function configuredSeaDropCollections(environment = {}) {
-  const raw = environment.BROKER_AUTOMATION_V3_TARGET_COLLECTIONS;
+function configuredCollectionList(environment, name, label) {
+  const raw = environment[name];
   if (raw === undefined || raw === "") return null;
   if (typeof raw !== "string" || raw.trim() !== raw || raw.length > 512) {
-    throw new TypeError("invalid directed SeaDrop collection list");
+    throw new TypeError(`invalid ${label} SeaDrop collection list`);
   }
   const entries = raw.split(",");
   if (entries.length < 1 || entries.length > DIRECTED_COLLECTION_LIMIT
     || entries.some((entry) => entry === "" || entry.trim() !== entry)) {
-    throw new TypeError("invalid directed SeaDrop collection list");
+    throw new TypeError(`invalid ${label} SeaDrop collection list`);
   }
   const normalized = entries.map((entry) => getAddress(entry).toLowerCase());
   if (new Set(normalized).size !== normalized.length) {
-    throw new TypeError("duplicate directed SeaDrop collection");
+    throw new TypeError(`duplicate ${label} SeaDrop collection`);
   }
   return Object.freeze(normalized);
+}
+
+export function configuredSeaDropCollections(environment = {}) {
+  return configuredCollectionList(
+    environment, "BROKER_AUTOMATION_V3_TARGET_COLLECTIONS", "directed",
+  );
+}
+
+export function configuredPrioritySeaDropCollections(environment = {}) {
+  return configuredCollectionList(
+    environment, "BROKER_AUTOMATION_V3_PRIORITY_COLLECTIONS", "priority",
+  );
+}
+
+export function mergePrioritySeaDropCollections(priorities = [], discovered = []) {
+  if (!Array.isArray(priorities) || !Array.isArray(discovered)) {
+    throw new TypeError("invalid SeaDrop discovery lists");
+  }
+  return Object.freeze([...new Set([...priorities, ...discovered])]
+    .slice(0, DISCOVERY_COLLECTION_LIMIT));
+}
+
+async function pendingPriorityCollections(primary, secondary, account, priorities) {
+  const pending = [];
+  let readFailures = 0;
+  for (const collection of priorities) {
+    try {
+      const [first, second] = await Promise.all([primary, secondary].map((client) => (
+        client.readContract({
+          address: collection, abi: MINT_STATS_ABI, functionName: "getMintStats",
+          args: [account],
+        })
+      )));
+      const firstMinted = BigInt(field(first, "minterNumMinted", 0));
+      const secondMinted = BigInt(field(second, "minterNumMinted", 0));
+      if (firstMinted !== secondMinted) throw new TypeError("priority mint state disagrees");
+      if (firstMinted === 0n) pending.push(collection);
+    } catch {
+      // A failed or disagreeing read can only narrow execution: reserve the slot.
+      readFailures += 1;
+      pending.push(collection);
+    }
+  }
+  return Object.freeze({ pending: Object.freeze(pending), readFailures });
 }
 
 export function selectActiveZeroPriceSeaDropCollections(collections, results, blockTimestamp) {
@@ -386,14 +438,19 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   const global = await readAutomationV3GlobalState(environment, { clients: [primary, secondary] });
   if (!global.configured || !global.worker.enabled) throw new TypeError("global V3 gate is closed");
   const database = dependencies.database ?? getDatabase().pool;
-  const profiles = await eligibleProfiles(database);
+  const requestedTokenId = dependencies.requestedTokenId ?? null;
+  const profiles = await eligibleProfiles(database, requestedTokenId);
   if (profiles.length === 0) return { status: "NO_AUTONOMOUS_MANDATES", submitted: 0 };
   // A reviewed operator may temporarily constrain discovery to a small exact set.
   // This does not bypass any runtime, public-drop, dual-provider, policy, or simulation
   // gate below; it only prevents another eligible collection from consuming the Punk's
   // daily slot before a specifically selected launch.
   const directedCollections = configuredSeaDropCollections(environment);
-  const collections = directedCollections ?? await recentSeaDropCollections(primary);
+  const priorityCollections = configuredPrioritySeaDropCollections(environment) ?? [];
+  const discoveredCollections = directedCollections === null
+    ? await recentSeaDropCollections(primary) : [];
+  const collections = directedCollections
+    ?? mergePrioritySeaDropCollections(priorityCollections, discoveredCollections);
   // Use the archive provider for the indexed public-drop reads, then move the much
   // smaller active set to the canonical endpoint for runtime classification. This
   // avoids exhausting either provider's per-second allowance. Every selected target
@@ -406,6 +463,9 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   };
   const diagnostics = rejectionDiagnostics(profiles, collections, candidates);
   diagnostics.directedTargetCollections = directedCollections?.length ?? 0;
+  diagnostics.priorityTargetCollections = priorityCollections.length;
+  diagnostics.prioritySlotReservations = 0;
+  diagnostics.priorityStateReadFailures = 0;
   const registry = getAddress(manifest.contracts.GoghPunkAccountRegistryV3.address);
   const policyModule = getAddress(manifest.contracts.BrokerPolicyModuleV3.address);
   const agent = getAddress(AUTOMATION_V3_AGENT);
@@ -416,6 +476,10 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
       diagnostics.missingActivatedAccounts += 1;
       continue;
     }
+    const priorityState = await pendingPriorityCollections(
+      primary, secondary, accountAddress, priorityCollections,
+    );
+    diagnostics.priorityStateReadFailures += priorityState.readFailures;
     for (const collection of candidates) {
       const latestNonce = await primary.readContract({ address: accountAddress, abi: ACCOUNT_ABI, functionName: "acquisitionNonce" });
       const latestPolicy = await primary.readContract({ address: policyModule, abi: POLICY_ABI, functionName: "policy", args: [accountAddress] });
@@ -450,6 +514,14 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
       ]);
       if (!jsonEqual(first, second)) {
         diagnostics.providerStateDisagreements += 1;
+        continue;
+      }
+      const config = field(first.policy, "config", 0);
+      const liveCap = Number(field(config, "maxAcquisitionsPerDay", 7));
+      const acquisitionsToday = Number(field(first.usage, "acquisitionsToday", 1));
+      if (priorityState.pending.length > 0 && !priorityCollections.includes(collection)
+        && acquisitionsToday >= liveCap - 1) {
+        diagnostics.prioritySlotReservations += 1;
         continue;
       }
       const maxFee = (await primary.estimateFeesPerGas()).maxFeePerGas ?? 1n;

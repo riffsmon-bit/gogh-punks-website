@@ -28,6 +28,8 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.match(html, /paid mints/i);
   assert.match(html, /data-v2-worker/);
   assert.match(html, /data-v2-refresh/);
+  assert.match(html, /data-v3-run-now disabled/);
+  assert.match(html, /Run agent now/);
   assert.match(html, /data-v2-refreshed/);
   assert.match(html, /Maximum-coverage live mint settings/);
   assert.match(html, /contract risk 100/);
@@ -55,6 +57,8 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.match(browser, /ACTIVE · SCANNING/);
   assert.match(browser, /heartbeatLabel/);
   assert.match(browser, /automatic check every 30 seconds/);
+  assert.match(browser, /\/api\/broker\/autonomy-v3-run/);
+  assert.match(browser, /NO_ANALYZED_ACTIVE_TARGETS/);
   assert.match(browser, /visibilitychange/);
   assert.match(browser, /addEventListener\?\.\("focus"/);
   assert.match(browser, /refresh: String\(Date\.now\(\)\)/);

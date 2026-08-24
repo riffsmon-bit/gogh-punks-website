@@ -1,0 +1,78 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import { runSelectedAutomationV3 } from
+  "../netlify/functions/broker-autonomy-v3-run.mjs";
+import { runAutomationV3Once } from
+  "../netlify/functions/_shared/automation-v3-runner.mjs";
+
+test("manual V3 run scopes the existing worker to one active Punk", async () => {
+  const calls = [];
+  const result = await runSelectedAutomationV3({ tokenId: "1797" }, {
+    readPunk: async (tokenId) => ({ tokenId, created: true, active: true }),
+    runOnce: async (options) => {
+      calls.push(options);
+      return { status: "NO_ANALYZED_ACTIVE_TARGETS", submitted: 0 };
+    },
+  });
+  assert.deepEqual(calls, [{ requestedTokenId: "1797" }]);
+  assert.deepEqual(result, {
+    tokenId: "1797", status: "NO_ANALYZED_ACTIVE_TARGETS", submitted: 0,
+    collection: null, transactionHash: null,
+  });
+});
+
+test("manual V3 run rejects ambiguity and inactive authority", async () => {
+  await assert.rejects(() => runSelectedAutomationV3({ tokenId: "01797" }, {}),
+    /valid Punk/);
+  await assert.rejects(() => runSelectedAutomationV3({ tokenId: "1797", extra: true }, {}),
+    /valid Punk/);
+  await assert.rejects(() => runSelectedAutomationV3({ tokenId: "1797" }, {
+    readPunk: async (tokenId) => ({ tokenId, created: true, active: false }),
+  }), /not currently authorized/);
+});
+
+test("worker runner holds one global lock and preserves the scoped Punk", async () => {
+  const queries = [];
+  const client = {
+    query: async (sql, values) => {
+      queries.push([sql, values]);
+      return sql.includes("pg_try_advisory_lock") ? { rows: [{ acquired: true }] }
+        : { rows: [{ pg_advisory_unlock: true }] };
+    },
+    release() { queries.push(["release"]); },
+  };
+  const database = { connect: async () => client };
+  const workerCalls = [];
+  const records = [];
+  const result = await runAutomationV3Once({
+    environment: { BROKER_AUTOMATION_V3_WORKER_RELEASE: "a".repeat(40) },
+    database,
+    requestedTokenId: "1797",
+    worker: async (environment, dependencies) => {
+      workerCalls.push([environment, dependencies]);
+      return { status: "NO_ANALYZED_ACTIVE_TARGETS", submitted: 0 };
+    },
+    record: async (...values) => { records.push(values); },
+  });
+  assert.equal(result.status, "NO_ANALYZED_ACTIVE_TARGETS");
+  assert.equal(workerCalls[0][1].requestedTokenId, "1797");
+  assert.equal(records.length, 1);
+  assert.match(queries[0][0], /pg_try_advisory_lock/);
+  assert.match(queries.at(-2)[0], /pg_advisory_unlock/);
+  assert.deepEqual(queries.at(-1), ["release"]);
+});
+
+test("worker runner fails closed when another run holds the lock", async () => {
+  let called = false;
+  const client = {
+    query: async () => ({ rows: [{ acquired: false }] }),
+    release() {},
+  };
+  const result = await runAutomationV3Once({
+    database: { connect: async () => client },
+    worker: async () => { called = true; },
+  });
+  assert.deepEqual(result, { status: "RUN_IN_PROGRESS", submitted: 0 });
+  assert.equal(called, false);
+});

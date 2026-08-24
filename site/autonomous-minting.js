@@ -51,6 +51,8 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
   const refresh = panel.querySelector("[data-v2-refresh]");
   const refreshed = panel.querySelector("[data-v2-refreshed]");
   const setup = panel.querySelector("[data-v2-setup]");
+  const runNow = panel.querySelector("[data-v3-run-now]");
+  const runState = panel.querySelector("[data-v3-run-state]");
   const stop = panel.querySelector("[data-v2-stop]");
   const cap = panel.querySelector("[data-v2-cap]");
   const days = panel.querySelector("[data-v2-days]");
@@ -58,7 +60,8 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
   const message = panel.querySelector("[data-v2-message]");
   const v3Upgrade = panel.querySelector("[data-v3-upgrade]");
   const state = {
-    gate: null, v3Gate: null, version: 2, selection: null, funding: false, refreshing: false,
+    gate: null, v3Gate: null, version: 2, selection: null, funding: false, running: false,
+    refreshing: false,
     lastSyncedAt: null, lastRefreshFailedAt: null, loadSequence: 0,
   };
 
@@ -160,6 +163,8 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     const ready = state.gate?.capability === true
       && state.gate?.setupTransactionAvailable === true && Boolean(state.selection);
     setup.disabled = !ready;
+    runNow.disabled = !agentLive || state.version !== 3 || state.running;
+    runNow.textContent = state.running ? "Agent scan running…" : "Run agent now";
     stop.disabled = !active;
     cap.disabled = state.gate?.capability !== true;
     days.disabled = state.gate?.capability !== true;
@@ -320,6 +325,41 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     }
   }
 
+  async function runAgentNow() {
+    if (state.running || state.version !== 3 || !state.selection?.tokenId) return;
+    state.running = true;
+    render();
+    runState.textContent = "Running the exact V3 target, policy, and simulation checks now…";
+    try {
+      const response = await request("/api/broker/autonomy-v3-run", {
+        method: "POST",
+        headers: { accept: "application/json", "content-type": "application/json" },
+        body: JSON.stringify({ tokenId: state.selection.tokenId }),
+        cache: "no-store",
+      });
+      const payload = await response.json();
+      if (!response.ok && response.status !== 202 || payload?.ok !== true) {
+        throw new Error(payload?.message ?? "The immediate agent run was rejected.");
+      }
+      const outcome = payload.run;
+      runState.textContent = outcome.status === "MINT_CONFIRMED"
+        ? `Mint confirmed: ${outcome.transactionHash}`
+        : outcome.status === "RUN_IN_PROGRESS"
+          ? "A worker scan is already running. Live status will update when it finishes."
+          : outcome.status === "NO_ANALYZED_ACTIVE_TARGETS"
+            ? "Scan complete. The directed mint is not open yet."
+            : outcome.status === "NO_ELIGIBLE_TARGETS"
+              ? "Scan complete. No target passed every live safety and simulation check."
+              : "Scan complete. No transaction was needed.";
+      await load();
+    } catch (error) {
+      runState.textContent = error?.message ?? "The agent scan stopped safely.";
+    } finally {
+      state.running = false;
+      render();
+    }
+  }
+
   browserWindow.addEventListener("gogh:punk-selected", (event) => {
     state.selection = event.detail?.tokenId ? event.detail : null;
     cap.dataset.userEdited = "false";
@@ -343,6 +383,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
       render();
     }
   });
+  runNow.addEventListener("click", runAgentNow);
   agentCopy.addEventListener("click", copyAgentAddress);
   refresh.addEventListener("click", () => { void load(); });
   agentFundConfirm.addEventListener("change", render);
