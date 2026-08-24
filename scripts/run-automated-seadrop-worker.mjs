@@ -132,9 +132,30 @@ function rejectionDiagnostics(profiles, collections, candidates) {
     onchainZeroPriceCandidates: candidates.length,
     missingActivatedAccounts: 0,
     liveScreenRejections: {},
+    executionSimulationRejections: {},
     providerStateDisagreements: 0,
     executionSimulationsPassed: 0,
   };
+}
+
+function recordExecutionSimulationRejection(diagnostics, error) {
+  let current = error;
+  const seen = new Set();
+  let code = "LATEST_ACCOUNT_SIMULATION_FAILED";
+  for (let depth = 0; current && typeof current === "object" && depth < 12; depth += 1) {
+    if (seen.has(current)) break;
+    seen.add(current);
+    for (const key of ["signature", "raw"]) {
+      const value = current[key];
+      if (typeof value === "string" && /^0x[0-9a-fA-F]{8}/.test(value)) {
+        code = `LATEST_ACCOUNT_SIMULATION_REVERT_${value.slice(2, 10).toUpperCase()}`;
+        break;
+      }
+    }
+    current = current.cause;
+  }
+  diagnostics.executionSimulationRejections[code] =
+    (diagnostics.executionSimulationRejections[code] ?? 0) + 1;
 }
 
 function recordLiveScreenRejection(diagnostics, error) {
@@ -337,9 +358,17 @@ export async function runAutomatedSeaDropWorker(environment = process.env, depen
           maxEvidenceAgeSeconds: 30, maxContractRiskScore: Number(row.risk_settings.maxContractRiskScore),
           minimumTasteMatch: Number(row.artistic_preferences.minimumTasteMatch), stopOnFailure: true },
       };
-      const batch = buildAutomatedSeaDropExecutionBatch(profile, liveState(profile, first, screen, maxFee), { nowSeconds });
-      const tx = batch.transactions[0];
-      await primary.call({ account: agent, to: getAddress(tx.to), data: tx.data, value: 0n });
+      let tx;
+      try {
+        const batch = buildAutomatedSeaDropExecutionBatch(
+          profile, liveState(profile, first, screen, maxFee), { nowSeconds },
+        );
+        [tx] = batch.transactions;
+        await primary.call({ account: agent, to: getAddress(tx.to), data: tx.data, value: 0n });
+      } catch (error) {
+        recordExecutionSimulationRejection(diagnostics, error);
+        continue;
+      }
       diagnostics.executionSimulationsPassed += 1;
       if (dependencies.readOnly === true) {
         return {

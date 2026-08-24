@@ -61,6 +61,8 @@ test("worker source fixes the account entry point, zero value, one action, and s
   assert.match(source, /readOnly === true/);
   assert.match(source, /liveScreenRejections/);
   assert.match(source, /executionSimulationsPassed/);
+  assert.match(source, /executionSimulationRejections/);
+  assert.match(source, /LATEST_ACCOUNT_SIMULATION_FAILED/);
   assert.match(source, /1_000_000n/);
   assert.match(source, /selectActiveZeroPriceSeaDropCollections/);
   assert.match(source, /offset \+= 64/);
