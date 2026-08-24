@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { encodeFunctionData, encodeFunctionResult, parseAbi } from "viem";
 import {
+  configuredAutomationPunkIds,
   indexedOwnerPunkIds,
   openSeaOwnerPunkIds,
 } from "../netlify/functions/broker-owner-punks.mjs";
@@ -21,6 +22,18 @@ const ACCOUNT_B = "0x3333333333333333333333333333333333333333";
 const MULTICALL_ABI = parseAbi([
   "function aggregate3((address target,bool allowFailure,bytes callData)[] calls) payable returns ((bool success,bytes returnData)[])",
 ]);
+
+test("configured automation roster supplies bounded discovery hints without authority", () => {
+  assert.deepEqual(configuredAutomationPunkIds({
+    BROKER_AUTOMATION_V3_PUNK_IDS: "1797,1639,1755",
+  }), ["1639", "1755", "1797"]);
+  assert.deepEqual(configuredAutomationPunkIds({}), []);
+  for (const value of ["1797,1797", "1797,01", "1797,10000", " 1797", "1797,"]) {
+    assert.throws(() => configuredAutomationPunkIds({
+      BROKER_AUTOMATION_V3_PUNK_IDS: value,
+    }), /roster/);
+  }
+});
 
 function addressWord(value) {
   return `0x${value.slice(2).padStart(64, "0")}`;

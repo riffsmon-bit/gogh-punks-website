@@ -7,6 +7,7 @@ const OPENSEA_COLLECTION_SLUG = "gogh-punks-255843210";
 const OPENSEA_RESPONSE_BYTES = 1_000_000;
 const OPENSEA_PAGE_LIMIT = 200;
 const OPENSEA_MAX_PAGES = 3;
+const AUTOMATION_ROSTER_LIMIT = 32;
 
 function address(value) {
   return typeof value === "string" && /^0x[0-9a-fA-F]{40}$/.test(value)
@@ -42,6 +43,21 @@ function punkTokenId(value) {
   if (typeof value !== "string" || !/^(0|[1-9]\d{0,3})$/.test(value)) return null;
   const parsed = Number(value);
   return Number.isSafeInteger(parsed) && parsed >= 0 && parsed <= 9_999 ? String(parsed) : null;
+}
+
+export function configuredAutomationPunkIds(environment = process.env) {
+  const raw = environment.BROKER_AUTOMATION_V3_PUNK_IDS;
+  if (raw === undefined || raw === "") return Object.freeze([]);
+  if (typeof raw !== "string" || raw.trim() !== raw || raw.length > 384) {
+    throw new TypeError("automation Punk roster is invalid");
+  }
+  const tokenIds = raw.split(",");
+  if (tokenIds.length < 1 || tokenIds.length > AUTOMATION_ROSTER_LIMIT
+    || tokenIds.some((tokenId) => punkTokenId(tokenId) !== tokenId)
+    || new Set(tokenIds).size !== tokenIds.length) {
+    throw new TypeError("automation Punk roster is invalid");
+  }
+  return Object.freeze([...tokenIds].sort((left, right) => Number(left) - Number(right)));
 }
 
 async function boundedJson(response, source = "Owner candidate") {
@@ -127,6 +143,7 @@ export default async function handler(request) {
   const owner = address(new URL(request.url).searchParams.get("owner"));
   if (!owner) return json({ ok: false, code: "INVALID_OWNER" }, 400);
   try {
+    const automationRoster = configuredAutomationPunkIds();
     const [indexedResult, openSeaResult] = await Promise.allSettled([
       indexedOwnerPunkIds(owner),
       openSeaOwnerPunkIds(owner, { apiKey: process.env.OPENSEA_API_KEY }),
@@ -137,6 +154,7 @@ export default async function handler(request) {
     const candidateTokenIds = [...new Set([
       ...(indexedResult.status === "fulfilled" ? indexedResult.value : []),
       ...(openSeaResult.status === "fulfilled" ? openSeaResult.value : []),
+      ...automationRoster,
     ])].sort((left, right) => Number(left) - Number(right));
     if (candidateTokenIds.length > MAX_CANDIDATES) throw new RangeError("owner candidate set is too large");
     return json({
@@ -148,6 +166,7 @@ export default async function handler(request) {
       candidateSources: Object.freeze({
         indexed: indexedResult.status === "fulfilled",
         openSea: openSeaResult.status === "fulfilled",
+        automationRoster: automationRoster.length > 0,
       }),
       evidence: "DISCOVERY_CANDIDATES_ONLY_EACH_SELECTION_REQUIRES_LIVE_WALLET_OWNER_CHECK",
       activationAuthorized: false,
