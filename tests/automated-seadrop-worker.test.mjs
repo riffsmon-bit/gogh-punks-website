@@ -6,6 +6,7 @@ import {
   confirmedIntentWindow,
   runAutomatedSeaDropWorker,
   selectActiveZeroPriceSeaDropCollections,
+  selectCanonicalCloneCollections,
 } from "../scripts/run-automated-seadrop-worker.mjs";
 
 test("worker anchors its 120-second intent at the confirmed evidence horizon", () => {
@@ -13,6 +14,20 @@ test("worker anchors its 120-second intent at the confirmed evidence horizon", (
   assert.equal(1_090 - 970, 120);
   assert.throws(() => confirmedIntentWindow(30), /invalid confirmed intent time window/);
   assert.throws(() => confirmedIntentWindow(1_000, 31), /invalid confirmed intent time window/);
+});
+
+test("worker prefilter retains only the exact reviewed 45-byte clone runtime", () => {
+  const canonical = "0x363d3d373d3d3d363d7309a26fc8fcef18192e267d7a6da9dfb4be81dd6a5af43d82803e903d91602b57fd5bf3";
+  assert.deepEqual(
+    selectCanonicalCloneCollections(["exact", "wrong", "empty"], [
+      canonical, `${canonical.slice(0, -2)}00`, "0x",
+    ]),
+    ["exact"],
+  );
+  assert.throws(
+    () => selectCanonicalCloneCollections(["exact"], []),
+    /invalid canonical clone evidence/,
+  );
 });
 
 test("worker prefilter selects only currently active native zero-price public drops", () => {
@@ -65,6 +80,7 @@ test("worker source fixes the account entry point, zero value, one action, and s
   assert.match(source, /LATEST_ACCOUNT_SIMULATION_FAILED/);
   assert.match(source, /1_000_000n/);
   assert.match(source, /selectActiveZeroPriceSeaDropCollections/);
+  assert.match(source, /selectCanonicalCloneCollections/);
   assert.match(source, /activeZeroPriceSeaDropCollections\(secondary, collections\)/);
   assert.match(source, /offset \+= 64/);
   assert.doesNotMatch(source, /client\.multicall/);

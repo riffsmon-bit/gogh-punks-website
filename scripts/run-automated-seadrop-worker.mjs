@@ -159,8 +159,28 @@ function recordExecutionSimulationRejection(diagnostics, error) {
 }
 
 function recordLiveScreenRejection(diagnostics, error) {
-  const code = typeof error?.code === "string" && /^[A-Z0-9_]{1,128}$/.test(error.code)
-    ? error.code : "LIVE_SCREEN_FAILED";
+  let current = error;
+  const seen = new Set();
+  let code = "LIVE_SCREEN_FAILED";
+  for (let depth = 0; current && typeof current === "object" && depth < 12; depth += 1) {
+    if (seen.has(current)) break;
+    seen.add(current);
+    if (typeof current.code === "string" && /^[A-Z0-9_]{1,128}$/.test(current.code)) {
+      code = current.code;
+      break;
+    }
+    const status = current.status ?? current.statusCode
+      ?? (Number.isSafeInteger(current.code) ? current.code : undefined);
+    if (Number.isSafeInteger(status) && status >= 100 && status <= 599) {
+      code = `LIVE_SCREEN_HTTP_${status}`;
+      break;
+    }
+    current = current.cause;
+  }
+  if (code === "LIVE_SCREEN_FAILED" && typeof error?.name === "string") {
+    const name = error.name.replaceAll(/[^A-Za-z0-9]/g, "_").toUpperCase();
+    if (/^[A-Z0-9_]{1,96}$/.test(name)) code = `LIVE_SCREEN_${name}`;
+  }
   diagnostics.liveScreenRejections[code] =
     (diagnostics.liveScreenRejections[code] ?? 0) + 1;
 }
@@ -215,6 +235,18 @@ export function selectActiveZeroPriceSeaDropCollections(collections, results, bl
   });
 }
 
+export function selectCanonicalCloneCollections(collections, codes) {
+  if (!Array.isArray(collections) || !Array.isArray(codes)
+    || collections.length !== codes.length) {
+    throw new TypeError("invalid canonical clone evidence");
+  }
+  return collections.filter((collection, index) => {
+    const code = codes[index];
+    return typeof code === "string" && code !== "0x" && (code.length - 2) / 2 === 45
+      && keccak256(code) === COLLECTION_RUNTIME_CODE_HASH;
+  });
+}
+
 async function activeZeroPriceSeaDropCollections(client, collections, confirmations = 20n) {
   if (collections.length === 0) return [];
   const head = await client.getBlockNumber();
@@ -235,7 +267,19 @@ async function activeZeroPriceSeaDropCollections(client, collections, confirmati
       }
     })));
   }
-  return selectActiveZeroPriceSeaDropCollections(collections, results, block.timestamp);
+  const active = selectActiveZeroPriceSeaDropCollections(collections, results, block.timestamp);
+  const codes = [];
+  for (let offset = 0; offset < active.length; offset += 32) {
+    const batch = active.slice(offset, offset + 32);
+    codes.push(...await Promise.all(batch.map(async (collection) => {
+      try {
+        return (await client.getCode({ address: collection, blockNumber })) ?? "0x";
+      } catch {
+        return "0x";
+      }
+    })));
+  }
+  return selectCanonicalCloneCollections(active, codes);
 }
 
 function liveState(profile, state, screen, maxFeePerGasWei) {
