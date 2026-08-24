@@ -151,3 +151,15 @@ test("rejects exposed transport request APIs and hostile input objects", async (
   ), { code: "INVALID_JSON" });
   assert.equal(invoked, 0);
 });
+
+test("reports only the safe four-byte selector for an undecoded simulation revert", async () => {
+  const f = fixture();
+  f.clients.primary.simulateContract = async () => {
+    const cause = new Error("undecoded revert");
+    cause.signature = "0xdeadbeef";
+    throw new Error("simulation failed", { cause });
+  };
+  await assert.rejects(attestAutomatedSeaDropCandidateLive(
+    f.candidate, f.scope, f.endpoints, f.options, f.clients,
+  ), { code: "FULL_ACCOUNT_SIMULATION_REVERT_DEADBEEF" });
+});

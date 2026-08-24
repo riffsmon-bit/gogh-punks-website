@@ -246,6 +246,23 @@ function strictBool(value, label) {
   return value;
 }
 
+function simulationFailureCode(error) {
+  let current = error;
+  const seen = new Set();
+  for (let depth = 0; current && typeof current === "object" && depth < 12; depth += 1) {
+    if (seen.has(current)) break;
+    seen.add(current);
+    for (const key of ["signature", "raw"]) {
+      const value = current[key];
+      if (typeof value === "string" && /^0x[0-9a-fA-F]{8}/.test(value)) {
+        return `FULL_ACCOUNT_SIMULATION_REVERT_${value.slice(2, 10).toUpperCase()}`;
+      }
+    }
+    current = current.cause;
+  }
+  return "FULL_ACCOUNT_SIMULATION_FAILED";
+}
+
 function iso(timestamp) {
   return new Date(Number(timestamp) * 1_000).toISOString();
 }
@@ -327,8 +344,8 @@ async function collectObservation(client, candidate, scope, block, checkedAt) {
   };
   try {
     await client.simulateContract(simulationRequest);
-  } catch {
-    fail("FULL_ACCOUNT_SIMULATION_FAILED", "full Punk Account simulation reverted");
+  } catch (error) {
+    fail(simulationFailureCode(error), "full Punk Account simulation reverted");
   }
   let gasEstimate;
   try {
