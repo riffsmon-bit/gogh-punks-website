@@ -63,6 +63,8 @@ test("worker source fixes the account entry point, zero value, one action, and s
   assert.match(source, /executionSimulationsPassed/);
   assert.match(source, /1_000_000n/);
   assert.match(source, /selectActiveZeroPriceSeaDropCollections/);
+  assert.match(source, /offset \+= 64/);
+  assert.doesNotMatch(source, /client\.multicall/);
   assert.doesNotMatch(source, /analyzedCandidates|mandateThresholdRejections/);
   assert.doesNotMatch(source, /approve\(|setApprovalForAll|execute\(address,uint256,bytes/);
 });

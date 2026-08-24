@@ -198,17 +198,22 @@ async function activeZeroPriceSeaDropCollections(client, collections, confirmati
   if (collections.length === 0) return [];
   const head = await client.getBlockNumber();
   const blockNumber = head - confirmations;
-  const [block, results] = await Promise.all([
-    client.getBlock({ blockNumber }),
-    client.multicall({
-      allowFailure: true,
-      blockNumber,
-      contracts: collections.map((collection) => ({
-        address: getAddress(SEA_DROP), abi: PUBLIC_DROP_ABI,
-        functionName: "getPublicDrop", args: [collection],
-      })),
-    }),
-  ]);
+  const block = await client.getBlock({ blockNumber });
+  const results = [];
+  for (let offset = 0; offset < collections.length; offset += 64) {
+    const batch = collections.slice(offset, offset + 64);
+    results.push(...await Promise.all(batch.map(async (collection) => {
+      try {
+        const result = await client.readContract({
+          address: getAddress(SEA_DROP), abi: PUBLIC_DROP_ABI,
+          functionName: "getPublicDrop", args: [collection], blockNumber,
+        });
+        return { status: "success", result };
+      } catch (error) {
+        return { status: "failure", error };
+      }
+    })));
+  }
   return selectActiveZeroPriceSeaDropCollections(collections, results, block.timestamp);
 }
 
