@@ -59,6 +59,10 @@ test("V3 worker source binds both runtime families and no paid or approval path"
   assert.match(source, /maxMintsPerRun: 1/);
   assert.match(source, /value: 0n/);
   assert.match(source, /buildAutomatedSeaDropV3ExecutionBatch/);
+  assert.match(source, /DISCOVERY_COLLECTION_LIMIT = 128/);
+  assert.match(source, /DISCOVERY_BATCH_SIZE = 8/);
+  assert.match(source, /DISCOVERY_BATCH_DELAY_MS = 250/);
+  assert.match(source, /SeaDrop discovery incomplete/);
   assert.doesNotMatch(source, /approve\(|setApprovalForAll|execute\(address,uint256,bytes/);
 });
 

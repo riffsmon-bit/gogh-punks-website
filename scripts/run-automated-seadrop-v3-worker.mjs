@@ -78,7 +78,20 @@ function httpsUrl(name, value) {
 }
 
 function readClient(url) {
-  return createPublicClient({ chain: CHAIN, transport: http(url, { retryCount: 1, timeout: 10_000 }) });
+  return createPublicClient({
+    chain: CHAIN,
+    transport: http(url, {
+      batch: { batchSize: 20, wait: 5 }, retryCount: 2, retryDelay: 500, timeout: 10_000,
+    }),
+  });
+}
+
+const DISCOVERY_COLLECTION_LIMIT = 128;
+const DISCOVERY_BATCH_SIZE = 8;
+const DISCOVERY_BATCH_DELAY_MS = 250;
+
+function discoveryDelay() {
+  return new Promise((resolve) => setTimeout(resolve, DISCOVERY_BATCH_DELAY_MS));
 }
 
 function readFacade(raw, url) {
@@ -219,7 +232,8 @@ async function recentSeaDropCollections(client, confirmations = 20n) {
   const fromBlock = toBlock > 1_000_000n ? toBlock - 1_000_000n : 0n;
   const logs = await client.getLogs({ address: getAddress(SEA_DROP), event: PUBLIC_DROP_UPDATED_EVENT, fromBlock, toBlock });
   return [...new Set(logs.toReversed()
-    .map((log) => getAddress(log.args.nftContract).toLowerCase()))].slice(0, 512);
+    .map((log) => getAddress(log.args.nftContract).toLowerCase()))]
+    .slice(0, DISCOVERY_COLLECTION_LIMIT);
 }
 
 export function selectActiveZeroPriceSeaDropCollections(collections, results, blockTimestamp) {
@@ -257,8 +271,8 @@ async function activeZeroPriceSeaDropCollections(client, collections, confirmati
   const blockNumber = head - confirmations;
   const block = await client.getBlock({ blockNumber });
   const results = [];
-  for (let offset = 0; offset < collections.length; offset += 64) {
-    const batch = collections.slice(offset, offset + 64);
+  for (let offset = 0; offset < collections.length; offset += DISCOVERY_BATCH_SIZE) {
+    const batch = collections.slice(offset, offset + DISCOVERY_BATCH_SIZE);
     results.push(...await Promise.all(batch.map(async (collection) => {
       try {
         const result = await client.readContract({
@@ -270,20 +284,32 @@ async function activeZeroPriceSeaDropCollections(client, collections, confirmati
         return { status: "failure", error };
       }
     })));
+    await discoveryDelay();
   }
   const active = selectActiveZeroPriceSeaDropCollections(collections, results, block.timestamp);
+  const publicDropReadFailures = results.filter((entry) => entry.status === "failure").length;
+  if (active.length === 0 && publicDropReadFailures > 0) {
+    throw new TypeError(`SeaDrop discovery incomplete: ${publicDropReadFailures} public-drop reads failed`);
+  }
   const codes = [];
-  for (let offset = 0; offset < active.length; offset += 32) {
-    const batch = active.slice(offset, offset + 32);
+  let codeReadFailures = 0;
+  for (let offset = 0; offset < active.length; offset += DISCOVERY_BATCH_SIZE) {
+    const batch = active.slice(offset, offset + DISCOVERY_BATCH_SIZE);
     codes.push(...await Promise.all(batch.map(async (collection) => {
       try {
         return (await client.getCode({ address: collection, blockNumber })) ?? "0x";
       } catch {
+        codeReadFailures += 1;
         return "0x";
       }
     })));
+    await discoveryDelay();
   }
-  return selectReviewedStudioCollections(active, codes);
+  const reviewed = selectReviewedStudioCollections(active, codes);
+  if (reviewed.length === 0 && codeReadFailures > 0) {
+    throw new TypeError(`SeaDrop discovery incomplete: ${codeReadFailures} runtime reads failed`);
+  }
+  return reviewed;
 }
 
 function liveState(profile, state, screen, maxFeePerGasWei) {
@@ -346,7 +372,10 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   // Keep the wide discovery fan-out off the public canonical endpoint. Every
   // selected target is still independently re-read and simulated by both clients.
   const candidates = await activeZeroPriceSeaDropCollections(secondary, collections);
-  if (candidates.length === 0) return { status: "NO_ANALYZED_ACTIVE_TARGETS", submitted: 0 };
+  if (candidates.length === 0) return {
+    status: "NO_ANALYZED_ACTIVE_TARGETS", submitted: 0,
+    diagnostics: { profiles: profiles.length, recentSeaDropCollections: collections.length, onchainZeroPriceCandidates: 0 },
+  };
   const diagnostics = rejectionDiagnostics(profiles, collections, candidates);
   const registry = getAddress(manifest.contracts.GoghPunkAccountRegistryV3.address);
   const policyModule = getAddress(manifest.contracts.BrokerPolicyModuleV3.address);
