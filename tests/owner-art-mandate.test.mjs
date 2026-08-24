@@ -103,6 +103,11 @@ function browserFixture() {
     removeEventListener() {},
   };
   const save = { disabled: true, textContent: "" };
+  const presetListeners = {};
+  const maximumCoverage = {
+    addEventListener: (name, handler) => { presetListeners[name] = handler; },
+    removeEventListener() {},
+  };
   const state = { textContent: "", dataset: {} };
   const badge = {
     textContent: "",
@@ -120,6 +125,7 @@ function browserFixture() {
         "[data-mandate-state]": state,
         "[data-mandate-badge]": badge,
         "[data-mandate-punk-heading]": heading,
+        "[data-mandate-maximum-coverage]": maximumCoverage,
       })[selector] ?? null;
     },
     querySelectorAll: () => outputs,
@@ -140,8 +146,38 @@ function browserFixture() {
     removeEventListener() {},
   };
   return { values, formListeners, windowListeners, documentObject, windowObject,
-    providerCalls, save, state };
+    providerCalls, save, state, presetListeners };
 }
+
+test("maximum-coverage preset remains zero-price and requires a later owner signature", () => {
+  const fixture = browserFixture();
+  setupMandateEditor({ ...fixture, fetchFunction: async () => { throw new Error("unused"); } });
+  fixture.presetListeners.click();
+  assert.equal(fixture.values.mode.value, "AUTONOMOUS");
+  assert.equal(fixture.values.inspectMints.checked, true);
+  assert.equal(fixture.values.allowFreeMints.checked, true);
+  assert.equal(fixture.values.maxMintsPerDay.value, "10");
+  assert.equal(fixture.values.maxContractRiskScore.value, "100");
+  assert.equal(fixture.values.minimumTasteMatch.value, "0");
+  assert.match(fixture.state.textContent, /review them, then sign and save/i);
+  assert.equal(fixture.providerCalls.length, 0);
+});
+
+test("choosing autonomous mode automatically applies compatible screening thresholds", () => {
+  const fixture = browserFixture();
+  setupMandateEditor({ ...fixture, fetchFunction: async () => { throw new Error("unused"); } });
+  fixture.values.mode.value = "AUTONOMOUS";
+  fixture.values.inspectMints.checked = false;
+  fixture.values.allowFreeMints.checked = false;
+  fixture.values.maxMintsPerDay.value = "0";
+  fixture.formListeners.input({ target: { name: "mode" } });
+  assert.equal(fixture.values.inspectMints.checked, true);
+  assert.equal(fixture.values.allowFreeMints.checked, true);
+  assert.equal(fixture.values.maxMintsPerDay.value, "1");
+  assert.equal(fixture.values.unknownMintMode.value, "SCOUT_ONLY");
+  assert.equal(fixture.values.maxContractRiskScore.value, "100");
+  assert.equal(fixture.values.minimumTasteMatch.value, "0");
+});
 
 test("browser editor requires the live owner and saves with personal_sign only", async () => {
   const fixture = browserFixture();

@@ -26,9 +26,10 @@ test("automation panel exposes only the reviewed V2 setup and stop sequence", as
   assert.match(html, /data-v2-worker/);
   assert.match(html, /data-v2-refresh/);
   assert.match(html, /data-v2-refreshed/);
-  assert.match(html, /Recommended live mint settings/);
-  assert.match(html, /maximum contract risk 75/);
-  assert.match(html, /minimum Taste Match 10/);
+  assert.match(html, /Maximum-coverage live mint settings/);
+  assert.match(html, /contract risk 100/);
+  assert.match(html, /minimum Taste Match 0/);
+  assert.match(html, /data-mandate-maximum-coverage/);
   assert.match(html, /Fund the hosted automation agent/);
   assert.match(html, /does not pay hosted-worker gas/i);
   assert.match(html, /data-v2-agent-full/);

@@ -94,6 +94,7 @@ export function setupMandateEditor({ windowObject, documentObject, fetchFunction
   const badge = browserDocument.querySelector("[data-mandate-badge]");
   const summary = browserDocument.querySelector("[data-mandate-summary]");
   const heading = browserDocument.querySelector("[data-mandate-punk-heading]");
+  const maximumCoverage = browserDocument.querySelector("[data-mandate-maximum-coverage]");
   let wallet = browserWindow.__GOGH_WALLET_SNAPSHOT__ ?? null;
   let pending = false;
   let version = null;
@@ -125,13 +126,18 @@ export function setupMandateEditor({ windowObject, documentObject, fetchFunction
     stateTarget.dataset.mandateStatus = status ?? (ready ? "ready" : "locked");
   }
 
-  function syncOutputs() {
+  function syncOutputs(event = null) {
     const mode = form.elements.namedItem("mode");
     if (mode?.value === "AUTONOMOUS") {
       form.elements.namedItem("inspectMints").checked = true;
       form.elements.namedItem("allowFreeMints").checked = true;
       const dailyLimit = form.elements.namedItem("maxMintsPerDay");
       if (dailyLimit.value === "0") dailyLimit.value = "1";
+      if (event?.target?.name === "mode") {
+        form.elements.namedItem("unknownMintMode").value = "SCOUT_ONLY";
+        form.elements.namedItem("maxContractRiskScore").value = "100";
+        form.elements.namedItem("minimumTasteMatch").value = "0";
+      }
     }
     for (const output of browserDocument.querySelectorAll("[data-mandate-value]")) {
       const input = form.elements.namedItem(output.dataset.mandateValue);
@@ -161,6 +167,18 @@ export function setupMandateEditor({ windowObject, documentObject, fetchFunction
         ? `${action} Paid mints, unknown-collection execution, approvals, and selling stay disabled.`
         : `${action} Paid mints and autonomous execution stay disabled.`;
     }
+  }
+
+  function applyMaximumCoverage() {
+    form.elements.namedItem("mode").value = "AUTONOMOUS";
+    form.elements.namedItem("inspectMints").checked = true;
+    form.elements.namedItem("allowFreeMints").checked = true;
+    form.elements.namedItem("maxMintsPerDay").value = "10";
+    form.elements.namedItem("unknownMintMode").value = "SCOUT_ONLY";
+    form.elements.namedItem("maxContractRiskScore").value = "100";
+    form.elements.namedItem("minimumTasteMatch").value = "0";
+    syncOutputs();
+    render("Maximum-coverage values are filled in. Review them, then sign and save the preference.", "ready");
   }
 
   async function load(tokenId) {
@@ -283,6 +301,7 @@ export function setupMandateEditor({ windowObject, documentObject, fetchFunction
 
   form.addEventListener("input", syncOutputs);
   form.addEventListener("submit", submit);
+  maximumCoverage?.addEventListener("click", applyMaximumCoverage);
   browserWindow.addEventListener("gogh:wallet-state", walletChanged);
   browserWindow.addEventListener("gogh:mandate-punk-selected", punkSelected);
   render();
@@ -292,6 +311,7 @@ export function setupMandateEditor({ windowObject, documentObject, fetchFunction
     destroy() {
       form.removeEventListener("input", syncOutputs);
       form.removeEventListener("submit", submit);
+      maximumCoverage?.removeEventListener("click", applyMaximumCoverage);
       browserWindow.removeEventListener("gogh:wallet-state", walletChanged);
       browserWindow.removeEventListener("gogh:mandate-punk-selected", punkSelected);
     },
