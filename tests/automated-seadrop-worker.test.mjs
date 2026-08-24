@@ -65,6 +65,7 @@ test("worker source fixes the account entry point, zero value, one action, and s
   assert.match(source, /LATEST_ACCOUNT_SIMULATION_FAILED/);
   assert.match(source, /1_000_000n/);
   assert.match(source, /selectActiveZeroPriceSeaDropCollections/);
+  assert.match(source, /activeZeroPriceSeaDropCollections\(secondary, collections\)/);
   assert.match(source, /offset \+= 64/);
   assert.doesNotMatch(source, /client\.multicall/);
   assert.doesNotMatch(source, /analyzedCandidates|mandateThresholdRejections/);

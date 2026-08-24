@@ -295,7 +295,9 @@ export async function runAutomatedSeaDropWorker(environment = process.env, depen
   const profiles = await eligibleProfiles(database);
   if (profiles.length === 0) return { status: "NO_AUTONOMOUS_MANDATES", submitted: 0 };
   const collections = await recentSeaDropCollections(primary);
-  const candidates = await activeZeroPriceSeaDropCollections(primary, collections);
+  // Keep the wide discovery fan-out off the public canonical endpoint. Every
+  // selected target is still independently re-read and simulated by both clients.
+  const candidates = await activeZeroPriceSeaDropCollections(secondary, collections);
   if (candidates.length === 0) return { status: "NO_ANALYZED_ACTIVE_TARGETS", submitted: 0 };
   const diagnostics = rejectionDiagnostics(profiles, collections, candidates);
   const registry = getAddress(manifest.contracts.GoghPunkAccountRegistryV2.address);
