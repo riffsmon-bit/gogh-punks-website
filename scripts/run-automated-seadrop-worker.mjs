@@ -141,6 +141,22 @@ function recordLiveScreenRejection(diagnostics, error) {
     (diagnostics.liveScreenRejections[code] ?? 0) + 1;
 }
 
+export function confirmedIntentWindow(nowSeconds, evidenceHorizonSeconds = 30) {
+  if (!Number.isSafeInteger(nowSeconds) || nowSeconds <= evidenceHorizonSeconds
+    || !Number.isSafeInteger(evidenceHorizonSeconds) || evidenceHorizonSeconds < 1
+    || evidenceHorizonSeconds > 30) {
+    throw new TypeError("invalid confirmed intent time window");
+  }
+  // The live screen executes at a confirmed historical block. Starting the intent at the
+  // wall clock would make it appear future-dated at that block and force every simulation
+  // to revert. Keep the exact 120-second lifetime while anchoring its start to the oldest
+  // block timestamp the screen is allowed to accept.
+  return Object.freeze({
+    createdAt: nowSeconds - evidenceHorizonSeconds,
+    expiresAt: nowSeconds + (120 - evidenceHorizonSeconds),
+  });
+}
+
 async function eligibleProfiles(pool) {
   const result = await pool.query(`
     SELECT DISTINCT ON (m.token_id) m.token_id, m.configured_by, m.economic_settings,
@@ -256,6 +272,7 @@ export async function runAutomatedSeaDropWorker(environment = process.env, depen
       const latestNonce = await primary.readContract({ address: accountAddress, abi: ACCOUNT_ABI, functionName: "acquisitionNonce" });
       const latestPolicy = await primary.readContract({ address: policyModule, abi: POLICY_ABI, functionName: "policy", args: [accountAddress] });
       const nowSeconds = Math.floor(Date.now() / 1_000);
+      const intentWindow = confirmedIntentWindow(nowSeconds);
       const candidate = {
         collection: target.collection_address, opportunityId: keccak256(stringToHex(`seadrop:${target.collection_address}:${target.id}`)),
         reasoningHash: keccak256(stringToHex(`analyzed-zero-price-seadrop:${target.id}:${risk}:${tasteMatch}`)),
@@ -266,7 +283,7 @@ export async function runAutomatedSeaDropWorker(environment = process.env, depen
         adapter: manifest.contracts.AutomatedSeaDropFreeMintAdapter.address,
         adapterCodeHash: manifest.contracts.AutomatedSeaDropFreeMintAdapter.runtimeBytecodeHash,
         nonce: BigInt(latestNonce).toString(), policyVersion: BigInt(field(latestPolicy, "version", 2)).toString(),
-        createdAt: String(nowSeconds), expiresAt: String(nowSeconds + 120),
+        createdAt: String(intentWindow.createdAt), expiresAt: String(intentWindow.expiresAt),
       };
       let screen;
       try {

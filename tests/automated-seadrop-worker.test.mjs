@@ -2,7 +2,17 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { runAutomatedSeaDropWorker } from "../scripts/run-automated-seadrop-worker.mjs";
+import {
+  confirmedIntentWindow,
+  runAutomatedSeaDropWorker,
+} from "../scripts/run-automated-seadrop-worker.mjs";
+
+test("worker anchors its 120-second intent at the confirmed evidence horizon", () => {
+  assert.deepEqual(confirmedIntentWindow(1_000), { createdAt: 970, expiresAt: 1_090 });
+  assert.equal(1_090 - 970, 120);
+  assert.throws(() => confirmedIntentWindow(30), /invalid confirmed intent time window/);
+  assert.throws(() => confirmedIntentWindow(1_000, 31), /invalid confirmed intent time window/);
+});
 
 test("hosted worker is disabled by default and requires the exact published signer", async () => {
   assert.deepEqual(await runAutomatedSeaDropWorker({}), { status: "DISABLED", submitted: 0 });
