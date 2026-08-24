@@ -14,6 +14,7 @@ import {
   encodeOwnerOfMulticall,
   findBrowserOwnedPunks,
   mergeWalletAndActivatedPunks,
+  selectedPunkGalleryPath,
 } from "../site/owner-accounts.js";
 
 const OWNER = "0x1234567890123456789012345678901234567890";
@@ -185,6 +186,16 @@ test("picker UI selects a live-verified Punk while preserving manual entry", asy
   assert.match(accounts, /Copy V1 wallet address/);
   assert.match(accounts, /Legacy V1 Punk wallet/);
   assert.match(accounts, /https:\/\/opensea\.io\/\$\{item\.account\}/);
+  assert.match(accounts, /data-selected-gallery-link/);
+  assert.doesNotMatch(accounts, /new Set\(\["1639", "1797"/);
+  assert.doesNotMatch(html, /href="\/punk\/1797"/);
+  assert.doesNotMatch(html, /OWNER ONLY/);
   assert.doesNotMatch(accounts, /accounts\.find\(\(\{ tokenId \}\) => tokenId === "1797"\)/);
   assert.doesNotMatch(endpoint, /eth_send|privateKey|mnemonic/);
+});
+
+test("selected gallery navigation uses only the wallet-chosen Punk", () => {
+  assert.equal(selectedPunkGalleryPath("93"), "/punk/93");
+  assert.equal(selectedPunkGalleryPath("0"), "/punk/0");
+  assert.throws(() => selectedPunkGalleryPath("01797"));
 });

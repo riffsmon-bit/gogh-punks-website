@@ -192,7 +192,7 @@
                   <button class="action-button mandate-save" type="submit" data-mandate-save disabled>Choose one of your Punks</button>
               <p class="mandate-state" data-mandate-state aria-live="polite">Loading the latest saved preferences…</p>
             </form>
-                <p class="locked-note">Saving requests a message signature—not a transaction. An autonomous profile becomes active only when its matching on-chain policy, reviewed target adapter, permissions, gas limits, and agent authorization are configured. There is deliberately no unlimited option. View a completed autonomous acquisition in <a href="/punk/1797#external-free-mint-title">Punk #1797’s activity ↗</a>.</p>
+                <p class="locked-note">Saving requests a message signature—not a transaction. An autonomous profile becomes active only when its matching on-chain policy, reviewed target adapter, permissions, gas limits, and agent authorization are configured. There is deliberately no unlimited option. <a href="#owner-workspace-title" data-selected-gallery-link aria-disabled="true">Choose a Punk to open its activity and gallery</a>.</p>
           </article>
           <article class="panel">
             <div class="panel-header"><h3>Curator identity</h3><span class="tag">Persistent</span></div>
@@ -232,8 +232,8 @@
                 <p class="locked-note">Changing the cap does not activate an account, enable a feature, approve a target, or authorize an agent. If autonomy is already active, raising the cap permits more acquisitions under the permissions that are already live.</p>
               </article>
               <article class="panel">
-                <div class="panel-header"><h3>Fund or recover the Punk wallet</h3><span class="tag">OWNER ONLY</span></div>
-                <p>Deposit sends native ETH only to the selected deterministic Punk Account. This funds owner-directed account actions; it does <strong>not</strong> fund the hosted autonomous worker. Withdraw calls that account’s fixed owner-only <code>execute</code> method and sends native ETH only back to the currently connected owner.</p>
+                <div class="panel-header"><h3>Fund or recover the Punk wallet</h3><span class="tag">CURRENT HOLDER</span></div>
+                <p>Deposit sends native ETH only to the selected deterministic Punk Account. This funds holder-directed account actions; it does <strong>not</strong> fund the hosted autonomous worker. Withdraw calls that account’s fixed current-holder <code>execute</code> method and returns native ETH only to the connected wallet after live ownership verification.</p>
                 <label class="mandate-field"><span>Amount in ETH</span><input data-policy-funds-amount inputmode="decimal" placeholder="0.001" autocomplete="off" /></label>
                 <label class="canary-confirmation"><input type="checkbox" data-policy-funds-confirm /> I reviewed the selected Punk, account address, amount, and direction.</label>
                 <div class="workspace-actions owner-fund-actions"><button class="action-button" type="button" data-policy-deposit disabled>Deposit to Punk Account</button><button class="action-button secondary-action" type="button" data-policy-withdraw disabled>Withdraw to current owner</button></div>
@@ -315,10 +315,10 @@
             <p class="workflow-help">Review what Scout found and what each Punk actually collected. This public data is separate from connected-wallet ownership and never selects a Punk for you.</p>
             <div class="workspace-actions" aria-label="Research and results links">
               <a class="action-link" href="/discover/">Browse Scout discoveries</a>
-              <a class="action-link" href="/punk/1797" data-scout-gallery-link>Open Punk activity and gallery</a>
+              <a class="action-link" href="#owner-workspace-title" data-selected-gallery-link aria-disabled="true">Choose a Punk to open its activity and gallery</a>
             </div>
             <div class="metric-grid public-scout-metrics">
-              <article class="metric"><span>Public Scout Punk</span><strong data-public-scout-token-display>—</strong><small>Hosted site configuration</small></article>
+              <article class="metric"><span>Selected Punk gallery</span><strong data-public-scout-token-display>—</strong><small>Follows your wallet-derived selection</small></article>
               <article class="metric"><span>Discoveries</span><strong data-opportunity-count>0</strong><small>Historical signals</small></article>
               <article class="metric"><span>Recommendations</span><strong data-recommendation-count>0</strong><small>Read-only Scout</small></article>
               <article class="metric"><span>NFT artwork</span><strong data-metadata-count>0</strong><small>Sanitized metadata</small></article>

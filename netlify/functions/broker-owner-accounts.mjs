@@ -24,9 +24,7 @@ function address(value) {
 
 export function requestedTokenIds(url) {
   const values = new URL(url).searchParams.get("tokens")?.split(",") ?? [];
-  // These two accounts are independently confirmed by the deployed canary records. Keep them as
-  // live-check hints even after their activation events age out of the bounded log window.
-  const unique = new Set(["1639", "1797"]);
+  const unique = new Set();
   for (const value of values) {
     if (unique.size >= MAX_REQUESTED_TOKENS + 1) break;
     const token = value.trim();
@@ -110,7 +108,7 @@ export default async function handler(request) {
       collection: ROBINHOOD.canonicalCollection,
       owner,
       observedBlock: result.blockNumber,
-      evidenceScope: "KNOWN_SCOUT_PLUS_RECENT_100000_BLOCK_ACTIVATIONS_PLUS_REQUESTED_TOKENS",
+      evidenceScope: "RECENT_100000_BLOCK_ACTIVATIONS_PLUS_REQUESTED_TOKENS",
       activatedPunks: result.accounts,
       autonomyEnabled: false,
     }, 200, { "cache-control": "private, no-store" });

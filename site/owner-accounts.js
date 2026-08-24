@@ -154,6 +154,14 @@ export async function copyPunkAccountAddress(navigatorObject, value) {
   return account;
 }
 
+export function selectedPunkGalleryPath(tokenId) {
+  const value = String(tokenId ?? "");
+  if (!/^(0|[1-9]\d{0,3})$/.test(value)) {
+    throw new TypeError("Selected Punk token ID is invalid");
+  }
+  return `/punk/${encodeURIComponent(value)}`;
+}
+
 export function renderOwnerAccounts(container, accounts) {
   container.replaceChildren();
   if (!accounts.length) {
@@ -291,9 +299,7 @@ export async function findBrowserOwnerAccounts(provider, gate, owner, hints = []
   if (!provider?.request || gate?.capability !== true || !normalizedOwner
     || !normalizedAddress(bindings?.punkCollection)
     || !normalizedAddress(bindings?.accountRegistry)) throw new Error("live gate unavailable");
-  // Punk #1639's confirmed autonomous-canary activation is older than the bounded log scan. It is
-  // only a discovery hint: live owner, derived account, and deployed code are still rechecked.
-  const candidates = new Set(["1639", "1797", ...hints]);
+  const candidates = new Set(hints);
   try {
     const headHex = await provider.request({ method: "eth_blockNumber" });
     const head = BigInt(headHex);
@@ -402,6 +408,20 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
     browserDocument.querySelectorAll("[data-selected-punk-display]").forEach((target) => {
       target.textContent = tokenId ? `#${tokenId}` : "—";
     });
+    browserDocument.querySelectorAll("[data-selected-gallery-link]").forEach((target) => {
+      if (tokenId) {
+        target.href = selectedPunkGalleryPath(tokenId);
+        target.textContent = `Open Punk #${tokenId} activity and gallery`;
+        target.removeAttribute("aria-disabled");
+      } else {
+        target.href = "#owner-workspace-title";
+        target.textContent = "Choose a Punk to open its activity and gallery";
+        target.setAttribute("aria-disabled", "true");
+      }
+    });
+    browserDocument.querySelectorAll("[data-public-scout-token-display]").forEach((target) => {
+      target.textContent = tokenId ? `#${tokenId}` : "—";
+    });
   }
 
   function selectPunk(tokenId = "") {
@@ -412,7 +432,12 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
         control.value = item?.tokenId ?? "";
       }
     }
-    if (!item) return;
+    if (!item) {
+      browserWindow.dispatchEvent(new browserWindow.CustomEvent("gogh:punk-selected", {
+        detail: Object.freeze({ tokenId: null, account: null, activated: false, owner: null }),
+      }));
+      return;
+    }
     const wallet = browserWindow.__GOGH_WALLET_SNAPSHOT__ ?? null;
     const detail = Object.freeze({
       tokenId: item.tokenId,
@@ -463,13 +488,12 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
         // The bounded server and local candidates remain available and are each rechecked live.
       }
       const remembered = knownTokenIds(browserWindow.localStorage);
-      const candidates = [...new Set([
-        "1639", "1797", ...remembered, ...indexed, ...walletOwned,
-      ])];
+      const candidates = [...new Set([...remembered, ...indexed, ...walletOwned])];
       let accounts;
       if (walletOwned.length > 0) {
         const activated = await findBrowserOwnerAccounts(browserWindow.ethereum,
-          gatePayload.activationGate, wallet.account, [...remembered, ...indexed]);
+          gatePayload.activationGate, wallet.account,
+          [...remembered, ...indexed, ...walletOwned]);
         accounts = mergeWalletAndActivatedPunks(walletOwned, activated, wallet.account);
       } else {
         accounts = await findBrowserOwnedPunks(browserWindow.ethereum,

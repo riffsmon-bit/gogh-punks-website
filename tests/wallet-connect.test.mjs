@@ -20,7 +20,7 @@ test("wallet values are strictly normalized for Robinhood Chain", () => {
   assert.equal(normalizeWalletAddress(`${OWNER}00`), null);
 });
 
-test("wallet presentation distinguishes owner, public viewer, and wrong network", () => {
+test("wallet presentation follows the selected Punk instead of a hosted default", () => {
   const owner = { address: OWNER, tokenId: "4242" };
   const verified = walletPresentation({
     available: true,
@@ -30,8 +30,8 @@ test("wallet presentation distinguishes owner, public viewer, and wrong network"
     owner,
   });
   assert.equal(verified.state, "owner");
-  assert.match(verified.statusText, /Matches the indexed owner of Punk #4242/);
-  assert.match(verified.statusText, /live authority is rechecked for every gated owner action/);
+  assert.match(verified.statusText, /Punk #4242 selected/);
+  assert.match(verified.statusText, /live ownership verified/);
 
   const viewer = walletPresentation({
     available: true,
@@ -41,7 +41,7 @@ test("wallet presentation distinguishes owner, public viewer, and wrong network"
     owner,
   });
   assert.equal(viewer.state, "viewer");
-  assert.match(viewer.statusText, /public view/);
+  assert.match(viewer.statusText, /not its current holder/);
 
   const wrongNetwork = walletPresentation({
     available: true,
@@ -109,7 +109,12 @@ test("provider access begins only after a click and remains read-only", async ()
   await button.click();
   assert.deepEqual(calls, ["eth_requestAccounts", "eth_chainId"]);
   assert.equal(button.dataset.walletStatus, "owner");
-  assert.match(status.textContent, /Matches the indexed owner/);
+  assert.match(status.textContent, /Punk #4242 selected/);
+
+  windowListeners.get("gogh:punk-selected")({
+    detail: { owner: OWNER, tokenId: "93" },
+  });
+  assert.match(status.textContent, /Punk #93 selected/);
 
   providerListeners.get("chainChanged")("0x1");
   assert.equal(button.dataset.walletStatus, "wrong-network");

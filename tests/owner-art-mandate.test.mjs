@@ -277,7 +277,8 @@ test("broker mandate UI distinguishes autonomous preference from on-chain readin
   assert.match(html, /matching on-chain policy, reviewed target adapter, permissions, gas limits, and agent authorization/);
   assert.match(html, /10 — high-volume hard maximum/);
   assert.match(html, /There is deliberately no unlimited option/);
-  assert.match(html, /\/punk\/1797#external-free-mint-title/);
+  assert.match(html, /data-selected-gallery-link/);
+  assert.doesNotMatch(html, /\/punk\/1797#external-free-mint-title/);
   assert.match(html, /Define the operating profile/);
   assert.match(html, /separate on-chain policy remains the final authority/);
 });

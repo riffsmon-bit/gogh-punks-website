@@ -96,12 +96,12 @@ test("owner account discovery merges recent activation logs with requested Punk 
   assert.equal(result.accounts[1].account, ACCOUNT_1797);
 });
 
-test("requested account token hints are strict, bounded, and always include Scout Punk", () => {
+test("requested account token hints are strict, bounded, and contain no hosted default", () => {
   const tokens = requestedTokenIds("https://example.test/api?tokens=1639,01,9999,10000,nope");
-  assert.deepEqual([...tokens], ["1639", "1797", "9999"]);
+  assert.deepEqual([...tokens], ["1639", "9999"]);
 });
 
-test("browser wallet fallback discovers recent activation and the confirmed canary", async () => {
+test("browser wallet fallback discovers only recent or explicitly requested activations", async () => {
   const provider = {
     async request({ method, params = [] }) {
       if (method === "eth_chainId") return "0x1237";
@@ -123,7 +123,7 @@ test("browser wallet fallback discovers recent activation and the confirmed cana
     punkCollection: ROBINHOOD.canonicalCollection, accountRegistry: REGISTRY,
   } };
   const accounts = await findBrowserOwnerAccounts(provider, gate, OWNER, []);
-  assert.deepEqual(accounts.map(({ tokenId }) => tokenId), ["1639", "1797"]);
+  assert.deepEqual(accounts.map(({ tokenId }) => tokenId), ["1639"]);
   const status = {
     protocol: { deploymentStatus: "DEPLOYED", accountRegistry: REGISTRY },
     chain: { canonicalCollection: ROBINHOOD.canonicalCollection },

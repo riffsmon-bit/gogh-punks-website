@@ -188,7 +188,9 @@ async function loadStatus() {
   try {
     const response = await fetch("/api/broker/status", { headers: { accept: "application/json" } });
     const payload = await response.json();
-    if (payload.scoutStatus?.punk && payload.scoutStatus?.tokenId !== undefined) {
+    const ownerWorkspace = Boolean(document.querySelector("[data-workspace-punk-picker]"));
+    if (!ownerWorkspace && payload.scoutStatus?.punk
+      && payload.scoutStatus?.tokenId !== undefined) {
       publishOwnerSnapshot(
         payload.scoutStatus.punk,
         payload.scoutStatus.tokenId,
@@ -226,11 +228,13 @@ async function loadStatus() {
     document.querySelectorAll("[data-scout-token-id]").forEach((target) => {
       target.textContent = payload.scoutStatus?.tokenId ?? "—";
     });
-    document.querySelectorAll("[data-public-scout-token-display]").forEach((target) => {
-      target.textContent = payload.scoutStatus?.tokenId
-        ? `#${payload.scoutStatus.tokenId}`
-        : "—";
-    });
+    if (!ownerWorkspace) {
+      document.querySelectorAll("[data-public-scout-token-display]").forEach((target) => {
+        target.textContent = payload.scoutStatus?.tokenId
+          ? `#${payload.scoutStatus.tokenId}`
+          : "—";
+      });
+    }
     document.querySelectorAll("[data-opportunity-count]").forEach((target) => {
       target.textContent = String(payload.scoutStatus?.opportunityCount ?? 0);
     });
@@ -240,7 +244,7 @@ async function loadStatus() {
     document.querySelectorAll("[data-metadata-count]").forEach((target) => {
       target.textContent = String(payload.scoutStatus?.metadataCount ?? 0);
     });
-    if (payload.scoutStatus?.tokenId) {
+    if (!ownerWorkspace && payload.scoutStatus?.tokenId) {
       document.querySelectorAll("[data-scout-gallery-link]").forEach((target) => {
         target.href = `/punk/${encodeURIComponent(payload.scoutStatus.tokenId)}`;
       });

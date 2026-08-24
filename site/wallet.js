@@ -60,7 +60,7 @@ export function walletPresentation({ available, pending, account, chainId, owner
   if (!ownerAddress) {
     return {
       buttonLabel: shortAddress,
-      statusText: `${shortAddress} connected · Robinhood Chain · ownership data unavailable · owner actions remain gated`,
+      statusText: `${shortAddress} connected to Robinhood Chain · choose a Punk below`,
       state: "connected",
       disabled: true,
     };
@@ -68,14 +68,14 @@ export function walletPresentation({ available, pending, account, chainId, owner
   if (ownerAddress === account) {
     return {
       buttonLabel: shortAddress,
-      statusText: `Matches the indexed owner of ${tokenLabel} · live authority is rechecked for every gated owner action`,
+      statusText: `${tokenLabel} selected · live ownership verified for ${shortAddress}`,
       state: "owner",
       disabled: true,
     };
   }
   return {
     buttonLabel: shortAddress,
-    statusText: `${shortAddress} connected · public view · not the indexed owner of ${tokenLabel}`,
+    statusText: `${tokenLabel} selected · this connected address is not its current holder`,
     state: "viewer",
     disabled: true,
   };
@@ -159,11 +159,13 @@ export function setupReadOnlyWallet({ windowObject, documentObject } = {}) {
 
   function handleAccountsChanged(accounts) {
     state.account = firstValidAccount(accounts);
+    state.owner = null;
     render();
   }
 
   function handleChainChanged(chainId) {
     state.chainId = parseWalletChainId(chainId);
+    state.owner = null;
     render();
   }
 
@@ -187,6 +189,17 @@ export function setupReadOnlyWallet({ windowObject, documentObject } = {}) {
     }
   }
 
+  function handlePunkSelection(event) {
+    const detail = event?.detail ?? {};
+    const address = normalizeWalletAddress(detail.owner);
+    const tokenId = typeof detail.tokenId === "string" && /^(0|[1-9]\d*)$/.test(detail.tokenId)
+      ? detail.tokenId : null;
+    state.owner = address && tokenId
+      ? { address, tokenId, source: "selection" }
+      : null;
+    render();
+  }
+
   for (const button of buttons) button.addEventListener("click", connect);
   if (typeof provider?.on === "function") {
     provider.on("accountsChanged", handleAccountsChanged);
@@ -194,6 +207,7 @@ export function setupReadOnlyWallet({ windowObject, documentObject } = {}) {
     provider.on("disconnect", handleDisconnect);
   }
   browserWindow.addEventListener("gogh:owner-snapshot", handleOwnerSnapshot);
+  browserWindow.addEventListener("gogh:punk-selected", handlePunkSelection);
   handleOwnerSnapshot({ detail: browserWindow.__GOGH_OWNER_SNAPSHOT__ });
   render();
 
@@ -207,6 +221,7 @@ export function setupReadOnlyWallet({ windowObject, documentObject } = {}) {
         provider.removeListener("disconnect", handleDisconnect);
       }
       browserWindow.removeEventListener("gogh:owner-snapshot", handleOwnerSnapshot);
+      browserWindow.removeEventListener("gogh:punk-selected", handlePunkSelection);
     },
   };
 }
