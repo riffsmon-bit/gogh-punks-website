@@ -65,7 +65,12 @@ function requiredHttps(name, value) {
 }
 
 function client(url) {
-  return createPublicClient({ transport: http(url, { retryCount: 1, timeout: 8_000 }) });
+  return createPublicClient({
+    transport: http(url, {
+      batch: { batchSize: 5, wait: 25 }, retryCount: 3, retryDelay: 1_000,
+      timeout: 12_000,
+    }),
+  });
 }
 
 function tuple(value, key, index) {

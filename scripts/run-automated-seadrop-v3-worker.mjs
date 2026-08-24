@@ -85,7 +85,11 @@ function readClient(url) {
   return createPublicClient({
     chain: CHAIN,
     transport: http(url, {
-      batch: { batchSize: 20, wait: 5 }, retryCount: 2, retryDelay: 500, timeout: 10_000,
+      // Public RPCs can omit responses from large mixed batches even when they
+      // accept the HTTP request. Small batches plus bounded retries keep the
+      // worker inside free-provider throughput without weakening dual reads.
+      batch: { batchSize: 5, wait: 25 }, retryCount: 3, retryDelay: 1_000,
+      timeout: 12_000,
     }),
   });
 }
