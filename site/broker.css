@@ -104,6 +104,8 @@ button { font: inherit; }
 .action-button:hover,
 .action-button:focus-visible { border-color: var(--gold); background: rgba(218, 167, 55, 0.12); }
 .wallet-button:disabled { cursor: default; }
+.wallet-switch-button { border-color: rgba(237, 130, 108, 0.7); color: var(--risk); }
+.wallet-switch-button[hidden] { display: none; }
 .wallet-button[data-wallet-status="owner"] { border-color: rgba(54, 200, 182, 0.55); color: var(--teal); }
 .wallet-button[data-wallet-status="wrong-network"] { border-color: rgba(237, 130, 108, 0.55); color: var(--risk); }
 .wallet-state {

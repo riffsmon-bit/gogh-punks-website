@@ -6,7 +6,7 @@ import {
   AUTOMATION_V3_AGENT, readAutomationV3GlobalState, readAutomationV3PunkState,
 } from "./_shared/autonomy-v3-live.mjs";
 import {
-  getAutomationV3WorkerHeartbeat, workerHeartbeatIsCurrent,
+  getAutomationV3UsageStats, getAutomationV3WorkerHeartbeat, workerHeartbeatIsCurrent,
 } from "./_shared/automation-v3-worker-state.mjs";
 
 const CONTRACT_NAMES = Object.freeze([
@@ -116,9 +116,10 @@ export default async function handler(request) {
     try {
       const params = new URL(request.url).searchParams;
       const tokenId = params.get("tokenId");
-      const [live, heartbeat] = await Promise.all([
+      const [live, heartbeat, usage] = await Promise.all([
         readAutomationV3GlobalState(),
         getAutomationV3WorkerHeartbeat().catch(() => null),
+        getAutomationV3UsageStats().catch(() => null),
       ]);
       if (tokenId !== null) punk = await readAutomationV3PunkState(tokenId);
       const globallyReady = live.configured === true && live.worker.enabled === true;
@@ -144,6 +145,7 @@ export default async function handler(request) {
         },
         live: { adapterRegistered: live.adapter.active, featureFlagsEnabled: live.configured, globalAgentApproved: live.agent.approved, workerEnabled: live.worker.enabled, workerOnline },
         heartbeat: heartbeat ? { ...heartbeat, online: workerOnline } : null,
+        usage,
         punk,
       });
     } catch {

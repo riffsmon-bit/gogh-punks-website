@@ -66,6 +66,10 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
   const badge = panel.querySelector("[data-v2-badge]");
   const message = panel.querySelector("[data-v2-message]");
   const v3Upgrade = panel.querySelector("[data-v3-upgrade]");
+  const usageMints = panel.querySelector("[data-v3-usage-mints]");
+  const usageMintsDetail = panel.querySelector("[data-v3-usage-mints-detail]");
+  const usagePunks = panel.querySelector("[data-v3-usage-punks]");
+  const usageWallets = panel.querySelector("[data-v3-usage-wallets]");
   const state = {
     gate: null, v3Gate: null, version: 2, selection: null, funding: false, running: false,
     refreshing: false,
@@ -136,6 +140,13 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
   }
 
   function render() {
+    const publicUsage = state.v3Gate?.usage;
+    usageMints.textContent = publicUsage?.confirmedMints ?? "—";
+    usagePunks.textContent = publicUsage?.mintingPunks ?? "—";
+    usageWallets.textContent = publicUsage?.autonomousPreferenceWallets ?? "—";
+    usageMintsDetail.textContent = publicUsage?.trackedSince
+      ? `Hosted history tracked since ${new Date(publicUsage.trackedSince).toLocaleDateString()}`
+      : "Aggregate hosted-worker history becomes available after its first recorded run";
     if (v3Upgrade) {
       v3Upgrade.textContent = state.version === 3
         ? "V3 is active: exact reviewed OpenSea Studio clone and full-contract runtimes are supported."

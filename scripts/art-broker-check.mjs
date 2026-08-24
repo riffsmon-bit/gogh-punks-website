@@ -89,9 +89,11 @@ for (const [name, enabled] of Object.entries(deployment.featureFlags)) {
 
 const brokerClient = readFileSync(resolve(root, "site/broker.js"), "utf8");
 const walletClient = readFileSync(resolve(root, "site/wallet.js"), "utf8");
-for (const requiredReadOnlyWalletAction of ["eth_requestAccounts", "eth_chainId"]) {
-  if (!walletClient.includes(requiredReadOnlyWalletAction)) {
-    throw new Error(`read-only wallet client is missing ${requiredReadOnlyWalletAction}`);
+for (const requiredWalletAction of [
+  "eth_requestAccounts", "eth_chainId", "wallet_switchEthereumChain", "wallet_addEthereumChain",
+]) {
+  if (!walletClient.includes(requiredWalletAction)) {
+    throw new Error(`wallet client is missing ${requiredWalletAction}`);
   }
 }
 for (const forbiddenWalletAction of [
@@ -99,11 +101,9 @@ for (const forbiddenWalletAction of [
   "eth_sign",
   "personal_sign",
   "wallet_requestPermissions",
-  "wallet_switchEthereumChain",
-  "wallet_addEthereumChain",
 ]) {
   if (`${brokerClient}\n${walletClient}`.includes(forbiddenWalletAction)) {
-    throw new Error(`undeployed broker client exposes ${forbiddenWalletAction}`);
+    throw new Error(`wallet connection client exposes ${forbiddenWalletAction}`);
   }
 }
 

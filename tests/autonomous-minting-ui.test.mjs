@@ -28,6 +28,10 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.match(html, /One ERC-721 per transaction/i);
   assert.match(html, /paid mints/i);
   assert.match(html, /data-v2-worker/);
+  assert.match(html, /data-v3-usage-mints/);
+  assert.match(html, /data-v3-usage-punks/);
+  assert.match(html, /data-v3-usage-wallets/);
+  assert.match(html, /Punks are not people/);
   assert.match(html, /data-v2-refresh/);
   assert.match(html, /data-v3-run-now disabled/);
   assert.match(html, /Send selected agent now/);
@@ -61,6 +65,9 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.match(browser, /disableAutomatedSeaDropPolicy|stopTransactions/i);
   assert.match(browser, /ACTIVE · SCANNING/);
   assert.match(browser, /heartbeatLabel/);
+  assert.match(browser, /publicUsage\?\.confirmedMints/);
+  assert.match(browser, /publicUsage\?\.mintingPunks/);
+  assert.match(browser, /publicUsage\?\.autonomousPreferenceWallets/);
   assert.match(browser, /automatic check every 30 seconds/);
   assert.match(browser, /\/api\/broker\/autonomy-v3-run/);
   assert.match(browser, /NO_ANALYZED_ACTIVE_TARGETS/);

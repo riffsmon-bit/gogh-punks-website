@@ -3,9 +3,11 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   ROBINHOOD_CHAIN_ID,
+  ROBINHOOD_CHAIN_CONFIGURATION,
   normalizeWalletAddress,
   parseWalletChainId,
   setupReadOnlyWallet,
+  switchWalletToRobinhoodChain,
   walletPresentation,
 } from "../site/wallet.js";
 
@@ -62,6 +64,7 @@ class FakeElement {
     this.textContent = "";
     this.title = "";
     this.disabled = false;
+    this.hidden = false;
   }
 
   addEventListener(type, listener) { this.listeners.set(type, listener); }
@@ -84,6 +87,7 @@ test("provider access begins only after a click and remains read-only", async ()
     removeListener(type) { providerListeners.delete(type); },
   };
   const button = new FakeElement();
+  const switchButton = new FakeElement();
   const status = new FakeElement();
   const windowListeners = new Map();
   const windowObject = {
@@ -94,6 +98,7 @@ test("provider access begins only after a click and remains read-only", async ()
   const documentObject = {
     querySelectorAll(selector) {
       if (selector === "[data-wallet-connect]") return [button];
+      if (selector === "[data-wallet-switch]") return [switchButton];
       if (selector === "[data-wallet-state]") return [status];
       return [];
     },
@@ -118,18 +123,54 @@ test("provider access begins only after a click and remains read-only", async ()
 
   providerListeners.get("chainChanged")("0x1");
   assert.equal(button.dataset.walletStatus, "wrong-network");
+  assert.equal(switchButton.hidden, false);
   providerListeners.get("accountsChanged")([]);
   assert.equal(button.dataset.walletStatus, "disconnected");
   assert.equal(button.disabled, false);
   controller.destroy();
 });
 
-test("browser wallet code contains no signing, switching, approval, or transaction request", async () => {
+test("the network helper switches exactly to Robinhood and adds only the reviewed chain fallback", async () => {
+  const calls = [];
+  const provider = {
+    async request(payload) {
+      calls.push(payload);
+      if (payload.method === "wallet_switchEthereumChain" && calls.length === 1) {
+        const error = new Error("unknown chain");
+        error.code = 4902;
+        throw error;
+      }
+      if (payload.method === "wallet_addEthereumChain") return null;
+      if (payload.method === "eth_chainId") return "0x1237";
+      throw new Error("unexpected request");
+    },
+  };
+  assert.equal(await switchWalletToRobinhoodChain(provider), 4663);
+  assert.deepEqual(calls, [
+    { method: "wallet_switchEthereumChain", params: [{ chainId: "0x1237" }] },
+    {
+      method: "wallet_addEthereumChain",
+      params: [{
+        chainId: "0x1237",
+        chainName: "Robinhood Chain",
+        nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+        rpcUrls: ["https://rpc.mainnet.chain.robinhood.com"],
+        blockExplorerUrls: ["https://robinhoodchain.blockscout.com"],
+      }],
+    },
+    { method: "eth_chainId" },
+  ]);
+  assert.equal(ROBINHOOD_CHAIN_CONFIGURATION.chainId, "0x1237");
+});
+
+test("browser wallet code contains no signing, approval, or transaction request", async () => {
   const source = await readFile(new URL("../site/wallet.js", import.meta.url), "utf8");
   assert.doesNotMatch(
     source,
-    /eth_sendTransaction|eth_sign|personal_sign|wallet_switchEthereumChain|wallet_addEthereumChain|wallet_requestPermissions/,
+    /eth_sendTransaction|eth_sign|personal_sign|wallet_requestPermissions/,
   );
   assert.match(source, /method: "eth_requestAccounts"/);
   assert.match(source, /method: "eth_chainId"/);
+  assert.match(source, /method: "wallet_switchEthereumChain"/);
+  assert.match(source, /method: "wallet_addEthereumChain"/);
 });

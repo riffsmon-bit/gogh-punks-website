@@ -26,6 +26,7 @@
       </nav>
       <div class="wallet-control">
         <button class="wallet-button" type="button" data-wallet-connect>Connect wallet</button>
+        <button class="wallet-button wallet-switch-button" type="button" data-wallet-switch hidden>Switch to Robinhood Chain</button>
         <span class="wallet-state" data-wallet-state aria-live="polite">Wallet disconnected · no automatic signatures or transactions</span>
       </div>
     </header>
@@ -272,6 +273,9 @@
               <article class="metric"><span>Hosted gas payer</span><strong data-v2-agent>CHECKING</strong><small data-v2-agent-balance>Live balance unavailable</small></article>
               <article class="metric"><span>Per-mint payment</span><strong>0 ETH</strong><small>Gas only · paid mints remain blocked</small></article>
               <article class="metric automation-worker-metric"><span>Hosted agent</span><strong data-v2-worker>CHECKING</strong><small data-v2-worker-detail>Waiting for a verified worker heartbeat</small><button class="status-refresh-button" type="button" data-v2-refresh>Refresh live status</button><small data-v2-refreshed aria-live="polite">Page has not synced yet</small></article>
+              <article class="metric"><span>Confirmed autonomous mints</span><strong data-v3-usage-mints>—</strong><small data-v3-usage-mints-detail>Aggregate hosted-worker history</small></article>
+              <article class="metric"><span>Punk agents that have minted</span><strong data-v3-usage-punks>—</strong><small>Privacy-preserving aggregate · Punks are not people</small></article>
+              <article class="metric"><span>Wallets requesting autonomy</span><strong data-v3-usage-wallets>—</strong><small>Saved preference only · not proof of authorization</small></article>
             </div>
             <aside class="automation-gas-card" aria-labelledby="automation-gas-title">
               <div>

@@ -27,6 +27,33 @@ function rowValue(row, snake, camel) {
   return row?.[snake] ?? row?.[camel] ?? null;
 }
 
+function count(value, name) {
+  const normalized = String(value);
+  if (!/^(?:0|[1-9][0-9]*)$/.test(normalized)) throw new TypeError(`${name} is invalid`);
+  return normalized;
+}
+
+function optionalIso(value, name) {
+  return value == null ? null : iso(value, name);
+}
+
+export function workerUsageFromRow(row) {
+  if (!row) return null;
+  return Object.freeze({
+    confirmedMints: count(rowValue(row, "confirmed_mints", "confirmedMints"), "confirmedMints"),
+    mintingPunks: count(rowValue(row, "minting_punks", "mintingPunks"), "mintingPunks"),
+    autonomousPreferenceWallets: count(
+      rowValue(row, "autonomous_preference_wallets", "autonomousPreferenceWallets"),
+      "autonomousPreferenceWallets",
+    ),
+    recordedRuns: count(rowValue(row, "recorded_runs", "recordedRuns"), "recordedRuns"),
+    trackedSince: optionalIso(rowValue(row, "tracked_since", "trackedSince"), "trackedSince"),
+    latestConfirmedAt: optionalIso(
+      rowValue(row, "latest_confirmed_at", "latestConfirmedAt"), "latestConfirmedAt",
+    ),
+  });
+}
+
 export function workerHeartbeatFromRow(row) {
   if (!row) return null;
   const heartbeat = {
@@ -86,7 +113,15 @@ export async function recordAutomationV3WorkerHeartbeat(result, options = {}) {
   }
   const database = options.database ?? getDatabase().pool;
   const query = await database.query(
-    `INSERT INTO broker_automation_v3_worker_state
+    `WITH recorded AS (
+       INSERT INTO broker_automation_v3_worker_runs
+        (release_commit, started_at, completed_at, status, submitted,
+         punk_token_id, account_address, collection_address, transaction_hash, failure_code)
+       VALUES ($1, $2, $3, $4, $5, $6::numeric, $7, $8, $9, $10)
+       ON CONFLICT DO NOTHING
+       RETURNING run_id
+     )
+     INSERT INTO broker_automation_v3_worker_state
       (singleton_id, release_commit, started_at, completed_at, status, submitted,
        punk_token_id, account_address, collection_address, transaction_hash, failure_code)
      VALUES (1, $1, $2, $3, $4, $5, $6::numeric, $7, $8, $9, $10)
@@ -114,4 +149,31 @@ export async function getAutomationV3WorkerHeartbeat(options = {}) {
     `SELECT * FROM broker_automation_v3_worker_state WHERE singleton_id = 1 LIMIT 1`,
   );
   return workerHeartbeatFromRow(result.rows[0]);
+}
+
+export async function getAutomationV3UsageStats(options = {}) {
+  const database = options.database ?? getDatabase().pool;
+  const result = await database.query(
+    `WITH latest_mandates AS (
+       SELECT DISTINCT ON (chain_id, collection_address, token_id)
+              configured_by, mode
+         FROM broker_art_mandates
+        WHERE chain_id = 4663
+        ORDER BY chain_id, collection_address, token_id, version DESC
+     ), worker_stats AS (
+       SELECT COUNT(*) FILTER (WHERE status = 'MINT_CONFIRMED') AS confirmed_mints,
+              COUNT(DISTINCT punk_token_id) FILTER (WHERE status = 'MINT_CONFIRMED') AS minting_punks,
+              COUNT(*) AS recorded_runs,
+              MIN(completed_at) AS tracked_since,
+              MAX(completed_at) FILTER (WHERE status = 'MINT_CONFIRMED') AS latest_confirmed_at
+         FROM broker_automation_v3_worker_runs
+     ), preference_stats AS (
+       SELECT COUNT(DISTINCT configured_by) FILTER (WHERE mode = 'AUTONOMOUS')
+                AS autonomous_preference_wallets
+         FROM latest_mandates
+     )
+     SELECT worker_stats.*, preference_stats.autonomous_preference_wallets
+       FROM worker_stats CROSS JOIN preference_stats`,
+  );
+  return workerUsageFromRow(result.rows[0]);
 }

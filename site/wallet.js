@@ -1,4 +1,12 @@
 export const ROBINHOOD_CHAIN_ID = 4663;
+export const ROBINHOOD_CHAIN_HEX = "0x1237";
+export const ROBINHOOD_CHAIN_CONFIGURATION = Object.freeze({
+  chainId: ROBINHOOD_CHAIN_HEX,
+  chainName: "Robinhood Chain",
+  nativeCurrency: Object.freeze({ name: "Ether", symbol: "ETH", decimals: 18 }),
+  rpcUrls: Object.freeze(["https://rpc.mainnet.chain.robinhood.com"]),
+  blockExplorerUrls: Object.freeze(["https://robinhoodchain.blockscout.com"]),
+});
 
 export function normalizeWalletAddress(value) {
   return typeof value === "string" && /^0x[0-9a-fA-F]{40}$/.test(value)
@@ -90,12 +98,47 @@ function firstValidAccount(accounts) {
   return null;
 }
 
+export async function switchWalletToRobinhoodChain(provider) {
+  if (!provider?.request) throw new TypeError("An EVM wallet is required.");
+  try {
+    await provider.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: ROBINHOOD_CHAIN_HEX }],
+    });
+  } catch (error) {
+    if (error?.code !== 4902 && error?.code !== "4902") throw error;
+    await provider.request({
+      method: "wallet_addEthereumChain",
+      params: [{
+        chainId: ROBINHOOD_CHAIN_CONFIGURATION.chainId,
+        chainName: ROBINHOOD_CHAIN_CONFIGURATION.chainName,
+        nativeCurrency: { ...ROBINHOOD_CHAIN_CONFIGURATION.nativeCurrency },
+        rpcUrls: [...ROBINHOOD_CHAIN_CONFIGURATION.rpcUrls],
+        blockExplorerUrls: [...ROBINHOOD_CHAIN_CONFIGURATION.blockExplorerUrls],
+      }],
+    });
+  }
+  let chainId = await provider.request({ method: "eth_chainId" });
+  if (parseWalletChainId(chainId) !== ROBINHOOD_CHAIN_ID) {
+    await provider.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: ROBINHOOD_CHAIN_HEX }],
+    });
+    chainId = await provider.request({ method: "eth_chainId" });
+  }
+  if (parseWalletChainId(chainId) !== ROBINHOOD_CHAIN_ID) {
+    throw new Error("The wallet did not switch to Robinhood Chain.");
+  }
+  return ROBINHOOD_CHAIN_ID;
+}
+
 export function setupReadOnlyWallet({ windowObject, documentObject } = {}) {
   const browserWindow = windowObject ?? (typeof window === "undefined" ? null : window);
   const browserDocument = documentObject ?? (typeof document === "undefined" ? null : document);
   if (!browserWindow || !browserDocument) return null;
 
   const buttons = [...browserDocument.querySelectorAll("[data-wallet-connect]")];
+  const switchButtons = [...browserDocument.querySelectorAll("[data-wallet-switch]")];
   const statusTargets = [...browserDocument.querySelectorAll("[data-wallet-state]")];
   if (!buttons.length) return null;
 
@@ -105,6 +148,8 @@ export function setupReadOnlyWallet({ windowObject, documentObject } = {}) {
     account: null,
     chainId: null,
     owner: null,
+    switching: false,
+    networkError: null,
   };
 
   function render() {
@@ -123,8 +168,16 @@ export function setupReadOnlyWallet({ windowObject, documentObject } = {}) {
       button.title = state.account ?? presentation.buttonLabel;
     }
     for (const target of statusTargets) {
-      target.textContent = presentation.statusText;
+      target.textContent = state.switching
+        ? "Waiting for the wallet to switch to Robinhood Chain (4663)…"
+        : state.networkError ?? presentation.statusText;
       target.dataset.walletStatus = presentation.state;
+    }
+    for (const switchButton of switchButtons) {
+      switchButton.hidden = presentation.state !== "wrong-network" && !state.switching;
+      switchButton.disabled = state.switching;
+      switchButton.textContent = state.switching ? "Switching network…" : "Switch to Robinhood Chain";
+      switchButton.setAttribute("aria-disabled", String(state.switching));
     }
     const detail = Object.freeze({
       account: state.account,
@@ -136,6 +189,21 @@ export function setupReadOnlyWallet({ windowObject, documentObject } = {}) {
     if (typeof browserWindow.dispatchEvent === "function"
       && typeof browserWindow.CustomEvent === "function") {
       browserWindow.dispatchEvent(new browserWindow.CustomEvent("gogh:wallet-state", { detail }));
+    }
+  }
+
+  async function switchNetwork() {
+    if (!provider?.request || state.switching || !state.account) return;
+    state.switching = true;
+    state.networkError = null;
+    render();
+    try {
+      state.chainId = await switchWalletToRobinhoodChain(provider);
+    } catch {
+      state.networkError = "Network switch was cancelled or unavailable. Select Robinhood Chain (4663) in the wallet and retry.";
+    } finally {
+      state.switching = false;
+      render();
     }
   }
 
@@ -166,6 +234,7 @@ export function setupReadOnlyWallet({ windowObject, documentObject } = {}) {
   function handleChainChanged(chainId) {
     state.chainId = parseWalletChainId(chainId);
     state.owner = null;
+    state.networkError = null;
     render();
   }
 
@@ -201,6 +270,7 @@ export function setupReadOnlyWallet({ windowObject, documentObject } = {}) {
   }
 
   for (const button of buttons) button.addEventListener("click", connect);
+  for (const button of switchButtons) button.addEventListener("click", switchNetwork);
   if (typeof provider?.on === "function") {
     provider.on("accountsChanged", handleAccountsChanged);
     provider.on("chainChanged", handleChainChanged);
@@ -213,8 +283,10 @@ export function setupReadOnlyWallet({ windowObject, documentObject } = {}) {
 
   return {
     connect,
+    switchNetwork,
     destroy() {
       for (const button of buttons) button.removeEventListener("click", connect);
+      for (const button of switchButtons) button.removeEventListener("click", switchNetwork);
       if (typeof provider?.removeListener === "function") {
         provider.removeListener("accountsChanged", handleAccountsChanged);
         provider.removeListener("chainChanged", handleChainChanged);
