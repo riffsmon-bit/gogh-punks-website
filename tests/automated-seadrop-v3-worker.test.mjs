@@ -87,6 +87,8 @@ test("V3 worker source binds both runtime families and no paid or approval path"
   assert.match(source, /value: 0n/);
   assert.match(source, /buildAutomatedSeaDropV3ExecutionBatch/);
   assert.match(source, /DISCOVERY_COLLECTION_LIMIT = 128/);
+  assert.match(source, /DISCOVERY_LOG_CHUNK_SIZE = 50_000n/);
+  assert.match(source, /collections\.size < DISCOVERY_COLLECTION_LIMIT/);
   assert.match(source, /DIRECTED_COLLECTION_LIMIT = 8/);
   assert.match(source, /BROKER_AUTOMATION_V3_TARGET_COLLECTIONS/);
   assert.match(source, /BROKER_AUTOMATION_V3_PRIORITY_COLLECTIONS/);

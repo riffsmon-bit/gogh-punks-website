@@ -91,6 +91,7 @@ function readClient(url) {
 
 const DISCOVERY_COLLECTION_LIMIT = 128;
 const DIRECTED_COLLECTION_LIMIT = 8;
+const DISCOVERY_LOG_CHUNK_SIZE = 50_000n;
 const DISCOVERY_BATCH_SIZE = 8;
 const DISCOVERY_RUNTIME_BATCH_SIZE = 4;
 const DISCOVERY_BATCH_DELAY_MS = 250;
@@ -240,10 +241,24 @@ async function recentSeaDropCollections(client, confirmations = 20n) {
   const head = await client.getBlockNumber();
   const toBlock = head - confirmations;
   const fromBlock = toBlock > 1_000_000n ? toBlock - 1_000_000n : 0n;
-  const logs = await client.getLogs({ address: getAddress(SEA_DROP), event: PUBLIC_DROP_UPDATED_EVENT, fromBlock, toBlock });
-  return [...new Set(logs.toReversed()
-    .map((log) => getAddress(log.args.nftContract).toLowerCase()))]
-    .slice(0, DISCOVERY_COLLECTION_LIMIT);
+  const collections = new Set();
+  let cursor = toBlock;
+  while (cursor >= fromBlock && collections.size < DISCOVERY_COLLECTION_LIMIT) {
+    const chunkFrom = cursor - fromBlock + 1n > DISCOVERY_LOG_CHUNK_SIZE
+      ? cursor - DISCOVERY_LOG_CHUNK_SIZE + 1n : fromBlock;
+    const logs = await client.getLogs({
+      address: getAddress(SEA_DROP), event: PUBLIC_DROP_UPDATED_EVENT,
+      fromBlock: chunkFrom, toBlock: cursor,
+    });
+    for (const log of logs.toReversed()) {
+      collections.add(getAddress(log.args.nftContract).toLowerCase());
+      if (collections.size >= DISCOVERY_COLLECTION_LIMIT) break;
+    }
+    if (chunkFrom === fromBlock) break;
+    cursor = chunkFrom - 1n;
+    await discoveryDelay();
+  }
+  return [...collections];
 }
 
 function configuredCollectionList(environment, name, label) {
