@@ -145,6 +145,15 @@ function shortAddress(value) {
   return `${value.slice(0, 8)}…${value.slice(-6)}`;
 }
 
+export async function copyPunkAccountAddress(navigatorObject, value) {
+  const account = normalizedAddress(value);
+  if (!account || typeof navigatorObject?.clipboard?.writeText !== "function") {
+    throw new TypeError("Punk Account address cannot be copied");
+  }
+  await navigatorObject.clipboard.writeText(account);
+  return account;
+}
+
 export function renderOwnerAccounts(container, accounts) {
   container.replaceChildren();
   if (!accounts.length) {
@@ -186,7 +195,35 @@ export function renderOwnerAccounts(container, accounts) {
     account.rel = "noopener noreferrer";
     account.textContent = `${shortAddress(item.account)} ↗`;
     account.title = item.account;
-    identity.append(eyebrow, title, label, account);
+    const actions = document.createElement("div");
+    actions.className = "owner-account-actions";
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.className = "status-refresh-button";
+    copy.textContent = "Copy wallet address";
+    copy.setAttribute("aria-label", `Copy Punk #${item.tokenId} wallet address`);
+    copy.addEventListener("click", async () => {
+      copy.disabled = true;
+      try {
+        await copyPunkAccountAddress(container.ownerDocument?.defaultView?.navigator,
+          item.account);
+        copy.textContent = "Address copied";
+      } catch {
+        copy.textContent = "Copy unavailable";
+      }
+      container.ownerDocument?.defaultView?.setTimeout?.(() => {
+        copy.textContent = "Copy wallet address";
+        copy.disabled = false;
+      }, 1_800);
+    });
+    const openSea = document.createElement("a");
+    openSea.className = "status-refresh-button owner-account-opensea";
+    openSea.href = `https://opensea.io/${item.account}`;
+    openSea.target = "_blank";
+    openSea.rel = "noopener noreferrer";
+    openSea.textContent = "View NFTs on OpenSea ↗";
+    actions.append(copy, openSea);
+    identity.append(eyebrow, title, label, account, actions);
     const badge = document.createElement("span");
     badge.className = "tag";
     badge.classList.toggle("off", !item.activated);
@@ -302,6 +339,38 @@ export async function findBrowserOwnerAccounts(provider, gate, owner, hints = []
   )).sort((left, right) => Number(left.tokenId) - Number(right.tokenId));
 }
 
+export function mergeWalletAndActivatedPunks(walletOwned, activated, owner) {
+  const normalizedOwner = normalizedAddress(owner);
+  if (!normalizedOwner || !Array.isArray(walletOwned) || !Array.isArray(activated)
+    || walletOwned.length > 200 || activated.length > 200) {
+    throw new TypeError("Punk account merge input is invalid");
+  }
+  const activatedById = new Map();
+  for (const item of activated) {
+    if (!item || !/^(0|[1-9]\d{0,3})$/.test(item.tokenId)
+      || normalizedAddress(item.account) !== item.account
+      || normalizedAddress(item.owner) !== normalizedOwner) {
+      throw new TypeError("Live activated Punk evidence is invalid");
+    }
+    activatedById.set(item.tokenId, Object.freeze({ ...item, activated: true }));
+  }
+  const tokenIds = new Set();
+  for (const tokenId of walletOwned) {
+    if (!/^(0|[1-9]\d{0,3})$/.test(tokenId)) {
+      throw new TypeError("Wallet-owned Punk evidence is invalid");
+    }
+    tokenIds.add(tokenId);
+  }
+  for (const tokenId of activatedById.keys()) tokenIds.add(tokenId);
+  return [...tokenIds].map((tokenId) => activatedById.get(tokenId) ?? Object.freeze({
+    tokenId,
+    account: null,
+    owner: normalizedOwner,
+    activated: false,
+    status: "OWNED_LIVE_ACCOUNT_STATUS_CHECKED_ON_SELECTION",
+  })).sort((left, right) => Number(left.tokenId) - Number(right.tokenId));
+}
+
 export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction } = {}) {
   const browserWindow = windowObject ?? (typeof window === "undefined" ? null : window);
   const browserDocument = documentObject ?? (typeof document === "undefined" ? null : document);
@@ -401,15 +470,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       if (walletOwned.length > 0) {
         const activated = await findBrowserOwnerAccounts(browserWindow.ethereum,
           gatePayload.activationGate, wallet.account, [...remembered, ...indexed]);
-        const activatedById = new Map(activated.map((item) => [item.tokenId,
-          Object.freeze({ ...item, activated: true })]));
-        accounts = walletOwned.map((tokenId) => activatedById.get(tokenId) ?? Object.freeze({
-          tokenId,
-          account: null,
-          owner: wallet.account.toLowerCase(),
-          activated: false,
-          status: "OWNED_LIVE_ACCOUNT_STATUS_CHECKED_ON_SELECTION",
-        }));
+        accounts = mergeWalletAndActivatedPunks(walletOwned, activated, wallet.account);
       } else {
         accounts = await findBrowserOwnedPunks(browserWindow.ethereum,
           gatePayload.activationGate, wallet.account, candidates);

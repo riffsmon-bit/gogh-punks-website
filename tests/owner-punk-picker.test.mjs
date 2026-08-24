@@ -8,10 +8,12 @@ import {
   openSeaOwnerPunkIds,
 } from "../netlify/functions/broker-owner-punks.mjs";
 import {
+  copyPunkAccountAddress,
   decodeOwnerOfMulticall,
   discoverWalletOwnedPunkIds,
   encodeOwnerOfMulticall,
   findBrowserOwnedPunks,
+  mergeWalletAndActivatedPunks,
 } from "../site/owner-accounts.js";
 
 const OWNER = "0x1234567890123456789012345678901234567890";
@@ -38,6 +40,17 @@ test("configured automation roster supplies bounded discovery hints without auth
 function addressWord(value) {
   return `0x${value.slice(2).padStart(64, "0")}`;
 }
+
+test("Punk Account wallet copy is exact and refuses unavailable clipboard access", async () => {
+  const writes = [];
+  assert.equal(await copyPunkAccountAddress({
+    clipboard: { writeText: async (value) => writes.push(value) },
+  }, ACCOUNT_A.toUpperCase().replace(/^0X/, "0x")), ACCOUNT_A);
+  assert.deepEqual(writes, [ACCOUNT_A]);
+  await assert.rejects(copyPunkAccountAddress({}, ACCOUNT_A), /cannot be copied/);
+  await assert.rejects(copyPunkAccountAddress({ clipboard: { writeText: async () => {} } },
+    "0xnot-an-address"), /cannot be copied/);
+});
 
 test("indexed owner picker candidates are bounded, ordered, and explicitly non-authorizing", async () => {
   let captured;
@@ -103,6 +116,22 @@ test("wallet rechecks ownership and labels activated versus activatable Punks", 
   ]);
 });
 
+test("live-verified activated Punks remain visible when the wallet scan is incomplete", () => {
+  const result = mergeWalletAndActivatedPunks(["7", "8"], [{
+    tokenId: "8", account: ACCOUNT_A, owner: OWNER, status: "ACTIVATED_ONCHAIN",
+  }, {
+    tokenId: "93", account: ACCOUNT_B, owner: OWNER, status: "ACTIVATED_ONCHAIN",
+  }], OWNER);
+  assert.deepEqual(result.map(({ tokenId, activated }) => ({ tokenId, activated })), [
+    { tokenId: "7", activated: false },
+    { tokenId: "8", activated: true },
+    { tokenId: "93", activated: true },
+  ]);
+  assert.throws(() => mergeWalletAndActivatedPunks([], [{
+    tokenId: "93", account: ACCOUNT_B, owner: REGISTRY,
+  }], OWNER), /evidence/);
+});
+
 test("wallet scan ABI-matches Multicall3 and discovers every owned token in the bounded supply", async () => {
   const tokenIds = ["0", "1", "2"];
   const calls = tokenIds.map((tokenId) => ({
@@ -153,6 +182,8 @@ test("picker UI selects a live-verified Punk while preserving manual entry", asy
   assert.match(endpoint, /DISCOVERY_CANDIDATES_ONLY_EACH_SELECTION_REQUIRES_LIVE_WALLET_OWNER_CHECK/);
   assert.match(endpoint, /OPENSEA_API_KEY/);
   assert.match(accounts, /discoverWalletOwnedPunkIds/);
+  assert.match(accounts, /Copy wallet address/);
+  assert.match(accounts, /https:\/\/opensea\.io\/\$\{item\.account\}/);
   assert.doesNotMatch(accounts, /accounts\.find\(\(\{ tokenId \}\) => tokenId === "1797"\)/);
   assert.doesNotMatch(endpoint, /eth_send|privateKey|mnemonic/);
 });
