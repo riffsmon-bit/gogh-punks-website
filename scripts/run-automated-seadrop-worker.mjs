@@ -121,6 +121,26 @@ function artMatch(row, mandate) {
   return Math.round(tasteMatchFromWeights(mandate.artistic_preferences.dimensions, dimensions));
 }
 
+function rejectionDiagnostics(profiles, collections, candidates) {
+  return {
+    profiles: profiles.length,
+    recentSeaDropCollections: collections.length,
+    analyzedCandidates: candidates.length,
+    missingActivatedAccounts: 0,
+    mandateThresholdRejections: 0,
+    liveScreenRejections: {},
+    providerStateDisagreements: 0,
+    executionSimulationsPassed: 0,
+  };
+}
+
+function recordLiveScreenRejection(diagnostics, error) {
+  const code = typeof error?.code === "string" && /^[A-Z0-9_]{1,128}$/.test(error.code)
+    ? error.code : "LIVE_SCREEN_FAILED";
+  diagnostics.liveScreenRejections[code] =
+    (diagnostics.liveScreenRejections[code] ?? 0) + 1;
+}
+
 async function eligibleProfiles(pool) {
   const result = await pool.query(`
     SELECT DISTINCT ON (m.token_id) m.token_id, m.configured_by, m.economic_settings,
@@ -192,9 +212,16 @@ function liveState(profile, state, screen, maxFeePerGasWei) {
 export async function runAutomatedSeaDropWorker(environment = process.env, dependencies = {}) {
   if (environment.BROKER_AUTOMATION_V2_ENABLED !== "true") return { status: "DISABLED", submitted: 0 };
   const key = environment.BROKER_AUTOMATION_V2_AGENT_PRIVATE_KEY;
-  if (typeof key !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(key)) throw new TypeError("agent signer is unavailable");
-  const account = privateKeyToAccount(key);
-  if (account.address.toLowerCase() !== AUTOMATION_V2_AGENT) throw new TypeError("agent signer address mismatch");
+  let signingAccount = null;
+  if (dependencies.readOnly !== true) {
+    if (typeof key !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(key)) {
+      throw new TypeError("agent signer is unavailable");
+    }
+    signingAccount = privateKeyToAccount(key);
+    if (signingAccount.address.toLowerCase() !== AUTOMATION_V2_AGENT) {
+      throw new TypeError("agent signer address mismatch");
+    }
+  }
   const primaryUrl = httpsUrl("ROBINHOOD_RPC_URL", environment.ROBINHOOD_RPC_URL ?? environment.RPC_URL);
   const secondaryUrl = httpsUrl("ROBINHOOD_SECONDARY_RPC_URL", environment.ROBINHOOD_SECONDARY_RPC_URL);
   const primary = dependencies.primary ?? readClient(primaryUrl);
@@ -207,17 +234,25 @@ export async function runAutomatedSeaDropWorker(environment = process.env, depen
   const collections = await recentSeaDropCollections(primary);
   const candidates = await analyzedCandidates(database, collections);
   if (candidates.length === 0) return { status: "NO_ANALYZED_ACTIVE_TARGETS", submitted: 0 };
+  const diagnostics = rejectionDiagnostics(profiles, collections, candidates);
   const registry = getAddress(manifest.contracts.GoghPunkAccountRegistryV2.address);
   const policyModule = getAddress(manifest.contracts.BrokerPolicyModuleV2.address);
   const agent = getAddress(AUTOMATION_V2_AGENT);
   for (const row of profiles) {
     const tokenId = String(row.token_id);
     const accountAddress = await primary.readContract({ address: registry, abi: REGISTRY_ABI, functionName: "account", args: [BigInt(tokenId)] });
-    if (((await primary.getCode({ address: accountAddress })) ?? "0x") === "0x") continue;
+    if (((await primary.getCode({ address: accountAddress })) ?? "0x") === "0x") {
+      diagnostics.missingActivatedAccounts += 1;
+      continue;
+    }
     for (const target of candidates) {
       const tasteMatch = artMatch(target, row);
       const risk = Math.round(Number(target.risk_score));
-      if (risk > Number(row.risk_settings.maxContractRiskScore) || tasteMatch < Number(row.artistic_preferences.minimumTasteMatch)) continue;
+      if (risk > Number(row.risk_settings.maxContractRiskScore)
+        || tasteMatch < Number(row.artistic_preferences.minimumTasteMatch)) {
+        diagnostics.mandateThresholdRejections += 1;
+        continue;
+      }
       const latestNonce = await primary.readContract({ address: accountAddress, abi: ACCOUNT_ABI, functionName: "acquisitionNonce" });
       const latestPolicy = await primary.readContract({ address: policyModule, abi: POLICY_ABI, functionName: "policy", args: [accountAddress] });
       const nowSeconds = Math.floor(Date.now() / 1_000);
@@ -238,12 +273,18 @@ export async function runAutomatedSeaDropWorker(environment = process.env, depen
         screen = await attestAutomatedSeaDropCandidateLive(candidate, scope,
           { primaryUrl, secondaryUrl }, { confirmations: 20, maximumEvidenceAgeSeconds: 30 },
           { primary: readFacade(primary, primaryUrl), secondary: readFacade(secondary, secondaryUrl) });
-      } catch { continue; }
+      } catch (error) {
+        recordLiveScreenRejection(diagnostics, error);
+        continue;
+      }
       const pinned = BigInt(screen.pinnedBlock.number);
       const [first, second] = await Promise.all([
         accountState(primary, pinned, accountAddress, agent), accountState(secondary, pinned, accountAddress, agent),
       ]);
-      if (!jsonEqual(first, second)) continue;
+      if (!jsonEqual(first, second)) {
+        diagnostics.providerStateDisagreements += 1;
+        continue;
+      }
       const maxFee = (await primary.estimateFeesPerGas()).maxFeePerGas ?? 1n;
       const cap = Number(row.economic_settings.maxMintsPerDay);
       const profile = {
@@ -261,12 +302,23 @@ export async function runAutomatedSeaDropWorker(environment = process.env, depen
       const batch = buildAutomatedSeaDropExecutionBatch(profile, liveState(profile, first, screen, maxFee), { nowSeconds });
       const tx = batch.transactions[0];
       await primary.call({ account: agent, to: getAddress(tx.to), data: tx.data, value: 0n });
-      const wallet = createWalletClient({ account, chain: CHAIN, transport: http(primaryUrl, { retryCount: 0, timeout: 10_000 }) });
-      const hash = await wallet.sendTransaction({ account, to: getAddress(tx.to), data: tx.data, value: 0n });
+      diagnostics.executionSimulationsPassed += 1;
+      if (dependencies.readOnly === true) {
+        return {
+          status: "READ_ONLY_ELIGIBLE",
+          submitted: 0,
+          tokenId,
+          account: accountAddress.toLowerCase(),
+          collection: target.collection_address,
+          diagnostics,
+        };
+      }
+      const wallet = createWalletClient({ account: signingAccount, chain: CHAIN, transport: http(primaryUrl, { retryCount: 0, timeout: 10_000 }) });
+      const hash = await wallet.sendTransaction({ account: signingAccount, to: getAddress(tx.to), data: tx.data, value: 0n });
       const receipt = await primary.waitForTransactionReceipt({ hash, confirmations: 1, timeout: 60_000 });
       if (receipt.status !== "success") throw new TypeError("autonomous mint reverted");
       return { status: "MINT_CONFIRMED", submitted: 1, tokenId, account: accountAddress.toLowerCase(), collection: target.collection_address, transactionHash: hash };
     }
   }
-  return { status: "NO_ELIGIBLE_TARGETS", submitted: 0 };
+  return { status: "NO_ELIGIBLE_TARGETS", submitted: 0, diagnostics };
 }

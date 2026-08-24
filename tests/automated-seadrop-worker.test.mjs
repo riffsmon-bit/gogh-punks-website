@@ -24,5 +24,8 @@ test("worker source fixes the account entry point, zero value, one action, and s
   assert.match(source, /value: 0n/);
   assert.match(source, /attestAutomatedSeaDropCandidateLive/);
   assert.match(source, /buildAutomatedSeaDropExecutionBatch/);
+  assert.match(source, /readOnly === true/);
+  assert.match(source, /liveScreenRejections/);
+  assert.match(source, /executionSimulationsPassed/);
   assert.doesNotMatch(source, /approve\(|setApprovalForAll|execute\(address,uint256,bytes/);
 });
