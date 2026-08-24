@@ -164,7 +164,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
       && state.gate?.setupTransactionAvailable === true && Boolean(state.selection);
     setup.disabled = !ready;
     runNow.disabled = !agentLive || state.version !== 3 || state.running;
-    runNow.textContent = state.running ? "Agent scan running…" : "Run agent now";
+    runNow.textContent = state.running ? "Agent scan running…" : "Send selected agent now";
     stop.disabled = !active;
     cap.disabled = state.gate?.capability !== true;
     days.disabled = state.gate?.capability !== true;

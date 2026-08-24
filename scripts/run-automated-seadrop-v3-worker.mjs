@@ -26,6 +26,7 @@ const ACCOUNT_ABI = parseAbi([
   "function owner() view returns (address)",
   "function acquisitionNonce() view returns (uint256)",
 ]);
+const COLLECTION_ABI = parseAbi(["function ownerOf(uint256 tokenId) view returns (address)"]);
 const REGISTRY_ABI = parseAbi(["function account(uint256 tokenId) view returns (address)"]);
 const AGENT_ABI = parseAbi(["function isAuthorized(address account,address agent) view returns (bool)"]);
 const POLICY_ABI = [{
@@ -95,6 +96,7 @@ const DISCOVERY_LOG_CHUNK_SIZE = 50_000n;
 const DISCOVERY_BATCH_SIZE = 8;
 const DISCOVERY_RUNTIME_BATCH_SIZE = 4;
 const DISCOVERY_BATCH_DELAY_MS = 250;
+const CONFIGURED_PUNK_LIMIT = 32;
 
 function discoveryDelay() {
   return new Promise((resolve) => setTimeout(resolve, DISCOVERY_BATCH_DELAY_MS));
@@ -221,7 +223,22 @@ export function confirmedIntentWindow(nowSeconds, evidenceHorizonSeconds = 30) {
   });
 }
 
-async function eligibleProfiles(pool, requestedTokenId = null) {
+export function configuredAutomationV3PunkIds(environment = {}) {
+  const raw = environment.BROKER_AUTOMATION_V3_PUNK_IDS;
+  if (raw === undefined || raw === "") return Object.freeze([]);
+  if (typeof raw !== "string" || raw.trim() !== raw || raw.length > 256) {
+    throw new TypeError("invalid configured V3 Punk list");
+  }
+  const tokenIds = raw.split(",");
+  if (tokenIds.length < 1 || tokenIds.length > CONFIGURED_PUNK_LIMIT
+    || tokenIds.some((tokenId) => !/^(?:0|[1-9][0-9]{0,3})$/.test(tokenId))
+    || new Set(tokenIds).size !== tokenIds.length) {
+    throw new TypeError("invalid configured V3 Punk list");
+  }
+  return Object.freeze([...tokenIds]);
+}
+
+async function eligibleProfiles(pool, requestedTokenId = null, configuredTokenIds = []) {
   if (requestedTokenId !== null
     && (typeof requestedTokenId !== "string" || !/^(?:0|[1-9][0-9]{0,3})$/.test(requestedTokenId))) {
     throw new TypeError("invalid requested Punk token ID");
@@ -234,7 +251,22 @@ async function eligibleProfiles(pool, requestedTokenId = null) {
        AND ($3::numeric IS NULL OR m.token_id = $3::numeric)
      ORDER BY m.token_id, m.version DESC
      LIMIT 32`, [4663, ROBINHOOD.canonicalCollection, requestedTokenId]);
-  return result.rows;
+  const rows = [...result.rows];
+  const known = new Set(rows.map(({ token_id: tokenId }) => String(tokenId)));
+  for (const tokenId of configuredTokenIds) {
+    if ((requestedTokenId === null || requestedTokenId === tokenId) && !known.has(tokenId)) {
+      rows.push(Object.freeze({
+        token_id: tokenId,
+        configured_by: null,
+        economic_settings: null,
+        risk_settings: null,
+        artistic_preferences: null,
+        operator_configured: true,
+      }));
+    }
+  }
+  return rows.sort((left, right) => Number(left.token_id) - Number(right.token_id))
+    .slice(0, CONFIGURED_PUNK_LIMIT);
 }
 
 async function recentSeaDropCollections(client, confirmations = 20n) {
@@ -454,7 +486,8 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   if (!global.configured || !global.worker.enabled) throw new TypeError("global V3 gate is closed");
   const database = dependencies.database ?? getDatabase().pool;
   const requestedTokenId = dependencies.requestedTokenId ?? null;
-  const profiles = await eligibleProfiles(database, requestedTokenId);
+  const configuredTokenIds = configuredAutomationV3PunkIds(environment);
+  const profiles = await eligibleProfiles(database, requestedTokenId, configuredTokenIds);
   if (profiles.length === 0) return { status: "NO_AUTONOMOUS_MANDATES", submitted: 0 };
   // A reviewed operator may temporarily constrain discovery to a small exact set.
   // This does not bypass any runtime, public-drop, dual-provider, policy, or simulation
@@ -479,6 +512,7 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   const diagnostics = rejectionDiagnostics(profiles, collections, candidates);
   diagnostics.directedTargetCollections = directedCollections?.length ?? 0;
   diagnostics.priorityTargetCollections = priorityCollections.length;
+  diagnostics.operatorConfiguredPunks = configuredTokenIds.length;
   diagnostics.prioritySlotReservations = 0;
   diagnostics.priorityStateReadFailures = 0;
   const registry = getAddress(manifest.contracts.GoghPunkAccountRegistryV3.address);
@@ -490,6 +524,21 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
     if (((await primary.getCode({ address: accountAddress })) ?? "0x") === "0x") {
       diagnostics.missingActivatedAccounts += 1;
       continue;
+    }
+    let expectedOwner = row.configured_by;
+    if (expectedOwner === null) {
+      const ownerRequest = {
+        address: getAddress(ROBINHOOD.canonicalCollection), abi: COLLECTION_ABI,
+        functionName: "ownerOf", args: [BigInt(tokenId)],
+      };
+      const [primaryOwner, secondaryOwner] = await Promise.all([
+        primary.readContract(ownerRequest), secondary.readContract(ownerRequest),
+      ]);
+      if (getAddress(primaryOwner) !== getAddress(secondaryOwner)) {
+        diagnostics.providerStateDisagreements += 1;
+        continue;
+      }
+      expectedOwner = getAddress(primaryOwner).toLowerCase();
     }
     const priorityState = await pendingPriorityCollections(
       primary, secondary, accountAddress, priorityCollections,
@@ -508,7 +557,7 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
         metadataSanitized: true, analysisComplete: true,
       };
       const scope = {
-        account: accountAddress, agent, expectedOwner: row.configured_by, policyModule,
+        account: accountAddress, agent, expectedOwner, policyModule,
         adapter: manifest.contracts.AutomatedSeaDropStudioFreeMintAdapter.address,
         adapterCodeHash: manifest.contracts.AutomatedSeaDropStudioFreeMintAdapter.runtimeBytecodeHash,
         nonce: BigInt(latestNonce).toString(), policyVersion: BigInt(field(latestPolicy, "version", 2)).toString(),
@@ -540,10 +589,10 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
         continue;
       }
       const maxFee = (await primary.estimateFeesPerGas()).maxFeePerGas ?? 1n;
-      const cap = Number(row.economic_settings.maxMintsPerDay);
+      const cap = liveCap;
       const profile = {
         schema: "GOGH_AUTOMATED_SEADROP_V3_PROFILE_V1", version: 1, chainId: 4663,
-        punk: { tokenId, collection: ROBINHOOD.canonicalCollection, account: accountAddress, expectedOwner: row.configured_by }, agent,
+        punk: { tokenId, collection: ROBINHOOD.canonicalCollection, account: accountAddress, expectedOwner }, agent,
         infrastructure: { adapter: manifest.contracts.AutomatedSeaDropStudioFreeMintAdapter.address,
           adapterCodeHash: manifest.contracts.AutomatedSeaDropStudioFreeMintAdapter.runtimeBytecodeHash,
           seaDrop: SEA_DROP, seaDropCodeHash: SEA_DROP_CODE_HASH, cloneImplementation: CLONE_IMPLEMENTATION,
@@ -552,8 +601,12 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
           studioCollectionRuntimeCodeHash: STUDIO_COLLECTION_RUNTIME_CODE_HASH },
         limits: { maxMintsPerUtcDay: cap, maxMintsPerRun: 1, maxGasPerMint: 700000,
           maxGasWeiPerRun: first.balance.toString(), minAgentReserveWei: "10000000000000", intentTtlSeconds: 120,
-          maxEvidenceAgeSeconds: 30, maxContractRiskScore: Number(row.risk_settings.maxContractRiskScore),
-          minimumTasteMatch: Number(row.artistic_preferences.minimumTasteMatch), stopOnFailure: true },
+          maxEvidenceAgeSeconds: 30,
+          maxContractRiskScore: row.risk_settings === null
+            ? 100 : Number(row.risk_settings.maxContractRiskScore),
+          minimumTasteMatch: row.artistic_preferences === null
+            ? 0 : Number(row.artistic_preferences.minimumTasteMatch),
+          stopOnFailure: true },
       };
       let tx;
       try {

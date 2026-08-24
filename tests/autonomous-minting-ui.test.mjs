@@ -29,7 +29,7 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.match(html, /data-v2-worker/);
   assert.match(html, /data-v2-refresh/);
   assert.match(html, /data-v3-run-now disabled/);
-  assert.match(html, /Run agent now/);
+  assert.match(html, /Send selected agent now/);
   assert.match(html, /data-v2-refreshed/);
   assert.match(html, /Maximum-coverage live mint settings/);
   assert.match(html, /contract risk 100/);

@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
+  configuredAutomationV3PunkIds,
   configuredPrioritySeaDropCollections,
   configuredSeaDropCollections,
   confirmedIntentWindow,
@@ -72,6 +73,22 @@ test("V3 directed targets are exact, bounded, and cannot be ambiguous", () => {
   assert.deepEqual(mergePrioritySeaDropCollections(
     [second], [first, second],
   ), [second, first]);
+});
+
+test("V3 operator roster is canonical, unique, and bounded", () => {
+  assert.deepEqual(configuredAutomationV3PunkIds({}), []);
+  assert.deepEqual(configuredAutomationV3PunkIds({
+    BROKER_AUTOMATION_V3_PUNK_IDS: "1797,1793,1772",
+  }), ["1797", "1793", "1772"]);
+  for (const value of ["01797", "1797,1797", "1797, 1793", "10000", ""]) {
+    if (value === "") continue;
+    assert.throws(() => configuredAutomationV3PunkIds({
+      BROKER_AUTOMATION_V3_PUNK_IDS: value,
+    }), /invalid configured V3 Punk list/);
+  }
+  assert.throws(() => configuredAutomationV3PunkIds({
+    BROKER_AUTOMATION_V3_PUNK_IDS: Array.from({ length: 33 }, (_, index) => String(index)).join(","),
+  }), /invalid configured V3 Punk list/);
 });
 
 test("V3 worker source binds both runtime families and no paid or approval path", async () => {
