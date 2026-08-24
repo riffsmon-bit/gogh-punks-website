@@ -264,27 +264,33 @@ function deepFreeze(value) {
 
 async function collectObservation(client, candidate, scope, block, checkedAt) {
   const collection = candidate.collection.toLowerCase();
+  let reads;
+  try {
+    reads = await Promise.all([
+      client.getCodeEvidence({ address: collection, blockNumber: block.number }),
+      client.getCodeEvidence({ address: SEA_DROP, blockNumber: block.number }),
+      client.readContract({
+        address: scope.policyModule, abi: POLICY_ABI, functionName: "deniedCollections",
+        args: [scope.account, collection], blockNumber: block.number,
+      }),
+      client.readContract({
+        address: SEA_DROP, abi: PUBLIC_DROP_ABI, functionName: "getPublicDrop",
+        args: [collection], blockNumber: block.number,
+      }),
+      client.readContract({
+        address: collection, abi: COLLECTION_ABI, functionName: "getMintStats",
+        args: [scope.account], blockNumber: block.number,
+      }),
+      client.readContract({
+        address: SEA_DROP, abi: PUBLIC_DROP_ABI, functionName: "getFeeRecipientIsAllowed",
+        args: [collection, OPEN_SEA_FEE_RECIPIENT], blockNumber: block.number,
+      }),
+    ]);
+  } catch {
+    fail("TARGET_STATE_READ_FAILED", "candidate state could not be read at the pinned block");
+  }
   const [collectionCodeValue, seaDropCodeValue, deniedValue, dropValue, statsValue,
-    feeAllowedValue] = await Promise.all([
-    client.getCodeEvidence({ address: collection, blockNumber: block.number }),
-    client.getCodeEvidence({ address: SEA_DROP, blockNumber: block.number }),
-    client.readContract({
-      address: scope.policyModule, abi: POLICY_ABI, functionName: "deniedCollections",
-      args: [scope.account, collection], blockNumber: block.number,
-    }),
-    client.readContract({
-      address: SEA_DROP, abi: PUBLIC_DROP_ABI, functionName: "getPublicDrop",
-      args: [collection], blockNumber: block.number,
-    }),
-    client.readContract({
-      address: collection, abi: COLLECTION_ABI, functionName: "getMintStats",
-      args: [scope.account], blockNumber: block.number,
-    }),
-    client.readContract({
-      address: SEA_DROP, abi: PUBLIC_DROP_ABI, functionName: "getFeeRecipientIsAllowed",
-      args: [collection, OPEN_SEA_FEE_RECIPIENT], blockNumber: block.number,
-    }),
-  ]);
+    feeAllowedValue] = reads;
   const collectionCode = codeEvidence(collectionCodeValue, "collection code");
   const seaDropCode = codeEvidence(seaDropCodeValue, "SeaDrop code");
   const totalMinted = BigInt(tupleValue(statsValue, "currentTotalMinted", 1, "mintStats"));
@@ -319,8 +325,17 @@ async function collectObservation(client, candidate, scope, block, checkedAt) {
     args: [intent, "0x"],
     blockNumber: block.number,
   };
-  await client.simulateContract(simulationRequest);
-  const gasEstimate = await client.estimateContractGas(simulationRequest);
+  try {
+    await client.simulateContract(simulationRequest);
+  } catch {
+    fail("FULL_ACCOUNT_SIMULATION_FAILED", "full Punk Account simulation reverted");
+  }
+  let gasEstimate;
+  try {
+    gasEstimate = await client.estimateContractGas(simulationRequest);
+  } catch {
+    fail("GAS_ESTIMATE_FAILED", "full Punk Account gas estimation failed");
+  }
   return {
     chainId: 4663,
     checkedAt,
