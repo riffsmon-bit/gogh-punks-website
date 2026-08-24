@@ -133,12 +133,12 @@ function fixture() {
   return { profile, liveState };
 }
 
-test("selects automatically screened targets by taste and binds sequential nonces", () => {
+test("does not let off-chain taste or risk suppress an exact live zero-price target", () => {
   const { profile, liveState } = fixture();
   const plan = buildAutomatedSeaDropRunPlan(profile, liveState, { nowSeconds: now });
-  assert.equal(plan.actions.length, 2);
-  assert.deepEqual(plan.actions.map((action) => action.collection), [A("5"), A("6")]);
-  assert.deepEqual(plan.actions.map((action) => action.nonce), ["7", "8"]);
+  assert.equal(plan.actions.length, 3);
+  assert.deepEqual(plan.actions.map((action) => action.collection), [A("5"), A("6"), A("7")]);
+  assert.deepEqual(plan.actions.map((action) => action.nonce), ["7", "8", "9"]);
   assert.ok(plan.actions.every((action) => action.expectedPrice === "0"
     && action.maxPrice === "0" && action.adapterData === "0x"));
   assert.equal(plan.safety.targetHumanReviewRequired, false);

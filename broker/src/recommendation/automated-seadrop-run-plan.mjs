@@ -390,12 +390,11 @@ export function buildAutomatedSeaDropRunPlan(profileInput, liveStateInput, optio
     ? available : BigInt(profile.limits.maxGasWeiPerRun);
   if (gasBudget === 0n) fail("INSUFFICIENT_GAS", "agent gas balance cannot preserve its reserve");
 
-  const eligible = live.targets
-    .filter((target) => target.contractRiskScore <= profile.limits.maxContractRiskScore
-      && target.tasteMatch >= profile.limits.minimumTasteMatch)
-    .sort((left, right) => right.tasteMatch - left.tasteMatch
-      || left.contractRiskScore - right.contractRiskScore
-      || left.collection.localeCompare(right.collection));
+  // Phase 1 is an exact zero-price execution lane. Taste and off-chain risk scores
+  // remain recorded for the journal, but never override the live clone/runtime,
+  // public-drop, capacity, zero-value, simulation, policy, and gas gates above.
+  const eligible = [...live.targets]
+    .sort((left, right) => left.collection.localeCompare(right.collection));
   const maximumCount = Math.min(
     remainingDaily,
     profile.limits.maxMintsPerRun,
@@ -450,7 +449,7 @@ export function buildAutomatedSeaDropRunPlan(profileInput, liveStateInput, optio
     plannedGasWei += maximumGasCostWei;
   }
   if (actions.length === 0) {
-    fail("NO_EXECUTABLE_TARGETS", "no automatically screened target fits taste, risk, cap, and gas limits");
+    fail("NO_EXECUTABLE_TARGETS", "no live zero-price target fits capacity and gas limits");
   }
 
   const plan = {
