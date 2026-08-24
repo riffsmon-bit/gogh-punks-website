@@ -88,6 +88,7 @@ function readClient(url) {
 
 const DISCOVERY_COLLECTION_LIMIT = 128;
 const DISCOVERY_BATCH_SIZE = 8;
+const DISCOVERY_RUNTIME_BATCH_SIZE = 4;
 const DISCOVERY_BATCH_DELAY_MS = 250;
 
 function discoveryDelay() {
@@ -265,7 +266,7 @@ export function selectReviewedStudioCollections(collections, codes) {
   });
 }
 
-async function activeZeroPriceSeaDropCollections(client, collections, confirmations = 20n) {
+async function activeZeroPriceSeaDropCollections(client, runtimeClient, collections, confirmations = 20n) {
   if (collections.length === 0) return [];
   const head = await client.getBlockNumber();
   const blockNumber = head - confirmations;
@@ -293,11 +294,11 @@ async function activeZeroPriceSeaDropCollections(client, collections, confirmati
   }
   const codes = [];
   let codeReadFailures = 0;
-  for (let offset = 0; offset < active.length; offset += DISCOVERY_BATCH_SIZE) {
-    const batch = active.slice(offset, offset + DISCOVERY_BATCH_SIZE);
+  for (let offset = 0; offset < active.length; offset += DISCOVERY_RUNTIME_BATCH_SIZE) {
+    const batch = active.slice(offset, offset + DISCOVERY_RUNTIME_BATCH_SIZE);
     codes.push(...await Promise.all(batch.map(async (collection) => {
       try {
-        return (await client.getCode({ address: collection, blockNumber })) ?? "0x";
+        return (await runtimeClient.getCode({ address: collection, blockNumber })) ?? "0x";
       } catch {
         codeReadFailures += 1;
         return "0x";
@@ -369,9 +370,11 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   const profiles = await eligibleProfiles(database);
   if (profiles.length === 0) return { status: "NO_AUTONOMOUS_MANDATES", submitted: 0 };
   const collections = await recentSeaDropCollections(primary);
-  // Keep the wide discovery fan-out off the public canonical endpoint. Every
-  // selected target is still independently re-read and simulated by both clients.
-  const candidates = await activeZeroPriceSeaDropCollections(secondary, collections);
+  // Use the archive provider for the indexed public-drop reads, then move the much
+  // smaller active set to the canonical endpoint for runtime classification. This
+  // avoids exhausting either provider's per-second allowance. Every selected target
+  // is still independently re-read and simulated by both clients before submission.
+  const candidates = await activeZeroPriceSeaDropCollections(secondary, primary, collections);
   if (candidates.length === 0) return {
     status: "NO_ANALYZED_ACTIVE_TARGETS", submitted: 0,
     diagnostics: { profiles: profiles.length, recentSeaDropCollections: collections.length, onchainZeroPriceCandidates: 0 },
