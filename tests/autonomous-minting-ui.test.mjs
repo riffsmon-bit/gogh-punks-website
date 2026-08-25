@@ -4,7 +4,7 @@ import test from "node:test";
 
 import {
   automationPunkWalletOpenSeaUrl, buildAutomationGasFundingTransaction,
-  formatAutomationGasBalance,
+  formatAutomationGasBalance, selectAutomationGeneration,
 } from "../site/autonomous-minting.js";
 
 const root = new URL("../", import.meta.url);
@@ -43,7 +43,7 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.match(html, /Fund the hosted automation agent/);
   assert.match(html, /does not pay hosted-worker gas/i);
   assert.match(html, /data-v3-account-copy disabled/);
-  assert.match(html, /Copy V3 wallet address/);
+  assert.match(html, /Copy NFT-wallet address/);
   assert.match(html, /data-v3-account-opensea/);
   assert.match(html, /View this Punk’s NFTs on OpenSea/);
   assert.match(html, /data-v2-agent-full/);
@@ -60,8 +60,7 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.match(browser, /Promise\.allSettled\(\[fetchGate\(3\), fetchGate\(2\)\]\)/);
   assert.match(browser, /v3Gate\?\.capability === true/);
   assert.match(browser, /v3Gate\?\.setupTransactionAvailable === true/);
-  assert.match(browser, /state\.version = v3Ready \? 3 : 2/);
-  assert.match(browser, /state\.gate = v3Ready \? v3Gate : v2Gate/);
+  assert.match(browser, /selectAutomationGeneration/);
   assert.match(browser, /disableAutomatedSeaDropPolicy|stopTransactions/i);
   assert.match(browser, /ACTIVE · SCANNING/);
   assert.match(browser, /heartbeatLabel/);
@@ -82,7 +81,38 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.match(browser, /eth_estimateGas/);
   assert.match(browser, /eth_sendTransaction/);
   assert.match(browser, /automationPunkWalletOpenSeaUrl/);
-  assert.match(browser, /Copied the selected Punk’s V3 NFT wallet—not the hosted gas payer/);
+  assert.match(browser, /Copied the selected Punk’s V\$\{state\.version\} NFT wallet—not the hosted gas payer/);
+});
+
+test("a deployed selected V3 Punk never falls back to its legacy V2 wallet during a worker restart", () => {
+  const tokenId = "94";
+  const v3Gate = {
+    capability: false,
+    setupTransactionAvailable: false,
+    status: "WORKER_STARTING",
+    punk: { tokenId, created: true, active: true, account: `0x${"3".repeat(40)}` },
+  };
+  const v2Gate = {
+    capability: true,
+    setupTransactionAvailable: true,
+    punk: { tokenId, created: false, active: false, account: `0x${"2".repeat(40)}` },
+  };
+  assert.deepEqual(selectAutomationGeneration(v3Gate, v2Gate, tokenId), {
+    version: 3, gate: v3Gate,
+  });
+});
+
+test("an uncreated V3 Punk continues to use the live V2 generation", () => {
+  const tokenId = "95";
+  const v3Gate = {
+    capability: false,
+    setupTransactionAvailable: false,
+    punk: { tokenId, created: false, active: false, account: `0x${"3".repeat(40)}` },
+  };
+  const v2Gate = { capability: true, setupTransactionAvailable: true };
+  assert.deepEqual(selectAutomationGeneration(v3Gate, v2Gate, tokenId), {
+    version: 2, gate: v2Gate,
+  });
 });
 
 test("the V3 Punk NFT wallet link is exact and rejects malformed addresses", () => {

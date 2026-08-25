@@ -32,6 +32,19 @@ export function automationPunkWalletOpenSeaUrl(value) {
   return `https://opensea.io/${canonicalAddress(value, "Punk NFT wallet")}`;
 }
 
+export function selectAutomationGeneration(v3Gate, v2Gate, tokenId) {
+  const v3Ready = v3Gate?.capability === true
+    && v3Gate?.setupTransactionAvailable === true;
+  const selectedV3Punk = tokenId && v3Gate?.punk?.tokenId === tokenId
+    ? v3Gate.punk : null;
+  const selectedV3Deployed = selectedV3Punk?.created === true
+    || selectedV3Punk?.active === true;
+  if (v3Ready || selectedV3Deployed) {
+    return Object.freeze({ version: 3, gate: v3Gate });
+  }
+  return Object.freeze({ version: 2, gate: v2Gate });
+}
+
 export function setupAutonomousMinting({ windowObject, documentObject, fetchFunction } = {}) {
   const browserWindow = windowObject ?? (typeof window === "undefined" ? null : window);
   const browserDocument = documentObject ?? (typeof document === "undefined" ? null : document);
@@ -148,8 +161,10 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
       ? `Hosted history tracked since ${new Date(publicUsage.trackedSince).toLocaleDateString()}`
       : "Aggregate hosted-worker history becomes available after its first recorded run";
     if (v3Upgrade) {
-      v3Upgrade.textContent = state.version === 3
+      v3Upgrade.textContent = state.version === 3 && state.gate?.capability === true
         ? "V3 is active: exact reviewed OpenSea Studio clone and full-contract runtimes are supported."
+        : state.version === 3
+          ? "This Punk’s V3 wallet is active on-chain. Autonomous submission remains paused while the hosted worker gate restarts."
         : state.v3Gate?.status === "PREPARING_V3"
           ? "V2 remains active while the broader V3 OpenSea Studio release is prepared and verified."
           : "V2 remains active until every V3 deployment, source, guardian, and worker gate passes.";
@@ -172,7 +187,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     if (punkWallet) accountOpenSea.href = automationPunkWalletOpenSeaUrl(punkWallet);
     else accountOpenSea.removeAttribute("href");
     accountCopyState.textContent = punkWallet
-      ? "This exact V3 wallet receives the selected Punk’s autonomous mints."
+      ? `This exact V${state.version} wallet receives the selected Punk’s autonomous mints.`
       : "Select a live-verified Punk to reveal its NFT wallet.";
     const gasAgent = state.gate?.agent;
     const gasReady = state.gate?.capability === true && gasAgent?.codeFree === true
@@ -249,13 +264,13 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     if (!/^0x[0-9a-fA-F]{40}$/.test(value ?? "")) return;
     try {
       await browserWindow.navigator?.clipboard?.writeText(value.toLowerCase());
-      accountCopy.textContent = "V3 address copied";
-      accountCopyState.textContent = "Copied the selected Punk’s V3 NFT wallet—not the hosted gas payer.";
+      accountCopy.textContent = `V${state.version} address copied`;
+      accountCopyState.textContent = `Copied the selected Punk’s V${state.version} NFT wallet—not the hosted gas payer.`;
     } catch {
-      accountCopyState.textContent = `Copy unavailable. Select this exact V3 wallet: ${value.toLowerCase()}`;
+      accountCopyState.textContent = `Copy unavailable. Select this exact Punk NFT wallet: ${value.toLowerCase()}`;
     }
     browserWindow.setTimeout?.(() => {
-      accountCopy.textContent = "Copy V3 wallet address";
+      accountCopy.textContent = "Copy NFT-wallet address";
     }, 1_800);
   }
 
@@ -338,13 +353,14 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
       const [v3Result, v2Result] = await Promise.allSettled([fetchGate(3), fetchGate(2)]);
       const v3Gate = v3Result.status === "fulfilled" ? v3Result.value : null;
       const v2Gate = v2Result.status === "fulfilled" ? v2Result.value : null;
-      const v3Ready = v3Gate?.capability === true
-        && v3Gate?.setupTransactionAvailable === true;
-      if (!v3Ready && !v2Gate) throw new Error("automation status unavailable");
+      const selected = selectAutomationGeneration(
+        v3Gate, v2Gate, state.selection?.tokenId ?? null,
+      );
+      if (!selected.gate) throw new Error("automation status unavailable");
       if (sequence !== state.loadSequence) return;
       state.v3Gate = v3Gate;
-      state.version = v3Ready ? 3 : 2;
-      state.gate = v3Ready ? v3Gate : v2Gate;
+      state.version = selected.version;
+      state.gate = selected.gate;
       state.lastSyncedAt = new Date();
       state.lastRefreshFailedAt = null;
       const selectedState = state.gate?.punk?.tokenId === state.selection?.tokenId
