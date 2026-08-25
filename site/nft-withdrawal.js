@@ -301,6 +301,61 @@ async function fetchGate(fetchFunction, tokenId) {
   return payload.recovery;
 }
 
+function assetItem(value) {
+  exactKeys(value, [
+    "standard", "collection", "tokenId", "amount", "transactionHash", "acquiredAt", "openSeaUrl",
+  ], "withdrawable NFT");
+  if (value.standard !== "ERC721" || value.amount !== "1") {
+    fail("INVALID_ASSET_LIST", "withdrawable NFT standard is invalid");
+  }
+  const normalized = {
+    standard: "ERC721",
+    collection: address(value.collection, "withdrawable NFT collection"),
+    tokenId: uint(value.tokenId, "withdrawable NFT token ID").toString(),
+    amount: "1",
+    transactionHash: bytes32(value.transactionHash, "withdrawable NFT transaction"),
+    acquiredAt: value.acquiredAt,
+    openSeaUrl: value.openSeaUrl,
+  };
+  if (typeof normalized.acquiredAt !== "string" || !Number.isFinite(Date.parse(normalized.acquiredAt))) {
+    fail("INVALID_ASSET_LIST", "withdrawable NFT timestamp is invalid");
+  }
+  const expectedUrl = `https://opensea.io/item/robinhood/${normalized.collection}/${normalized.tokenId}`;
+  if (normalized.openSeaUrl !== expectedUrl) {
+    fail("INVALID_ASSET_LIST", "withdrawable NFT link is invalid");
+  }
+  return Object.freeze(normalized);
+}
+
+export function validateWithdrawableNftAssets(value, selectedTokenId) {
+  exactKeys(value, [
+    "status", "capability", "reason", "checkedAt", "punkTokenId", "account", "owner", "items",
+  ], "withdrawable NFT list");
+  if (value.status !== "READY" || value.capability !== true || value.reason !== null
+    || value.punkTokenId !== selectedTokenId || typeof value.checkedAt !== "string"
+    || !Number.isFinite(Date.parse(value.checkedAt)) || !Array.isArray(value.items)
+    || value.items.length > 64) {
+    fail("INVALID_ASSET_LIST", "withdrawable NFT list is unavailable");
+  }
+  address(value.account, "withdrawable NFT account");
+  address(value.owner, "withdrawable NFT owner");
+  const items = value.items.map(assetItem);
+  const identities = new Set(items.map((item) => `${item.collection}:${item.tokenId}`));
+  if (identities.size !== items.length) fail("INVALID_ASSET_LIST", "withdrawable NFT list is duplicated");
+  return Object.freeze(items);
+}
+
+async function fetchAssets(fetchFunction, selectedTokenId) {
+  const response = await fetchFunction(
+    `/api/broker/nft-withdrawal-assets?tokenId=${encodeURIComponent(selectedTokenId)}`,
+    { headers: { accept: "application/json" }, cache: "no-store" },
+  );
+  if (!response?.ok) fail("ASSET_LIST_UNAVAILABLE", "NFT list is temporarily unavailable");
+  const payload = await response.json();
+  if (!payload?.ok) fail("ASSET_LIST_UNAVAILABLE", "NFT list is invalid");
+  return validateWithdrawableNftAssets(payload.assets, selectedTokenId);
+}
+
 export function setupNftWithdrawal({ windowObject, documentObject, fetchFunction } = {}) {
   const browserWindow = windowObject ?? (typeof window === "undefined" ? null : window);
   const browserDocument = documentObject ?? (typeof document === "undefined" ? null : document);
@@ -311,15 +366,78 @@ export function setupNftWithdrawal({ windowObject, documentObject, fetchFunction
   const tokenId = panel.querySelector("[data-nft-token-id]");
   const amount = panel.querySelector("[data-nft-amount]");
   const amountField = panel.querySelector("[data-nft-amount-field]");
+  const assetPicker = panel.querySelector("[data-nft-owned-asset]");
+  const assetDetail = panel.querySelector("[data-nft-owned-detail]");
+  const manualEntry = panel.querySelector(".manual-nft-entry");
   const confirmation = panel.querySelector("[data-nft-confirm]");
   const submit = panel.querySelector("[data-nft-submit]");
   const status = panel.querySelector("[data-nft-state]");
-  const state = { selection: null, revision: 0, busy: false };
+  const state = { selection: null, assets: [], revision: 0, busy: false, loadingAssets: false };
   const fetcher = fetchFunction ?? browserWindow.fetch.bind(browserWindow);
+
+  function setManualMode(manual) {
+    standard.disabled = !manual;
+    collection.readOnly = !manual;
+    tokenId.readOnly = !manual;
+    amount.readOnly = !manual;
+    if (manualEntry) manualEntry.open = manual;
+  }
+
+  function applyAssetSelection() {
+    const selectedIndex = assetPicker.value;
+    if (selectedIndex === "manual") {
+      collection.value = "";
+      tokenId.value = "";
+      amount.value = "1";
+      confirmation.checked = false;
+      setManualMode(true);
+      render();
+      return;
+    }
+    const asset = /^(?:0|[1-9][0-9]*)$/.test(selectedIndex)
+      ? state.assets[Number(selectedIndex)] : null;
+    if (asset) {
+      standard.value = asset.standard;
+      collection.value = asset.collection;
+      tokenId.value = asset.tokenId;
+      amount.value = asset.amount;
+      confirmation.checked = false;
+      setManualMode(false);
+      assetDetail.innerHTML = `Selected token #${asset.tokenId}. <a href="${asset.openSeaUrl}" target="_blank" rel="noopener noreferrer">View on OpenSea ↗</a>`;
+    }
+    render();
+  }
+
+  function populateAssets() {
+    assetPicker.replaceChildren();
+    const placeholder = browserDocument.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = state.assets.length
+      ? `Choose from ${state.assets.length} NFT${state.assets.length === 1 ? "" : "s"}`
+      : "No hosted mints currently held — use manual entry";
+    assetPicker.append(placeholder);
+    state.assets.forEach((asset, index) => {
+      const option = browserDocument.createElement("option");
+      option.value = String(index);
+      option.textContent = `Token #${asset.tokenId} · ${asset.collection.slice(0, 8)}…${asset.collection.slice(-6)}`;
+      assetPicker.append(option);
+    });
+    const manual = browserDocument.createElement("option");
+    manual.value = "manual";
+    manual.textContent = "Enter another NFT manually";
+    assetPicker.append(manual);
+    assetPicker.disabled = false;
+    assetDetail.textContent = state.assets.length
+      ? "Only NFTs still live-owned by this Punk wallet are listed."
+      : "Direct transfers and delayed history can still be entered manually.";
+  }
 
   function render() {
     amountField.hidden = standard.value !== "ERC1155";
-    submit.disabled = state.busy || !state.selection?.tokenId || !confirmation.checked;
+    const complete = collection.value.trim() && tokenId.value.trim()
+      && (standard.value !== "ERC1155" || amount.value.trim());
+    submit.disabled = state.busy || state.loadingAssets || !state.selection?.tokenId
+      || !complete || !confirmation.checked;
     if (!state.selection?.tokenId && !state.busy) {
       status.textContent = "Choose one of your wallet-owned Punks above.";
     }
@@ -355,15 +473,49 @@ export function setupNftWithdrawal({ windowObject, documentObject, fetchFunction
     }
   }
 
-  browserWindow.addEventListener("gogh:punk-selected", (event) => {
+  browserWindow.addEventListener("gogh:punk-selected", async (event) => {
     state.selection = event.detail?.tokenId ? event.detail : null;
     state.revision += 1;
+    const revision = state.revision;
+    state.assets = [];
     confirmation.checked = false;
+    collection.value = "";
+    tokenId.value = "";
+    amount.value = "1";
+    assetPicker.replaceChildren();
+    const loading = browserDocument.createElement("option");
+    loading.value = "";
+    loading.textContent = state.selection ? "Loading this Punk’s NFTs…" : "Select a Punk above";
+    assetPicker.append(loading);
+    assetPicker.disabled = true;
+    setManualMode(false);
     render();
+    if (!state.selection) return;
+    state.loadingAssets = true;
+    assetDetail.textContent = "Checking confirmed mint receipts and current NFT ownership…";
+    try {
+      const assets = await fetchAssets(fetcher, state.selection.tokenId);
+      if (revision !== state.revision) return;
+      state.assets = assets;
+      populateAssets();
+      status.textContent = assets.length
+        ? "Choose an NFT, review it, then confirm the withdrawal."
+        : "No hosted-mint NFT is currently held by this Punk wallet. Manual entry remains available.";
+    } catch (error) {
+      if (revision !== state.revision) return;
+      populateAssets();
+      status.textContent = `${error?.message ?? "NFT list unavailable"}. Manual entry remains available.`;
+    } finally {
+      if (revision === state.revision) {
+        state.loadingAssets = false;
+        render();
+      }
+    }
   });
   browserWindow.ethereum?.on?.("accountsChanged", () => { state.revision += 1; });
   browserWindow.ethereum?.on?.("chainChanged", () => { state.revision += 1; });
   standard.addEventListener("change", render);
+  assetPicker.addEventListener("change", applyAssetSelection);
   confirmation.addEventListener("change", render);
   submit.addEventListener("click", act);
   render();

@@ -238,10 +238,15 @@
                   <ul class="plain-safety-list"><li>Live Punk ownership checked again before submission</li><li>Exact V3 Punk-wallet runtime verified</li><li>NFT ownership or balance proven live</li><li>Complete transfer simulated before MetaMask opens</li></ul>
                 </div>
                 <div class="asset-recovery-form">
+                  <label class="mandate-field"><span>Choose an NFT currently held by this Punk</span><select data-nft-owned-asset disabled><option value="">Select a Punk above to load its NFTs</option></select><small data-nft-owned-detail>Confirmed autonomous mints are rechecked live before they appear.</small></label>
+                  <details class="manual-nft-entry">
+                    <summary>Manual contract and token entry</summary>
+                    <p class="locked-note">Use this fallback for an NFT transferred directly to the Punk wallet or not yet present in hosted mint history. Live ownership is still required.</p>
                   <label class="mandate-field"><span>NFT standard</span><select data-nft-standard><option value="ERC721">ERC-721</option><option value="ERC1155">ERC-1155</option></select></label>
                   <label class="mandate-field"><span>NFT collection contract</span><input data-nft-collection inputmode="text" placeholder="0x…" autocomplete="off" /></label>
                   <label class="mandate-field"><span>NFT token ID</span><input data-nft-token-id inputmode="numeric" placeholder="Token ID" autocomplete="off" /></label>
                   <label class="mandate-field" data-nft-amount-field hidden><span>ERC-1155 amount</span><input data-nft-amount inputmode="numeric" value="1" autocomplete="off" /></label>
+                  </details>
                   <label class="canary-confirmation"><input type="checkbox" data-nft-confirm /> I reviewed the selected Punk, collection, token ID, and fixed current-holder destination.</label>
                   <button class="action-button" type="button" data-nft-submit disabled>Verify and withdraw in MetaMask</button>
                   <p class="mandate-state" data-nft-state aria-live="polite">Choose one of your wallet-owned Punks above.</p>
