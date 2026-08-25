@@ -3,16 +3,14 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Choose a Gogh Punk, activate its wallet, and start bounded autonomous free-mint collection." />
+    <meta name="description" content="Choose a Gogh Punk, set a daily cap, and start bounded autonomous free-mint collection." />
     <meta name="theme-color" content="#071321" />
     <title>Art Broker · Gogh Punks</title>
     <link rel="icon" href="/assets/favicon.png" type="image/png" />
     <link rel="stylesheet" href="/broker.css" />
     <script src="/broker.js" defer></script>
     <script src="/wallet.js" type="module"></script>
-    <script src="/account-activation.js" type="module"></script>
     <script src="/owner-accounts.js" type="module"></script>
-    <script src="/owner-policy-controls.js" type="module"></script>
     <script src="/autonomous-minting.js" type="module"></script>
     <script src="/nft-withdrawal.js" type="module"></script>
   </head>
@@ -35,7 +33,7 @@
         <div>
           <p class="eyebrow">Gogh Punk agent setup · Robinhood Chain</p>
           <h1>Turn your Punk into an art curator.</h1>
-          <p class="lede">Connect your wallet, choose a Gogh Punk you own, activate its permanent Punk Account, choose a daily cap, and send it. The agent automatically uses the fixed zero-price safety profile.</p>
+          <p class="lede">Connect your wallet, choose a Gogh Punk you own, set a daily cap, and start its agent. The first setup creates its NFT wallet automatically and applies the fixed zero-price safety profile.</p>
         </div>
         <aside class="status-panel" aria-label="Protocol status">
           <div class="status-line"><span class="status-dot"></span><strong data-protocol-status class="loading">CHECKING FOUNDATION</strong></div>
@@ -54,16 +52,15 @@
 
       <nav class="workspace-jump-nav" aria-label="Art Broker setup steps">
         <a href="#owner-workspace-title"><span>1</span> Choose Punk</a>
-        <a href="#activation-title"><span>2</span> Activate wallet</a>
-        <a href="#automation-title"><span>3</span> Start automation</a>
-        <a href="#results-title"><span>4</span> View results</a>
+        <a href="#automation-title"><span>2</span> Start agent</a>
+        <a href="#results-title"><span>3</span> View results</a>
       </nav>
 
       <details class="getting-started-guide">
         <summary><strong>Before you begin</strong><span>Wallet, gas, custody, and safety details</span></summary>
         <div class="getting-started-grid">
           <article><span>01</span><h3>Use the current holder wallet</h3><p>Connect the wallet that currently owns the Gogh Punk. Ownership is checked directly against the collection on Robinhood Chain before each gated action.</p></article>
-          <article><span>02</span><h3>Activation is permanent</h3><p>Each Punk receives one deterministic ERC-6551 Punk Account. Control follows the Punk’s current holder; activation does not transfer the Punk or its assets.</p></article>
+          <article><span>02</span><h3>Its NFT wallet is permanent</h3><p>The first setup creates one deterministic ERC-6551 wallet for the selected Punk. Control follows the Punk’s current holder; setup does not transfer the Punk or its assets.</p></article>
           <article><span>03</span><h3>Know which wallet pays gas</h3><p>Your connected owner wallet pays one-time setup transactions. The hosted automation agent pays later mint gas. The Punk Account receives NFTs and does not pay hosted-worker gas.</p></article>
           <article><span>04</span><h3>Limits stay enforceable</h3><p>Daily mint caps, reviewed adapters, collection permissions, prices, reserves, agent authorization, pause, and revocation are checked on-chain—not trusted to website copy.</p></article>
           <article><span>05</span><h3>Approve setup, not every mint</h3><p>After one bounded on-chain setup, the encrypted agent can collect from the approved target set without another wallet popup for each mint. It stops at its cap, expiry, reserve, pause, or revocation.</p></article>
@@ -78,99 +75,24 @@
         </div>
         <div class="metric-grid owner-metrics">
           <article class="metric"><span>Wallet-owned Punks</span><strong data-owned-punk-count>—</strong><small data-owned-punk-detail>Connect owner wallet</small></article>
-          <article class="metric"><span>Activated agent wallets</span><strong data-punk-account-count>—</strong><small data-punk-account-detail>Connect owner wallet</small></article>
           <article class="metric"><span>Selected Punk</span><strong data-selected-punk-display>—</strong><small>Chosen by you in a control below</small></article>
           <article class="metric"><span>Agent execution</span><strong data-autonomy-status>OFF</strong><small>Controlled separately on-chain</small></article>
         </div>
 
         <label class="mandate-field workspace-master-picker">
-          <span>Control one of my live-verified Punks</span>
+          <span>Choose one of my live-verified Punks</span>
           <select data-workspace-punk-picker disabled>
             <option value="">Connect wallet to load your Punks</option>
           </select>
-          <small>This selection drives activation, account funds, on-chain limits, NFT recovery, and automation below. It never authorizes an agent by itself.</small>
+          <small>This selection drives wallet setup, limits, NFT recovery, and automation below. Choosing a Punk never authorizes an agent by itself.</small>
         </label>
 
-        <details class="workflow-step collapsible-section">
-          <summary><span><span class="workflow-number">1</span><strong>My Punks and agent wallets</strong></span><small>Wallet-derived live state</small></summary>
-          <div class="collapsible-content">
-            <p class="workflow-help">Connect the owner wallet to scan the collection, verify ownership live, and show activated Punk Account addresses.</p>
-            <div class="owner-account-grid section-block-compact" data-owner-accounts><p class="empty-state">Connect the owner wallet on Robinhood Chain to load your Punks.</p></div>
-          </div>
-        </details>
-
-        <details class="workflow-step collapsible-section" id="activation-title" data-account-activation>
-          <summary><span><span class="workflow-number">2</span><strong>Activate a Punk wallet</strong></span><small>One MetaMask transaction</small></summary>
-          <div class="collapsible-content panel activation-panel">
-            <p class="workflow-help">Activation creates the Punk’s deterministic ERC-6551 wallet. It does not authorize an AI agent, grant spending permission, or turn on autonomy.</p>
-          <ol class="mandate-guide" aria-label="How to activate another Punk">
-              <li><strong>Choose</strong><span>Select a Punk proven to belong to this wallet.</span></li>
-              <li><strong>Review</strong><span>Preview its permanent agent-wallet address.</span></li>
-              <li><strong>Activate</strong><span>Approve one registry transaction in MetaMask.</span></li>
-          </ol>
-          <label class="mandate-field activation-picker-field"><span>Select one of my live-verified Punks</span><select data-owned-punk-picker disabled><option value="">Connect wallet to load your Punks</option></select></label>
-            <p class="locked-note">Prefer the wallet-derived list. Manual entry remains available for recovery if an index is delayed.</p>
-          <div class="activation-controls">
-              <label class="mandate-field"><span>Manual Punk ID (optional)</span><input data-activation-token inputmode="numeric" pattern="[0-9]*" placeholder="Example: 1798" autocomplete="off" /></label>
-            <button class="action-button" type="button" data-activation-inspect disabled>Check Punk and preview wallet</button>
-          </div>
-          <dl class="setting-list activation-result">
-            <div class="setting-row"><dt>Agent wallet / Punk Account</dt><dd><code data-activation-account>Check an owned Punk to derive its agent wallet</code></dd></div>
-          </dl>
-          <label class="canary-confirmation"><input type="checkbox" data-activation-confirm /> I reviewed the Punk ID and agent-wallet address. Activate only this account; do not authorize an agent or autonomy.</label>
-          <button class="action-button activation-submit" type="button" data-activation-submit disabled>Activate Punk Account in MetaMask</button>
-          <p class="mandate-state" data-activation-state aria-live="polite">Loading activation status…</p>
-          </div>
-        </details>
-
-        <details class="workflow-step collapsible-section" id="policy-controls-title" data-owner-policy-controls>
-          <summary><span><strong>Legacy V1 Punk wallet controls</strong></span><small>Contained account · holder recovery only</small></summary>
-          <div class="collapsible-content">
-            <p class="workflow-help"><strong>This is not the autonomous V2 worker.</strong> These recovery controls act on the earlier V1 Punk Account shown below. A disabled/paused state here does not mean V2 automation is offline. Use section 3 for live autonomous status, cap, authorization, and hosted-worker gas.</p>
-            <div class="metric-grid policy-live-grid">
-              <article class="metric"><span>Selected Punk</span><strong data-policy-token>—</strong><small data-policy-selection-detail>Select an activated Punk</small></article>
-              <article class="metric"><span>Punk asset wallet</span><strong data-policy-account-short>—</strong><small><a data-policy-account-link hidden target="_blank" rel="noopener noreferrer">View full address ↗</a></small></article>
-              <article class="metric"><span>Effective mode</span><strong data-policy-mode>—</strong><small data-policy-pause-state>Live policy unavailable</small></article>
-              <article class="metric"><span>Today</span><strong data-policy-usage>—</strong><small>Acquisitions / enforced daily cap</small></article>
-              <article class="metric"><span>Policy version</span><strong data-policy-version>—</strong><small>Must remain unchanged during review</small></article>
-              <article class="metric"><span>Punk wallet balance</span><strong data-policy-balance>—</strong><small>Holds assets; does not fund the hosted worker</small></article>
-            </div>
-            <div class="layout-two owner-control-layout">
-              <article class="panel">
-                <div class="panel-header"><h3>Enforced daily acquisition cap</h3><span class="tag" data-policy-cap-badge>LIVE CHECK</span></div>
-                <p>This changes only <code>maxAcquisitionsPerDay</code> in the existing on-chain policy. Every other mode, budget, reserve, expiry, slippage, and allowlist field is copied byte-for-byte from the latest chain state.</p>
-                <label class="mandate-field"><span>Hard on-chain cap</span><select data-policy-cap disabled><option value="0">0 — block all acquisitions</option><option value="1">1 per UTC day</option><option value="3">3 per UTC day</option><option value="5">5 per UTC day</option><option value="10">10 per UTC day</option></select></label>
-                <label class="canary-confirmation"><input type="checkbox" data-policy-cap-confirm /> I reviewed this Punk, its agent-wallet address, current mode, and the new hard daily cap.</label>
-                <button class="action-button" type="button" data-policy-cap-submit disabled>Review and update cap in MetaMask</button>
-                <p class="locked-note">Changing the cap does not activate an account, enable a feature, approve a target, or authorize an agent. If autonomy is already active, raising the cap permits more acquisitions under the permissions that are already live.</p>
-              </article>
-              <article class="panel">
-                <div class="panel-header"><h3>Fund or recover the Punk wallet</h3><span class="tag">CURRENT HOLDER</span></div>
-                <p>Deposit sends native ETH only to the selected deterministic Punk Account. This funds holder-directed account actions; it does <strong>not</strong> fund the hosted autonomous worker. Withdraw calls that account’s fixed current-holder <code>execute</code> method and returns native ETH only to the connected wallet after live ownership verification.</p>
-                <label class="mandate-field"><span>Amount in ETH</span><input data-policy-funds-amount inputmode="decimal" placeholder="0.001" autocomplete="off" /></label>
-                <label class="canary-confirmation"><input type="checkbox" data-policy-funds-confirm /> I reviewed the selected Punk, account address, amount, and direction.</label>
-                <div class="workspace-actions owner-fund-actions"><button class="action-button" type="button" data-policy-deposit disabled>Deposit to Punk Account</button><button class="action-button secondary-action" type="button" data-policy-withdraw disabled>Withdraw to current owner</button></div>
-                <p class="locked-note">Do not use this deposit button to fund automatic mint transaction gas. The Punk Account receives collected NFTs, but the separate hosted agent pays automation gas.</p>
-              </article>
-            </div>
-            <aside class="mandate-summary owner-safety-control">
-              <strong>Emergency stop</strong>
-              <p>Pause disables this Punk’s effective policy without changing its saved preferences or transferring assets. This control can pause, but deliberately cannot unpause.</p>
-              <label class="canary-confirmation"><input type="checkbox" data-policy-pause-confirm /> Pause this selected Punk Account now.</label>
-              <button class="action-button danger-action" type="button" data-policy-pause disabled>Emergency-pause in MetaMask</button>
-              <label class="canary-confirmation"><input type="checkbox" data-policy-revoke-confirm /> Revoke every agent authorization for this selected Punk Account.</label>
-              <button class="action-button danger-action" type="button" data-policy-revoke disabled>Revoke all agents in MetaMask</button>
-            </aside>
-            <p class="mandate-state" data-policy-state aria-live="polite">Connect the owner wallet and select an activated Punk.</p>
-          </div>
-        </details>
-
         <details class="workflow-step collapsible-section" id="automation-title" data-autonomous-minting open>
-          <summary><span><span class="workflow-number">3</span><strong>Continuous free-mint automation</strong></span><small>Automatic safe profile · bounded and revocable</small></summary>
+          <summary><span><span class="workflow-number">2</span><strong>Continuous free-mint automation</strong></span><small>Automatic safe profile · bounded and revocable</small></summary>
           <div class="collapsible-content">
-            <p class="workflow-help">Choose a Punk, set its hard daily cap, and authorize the hosted agent once. It is automatically enrolled with the fixed maximum-coverage free-mint profile: no taste score or saved Art Mandate can prevent a supported zero-price target from reaching the live safety checks.</p>
+            <p class="workflow-help">Choose a Punk above, pick a daily cap and run period, then confirm the setup transactions in MetaMask. After setup, scheduled eligible free mints need no repeated wallet approval. The fixed safety profile still checks every target, runtime, price, and transaction.</p>
             <div class="metric-grid policy-live-grid automation-live-grid">
-              <article class="metric"><span>Automation readiness</span><strong data-v2-status>CHECKING</strong><small>Deployment, source, guardian, and worker gates</small></article>
+              <article class="metric"><span>Automation readiness</span><strong data-v2-status>CHECKING</strong><small>Live safety and worker checks</small></article>
               <article class="metric"><span>Selected Punk</span><strong data-v2-punk>Choose a Punk</strong><small>Must be live-owned by the connected wallet</small></article>
               <article class="metric automation-wallet-metric">
                 <span>Punk NFT wallet</span>
@@ -215,10 +137,10 @@
             </details>
             <div class="layout-two owner-control-layout">
               <article class="panel">
-                <div class="panel-header"><h3>One-time owner setup</h3><span class="tag off" data-v2-badge>CHECKING</span></div>
+                <div class="panel-header"><h3>Start this Punk’s agent</h3><span class="tag off" data-v2-badge>CHECKING</span></div>
                 <label class="mandate-field"><span>Hard daily maximum</span><select data-v2-cap disabled><option value="1">1 free mint per UTC day</option><option value="3">3 free mints per UTC day</option><option value="5">5 free mints per UTC day</option><option value="10">10 free mints per UTC day</option></select></label>
-                <label class="mandate-field"><span>Agent authorization</span><select data-v2-days disabled><option value="7">7 days</option><option value="14">14 days</option><option value="30">30 days maximum</option></select></label>
-                <button class="action-button" type="button" data-v2-setup disabled>Review one-time setup in wallet</button>
+                <label class="mandate-field"><span>How long it may run</span><select data-v2-days disabled><option value="7">7 days</option><option value="14">14 days</option><option value="30">30 days maximum</option></select></label>
+                <button class="action-button" type="button" data-v2-setup disabled>Set up and start agent</button>
                 <button class="action-button secondary-action" type="button" data-v3-run-now disabled>Send selected agent now</button>
                 <p class="locked-note" data-v3-run-state>Sends the selected, already-authorized Punk into an immediate scan and enrolls it for scheduled scans. It grants no authority and still requires every live target, zero price, cap, runtime, and simulation check.</p>
                 <p class="locked-note" data-v2-message>This button unlocks only after the selected automation generation is deployed, fully verified, configured by the guardian, and checked against live chain state. Art Mandate preferences are not required.</p>
@@ -257,7 +179,7 @@
         </details>
 
         <details class="workflow-step collapsible-section public-scout-step" id="results-title">
-          <summary><span><span class="workflow-number">4</span><strong>Research and mint results</strong></span><small>Public read-only activity</small></summary>
+          <summary><span><span class="workflow-number">3</span><strong>Research and mint results</strong></span><small>Public read-only activity</small></summary>
           <div class="collapsible-content">
             <p class="workflow-help">Review what Scout found and what each Punk actually collected. This public data is separate from connected-wallet ownership and never selects a Punk for you.</p>
             <div class="workspace-actions" aria-label="Research and results links">

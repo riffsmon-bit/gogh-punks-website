@@ -126,10 +126,11 @@ test("wrong owner, wrong runtime, and changed review fail closed", async () => {
     (error) => error.code === "STATE_CHANGED");
 });
 
-test("activation browser exposes no arbitrary target, signer, or autonomous authority", async () => {
+test("legacy activation compatibility remains inert and is absent from the current broker UI", async () => {
   const source = await readFile(new URL("../site/account-activation.js", import.meta.url), "utf8");
   const html = await readFile(new URL("../site/broker/index.html", import.meta.url), "utf8");
   assert.match(source, /createAccount/);
   assert.doesNotMatch(source, /privateKey|mnemonic|personal_sign|eth_sign|wallet_addEthereumChain/);
-  assert.match(html, /does not authorize an AI agent, grant spending permission, or turn on autonomy/);
+  assert.doesNotMatch(html, /data-account-activation|account-activation\.js/);
+  assert.match(html, /Choosing a Punk never authorizes an agent by itself/);
 });

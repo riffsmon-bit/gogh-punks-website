@@ -273,7 +273,7 @@ test("mandate owner verification pins Robinhood before accepting the selected Pu
 
 test("broker UI hides Art Mandate controls and uses the fixed on-chain safety profile", async () => {
   const html = await readFile(new URL("../site/broker/index.html", import.meta.url), "utf8");
-  assert.match(html, /fixed maximum-coverage free-mint profile/);
+  assert.match(html, /fixed zero-price safety profile|fixed safety profile/);
   assert.match(html, /Art Mandate preferences are not required/);
   assert.match(html, /Only live on-chain permissions can start or stop/);
   assert.match(html, /data-selected-gallery-link/);

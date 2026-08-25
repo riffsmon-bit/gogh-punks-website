@@ -281,12 +281,12 @@ function renderPunkPicker(picker, accounts, preferredTokenId = "") {
   const placeholder = documentObject.createElement("option");
   placeholder.value = "";
   placeholder.textContent = accounts.length
-    ? "Choose a Punk to inspect or activate"
-    : "No wallet-owned Punks found · enter an ID manually";
+    ? "Choose one of my Punks"
+    : "No wallet-owned Punks found";
   picker.replaceChildren(placeholder, ...accounts.map((item) => {
     const option = documentObject.createElement("option");
     option.value = item.tokenId;
-    option.textContent = `Punk #${item.tokenId} — ${item.activated ? "activated" : "owned · inspect account"}`;
+    option.textContent = `Punk #${item.tokenId}`;
     return option;
   }));
   picker.disabled = accounts.length === 0;
@@ -384,10 +384,14 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
   const picker = browserDocument?.querySelector?.("[data-owned-punk-picker]");
   const mandatePicker = browserDocument?.querySelector?.("[data-mandate-punk-picker]");
   const workspacePicker = browserDocument?.querySelector?.("[data-workspace-punk-picker]");
-  if (!browserWindow || !container) return null;
+  if (!browserWindow || (!container && !picker && !mandatePicker && !workspacePicker)) return null;
   const request = fetchFunction ?? browserWindow.fetch.bind(browserWindow);
   let revision = 0;
   let currentAccounts = [];
+
+  function setContainerHtml(value) {
+    if (container) container.innerHTML = value;
+  }
 
   function setCounts(owned, activated, detail) {
     browserDocument.querySelectorAll("[data-owned-punk-count]").forEach((target) => {
@@ -461,10 +465,10 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       renderPunkPicker(mandatePicker, []);
       renderPunkPicker(workspacePicker, []);
       currentAccounts = [];
-      container.innerHTML = '<p class="empty-state">Connect the owner wallet on Robinhood Chain to load activated Punk Accounts.</p>';
+      setContainerHtml('<p class="empty-state">Connect the owner wallet on Robinhood Chain to load activated Punk Accounts.</p>');
       return;
     }
-    container.innerHTML = '<p class="empty-state loading">Loading indexed candidates and checking each live owner…</p>';
+    setContainerHtml('<p class="empty-state loading">Loading indexed candidates and checking each live owner…</p>');
     try {
       const [gateResponse, candidatesResponse] = await Promise.all([
         request("/api/broker/account-activation-status", {
@@ -516,7 +520,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       renderPunkPicker(mandatePicker, accounts, selectedTokenId);
       renderPunkPicker(workspacePicker, accounts, selectedTokenId);
       currentAccounts = accounts;
-      renderOwnerAccounts(container, accounts);
+      if (container) renderOwnerAccounts(container, accounts);
       if (selectedTokenId) selectPunk(selectedTokenId);
     } catch {
       if (current !== revision) return;
@@ -526,7 +530,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       renderPunkPicker(mandatePicker, []);
       renderPunkPicker(workspacePicker, []);
       currentAccounts = [];
-      container.innerHTML = '<p class="empty-state">Activated accounts could not be checked right now. No account status was inferred from stale indexed data.</p>';
+      setContainerHtml('<p class="empty-state">Punks could not be checked right now. No ownership or wallet status was inferred from stale data.</p>');
     }
   }
 

@@ -164,23 +164,21 @@ test("wallet scan ABI-matches Multicall3 and discovers every owned token in the 
     "0xca11bde05977b3631167028862be2a173976ca11");
 });
 
-test("picker UI selects a live-verified Punk while preserving manual entry", async () => {
-  const [html, accounts, activation, endpoint] = await Promise.all([
+test("broker picker selects only a live-verified wallet-owned Punk", async () => {
+  const [html, accounts, endpoint] = await Promise.all([
     readFile(new URL("../site/broker/index.html", import.meta.url), "utf8"),
     readFile(new URL("../site/owner-accounts.js", import.meta.url), "utf8"),
-    readFile(new URL("../site/account-activation.js", import.meta.url), "utf8"),
     readFile(new URL("../netlify/functions/broker-owner-punks.mjs", import.meta.url), "utf8"),
   ]);
-  assert.match(html, /data-owned-punk-picker/);
+  assert.doesNotMatch(html, /data-owned-punk-picker|data-account-activation/);
   assert.doesNotMatch(html, /data-mandate-punk-picker/);
   assert.match(html, /data-workspace-punk-picker/);
-  assert.match(html, /data-activation-token/);
+  assert.doesNotMatch(html, /data-activation-token/);
   assert.match(html, /data-owned-punk-count/);
   assert.match(html, /data-selected-punk-display/);
   assert.doesNotMatch(html, /Scout Punk<\/span><strong data-scout-token-display/);
   assert.match(accounts, /findBrowserOwnedPunks/);
   assert.match(accounts, /gogh:punk-selected/);
-  assert.match(activation, /gogh:punk-selected/);
   assert.match(endpoint, /DISCOVERY_CANDIDATES_ONLY_EACH_SELECTION_REQUIRES_LIVE_WALLET_OWNER_CHECK/);
   assert.match(endpoint, /OPENSEA_API_KEY/);
   assert.match(accounts, /discoverWalletOwnedPunkIds/);

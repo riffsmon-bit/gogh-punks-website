@@ -210,7 +210,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     stop.disabled = !active;
     cap.disabled = state.gate?.capability !== true;
     days.disabled = state.gate?.capability !== true;
-    setup.textContent = active ? "Update cap or agent authorization" : "Review one-time setup in wallet";
+    setup.textContent = active ? "Update cap or run time" : "Set up and start agent";
     badge.textContent = agentLive ? "AGENT LIVE" : active ? "AUTHORIZED · WORKER OFFLINE"
       : state.gate?.capability === true ? "READY" : "LOCKED";
     badge.classList.toggle("off", !agentLive && state.gate?.capability !== true);

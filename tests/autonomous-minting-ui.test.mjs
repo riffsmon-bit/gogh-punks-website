@@ -18,10 +18,10 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.match(html, /Automatic safe profile/);
   assert.match(html, /exact reviewed OpenSea Studio runtime/i);
   assert.match(html, /data-v3-upgrade/);
-  assert.match(html, /Legacy V1 Punk wallet controls/);
-  assert.match(html, /This is not the autonomous V2 worker/);
-  assert.doesNotMatch(html, /data-owner-policy-controls open/);
+  assert.doesNotMatch(html, /Legacy V1|data-owner-policy-controls|data-account-activation/);
+  assert.doesNotMatch(html, /account-activation\.js|owner-policy-controls\.js/);
   assert.match(html, /data-v2-setup disabled/);
+  assert.match(html, /Set up and start agent/);
   assert.match(html, /data-v2-stop disabled/);
   assert.match(html, /data-v2-cap disabled/);
   assert.match(html, /data-v2-days disabled/);
@@ -36,7 +36,7 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.match(html, /data-v3-run-now disabled/);
   assert.match(html, /Send selected agent now/);
   assert.match(html, /data-v2-refreshed/);
-  assert.match(html, /fixed maximum-coverage free-mint profile/i);
+  assert.match(html, /fixed zero-price safety profile|fixed safety profile/i);
   assert.match(html, /Art Mandate preferences are not required/);
   assert.doesNotMatch(html, /data-mandate-form/);
   assert.doesNotMatch(html, /mandate-editor\.js/);
