@@ -9,6 +9,7 @@ import {
   confirmedIntentWindow,
   eligibleAutomationV3Profiles,
   mergePrioritySeaDropCollections,
+  recentSeaDropCollections,
   runAutomatedSeaDropV3Worker,
   selectActiveZeroPriceSeaDropCollections,
   selectReviewedStudioCollections,
@@ -116,6 +117,40 @@ test("V3 automatic profile uses enrolled, saved, configured, or immediately requ
   assert.equal(immediate[0].automatic_profile, true);
 });
 
+test("V3 discovery has a bounded parallel RPC ceiling", async () => {
+  let active = 0;
+  let maximumActive = 0;
+  const ranges = [];
+  const collections = await recentSeaDropCollections({
+    getBlockNumber: async () => 1_000_000n,
+    getLogs: async ({ fromBlock, toBlock }) => {
+      active += 1;
+      maximumActive = Math.max(maximumActive, active);
+      ranges.push([fromBlock, toBlock]);
+      await new Promise((resolve) => setTimeout(resolve, 2));
+      active -= 1;
+      return [];
+    },
+  }, 20n, { pause: async () => {} });
+  assert.deepEqual(collections, []);
+  assert.equal(ranges.length, 16);
+  assert.equal(maximumActive, 4);
+  assert.equal(ranges[0][1] - ranges.at(-1)[0] + 1n, 80_000n);
+});
+
+test("V3 discovery fails closed when any bounded hint range fails", async () => {
+  let calls = 0;
+  await assert.rejects(() => recentSeaDropCollections({
+    getBlockNumber: async () => 100_000n,
+    getLogs: async () => {
+      calls += 1;
+      if (calls === 3) throw new TypeError("provider timeout");
+      return [];
+    },
+  }, 20n, { pause: async () => {} }), /SeaDrop discovery incomplete/);
+  assert.equal(calls, 4);
+});
+
 test("V3 worker source binds both runtime families and no paid or approval path", async () => {
   const source = await readFile(
     new URL("../scripts/run-automated-seadrop-v3-worker.mjs", import.meta.url),
@@ -131,10 +166,12 @@ test("V3 worker source binds both runtime families and no paid or approval path"
   assert.match(source, /DISCOVERY_COLLECTION_LIMIT = 128/);
   assert.match(source, /DISCOVERY_LOG_CHUNK_SIZE = 5_000n/);
   assert.match(source, /DISCOVERY_MAX_LOG_CHUNKS = 16n/);
+  assert.match(source, /DISCOVERY_LOG_BATCH_SIZE = 4/);
+  assert.match(source, /retryCount: 0, timeout: 5_000/);
   assert.match(source, /DISCOVERY_BLOCK_WINDOW = DISCOVERY_LOG_CHUNK_SIZE \* DISCOVERY_MAX_LOG_CHUNKS/);
   assert.doesNotMatch(source, /toBlock > 1_000_000n/);
   assert.doesNotMatch(source, /DISCOVERY_LOG_CHUNK_SIZE = 50_000n/);
-  assert.match(source, /collections\.size < DISCOVERY_COLLECTION_LIMIT/);
+  assert.match(source, /collections\.size >= DISCOVERY_COLLECTION_LIMIT/);
   assert.match(source, /DIRECTED_COLLECTION_LIMIT = 8/);
   assert.match(source, /BROKER_AUTOMATION_V3_TARGET_COLLECTIONS/);
   assert.match(source, /BROKER_AUTOMATION_V3_PRIORITY_COLLECTIONS/);

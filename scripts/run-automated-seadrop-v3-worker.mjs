@@ -94,6 +94,17 @@ function readClient(url) {
   });
 }
 
+function discoveryClient(url) {
+  return createPublicClient({
+    chain: CHAIN,
+    // Discovery hints are non-authoritative and every selected collection is
+    // subsequently re-read and simulated by both full clients. A short,
+    // no-retry transport prevents a slow hint provider from consuming the
+    // scheduled function's entire execution budget.
+    transport: http(url, { batch: false, retryCount: 0, timeout: 5_000 }),
+  });
+}
+
 const DISCOVERY_COLLECTION_LIMIT = 128;
 const DIRECTED_COLLECTION_LIMIT = 8;
 // Robinhood's public RPC has repeatedly timed out while resolving 50,000-block
@@ -109,6 +120,7 @@ const DISCOVERY_LOG_CHUNK_SIZE = 5_000n;
 // and directed collection lists.
 const DISCOVERY_MAX_LOG_CHUNKS = 16n;
 const DISCOVERY_BLOCK_WINDOW = DISCOVERY_LOG_CHUNK_SIZE * DISCOVERY_MAX_LOG_CHUNKS;
+const DISCOVERY_LOG_BATCH_SIZE = 4;
 const DISCOVERY_BATCH_SIZE = 8;
 const DISCOVERY_RUNTIME_BATCH_SIZE = 4;
 const DISCOVERY_BATCH_DELAY_MS = 250;
@@ -301,29 +313,44 @@ export async function eligibleAutomationV3Profiles(
     .slice(0, CONFIGURED_PUNK_LIMIT);
 }
 
-async function recentSeaDropCollections(client, confirmations = 20n) {
+export async function recentSeaDropCollections(
+  client, confirmations = 20n, dependencies = {},
+) {
+  const pause = dependencies.pause ?? discoveryDelay;
   const head = await client.getBlockNumber();
   const toBlock = head - confirmations;
   const fromBlock = toBlock + 1n > DISCOVERY_BLOCK_WINDOW
     ? toBlock - DISCOVERY_BLOCK_WINDOW + 1n : 0n;
-  const collections = new Set();
+  const ranges = [];
   let cursor = toBlock;
   let chunks = 0n;
-  while (cursor >= fromBlock && collections.size < DISCOVERY_COLLECTION_LIMIT) {
+  while (cursor >= fromBlock && chunks < DISCOVERY_MAX_LOG_CHUNKS) {
     const chunkFrom = cursor - fromBlock + 1n > DISCOVERY_LOG_CHUNK_SIZE
       ? cursor - DISCOVERY_LOG_CHUNK_SIZE + 1n : fromBlock;
-    const logs = await client.getLogs({
-      address: getAddress(SEA_DROP), event: PUBLIC_DROP_UPDATED_EVENT,
-      fromBlock: chunkFrom, toBlock: cursor,
-    });
+    ranges.push(Object.freeze({ fromBlock: chunkFrom, toBlock: cursor }));
     chunks += 1n;
-    for (const log of logs.toReversed()) {
-      collections.add(getAddress(log.args.nftContract).toLowerCase());
-      if (collections.size >= DISCOVERY_COLLECTION_LIMIT) break;
-    }
     if (chunkFrom === fromBlock || chunks >= DISCOVERY_MAX_LOG_CHUNKS) break;
     cursor = chunkFrom - 1n;
-    await discoveryDelay();
+  }
+  const collections = new Set();
+  for (let offset = 0; offset < ranges.length; offset += DISCOVERY_LOG_BATCH_SIZE) {
+    const batch = ranges.slice(offset, offset + DISCOVERY_LOG_BATCH_SIZE);
+    const results = await Promise.allSettled(batch.map((range) => client.getLogs({
+      address: getAddress(SEA_DROP), event: PUBLIC_DROP_UPDATED_EVENT,
+      fromBlock: range.fromBlock, toBlock: range.toBlock,
+    })));
+    if (results.some((result) => result.status === "rejected")) {
+      throw new TypeError("SeaDrop discovery incomplete: public-drop log read failed");
+    }
+    for (const result of results) {
+      for (const log of result.value.toReversed()) {
+        collections.add(getAddress(log.args.nftContract).toLowerCase());
+        if (collections.size >= DISCOVERY_COLLECTION_LIMIT) break;
+      }
+      if (collections.size >= DISCOVERY_COLLECTION_LIMIT) break;
+    }
+    if (collections.size >= DISCOVERY_COLLECTION_LIMIT) break;
+    if (offset + DISCOVERY_LOG_BATCH_SIZE < ranges.length) await pause();
   }
   return [...collections];
 }
@@ -517,6 +544,7 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   const secondaryUrl = httpsUrl("ROBINHOOD_SECONDARY_RPC_URL", environment.ROBINHOOD_SECONDARY_RPC_URL);
   const primary = dependencies.primary ?? readClient(primaryUrl);
   const secondary = dependencies.secondary ?? readClient(secondaryUrl);
+  const discovery = dependencies.discovery ?? discoveryClient(primaryUrl);
   const global = await readAutomationV3GlobalState(environment, { clients: [primary, secondary] });
   if (!global.configured || !global.worker.enabled) throw new TypeError("global V3 gate is closed");
   const database = dependencies.database ?? getDatabase().pool;
@@ -533,7 +561,7 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   const directedCollections = configuredSeaDropCollections(environment);
   const priorityCollections = configuredPrioritySeaDropCollections(environment) ?? [];
   const discoveredCollections = directedCollections === null
-    ? await recentSeaDropCollections(primary) : [];
+    ? await recentSeaDropCollections(discovery) : [];
   const collections = directedCollections
     ?? mergePrioritySeaDropCollections(priorityCollections, discoveredCollections);
   // Use the archive provider for the indexed public-drop reads, then move the much
