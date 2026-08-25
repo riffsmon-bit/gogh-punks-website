@@ -271,14 +271,13 @@ test("mandate owner verification pins Robinhood before accepting the selected Pu
   }), /wrong chain/);
 });
 
-test("broker mandate UI distinguishes autonomous preference from on-chain readiness", async () => {
+test("broker UI hides Art Mandate controls and uses the fixed on-chain safety profile", async () => {
   const html = await readFile(new URL("../site/broker/index.html", import.meta.url), "utf8");
-  assert.match(html, /Autonomous free mints — on-chain setup required/);
-  assert.match(html, /matching on-chain policy, reviewed target adapter, permissions, gas limits, and agent authorization/);
-  assert.match(html, /10 — high-volume hard maximum/);
-  assert.match(html, /There is deliberately no unlimited option/);
+  assert.match(html, /fixed maximum-coverage free-mint profile/);
+  assert.match(html, /Art Mandate preferences are not required/);
+  assert.match(html, /Only live on-chain permissions can start or stop/);
   assert.match(html, /data-selected-gallery-link/);
   assert.doesNotMatch(html, /\/punk\/1797#external-free-mint-title/);
-  assert.match(html, /Define the operating profile/);
-  assert.match(html, /separate on-chain policy remains the final authority/);
+  assert.doesNotMatch(html, /data-mandate-punk-picker/);
+  assert.doesNotMatch(html, /data-mandate-form/);
 });

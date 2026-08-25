@@ -1,5 +1,6 @@
 import { readAutomationV3PunkState } from "./_shared/autonomy-v3-live.mjs";
 import { runAutomationV3Once } from "./_shared/automation-v3-runner.mjs";
+import { enrollAutomationV3Punk } from "./_shared/automation-v3-worker-state.mjs";
 import { json, PublicError, readJson, requireSameOrigin } from "./_shared/http.mjs";
 
 function exactBody(body) {
@@ -16,6 +17,7 @@ export async function runSelectedAutomationV3(body, dependencies = {}) {
   const tokenId = exactBody(body);
   const readPunk = dependencies.readPunk ?? readAutomationV3PunkState;
   const runOnce = dependencies.runOnce ?? runAutomationV3Once;
+  const enroll = dependencies.enroll ?? enrollAutomationV3Punk;
   const punk = await readPunk(tokenId);
   if (punk?.tokenId !== tokenId || punk?.created !== true || punk?.active !== true) {
     throw new PublicError(
@@ -24,6 +26,7 @@ export async function runSelectedAutomationV3(body, dependencies = {}) {
       `Punk #${tokenId} is not currently authorized for autonomous V3 mints.`,
     );
   }
+  await enroll(punk);
   const result = await runOnce({ requestedTokenId: tokenId });
   return Object.freeze({
     tokenId,

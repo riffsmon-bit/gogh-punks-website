@@ -242,22 +242,38 @@ export function configuredAutomationV3PunkIds(environment = {}) {
   return Object.freeze([...tokenIds]);
 }
 
-async function eligibleProfiles(pool, requestedTokenId = null, configuredTokenIds = []) {
+export async function eligibleAutomationV3Profiles(
+  pool, requestedTokenId = null, configuredTokenIds = [],
+) {
   if (requestedTokenId !== null
     && (typeof requestedTokenId !== "string" || !/^(?:0|[1-9][0-9]{0,3})$/.test(requestedTokenId))) {
     throw new TypeError("invalid requested Punk token ID");
   }
   const result = await pool.query(`
-    SELECT DISTINCT ON (m.token_id) m.token_id, m.configured_by, m.economic_settings,
-           m.risk_settings, m.artistic_preferences
-      FROM broker_art_mandates m
-     WHERE m.chain_id = $1 AND m.collection_address = $2 AND m.mode = 'AUTONOMOUS'
-       AND ($3::numeric IS NULL OR m.token_id = $3::numeric)
-     ORDER BY m.token_id, m.version DESC
+    WITH latest_saved_punks AS (
+      SELECT DISTINCT ON (m.token_id) m.token_id
+        FROM broker_art_mandates m
+       WHERE m.chain_id = $1 AND m.collection_address = $2
+       ORDER BY m.token_id, m.version DESC
+    ), enrolled AS (
+      SELECT e.token_id
+        FROM broker_automation_v3_enrollments e
+       WHERE e.chain_id = $1 AND e.collection_address = $2
+      UNION
+      SELECT token_id FROM latest_saved_punks
+    )
+    SELECT token_id, NULL::text AS configured_by, NULL::jsonb AS economic_settings,
+           NULL::jsonb AS risk_settings, NULL::jsonb AS artistic_preferences,
+           TRUE AS automatic_profile
+      FROM enrolled
+     WHERE ($3::numeric IS NULL OR token_id = $3::numeric)
+     ORDER BY token_id
      LIMIT 32`, [4663, ROBINHOOD.canonicalCollection, requestedTokenId]);
   const rows = [...result.rows];
   const known = new Set(rows.map(({ token_id: tokenId }) => String(tokenId)));
-  for (const tokenId of configuredTokenIds) {
+  const automaticTokenIds = requestedTokenId === null
+    ? configuredTokenIds : [...configuredTokenIds, requestedTokenId];
+  for (const tokenId of automaticTokenIds) {
     if ((requestedTokenId === null || requestedTokenId === tokenId) && !known.has(tokenId)) {
       rows.push(Object.freeze({
         token_id: tokenId,
@@ -265,7 +281,7 @@ async function eligibleProfiles(pool, requestedTokenId = null, configuredTokenId
         economic_settings: null,
         risk_settings: null,
         artistic_preferences: null,
-        operator_configured: true,
+        automatic_profile: true,
       }));
     }
   }
@@ -491,7 +507,9 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   const database = dependencies.database ?? getDatabase().pool;
   const requestedTokenId = dependencies.requestedTokenId ?? null;
   const configuredTokenIds = configuredAutomationV3PunkIds(environment);
-  const profiles = await eligibleProfiles(database, requestedTokenId, configuredTokenIds);
+  const profiles = await eligibleAutomationV3Profiles(
+    database, requestedTokenId, configuredTokenIds,
+  );
   if (profiles.length === 0) return { status: "NO_AUTONOMOUS_MANDATES", submitted: 0 };
   // A reviewed operator may temporarily constrain discovery to a small exact set.
   // This does not bypass any runtime, public-drop, dual-provider, policy, or simulation
@@ -529,21 +547,18 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
       diagnostics.missingActivatedAccounts += 1;
       continue;
     }
-    let expectedOwner = row.configured_by;
-    if (expectedOwner === null) {
-      const ownerRequest = {
-        address: getAddress(ROBINHOOD.canonicalCollection), abi: COLLECTION_ABI,
-        functionName: "ownerOf", args: [BigInt(tokenId)],
-      };
-      const [primaryOwner, secondaryOwner] = await Promise.all([
-        primary.readContract(ownerRequest), secondary.readContract(ownerRequest),
-      ]);
-      if (getAddress(primaryOwner) !== getAddress(secondaryOwner)) {
-        diagnostics.providerStateDisagreements += 1;
-        continue;
-      }
-      expectedOwner = getAddress(primaryOwner).toLowerCase();
+    const ownerRequest = {
+      address: getAddress(ROBINHOOD.canonicalCollection), abi: COLLECTION_ABI,
+      functionName: "ownerOf", args: [BigInt(tokenId)],
+    };
+    const [primaryOwner, secondaryOwner] = await Promise.all([
+      primary.readContract(ownerRequest), secondary.readContract(ownerRequest),
+    ]);
+    if (getAddress(primaryOwner) !== getAddress(secondaryOwner)) {
+      diagnostics.providerStateDisagreements += 1;
+      continue;
     }
+    const expectedOwner = getAddress(primaryOwner).toLowerCase();
     const priorityState = await pendingPriorityCollections(
       primary, secondary, accountAddress, priorityCollections,
     );
@@ -606,10 +621,8 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
         limits: { maxMintsPerUtcDay: cap, maxMintsPerRun: 1, maxGasPerMint: 700000,
           maxGasWeiPerRun: first.balance.toString(), minAgentReserveWei: "10000000000000", intentTtlSeconds: 120,
           maxEvidenceAgeSeconds: 30,
-          maxContractRiskScore: row.risk_settings === null
-            ? 100 : Number(row.risk_settings.maxContractRiskScore),
-          minimumTasteMatch: row.artistic_preferences === null
-            ? 0 : Number(row.artistic_preferences.minimumTasteMatch),
+          maxContractRiskScore: 100,
+          minimumTasteMatch: 0,
           stopOnFailure: true },
       };
       let tx;

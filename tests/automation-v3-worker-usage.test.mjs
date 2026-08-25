@@ -3,7 +3,8 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
-  getAutomationV3UsageStats, recordAutomationV3WorkerHeartbeat, workerUsageFromRow,
+  enrollAutomationV3Punk, getAutomationV3UsageStats,
+  recordAutomationV3WorkerHeartbeat, workerUsageFromRow,
 } from "../netlify/functions/_shared/automation-v3-worker-state.mjs";
 
 const RELEASE = "a".repeat(40);
@@ -82,4 +83,32 @@ test("V3 history migration backfills the last heartbeat and enforces idempotence
   assert.match(source, /WHERE transaction_hash IS NOT NULL/);
   assert.match(source, /FROM broker_automation_v3_worker_state/);
   assert.match(source, /ON CONFLICT DO NOTHING/);
+});
+
+test("active Punk enrollment is idempotent and contains no signing authority", async () => {
+  const calls = [];
+  const punk = {
+    tokenId: "1639", created: true, active: true,
+    account: `0x${"A".repeat(40)}`, owner: `0x${"B".repeat(40)}`,
+  };
+  const enrolled = await enrollAutomationV3Punk(punk, { database: {
+    async query(sql, values) { calls.push({ sql, values }); return { rows: [] }; },
+  } });
+  assert.equal(enrolled.tokenId, "1639");
+  assert.equal(enrolled.account, `0x${"a".repeat(40)}`);
+  assert.match(calls[0].sql, /ON CONFLICT/);
+  assert.match(calls[0].sql, /last_requested_at = NOW\(\)/);
+  await assert.rejects(
+    () => enrollAutomationV3Punk({ ...punk, active: false }), /not active/,
+  );
+});
+
+test("V3 enrollment migration keeps a chain-qualified public Punk roster", async () => {
+  const source = await readFile(new URL(
+    "../netlify/database/migrations/20260825010000_create_automation_v3_enrollments.sql",
+    import.meta.url,
+  ), "utf8");
+  assert.match(source, /CREATE TABLE IF NOT EXISTS broker_automation_v3_enrollments/);
+  assert.match(source, /PRIMARY KEY \(chain_id, collection_address, token_id\)/);
+  assert.doesNotMatch(source, /private_key|signature|password/i);
 });

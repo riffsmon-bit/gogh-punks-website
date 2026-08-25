@@ -15,7 +15,7 @@ test("automation panel selects the best fully ready generation and preserves the
     readFile(new URL("site/autonomous-minting.js", root), "utf8"),
   ]);
   assert.match(html, /Continuous free-mint automation/);
-  assert.match(html, /Best verified generation/);
+  assert.match(html, /Automatic safe profile/);
   assert.match(html, /exact reviewed OpenSea Studio runtime/i);
   assert.match(html, /data-v3-upgrade/);
   assert.match(html, /Legacy V1 Punk wallet controls/);
@@ -36,10 +36,10 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.match(html, /data-v3-run-now disabled/);
   assert.match(html, /Send selected agent now/);
   assert.match(html, /data-v2-refreshed/);
-  assert.match(html, /Maximum-coverage live mint settings/);
-  assert.match(html, /contract risk 100/);
-  assert.match(html, /minimum Taste Match 0/);
-  assert.match(html, /data-mandate-maximum-coverage/);
+  assert.match(html, /fixed maximum-coverage free-mint profile/i);
+  assert.match(html, /Art Mandate preferences are not required/);
+  assert.doesNotMatch(html, /data-mandate-form/);
+  assert.doesNotMatch(html, /mandate-editor\.js/);
   assert.match(html, /Fund the hosted automation agent/);
   assert.match(html, /does not pay hosted-worker gas/i);
   assert.match(html, /data-v3-account-copy disabled/);
@@ -52,7 +52,7 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.match(html, /not recoverable through Punk withdrawal controls/i);
   assert.match(html, /verified worker heartbeat/i);
   assert.match(html, /Automation checkpoint:/);
-  assert.match(html, /saved preference cannot silently/i);
+  assert.match(html, /Art-taste settings do not gate mints/i);
   assert.match(browser, /eth_sendTransaction/);
   assert.doesNotMatch(browser, /personal_sign|eth_signTypedData|wallet_addEthereumChain/i);
   assert.match(browser, /autonomy-v\$\{state\.version\}-owner-setup/i);

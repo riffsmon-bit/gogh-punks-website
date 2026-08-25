@@ -82,7 +82,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     const outcome = value.status === "MINT_CONFIRMED" ? "Mint confirmed"
       : value.status === "NO_ELIGIBLE_TARGETS" ? "Scanned · no eligible target"
         : value.status === "NO_ANALYZED_ACTIVE_TARGETS" ? "Scanned · awaiting analyzed targets"
-          : value.status === "NO_AUTONOMOUS_MANDATES" ? "Scanned · no active mandates"
+          : value.status === "NO_AUTONOMOUS_MANDATES" ? "Scanned · no enrolled Punk agents"
             : "Worker check failed safely";
     return `${outcome} · ${checked.toLocaleString()}`;
   }

@@ -172,7 +172,8 @@ test("picker UI selects a live-verified Punk while preserving manual entry", asy
     readFile(new URL("../netlify/functions/broker-owner-punks.mjs", import.meta.url), "utf8"),
   ]);
   assert.match(html, /data-owned-punk-picker/);
-  assert.match(html, /data-mandate-punk-picker/);
+  assert.doesNotMatch(html, /data-mandate-punk-picker/);
+  assert.match(html, /data-workspace-punk-picker/);
   assert.match(html, /data-activation-token/);
   assert.match(html, /data-owned-punk-count/);
   assert.match(html, /data-selected-punk-display/);

@@ -3,14 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Activate a Gogh Punk Account, set its Art Mandate, and manage its on-chain curator workspace." />
+    <meta name="description" content="Choose a Gogh Punk, activate its wallet, and start bounded autonomous free-mint collection." />
     <meta name="theme-color" content="#071321" />
     <title>Art Broker · Gogh Punks</title>
     <link rel="icon" href="/assets/favicon.png" type="image/png" />
     <link rel="stylesheet" href="/broker.css" />
     <script src="/broker.js" defer></script>
     <script src="/wallet.js" type="module"></script>
-    <script src="/mandate-editor.js" type="module"></script>
     <script src="/account-activation.js" type="module"></script>
     <script src="/owner-accounts.js" type="module"></script>
     <script src="/owner-policy-controls.js" type="module"></script>
@@ -36,30 +35,28 @@
         <div>
           <p class="eyebrow">Gogh Punk agent setup · Robinhood Chain</p>
           <h1>Turn your Punk into an art curator.</h1>
-          <p class="lede">Connect your wallet, choose a Gogh Punk you own, activate its permanent Punk Account, and define exactly what it may research or collect. The page labels every signature and transaction before you approve it.</p>
+          <p class="lede">Connect your wallet, choose a Gogh Punk you own, activate its permanent Punk Account, choose a daily cap, and send it. The agent automatically uses the fixed zero-price safety profile.</p>
         </div>
         <aside class="status-panel" aria-label="Protocol status">
           <div class="status-line"><span class="status-dot"></span><strong data-protocol-status class="loading">CHECKING FOUNDATION</strong></div>
           <p><strong data-owner-execution-status>Checking execution state…</strong></p>
           <p>Autonomous execution: <strong data-autonomy-status>OFF</strong></p>
-          <p class="status-explainer">Saved preferences and on-chain execution permissions are separate controls.</p>
+          <p class="status-explainer">Only live on-chain permissions can start or stop autonomous collection.</p>
         </aside>
       </section>
       <p class="safety-banner"><strong>Live status:</strong> <span data-live-summary>Checking deployed contracts and execution controls…</span></p>
 
       <aside class="safety-banner beta-test-banner" aria-label="Current automation scope">
         <strong>Automation checkpoint:</strong> The page shows the active automation generation, worker heartbeat,
-        Punk authorization, and hosted-agent gas separately. A saved preference cannot silently
-        start automation, and funding a Punk Account does not fund the hosted transaction signer.
+        Punk authorization, and hosted-agent gas separately. Art-taste settings do not gate mints;
+        funding a Punk Account does not fund the hosted transaction signer.
       </aside>
 
       <nav class="workspace-jump-nav" aria-label="Art Broker setup steps">
         <a href="#owner-workspace-title"><span>1</span> Choose Punk</a>
         <a href="#activation-title"><span>2</span> Activate wallet</a>
-        <a href="#mandate-title"><span>3</span> Set preferences</a>
-        <a href="#policy-controls-title"><span>4</span> Legacy wallet</a>
-        <a href="#automation-title"><span>5</span> Start automation</a>
-        <a href="#results-title"><span>6</span> View results</a>
+        <a href="#automation-title"><span>3</span> Start automation</a>
+        <a href="#results-title"><span>4</span> View results</a>
       </nav>
 
       <details class="getting-started-guide">
@@ -91,7 +88,7 @@
           <select data-workspace-punk-picker disabled>
             <option value="">Connect wallet to load your Punks</option>
           </select>
-          <small>This selection drives activation, Art Mandate, account funds, and on-chain limits below. It never authorizes an agent by itself.</small>
+          <small>This selection drives activation, account funds, on-chain limits, NFT recovery, and automation below. It never authorizes an agent by itself.</small>
         </label>
 
         <details class="workflow-step collapsible-section">
@@ -126,96 +123,10 @@
           </div>
         </details>
 
-        <details class="workflow-step collapsible-section" id="mandate-title">
-          <summary><span><span class="workflow-number">3</span><strong>Choose Art Mandate preferences</strong></span><small>Free message signature · does not start agent</small></summary>
-          <div class="collapsible-content">
-            <p class="workflow-help"><strong>Define the operating profile:</strong> choose which wallet-owned Punk these settings belong to. Saving signs a free message; the separate on-chain policy remains the final authority.</p>
-        <ol class="mandate-guide" aria-label="How to save an Art Mandate">
-          <li><strong>1. Select</strong><span>Choose a live-verified Punk from your connected owner wallet.</span></li>
-          <li><strong>2. Choose</strong><span>Tell Scout what to research and what deserves owner review.</span></li>
-              <li><strong>3. Save</strong><span>Sign a free message. This saves preferences only.</span></li>
-        </ol>
-        <div class="layout-two">
-          <article class="panel mandate-panel">
-            <div class="panel-header"><h3><span data-mandate-punk-heading>Select a Punk</span> · Art Mandate</h3><span class="tag off" data-mandate-badge>Choose Punk</span></div>
-            <form class="mandate-form" data-mandate-form>
-              <label class="mandate-field"><span>Configure preferences for</span><select data-mandate-punk-picker disabled><option value="">Connect wallet to load your Punks</option></select></label>
-              <label class="mandate-field">
-                <span>Recommendation mode</span>
-                <select name="mode">
-                  <option value="DISABLED">Disabled</option>
-                  <option value="SCOUT" selected>Scout only</option>
-                  <option value="APPROVAL_REQUIRED">Prepare owner review — never auto-mint</option>
-                  <option value="AUTONOMOUS">Autonomous free mints — on-chain setup required</option>
-                </select>
-              </label>
-              <div class="mandate-checks">
-                <label><input type="checkbox" name="inspectMints" checked /> Inspect mint opportunities</label>
-                <label><input type="checkbox" name="allowFreeMints" /> Recommend or request free mints</label>
-              </div>
-              <label class="mandate-field">
-                <span>Maximum free mints per day</span>
-                <select name="maxMintsPerDay">
-                  <option value="0" selected>0 — watch only</option>
-                  <option value="1">1 — hard daily maximum</option>
-                  <option value="3">3 — bounded daily maximum</option>
-                  <option value="5">5 — higher daily maximum</option>
-                  <option value="10">10 — high-volume hard maximum</option>
-                </select>
-              </label>
-              <label class="mandate-field">
-                <span>Unknown contract handling</span>
-                <select name="unknownMintMode">
-                  <option value="IGNORE">Ignore</option>
-                  <option value="SCOUT_ONLY" selected>Research only</option>
-                  <option value="OWNER_APPROVAL">May show for owner review</option>
-                </select>
-              </label>
-              <label class="mandate-range"><span>Maximum contract-risk score <output data-mandate-value="maxContractRiskScore">40</output></span><input type="range" name="maxContractRiskScore" min="0" max="100" value="40" /></label>
-              <label class="mandate-range"><span>Minimum Taste Match <output data-mandate-value="minimumTasteMatch">60</output></span><input type="range" name="minimumTasteMatch" min="0" max="100" value="60" /></label>
-              <fieldset class="taste-editor">
-                <legend>Taste weights</legend>
-                <label><span>Pixel Art <output data-mandate-value="pixelArt">98</output></span><input type="range" name="pixelArt" min="0" max="100" value="98" /></label>
-                <label><span>Generative <output data-mandate-value="generativeArt">82</output></span><input type="range" name="generativeArt" min="0" max="100" value="82" /></label>
-                <label><span>1/1 <output data-mandate-value="oneOfOne">63</output></span><input type="range" name="oneOfOne" min="0" max="100" value="63" /></label>
-                <label><span>Emerging Artists <output data-mandate-value="emergingArtists">91</output></span><input type="range" name="emergingArtists" min="0" max="100" value="91" /></label>
-                <label><span>On-chain Art <output data-mandate-value="onChainArt">80</output></span><input type="range" name="onChainArt" min="0" max="100" value="80" /></label>
-                <label><span>Experimental NFTs <output data-mandate-value="experimentalNFTs">75</output></span><input type="range" name="experimentalNFTs" min="0" max="100" value="75" /></label>
-              </fieldset>
-              <aside class="mandate-summary" aria-label="Current mandate summary">
-                <strong>What this means</strong>
-                <p data-mandate-summary>Scout can research mints, but it will not submit or prepare one until you enable those preferences.</p>
-              </aside>
-              <aside class="mandate-summary" aria-label="Recommended autonomous mint profile">
-                <strong>Maximum-coverage live mint settings</strong>
-                <p>Use contract risk 100 and minimum Taste Match 0 when you want every analyzed candidate to reach the strict live contract screen, including drops whose art evidence is unavailable. This does not weaken the on-chain V2 envelope: only the exact reviewed SeaDrop clone runtime, price 0, quantity 1, and no approvals can execute.</p>
-                <button class="text-button" type="button" data-mandate-maximum-coverage>Apply maximum-coverage preset</button>
-              </aside>
-                  <button class="action-button mandate-save" type="submit" data-mandate-save disabled>Choose one of your Punks</button>
-              <p class="mandate-state" data-mandate-state aria-live="polite">Loading the latest saved preferences…</p>
-            </form>
-                <p class="locked-note">Saving requests a message signature—not a transaction. An autonomous profile becomes active only when its matching on-chain policy, reviewed target adapter, permissions, gas limits, and agent authorization are configured. There is deliberately no unlimited option. <a href="#owner-workspace-title" data-selected-gallery-link aria-disabled="true">Choose a Punk to open its activity and gallery</a>.</p>
-          </article>
-          <article class="panel">
-            <div class="panel-header"><h3>Curator identity</h3><span class="tag">Persistent</span></div>
-            <dl class="setting-list">
-              <div class="setting-row"><dt>Persona</dt><dd>The Pixel Maxi</dd></div>
-              <div class="setting-row"><dt>Pixel Art</dt><dd>98</dd></div>
-              <div class="setting-row"><dt>Generative</dt><dd>82</dd></div>
-              <div class="setting-row"><dt>1/1</dt><dd>63</dd></div>
-              <div class="setting-row"><dt>Emerging Artists</dt><dd>91</dd></div>
-              <div class="setting-row"><dt>Agent status</dt><dd>None authorized</dd></div>
-            </dl>
-            <p class="locked-note">The selected Punk’s saved profile is versioned and tied to its chain-qualified identity.</p>
-          </article>
-        </div>
-          </div>
-        </details>
-
         <details class="workflow-step collapsible-section" id="policy-controls-title" data-owner-policy-controls>
-          <summary><span><span class="workflow-number">4</span><strong>Legacy V1 Punk wallet controls</strong></span><small>Contained account · owner recovery only</small></summary>
+          <summary><span><strong>Legacy V1 Punk wallet controls</strong></span><small>Contained account · holder recovery only</small></summary>
           <div class="collapsible-content">
-            <p class="workflow-help"><strong>This is not the autonomous V2 worker.</strong> These recovery controls act on the earlier V1 Punk Account shown below. A disabled/paused state here does not mean V2 automation is offline. Use section 5 for live autonomous status, cap, authorization, and hosted-worker gas.</p>
+            <p class="workflow-help"><strong>This is not the autonomous V2 worker.</strong> These recovery controls act on the earlier V1 Punk Account shown below. A disabled/paused state here does not mean V2 automation is offline. Use section 3 for live autonomous status, cap, authorization, and hosted-worker gas.</p>
             <div class="metric-grid policy-live-grid">
               <article class="metric"><span>Selected Punk</span><strong data-policy-token>—</strong><small data-policy-selection-detail>Select an activated Punk</small></article>
               <article class="metric"><span>Punk asset wallet</span><strong data-policy-account-short>—</strong><small><a data-policy-account-link hidden target="_blank" rel="noopener noreferrer">View full address ↗</a></small></article>
@@ -255,9 +166,9 @@
         </details>
 
         <details class="workflow-step collapsible-section" id="automation-title" data-autonomous-minting open>
-          <summary><span><span class="workflow-number">5</span><strong>Continuous free-mint automation</strong></span><small>Best verified generation · bounded and revocable</small></summary>
+          <summary><span><span class="workflow-number">3</span><strong>Continuous free-mint automation</strong></span><small>Automatic safe profile · bounded and revocable</small></summary>
           <div class="collapsible-content">
-            <p class="workflow-help">This is the one-time setup for continuous zero-price SeaDrop collection. Choose a Punk, set a hard daily cap, and authorize the hosted agent for a limited period. After setup, eligible mints do not require another wallet popup. The agent pays transaction gas; the Punk Account receives each NFT.</p>
+            <p class="workflow-help">Choose a Punk, set its hard daily cap, and authorize the hosted agent once. It is automatically enrolled with the fixed maximum-coverage free-mint profile: no taste score or saved Art Mandate can prevent a supported zero-price target from reaching the live safety checks.</p>
             <div class="metric-grid policy-live-grid automation-live-grid">
               <article class="metric"><span>Automation readiness</span><strong data-v2-status>CHECKING</strong><small>Deployment, source, guardian, and worker gates</small></article>
               <article class="metric"><span>Selected Punk</span><strong data-v2-punk>Choose a Punk</strong><small>Must be live-owned by the connected wallet</small></article>
@@ -309,8 +220,8 @@
                 <label class="mandate-field"><span>Agent authorization</span><select data-v2-days disabled><option value="7">7 days</option><option value="14">14 days</option><option value="30">30 days maximum</option></select></label>
                 <button class="action-button" type="button" data-v2-setup disabled>Review one-time setup in wallet</button>
                 <button class="action-button secondary-action" type="button" data-v3-run-now disabled>Send selected agent now</button>
-                <p class="locked-note" data-v3-run-state>Sends the selected, already-authorized Punk into an immediate scan. It grants no authority and still requires every live target, zero price, cap, runtime, and simulation check. Scheduled scanning continues automatically.</p>
-                <p class="locked-note" data-v2-message>This button unlocks only after the selected automation generation is deployed, fully verified, configured by the guardian, and checked against live chain state. Saving an Art Mandate alone never starts it.</p>
+                <p class="locked-note" data-v3-run-state>Sends the selected, already-authorized Punk into an immediate scan and enrolls it for scheduled scans. It grants no authority and still requires every live target, zero price, cap, runtime, and simulation check.</p>
+                <p class="locked-note" data-v2-message>This button unlocks only after the selected automation generation is deployed, fully verified, configured by the guardian, and checked against live chain state. Art Mandate preferences are not required.</p>
                 <p class="locked-note" data-v3-upgrade>Checking the broader V3 OpenSea Studio release.</p>
               </article>
               <article class="panel">
@@ -341,7 +252,7 @@
         </details>
 
         <details class="workflow-step collapsible-section public-scout-step" id="results-title">
-          <summary><span><span class="workflow-number">6</span><strong>Research and mint results</strong></span><small>Public read-only activity</small></summary>
+          <summary><span><span class="workflow-number">4</span><strong>Research and mint results</strong></span><small>Public read-only activity</small></summary>
           <div class="collapsible-content">
             <p class="workflow-help">Review what Scout found and what each Punk actually collected. This public data is separate from connected-wallet ownership and never selects a Punk for you.</p>
             <div class="workspace-actions" aria-label="Research and results links">

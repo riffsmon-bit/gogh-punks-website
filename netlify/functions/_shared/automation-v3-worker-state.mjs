@@ -37,6 +37,39 @@ function optionalIso(value, name) {
   return value == null ? null : iso(value, name);
 }
 
+function tokenId(value) {
+  const normalized = String(value);
+  if (!/^(?:0|[1-9][0-9]{0,3})$/.test(normalized)) {
+    throw new TypeError("Punk token ID is invalid");
+  }
+  return normalized;
+}
+
+function address(value, name) {
+  return text(value, /^0x[0-9a-fA-F]{40}$/, name);
+}
+
+export async function enrollAutomationV3Punk(punk, options = {}) {
+  if (!punk || punk.created !== true || punk.active !== true) {
+    throw new TypeError("Punk automation is not active");
+  }
+  const selectedTokenId = tokenId(punk.tokenId);
+  const account = address(punk.account, "Punk account");
+  const owner = address(punk.owner, "Punk owner");
+  const database = options.database ?? getDatabase().pool;
+  await database.query(
+    `INSERT INTO broker_automation_v3_enrollments
+      (chain_id, collection_address, token_id, account_address, owner_snapshot)
+     VALUES (4663, $1, $2::numeric, $3, $4)
+     ON CONFLICT (chain_id, collection_address, token_id) DO UPDATE SET
+       account_address = EXCLUDED.account_address,
+       owner_snapshot = EXCLUDED.owner_snapshot,
+       last_requested_at = NOW()`,
+    ["0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6", selectedTokenId, account, owner],
+  );
+  return Object.freeze({ tokenId: selectedTokenId, account, owner });
+}
+
 export function workerUsageFromRow(row) {
   if (!row) return null;
   return Object.freeze({

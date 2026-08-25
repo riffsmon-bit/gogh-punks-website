@@ -7,6 +7,7 @@ import {
   configuredPrioritySeaDropCollections,
   configuredSeaDropCollections,
   confirmedIntentWindow,
+  eligibleAutomationV3Profiles,
   mergePrioritySeaDropCollections,
   runAutomatedSeaDropV3Worker,
   selectActiveZeroPriceSeaDropCollections,
@@ -91,6 +92,30 @@ test("V3 operator roster is canonical, unique, and bounded", () => {
   }), /invalid configured V3 Punk list/);
 });
 
+test("V3 automatic profile uses enrolled, saved, configured, or immediately requested Punks", async () => {
+  const calls = [];
+  const database = {
+    async query(sql, values) {
+      calls.push({ sql, values });
+      return { rows: [{
+        token_id: "93", configured_by: null, economic_settings: null,
+        risk_settings: null, artistic_preferences: null, automatic_profile: true,
+      }] };
+    },
+  };
+  const scheduled = await eligibleAutomationV3Profiles(database, null, ["1797"]);
+  assert.deepEqual(scheduled.map((row) => String(row.token_id)), ["93", "1797"]);
+  assert.match(calls[0].sql, /broker_automation_v3_enrollments/);
+  assert.match(calls[0].sql, /latest_saved_punks/);
+  assert.doesNotMatch(calls[0].sql, /m\.mode = 'AUTONOMOUS'/);
+
+  const immediate = await eligibleAutomationV3Profiles(
+    { query: async () => ({ rows: [] }) }, "1639", [],
+  );
+  assert.equal(String(immediate[0].token_id), "1639");
+  assert.equal(immediate[0].automatic_profile, true);
+});
+
 test("V3 worker source binds both runtime families and no paid or approval path", async () => {
   const source = await readFile(
     new URL("../scripts/run-automated-seadrop-v3-worker.mjs", import.meta.url),
@@ -115,6 +140,8 @@ test("V3 worker source binds both runtime families and no paid or approval path"
   assert.match(source, /DISCOVERY_RUNTIME_BATCH_SIZE = 4/);
   assert.match(source, /DISCOVERY_BATCH_DELAY_MS = 250/);
   assert.match(source, /activeZeroPriceSeaDropCollections\(secondary, primary, collections\)/);
+  assert.match(source, /maxContractRiskScore: 100/);
+  assert.match(source, /minimumTasteMatch: 0/);
   assert.match(source, /SeaDrop discovery incomplete/);
   assert.doesNotMatch(source, /approve\(|setApprovalForAll|execute\(address,uint256,bytes/);
 });

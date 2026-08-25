@@ -8,13 +8,19 @@ import { runAutomationV3Once } from
 
 test("manual V3 run scopes the existing worker to one active Punk", async () => {
   const calls = [];
+  const enrollments = [];
   const result = await runSelectedAutomationV3({ tokenId: "1797" }, {
-    readPunk: async (tokenId) => ({ tokenId, created: true, active: true }),
+    readPunk: async (tokenId) => ({
+      tokenId, created: true, active: true,
+      account: `0x${"1".repeat(40)}`, owner: `0x${"2".repeat(40)}`,
+    }),
+    enroll: async (punk) => { enrollments.push(punk.tokenId); },
     runOnce: async (options) => {
       calls.push(options);
       return { status: "NO_ANALYZED_ACTIVE_TARGETS", submitted: 0 };
     },
   });
+  assert.deepEqual(enrollments, ["1797"]);
   assert.deepEqual(calls, [{ requestedTokenId: "1797" }]);
   assert.deepEqual(result, {
     tokenId: "1797", status: "NO_ANALYZED_ACTIVE_TARGETS", submitted: 0,
@@ -29,6 +35,7 @@ test("manual V3 run rejects ambiguity and inactive authority", async () => {
     /valid Punk/);
   await assert.rejects(() => runSelectedAutomationV3({ tokenId: "1797" }, {
     readPunk: async (tokenId) => ({ tokenId, created: true, active: false }),
+    enroll: async () => assert.fail("inactive Punk must not be enrolled"),
   }), /not currently authorized/);
 });
 
