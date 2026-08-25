@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
+  activeZeroPriceSeaDropCollections,
   configuredAutomationV3PunkIds,
   configuredPrioritySeaDropCollections,
   configuredSeaDropCollections,
@@ -170,6 +171,38 @@ test("V3 discovery fails closed when every bounded hint range fails", async () =
   assert.equal(calls, 16);
 });
 
+test("V3 candidate prefilter tolerates partial read failure but not total outage", async () => {
+  const freeDrop = {
+    mintPrice: 0n, startTime: 900n, endTime: 1_100n,
+    maxTotalMintableByWallet: 1, feeBps: 0, restrictFeeRecipients: false,
+  };
+  let reads = 0;
+  const client = {
+    getBlockNumber: async () => 1_020n,
+    getBlock: async () => ({ timestamp: 1_000n }),
+    readContract: async () => {
+      reads += 1;
+      if (reads === 1) throw new TypeError("provider timeout");
+      return freeDrop;
+    },
+  };
+  const clone = "0x363d3d373d3d3d363d7309a26fc8fcef18192e267d7a6da9dfb4be81dd6a5af43d82803e903d91602b57fd5bf3";
+  assert.deepEqual(await activeZeroPriceSeaDropCollections(
+    client, { getCode: async () => clone },
+    ["0x1111111111111111111111111111111111111111", "0x2222222222222222222222222222222222222222"],
+  ), ["0x2222222222222222222222222222222222222222"]);
+
+  await assert.rejects(() => activeZeroPriceSeaDropCollections({
+    getBlockNumber: async () => 1_020n,
+    getBlock: async () => ({ timestamp: 1_000n }),
+    readContract: async () => { throw new TypeError("provider timeout"); },
+  }, { getCode: async () => clone }, ["0x1111111111111111111111111111111111111111"]),
+  (error) => {
+    assert.equal(error.code, "DISCOVERY_RPC_UNAVAILABLE");
+    return true;
+  });
+});
+
 test("V3 worker source binds both runtime families and no paid or approval path", async () => {
   const source = await readFile(
     new URL("../scripts/run-automated-seadrop-v3-worker.mjs", import.meta.url),
@@ -182,7 +215,7 @@ test("V3 worker source binds both runtime families and no paid or approval path"
   assert.match(source, /maxMintsPerRun: 1/);
   assert.match(source, /value: 0n/);
   assert.match(source, /buildAutomatedSeaDropV3ExecutionBatch/);
-  assert.match(source, /DISCOVERY_COLLECTION_LIMIT = 128/);
+  assert.match(source, /DISCOVERY_COLLECTION_LIMIT = 16/);
   assert.match(source, /DISCOVERY_LOG_CHUNK_SIZE = 5_000n/);
   assert.match(source, /DISCOVERY_MAX_LOG_CHUNKS = 16n/);
   assert.match(source, /DISCOVERY_LOG_BATCH_SIZE = 4/);
@@ -202,7 +235,7 @@ test("V3 worker source binds both runtime families and no paid or approval path"
   assert.match(source, /activeZeroPriceSeaDropCollections\(secondary, primary, collections\)/);
   assert.match(source, /maxContractRiskScore: 100/);
   assert.match(source, /minimumTasteMatch: 0/);
-  assert.match(source, /SeaDrop discovery incomplete/);
+  assert.match(source, /SeaDrop discovery unavailable/);
   assert.doesNotMatch(source, /approve\(|setApprovalForAll|execute\(address,uint256,bytes/);
 });
 

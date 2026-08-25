@@ -105,7 +105,10 @@ function discoveryClient(url) {
   });
 }
 
-const DISCOVERY_COLLECTION_LIMIT = 128;
+// A scheduled run has a 60-second wall-clock ceiling. Inspect only the newest
+// bounded launch set on each pass; the five-minute schedule advances this
+// window continuously, while explicit priority targets remain prepended.
+const DISCOVERY_COLLECTION_LIMIT = 16;
 const DIRECTED_COLLECTION_LIMIT = 8;
 // Robinhood's public RPC has repeatedly timed out while resolving 50,000-block
 // SeaDrop log ranges. Keep each discovery hint request small; every candidate
@@ -463,7 +466,9 @@ export function selectReviewedStudioCollections(collections, codes) {
   });
 }
 
-async function activeZeroPriceSeaDropCollections(client, runtimeClient, collections, confirmations = 20n) {
+export async function activeZeroPriceSeaDropCollections(
+  client, runtimeClient, collections, confirmations = 20n,
+) {
   if (collections.length === 0) return [];
   const head = await client.getBlockNumber();
   const blockNumber = head - confirmations;
@@ -486,8 +491,10 @@ async function activeZeroPriceSeaDropCollections(client, runtimeClient, collecti
   }
   const active = selectActiveZeroPriceSeaDropCollections(collections, results, block.timestamp);
   const publicDropReadFailures = results.filter((entry) => entry.status === "failure").length;
-  if (active.length === 0 && publicDropReadFailures > 0) {
-    throw new TypeError(`SeaDrop discovery incomplete: ${publicDropReadFailures} public-drop reads failed`);
+  if (publicDropReadFailures === results.length) {
+    const error = new TypeError("SeaDrop discovery unavailable: every public-drop read failed");
+    error.code = "DISCOVERY_RPC_UNAVAILABLE";
+    throw error;
   }
   const codes = [];
   let codeReadFailures = 0;
@@ -504,8 +511,10 @@ async function activeZeroPriceSeaDropCollections(client, runtimeClient, collecti
     await discoveryDelay();
   }
   const reviewed = selectReviewedStudioCollections(active, codes);
-  if (reviewed.length === 0 && codeReadFailures > 0) {
-    throw new TypeError(`SeaDrop discovery incomplete: ${codeReadFailures} runtime reads failed`);
+  if (active.length > 0 && codeReadFailures === active.length) {
+    const error = new TypeError("SeaDrop discovery unavailable: every runtime read failed");
+    error.code = "DISCOVERY_RPC_UNAVAILABLE";
+    throw error;
   }
   return reviewed;
 }
