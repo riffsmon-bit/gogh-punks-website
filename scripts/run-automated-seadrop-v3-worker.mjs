@@ -101,6 +101,14 @@ const DIRECTED_COLLECTION_LIMIT = 8;
 // still passes the separate confirmed-state, runtime, policy, and simulation
 // gates before submission.
 const DISCOVERY_LOG_CHUNK_SIZE = 5_000n;
+// Netlify gives the scheduled worker a 60-second execution budget. Broadly
+// rescanning one million fast Robinhood blocks required 200 sequential RPC
+// calls and could not finish inside that budget. Scan the newest 80,000 blocks
+// (roughly the current launch window) in at most sixteen requests. Scheduled
+// launches that must be reserved longer remain supported by the exact priority
+// and directed collection lists.
+const DISCOVERY_MAX_LOG_CHUNKS = 16n;
+const DISCOVERY_BLOCK_WINDOW = DISCOVERY_LOG_CHUNK_SIZE * DISCOVERY_MAX_LOG_CHUNKS;
 const DISCOVERY_BATCH_SIZE = 8;
 const DISCOVERY_RUNTIME_BATCH_SIZE = 4;
 const DISCOVERY_BATCH_DELAY_MS = 250;
@@ -296,9 +304,11 @@ export async function eligibleAutomationV3Profiles(
 async function recentSeaDropCollections(client, confirmations = 20n) {
   const head = await client.getBlockNumber();
   const toBlock = head - confirmations;
-  const fromBlock = toBlock > 1_000_000n ? toBlock - 1_000_000n : 0n;
+  const fromBlock = toBlock + 1n > DISCOVERY_BLOCK_WINDOW
+    ? toBlock - DISCOVERY_BLOCK_WINDOW + 1n : 0n;
   const collections = new Set();
   let cursor = toBlock;
+  let chunks = 0n;
   while (cursor >= fromBlock && collections.size < DISCOVERY_COLLECTION_LIMIT) {
     const chunkFrom = cursor - fromBlock + 1n > DISCOVERY_LOG_CHUNK_SIZE
       ? cursor - DISCOVERY_LOG_CHUNK_SIZE + 1n : fromBlock;
@@ -306,11 +316,12 @@ async function recentSeaDropCollections(client, confirmations = 20n) {
       address: getAddress(SEA_DROP), event: PUBLIC_DROP_UPDATED_EVENT,
       fromBlock: chunkFrom, toBlock: cursor,
     });
+    chunks += 1n;
     for (const log of logs.toReversed()) {
       collections.add(getAddress(log.args.nftContract).toLowerCase());
       if (collections.size >= DISCOVERY_COLLECTION_LIMIT) break;
     }
-    if (chunkFrom === fromBlock) break;
+    if (chunkFrom === fromBlock || chunks >= DISCOVERY_MAX_LOG_CHUNKS) break;
     cursor = chunkFrom - 1n;
     await discoveryDelay();
   }
