@@ -22,6 +22,12 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.doesNotMatch(html, /account-activation\.js|owner-policy-controls\.js/);
   assert.match(html, /data-v2-setup disabled/);
   assert.match(html, /Set up and start agent/);
+  assert.match(html, /data-v2-progress/);
+  assert.match(html, /Choose Punk[\s\S]*Set limits[\s\S]*Confirm setup[\s\S]*Agent live/);
+  assert.match(html, /Conservative · 1 mint\/day for 7 days/);
+  assert.match(html, /Standard · 5 mints\/day for 14 days/);
+  assert.match(html, /Active · 10 mints\/day for 30 days/);
+  assert.match(html, /data-v2-confirmation-plan/);
   assert.match(html, /data-v2-stop disabled/);
   assert.match(html, /data-v2-cap disabled/);
   assert.match(html, /data-v2-days disabled/);
@@ -45,7 +51,8 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.match(html, /data-v3-account-copy disabled/);
   assert.match(html, /Copy NFT-wallet address/);
   assert.match(html, /data-v3-account-opensea/);
-  assert.match(html, /View this Punk’s NFTs on OpenSea/);
+  assert.match(html, /View verified NFT gallery/);
+  assert.match(html, /OpenSea \(may update slowly\)/);
   assert.match(html, /data-v2-agent-full/);
   assert.match(html, /data-v2-agent-balance-large/);
   assert.match(html, /data-v2-agent-fund disabled/);
@@ -62,7 +69,10 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.match(browser, /v3Gate\?\.setupTransactionAvailable === true/);
   assert.match(browser, /selectAutomationGeneration/);
   assert.match(browser, /disableAutomatedSeaDropPolicy|stopTransactions/i);
-  assert.match(browser, /ACTIVE · SCANNING/);
+  assert.match(browser, /LIVE · CHECKING FOR FREE MINTS/);
+  assert.match(browser, /no mint passed all checks/);
+  assert.match(browser, /state\.setupSubmission/);
+  assert.match(browser, /requires \$\{setupCount\} sequential MetaMask confirmations/);
   assert.match(browser, /heartbeatLabel/);
   assert.match(browser, /publicUsage\?\.confirmedMints/);
   assert.match(browser, /publicUsage\?\.mintingPunks/);
@@ -76,7 +86,7 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.match(browser, /acquisitionsToday/);
   assert.match(browser, /maxAcquisitionsPerDay/);
   assert.match(browser, /dataset\.userEdited/);
-  assert.match(browser, /AUTOMATION_V2_NOT_DEPLOYED|PREPARATION|LIVE GATE PENDING/i);
+  assert.match(browser, /DEPLOYED_AWAITING_LIVE_GATE|DEPLOYED_CONFIGURATION_PENDING/);
   assert.match(browser, /eth_getCode/);
   assert.match(browser, /eth_estimateGas/);
   assert.match(browser, /eth_sendTransaction/);

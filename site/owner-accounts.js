@@ -423,6 +423,15 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
         target.setAttribute("aria-disabled", "true");
       }
     });
+    browserDocument.querySelectorAll("[data-punk-gallery-primary]").forEach((target) => {
+      target.hidden = !tokenId;
+      if (tokenId) {
+        target.href = selectedPunkGalleryPath(tokenId);
+        target.textContent = `View Punk #${tokenId} verified gallery`;
+      } else {
+        target.removeAttribute("href");
+      }
+    });
     browserDocument.querySelectorAll("[data-public-scout-token-display]").forEach((target) => {
       target.textContent = tokenId ? `#${tokenId}` : "—";
     });

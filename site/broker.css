@@ -189,7 +189,7 @@ h3 { font-size: 1.45rem; }
 }
 .workspace-jump-nav {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1px;
   margin-top: 14px;
   border: 1px solid var(--line);
@@ -338,6 +338,39 @@ h3 { font-size: 1.45rem; }
 .workspace-master-picker small { color: var(--muted); line-height: 1.55; }
 .policy-live-grid { margin: 16px 0 22px; }
 .automation-live-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.automation-progress {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0 0 8px;
+  padding: 1px;
+  background: rgba(218, 167, 55, 0.22);
+  list-style: none;
+}
+.automation-progress li {
+  display: flex;
+  gap: 10px;
+  min-height: 58px;
+  align-items: center;
+  padding: 12px 14px;
+  color: var(--muted);
+  background: var(--panel);
+}
+.automation-progress li > span {
+  display: inline-grid;
+  width: 25px;
+  height: 25px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--line);
+  color: inherit;
+  font-size: 0.68rem;
+}
+.automation-progress li strong { font-size: 0.76rem; letter-spacing: 0.04em; }
+.automation-progress li.current { color: var(--sun); background: rgba(218, 167, 55, 0.12); }
+.automation-progress li.complete { color: var(--teal); background: rgba(54, 200, 182, 0.09); }
+.automation-progress-summary { margin: 0 0 18px; color: var(--cream); font-size: 0.82rem; line-height: 1.55; }
+.setup-confirmation-plan { margin: 4px 0 14px; color: var(--sun); font-size: 0.78rem; line-height: 1.5; }
 .automation-subpanel {
   margin: 0 0 16px;
   border: 1px solid rgba(82, 207, 197, 0.28);
@@ -422,6 +455,7 @@ h3 { font-size: 1.45rem; }
 .owner-account-address { display: inline-block; margin-top: 8px; color: var(--teal); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
 .owner-account-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 .owner-account-opensea { display: inline-flex; align-items: center; text-decoration: none; }
+.owner-account-gallery { display: inline-flex; align-items: center; border-color: var(--teal); color: var(--teal); text-decoration: none; }
 [data-selected-gallery-link][aria-disabled="true"] { opacity: 0.65; }
 .automation-wallet-metric { align-content: start; }
 .automation-wallet-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
@@ -617,6 +651,7 @@ h3 { font-size: 1.45rem; }
   .workflow-step .collapsible-content.panel { margin-inline: 6px; }
   .automation-subpanel > summary { align-items: flex-start; }
   .automation-subpanel > summary span { display: none; }
+  .automation-progress { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .automation-secondary-metrics { grid-template-columns: 1fr; }
   .automation-gas-card { margin-inline: 12px; }
   .asset-recovery-grid { padding-inline: 12px; }

@@ -173,6 +173,7 @@ test("broker picker selects only a live-verified wallet-owned Punk", async () =>
   assert.doesNotMatch(html, /data-owned-punk-picker|data-account-activation/);
   assert.doesNotMatch(html, /data-mandate-punk-picker/);
   assert.match(html, /data-workspace-punk-picker/);
+  assert.match(html, /data-punk-gallery-primary/);
   assert.doesNotMatch(html, /data-activation-token/);
   assert.match(html, /data-owned-punk-count/);
   assert.match(html, /data-selected-punk-display/);

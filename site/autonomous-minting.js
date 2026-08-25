@@ -74,8 +74,13 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
   const runNow = panel.querySelector("[data-v3-run-now]");
   const runState = panel.querySelector("[data-v3-run-state]");
   const stop = panel.querySelector("[data-v2-stop]");
+  const preset = panel.querySelector("[data-v2-preset]");
   const cap = panel.querySelector("[data-v2-cap]");
   const days = panel.querySelector("[data-v2-days]");
+  const confirmationPlan = panel.querySelector("[data-v2-confirmation-plan]");
+  const progressSummary = panel.querySelector("[data-v2-progress-summary]");
+  const progressSteps = Object.fromEntries([...panel.querySelectorAll("[data-v2-progress-step]")]
+    .map((element) => [element.dataset.v2ProgressStep, element]));
   const badge = panel.querySelector("[data-v2-badge]");
   const message = panel.querySelector("[data-v2-message]");
   const v3Upgrade = panel.querySelector("[data-v3-upgrade]");
@@ -85,18 +90,18 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
   const usageWallets = panel.querySelector("[data-v3-usage-wallets]");
   const state = {
     gate: null, v3Gate: null, version: 2, selection: null, funding: false, running: false,
-    refreshing: false,
+    refreshing: false, setupSubmission: null,
     lastSyncedAt: null, lastRefreshFailedAt: null, loadSequence: 0,
   };
 
   function heartbeatLabel(value) {
     if (!value) return "No worker check recorded yet";
     const checked = new Date(value.completedAt);
-    const outcome = value.status === "MINT_CONFIRMED" ? "Mint confirmed"
-      : value.status === "NO_ELIGIBLE_TARGETS" ? "Scanned · no eligible target"
-        : value.status === "NO_ANALYZED_ACTIVE_TARGETS" ? "Scanned · awaiting analyzed targets"
-          : value.status === "NO_AUTONOMOUS_MANDATES" ? "Scanned · no enrolled Punk agents"
-            : "Worker check failed safely";
+    const outcome = value.status === "MINT_CONFIRMED" ? "Mint completed"
+      : value.status === "NO_ELIGIBLE_TARGETS" ? "Scan finished — no mint passed all checks"
+        : value.status === "NO_ANALYZED_ACTIVE_TARGETS" ? "Scan finished — no supported free mint is open"
+          : value.status === "NO_AUTONOMOUS_MANDATES" ? "Scan finished — no Punk agent is enrolled"
+            : "Scan stopped safely";
     return `${outcome} · ${checked.toLocaleString()}`;
   }
 
@@ -139,6 +144,10 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     const accounts = await rpc("eth_requestAccounts");
     for (let index = 0; index < transactions.length; index += 1) {
       const transaction = transactions[index];
+      if (label === "Setup") {
+        state.setupSubmission = { index: index + 1, total: transactions.length };
+        render();
+      }
       const [freshChain, freshAccounts] = await Promise.all([
         rpc("eth_chainId"), rpc("eth_accounts"),
       ]);
@@ -175,6 +184,34 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     const active = selectedState?.active === true;
     const agentLive = active && state.gate?.capability === true
       && state.gate?.heartbeat?.online === true;
+    const setupCount = selectedState?.created === true || active ? 2 : 3;
+    const setupIndex = state.setupSubmission?.index ?? 0;
+    for (const [name, element] of Object.entries(progressSteps)) {
+      const complete = name === "choose" ? Boolean(state.selection)
+        : name === "limits" ? Boolean(state.selection) && (active || Boolean(state.setupSubmission))
+          : name === "confirm" ? active
+            : name === "live" ? agentLive : false;
+      const current = !complete && (
+        name === "choose" && !state.selection
+        || name === "limits" && Boolean(state.selection) && !active && !state.setupSubmission
+        || name === "confirm" && Boolean(state.setupSubmission)
+        || name === "live" && active && !agentLive
+      );
+      element.classList.toggle("complete", complete);
+      element.classList.toggle("current", current);
+    }
+    progressSummary.textContent = agentLive
+      ? `Punk #${selectedState.tokenId} is live. The worker will keep scanning until its cap, expiry, pause, or revocation.`
+      : active
+        ? `Punk #${selectedState.tokenId} is set up. The worker is temporarily offline, so automatic submissions are paused.`
+        : state.setupSubmission
+          ? `MetaMask confirmation ${setupIndex} of ${state.setupSubmission.total}. Keep this page open until every confirmation is mined.`
+          : state.selection
+            ? "Choose a preset or custom limits, then start the agent."
+            : "Connect your wallet and choose a Punk to begin.";
+    confirmationPlan.textContent = state.selection
+      ? `${active ? "Updating" : "Starting"} this agent requires ${setupCount} sequential MetaMask confirmations. No repeated confirmation is needed for later eligible free mints.`
+      : "Setup confirmation count appears after you choose a Punk.";
     const punkWallet = /^0x[0-9a-fA-F]{40}$/.test(selectedState?.account ?? "")
       ? selectedState.account.toLowerCase() : null;
     account.textContent = punkWallet
@@ -204,18 +241,21 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     agentFund.disabled = !gasReady || state.funding || !agentFundConfirm.checked;
     const ready = state.gate?.capability === true
       && state.gate?.setupTransactionAvailable === true && Boolean(state.selection);
-    setup.disabled = !ready;
+    setup.disabled = !ready || Boolean(state.setupSubmission);
     runNow.disabled = !agentLive || state.version !== 3 || state.running;
     runNow.textContent = state.running ? "Agent scan running…" : "Send selected agent now";
     stop.disabled = !active;
     cap.disabled = state.gate?.capability !== true;
     days.disabled = state.gate?.capability !== true;
-    setup.textContent = active ? "Update cap or run time" : "Set up and start agent";
-    badge.textContent = agentLive ? "AGENT LIVE" : active ? "AUTHORIZED · WORKER OFFLINE"
-      : state.gate?.capability === true ? "READY" : "LOCKED";
+    preset.disabled = state.gate?.capability !== true;
+    setup.textContent = state.setupSubmission
+      ? `Confirming ${setupIndex} of ${state.setupSubmission.total}…`
+      : active ? "Update cap or run time" : "Set up and start agent";
+    badge.textContent = agentLive ? "LIVE" : active ? "WORKER OFFLINE"
+      : state.gate?.capability === true ? "READY" : "NOT READY";
     badge.classList.toggle("off", !agentLive && state.gate?.capability !== true);
-    worker.textContent = state.gate?.heartbeat?.online === true ? "LIVE · SCANNING"
-      : state.gate?.status === "WORKER_STARTING" ? "STARTING" : "OFFLINE";
+    worker.textContent = state.gate?.heartbeat?.online === true ? "CHECKING FOR FREE MINTS"
+      : state.gate?.status === "WORKER_STARTING" ? "RESTARTING" : "OFFLINE";
     workerDetail.textContent = heartbeatLabel(state.gate?.heartbeat);
     refresh.disabled = state.refreshing;
     refresh.textContent = state.refreshing ? "Refreshing…" : "Refresh live status";
@@ -225,19 +265,19 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
         ? `Refresh failed ${state.lastRefreshFailedAt.toLocaleTimeString()} · retrying automatically`
         : "Page has not synced yet";
     status.textContent = agentLive
-      ? "ACTIVE · SCANNING"
-      : active ? "AUTHORIZED · WORKER OFFLINE"
+      ? "LIVE · CHECKING FOR FREE MINTS"
+      : active ? "SET UP · WORKER OFFLINE"
       : state.gate?.capability === true
-        ? state.gate.reason === null ? "READY" : "FINAL UI GATE PENDING"
+        ? state.gate.reason === null ? "READY TO START" : "FINAL SAFETY CHECK PENDING"
       : state.gate?.status === "DEPLOYED_AWAITING_LIVE_GATE"
-        ? "DEPLOYED · LIVE GATE PENDING"
+        ? "LIVE SAFETY CHECK PENDING"
         : state.gate?.status === "WORKER_STARTING"
-          ? "WORKER STARTING"
+          ? "WORKER RESTARTING"
         : state.gate?.status === "DEPLOYED_CONFIGURATION_PENDING"
-          ? "DEPLOYED · GUARDIAN + WORKER PENDING"
+          ? "SETUP SERVICE NOT READY"
           : state.gate?.status === "DEPLOYED_SOURCE_VERIFICATION_PENDING"
-            ? "DEPLOYED · SOURCE ADOPTION PENDING"
-        : `V${state.version} DEPLOYMENT IN PREPARATION`;
+            ? "SAFETY VERIFICATION PENDING"
+        : "AUTOMATION NOT READY";
     status.classList.toggle("off", !agentLive && !ready);
     if (agentLive) {
       message.textContent = `Agent is live for Punk #${selectedState.tokenId}. ${heartbeatLabel(state.gate?.heartbeat)}. Today: ${selectedState.acquisitionsToday} of ${selectedState.maxAcquisitionsPerDay} mints.`;
@@ -272,6 +312,11 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     browserWindow.setTimeout?.(() => {
       accountCopy.textContent = "Copy NFT-wallet address";
     }, 1_800);
+  }
+
+  function syncPresetFromLimits() {
+    const pair = `${cap.value}:${days.value}`;
+    preset.value = ["1:7", "5:14", "10:30"].includes(pair) ? pair : "custom";
   }
 
   async function fundAgent() {
@@ -373,6 +418,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
         cap.dataset.liveToken = selectedState.tokenId;
         cap.dataset.userEdited = "false";
       }
+      syncPresetFromLimits();
     } catch {
       if (sequence !== state.loadSequence) return;
       state.gate = null;
@@ -432,6 +478,8 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     setup.disabled = true;
     try {
       const review = await artifact();
+      state.setupSubmission = { index: 0, total: review.setupTransactions.length };
+      render();
       account.textContent = shortAddress(review.punk.account);
       await submit(review.setupTransactions, "Setup");
       message.textContent = `Automation is active for Punk #${review.punk.tokenId} until ${new Date(Number(review.limits.authorizationValidUntil) * 1_000).toLocaleString()}. The agent remains bounded by the selected daily cap.`;
@@ -440,6 +488,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     } catch (error) {
       message.textContent = error?.message ?? "Setup stopped safely.";
     } finally {
+      state.setupSubmission = null;
       render();
     }
   });
@@ -449,7 +498,19 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
   refresh.addEventListener("click", () => { void load(); });
   agentFundConfirm.addEventListener("change", render);
   agentFund.addEventListener("click", fundAgent);
-  cap.addEventListener("change", () => { cap.dataset.userEdited = "true"; });
+  preset.addEventListener("change", () => {
+    if (preset.value === "custom") return;
+    const [nextCap, nextDays] = preset.value.split(":");
+    cap.value = nextCap;
+    days.value = nextDays;
+    cap.dataset.userEdited = "true";
+    render();
+  });
+  cap.addEventListener("change", () => {
+    cap.dataset.userEdited = "true";
+    syncPresetFromLimits();
+  });
+  days.addEventListener("change", syncPresetFromLimits);
   stop.addEventListener("click", async () => {
     stop.disabled = true;
     try {
