@@ -317,6 +317,7 @@ export async function recentSeaDropCollections(
   client, confirmations = 20n, dependencies = {},
 ) {
   const pause = dependencies.pause ?? discoveryDelay;
+  const report = dependencies.report ?? console.error;
   const head = await client.getBlockNumber();
   const toBlock = head - confirmations;
   const fromBlock = toBlock + 1n > DISCOVERY_BLOCK_WINDOW
@@ -333,16 +334,20 @@ export async function recentSeaDropCollections(
     cursor = chunkFrom - 1n;
   }
   const collections = new Set();
+  let successfulRanges = 0;
+  let failedRanges = 0;
   for (let offset = 0; offset < ranges.length; offset += DISCOVERY_LOG_BATCH_SIZE) {
     const batch = ranges.slice(offset, offset + DISCOVERY_LOG_BATCH_SIZE);
     const results = await Promise.allSettled(batch.map((range) => client.getLogs({
       address: getAddress(SEA_DROP), event: PUBLIC_DROP_UPDATED_EVENT,
       fromBlock: range.fromBlock, toBlock: range.toBlock,
     })));
-    if (results.some((result) => result.status === "rejected")) {
-      throw new TypeError("SeaDrop discovery incomplete: public-drop log read failed");
-    }
     for (const result of results) {
+      if (result.status === "rejected") {
+        failedRanges += 1;
+        continue;
+      }
+      successfulRanges += 1;
       for (const log of result.value.toReversed()) {
         collections.add(getAddress(log.args.nftContract).toLowerCase());
         if (collections.size >= DISCOVERY_COLLECTION_LIMIT) break;
@@ -351,6 +356,18 @@ export async function recentSeaDropCollections(
     }
     if (collections.size >= DISCOVERY_COLLECTION_LIMIT) break;
     if (offset + DISCOVERY_LOG_BATCH_SIZE < ranges.length) await pause();
+  }
+  if (successfulRanges === 0) {
+    const error = new TypeError("SeaDrop discovery unavailable: every public-drop log read failed");
+    error.code = "DISCOVERY_RPC_UNAVAILABLE";
+    throw error;
+  }
+  if (failedRanges > 0) {
+    report(JSON.stringify({
+      event: "AUTOMATION_V3_DISCOVERY_PARTIAL",
+      successfulRanges,
+      failedRanges,
+    }));
   }
   return [...collections];
 }
