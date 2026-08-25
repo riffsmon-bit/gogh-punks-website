@@ -96,7 +96,11 @@ function readClient(url) {
 
 const DISCOVERY_COLLECTION_LIMIT = 128;
 const DIRECTED_COLLECTION_LIMIT = 8;
-const DISCOVERY_LOG_CHUNK_SIZE = 50_000n;
+// Robinhood's public RPC has repeatedly timed out while resolving 50,000-block
+// SeaDrop log ranges. Keep each discovery hint request small; every candidate
+// still passes the separate confirmed-state, runtime, policy, and simulation
+// gates before submission.
+const DISCOVERY_LOG_CHUNK_SIZE = 5_000n;
 const DISCOVERY_BATCH_SIZE = 8;
 const DISCOVERY_RUNTIME_BATCH_SIZE = 4;
 const DISCOVERY_BATCH_DELAY_MS = 250;
