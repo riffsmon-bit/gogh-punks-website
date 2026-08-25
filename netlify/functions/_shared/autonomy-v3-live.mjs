@@ -10,6 +10,10 @@ import {
 export const AUTOMATION_V3_AGENT = "0x3bb2ebf6b3c4d7f5e5781cdf2091428f7750af7d";
 export const SEA_DROP = "0x00005ea00ac477b1030ce78506496e8c2de24bf5";
 
+const ZERO_SALT = `0x${"00".repeat(32)}`;
+const EIP1167_PREFIX = "363d3d373d3d3d363d73";
+const EIP1167_SUFFIX = "5af43d82803e903d91602b57fd5bf3";
+
 const OWNER_ABI = parseAbi(["function ownerOf(uint256 tokenId) view returns (address)"]);
 const REGISTRY_ABI = parseAbi(["function account(uint256 tokenId) view returns (address)"]);
 const ADAPTER_ABI = parseAbi([
@@ -71,6 +75,21 @@ function client(url) {
       timeout: 12_000,
     }),
   });
+}
+
+function uint256Word(value) {
+  return BigInt(value).toString(16).padStart(64, "0");
+}
+
+export function expectedAutomationV3AccountRuntime(tokenIdValue) {
+  const tokenId = BigInt(tokenIdValue);
+  if (tokenId < 0n || tokenId > 9_999n) throw new TypeError("Choose a valid Gogh Punk ID");
+  const implementation = getAddress(
+    automationManifest.contracts.GoghPunkAccountV3.address,
+  ).slice(2).toLowerCase();
+  const collection = getAddress(ROBINHOOD.canonicalCollection).slice(2).toLowerCase();
+  return `0x${EIP1167_PREFIX}${implementation}${EIP1167_SUFFIX}${ZERO_SALT.slice(2)}`
+    + `${uint256Word(4663)}${collection.padStart(64, "0")}${uint256Word(tokenId)}`;
 }
 
 function tuple(value, key, index) {
@@ -280,6 +299,70 @@ export async function readAutomationV3PunkState(tokenIdValue, environment = proc
   const states = await Promise.all(clients.map((rpc) => readPunk(rpc, BigInt(tokenIdValue), nowSeconds)));
   if (JSON.stringify(states[0]) !== JSON.stringify(states[1])) throw new TypeError("V3 Punk providers disagree");
   return Object.freeze(states[0]);
+}
+
+async function readRecoveryState(clientValue, tokenId) {
+  const registry = getAddress(automationManifest.contracts.GoghPunkAccountRegistryV3.address);
+  const collection = getAddress(ROBINHOOD.canonicalCollection);
+  const account = getAddress(await clientValue.readContract({
+    address: registry, abi: REGISTRY_ABI, functionName: "account", args: [tokenId],
+  }));
+  const [holder, code] = await Promise.all([
+    clientValue.readContract({
+      address: collection, abi: OWNER_ABI, functionName: "ownerOf", args: [tokenId],
+    }),
+    clientValue.getCode({ address: account }).then((value) => value ?? "0x"),
+  ]);
+  if (code === "0x") {
+    return Object.freeze({
+      tokenId: tokenId.toString(), account: account.toLowerCase(),
+      owner: getAddress(holder).toLowerCase(), created: false,
+      accountRuntimeCodeHash: null,
+    });
+  }
+  const expectedRuntime = expectedAutomationV3AccountRuntime(tokenId);
+  if (code.toLowerCase() !== expectedRuntime) {
+    throw new TypeError("V3 Punk Account runtime does not match the verified deployment");
+  }
+  const accountOwner = getAddress(await clientValue.readContract({
+    address: account, abi: ACCOUNT_ABI, functionName: "owner",
+  })).toLowerCase();
+  const owner = getAddress(holder).toLowerCase();
+  if (accountOwner !== owner) throw new TypeError("V3 Punk Account owner is stale");
+  return Object.freeze({
+    tokenId: tokenId.toString(), account: account.toLowerCase(), owner, created: true,
+    accountRuntimeCodeHash: keccak256(expectedRuntime),
+  });
+}
+
+export async function readAutomationV3RecoveryState(
+  tokenIdValue,
+  environment = process.env,
+  options = {},
+) {
+  if (typeof tokenIdValue !== "string" || !/^(?:0|[1-9][0-9]{0,3})$/.test(tokenIdValue)) {
+    throw new TypeError("Choose a valid Gogh Punk ID");
+  }
+  const primaryUrl = requiredHttps(
+    "ROBINHOOD_RPC_URL",
+    environment.ROBINHOOD_RPC_URL ?? environment.RPC_URL,
+  );
+  const secondaryUrl = requiredHttps(
+    "ROBINHOOD_SECONDARY_RPC_URL",
+    environment.ROBINHOOD_SECONDARY_RPC_URL,
+  );
+  if (new URL(primaryUrl).hostname === new URL(secondaryUrl).hostname) {
+    throw new TypeError("V3 recovery requires two distinct RPC hosts");
+  }
+  const clients = options.clients ?? [client(primaryUrl), client(secondaryUrl)];
+  const states = await Promise.all(clients.map((rpc) => readRecoveryState(
+    rpc,
+    BigInt(tokenIdValue),
+  )));
+  if (JSON.stringify(states[0]) !== JSON.stringify(states[1])) {
+    throw new TypeError("V3 recovery providers disagree");
+  }
+  return states[0];
 }
 
 export async function buildLiveOwnerSetupInput(tokenIdValue, limits, environment = process.env) {

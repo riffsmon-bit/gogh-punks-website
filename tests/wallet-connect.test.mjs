@@ -73,12 +73,13 @@ class FakeElement {
   click() { return this.listeners.get("click")?.(); }
 }
 
-test("provider access begins only after a click and remains read-only", async () => {
+test("an already-authorized wallet reconnects silently on every page and remains read-only", async () => {
   const calls = [];
   const providerListeners = new Map();
   const provider = {
     async request({ method }) {
       calls.push(method);
+      if (method === "eth_accounts") return [OWNER];
       if (method === "eth_requestAccounts") return [OWNER];
       if (method === "eth_chainId") return "0x1237";
       throw new Error("unexpected provider method");
@@ -105,14 +106,15 @@ test("provider access begins only after a click and remains read-only", async ()
   };
 
   const controller = setupReadOnlyWallet({ windowObject, documentObject });
-  assert.deepEqual(calls, []);
-  assert.equal(button.textContent, "Connect wallet");
+  await controller.ready;
+  assert.deepEqual(calls, ["eth_accounts", "eth_chainId"]);
+  assert.equal(button.textContent, "0x1234…7890");
 
   windowListeners.get("gogh:owner-snapshot")({
     detail: { address: OWNER, tokenId: "4242", source: "punk" },
   });
   await button.click();
-  assert.deepEqual(calls, ["eth_requestAccounts", "eth_chainId"]);
+  assert.deepEqual(calls, ["eth_accounts", "eth_chainId"]);
   assert.equal(button.dataset.walletStatus, "owner");
   assert.match(status.textContent, /Punk #4242 selected/);
 
@@ -127,6 +129,36 @@ test("provider access begins only after a click and remains read-only", async ()
   providerListeners.get("accountsChanged")([]);
   assert.equal(button.dataset.walletStatus, "disconnected");
   assert.equal(button.disabled, false);
+  controller.destroy();
+});
+
+test("a new wallet still requires an explicit click before requesting account access", async () => {
+  const calls = [];
+  const provider = {
+    async request({ method }) {
+      calls.push(method);
+      if (method === "eth_accounts") return [];
+      if (method === "eth_requestAccounts") return [OWNER];
+      if (method === "eth_chainId") return "0x1237";
+      throw new Error("unexpected request");
+    },
+    on() {}, removeListener() {},
+  };
+  const button = new FakeElement();
+  const documentObject = { querySelectorAll(selector) {
+    if (selector === "[data-wallet-connect]") return [button];
+    return [];
+  } };
+  const windowObject = {
+    ethereum: provider,
+    addEventListener() {}, removeEventListener() {},
+  };
+  const controller = setupReadOnlyWallet({ windowObject, documentObject });
+  await controller.ready;
+  assert.deepEqual(calls, ["eth_accounts"]);
+  assert.equal(button.textContent, "Connect wallet");
+  await button.click();
+  assert.deepEqual(calls, ["eth_accounts", "eth_requestAccounts", "eth_chainId"]);
   controller.destroy();
 });
 
@@ -170,6 +202,7 @@ test("browser wallet code contains no signing, approval, or transaction request"
     /eth_sendTransaction|eth_sign|personal_sign|wallet_requestPermissions/,
   );
   assert.match(source, /method: "eth_requestAccounts"/);
+  assert.match(source, /method: "eth_accounts"/);
   assert.match(source, /method: "eth_chainId"/);
   assert.match(source, /method: "wallet_switchEthereumChain"/);
   assert.match(source, /method: "wallet_addEthereumChain"/);

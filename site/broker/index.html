@@ -15,6 +15,7 @@
     <script src="/owner-accounts.js" type="module"></script>
     <script src="/owner-policy-controls.js" type="module"></script>
     <script src="/autonomous-minting.js" type="module"></script>
+    <script src="/nft-withdrawal.js" type="module"></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to Art Broker</a>
@@ -93,7 +94,7 @@
           <small>This selection drives activation, Art Mandate, account funds, and on-chain limits below. It never authorizes an agent by itself.</small>
         </label>
 
-        <details class="workflow-step collapsible-section" open>
+        <details class="workflow-step collapsible-section">
           <summary><span><span class="workflow-number">1</span><strong>My Punks and agent wallets</strong></span><small>Wallet-derived live state</small></summary>
           <div class="collapsible-content">
             <p class="workflow-help">Connect the owner wallet to scan the collection, verify ownership live, and show activated Punk Account addresses.</p>
@@ -101,7 +102,7 @@
           </div>
         </details>
 
-        <details class="workflow-step collapsible-section" id="activation-title" data-account-activation open>
+        <details class="workflow-step collapsible-section" id="activation-title" data-account-activation>
           <summary><span><span class="workflow-number">2</span><strong>Activate a Punk wallet</strong></span><small>One MetaMask transaction</small></summary>
           <div class="collapsible-content panel activation-panel">
             <p class="workflow-help">Activation creates the Punk’s deterministic ERC-6551 wallet. It does not authorize an AI agent, grant spending permission, or turn on autonomy.</p>
@@ -125,7 +126,7 @@
           </div>
         </details>
 
-        <details class="workflow-step collapsible-section" id="mandate-title" open>
+        <details class="workflow-step collapsible-section" id="mandate-title">
           <summary><span><span class="workflow-number">3</span><strong>Choose Art Mandate preferences</strong></span><small>Free message signature · does not start agent</small></summary>
           <div class="collapsible-content">
             <p class="workflow-help"><strong>Define the operating profile:</strong> choose which wallet-owned Punk these settings belong to. Saving signs a free message; the separate on-chain policy remains the final authority.</p>
@@ -273,11 +274,18 @@
               <article class="metric"><span>Hosted gas payer</span><strong data-v2-agent>CHECKING</strong><small data-v2-agent-balance>Live balance unavailable</small></article>
               <article class="metric"><span>Per-mint payment</span><strong>0 ETH</strong><small>Gas only · paid mints remain blocked</small></article>
               <article class="metric automation-worker-metric"><span>Hosted agent</span><strong data-v2-worker>CHECKING</strong><small data-v2-worker-detail>Waiting for a verified worker heartbeat</small><button class="status-refresh-button" type="button" data-v2-refresh>Refresh live status</button><small data-v2-refreshed aria-live="polite">Page has not synced yet</small></article>
-              <article class="metric"><span>Confirmed autonomous mints</span><strong data-v3-usage-mints>—</strong><small data-v3-usage-mints-detail>Aggregate hosted-worker history</small></article>
-              <article class="metric"><span>Punk agents that have minted</span><strong data-v3-usage-punks>—</strong><small>Privacy-preserving aggregate · Punks are not people</small></article>
-              <article class="metric"><span>Wallets requesting autonomy</span><strong data-v3-usage-wallets>—</strong><small>Saved preference only · not proof of authorization</small></article>
             </div>
-            <aside class="automation-gas-card" aria-labelledby="automation-gas-title">
+            <details class="automation-subpanel">
+              <summary><strong>Network activity</strong><span>Aggregate usage and adoption</span></summary>
+              <div class="metric-grid automation-secondary-metrics">
+                <article class="metric"><span>Confirmed autonomous mints</span><strong data-v3-usage-mints>—</strong><small data-v3-usage-mints-detail>Aggregate hosted-worker history</small></article>
+                <article class="metric"><span>Punk agents that have minted</span><strong data-v3-usage-punks>—</strong><small>Privacy-preserving aggregate · Punks are not people</small></article>
+                <article class="metric"><span>Wallets requesting autonomy</span><strong data-v3-usage-wallets>—</strong><small>Saved preference only · not proof of authorization</small></article>
+              </div>
+            </details>
+            <details class="automation-subpanel">
+              <summary><strong>Hosted-agent gas</strong><span>Optional shared gas contribution</span></summary>
+              <aside class="automation-gas-card" aria-labelledby="automation-gas-title">
               <div>
                 <p class="eyebrow">Transaction gas</p>
                 <h3 id="automation-gas-title">Fund the hosted automation agent</h3>
@@ -292,7 +300,8 @@
                 <button class="action-button" type="button" data-v2-agent-fund disabled>Fund automation gas in MetaMask</button>
                 <p class="mandate-state" data-v2-agent-fund-state aria-live="polite">Live status must verify the exact gas-wallet address before funding is enabled.</p>
               </div>
-            </aside>
+              </aside>
+            </details>
             <div class="layout-two owner-control-layout">
               <article class="panel">
                 <div class="panel-header"><h3>One-time owner setup</h3><span class="tag off" data-v2-badge>CHECKING</span></div>
@@ -310,6 +319,24 @@
                 <button class="action-button danger-action" type="button" data-v2-stop disabled>Stop and revoke automation</button>
               </article>
             </div>
+            <details class="automation-subpanel asset-recovery" data-nft-withdrawal>
+              <summary><strong>Withdraw an NFT</strong><span>Current holder only · fixed destination</span></summary>
+              <div class="asset-recovery-grid">
+                <div>
+                  <p class="workflow-help">Recover an ERC-721 or ERC-1155 from the selected Punk’s V3 NFT wallet. The destination is always the wallet that currently holds the controlling Gogh Punk; it cannot be changed here.</p>
+                  <ul class="plain-safety-list"><li>Live Punk ownership checked again before submission</li><li>Exact V3 Punk-wallet runtime verified</li><li>NFT ownership or balance proven live</li><li>Complete transfer simulated before MetaMask opens</li></ul>
+                </div>
+                <div class="asset-recovery-form">
+                  <label class="mandate-field"><span>NFT standard</span><select data-nft-standard><option value="ERC721">ERC-721</option><option value="ERC1155">ERC-1155</option></select></label>
+                  <label class="mandate-field"><span>NFT collection contract</span><input data-nft-collection inputmode="text" placeholder="0x…" autocomplete="off" /></label>
+                  <label class="mandate-field"><span>NFT token ID</span><input data-nft-token-id inputmode="numeric" placeholder="Token ID" autocomplete="off" /></label>
+                  <label class="mandate-field" data-nft-amount-field hidden><span>ERC-1155 amount</span><input data-nft-amount inputmode="numeric" value="1" autocomplete="off" /></label>
+                  <label class="canary-confirmation"><input type="checkbox" data-nft-confirm /> I reviewed the selected Punk, collection, token ID, and fixed current-holder destination.</label>
+                  <button class="action-button" type="button" data-nft-submit disabled>Verify and withdraw in MetaMask</button>
+                  <p class="mandate-state" data-nft-state aria-live="polite">Choose one of your wallet-owned Punks above.</p>
+                </div>
+              </div>
+            </details>
           </div>
         </details>
 

@@ -208,6 +208,7 @@ export function setupReadOnlyWallet({ windowObject, documentObject } = {}) {
   }
 
   async function connect() {
+    await restorePromise;
     if (!provider?.request || state.pending || state.account) return;
     state.pending = true;
     render();
@@ -222,6 +223,21 @@ export function setupReadOnlyWallet({ windowObject, documentObject } = {}) {
     } finally {
       state.pending = false;
       render();
+    }
+  }
+
+  async function restoreAuthorizedSession() {
+    if (!provider?.request) return;
+    try {
+      const accounts = await provider.request({ method: "eth_accounts" });
+      const account = firstValidAccount(accounts);
+      if (!account) return;
+      const chainId = await provider.request({ method: "eth_chainId" });
+      state.account = account;
+      state.chainId = parseWalletChainId(chainId);
+      render();
+    } catch {
+      // Silent restoration never prompts and never substitutes for live action checks.
     }
   }
 
@@ -280,10 +296,12 @@ export function setupReadOnlyWallet({ windowObject, documentObject } = {}) {
   browserWindow.addEventListener("gogh:punk-selected", handlePunkSelection);
   handleOwnerSnapshot({ detail: browserWindow.__GOGH_OWNER_SNAPSHOT__ });
   render();
+  const restorePromise = restoreAuthorizedSession();
 
   return {
     connect,
     switchNetwork,
+    ready: restorePromise,
     destroy() {
       for (const button of buttons) button.removeEventListener("click", connect);
       for (const button of switchButtons) button.removeEventListener("click", switchNetwork);

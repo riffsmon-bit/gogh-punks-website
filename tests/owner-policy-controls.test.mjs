@@ -223,13 +223,15 @@ test("submission repeats the full preflight and sends exactly one immutable tran
   ), /page state changed/);
 });
 
-test("broker page keeps activation, preferences, funds, cap, pause, and a master Punk selector visible", async () => {
+test("broker page keeps activation, preferences, funds, cap, pause, and a master Punk selector available without opening every panel", async () => {
   const [html, source] = await Promise.all([
     readFile(new URL("../site/broker/index.html", import.meta.url), "utf8"),
     readFile(new URL("../site/owner-policy-controls.js", import.meta.url), "utf8"),
   ]);
   assert.match(html, /data-workspace-punk-picker/);
-  assert.match(html, /data-account-activation[^>]* open/);
+  assert.match(html, /data-account-activation/);
+  assert.doesNotMatch(html, /data-account-activation[^>]* open/);
+  assert.match(html, /data-autonomous-minting open/);
   assert.match(html, /data-policy-cap/);
   assert.match(html, /Deposit to Punk Account/);
   assert.match(html, /Withdraw to current owner/);

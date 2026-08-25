@@ -484,7 +484,7 @@ function applyLivePunkState(liveState) {
   gallery.querySelector(".empty-state")?.remove();
   if (asset && !indexed) gallery.prepend(confirmedLiveAssetCard(asset));
   if (!gallery.childElementCount) {
-    gallery.innerHTML = '<p class="empty-state">No confirmed acquisitions were found on-chain or in the indexer.</p>';
+    gallery.innerHTML = '<p class="empty-state">No confirmed indexed acquisitions were found. This does not prove the newer V3 Punk wallet is empty; select this Punk in <a href="/broker/#automation-title">Art Broker</a> to open its exact wallet on OpenSea or recover an NFT directly.</p>';
   }
   const count = acquisitions.length + (asset && !indexed ? 1 : 0);
   document.querySelectorAll("[data-collected-count]").forEach((item) => {
@@ -535,7 +535,7 @@ async function loadPunk() {
       if (liveAsset && !indexedLiveAsset) gallery.append(confirmedLiveAssetCard(liveAsset));
       acquisitions.forEach((acquisition) => gallery.append(opportunityCard(acquisition)));
       if (!gallery.childElementCount) {
-        gallery.innerHTML = '<p class="empty-state">No confirmed acquisitions were found on-chain or in the indexer.</p>';
+        gallery.innerHTML = '<p class="empty-state">No confirmed indexed acquisitions were found. This does not prove the newer V3 Punk wallet is empty; select this Punk in <a href="/broker/#automation-title">Art Broker</a> to open its exact wallet on OpenSea or recover an NFT directly.</p>';
       }
       const collectedCount = acquisitions.length + (liveAsset && !indexedLiveAsset ? 1 : 0);
       document.querySelectorAll("[data-collected-count]").forEach((item) => {
