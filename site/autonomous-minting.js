@@ -139,6 +139,12 @@ export function selectAutomationGeneration(v3Gate, v2Gate, tokenId) {
   return Object.freeze({ version: 2, gate: v2Gate });
 }
 
+export function automationSelectionChanged(currentSelection, nextSelection) {
+  const currentTokenId = currentSelection?.tokenId ?? null;
+  const nextTokenId = nextSelection?.tokenId ?? null;
+  return currentTokenId !== nextTokenId;
+}
+
 export function setupAutonomousMinting({ windowObject, documentObject, fetchFunction } = {}) {
   const browserWindow = windowObject ?? (typeof window === "undefined" ? null : window);
   const browserDocument = documentObject ?? (typeof document === "undefined" ? null : document);
@@ -641,11 +647,15 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
   }
 
   browserWindow.addEventListener("gogh:punk-selected", (event) => {
-    state.selection = event.detail?.tokenId ? event.detail : null;
-    cap.dataset.userEdited = "false";
-    cap.dataset.liveToken = "";
-    retirementConfirm.checked = false;
-    if (state.gate) state.gate = { ...state.gate, punk: null };
+    const nextSelection = event.detail?.tokenId ? event.detail : null;
+    const selectedAnotherPunk = automationSelectionChanged(state.selection, nextSelection);
+    state.selection = nextSelection;
+    if (selectedAnotherPunk) {
+      cap.dataset.userEdited = "false";
+      cap.dataset.liveToken = "";
+      retirementConfirm.checked = false;
+      if (state.gate) state.gate = { ...state.gate, punk: null };
+    }
     render();
     void load();
   });

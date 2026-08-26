@@ -3,7 +3,8 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
-  automationPunkWalletOpenSeaUrl, buildAutomationGasFundingTransaction,
+  automationPunkWalletOpenSeaUrl, automationSelectionChanged,
+  buildAutomationGasFundingTransaction,
   createCoalescedRefresh, formatAutomationGasBalance, RETIREMENT_MINT_LIFETIMES,
   retirementActivationDisclosure, selectAutomationGeneration,
 } from "../site/autonomous-minting.js";
@@ -34,6 +35,9 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.match(html, /How the proposed 1,420-supply retirement model works/);
   assert.match(html, /agent never burns a Punk automatically/i);
   assert.match(browser, /retirementConfirm\.checked !== true/);
+  assert.equal(automationSelectionChanged({ tokenId: "93" }, { tokenId: "93", activated: true }), false);
+  assert.equal(automationSelectionChanged({ tokenId: "93" }, { tokenId: "94" }), true);
+  assert.equal(automationSelectionChanged({ tokenId: "93" }, null), true);
   assert.match(html, /data-v2-stop disabled/);
   assert.match(html, /data-v2-cap disabled/);
   assert.match(html, /data-v2-days disabled/);
