@@ -455,6 +455,84 @@ function confirmedLiveAssetCard(asset) {
   return card;
 }
 
+function confirmedWorkerAssetCard(asset) {
+  const card = document.createElement("article");
+  card.className = "panel live-acquisition-card";
+  card.dataset.workerAsset = `${asset.collection}:${asset.tokenId}`;
+  const imageUrl = trustedProviderUrl(asset.imageUrl, { hostnames: OPENSEA_IMAGE_HOSTS });
+  if (imageUrl) {
+    const image = document.createElement("img");
+    image.className = "nft-art";
+    image.src = imageUrl;
+    image.alt = asset.name || `NFT #${asset.tokenId}`;
+    image.loading = "lazy";
+    image.decoding = "async";
+    card.append(image);
+  }
+  const badge = document.createElement("span");
+  badge.className = "tag";
+  badge.textContent = "AUTONOMOUS MINT · LIVE OWNERSHIP CHECKED";
+  const title = document.createElement("h3");
+  title.textContent = asset.name || `NFT #${asset.tokenId}`;
+  const detail = document.createElement("p");
+  detail.className = "locked-note";
+  detail.textContent = `Minted ${new Date(asset.acquiredAt).toLocaleString()} · held by this Punk's V3 NFT wallet.`;
+  const links = document.createElement("div");
+  links.className = "owner-account-actions";
+  for (const [href, text] of [
+    [asset.openSeaUrl, "View on OpenSea ↗"],
+    [`https://robinhoodchain.blockscout.com/tx/${asset.transactionHash}`, "View mint transaction ↗"],
+  ]) {
+    const link = document.createElement("a");
+    link.className = "status-refresh-button";
+    link.href = href;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = text;
+    links.append(link);
+  }
+  card.append(badge, title, detail, links);
+  return card;
+}
+
+async function loadV3PunkAssets(tokenId) {
+  const gallery = document.querySelector("[data-gallery]");
+  if (!gallery) return 0;
+  try {
+    const response = await fetch(
+      `/api/broker/nft-withdrawal-assets?tokenId=${encodeURIComponent(tokenId)}`,
+      { headers: { accept: "application/json" }, cache: "no-store" },
+    );
+    const payload = await response.json();
+    const assets = payload?.ok === true && payload.assets?.capability === true
+      && Array.isArray(payload.assets.items) ? payload.assets.items : [];
+    if (typeof payload.assets?.account === "string") {
+      document.querySelectorAll("[data-punk-account]").forEach((item) => {
+        item.textContent = `V3 NFT wallet · ${payload.assets.account}`;
+        item.title = payload.assets.account;
+      });
+    }
+    for (const asset of assets) {
+      if (!asset || !/^0x[0-9a-f]{40}$/.test(asset.collection ?? "")
+        || !/^(?:0|[1-9][0-9]*)$/.test(asset.tokenId ?? "")
+        || !/^0x[0-9a-f]{64}$/.test(asset.transactionHash ?? "")) continue;
+      const identity = `${asset.collection}:${asset.tokenId}`;
+      if (gallery.querySelector(`[data-worker-asset="${identity}"]`)) continue;
+      gallery.append(confirmedWorkerAssetCard(asset));
+    }
+    gallery.querySelector(".empty-state")?.remove();
+    if (!gallery.childElementCount) {
+      gallery.innerHTML = '<p class="empty-state">No confirmed autonomous NFT currently held by this Punk wallet was found. Recent mints may still be awaiting receipt or metadata reconciliation.</p>';
+    }
+    return assets.length;
+  } catch {
+    if (!gallery.childElementCount || gallery.querySelector(".empty-state")) {
+      gallery.innerHTML = '<p class="empty-state">The V3 wallet gallery is temporarily unavailable. Use Art Broker to copy the exact Punk wallet address and inspect it on-chain.</p>';
+    }
+    return 0;
+  }
+}
+
 let loadedPunkPayload = null;
 let pendingLivePunkState = null;
 
@@ -543,6 +621,15 @@ async function loadPunk() {
       });
       document.querySelectorAll("[data-collected-detail]").forEach((item) => {
         item.textContent = liveAsset ? "Includes live on-chain canary" : "Confirmed indexed assets";
+      });
+      void loadV3PunkAssets(tokenId).then((v3Count) => {
+        if (!v3Count) return;
+        document.querySelectorAll("[data-collected-count]").forEach((item) => {
+          item.textContent = String(gallery.querySelectorAll("article").length);
+        });
+        document.querySelectorAll("[data-collected-detail]").forEach((item) => {
+          item.textContent = "Includes live-owned V3 autonomous mints";
+        });
       });
     }
     const recommendations = document.querySelector("[data-punk-recommendations]");

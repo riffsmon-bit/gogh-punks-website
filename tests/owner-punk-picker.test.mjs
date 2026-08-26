@@ -5,14 +5,20 @@ import { encodeFunctionData, encodeFunctionResult, parseAbi } from "viem";
 import {
   configuredAutomationPunkIds,
   indexedOwnerPunkIds,
+  mergeOwnerPunkDecorations,
   openSeaOwnerPunkIds,
+  openSeaOwnerPunks,
+  ownerPunkArtwork,
+  proposedRetirementTierForOpenSeaRank,
 } from "../netlify/functions/broker-owner-punks.mjs";
 import {
   copyPunkAccountAddress,
   decodeOwnerOfMulticall,
+  decodeOnchainPunkDecoration,
   discoverWalletOwnedPunkIds,
   encodeOwnerOfMulticall,
   findBrowserOwnedPunks,
+  hydrateOnchainPunkDecorations,
   mergeWalletAndActivatedPunks,
   selectedPunkGalleryPath,
 } from "../site/owner-accounts.js";
@@ -25,6 +31,7 @@ const ACCOUNT_B = "0x3333333333333333333333333333333333333333";
 const MULTICALL_ABI = parseAbi([
   "function aggregate3((address target,bool allowFailure,bytes callData)[] calls) payable returns ((bool success,bytes returnData)[])",
 ]);
+const TOKEN_URI_ABI = parseAbi(["function tokenURI(uint256) view returns (string)"]);
 
 test("configured automation roster supplies bounded discovery hints without authority", () => {
   assert.deepEqual(configuredAutomationPunkIds({
@@ -65,6 +72,25 @@ test("indexed owner picker candidates are bounded, ordered, and explicitly non-a
   assert.equal(captured.values[3], 201);
 });
 
+test("owner Punk picker carries only sanitized cached artwork decoration", async () => {
+  const rows = [{
+    token_id: "93", nft_metadata_status: "AVAILABLE", nft_metadata_name: "Gogh Punk #93",
+    nft_metadata_image_url: "https://i.seadn.io/s/raw/files/example.png",
+    nft_metadata_description: null, nft_metadata_collection_slug: "gogh-punks-255843210",
+    nft_metadata_token_standard: "ERC721", nft_metadata_traits: [],
+    nft_metadata_opensea_url:
+      "https://opensea.io/assets/robinhood/0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6/93",
+    nft_metadata_fetched_at: "2026-08-25T12:00:00.000Z",
+  }];
+  const result = await ownerPunkArtwork(["93", "94"], async (sql) => {
+    assert.match(sql, /broker_nft_metadata/);
+    return { rows };
+  });
+  assert.equal(result[0].artwork.name, "Gogh Punk #93");
+  assert.match(result[0].artwork.imageUrl, /^https:\/\/i\.seadn\.io\//);
+  assert.equal(result[1].artwork.imageUrl, null);
+});
+
 test("OpenSea supplies bounded discovery hints while foreign NFTs are ignored", async () => {
   const calls = [];
   const result = await openSeaOwnerPunkIds(OWNER, {
@@ -77,8 +103,11 @@ test("OpenSea supplies bounded discovery hints while foreign NFTs are ignored", 
         headers: { get: () => null },
         text: async () => JSON.stringify({
           nfts: [
-            { identifier: "1639", collection: "gogh-punks-255843210", contract: COLLECTION },
-            { identifier: "1755", collection: "gogh-punks-255843210", contract: COLLECTION },
+            { identifier: "1639", collection: "gogh-punks-255843210", contract: COLLECTION,
+              name: "Gogh Punk #1639", display_image_url: "https://i.seadn.io/s/raw/files/1639.png",
+              rarity: { strategy_id: "openrarity", strategy_version: "1", rank: 40 } },
+            { identifier: "1755", collection: "gogh-punks-255843210", contract: COLLECTION,
+              image_url: "https://attacker.example/1755.png", rarity: { rank: "41" } },
             { identifier: "9", collection: "foreign", contract: COLLECTION },
             { identifier: "1797", collection: "gogh-punks-255843210",
               contract: "0x9999999999999999999999999999999999999999" },
@@ -93,6 +122,84 @@ test("OpenSea supplies bounded discovery hints while foreign NFTs are ignored", 
   assert.match(calls[0].url, /collection=gogh-punks-255843210/);
   assert.equal(calls[0].options.redirect, "error");
   assert.equal(calls[0].options.headers["x-api-key"], "server-side-test-key");
+});
+
+test("OpenSea owner decorations carry allowlisted artwork and current rarity rank only", async () => {
+  const result = await openSeaOwnerPunks(OWNER, {
+    apiKey: "server-side-test-key",
+    fetchFn: async () => ({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      text: async () => JSON.stringify({
+        nfts: [{
+          identifier: "93", collection: "gogh-punks-255843210", contract: COLLECTION,
+          name: "Gogh Punk #93", display_image_url: "https://i.seadn.io/s/raw/files/93.png",
+          rarity: { strategy_id: "openrarity", strategy_version: "1.0", rank: 1800 },
+        }],
+        next: null,
+      }),
+    }),
+  });
+  assert.equal(result[0].artwork.imageUrl, "https://i.seadn.io/s/raw/files/93.png");
+  assert.deepEqual(result[0].rarity, {
+    source: "OPENSEA_OPENRARITY_CURRENT",
+    rank: 1800,
+    proposedTier: "UNCOMMON",
+    rankBandSupply: 5016,
+    strategyId: "openrarity",
+    strategyVersion: "1.0",
+    permanentSnapshot: false,
+  });
+  assert.equal(proposedRetirementTierForOpenSeaRank(1), "MYTHIC");
+  assert.equal(proposedRetirementTierForOpenSeaRank(5016), "COMMON");
+  assert.equal(proposedRetirementTierForOpenSeaRank(5017), null);
+});
+
+test("cached images win while OpenSea fills missing artwork and never upgrades rarity to proof", () => {
+  const result = mergeOwnerPunkDecorations(["93", "94"], [{
+    tokenId: "93", artwork: { name: "Cached #93", imageUrl: "https://i.seadn.io/cached.png" },
+  }, { tokenId: "94", artwork: { name: "Cached #94", imageUrl: null } }], [{
+    tokenId: "93", artwork: { name: "OpenSea #93", imageUrl: "https://i.seadn.io/os93.png" },
+    rarity: { source: "OPENSEA_OPENRARITY_CURRENT", rank: 9 },
+  }, {
+    tokenId: "94", artwork: { name: "OpenSea #94", imageUrl: "https://i.seadn.io/os94.png" },
+    rarity: { source: "OPENSEA_OPENRARITY_CURRENT", rank: 10 },
+  }]);
+  assert.equal(result[0].artwork.name, "Cached #93");
+  assert.equal(result[0].rarity.rank, 9);
+  assert.equal(result[1].artwork.name, "OpenSea #94");
+});
+
+test("canonical on-chain tokenURI supplies keyless artwork and only a rarity preview", async () => {
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg"><rect width="1" height="1"/></svg>';
+  const image = `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
+  const metadata = `data:application/json;base64,${Buffer.from(JSON.stringify({
+    name: "Gogh Punk #93",
+    image,
+    attributes: [{ trait_type: "Rarity", value: "Rare" }],
+  })).toString("base64")}`;
+  const result = encodeFunctionResult({
+    abi: TOKEN_URI_ABI,
+    functionName: "tokenURI",
+    result: metadata,
+  });
+  const decoded = decodeOnchainPunkDecoration(result, "93");
+  assert.equal(decoded.artwork.name, "Gogh Punk #93");
+  assert.equal(decoded.artwork.imageUrl, image);
+  assert.deepEqual(decoded.rarity, {
+    source: "ONCHAIN_METADATA_TRAIT_CURRENT",
+    proposedTier: "RARE",
+    permanentSnapshot: false,
+  });
+
+  const calls = [];
+  const hydrated = await hydrateOnchainPunkDecorations({
+    async request(call) { calls.push(call); return result; },
+  }, COLLECTION, [{ tokenId: "93", artwork: null, rarity: null }]);
+  assert.equal(hydrated[0].artwork.imageUrl, image);
+  assert.equal(hydrated[0].rarity.proposedTier, "RARE");
+  assert.equal(calls[0].params[0].data.slice(0, 10), "0xc87b56dd");
 });
 
 test("wallet rechecks ownership and labels activated versus activatable Punks", async () => {
@@ -173,12 +280,14 @@ test("broker picker selects only a live-verified wallet-owned Punk", async () =>
   assert.doesNotMatch(html, /data-owned-punk-picker|data-account-activation/);
   assert.doesNotMatch(html, /data-mandate-punk-picker/);
   assert.match(html, /data-workspace-punk-picker/);
+  assert.match(html, /data-workspace-punk-cards/);
   assert.match(html, /data-punk-gallery-primary/);
   assert.doesNotMatch(html, /data-activation-token/);
   assert.match(html, /data-owned-punk-count/);
   assert.match(html, /data-selected-punk-display/);
   assert.doesNotMatch(html, /Scout Punk<\/span><strong data-scout-token-display/);
   assert.match(accounts, /findBrowserOwnedPunks/);
+  assert.match(accounts, /renderVisualPunkPicker/);
   assert.match(accounts, /gogh:punk-selected/);
   assert.match(endpoint, /DISCOVERY_CANDIDATES_ONLY_EACH_SELECTION_REQUIRES_LIVE_WALLET_OWNER_CHECK/);
   assert.match(endpoint, /OPENSEA_API_KEY/);

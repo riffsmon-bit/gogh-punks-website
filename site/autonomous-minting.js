@@ -6,6 +6,100 @@ const FUNDING_VALUES = new Set([
   "500000000000000", "1000000000000000", "2000000000000000",
 ]);
 
+const LIVE_REFRESH_INTERVAL_MS = 15_000;
+
+export const RETIREMENT_MINT_LIFETIMES = Object.freeze({
+  COMMON: 100,
+  UNCOMMON: 200,
+  RARE: 400,
+  EPIC: 800,
+  LEGENDARY: 1_600,
+  MYTHIC: 3_200,
+});
+
+export function retirementActivationDisclosure(tokenId, retirement) {
+  const selectedToken = typeof tokenId === "string" && /^(?:0|[1-9][0-9]{0,3})$/.test(tokenId)
+    ? tokenId : null;
+  const tier = retirement?.rarityEvidence === "VERIFIED_SNAPSHOT"
+    && Object.hasOwn(RETIREMENT_MINT_LIFETIMES, retirement?.rarityTier)
+    ? retirement.rarityTier : null;
+  const limit = tier ? RETIREMENT_MINT_LIFETIMES[tier] : null;
+  const confirmed = Number.isSafeInteger(retirement?.confirmedAutonomousMints)
+    && retirement.confirmedAutonomousMints >= 0
+    ? retirement.confirmedAutonomousMints : null;
+  if (!selectedToken) return Object.freeze({
+    title: "Verified retirement tier pending",
+    summary: "Select a Punk to review its mint lifetime. No retirement countdown is active until a published rarity snapshot assigns that Punk an exact tier.",
+    assigned: false,
+  });
+  const previewTier = retirement?.rarityEvidence === "OPENSEA_OPENRARITY_CURRENT"
+    && Object.hasOwn(RETIREMENT_MINT_LIFETIMES, retirement?.rarityTier)
+    && Number.isSafeInteger(retirement?.rarityRank) && retirement.rarityRank >= 1
+    ? retirement.rarityTier : null;
+  if (previewTier) {
+    const previewLimit = RETIREMENT_MINT_LIFETIMES[previewTier];
+    return Object.freeze({
+      title: `Punk #${selectedToken} · OpenRarity #${retirement.rarityRank.toLocaleString()} · proposed ${previewTier.toLowerCase()} tier`,
+      summary: `The current OpenSea rarity rank maps to the draft ${previewTier.toLowerCase()} band and a proposed ${previewLimit.toLocaleString()}-mint lifetime. This is a preview only: the retirement countdown stays inactive until the collection publishes an immutable rarity snapshot.`,
+      assigned: false,
+      preview: true,
+      tier: previewTier,
+      limit: previewLimit,
+      rank: retirement.rarityRank,
+    });
+  }
+  const metadataTier = retirement?.rarityEvidence === "ONCHAIN_METADATA_TRAIT_CURRENT"
+    && Object.hasOwn(RETIREMENT_MINT_LIFETIMES, retirement?.rarityTier)
+    ? retirement.rarityTier : null;
+  if (metadataTier) {
+    const previewLimit = RETIREMENT_MINT_LIFETIMES[metadataTier];
+    return Object.freeze({
+      title: `Punk #${selectedToken} · on-chain ${metadataTier.toLowerCase()} trait`,
+      summary: `The Punk’s current on-chain metadata declares the ${metadataTier.toLowerCase()} tier, which maps to a proposed ${previewLimit.toLocaleString()}-mint lifetime. This is still a preview: the countdown remains inactive until the collection publishes the complete immutable rarity snapshot used by the retirement model.`,
+      assigned: false,
+      preview: true,
+      tier: metadataTier,
+      limit: previewLimit,
+    });
+  }
+  if (!tier || confirmed === null) return Object.freeze({
+    title: `Punk #${selectedToken} · tier not assigned`,
+    summary: "This Punk does not yet have a published, verified rarity assignment, so its retirement countdown is not active. The exact tier, lifetime, and remaining mint count must be shown before the retirement policy can launch.",
+    assigned: false,
+  });
+  const remaining = Math.max(0, limit - confirmed);
+  return Object.freeze({
+    title: `Punk #${selectedToken} · ${tier.toLowerCase()} lifetime`,
+    summary: `${confirmed.toLocaleString()} of ${limit.toLocaleString()} confirmed autonomous mints used · ${remaining.toLocaleString()} remaining before automation retirement.`,
+    assigned: true,
+    tier,
+    limit,
+    confirmed,
+    remaining,
+  });
+}
+
+export function createCoalescedRefresh(task) {
+  if (typeof task !== "function") throw new TypeError("refresh task is required");
+  let active = null;
+  let queued = false;
+  const refresh = () => {
+    if (active) {
+      queued = true;
+      return active;
+    }
+    active = Promise.resolve().then(task).finally(() => {
+      active = null;
+      if (queued) {
+        queued = false;
+        void refresh();
+      }
+    });
+    return active;
+  };
+  return refresh;
+}
+
 function canonicalAddress(value, label) {
   if (typeof value !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(value)) {
     throw new TypeError(`${label} is invalid.`);
@@ -68,16 +162,22 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
   const agentFundState = panel.querySelector("[data-v2-agent-fund-state]");
   const worker = panel.querySelector("[data-v2-worker]");
   const workerDetail = panel.querySelector("[data-v2-worker-detail]");
+  const latestMint = panel.querySelector("[data-v3-latest-mint]");
   const refresh = panel.querySelector("[data-v2-refresh]");
   const refreshed = panel.querySelector("[data-v2-refreshed]");
   const setup = panel.querySelector("[data-v2-setup]");
   const runNow = panel.querySelector("[data-v3-run-now]");
+  const runAll = panel.querySelector("[data-v3-run-all]");
   const runState = panel.querySelector("[data-v3-run-state]");
   const stop = panel.querySelector("[data-v2-stop]");
   const preset = panel.querySelector("[data-v2-preset]");
   const cap = panel.querySelector("[data-v2-cap]");
   const days = panel.querySelector("[data-v2-days]");
   const confirmationPlan = panel.querySelector("[data-v2-confirmation-plan]");
+  const retirementTitle = panel.querySelector("[data-retirement-title]");
+  const retirementSummary = panel.querySelector("[data-retirement-summary]");
+  const retirementConfirm = panel.querySelector("[data-retirement-confirm]");
+  const retirementConfirmLabel = panel.querySelector("[data-retirement-confirm-label]");
   const progressSummary = panel.querySelector("[data-v2-progress-summary]");
   const progressSteps = Object.fromEntries([...panel.querySelectorAll("[data-v2-progress-step]")]
     .map((element) => [element.dataset.v2ProgressStep, element]));
@@ -97,11 +197,14 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
   function heartbeatLabel(value) {
     if (!value) return "No worker check recorded yet";
     const checked = new Date(value.completedAt);
-    const outcome = value.status === "MINT_CONFIRMED" ? "Mint completed"
+    const outcome = value.status === "MINT_CONFIRMED"
+      ? `Mint completed${value.tokenId ? ` for Punk #${value.tokenId}` : ""}`
       : value.status === "NO_ELIGIBLE_TARGETS" ? "Scan finished — no mint passed all checks"
         : value.status === "NO_ANALYZED_ACTIVE_TARGETS" ? "Scan finished — no supported free mint is open"
           : value.status === "NO_AUTONOMOUS_MANDATES" ? "Scan finished — no Punk agent is enrolled"
-            : "Scan stopped safely";
+            : value.status === "FAILED"
+              ? `Scan stopped safely${value.failureCode ? ` (${value.failureCode})` : ""}; automatic retry scheduled`
+              : "Scan stopped safely";
     return `${outcome} · ${checked.toLocaleString()}`;
   }
 
@@ -166,9 +269,11 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     usageMints.textContent = publicUsage?.confirmedMints ?? "—";
     usagePunks.textContent = publicUsage?.mintingPunks ?? "—";
     usageWallets.textContent = publicUsage?.autonomousPreferenceWallets ?? "—";
-    usageMintsDetail.textContent = publicUsage?.trackedSince
-      ? `Hosted history tracked since ${new Date(publicUsage.trackedSince).toLocaleDateString()}`
-      : "Aggregate hosted-worker history becomes available after its first recorded run";
+    usageMintsDetail.textContent = publicUsage?.latestConfirmedAt
+      ? `Last confirmed mint ${new Date(publicUsage.latestConfirmedAt).toLocaleString()} · durable history is not erased by a later failed scan`
+      : publicUsage?.trackedSince
+        ? `Hosted history tracked since ${new Date(publicUsage.trackedSince).toLocaleDateString()} · no confirmed mint recorded yet`
+        : "Aggregate hosted-worker history becomes available after its first recorded run";
     if (v3Upgrade) {
       v3Upgrade.textContent = state.version === 3 && state.gate?.capability === true
         ? "V3 is active: exact reviewed OpenSea Studio clone and full-contract runtimes are supported."
@@ -182,6 +287,16 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     const selectedState = state.gate?.punk?.tokenId === state.selection?.tokenId
       ? state.gate.punk : null;
     const active = selectedState?.active === true;
+    const retirement = retirementActivationDisclosure(
+      state.selection?.tokenId ?? null,
+      selectedState?.retirement ?? state.selection?.retirement,
+    );
+    retirementTitle.textContent = retirement.title;
+    retirementSummary.textContent = retirement.summary;
+    retirementConfirm.disabled = active || !state.selection;
+    retirementConfirmLabel.textContent = active
+      ? "This Punk is already active. Any future retirement policy requires a separately published tier assignment and cannot retroactively authorize a burn."
+      : "I reviewed the lifecycle and understand that retirement becomes required to continue automation after the verified mint lifetime; the final burn remains a separate owner-confirmed action.";
     const agentLive = active && state.gate?.capability === true
       && state.gate?.heartbeat?.online === true;
     const setupCount = selectedState?.created === true || active ? 2 : 3;
@@ -241,9 +356,12 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     agentFund.disabled = !gasReady || state.funding || !agentFundConfirm.checked;
     const ready = state.gate?.capability === true
       && state.gate?.setupTransactionAvailable === true && Boolean(state.selection);
-    setup.disabled = !ready || Boolean(state.setupSubmission);
+    setup.disabled = !ready || Boolean(state.setupSubmission)
+      || (!active && retirementConfirm.checked !== true);
     runNow.disabled = !agentLive || state.version !== 3 || state.running;
     runNow.textContent = state.running ? "Agent scan running…" : "Send selected agent now";
+    runAll.disabled = state.version !== 3 || state.gate?.capability !== true || state.running;
+    runAll.textContent = state.running ? "Agent scan running…" : "Scan all my active Punks";
     stop.disabled = !active;
     cap.disabled = state.gate?.capability !== true;
     days.disabled = state.gate?.capability !== true;
@@ -251,16 +369,33 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     setup.textContent = state.setupSubmission
       ? `Confirming ${setupIndex} of ${state.setupSubmission.total}…`
       : active ? "Update cap or run time" : "Set up and start agent";
-    badge.textContent = agentLive ? "LIVE" : active ? "WORKER OFFLINE"
+    const workerRetrying = state.gate?.status === "WORKER_DEGRADED";
+    badge.textContent = agentLive ? "LIVE" : active
+      ? workerRetrying ? "WORKER RETRYING" : "WORKER OFFLINE"
       : state.gate?.capability === true ? "READY" : "NOT READY";
     badge.classList.toggle("off", !agentLive && state.gate?.capability !== true);
     worker.textContent = state.gate?.heartbeat?.online === true ? "CHECKING FOR FREE MINTS"
-      : state.gate?.status === "WORKER_STARTING" ? "RESTARTING" : "OFFLINE";
+      : ["WORKER_STARTING", "WORKER_DEGRADED"].includes(state.gate?.status)
+        ? "RETRYING" : "OFFLINE";
     workerDetail.textContent = heartbeatLabel(state.gate?.heartbeat);
+    const heartbeat = state.gate?.heartbeat;
+    const mintHash = heartbeat?.status === "MINT_CONFIRMED"
+      && /^0x[0-9a-fA-F]{64}$/.test(heartbeat.transactionHash ?? "")
+      ? heartbeat.transactionHash.toLowerCase() : null;
+    latestMint.hidden = false;
+    if (mintHash) {
+      latestMint.href = `https://robinhoodchain.blockscout.com/tx/${mintHash}`;
+      latestMint.textContent = `Latest autonomous mint${heartbeat.tokenId ? ` · Punk #${heartbeat.tokenId}` : ""} ↗`;
+    } else {
+      latestMint.removeAttribute("href");
+      latestMint.textContent = publicUsage?.latestConfirmedAt
+        ? `No mint in the latest scan · last confirmed ${new Date(publicUsage.latestConfirmedAt).toLocaleString()}`
+        : "No confirmed autonomous mint recorded yet";
+    }
     refresh.disabled = state.refreshing;
     refresh.textContent = state.refreshing ? "Refreshing…" : "Refresh live status";
     refreshed.textContent = state.lastSyncedAt
-      ? `Page synced ${state.lastSyncedAt.toLocaleTimeString()} · automatic check every 30 seconds`
+      ? `Page synced ${state.lastSyncedAt.toLocaleTimeString()} · automatic check every 15 seconds`
       : state.lastRefreshFailedAt
         ? `Refresh failed ${state.lastRefreshFailedAt.toLocaleTimeString()} · retrying automatically`
         : "Page has not synced yet";
@@ -273,6 +408,8 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
         ? "LIVE SAFETY CHECK PENDING"
         : state.gate?.status === "WORKER_STARTING"
           ? "WORKER RESTARTING"
+        : state.gate?.status === "WORKER_DEGRADED"
+          ? "WORKER RETRYING"
         : state.gate?.status === "DEPLOYED_CONFIGURATION_PENDING"
           ? "SETUP SERVICE NOT READY"
           : state.gate?.status === "DEPLOYED_SOURCE_VERIFICATION_PENDING"
@@ -282,7 +419,9 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     if (agentLive) {
       message.textContent = `Agent is live for Punk #${selectedState.tokenId}. ${heartbeatLabel(state.gate?.heartbeat)}. Today: ${selectedState.acquisitionsToday} of ${selectedState.maxAcquisitionsPerDay} mints.`;
     } else if (active) {
-      message.textContent = `Punk #${selectedState.tokenId} remains authorized on-chain, but the hosted worker heartbeat is not current. Automatic submission is paused until it recovers. You can still stop and revoke it here.`;
+      message.textContent = workerRetrying
+        ? `Punk #${selectedState.tokenId} remains authorized on-chain. The latest worker run stopped safely and the scheduled worker will retry automatically. Manual scans wait for a healthy heartbeat; stop and revoke remains available here.`
+        : `Punk #${selectedState.tokenId} remains authorized on-chain, but the hosted worker heartbeat is not current. Manual scans wait for it to recover; scheduled checks remain fail-closed. You can still stop and revoke it here.`;
     }
   }
 
@@ -377,13 +516,14 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     }
   }
 
-  async function load() {
+  async function loadOnce() {
     const sequence = ++state.loadSequence;
+    const requestedTokenId = state.selection?.tokenId ?? null;
     state.refreshing = true;
     render();
     try {
       const params = new URLSearchParams({ refresh: String(Date.now()) });
-      if (state.selection?.tokenId) params.set("tokenId", state.selection.tokenId);
+      if (requestedTokenId) params.set("tokenId", requestedTokenId);
       const query = `?${params}`;
       const fetchGate = async (version) => {
         const response = await request(`/api/broker/autonomy-v${version}-status${query}`, {
@@ -399,10 +539,11 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
       const v3Gate = v3Result.status === "fulfilled" ? v3Result.value : null;
       const v2Gate = v2Result.status === "fulfilled" ? v2Result.value : null;
       const selected = selectAutomationGeneration(
-        v3Gate, v2Gate, state.selection?.tokenId ?? null,
+        v3Gate, v2Gate, requestedTokenId,
       );
       if (!selected.gate) throw new Error("automation status unavailable");
-      if (sequence !== state.loadSequence) return;
+      if (sequence !== state.loadSequence
+        || requestedTokenId !== (state.selection?.tokenId ?? null)) return;
       state.v3Gate = v3Gate;
       state.version = selected.version;
       state.gate = selected.gate;
@@ -430,6 +571,8 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
       render();
     }
   }
+
+  const load = createCoalescedRefresh(loadOnce);
 
   async function runAgentNow() {
     if (state.running || state.version !== 3 || !state.selection?.tokenId) return;
@@ -466,10 +609,42 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     }
   }
 
+  async function runAllAgentsNow() {
+    if (state.running || state.version !== 3 || state.gate?.capability !== true) return;
+    state.running = true;
+    render();
+    runState.textContent = "Starting one fair, serialized scan across all active Punk agents…";
+    try {
+      const response = await request("/api/broker/autonomy-v3-run", {
+        method: "POST",
+        headers: { accept: "application/json", "content-type": "application/json" },
+        body: JSON.stringify({ all: true }),
+        cache: "no-store",
+      });
+      const payload = await response.json();
+      if ((!response.ok && response.status !== 202) || payload?.ok !== true) {
+        throw new Error(payload?.message ?? "The all-Punk scan was rejected.");
+      }
+      const outcome = payload.run;
+      runState.textContent = outcome.status === "MINT_CONFIRMED"
+        ? `Mint confirmed for Punk #${outcome.tokenId}: ${outcome.transactionHash}`
+        : outcome.status === "RUN_IN_PROGRESS"
+          ? "A fair worker scan is already running. Status will update when it finishes."
+          : "Fair scan complete. Every active Punk reached before the time bound was checked; no transaction was needed.";
+      await load();
+    } catch (error) {
+      runState.textContent = error?.message ?? "The all-Punk scan stopped safely.";
+    } finally {
+      state.running = false;
+      render();
+    }
+  }
+
   browserWindow.addEventListener("gogh:punk-selected", (event) => {
     state.selection = event.detail?.tokenId ? event.detail : null;
     cap.dataset.userEdited = "false";
     cap.dataset.liveToken = "";
+    retirementConfirm.checked = false;
     if (state.gate) state.gate = { ...state.gate, punk: null };
     render();
     void load();
@@ -493,10 +668,12 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     }
   });
   runNow.addEventListener("click", runAgentNow);
+  runAll.addEventListener("click", runAllAgentsNow);
   accountCopy.addEventListener("click", copyPunkWalletAddress);
   agentCopy.addEventListener("click", copyAgentAddress);
   refresh.addEventListener("click", () => { void load(); });
   agentFundConfirm.addEventListener("change", render);
+  retirementConfirm.addEventListener("change", render);
   agentFund.addEventListener("click", fundAgent);
   preset.addEventListener("change", () => {
     if (preset.value === "custom") return;
@@ -526,7 +703,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
   });
   render();
   load();
-  browserWindow.setInterval?.(() => { void load(); }, 30_000);
+  browserWindow.setInterval?.(() => { void load(); }, LIVE_REFRESH_INTERVAL_MS);
   browserWindow.addEventListener?.("focus", () => { void load(); });
   browserWindow.addEventListener?.("pageshow", () => { void load(); });
   browserDocument.addEventListener?.("visibilitychange", () => {

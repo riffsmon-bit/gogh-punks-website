@@ -304,6 +304,7 @@ async function fetchGate(fetchFunction, tokenId) {
 function assetItem(value) {
   exactKeys(value, [
     "standard", "collection", "tokenId", "amount", "transactionHash", "acquiredAt", "openSeaUrl",
+    "name", "imageUrl",
   ], "withdrawable NFT");
   if (value.standard !== "ERC721" || value.amount !== "1") {
     fail("INVALID_ASSET_LIST", "withdrawable NFT standard is invalid");
@@ -316,7 +317,19 @@ function assetItem(value) {
     transactionHash: bytes32(value.transactionHash, "withdrawable NFT transaction"),
     acquiredAt: value.acquiredAt,
     openSeaUrl: value.openSeaUrl,
+    name: typeof value.name === "string" && value.name.length <= 200 ? value.name : null,
+    imageUrl: null,
   };
+  if (value.imageUrl !== null) {
+    try {
+      const url = new URL(value.imageUrl);
+      if (url.protocol !== "https:" || !["i.seadn.io", "raw2.seadn.io"].includes(url.hostname)
+        || url.username || url.password || url.port || url.hash) throw new Error("invalid");
+      normalized.imageUrl = url.href;
+    } catch {
+      fail("INVALID_ASSET_LIST", "withdrawable NFT image is invalid");
+    }
+  }
   if (typeof normalized.acquiredAt !== "string" || !Number.isFinite(Date.parse(normalized.acquiredAt))) {
     fail("INVALID_ASSET_LIST", "withdrawable NFT timestamp is invalid");
   }
@@ -367,6 +380,7 @@ export function setupNftWithdrawal({ windowObject, documentObject, fetchFunction
   const amount = panel.querySelector("[data-nft-amount]");
   const amountField = panel.querySelector("[data-nft-amount-field]");
   const assetPicker = panel.querySelector("[data-nft-owned-asset]");
+  const assetCards = panel.querySelector("[data-nft-owned-cards]");
   const assetDetail = panel.querySelector("[data-nft-owned-detail]");
   const manualEntry = panel.querySelector(".manual-nft-entry");
   const confirmation = panel.querySelector("[data-nft-confirm]");
@@ -427,6 +441,40 @@ export function setupNftWithdrawal({ windowObject, documentObject, fetchFunction
     manual.textContent = "Enter another NFT manually";
     assetPicker.append(manual);
     assetPicker.disabled = false;
+    assetCards?.replaceChildren();
+    state.assets.forEach((asset, index) => {
+      const card = browserDocument.createElement("button");
+      card.type = "button";
+      card.className = "nft-choice-card";
+      card.dataset.assetIndex = String(index);
+      card.setAttribute("aria-pressed", "false");
+      if (asset.imageUrl) {
+        const image = browserDocument.createElement("img");
+        image.src = asset.imageUrl;
+        image.alt = asset.name || `NFT token #${asset.tokenId}`;
+        image.loading = "lazy";
+        image.decoding = "async";
+        card.append(image);
+      } else {
+        const placeholder = browserDocument.createElement("span");
+        placeholder.className = "nft-choice-placeholder";
+        placeholder.textContent = `#${asset.tokenId}`;
+        card.append(placeholder);
+      }
+      const name = browserDocument.createElement("strong");
+      name.textContent = asset.name || `NFT #${asset.tokenId}`;
+      const detail = browserDocument.createElement("small");
+      detail.textContent = `${asset.collection.slice(0, 8)}…${asset.collection.slice(-6)}`;
+      card.append(name, detail);
+      card.addEventListener("click", () => {
+        assetPicker.value = String(index);
+        assetCards.querySelectorAll("[aria-pressed]").forEach((item) => {
+          item.setAttribute("aria-pressed", String(item === card));
+        });
+        applyAssetSelection();
+      });
+      assetCards.append(card);
+    });
     assetDetail.textContent = state.assets.length
       ? "Only NFTs still live-owned by this Punk wallet are listed."
       : "Direct transfers and delayed history can still be entered manually.";

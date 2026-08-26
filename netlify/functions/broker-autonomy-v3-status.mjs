@@ -107,6 +107,22 @@ export function autonomyV3Status(manifest = automationManifest) {
   });
 }
 
+export function automationV3WorkerAvailability(
+  globallyReady, heartbeat, release, nowMs = Date.now(),
+) {
+  const online = globallyReady === true
+    && workerHeartbeatIsCurrent(heartbeat, release, nowMs);
+  const failed = globallyReady === true && heartbeat?.release === release
+    && heartbeat?.status === "FAILED";
+  return Object.freeze({
+    online,
+    status: online ? "READY" : failed ? "WORKER_DEGRADED"
+      : globallyReady ? "WORKER_STARTING" : "DEPLOYED_CONFIGURATION_PENDING",
+    reason: online ? null : failed ? "AUTOMATION_V3_WORKER_RETRYING"
+      : globallyReady ? "AUTOMATION_V3_HEARTBEAT_PENDING" : null,
+  });
+}
+
 export default async function handler(request) {
   if (request.method !== "GET") return json({ ok: false, code: "METHOD_NOT_ALLOWED" }, 405);
   const base = autonomyV3Status();
@@ -123,20 +139,20 @@ export default async function handler(request) {
       ]);
       if (tokenId !== null) punk = await readAutomationV3PunkState(tokenId);
       const globallyReady = live.configured === true && live.worker.enabled === true;
-      const workerOnline = workerHeartbeatIsCurrent(
-        heartbeat,
-        live.worker.release,
-        Date.now(),
+      const availability = automationV3WorkerAvailability(
+        globallyReady, heartbeat, live.worker.release, Date.now(),
       );
+      const workerOnline = availability.online;
       const ready = globallyReady && workerOnline;
       automation = Object.freeze({
         ...base,
-        status: ready ? "READY" : globallyReady ? "WORKER_STARTING" : "DEPLOYED_CONFIGURATION_PENDING",
+        status: availability.status,
         capability: ready,
         setupTransactionAvailable: ready,
         automaticSubmission: ready,
-        reason: ready ? null : globallyReady ? "AUTOMATION_V3_HEARTBEAT_PENDING"
-          : live.configured ? "AUTOMATION_V3_WORKER_PENDING" : "AUTOMATION_V3_GUARDIAN_PENDING",
+        scheduledRetry: availability.status === "WORKER_DEGRADED",
+        reason: ready ? null : availability.reason ?? (live.configured
+          ? "AUTOMATION_V3_WORKER_PENDING" : "AUTOMATION_V3_GUARDIAN_PENDING"),
         agent: {
           address: AUTOMATION_V3_AGENT,
           validUntil: live.agent.validUntil,

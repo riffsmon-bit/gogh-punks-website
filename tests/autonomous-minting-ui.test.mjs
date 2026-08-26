@@ -4,8 +4,10 @@ import test from "node:test";
 
 import {
   automationPunkWalletOpenSeaUrl, buildAutomationGasFundingTransaction,
-  formatAutomationGasBalance, selectAutomationGeneration,
+  createCoalescedRefresh, formatAutomationGasBalance, RETIREMENT_MINT_LIFETIMES,
+  retirementActivationDisclosure, selectAutomationGeneration,
 } from "../site/autonomous-minting.js";
+import { DRAFT_RARITY_MINT_LIMITS } from "../broker/src/retirement/deflationary-model.mjs";
 
 const root = new URL("../", import.meta.url);
 
@@ -28,6 +30,10 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.match(html, /Standard · 5 mints\/day for 14 days/);
   assert.match(html, /Active · 10 mints\/day for 30 days/);
   assert.match(html, /data-v2-confirmation-plan/);
+  assert.match(html, /data-retirement-confirm/);
+  assert.match(html, /How the proposed 1,420-supply retirement model works/);
+  assert.match(html, /agent never burns a Punk automatically/i);
+  assert.match(browser, /retirementConfirm\.checked !== true/);
   assert.match(html, /data-v2-stop disabled/);
   assert.match(html, /data-v2-cap disabled/);
   assert.match(html, /data-v2-days disabled/);
@@ -40,6 +46,7 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.match(html, /Punks are not people/);
   assert.match(html, /data-v2-refresh/);
   assert.match(html, /data-v3-run-now disabled/);
+  assert.match(html, /data-v3-run-all disabled/);
   assert.match(html, /Send selected agent now/);
   assert.match(html, /data-v2-refreshed/);
   assert.match(html, /fixed zero-price safety profile|fixed safety profile/i);
@@ -77,8 +84,15 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.match(browser, /publicUsage\?\.confirmedMints/);
   assert.match(browser, /publicUsage\?\.mintingPunks/);
   assert.match(browser, /publicUsage\?\.autonomousPreferenceWallets/);
-  assert.match(browser, /automatic check every 30 seconds/);
+  assert.match(browser, /publicUsage\?\.latestConfirmedAt/);
+  assert.match(browser, /durable history is not erased by a later failed scan/);
+  assert.match(browser, /automatic check every 15 seconds/);
+  assert.match(html, /data-v3-latest-mint/);
+  assert.match(browser, /Latest autonomous mint/);
+  assert.match(browser, /robinhoodchain\.blockscout\.com\/tx/);
+  assert.match(browser, /createCoalescedRefresh\(loadOnce\)/);
   assert.match(browser, /\/api\/broker\/autonomy-v3-run/);
+  assert.match(browser, /JSON\.stringify\(\{ all: true \}\)/);
   assert.match(browser, /NO_ANALYZED_ACTIVE_TARGETS/);
   assert.match(browser, /visibilitychange/);
   assert.match(browser, /addEventListener\?\.\("focus"/);
@@ -92,6 +106,62 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.match(browser, /eth_sendTransaction/);
   assert.match(browser, /automationPunkWalletOpenSeaUrl/);
   assert.match(browser, /Copied the selected Punk’s V\$\{state\.version\} NFT wallet—not the hosted gas payer/);
+});
+
+test("activation disclosure binds the exact draft lifetimes and fails closed without rarity evidence", () => {
+  assert.deepEqual(RETIREMENT_MINT_LIFETIMES, DRAFT_RARITY_MINT_LIMITS);
+  const pending = retirementActivationDisclosure("93", null);
+  assert.equal(pending.assigned, false);
+  assert.match(pending.summary, /countdown is not active/i);
+  const preview = retirementActivationDisclosure("93", {
+    rarityTier: "RARE",
+    rarityEvidence: "OPENSEA_OPENRARITY_CURRENT",
+    rarityRank: 900,
+  });
+  assert.equal(preview.assigned, false);
+  assert.equal(preview.preview, true);
+  assert.equal(preview.limit, 400);
+  assert.match(preview.title, /OpenRarity #900/);
+  assert.match(preview.summary, /preview only/i);
+  const metadataPreview = retirementActivationDisclosure("94", {
+    rarityTier: "EPIC",
+    rarityEvidence: "ONCHAIN_METADATA_TRAIT_CURRENT",
+  });
+  assert.equal(metadataPreview.assigned, false);
+  assert.equal(metadataPreview.preview, true);
+  assert.equal(metadataPreview.limit, 800);
+  assert.match(metadataPreview.title, /on-chain epic trait/i);
+  const assigned = retirementActivationDisclosure("93", {
+    rarityTier: "COMMON",
+    rarityEvidence: "VERIFIED_SNAPSHOT",
+    confirmedAutonomousMints: 17,
+  });
+  assert.equal(assigned.limit, 100);
+  assert.equal(assigned.remaining, 83);
+  assert.match(assigned.summary, /83 remaining/);
+});
+
+test("live refreshes coalesce instead of invalidating a slower status response", async () => {
+  const resolvers = [];
+  let calls = 0;
+  const refresh = createCoalescedRefresh(() => {
+    calls += 1;
+    return new Promise((resolve) => resolvers.push(resolve));
+  });
+  const first = refresh();
+  const second = refresh();
+  const third = refresh();
+  assert.equal(first, second);
+  assert.equal(second, third);
+  assert.equal(calls, 0);
+  await Promise.resolve();
+  assert.equal(calls, 1);
+  resolvers.shift()();
+  await first;
+  await Promise.resolve();
+  assert.equal(calls, 2);
+  resolvers.shift()();
+  await Promise.resolve();
 });
 
 test("a deployed selected V3 Punk never falls back to its legacy V2 wallet during a worker restart", () => {

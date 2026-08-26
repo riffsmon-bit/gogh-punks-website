@@ -105,6 +105,7 @@ test("site exposes a selectable NFT list while retaining a live-checked manual f
     new URL("../netlify/functions/broker-nft-withdrawal-assets.mjs", import.meta.url), "utf8",
   );
   assert.match(html, /data-nft-owned-asset/);
+  assert.match(html, /data-nft-owned-cards/);
   assert.match(html, /Manual contract and token entry/);
   assert.match(browser, /nft-withdrawal-assets\?tokenId=/);
   assert.match(endpoint, /status = 'MINT_CONFIRMED'/);

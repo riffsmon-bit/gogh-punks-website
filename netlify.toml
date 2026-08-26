@@ -14,6 +14,19 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
+# Netlify Dev's local function tracer does not always retain ESM JSON import
+# attributes or sibling .mjs imports. Keep these read/status routes operable in
+# the local emulator with the same immutable manifests and shared validators
+# used by production. These are public source artifacts, never secrets.
+[functions."broker-autonomy-v2-status"]
+  included_files = ["deployments/robinhood-automation-v2.json", "deployments/robinhood.json", "broker/src/**/*.mjs", "netlify/functions/_shared/*.mjs"]
+
+[functions."broker-autonomy-v3-status"]
+  included_files = ["deployments/robinhood-automation-v3.json", "deployments/robinhood.json", "broker/src/**/*.mjs", "netlify/functions/_shared/*.mjs"]
+
+[functions."broker-nft-withdrawal-assets"]
+  included_files = ["deployments/robinhood-automation-v3.json", "deployments/robinhood.json", "broker/src/**/*.mjs", "netlify/functions/_shared/*.mjs", "netlify/functions/broker-nft-withdrawal-status.mjs"]
+
 [[redirects]]
   from = "/punk/*"
   to = "/punk/index.html"

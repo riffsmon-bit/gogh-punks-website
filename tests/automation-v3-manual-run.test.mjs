@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { runSelectedAutomationV3 } from
+import { runAllAutomationV3, runSelectedAutomationV3 } from
   "../netlify/functions/broker-autonomy-v3-run.mjs";
 import { runAutomationV3Once } from
   "../netlify/functions/_shared/automation-v3-runner.mjs";
@@ -37,6 +37,20 @@ test("manual V3 run rejects ambiguity and inactive authority", async () => {
     readPunk: async (tokenId) => ({ tokenId, created: true, active: false }),
     enroll: async () => assert.fail("inactive Punk must not be enrolled"),
   }), /not currently authorized/);
+});
+
+test("all-Punk manual scan uses the fair scheduled roster without parallel signer nonces", async () => {
+  const calls = [];
+  const result = await runAllAutomationV3({ all: true }, {
+    runOnce: async (options) => {
+      calls.push(options);
+      return { status: "MINT_CONFIRMED", submitted: 1, tokenId: "94",
+        collection: `0x${"3".repeat(40)}`, transactionHash: `0x${"4".repeat(64)}` };
+    },
+  });
+  assert.deepEqual(calls, [{ requestedTokenId: null }]);
+  assert.equal(result.tokenId, "94");
+  await assert.rejects(() => runAllAutomationV3({ all: false }, {}), /invalid/);
 });
 
 test("worker runner holds one global lock and preserves the scoped Punk", async () => {

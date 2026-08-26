@@ -133,6 +133,27 @@ function discoveryDelay() {
   return new Promise((resolve) => setTimeout(resolve, DISCOVERY_BATCH_DELAY_MS));
 }
 
+function boundedWorkerCode(value) {
+  return typeof value === "string" && /^[A-Z0-9_]{1,128}$/.test(value) ? value : null;
+}
+
+export function workerStageError(code, cause) {
+  const normalized = boundedWorkerCode(code);
+  if (!normalized) throw new TypeError("invalid worker stage code");
+  if (boundedWorkerCode(cause?.code)) return cause;
+  const error = new Error(normalized, { cause });
+  error.code = normalized;
+  return error;
+}
+
+async function workerStage(code, operation) {
+  try {
+    return await operation();
+  } catch (error) {
+    throw workerStageError(code, error);
+  }
+}
+
 function readFacade(raw, url) {
   return Object.freeze({
     transport: Object.freeze({ url }),
@@ -299,7 +320,7 @@ export async function eligibleAutomationV3Profiles(
   const rows = [...result.rows];
   const known = new Set(rows.map(({ token_id: tokenId }) => String(tokenId)));
   const automaticTokenIds = requestedTokenId === null
-    ? configuredTokenIds : [...configuredTokenIds, requestedTokenId];
+    ? configuredTokenIds : [...new Set([...configuredTokenIds, requestedTokenId])];
   for (const tokenId of automaticTokenIds) {
     if ((requestedTokenId === null || requestedTokenId === tokenId) && !known.has(tokenId)) {
       rows.push(Object.freeze({
@@ -310,10 +331,48 @@ export async function eligibleAutomationV3Profiles(
         artistic_preferences: null,
         automatic_profile: true,
       }));
+      known.add(tokenId);
     }
   }
   return rows.sort((left, right) => Number(left.token_id) - Number(right.token_id))
     .slice(0, CONFIGURED_PUNK_LIMIT);
+}
+
+export function rotateAutomationV3Profiles(profiles, lastMintedTokenId = null) {
+  if (!Array.isArray(profiles) || profiles.length > CONFIGURED_PUNK_LIMIT
+    || profiles.some((row) => !row || !/^(?:0|[1-9][0-9]{0,3})$/.test(String(row.token_id)))) {
+    throw new TypeError("invalid V3 automation profile rotation");
+  }
+  const ordered = [...profiles].sort(
+    (left, right) => Number(left.token_id) - Number(right.token_id),
+  );
+  if (lastMintedTokenId === null || ordered.length < 2
+    || !/^(?:0|[1-9][0-9]{0,3})$/.test(String(lastMintedTokenId))) return ordered;
+  const previous = Number(lastMintedTokenId);
+  const next = ordered.findIndex((row) => Number(row.token_id) > previous);
+  const offset = next === -1 ? 0 : next;
+  return [...ordered.slice(offset), ...ordered.slice(0, offset)];
+}
+
+export async function fairlyOrderedAutomationV3Profiles(
+  pool, profiles, requestedTokenId = null, report = console.error,
+) {
+  if (requestedTokenId !== null) return rotateAutomationV3Profiles(profiles);
+  try {
+    const result = await pool.query(`
+      SELECT punk_token_id
+        FROM broker_automation_v3_worker_runs
+       WHERE status = 'MINT_CONFIRMED' AND punk_token_id IS NOT NULL
+       ORDER BY completed_at DESC, run_id DESC
+       LIMIT 1`);
+    return rotateAutomationV3Profiles(profiles, result.rows?.[0]?.punk_token_id ?? null);
+  } catch (error) {
+    report(JSON.stringify({
+      event: "AUTOMATION_V3_FAIRNESS_CURSOR_UNAVAILABLE",
+      type: String(error?.name ?? "Error").replace(/[^A-Za-z0-9_]/g, ""),
+    }));
+    return rotateAutomationV3Profiles(profiles);
+  }
 }
 
 export async function recentSeaDropCollections(
@@ -559,11 +618,15 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   let signingAccount = null;
   if (dependencies.readOnly !== true) {
     if (typeof key !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(key)) {
-      throw new TypeError("agent signer is unavailable");
+      const error = new TypeError("AGENT_SIGNER_UNAVAILABLE");
+      error.code = "AGENT_SIGNER_UNAVAILABLE";
+      throw error;
     }
     signingAccount = privateKeyToAccount(key);
     if (signingAccount.address.toLowerCase() !== AUTOMATION_V3_AGENT) {
-      throw new TypeError("agent signer address mismatch");
+      const error = new TypeError("AGENT_SIGNER_ADDRESS_MISMATCH");
+      error.code = "AGENT_SIGNER_ADDRESS_MISMATCH";
+      throw error;
     }
   }
   const primaryUrl = httpsUrl("ROBINHOOD_RPC_URL", environment.ROBINHOOD_RPC_URL ?? environment.RPC_URL);
@@ -571,13 +634,27 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   const primary = dependencies.primary ?? readClient(primaryUrl);
   const secondary = dependencies.secondary ?? readClient(secondaryUrl);
   const discovery = dependencies.discovery ?? discoveryClient(primaryUrl);
-  const global = await readAutomationV3GlobalState(environment, { clients: [primary, secondary] });
-  if (!global.configured || !global.worker.enabled) throw new TypeError("global V3 gate is closed");
+  const global = await workerStage(
+    "GLOBAL_STATE_READ_FAILED",
+    () => readAutomationV3GlobalState(environment, { clients: [primary, secondary] }),
+  );
+  if (!global.configured || !global.worker.enabled) {
+    const error = new TypeError("GLOBAL_V3_GATE_CLOSED");
+    error.code = "GLOBAL_V3_GATE_CLOSED";
+    throw error;
+  }
   const database = dependencies.database ?? getDatabase().pool;
   const requestedTokenId = dependencies.requestedTokenId ?? null;
   const configuredTokenIds = configuredAutomationV3PunkIds(environment);
-  const profiles = await eligibleAutomationV3Profiles(
-    database, requestedTokenId, configuredTokenIds,
+  const eligibleProfiles = await workerStage(
+    "PROFILE_DATABASE_READ_FAILED",
+    () => eligibleAutomationV3Profiles(database, requestedTokenId, configuredTokenIds),
+  );
+  const profiles = await workerStage(
+    "PROFILE_ORDER_READ_FAILED",
+    () => fairlyOrderedAutomationV3Profiles(
+      database, eligibleProfiles, requestedTokenId, dependencies.report,
+    ),
   );
   if (profiles.length === 0) return { status: "NO_AUTONOMOUS_MANDATES", submitted: 0 };
   // A reviewed operator may temporarily constrain discovery to a small exact set.
@@ -587,14 +664,17 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   const directedCollections = configuredSeaDropCollections(environment);
   const priorityCollections = configuredPrioritySeaDropCollections(environment) ?? [];
   const discoveredCollections = directedCollections === null
-    ? await recentSeaDropCollections(discovery) : [];
+    ? await workerStage("DISCOVERY_SCAN_FAILED", () => recentSeaDropCollections(discovery)) : [];
   const collections = directedCollections
     ?? mergePrioritySeaDropCollections(priorityCollections, discoveredCollections);
   // Use the archive provider for the indexed public-drop reads, then move the much
   // smaller active set to the canonical endpoint for runtime classification. This
   // avoids exhausting either provider's per-second allowance. Every selected target
   // is still independently re-read and simulated by both clients before submission.
-  const candidates = await activeZeroPriceSeaDropCollections(secondary, primary, collections);
+  const candidates = await workerStage(
+    "CANDIDATE_PREFILTER_FAILED",
+    () => activeZeroPriceSeaDropCollections(secondary, primary, collections),
+  );
   if (candidates.length === 0) return {
     status: "NO_ANALYZED_ACTIVE_TARGETS", submitted: 0,
     diagnostics: { profiles: profiles.length, recentSeaDropCollections: collections.length,
@@ -606,35 +686,65 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   diagnostics.operatorConfiguredPunks = configuredTokenIds.length;
   diagnostics.prioritySlotReservations = 0;
   diagnostics.priorityStateReadFailures = 0;
+  diagnostics.profileStateReadFailures = 0;
+  diagnostics.candidateStateReadFailures = 0;
+  diagnostics.candidateStateReadAttempts = 0;
   const registry = getAddress(manifest.contracts.GoghPunkAccountRegistryV3.address);
   const policyModule = getAddress(manifest.contracts.BrokerPolicyModuleV3.address);
   const agent = getAddress(AUTOMATION_V3_AGENT);
   for (const row of profiles) {
     const tokenId = String(row.token_id);
-    const accountAddress = await primary.readContract({ address: registry, abi: REGISTRY_ABI, functionName: "account", args: [BigInt(tokenId)] });
-    if (((await primary.getCode({ address: accountAddress })) ?? "0x") === "0x") {
-      diagnostics.missingActivatedAccounts += 1;
+    let accountAddress;
+    let expectedOwner;
+    let priorityState;
+    try {
+      accountAddress = await primary.readContract({
+        address: registry, abi: REGISTRY_ABI, functionName: "account", args: [BigInt(tokenId)],
+      });
+      if (((await primary.getCode({ address: accountAddress })) ?? "0x") === "0x") {
+        diagnostics.missingActivatedAccounts += 1;
+        continue;
+      }
+      const ownerRequest = {
+        address: getAddress(ROBINHOOD.canonicalCollection), abi: COLLECTION_ABI,
+        functionName: "ownerOf", args: [BigInt(tokenId)],
+      };
+      const [primaryOwner, secondaryOwner] = await Promise.all([
+        primary.readContract(ownerRequest), secondary.readContract(ownerRequest),
+      ]);
+      if (getAddress(primaryOwner) !== getAddress(secondaryOwner)) {
+        diagnostics.providerStateDisagreements += 1;
+        continue;
+      }
+      expectedOwner = getAddress(primaryOwner).toLowerCase();
+      priorityState = await pendingPriorityCollections(
+        primary, secondary, accountAddress, priorityCollections,
+      );
+    } catch {
+      // One stale or rate-limited Punk must not stop the remaining authorized
+      // roster. No transaction is built until all of this Punk's reads pass.
+      diagnostics.profileStateReadFailures += 1;
       continue;
     }
-    const ownerRequest = {
-      address: getAddress(ROBINHOOD.canonicalCollection), abi: COLLECTION_ABI,
-      functionName: "ownerOf", args: [BigInt(tokenId)],
-    };
-    const [primaryOwner, secondaryOwner] = await Promise.all([
-      primary.readContract(ownerRequest), secondary.readContract(ownerRequest),
-    ]);
-    if (getAddress(primaryOwner) !== getAddress(secondaryOwner)) {
-      diagnostics.providerStateDisagreements += 1;
-      continue;
-    }
-    const expectedOwner = getAddress(primaryOwner).toLowerCase();
-    const priorityState = await pendingPriorityCollections(
-      primary, secondary, accountAddress, priorityCollections,
-    );
     diagnostics.priorityStateReadFailures += priorityState.readFailures;
     for (const collection of candidates) {
-      const latestNonce = await primary.readContract({ address: accountAddress, abi: ACCOUNT_ABI, functionName: "acquisitionNonce" });
-      const latestPolicy = await primary.readContract({ address: policyModule, abi: POLICY_ABI, functionName: "policy", args: [accountAddress] });
+      diagnostics.candidateStateReadAttempts += 1;
+      let latestNonce;
+      let latestPolicy;
+      try {
+        [latestNonce, latestPolicy] = await Promise.all([
+          primary.readContract({
+            address: accountAddress, abi: ACCOUNT_ABI, functionName: "acquisitionNonce",
+          }),
+          primary.readContract({
+            address: policyModule, abi: POLICY_ABI, functionName: "policy",
+            args: [accountAddress],
+          }),
+        ]);
+      } catch {
+        diagnostics.candidateStateReadFailures += 1;
+        continue;
+      }
       const nowSeconds = Math.floor(Date.now() / 1_000);
       const intentWindow = confirmedIntentWindow(nowSeconds);
       const candidate = {
@@ -661,9 +771,17 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
         continue;
       }
       const pinned = BigInt(screen.pinnedBlock.number);
-      const [first, second] = await Promise.all([
-        accountState(primary, pinned, accountAddress, agent), accountState(secondary, pinned, accountAddress, agent),
-      ]);
+      let first;
+      let second;
+      try {
+        [first, second] = await Promise.all([
+          accountState(primary, pinned, accountAddress, agent),
+          accountState(secondary, pinned, accountAddress, agent),
+        ]);
+      } catch {
+        diagnostics.candidateStateReadFailures += 1;
+        continue;
+      }
       if (!jsonEqual(first, second)) {
         diagnostics.providerStateDisagreements += 1;
         continue;
@@ -676,7 +794,13 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
         diagnostics.prioritySlotReservations += 1;
         continue;
       }
-      const maxFee = (await primary.estimateFeesPerGas()).maxFeePerGas ?? 1n;
+      let maxFee;
+      try {
+        maxFee = (await primary.estimateFeesPerGas()).maxFeePerGas ?? 1n;
+      } catch {
+        diagnostics.candidateStateReadFailures += 1;
+        continue;
+      }
       const cap = liveCap;
       const profile = {
         schema: "GOGH_AUTOMATED_SEADROP_V3_PROFILE_V1", version: 1, chainId: 4663,
@@ -717,11 +841,34 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
         };
       }
       const wallet = createWalletClient({ account: signingAccount, chain: CHAIN, transport: http(primaryUrl, { retryCount: 0, timeout: 10_000 }) });
-      const hash = await wallet.sendTransaction({ account: signingAccount, to: getAddress(tx.to), data: tx.data, value: 0n });
-      const receipt = await primary.waitForTransactionReceipt({ hash, confirmations: 1, timeout: 60_000 });
-      if (receipt.status !== "success") throw new TypeError("autonomous mint reverted");
+      const hash = await workerStage(
+        "TRANSACTION_SUBMISSION_FAILED",
+        () => wallet.sendTransaction({
+          account: signingAccount, to: getAddress(tx.to), data: tx.data, value: 0n,
+        }),
+      );
+      const receipt = await workerStage(
+        "TRANSACTION_CONFIRMATION_UNCERTAIN",
+        () => primary.waitForTransactionReceipt({ hash, confirmations: 1, timeout: 60_000 }),
+      );
+      if (receipt.status !== "success") {
+        const error = new Error("AUTONOMOUS_MINT_REVERTED");
+        error.code = "AUTONOMOUS_MINT_REVERTED";
+        throw error;
+      }
       return { status: "MINT_CONFIRMED", submitted: 1, tokenId, account: accountAddress.toLowerCase(), collection, transactionHash: hash };
     }
+  }
+  if (diagnostics.profileStateReadFailures === profiles.length) {
+    const error = new Error("PROFILE_STATE_READ_FAILED");
+    error.code = "PROFILE_STATE_READ_FAILED";
+    throw error;
+  }
+  if (diagnostics.candidateStateReadAttempts > 0
+    && diagnostics.candidateStateReadFailures === diagnostics.candidateStateReadAttempts) {
+    const error = new Error("CANDIDATE_STATE_READ_FAILED");
+    error.code = "CANDIDATE_STATE_READ_FAILED";
+    throw error;
   }
   return { status: "NO_ELIGIBLE_TARGETS", submitted: 0, diagnostics };
 }

@@ -4,6 +4,7 @@ const ACTIVATION_TOPIC = "0xbcba1c8ca6488532aba261811803bc402fd692b825e2a41dd2e5
 const OWNER_OF = "0x6352211e";
 const ACCOUNT = "0x2dd7c658";
 const MAX_SUPPLY = "0xd5abeb01";
+const TOKEN_URI = "0xc87b56dd";
 const MULTICALL3 = "0xca11bde05977b3631167028862be2a173976ca11";
 const AGGREGATE3 = "0x82ad56cb";
 
@@ -143,6 +144,173 @@ export function rememberActivatedPunk(storage, tokenId) {
 
 function shortAddress(value) {
   return `${value.slice(0, 8)}…${value.slice(-6)}`;
+}
+
+function trustedArtworkUrl(value) {
+  if (typeof value !== "string") return null;
+  if (/^data:image\/(?:svg\+xml|png);base64,[A-Za-z0-9+/]+={0,2}$/.test(value)
+    && value.length <= 750_000) return value;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && ["i.seadn.io", "raw2.seadn.io"].includes(url.hostname)
+      && !url.username && !url.password && !url.port && !url.hash ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+function decodeAbiString(value) {
+  if (typeof value !== "string" || !/^0x[0-9a-fA-F]+$/.test(value)
+    || value.length > 3_000_002 || value.length < 130) {
+    throw new TypeError("tokenURI result is invalid");
+  }
+  const byteCount = (value.length - 2) / 2;
+  const offset = Number(BigInt(`0x${value.slice(2, 66)}`));
+  if (!Number.isSafeInteger(offset) || offset !== 32) throw new TypeError("tokenURI offset is invalid");
+  const lengthStart = 2 + offset * 2;
+  const length = Number(BigInt(`0x${value.slice(lengthStart, lengthStart + 64)}`));
+  const dataStart = lengthStart + 64;
+  if (!Number.isSafeInteger(length) || length < 1 || length > 750_000
+    || dataStart + length * 2 > value.length) throw new TypeError("tokenURI length is invalid");
+  const bytes = new Uint8Array(length);
+  for (let index = 0; index < length; index += 1) {
+    bytes[index] = Number.parseInt(value.slice(dataStart + index * 2, dataStart + index * 2 + 2), 16);
+  }
+  return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+}
+
+function decodedBase64Json(value, atobFn = globalThis.atob) {
+  const prefix = "data:application/json;base64,";
+  if (typeof value !== "string" || !value.startsWith(prefix)
+    || typeof atobFn !== "function" || value.length > 750_000) {
+    throw new TypeError("Punk metadata URI is invalid");
+  }
+  const encoded = value.slice(prefix.length);
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(encoded)) throw new TypeError("Punk metadata is invalid");
+  const binary = atobFn(encoded);
+  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+}
+
+function metadataRarityTier(metadata) {
+  const attributes = metadata && typeof metadata === "object"
+    && Object.hasOwn(metadata, "attributes") ? metadata.attributes : null;
+  if (!Array.isArray(attributes)) return null;
+  for (const attribute of attributes) {
+    if (!attribute || typeof attribute !== "object" || Array.isArray(attribute)) continue;
+    const traitType = Object.hasOwn(attribute, "trait_type") ? attribute.trait_type : null;
+    const traitValue = Object.hasOwn(attribute, "value") ? attribute.value : null;
+    if (typeof traitType !== "string" || traitType.trim().toLowerCase() !== "rarity"
+      || typeof traitValue !== "string") continue;
+    const tier = traitValue.trim().toUpperCase();
+    if (["COMMON", "UNCOMMON", "RARE", "EPIC", "LEGENDARY", "MYTHIC"].includes(tier)) {
+      return tier;
+    }
+  }
+  return null;
+}
+
+export function decodeOnchainPunkDecoration(value, tokenId, atobFn = globalThis.atob) {
+  const metadata = decodedBase64Json(decodeAbiString(value), atobFn);
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    throw new TypeError("Punk metadata is invalid");
+  }
+  const image = Object.hasOwn(metadata, "image") ? trustedArtworkUrl(metadata.image) : null;
+  const name = Object.hasOwn(metadata, "name") && typeof metadata.name === "string"
+    ? metadata.name.replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 200) : null;
+  if (!image) throw new TypeError("Punk metadata image is unavailable");
+  const rarityTier = metadataRarityTier(metadata);
+  return Object.freeze({
+    artwork: Object.freeze({ name: name || `Gogh Punk #${tokenId}`, imageUrl: image }),
+    rarity: rarityTier ? Object.freeze({
+      source: "ONCHAIN_METADATA_TRAIT_CURRENT",
+      proposedTier: rarityTier,
+      permanentSnapshot: false,
+    }) : null,
+  });
+}
+
+const onchainDecorationCache = new Map();
+
+export async function hydrateOnchainPunkDecorations(provider, collection, accounts,
+  { concurrency = 4 } = {}) {
+  const target = normalizedAddress(collection);
+  if (!provider?.request || !target || !Array.isArray(accounts)
+    || !Number.isSafeInteger(concurrency) || concurrency < 1 || concurrency > 8) {
+    throw new TypeError("Punk artwork hydration is unavailable");
+  }
+  const output = accounts.map((item) => ({ ...item }));
+  let cursor = 0;
+  async function worker() {
+    while (cursor < output.length) {
+      const index = cursor;
+      cursor += 1;
+      const item = output[index];
+      if (trustedArtworkUrl(item.artwork?.imageUrl)) continue;
+      const cacheKey = `${target}:${item.tokenId}`;
+      let decoration = onchainDecorationCache.get(cacheKey);
+      try {
+        if (!decoration) {
+          const response = await provider.request({
+            method: "eth_call",
+            params: [{ to: target, data: `${TOKEN_URI}${word(item.tokenId)}` }, "latest"],
+          });
+          decoration = decodeOnchainPunkDecoration(response, item.tokenId);
+          onchainDecorationCache.set(cacheKey, decoration);
+        }
+        item.artwork = decoration.artwork;
+        if (!item.rarity && decoration.rarity) item.rarity = decoration.rarity;
+      } catch {
+        // Artwork is decorative. Ownership and activation remain live-chain checked separately.
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, output.length) }, () => worker()));
+  return Object.freeze(output.map((item) => Object.freeze(item)));
+}
+
+export function renderVisualPunkPicker(container, accounts, selectedTokenId = "", onSelect = null) {
+  if (!container) return;
+  const documentObject = container.ownerDocument ?? globalThis.document;
+  container.replaceChildren();
+  if (!accounts.length) {
+    const empty = documentObject.createElement("p");
+    empty.className = "empty-state";
+    empty.textContent = "Connect your wallet to see your Gogh Punks.";
+    container.append(empty);
+    return;
+  }
+  for (const item of accounts) {
+    const button = documentObject.createElement("button");
+    button.type = "button";
+    button.className = "punk-choice-card";
+    button.dataset.tokenId = item.tokenId;
+    button.setAttribute("aria-pressed", String(item.tokenId === selectedTokenId));
+    const imageUrl = trustedArtworkUrl(item.artwork?.imageUrl);
+    if (imageUrl) {
+      const image = documentObject.createElement("img");
+      image.src = imageUrl;
+      image.alt = item.artwork?.name || `Gogh Punk #${item.tokenId}`;
+      image.loading = "lazy";
+      image.decoding = "async";
+      button.append(image);
+    } else {
+      const placeholder = documentObject.createElement("span");
+      placeholder.className = "punk-choice-placeholder";
+      placeholder.textContent = `#${item.tokenId}`;
+      button.append(placeholder);
+    }
+    const label = documentObject.createElement("strong");
+    label.textContent = `Punk #${item.tokenId}`;
+    const status = documentObject.createElement("small");
+    const lifecycle = item.rarity?.rank && item.rarity?.proposedTier
+      ? ` · OpenRarity #${item.rarity.rank.toLocaleString()} · ${item.rarity.proposedTier.toLowerCase()} preview`
+      : "";
+    status.textContent = `${item.activated ? "Active wallet" : "Ready to activate"}${lifecycle}`;
+    button.append(label, status);
+    button.addEventListener("click", () => onSelect?.(item.tokenId));
+    container.append(button);
+  }
 }
 
 export async function copyPunkAccountAddress(navigatorObject, value) {
@@ -384,6 +552,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
   const picker = browserDocument?.querySelector?.("[data-owned-punk-picker]");
   const mandatePicker = browserDocument?.querySelector?.("[data-mandate-punk-picker]");
   const workspacePicker = browserDocument?.querySelector?.("[data-workspace-punk-picker]");
+  const visualPicker = browserDocument?.querySelector?.("[data-workspace-punk-cards]");
   if (!browserWindow || (!container && !picker && !mandatePicker && !workspacePicker)) return null;
   const request = fetchFunction ?? browserWindow.fetch.bind(browserWindow);
   let revision = 0;
@@ -440,6 +609,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
   function selectPunk(tokenId = "") {
     const item = currentAccounts.find((candidate) => candidate.tokenId === tokenId) ?? null;
     setSelected(item?.tokenId ?? "");
+    renderVisualPunkPicker(visualPicker, currentAccounts, item?.tokenId ?? "", selectPunk);
     for (const control of [workspacePicker, picker, mandatePicker]) {
       if (control && [...control.options].some((option) => option.value === (item?.tokenId ?? ""))) {
         control.value = item?.tokenId ?? "";
@@ -457,6 +627,13 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       account: item.account,
       activated: item.activated === true,
       owner: wallet?.account?.toLowerCase?.() ?? item.owner,
+      retirement: item.rarity ? Object.freeze({
+        rarityEvidence: item.rarity.source,
+        rarityRank: item.rarity.rank ?? null,
+        rarityTier: item.rarity.proposedTier,
+        rankBandSupply: item.rarity.rankBandSupply ?? null,
+        permanentSnapshot: false,
+      }) : null,
     });
     browserWindow.dispatchEvent(new browserWindow.CustomEvent("gogh:punk-selected", { detail }));
     browserWindow.dispatchEvent(new browserWindow.CustomEvent("gogh:mandate-punk-selected", {
@@ -473,6 +650,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       renderPunkPicker(picker, []);
       renderPunkPicker(mandatePicker, []);
       renderPunkPicker(workspacePicker, []);
+      renderVisualPunkPicker(visualPicker, []);
       currentAccounts = [];
       setContainerHtml('<p class="empty-state">Connect the owner wallet on Robinhood Chain to load activated Punk Accounts.</p>');
       return;
@@ -502,6 +680,16 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       }
       const remembered = knownTokenIds(browserWindow.localStorage);
       const candidates = [...new Set([...remembered, ...indexed, ...walletOwned])];
+      const artworkByToken = new Map(
+        Array.isArray(candidatesPayload?.candidatePunks)
+          ? candidatesPayload.candidatePunks.map((item) => [String(item?.tokenId), item?.artwork])
+          : [],
+      );
+      const rarityByToken = new Map(
+        Array.isArray(candidatesPayload?.candidatePunks)
+          ? candidatesPayload.candidatePunks.map((item) => [String(item?.tokenId), item?.rarity])
+          : [],
+      );
       let accounts;
       if (walletOwned.length > 0) {
         const activated = await findBrowserOwnerAccounts(browserWindow.ethereum,
@@ -512,6 +700,17 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
         accounts = await findBrowserOwnedPunks(browserWindow.ethereum,
           gatePayload.activationGate, wallet.account, candidates);
       }
+      if (current !== revision) return;
+      accounts = accounts.map((item) => Object.freeze({
+        ...item,
+        artwork: artworkByToken.get(item.tokenId) ?? null,
+        rarity: rarityByToken.get(item.tokenId) ?? null,
+      }));
+      accounts = await hydrateOnchainPunkDecorations(
+        browserWindow.ethereum,
+        gatePayload.activationGate?.bindings?.punkCollection,
+        accounts,
+      );
       if (current !== revision) return;
       for (const item of accounts) {
         if (item.activated) rememberActivatedPunk(browserWindow.localStorage, item.tokenId);
@@ -529,6 +728,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       renderPunkPicker(mandatePicker, accounts, selectedTokenId);
       renderPunkPicker(workspacePicker, accounts, selectedTokenId);
       currentAccounts = accounts;
+      renderVisualPunkPicker(visualPicker, accounts, selectedTokenId, selectPunk);
       if (container) renderOwnerAccounts(container, accounts);
       if (selectedTokenId) selectPunk(selectedTokenId);
     } catch {
@@ -538,6 +738,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       renderPunkPicker(picker, []);
       renderPunkPicker(mandatePicker, []);
       renderPunkPicker(workspacePicker, []);
+      renderVisualPunkPicker(visualPicker, []);
       currentAccounts = [];
       setContainerHtml('<p class="empty-state">Punks could not be checked right now. No ownership or wallet status was inferred from stale data.</p>');
     }

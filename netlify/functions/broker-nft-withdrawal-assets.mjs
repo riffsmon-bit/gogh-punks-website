@@ -3,6 +3,8 @@ import { getDatabase } from "@netlify/database";
 
 import { json } from "./_shared/http.mjs";
 import { buildNftWithdrawalGate } from "./broker-nft-withdrawal-status.mjs";
+import { nftDisplayMetadata, NFT_DISPLAY_METADATA_SELECT } from
+  "./_shared/broker-display-metadata.mjs";
 
 const TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 const ZERO_TOPIC = `0x${"0".repeat(64)}`;
@@ -129,10 +131,39 @@ export async function buildWithdrawableNftAssets(
       return null;
     }
   }));
+  const identities = candidates.filter(Boolean).map((item) => `${item.collection}:${item.tokenId}`);
+  let metadataByIdentity = new Map();
+  if (identities.length) {
+    try {
+      const collections = candidates.filter(Boolean).map((item) => item.collection);
+      const tokenIds = candidates.filter(Boolean).map((item) => item.tokenId);
+      const metadata = await pool.query(
+        `SELECT nft_metadata.collection_address, nft_metadata.token_id,
+                ${NFT_DISPLAY_METADATA_SELECT}
+           FROM broker_nft_metadata AS nft_metadata
+           JOIN UNNEST($1::text[], $2::numeric[]) AS wanted(collection_address, token_id)
+             ON nft_metadata.collection_address = wanted.collection_address
+            AND nft_metadata.token_id = wanted.token_id
+          WHERE nft_metadata.chain_id = 4663`,
+        [collections, tokenIds],
+      );
+      metadataByIdentity = new Map((metadata.rows ?? []).map((row) => [
+        `${String(row.collection_address).toLowerCase()}:${String(row.token_id)}`,
+        nftDisplayMetadata(row),
+      ]));
+    } catch {
+      // Display enrichment is advisory. Receipt and live owner checks remain authoritative.
+    }
+  }
   const unique = new Map();
   for (const item of candidates) {
     if (item && !unique.has(`${item.collection}:${item.tokenId}`)) {
-      unique.set(`${item.collection}:${item.tokenId}`, item);
+      const display = metadataByIdentity.get(`${item.collection}:${item.tokenId}`) ?? {};
+      unique.set(`${item.collection}:${item.tokenId}`, Object.freeze({
+        ...item,
+        name: display.name ?? null,
+        imageUrl: display.imageUrl ?? null,
+      }));
     }
   }
   return Object.freeze({

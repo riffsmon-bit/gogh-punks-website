@@ -9,13 +9,18 @@ import {
   configuredSeaDropCollections,
   confirmedIntentWindow,
   eligibleAutomationV3Profiles,
+  fairlyOrderedAutomationV3Profiles,
   mergePrioritySeaDropCollections,
   recentSeaDropCollections,
+  rotateAutomationV3Profiles,
   runAutomatedSeaDropV3Worker,
   selectActiveZeroPriceSeaDropCollections,
   selectReviewedStudioCollections,
+  workerStageError,
 } from "../scripts/run-automated-seadrop-v3-worker.mjs";
-import { autonomyV3Status } from "../netlify/functions/broker-autonomy-v3-status.mjs";
+import {
+  automationV3WorkerAvailability, autonomyV3Status,
+} from "../netlify/functions/broker-autonomy-v3-status.mjs";
 
 test("V3 worker remains disabled by default and uses the confirmed intent horizon", async () => {
   assert.deepEqual(await runAutomatedSeaDropV3Worker({}), {
@@ -116,6 +121,74 @@ test("V3 automatic profile uses enrolled, saved, configured, or immediately requ
   );
   assert.equal(String(immediate[0].token_id), "1639");
   assert.equal(immediate[0].automatic_profile, true);
+
+  const configuredAndRequested = await eligibleAutomationV3Profiles(
+    { query: async () => ({ rows: [] }) }, "1797", ["1797"],
+  );
+  assert.deepEqual(configuredAndRequested.map(({ token_id }) => token_id), ["1797"]);
+});
+
+test("V3 worker failures retain bounded stage diagnostics without leaking messages", () => {
+  const generic = workerStageError("PROFILE_DATABASE_READ_FAILED", new Error("secret detail"));
+  assert.equal(generic.code, "PROFILE_DATABASE_READ_FAILED");
+  assert.equal(generic.message, "PROFILE_DATABASE_READ_FAILED");
+  assert.equal(generic.cause.message, "secret detail");
+
+  const classified = Object.assign(new Error("provider detail"), {
+    code: "DISCOVERY_RPC_UNAVAILABLE",
+  });
+  assert.equal(workerStageError("DISCOVERY_SCAN_FAILED", classified), classified);
+  assert.throws(() => workerStageError("not bounded", new Error()), /invalid worker stage/);
+});
+
+test("V3 public status distinguishes a safe automatic retry from an unstarted worker", () => {
+  const release = "a".repeat(40);
+  const failed = {
+    release,
+    status: "FAILED",
+    completedAt: "2026-08-26T12:00:00.000Z",
+  };
+  assert.deepEqual(
+    automationV3WorkerAvailability(true, failed, release, Date.parse(failed.completedAt)),
+    {
+      online: false,
+      status: "WORKER_DEGRADED",
+      reason: "AUTOMATION_V3_WORKER_RETRYING",
+    },
+  );
+  assert.equal(automationV3WorkerAvailability(true, null, release).status, "WORKER_STARTING");
+});
+
+test("scheduled V3 runs rotate fairly after the most recently successful Punk", async () => {
+  const profiles = ["93", "94", "1728", "1797"].map((token_id) => ({ token_id }));
+  assert.deepEqual(
+    rotateAutomationV3Profiles(profiles, "94").map(({ token_id }) => token_id),
+    ["1728", "1797", "93", "94"],
+  );
+  assert.deepEqual(
+    rotateAutomationV3Profiles(profiles, "1797").map(({ token_id }) => token_id),
+    ["93", "94", "1728", "1797"],
+  );
+  const database = { query: async () => ({ rows: [{ punk_token_id: "1728" }] }) };
+  assert.deepEqual(
+    (await fairlyOrderedAutomationV3Profiles(database, profiles)).map(({ token_id }) => token_id),
+    ["1797", "93", "94", "1728"],
+  );
+  const directlyRequested = await fairlyOrderedAutomationV3Profiles(
+    { query: async () => { throw new Error("must not query cursor"); } },
+    [{ token_id: "1728" }], "1728",
+  );
+  assert.equal(directlyRequested[0].token_id, "1728");
+});
+
+test("scheduled V3 fairness cursor failure keeps the bounded roster available", async () => {
+  const reports = [];
+  const profiles = [{ token_id: "94" }, { token_id: "93" }];
+  const ordered = await fairlyOrderedAutomationV3Profiles({
+    query: async () => { throw new TypeError("database unavailable"); },
+  }, profiles, null, (value) => reports.push(value));
+  assert.deepEqual(ordered.map(({ token_id }) => token_id), ["93", "94"]);
+  assert.match(reports[0], /AUTOMATION_V3_FAIRNESS_CURSOR_UNAVAILABLE/);
 });
 
 test("V3 discovery has a bounded parallel RPC ceiling", async () => {
@@ -236,6 +309,10 @@ test("V3 worker source binds both runtime families and no paid or approval path"
   assert.match(source, /maxContractRiskScore: 100/);
   assert.match(source, /minimumTasteMatch: 0/);
   assert.match(source, /SeaDrop discovery unavailable/);
+  assert.match(source, /profileStateReadFailures/);
+  assert.match(source, /candidateStateReadFailures/);
+  assert.match(source, /TRANSACTION_CONFIRMATION_UNCERTAIN/);
+  assert.match(source, /GLOBAL_STATE_READ_FAILED/);
   assert.doesNotMatch(source, /approve\(|setApprovalForAll|execute\(address,uint256,bytes/);
 });
 

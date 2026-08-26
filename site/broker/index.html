@@ -86,6 +86,9 @@
           </select>
           <small>This selection drives wallet setup, limits, NFT recovery, and automation below. Choosing a Punk never authorizes an agent by itself.</small>
         </label>
+        <div class="punk-visual-picker" data-workspace-punk-cards aria-label="Choose one of my Punks">
+          <p class="empty-state">Connect your wallet to see your Gogh Punks.</p>
+        </div>
 
         <details class="workflow-step collapsible-section" id="automation-title" data-autonomous-minting open>
           <summary><span><span class="workflow-number">2</span><strong>Continuous free-mint automation</strong></span><small>Automatic safe profile · bounded and revocable</small></summary>
@@ -114,7 +117,7 @@
               </article>
               <article class="metric"><span>Hosted gas payer</span><strong data-v2-agent>CHECKING</strong><small data-v2-agent-balance>Live balance unavailable</small></article>
               <article class="metric"><span>Per-mint payment</span><strong>0 ETH</strong><small>Gas only · paid mints remain blocked</small></article>
-              <article class="metric automation-worker-metric"><span>Hosted agent</span><strong data-v2-worker>CHECKING</strong><small data-v2-worker-detail>Waiting for a verified worker heartbeat</small><button class="status-refresh-button" type="button" data-v2-refresh>Refresh live status</button><small data-v2-refreshed aria-live="polite">Page has not synced yet</small></article>
+              <article class="metric automation-worker-metric"><span>Hosted agent</span><strong data-v2-worker>CHECKING</strong><small data-v2-worker-detail>Waiting for a verified worker heartbeat</small><a class="status-refresh-button" data-v3-latest-mint href="#" target="_blank" rel="noopener noreferrer" hidden>No confirmed mint in the latest worker run</a><button class="status-refresh-button" type="button" data-v2-refresh>Refresh live status</button><small data-v2-refreshed aria-live="polite">Page has not synced yet</small></article>
             </div>
             <details class="automation-subpanel">
               <summary><strong>Network activity</strong><span>Aggregate usage and adoption</span></summary>
@@ -149,9 +152,35 @@
                 <label class="mandate-field"><span>Quick setup</span><select data-v2-preset disabled><option value="1:7">Conservative · 1 mint/day for 7 days</option><option value="5:14">Standard · 5 mints/day for 14 days</option><option value="10:30">Active · 10 mints/day for 30 days</option><option value="custom">Custom limits</option></select></label>
                 <label class="mandate-field"><span>Hard daily maximum</span><select data-v2-cap disabled><option value="1">1 free mint per UTC day</option><option value="3">3 free mints per UTC day</option><option value="5">5 free mints per UTC day</option><option value="10">10 free mints per UTC day</option></select></label>
                 <label class="mandate-field"><span>How long it may run</span><select data-v2-days disabled><option value="7">7 days</option><option value="14">14 days</option><option value="30">30 days maximum</option></select></label>
+                <aside class="retirement-activation-warning" data-retirement-disclosure>
+                  <p class="eyebrow">Punk lifecycle warning</p>
+                  <h4 data-retirement-title>Verified retirement tier pending</h4>
+                  <p data-retirement-summary>Select a Punk to review its mint lifetime. No retirement countdown is active until a published rarity snapshot assigns that Punk an exact tier.</p>
+                  <details>
+                    <summary>How the proposed 1,420-supply retirement model works</summary>
+                    <div class="retirement-tier-grid" aria-label="Draft mint lifetimes by rarity">
+                      <span><strong>Common</strong>Ranks 3,011–5,016 · 100 mints</span>
+                      <span><strong>Uncommon</strong>Ranks 1,757–3,010 · 200 mints</span>
+                      <span><strong>Rare</strong>Ranks 754–1,756 · 400 mints</span>
+                      <span><strong>Epic</strong>Ranks 252–753 · 800 mints</span>
+                      <span><strong>Legendary</strong>Ranks 52–251 · 1,600 mints</span>
+                      <span><strong>Mythic</strong>Ranks 1–51 · 3,200 mints</span>
+                    </div>
+                    <p>OpenSea’s current OpenRarity rank may preview the band above. A live marketplace rank is not permanent evidence; the enforceable countdown cannot begin until the complete collection ranking is frozen, reviewed, and published with a canonical hash.</p>
+                    <ol class="retirement-sequence">
+                      <li>The lifetime counts only confirmed autonomous mints.</li>
+                      <li>At the limit, this Punk's automation stops and cannot begin another minting round.</li>
+                      <li>The holder reviews and withdraws every known NFT, token, and native balance.</li>
+                      <li>After a cooldown, only the current holder may explicitly confirm the irreversible Punk burn.</li>
+                    </ol>
+                    <p><strong>The agent never burns a Punk automatically.</strong> The current collection cannot force a holder to burn, and its direct burn function means the website cannot guarantee a permanent 1,420 floor.</p>
+                  </details>
+                  <label class="canary-confirmation"><input type="checkbox" data-retirement-confirm /> <span data-retirement-confirm-label>I reviewed the lifecycle and understand that retirement becomes required to continue automation after the verified mint lifetime; the final burn remains a separate owner-confirmed action.</span></label>
+                </aside>
                 <p class="setup-confirmation-plan" data-v2-confirmation-plan>Setup confirmation count appears after you choose a Punk.</p>
                 <button class="action-button" type="button" data-v2-setup disabled>Set up and start agent</button>
                 <button class="action-button secondary-action" type="button" data-v3-run-now disabled>Send selected agent now</button>
+                <button class="action-button secondary-action" type="button" data-v3-run-all disabled>Scan all my active Punks</button>
                 <p class="locked-note" data-v3-run-state>Sends the selected, already-authorized Punk into an immediate scan and enrolls it for scheduled scans. It grants no authority and still requires every live target, zero price, cap, runtime, and simulation check.</p>
                 <p class="locked-note" data-v2-message>This button unlocks only after the selected automation generation is deployed, fully verified, configured by the guardian, and checked against live chain state. Art Mandate preferences are not required.</p>
                 <p class="locked-note" data-v3-upgrade>Checking the broader V3 OpenSea Studio release.</p>
@@ -159,6 +188,10 @@
               <article class="panel">
                 <div class="panel-header"><h3>What it may do</h3><span class="tag">FIXED SAFETY ENVELOPE</span></div>
                 <ul class="plain-safety-list"><li>Exact reviewed OpenSea Studio runtime only</li><li>Active public drop with mint price exactly 0</li><li>One ERC-721 per transaction</li><li>No token approvals or arbitrary calldata</li><li>Stops at daily cap, expiry, low gas, pause, or revocation</li></ul>
+                <details class="automation-coverage-note">
+                  <summary>Marketplace coverage</summary>
+                  <p><strong>Live:</strong> reviewed OpenSea Studio SeaDrop runtimes. <strong>Prepared, not live:</strong> target-specific Scatter and legacy HoodMarket HoodDrop V2 adapters. HoodMarket V3 is not yet supported. Each new collection still needs an exact runtime review, adapter deployment, Guardian registration, owner permissions, and a canary before the hosted agent may use it.</p>
+                </details>
                 <button class="action-button danger-action" type="button" data-v2-stop disabled>Stop and revoke automation</button>
               </article>
             </div>
@@ -171,6 +204,7 @@
                 </div>
                 <div class="asset-recovery-form">
                   <label class="mandate-field"><span>Choose an NFT currently held by this Punk</span><select data-nft-owned-asset disabled><option value="">Select a Punk above to load its NFTs</option></select><small data-nft-owned-detail>Confirmed autonomous mints are rechecked live before they appear.</small></label>
+                  <div class="nft-visual-picker" data-nft-owned-cards aria-label="Choose an NFT to withdraw"></div>
                   <details class="manual-nft-entry">
                     <summary>Manual contract and token entry</summary>
                     <p class="locked-note">Use this fallback for an NFT transferred directly to the Punk wallet or not yet present in hosted mint history. Live ownership is still required.</p>

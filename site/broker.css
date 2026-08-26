@@ -118,6 +118,27 @@ button { font: inherit; }
 .wallet-state[data-wallet-status="owner"] { color: var(--teal); }
 .wallet-state[data-wallet-status="wrong-network"] { color: var(--risk); }
 .action-button:disabled { cursor: not-allowed; opacity: 0.42; }
+
+.retirement-activation-warning {
+  margin-block: 18px;
+  padding: 16px;
+  border: 1px solid rgba(237, 130, 108, 0.62);
+  background: rgba(87, 27, 24, 0.22);
+}
+.retirement-activation-warning h4 { margin: 4px 0 8px; font: 1.25rem/1.2 var(--display); }
+.retirement-activation-warning p { color: var(--muted); line-height: 1.55; }
+.retirement-activation-warning details { margin-block: 14px; }
+.retirement-activation-warning summary { color: var(--sun); cursor: pointer; font-weight: 800; }
+.retirement-tier-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-block: 14px;
+}
+.retirement-tier-grid span { padding: 9px; border: 1px solid var(--line); color: var(--muted); }
+.retirement-tier-grid strong { display: block; color: var(--cream); }
+.retirement-sequence { padding-left: 22px; color: var(--muted); line-height: 1.55; }
+@media (max-width: 720px) { .retirement-tier-grid { grid-template-columns: 1fr 1fr; } }
 .canary-execution[hidden] { display: none; }
 .canary-review-panel { max-width: 980px; }
 .artifact-file-label,
@@ -334,6 +355,12 @@ h3 { font-size: 1.45rem; }
 .activation-submit { justify-self: stretch; width: 100%; }
 .section-block-compact { padding-top: 22px; }
 .owner-account-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; }
+.punk-visual-picker, .nft-visual-picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 12px; margin: 14px 0 24px; }
+.punk-choice-card, .nft-choice-card { appearance: none; border: 1px solid var(--line); background: var(--panel); color: var(--cream); padding: 9px; text-align: left; cursor: pointer; min-width: 0; }
+.punk-choice-card:hover, .punk-choice-card[aria-pressed="true"], .nft-choice-card:hover, .nft-choice-card[aria-pressed="true"] { border-color: var(--teal); box-shadow: inset 0 0 0 1px var(--teal); }
+.punk-choice-card img, .nft-choice-card img, .punk-choice-placeholder, .nft-choice-placeholder { display: grid; width: 100%; aspect-ratio: 1; object-fit: cover; place-items: center; margin-bottom: 9px; background: #071321; color: var(--sun); font-family: Georgia, serif; font-size: 1.4rem; }
+.punk-choice-card strong, .punk-choice-card small, .nft-choice-card strong, .nft-choice-card small { display: block; overflow-wrap: anywhere; }
+.punk-choice-card small, .nft-choice-card small { color: var(--muted); margin-top: 4px; }
 .workspace-master-picker { margin: 22px 0; padding: 18px 20px; border: 1px solid rgba(82, 207, 197, 0.5); background: rgba(9, 34, 48, 0.88); }
 .workspace-master-picker small { color: var(--muted); line-height: 1.55; }
 .policy-live-grid { margin: 16px 0 22px; }

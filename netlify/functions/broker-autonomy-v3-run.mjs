@@ -13,6 +13,11 @@ function exactBody(body) {
   return body.tokenId;
 }
 
+function allBody(body) {
+  return Boolean(body && typeof body === "object" && !Array.isArray(body)
+    && Object.keys(body).length === 1 && body.all === true);
+}
+
 export async function runSelectedAutomationV3(body, dependencies = {}) {
   const tokenId = exactBody(body);
   const readPunk = dependencies.readPunk ?? readAutomationV3PunkState;
@@ -37,6 +42,21 @@ export async function runSelectedAutomationV3(body, dependencies = {}) {
   });
 }
 
+export async function runAllAutomationV3(body, dependencies = {}) {
+  if (!allBody(body)) {
+    throw new PublicError(400, "INVALID_REQUEST", "The all-Punk scan request is invalid.");
+  }
+  const runOnce = dependencies.runOnce ?? runAutomationV3Once;
+  const result = await runOnce({ requestedTokenId: null });
+  return Object.freeze({
+    tokenId: result.tokenId ?? null,
+    status: result.status,
+    submitted: result.submitted,
+    collection: result.collection ?? null,
+    transactionHash: result.transactionHash ?? null,
+  });
+}
+
 function responseFor(result) {
   const status = result.status === "RUN_IN_PROGRESS" ? 202 : 200;
   return json({ ok: true, run: result }, status, {
@@ -51,7 +71,9 @@ export default async function handler(request) {
     }
     requireSameOrigin(request);
     const body = await readJson(request, 1_024);
-    return responseFor(await runSelectedAutomationV3(body));
+    return responseFor(allBody(body)
+      ? await runAllAutomationV3(body)
+      : await runSelectedAutomationV3(body));
   } catch (error) {
     if (error instanceof PublicError) {
       return json({ ok: false, code: error.code, message: error.message }, error.status);

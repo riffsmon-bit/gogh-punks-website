@@ -1,6 +1,8 @@
 import { getDatabase } from "@netlify/database";
 import { ROBINHOOD } from "../../broker/src/config.mjs";
 import { json } from "./_shared/http.mjs";
+import { nftDisplayMetadata, NFT_DISPLAY_METADATA_SELECT } from
+  "./_shared/broker-display-metadata.mjs";
 
 const MAX_CANDIDATES = 200;
 const OPENSEA_COLLECTION_SLUG = "gogh-punks-255843210";
@@ -8,6 +10,73 @@ const OPENSEA_RESPONSE_BYTES = 1_000_000;
 const OPENSEA_PAGE_LIMIT = 200;
 const OPENSEA_MAX_PAGES = 3;
 const AUTOMATION_ROSTER_LIMIT = 32;
+const GOGH_PUNKS_MAX_SUPPLY = 5_016;
+const OPENSEA_IMAGE_HOSTS = new Set(["i.seadn.io", "raw2.seadn.io"]);
+
+function own(value, key) {
+  return value && typeof value === "object" && Object.hasOwn(value, key)
+    ? value[key] : undefined;
+}
+
+function boundedText(value, maximum) {
+  if (typeof value !== "string") return null;
+  const clean = value.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
+  return clean ? clean.slice(0, maximum) : null;
+}
+
+function openSeaImageUrl(value) {
+  if (typeof value !== "string") return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && OPENSEA_IMAGE_HOSTS.has(url.hostname)
+      && !url.username && !url.password && !url.port && !url.hash ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+export function proposedRetirementTierForOpenSeaRank(value) {
+  if (!Number.isSafeInteger(value) || value < 1 || value > GOGH_PUNKS_MAX_SUPPLY) return null;
+  if (value <= Math.ceil(GOGH_PUNKS_MAX_SUPPLY * 0.01)) return "MYTHIC";
+  if (value <= Math.ceil(GOGH_PUNKS_MAX_SUPPLY * 0.05)) return "LEGENDARY";
+  if (value <= Math.ceil(GOGH_PUNKS_MAX_SUPPLY * 0.15)) return "EPIC";
+  if (value <= Math.ceil(GOGH_PUNKS_MAX_SUPPLY * 0.35)) return "RARE";
+  if (value <= Math.ceil(GOGH_PUNKS_MAX_SUPPLY * 0.60)) return "UNCOMMON";
+  return "COMMON";
+}
+
+function openSeaDecoration(nft, tokenId) {
+  const imageUrl = ["display_image_url", "image_url", "original_image_url"]
+    .map((key) => openSeaImageUrl(own(nft, key))).find(Boolean) ?? null;
+  const rarityValue = own(nft, "rarity");
+  const rankValue = own(rarityValue, "rank");
+  const rank = Number.isSafeInteger(rankValue) && rankValue >= 1
+    && rankValue <= GOGH_PUNKS_MAX_SUPPLY ? rankValue : null;
+  const proposedTier = proposedRetirementTierForOpenSeaRank(rank);
+  return Object.freeze({
+    tokenId,
+    artwork: Object.freeze({
+      status: "AVAILABLE",
+      name: boundedText(own(nft, "name"), 200) ?? `Gogh Punk #${tokenId}`,
+      description: null,
+      imageUrl,
+      collectionSlug: OPENSEA_COLLECTION_SLUG,
+      tokenStandard: "ERC721",
+      traits: null,
+      openSeaUrl: `https://opensea.io/assets/robinhood/${ROBINHOOD.canonicalCollection}/${tokenId}`,
+      fetchedAt: null,
+    }),
+    rarity: rank && proposedTier ? Object.freeze({
+      source: "OPENSEA_OPENRARITY_CURRENT",
+      rank,
+      proposedTier,
+      rankBandSupply: GOGH_PUNKS_MAX_SUPPLY,
+      strategyId: boundedText(own(rarityValue, "strategy_id"), 96),
+      strategyVersion: boundedText(own(rarityValue, "strategy_version"), 96),
+      permanentSnapshot: false,
+    }) : null,
+  });
+}
 
 function address(value) {
   return typeof value === "string" && /^0x[0-9a-fA-F]{40}$/.test(value)
@@ -37,6 +106,30 @@ export async function indexedOwnerPunkIds(owner, query = (...args) => (
     throw new TypeError("indexed owner Punk token is invalid");
   }
   return Object.freeze([...new Set(tokenIds)]);
+}
+
+export async function ownerPunkArtwork(tokenIds, query = (...args) => (
+  getDatabase().pool.query(...args)
+)) {
+  if (!Array.isArray(tokenIds) || tokenIds.length > MAX_CANDIDATES
+    || tokenIds.some((value) => punkTokenId(String(value)) !== String(value))) {
+    throw new TypeError("owner Punk artwork input is invalid");
+  }
+  if (tokenIds.length === 0) return Object.freeze([]);
+  const result = await query(
+    `SELECT nft_metadata.token_id, ${NFT_DISPLAY_METADATA_SELECT}
+       FROM broker_nft_metadata AS nft_metadata
+      WHERE nft_metadata.chain_id = $1
+        AND nft_metadata.collection_address = $2
+        AND nft_metadata.token_id = ANY($3::numeric[])
+      ORDER BY nft_metadata.token_id`,
+    [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, tokenIds],
+  );
+  const byToken = new Map((result.rows ?? []).map((row) => [String(row.token_id), row]));
+  return Object.freeze(tokenIds.map((id) => Object.freeze({
+    tokenId: id,
+    artwork: Object.freeze(nftDisplayMetadata(byToken.get(id) ?? {})),
+  })));
 }
 
 function punkTokenId(value) {
@@ -76,7 +169,7 @@ async function boundedJson(response, source = "Owner candidate") {
   }
 }
 
-export async function openSeaOwnerPunkIds(owner, {
+export async function openSeaOwnerPunks(owner, {
   apiKey,
   fetchFn = fetch,
   timeoutMs = 8_000,
@@ -93,7 +186,7 @@ export async function openSeaOwnerPunkIds(owner, {
     throw new TypeError("OpenSea owner discovery configuration is invalid");
   }
 
-  const output = new Set();
+  const output = new Map();
   const cursors = new Set();
   let cursor = null;
   for (let page = 0; page < maximumPages; page += 1) {
@@ -114,28 +207,57 @@ export async function openSeaOwnerPunkIds(owner, {
         throw new Error(`OpenSea owner request failed (${response?.status ?? "unknown"})`);
       }
       const payload = await boundedJson(response, "OpenSea owner");
+      const nfts = own(payload, "nfts");
       if (!payload || typeof payload !== "object" || Array.isArray(payload)
-        || !Array.isArray(payload.nfts) || payload.nfts.length > OPENSEA_PAGE_LIMIT) {
+        || !Array.isArray(nfts) || nfts.length > OPENSEA_PAGE_LIMIT) {
         throw new TypeError("OpenSea owner response has an invalid NFT list");
       }
-      for (const nft of payload.nfts) {
+      for (const nft of nfts) {
         if (!nft || typeof nft !== "object" || Array.isArray(nft)) continue;
-        if (address(nft.contract) !== ROBINHOOD.canonicalCollection) continue;
-        if (nft.collection !== undefined && nft.collection !== OPENSEA_COLLECTION_SLUG) continue;
-        const tokenId = punkTokenId(nft.identifier);
-        if (tokenId) output.add(tokenId);
+        if (address(own(nft, "contract")) !== ROBINHOOD.canonicalCollection) continue;
+        if (own(nft, "collection") !== undefined
+          && own(nft, "collection") !== OPENSEA_COLLECTION_SLUG) continue;
+        const tokenId = punkTokenId(own(nft, "identifier"));
+        if (tokenId) output.set(tokenId, openSeaDecoration(nft, tokenId));
         if (output.size > MAX_CANDIDATES) throw new RangeError("OpenSea Punk candidate set is too large");
       }
-      if (payload.next === null || payload.next === undefined || payload.next === "") break;
-      if (typeof payload.next !== "string" || payload.next.length > 1_024
-        || cursors.has(payload.next)) throw new TypeError("OpenSea owner cursor is invalid");
-      cursors.add(payload.next);
-      cursor = payload.next;
+      const next = own(payload, "next");
+      if (next === null || next === undefined || next === "") break;
+      if (typeof next !== "string" || next.length > 1_024
+        || cursors.has(next)) throw new TypeError("OpenSea owner cursor is invalid");
+      cursors.add(next);
+      cursor = next;
     } finally {
       clearTimeout(timeout);
     }
   }
-  return Object.freeze([...output].sort((left, right) => Number(left) - Number(right)));
+  return Object.freeze([...output.values()].sort((left, right) => (
+    Number(left.tokenId) - Number(right.tokenId)
+  )));
+}
+
+export async function openSeaOwnerPunkIds(owner, options) {
+  const punks = await openSeaOwnerPunks(owner, options);
+  return Object.freeze(punks.map(({ tokenId }) => tokenId));
+}
+
+export function mergeOwnerPunkDecorations(tokenIds, cachedPunks, openSeaPunks) {
+  if (!Array.isArray(tokenIds) || !Array.isArray(cachedPunks) || !Array.isArray(openSeaPunks)) {
+    throw new TypeError("owner Punk decorations are invalid");
+  }
+  const cached = new Map(cachedPunks.map((item) => [String(item?.tokenId), item]));
+  const external = new Map(openSeaPunks.map((item) => [String(item?.tokenId), item]));
+  return Object.freeze(tokenIds.map((tokenId) => {
+    const cacheItem = cached.get(tokenId);
+    const openSeaItem = external.get(tokenId);
+    const cachedArtwork = cacheItem?.artwork ?? null;
+    const artwork = cachedArtwork?.imageUrl ? cachedArtwork : openSeaItem?.artwork ?? cachedArtwork;
+    return Object.freeze({
+      tokenId,
+      artwork: artwork ?? null,
+      rarity: openSeaItem?.rarity ?? null,
+    });
+  }));
 }
 
 export default async function handler(request) {
@@ -146,23 +268,31 @@ export default async function handler(request) {
     const automationRoster = configuredAutomationPunkIds();
     const [indexedResult, openSeaResult] = await Promise.allSettled([
       indexedOwnerPunkIds(owner),
-      openSeaOwnerPunkIds(owner, { apiKey: process.env.OPENSEA_API_KEY }),
+      openSeaOwnerPunks(owner, { apiKey: process.env.OPENSEA_API_KEY }),
     ]);
     if (indexedResult.status !== "fulfilled" && openSeaResult.status !== "fulfilled") {
       throw new Error("all owner candidate sources unavailable");
     }
     const candidateTokenIds = [...new Set([
       ...(indexedResult.status === "fulfilled" ? indexedResult.value : []),
-      ...(openSeaResult.status === "fulfilled" ? openSeaResult.value : []),
+      ...(openSeaResult.status === "fulfilled"
+        ? openSeaResult.value.map(({ tokenId }) => tokenId) : []),
       ...automationRoster,
     ])].sort((left, right) => Number(left) - Number(right));
     if (candidateTokenIds.length > MAX_CANDIDATES) throw new RangeError("owner candidate set is too large");
+    const cachedPunks = await ownerPunkArtwork(candidateTokenIds);
+    const candidatePunks = mergeOwnerPunkDecorations(
+      candidateTokenIds,
+      cachedPunks,
+      openSeaResult.status === "fulfilled" ? openSeaResult.value : [],
+    );
     return json({
       ok: true,
       chainId: ROBINHOOD.chainId,
       collection: ROBINHOOD.canonicalCollection,
       owner,
       candidateTokenIds,
+      candidatePunks,
       candidateSources: Object.freeze({
         indexed: indexedResult.status === "fulfilled",
         openSea: openSeaResult.status === "fulfilled",
