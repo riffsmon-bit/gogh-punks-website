@@ -132,12 +132,13 @@ export default async function handler(request) {
     try {
       const params = new URL(request.url).searchParams;
       const tokenId = params.get("tokenId");
-      const [live, heartbeat, usage] = await Promise.all([
+      const [live, heartbeat, usage, selectedPunk] = await Promise.all([
         readAutomationV3GlobalState(),
         getAutomationV3WorkerHeartbeat().catch(() => null),
         getAutomationV3UsageStats().catch(() => null),
+        tokenId === null ? null : readAutomationV3PunkState(tokenId),
       ]);
-      if (tokenId !== null) punk = await readAutomationV3PunkState(tokenId);
+      punk = selectedPunk;
       const globallyReady = live.configured === true && live.worker.enabled === true;
       const availability = automationV3WorkerAvailability(
         globallyReady, heartbeat, live.worker.release, Date.now(),

@@ -3,7 +3,8 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
-  automationPunkWalletOpenSeaUrl, automationSelectionChanged,
+  automationGateNeedsLegacyFallback, automationPunkWalletOpenSeaUrl,
+  automationSelectionChanged,
   buildAutomationGasFundingTransaction,
   createCoalescedRefresh, formatAutomationGasBalance, RETIREMENT_MINT_LIFETIMES,
   retirementActivationDisclosure, selectAutomationGeneration,
@@ -38,6 +39,10 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.equal(automationSelectionChanged({ tokenId: "93" }, { tokenId: "93", activated: true }), false);
   assert.equal(automationSelectionChanged({ tokenId: "93" }, { tokenId: "94" }), true);
   assert.equal(automationSelectionChanged({ tokenId: "93" }, null), true);
+  assert.equal(automationGateNeedsLegacyFallback({
+    capability: true, setupTransactionAvailable: true,
+  }, "93"), false);
+  assert.equal(automationGateNeedsLegacyFallback(null, "93"), true);
   assert.match(html, /data-v2-stop disabled/);
   assert.match(html, /data-v2-cap disabled/);
   assert.match(html, /data-v2-days disabled/);
@@ -75,7 +80,7 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.doesNotMatch(browser, /personal_sign|eth_signTypedData|wallet_addEthereumChain/i);
   assert.match(browser, /autonomy-v\$\{state\.version\}-owner-setup/i);
   assert.match(browser, /autonomy-v\$\{version\}-status/i);
-  assert.match(browser, /Promise\.allSettled\(\[fetchGate\(3\), fetchGate\(2\)\]\)/);
+  assert.match(browser, /automationGateNeedsLegacyFallback\(v3Gate, requestedTokenId\)/);
   assert.match(browser, /v3Gate\?\.capability === true/);
   assert.match(browser, /v3Gate\?\.setupTransactionAvailable === true/);
   assert.match(browser, /selectAutomationGeneration/);

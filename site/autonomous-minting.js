@@ -145,6 +145,10 @@ export function automationSelectionChanged(currentSelection, nextSelection) {
   return currentTokenId !== nextTokenId;
 }
 
+export function automationGateNeedsLegacyFallback(v3Gate, tokenId) {
+  return selectAutomationGeneration(v3Gate, null, tokenId).version !== 3;
+}
+
 export function setupAutonomousMinting({ windowObject, documentObject, fetchFunction } = {}) {
   const browserWindow = windowObject ?? (typeof window === "undefined" ? null : window);
   const browserDocument = documentObject ?? (typeof document === "undefined" ? null : document);
@@ -541,9 +545,9 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
         }
         return payload.automation;
       };
-      const [v3Result, v2Result] = await Promise.allSettled([fetchGate(3), fetchGate(2)]);
-      const v3Gate = v3Result.status === "fulfilled" ? v3Result.value : null;
-      const v2Gate = v2Result.status === "fulfilled" ? v2Result.value : null;
+      const v3Gate = await fetchGate(3).catch(() => null);
+      const v2Gate = automationGateNeedsLegacyFallback(v3Gate, requestedTokenId)
+        ? await fetchGate(2).catch(() => null) : null;
       const selected = selectAutomationGeneration(
         v3Gate, v2Gate, requestedTokenId,
       );
