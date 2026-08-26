@@ -104,7 +104,7 @@ test("asset list fails closed on a closed gate, malformed evidence, and hostile 
 test("one portfolio request groups confirmed NFTs across the holder's Punk agents", async () => {
   const checkedAt = "2026-08-26T13:00:00.000Z";
   const database = { query: async (sql, values) => {
-    assert.match(sql, /DISTINCT punk_token_id/);
+    assert.match(sql, /GROUP BY punk_token_id/);
     assert.deepEqual(values, [["93", "94", "1659"]]);
     return { rows: [{ punk_token_id: "93" }, { punk_token_id: "1659" }] };
   } };

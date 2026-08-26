@@ -196,10 +196,11 @@ export async function buildWithdrawableNftPortfolio(
   }
   const pool = database ?? getDatabase().pool;
   const result = await pool.query(
-    `SELECT DISTINCT punk_token_id::text AS punk_token_id
+    `SELECT punk_token_id::text AS punk_token_id
        FROM broker_automation_v3_worker_runs
       WHERE status = 'MINT_CONFIRMED'
         AND punk_token_id = ANY($1::numeric[])
+      GROUP BY punk_token_id
       ORDER BY punk_token_id::numeric
       LIMIT 128`,
     [normalizedTokenIds],
