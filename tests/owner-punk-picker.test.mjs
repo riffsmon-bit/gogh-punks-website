@@ -289,6 +289,8 @@ test("broker picker selects only a live-verified wallet-owned Punk", async () =>
   assert.match(accounts, /findBrowserOwnedPunks/);
   assert.match(accounts, /renderVisualPunkPicker/);
   assert.match(accounts, /gogh:punk-selected/);
+  assert.match(accounts, /gogh:owner-punks/);
+  assert.match(accounts, /gogh:select-punk-request/);
   assert.match(endpoint, /DISCOVERY_CANDIDATES_ONLY_EACH_SELECTION_REQUIRES_LIVE_WALLET_OWNER_CHECK/);
   assert.match(endpoint, /OPENSEA_API_KEY/);
   assert.match(accounts, /discoverWalletOwnedPunkIds/);

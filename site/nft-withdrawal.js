@@ -358,6 +358,40 @@ export function validateWithdrawableNftAssets(value, selectedTokenId) {
   return Object.freeze(items);
 }
 
+export function validateWithdrawableNftPortfolio(value, selectedTokenIds) {
+  exactKeys(value, [
+    "status", "capability", "reason", "checkedAt", "punkTokenIds", "groups",
+  ], "withdrawable NFT portfolio");
+  if (value.status !== "READY" || value.capability !== true || value.reason !== null
+    || typeof value.checkedAt !== "string" || !Number.isFinite(Date.parse(value.checkedAt))
+    || !Array.isArray(value.punkTokenIds) || !Array.isArray(value.groups)
+    || value.punkTokenIds.length > 128 || value.groups.length > 128
+    || value.punkTokenIds.join(",") !== selectedTokenIds.join(",")) {
+    fail("INVALID_ASSET_LIST", "withdrawable NFT portfolio is unavailable");
+  }
+  const allowed = new Set(selectedTokenIds);
+  const grouped = new Set();
+  const items = [];
+  for (const group of value.groups) {
+    if (!allowed.has(group?.punkTokenId) || grouped.has(group.punkTokenId)) {
+      fail("INVALID_ASSET_LIST", "withdrawable NFT portfolio group is invalid");
+    }
+    grouped.add(group.punkTokenId);
+    const account = address(group.account, "withdrawable NFT account");
+    const owner = address(group.owner, "withdrawable NFT owner");
+    for (const item of validateWithdrawableNftAssets(group, group.punkTokenId)) {
+      items.push(Object.freeze({ ...item, punkTokenId: group.punkTokenId, account, owner }));
+    }
+  }
+  const identities = new Set(items.map((item) => (
+    `${item.punkTokenId}:${item.collection}:${item.tokenId}`
+  )));
+  if (identities.size !== items.length || items.length > 256) {
+    fail("INVALID_ASSET_LIST", "withdrawable NFT portfolio items are invalid");
+  }
+  return Object.freeze(items);
+}
+
 async function fetchAssets(fetchFunction, selectedTokenId) {
   const response = await fetchFunction(
     `/api/broker/nft-withdrawal-assets?tokenId=${encodeURIComponent(selectedTokenId)}`,
@@ -367,6 +401,17 @@ async function fetchAssets(fetchFunction, selectedTokenId) {
   const payload = await response.json();
   if (!payload?.ok) fail("ASSET_LIST_UNAVAILABLE", "NFT list is invalid");
   return validateWithdrawableNftAssets(payload.assets, selectedTokenId);
+}
+
+async function fetchPortfolio(fetchFunction, selectedTokenIds) {
+  const response = await fetchFunction(
+    `/api/broker/nft-withdrawal-assets?tokenIds=${encodeURIComponent(selectedTokenIds.join(","))}`,
+    { headers: { accept: "application/json" }, cache: "no-store" },
+  );
+  if (!response?.ok) fail("ASSET_LIST_UNAVAILABLE", "NFT portfolio is temporarily unavailable");
+  const payload = await response.json();
+  if (!payload?.ok) fail("ASSET_LIST_UNAVAILABLE", "NFT portfolio is invalid");
+  return validateWithdrawableNftPortfolio(payload.portfolio, selectedTokenIds);
 }
 
 export function setupNftWithdrawal({ windowObject, documentObject, fetchFunction } = {}) {
@@ -386,7 +431,10 @@ export function setupNftWithdrawal({ windowObject, documentObject, fetchFunction
   const confirmation = panel.querySelector("[data-nft-confirm]");
   const submit = panel.querySelector("[data-nft-submit]");
   const status = panel.querySelector("[data-nft-state]");
-  const state = { selection: null, assets: [], revision: 0, busy: false, loadingAssets: false };
+  const state = {
+    selection: null, assets: [], portfolioTokenIds: [], revision: 0,
+    portfolioRevision: 0, busy: false, loadingAssets: false,
+  };
   const fetcher = fetchFunction ?? browserWindow.fetch.bind(browserWindow);
 
   function setManualMode(manual) {
@@ -411,13 +459,23 @@ export function setupNftWithdrawal({ windowObject, documentObject, fetchFunction
     const asset = /^(?:0|[1-9][0-9]*)$/.test(selectedIndex)
       ? state.assets[Number(selectedIndex)] : null;
     if (asset) {
+      if (asset.punkTokenId && state.selection?.tokenId !== asset.punkTokenId) {
+        browserWindow.dispatchEvent(new browserWindow.CustomEvent("gogh:select-punk-request", {
+          detail: Object.freeze({ tokenId: asset.punkTokenId }),
+        }));
+      }
+      if (!state.selection?.tokenId || (asset.punkTokenId
+        && state.selection.tokenId !== asset.punkTokenId)) {
+        status.textContent = "Select the controlling Punk before withdrawing this NFT.";
+        return;
+      }
       standard.value = asset.standard;
       collection.value = asset.collection;
       tokenId.value = asset.tokenId;
       amount.value = asset.amount;
       confirmation.checked = false;
       setManualMode(false);
-      assetDetail.innerHTML = `Selected token #${asset.tokenId}. <a href="${asset.openSeaUrl}" target="_blank" rel="noopener noreferrer">View on OpenSea ↗</a>`;
+      assetDetail.innerHTML = `Selected Punk #${asset.punkTokenId ?? state.selection.tokenId} · token #${asset.tokenId}. <a href="${asset.openSeaUrl}" target="_blank" rel="noopener noreferrer">View on OpenSea ↗</a>`;
     }
     render();
   }
@@ -433,7 +491,7 @@ export function setupNftWithdrawal({ windowObject, documentObject, fetchFunction
     state.assets.forEach((asset, index) => {
       const option = browserDocument.createElement("option");
       option.value = String(index);
-      option.textContent = `Token #${asset.tokenId} · ${asset.collection.slice(0, 8)}…${asset.collection.slice(-6)}`;
+      option.textContent = `Punk #${asset.punkTokenId ?? state.selection?.tokenId} · ${asset.name || `token #${asset.tokenId}`}`;
       assetPicker.append(option);
     });
     const manual = browserDocument.createElement("option");
@@ -464,7 +522,7 @@ export function setupNftWithdrawal({ windowObject, documentObject, fetchFunction
       const name = browserDocument.createElement("strong");
       name.textContent = asset.name || `NFT #${asset.tokenId}`;
       const detail = browserDocument.createElement("small");
-      detail.textContent = `${asset.collection.slice(0, 8)}…${asset.collection.slice(-6)}`;
+      detail.textContent = `Held by Punk #${asset.punkTokenId ?? state.selection?.tokenId} · ${asset.collection.slice(0, 8)}…${asset.collection.slice(-6)}`;
       card.append(name, detail);
       card.addEventListener("click", () => {
         assetPicker.value = String(index);
@@ -476,8 +534,8 @@ export function setupNftWithdrawal({ windowObject, documentObject, fetchFunction
       assetCards.append(card);
     });
     assetDetail.textContent = state.assets.length
-      ? "Only NFTs still live-owned by this Punk wallet are listed."
-      : "Direct transfers and delayed history can still be entered manually.";
+      ? `${state.assets.length} confirmed NFT${state.assets.length === 1 ? "" : "s"} across your Punk-agent wallets.`
+      : "No confirmed hosted mints are currently held. Direct transfers can still be entered manually.";
   }
 
   function render() {
@@ -521,30 +579,16 @@ export function setupNftWithdrawal({ windowObject, documentObject, fetchFunction
     }
   }
 
-  browserWindow.addEventListener("gogh:punk-selected", async (event) => {
-    state.selection = event.detail?.tokenId ? event.detail : null;
-    state.revision += 1;
-    const revision = state.revision;
-    state.assets = [];
-    confirmation.checked = false;
-    collection.value = "";
-    tokenId.value = "";
-    amount.value = "1";
-    assetPicker.replaceChildren();
-    const loading = browserDocument.createElement("option");
-    loading.value = "";
-    loading.textContent = state.selection ? "Loading this Punk’s NFTs…" : "Select a Punk above";
-    assetPicker.append(loading);
-    assetPicker.disabled = true;
-    setManualMode(false);
-    render();
+  async function loadSelectedPunkAssets(revision) {
     if (!state.selection) return;
     state.loadingAssets = true;
     assetDetail.textContent = "Checking confirmed mint receipts and current NFT ownership…";
     try {
       const assets = await fetchAssets(fetcher, state.selection.tokenId);
       if (revision !== state.revision) return;
-      state.assets = assets;
+      state.assets = assets.map((asset) => Object.freeze({
+        ...asset, punkTokenId: state.selection.tokenId,
+      }));
       populateAssets();
       status.textContent = assets.length
         ? "Choose an NFT, review it, then confirm the withdrawal."
@@ -559,13 +603,92 @@ export function setupNftWithdrawal({ windowObject, documentObject, fetchFunction
         render();
       }
     }
+  }
+
+  async function loadOwnerPortfolio(event) {
+    const values = event.detail?.tokenIds;
+    const portfolioTokenIds = Array.isArray(values)
+      && values.length <= 128 && values.every((value) => (
+        typeof value === "string" && /^(?:0|[1-9][0-9]{0,3})$/.test(value)
+      )) && new Set(values).size === values.length ? [...values] : [];
+    state.portfolioTokenIds = portfolioTokenIds;
+    state.portfolioRevision += 1;
+    state.revision += 1;
+    const portfolioRevision = state.portfolioRevision;
+    state.assets = [];
+    confirmation.checked = false;
+    assetPicker.replaceChildren();
+    const loading = browserDocument.createElement("option");
+    loading.value = "";
+    loading.textContent = portfolioTokenIds.length
+      ? `Loading NFTs across ${portfolioTokenIds.length} owned Punks…`
+      : "Connect your wallet to load the portfolio";
+    assetPicker.append(loading);
+    assetPicker.disabled = true;
+    assetCards?.replaceChildren();
+    if (!portfolioTokenIds.length) {
+      populateAssets();
+      status.textContent = "Connect your wallet to load NFTs held across your Punk agents.";
+      return;
+    }
+    state.loadingAssets = true;
+    assetDetail.textContent = "Checking confirmed mint history and current NFT ownership across your Punks…";
+    try {
+      const assets = await fetchPortfolio(fetcher, portfolioTokenIds);
+      if (portfolioRevision !== state.portfolioRevision) return;
+      state.assets = assets;
+      populateAssets();
+      status.textContent = assets.length
+        ? "Choose any NFT below; its controlling Punk will be selected automatically."
+        : "No confirmed hosted-mint NFTs are currently held across these Punk wallets.";
+    } catch (error) {
+      if (portfolioRevision !== state.portfolioRevision) return;
+      populateAssets();
+      status.textContent = `${error?.message ?? "NFT portfolio unavailable"}. Select a Punk to use manual entry.`;
+    } finally {
+      if (portfolioRevision === state.portfolioRevision) {
+        state.loadingAssets = false;
+        render();
+      }
+    }
+  }
+
+  browserWindow.addEventListener("gogh:owner-punks", loadOwnerPortfolio);
+
+  browserWindow.addEventListener("gogh:punk-selected", (event) => {
+    const nextSelection = event.detail?.tokenId ? event.detail : null;
+    const changed = nextSelection?.tokenId !== state.selection?.tokenId;
+    state.selection = nextSelection;
+    state.revision += 1;
+    const revision = state.revision;
+    if (changed) {
+      confirmation.checked = false;
+      collection.value = "";
+      tokenId.value = "";
+      amount.value = "1";
+      setManualMode(false);
+    }
+    render();
+    if (state.selection && !state.portfolioTokenIds.length) void loadSelectedPunkAssets(revision);
   });
-  browserWindow.ethereum?.on?.("accountsChanged", () => { state.revision += 1; });
-  browserWindow.ethereum?.on?.("chainChanged", () => { state.revision += 1; });
+  browserWindow.ethereum?.on?.("accountsChanged", () => {
+    state.revision += 1; state.portfolioRevision += 1;
+  });
+  browserWindow.ethereum?.on?.("chainChanged", () => {
+    state.revision += 1; state.portfolioRevision += 1;
+  });
   standard.addEventListener("change", render);
   assetPicker.addEventListener("change", applyAssetSelection);
   confirmation.addEventListener("change", render);
   submit.addEventListener("click", act);
+  const revealPortfolio = () => {
+    if (browserWindow.location?.hash === "#nft-portfolio-title") panel.open = true;
+  };
+  browserWindow.addEventListener("hashchange", revealPortfolio);
+  revealPortfolio();
+  if (browserWindow.__GOGH_OWNER_PUNKS__) {
+    void loadOwnerPortfolio({ detail: browserWindow.__GOGH_OWNER_PUNKS__ });
+  }
   render();
   return Object.freeze({ render });
 }

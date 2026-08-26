@@ -20,6 +20,7 @@
       <a class="broker-brand" href="/"><img src="/assets/favicon.png" alt="" /><span>GOGH PUNKS</span></a>
       <nav aria-label="Primary navigation">
         <a href="/broker/" aria-current="page">Art Broker</a>
+        <a href="/broker/#nft-portfolio-title">NFT Portfolio</a>
         <a href="/">Collection</a>
       </nav>
       <div class="wallet-control">
@@ -195,15 +196,15 @@
                 <button class="action-button danger-action" type="button" data-v2-stop disabled>Stop and revoke automation</button>
               </article>
             </div>
-            <details class="automation-subpanel asset-recovery" data-nft-withdrawal>
-              <summary><strong>Withdraw an NFT</strong><span>Current holder only · fixed destination</span></summary>
+            <details class="automation-subpanel asset-recovery" id="nft-portfolio-title" data-nft-withdrawal>
+              <summary><strong>My Punk-agent NFT portfolio</strong><span>View and withdraw in one place</span></summary>
               <div class="asset-recovery-grid">
                 <div>
-                  <p class="workflow-help">Recover an ERC-721 or ERC-1155 from the selected Punk’s V3 NFT wallet. The destination is always the wallet that currently holds the controlling Gogh Punk; it cannot be changed here.</p>
+                  <p class="workflow-help">See confirmed NFTs still held across all of your live-owned Punk-agent wallets. Choose one below and its controlling Punk is selected automatically. A withdrawal can go only to the wallet that currently holds that Gogh Punk.</p>
                   <ul class="plain-safety-list"><li>Live Punk ownership checked again before submission</li><li>Exact V3 Punk-wallet runtime verified</li><li>NFT ownership or balance proven live</li><li>Complete transfer simulated before MetaMask opens</li></ul>
                 </div>
                 <div class="asset-recovery-form">
-                  <label class="mandate-field"><span>Choose an NFT currently held by this Punk</span><select data-nft-owned-asset disabled><option value="">Select a Punk above to load its NFTs</option></select><small data-nft-owned-detail>Confirmed autonomous mints are rechecked live before they appear.</small></label>
+                  <label class="mandate-field"><span>Choose an NFT from any of my Punk agents</span><select data-nft-owned-asset disabled><option value="">Connect your wallet to load the portfolio</option></select><small data-nft-owned-detail>Confirmed autonomous mints are grouped by Punk and rechecked live before they appear.</small></label>
                   <div class="nft-visual-picker" data-nft-owned-cards aria-label="Choose an NFT to withdraw"></div>
                   <details class="manual-nft-entry">
                     <summary>Manual contract and token entry</summary>

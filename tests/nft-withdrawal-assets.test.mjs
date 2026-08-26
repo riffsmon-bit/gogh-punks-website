@@ -4,9 +4,12 @@ import test from "node:test";
 
 import {
   buildWithdrawableNftAssets,
+  buildWithdrawableNftPortfolio,
   erc721MintFromReceipt,
 } from "../netlify/functions/broker-nft-withdrawal-assets.mjs";
-import { validateWithdrawableNftAssets } from "../site/nft-withdrawal.js";
+import {
+  validateWithdrawableNftAssets, validateWithdrawableNftPortfolio,
+} from "../site/nft-withdrawal.js";
 
 const ACCOUNT = "0x06d5e0df2eb9512777403bf017031618f4713e19";
 const OWNER = "0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6";
@@ -98,6 +101,32 @@ test("asset list fails closed on a closed gate, malformed evidence, and hostile 
   assert.throws(() => validateWithdrawableNftAssets(valid, "94"), /unavailable/);
 });
 
+test("one portfolio request groups confirmed NFTs across the holder's Punk agents", async () => {
+  const checkedAt = "2026-08-26T13:00:00.000Z";
+  const database = { query: async (sql, values) => {
+    assert.match(sql, /DISTINCT punk_token_id/);
+    assert.deepEqual(values, [["93", "94", "1659"]]);
+    return { rows: [{ punk_token_id: "93" }, { punk_token_id: "1659" }] };
+  } };
+  const buildAssets = async (id) => ({
+    status: "READY", capability: true, reason: null, checkedAt,
+    punkTokenId: id, account: ACCOUNT, owner: OWNER,
+    items: [{
+      standard: "ERC721", collection: COLLECTION, tokenId: id, amount: "1",
+      transactionHash: HASH, acquiredAt: checkedAt,
+      openSeaUrl: `https://opensea.io/item/robinhood/${COLLECTION}/${id}`,
+      name: `Mint ${id}`, imageUrl: null,
+    }],
+  });
+  const portfolio = await buildWithdrawableNftPortfolio(["93", "94", "1659"], {
+    database, buildAssets,
+  });
+  assert.deepEqual(portfolio.groups.map(({ punkTokenId }) => punkTokenId), ["93", "1659"]);
+  const items = validateWithdrawableNftPortfolio(portfolio, ["93", "94", "1659"]);
+  assert.deepEqual(items.map(({ punkTokenId }) => punkTokenId), ["93", "1659"]);
+  assert.throws(() => validateWithdrawableNftPortfolio(portfolio, ["93"]), /unavailable/);
+});
+
 test("site exposes a selectable NFT list while retaining a live-checked manual fallback", async () => {
   const html = await readFile(new URL("../site/broker/index.html", import.meta.url), "utf8");
   const browser = await readFile(new URL("../site/nft-withdrawal.js", import.meta.url), "utf8");
@@ -106,8 +135,12 @@ test("site exposes a selectable NFT list while retaining a live-checked manual f
   );
   assert.match(html, /data-nft-owned-asset/);
   assert.match(html, /data-nft-owned-cards/);
+  assert.match(html, /My Punk-agent NFT portfolio/);
+  assert.match(html, /href="\/broker\/#nft-portfolio-title"/);
   assert.match(html, /Manual contract and token entry/);
   assert.match(browser, /nft-withdrawal-assets\?tokenId=/);
+  assert.match(browser, /nft-withdrawal-assets\?tokenIds=/);
+  assert.match(browser, /gogh:select-punk-request/);
   assert.match(endpoint, /status = 'MINT_CONFIRMED'/);
   assert.doesNotMatch(endpoint, /eth_send|sendTransaction|privateKey|mnemonic/);
 });

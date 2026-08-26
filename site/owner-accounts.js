@@ -558,6 +558,15 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
   let revision = 0;
   let currentAccounts = [];
 
+  function announceOwnerPunks(accounts, owner = null) {
+    const detail = Object.freeze({
+      owner: typeof owner === "string" ? owner.toLowerCase() : null,
+      tokenIds: Object.freeze(accounts.map(({ tokenId }) => tokenId)),
+    });
+    browserWindow.__GOGH_OWNER_PUNKS__ = detail;
+    browserWindow.dispatchEvent(new browserWindow.CustomEvent("gogh:owner-punks", { detail }));
+  }
+
   function setContainerHtml(value) {
     if (container) container.innerHTML = value;
   }
@@ -652,6 +661,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       renderPunkPicker(workspacePicker, []);
       renderVisualPunkPicker(visualPicker, []);
       currentAccounts = [];
+      announceOwnerPunks([]);
       setContainerHtml('<p class="empty-state">Connect the owner wallet on Robinhood Chain to load activated Punk Accounts.</p>');
       return;
     }
@@ -728,6 +738,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       renderPunkPicker(mandatePicker, accounts, selectedTokenId);
       renderPunkPicker(workspacePicker, accounts, selectedTokenId);
       currentAccounts = accounts;
+      announceOwnerPunks(accounts, wallet.account);
       renderVisualPunkPicker(visualPicker, accounts, selectedTokenId, selectPunk);
       if (container) renderOwnerAccounts(container, accounts);
       if (selectedTokenId) selectPunk(selectedTokenId);
@@ -740,6 +751,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       renderPunkPicker(workspacePicker, []);
       renderVisualPunkPicker(visualPicker, []);
       currentAccounts = [];
+      announceOwnerPunks([]);
       setContainerHtml('<p class="empty-state">Punks could not be checked right now. No ownership or wallet status was inferred from stale data.</p>');
     }
   }
@@ -752,6 +764,11 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
     selectPunk(mandatePicker.value);
   });
   workspacePicker?.addEventListener("change", () => selectPunk(workspacePicker.value));
+  browserWindow.addEventListener("gogh:select-punk-request", (event) => {
+    const requested = event.detail?.tokenId;
+    if (typeof requested === "string"
+      && currentAccounts.some(({ tokenId }) => tokenId === requested)) selectPunk(requested);
+  });
   refresh({ detail: browserWindow.__GOGH_WALLET_SNAPSHOT__ });
   return Object.freeze({ refresh });
 }

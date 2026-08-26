@@ -18,6 +18,17 @@ function tokenId(value) {
   return normalized;
 }
 
+function tokenIds(value) {
+  if (typeof value !== "string" || value.length > 640) {
+    throw new TypeError("Punk token IDs are invalid");
+  }
+  const values = value.split(",").map(tokenId);
+  if (!values.length || values.length > 128 || new Set(values).size !== values.length) {
+    throw new TypeError("Punk token IDs are invalid");
+  }
+  return values;
+}
+
 function address(value, label) {
   if (typeof value !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(value)) {
     throw new TypeError(`${label} is invalid`);
@@ -173,12 +184,59 @@ export async function buildWithdrawableNftAssets(
   });
 }
 
+export async function buildWithdrawableNftPortfolio(
+  selectedTokenIds,
+  { database, buildAssets = buildWithdrawableNftAssets } = {},
+) {
+  const normalizedTokenIds = Array.isArray(selectedTokenIds)
+    ? selectedTokenIds.map(tokenId) : tokenIds(selectedTokenIds);
+  if (!normalizedTokenIds.length || normalizedTokenIds.length > 128
+    || new Set(normalizedTokenIds).size !== normalizedTokenIds.length) {
+    throw new TypeError("Punk token IDs are invalid");
+  }
+  const pool = database ?? getDatabase().pool;
+  const result = await pool.query(
+    `SELECT DISTINCT punk_token_id::text AS punk_token_id
+       FROM broker_automation_v3_worker_runs
+      WHERE status = 'MINT_CONFIRMED'
+        AND punk_token_id = ANY($1::numeric[])
+      ORDER BY punk_token_id::numeric
+      LIMIT 128`,
+    [normalizedTokenIds],
+  );
+  const matched = (result.rows ?? []).map((row) => tokenId(row.punk_token_id));
+  const groups = [];
+  for (let offset = 0; offset < matched.length; offset += 4) {
+    const batch = await Promise.all(matched.slice(offset, offset + 4).map(async (id) => {
+      try {
+        const assets = await buildAssets(id, { database: pool });
+        return assets?.capability === true ? assets : null;
+      } catch {
+        return null;
+      }
+    }));
+    groups.push(...batch.filter(Boolean));
+  }
+  return Object.freeze({
+    status: "READY", capability: true, reason: null, checkedAt: new Date().toISOString(),
+    punkTokenIds: Object.freeze(normalizedTokenIds),
+    groups: Object.freeze(groups),
+  });
+}
+
 export default async function handler(request) {
   if (request.method !== "GET") return json({ ok: false, code: "METHOD_NOT_ALLOWED" }, 405);
-  const selectedTokenId = new URL(request.url).searchParams.get("tokenId");
+  const params = new URL(request.url).searchParams;
+  const selectedTokenId = params.get("tokenId");
+  const selectedTokenIds = params.get("tokenIds");
   try {
-    const assets = await buildWithdrawableNftAssets(selectedTokenId);
-    return json({ ok: true, assets }, 200, {
+    if ((selectedTokenId === null) === (selectedTokenIds === null)) {
+      throw new TypeError("Choose exactly one NFT asset query");
+    }
+    const body = selectedTokenIds === null
+      ? { ok: true, assets: await buildWithdrawableNftAssets(selectedTokenId) }
+      : { ok: true, portfolio: await buildWithdrawableNftPortfolio(tokenIds(selectedTokenIds)) };
+    return json(body, 200, {
       "cache-control": "no-store, max-age=0",
       "netlify-cdn-cache-control": "no-store",
     });
