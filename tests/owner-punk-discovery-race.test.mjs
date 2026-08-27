@@ -1,0 +1,215 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import { setupOwnerAccounts, walletDiscoveryIntent } from "../site/owner-accounts.js";
+
+const OWNER = "0x645cf432e829f9def6eb8e3974d3aee4580cbcdd";
+const COLLECTION = "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6";
+const REGISTRY = "0xdca07046b4f95e79bbb421c97949473e75dffc65";
+const PUNK_ACCOUNT = "0x1111111111111111111111111111111111111111";
+const TOKEN_ID = "1738";
+
+// The broker page carries the workspace picker and card grid but no legacy [data-owner-accounts]
+// container, so the fixture mirrors that markup.
+const SINGLE = ["[data-workspace-punk-picker]", "[data-workspace-punk-cards]"];
+const MANY = [
+  "[data-owned-punk-count]", "[data-owned-punk-detail]", "[data-punk-account-count]",
+  "[data-punk-account-detail]", "[data-selected-punk-display]", "[data-selected-gallery-link]",
+  "[data-punk-gallery-primary]", "[data-public-scout-token-display]",
+];
+
+class El {
+  constructor(tag = "div", ownerDocument = null) {
+    this.tagName = tag;
+    this.ownerDocument = ownerDocument;
+    this.dataset = {};
+    this.listeners = new Map();
+    this.children = [];
+    this.textContent = "";
+    this.innerHTML = "";
+    this.value = "";
+    this.disabled = false;
+    this.hidden = false;
+  }
+
+  get options() { return this.children; }
+  addEventListener(name, listener) { this.listeners.set(name, listener); }
+  setAttribute(name, value) { this[name] = value; }
+  removeAttribute(name) { delete this[name]; }
+  append(...nodes) { this.children.push(...nodes); }
+  replaceChildren(...nodes) { this.children = [...nodes]; }
+  click() { return this.listeners.get("click")?.(); }
+}
+
+function word(value) { return BigInt(value).toString(16).padStart(64, "0"); }
+const addressWord = (value) => `0x${value.slice(2).padStart(64, "0")}`;
+
+// Resolves ownership for exactly one Punk. maxSupply is deliberately unavailable so the bounded
+// wallet scan fails the way a wallet that will not serve it does, leaving the indexed candidate
+// path — the same path the live site takes.
+function punkProvider() {
+  return {
+    async request({ method, params }) {
+      const [call] = params ?? [];
+      if (method === "eth_getCode") return "0x";
+      if (method !== "eth_call") throw new Error(`unexpected ${method}`);
+      const data = call?.data ?? "";
+      if (data.startsWith("0xd5abeb01")) return "0x";
+      if (data.startsWith("0x6352211e")) {
+        return data.endsWith(word(TOKEN_ID)) ? addressWord(OWNER) : addressWord(
+          "0x2222222222222222222222222222222222222222",
+        );
+      }
+      if (data.startsWith("0x2dd7c658")) return addressWord(PUNK_ACCOUNT);
+      if (data.startsWith("0xc87b56dd")) return "0x";
+      throw new Error(`unexpected call ${data.slice(0, 10)}`);
+    },
+  };
+}
+
+function ownerFixture() {
+  const elements = new Map();
+  const put = (selector, element) => {
+    elements.set(selector, [...(elements.get(selector) ?? []), element]);
+    return element;
+  };
+  const documentObject = {
+    querySelector: (selector) => elements.get(selector)?.[0] ?? null,
+    querySelectorAll: (selector) => elements.get(selector) ?? [],
+    createElement: (tag) => new El(tag, documentObject),
+  };
+  for (const selector of SINGLE) put(selector, new El("div", documentObject));
+  for (const selector of MANY) put(selector, new El("span", documentObject));
+
+  const listeners = new Map();
+  const announced = [];
+  const timers = [];
+  const windowObject = {
+    localStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
+    CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options?.detail; } },
+    addEventListener(name, listener) {
+      listeners.set(name, [...(listeners.get(name) ?? []), listener]);
+    },
+    removeEventListener() {},
+    dispatchEvent(event) {
+      if (event.type === "gogh:owner-punks") announced.push(event.detail);
+      for (const listener of listeners.get(event.type) ?? []) listener(event);
+    },
+    setTimeout: (fn) => { timers.push(fn); return timers.length; },
+    __GOGH_WALLET_PROVIDER__: punkProvider(),
+  };
+
+  // Both API calls stay pending until the test releases them, which is what holds a scan in
+  // flight while the next wallet frame arrives.
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const payloads = {
+    "/api/broker/account-activation-status": {
+      ok: true,
+      activationGate: {
+        status: "READY_FOR_OWNER_ACTIVATION_CHECK",
+        capability: true,
+        reason: null,
+        bindings: { chainId: 4663, punkCollection: COLLECTION, accountRegistry: REGISTRY },
+      },
+    },
+    "/api/broker/owner-punks": {
+      ok: true, candidateTokenIds: [TOKEN_ID],
+      candidatePunks: [{ tokenId: TOKEN_ID, artwork: null, rarity: null, automationConfigured: true }],
+    },
+  };
+  const fetchFunction = async (url) => {
+    await gate;
+    const key = Object.keys(payloads).find((path) => url.startsWith(path));
+    return { ok: true, json: async () => payloads[key] };
+  };
+
+  const walletState = (detail) => windowObject.dispatchEvent(
+    Object.assign(new windowObject.CustomEvent("gogh:wallet-state", { detail }), {}),
+  );
+  return {
+    windowObject, documentObject, fetchFunction, announced, timers, walletState,
+    releaseApis: () => { release(); },
+    element: (selector) => elements.get(selector)?.[0],
+    setSnapshot: (detail) => { windowObject.__GOGH_WALLET_SNAPSHOT__ = detail; },
+    runTimers: () => { const queued = timers.splice(0); for (const fn of queued) fn(); },
+  };
+}
+
+const CONNECTED = Object.freeze({
+  account: OWNER, chainId: 4663, owner: null, status: "owner", providerType: "reown-appkit",
+});
+const settle = () => new Promise((resolve) => setImmediate(resolve));
+
+test("a wallet frame is classified by whether it can be acted on", () => {
+  assert.equal(walletDiscoveryIntent(CONNECTED), "ready");
+  assert.equal(walletDiscoveryIntent({ account: OWNER, chainId: 4663, status: "connected" }), "ready");
+  // Mid-restore frames AppKit publishes before the session settles.
+  assert.equal(walletDiscoveryIntent({ account: null, chainId: null, status: "pending" }), "transient");
+  assert.equal(walletDiscoveryIntent({ account: OWNER, chainId: null, status: "wrong-network" }), "transient");
+  assert.equal(walletDiscoveryIntent({ account: null, chainId: null, status: "unavailable" }), "transient");
+  // Settled states that really should clear the roster.
+  assert.equal(walletDiscoveryIntent({ account: null, chainId: null, status: "disconnected" }), "settled");
+  assert.equal(walletDiscoveryIntent({ account: OWNER, chainId: 1, status: "wrong-network" }), "settled");
+  assert.equal(walletDiscoveryIntent(null), "settled");
+});
+
+test("a reconnect frame never cancels the scan already running for that owner", async () => {
+  const fixture = ownerFixture();
+  setupOwnerAccounts(fixture);
+  fixture.setSnapshot(CONNECTED);
+  fixture.walletState(CONNECTED);
+  await settle();
+
+  // The session republishes an intermediate frame while the scan is still awaiting its APIs.
+  fixture.walletState({ account: null, chainId: null, status: "pending" });
+  fixture.walletState({ account: OWNER, chainId: null, status: "wrong-network" });
+  await settle();
+
+  fixture.releaseApis();
+  for (let tick = 0; tick < 12; tick += 1) await settle();
+
+  const final = fixture.announced.at(-1);
+  assert.deepEqual([...final.tokenIds], [TOKEN_ID],
+    "the completed scan must still publish the owner's Punk");
+  assert.equal(final.owner, OWNER);
+  assert.equal(fixture.element("[data-owned-punk-count]").textContent, "1");
+  assert.equal(fixture.element("[data-owned-punk-detail]").textContent,
+    "Live wallet ownership verified");
+  assert.equal(fixture.element("[data-workspace-punk-picker]").children.length, 2);
+});
+
+test("a settled disconnect still clears the roster", async () => {
+  const fixture = ownerFixture();
+  setupOwnerAccounts(fixture);
+  fixture.setSnapshot(CONNECTED);
+  fixture.walletState(CONNECTED);
+  fixture.releaseApis();
+  for (let tick = 0; tick < 12; tick += 1) await settle();
+  assert.deepEqual([...fixture.announced.at(-1).tokenIds], [TOKEN_ID]);
+
+  fixture.setSnapshot(null);
+  fixture.walletState({ account: null, chainId: null, status: "disconnected" });
+  await settle();
+  const cleared = fixture.announced.at(-1);
+  assert.deepEqual([...cleared.tokenIds], []);
+  assert.equal(cleared.owner, null);
+  assert.equal(fixture.element("[data-owned-punk-count]").textContent, "—");
+});
+
+test("a settled snapshot that arrives without an event of its own is picked up", async () => {
+  const fixture = ownerFixture();
+  setupOwnerAccounts(fixture);
+  // Nothing is connected yet, so the initial pass clears and arms a re-check.
+  fixture.walletState({ account: null, chainId: null, status: "disconnected" });
+  await settle();
+  assert.deepEqual([...fixture.announced.at(-1).tokenIds], []);
+
+  // The restore completes but publishes no further wallet event.
+  fixture.setSnapshot(CONNECTED);
+  fixture.runTimers();
+  fixture.releaseApis();
+  for (let tick = 0; tick < 12; tick += 1) await settle();
+  assert.deepEqual([...fixture.announced.at(-1).tokenIds], [TOKEN_ID],
+    "the armed re-check must recover the settled wallet");
+});

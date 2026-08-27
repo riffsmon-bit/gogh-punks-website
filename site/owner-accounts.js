@@ -120,6 +120,24 @@ export async function discoverWalletOwnedPunkIds(provider, collection, owner) {
   return Object.freeze(output.sort((left, right) => Number(left) - Number(right)));
 }
 
+const TRANSIENT_WALLET_STATES = new Set(["pending", "unavailable"]);
+const SETTLE_RECHECK_MS = 1_000;
+
+// A wallet session restore republishes the snapshot at every step: no account yet, then an
+// account whose network has not been reported yet, then the settled pair. Those intermediate
+// frames are not a disconnect, and discovery must not treat them as one — doing so cancels the
+// scan already running for the real owner and publishes an empty roster in its place.
+export function walletDiscoveryIntent(wallet, chainId = CHAIN_ID) {
+  if (!wallet || typeof wallet !== "object") return "settled";
+  const account = normalizedAddress(wallet.account);
+  if (account && wallet.chainId === chainId) return "ready";
+  if (TRANSIENT_WALLET_STATES.has(wallet.status)) return "transient";
+  // An account with no network yet is mid-restore. A real wrong-network snapshot reports the
+  // chain it is actually on.
+  if (account && (wallet.chainId === null || wallet.chainId === undefined)) return "transient";
+  return "settled";
+}
+
 function knownTokenIds(storage) {
   try {
     const parsed = JSON.parse(storage?.getItem(STORAGE_KEY) ?? "[]");
@@ -557,6 +575,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
   const request = fetchFunction ?? browserWindow.fetch.bind(browserWindow);
   let revision = 0;
   let currentAccounts = [];
+  let recheckTimer = null;
 
   function announceOwnerPunks(accounts, owner = null) {
     const detail = Object.freeze({
@@ -658,10 +677,29 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
     }));
   }
 
+  // The settled snapshot may arrive with no event of its own once a restore finishes. Re-check it
+  // shortly after any non-ready frame so a connected owner is never left on an empty roster.
+  function scheduleSettleRecheck() {
+    if (recheckTimer !== null || typeof browserWindow.setTimeout !== "function") return;
+    recheckTimer = browserWindow.setTimeout(() => {
+      recheckTimer = null;
+      const settled = browserWindow.__GOGH_WALLET_SNAPSHOT__ ?? null;
+      if (walletDiscoveryIntent(settled) === "ready") void refresh({ detail: settled });
+    }, SETTLE_RECHECK_MS);
+  }
+
   async function refresh(event) {
     const wallet = event?.detail ?? browserWindow.__GOGH_WALLET_SNAPSHOT__ ?? null;
+    const intent = walletDiscoveryIntent(wallet);
+    // Bumping the revision cancels whatever scan is in flight, so a transient frame must return
+    // before it can revoke a scan that is about to answer for this very owner.
+    if (intent === "transient") {
+      scheduleSettleRecheck();
+      return;
+    }
     const current = ++revision;
-    if (!wallet?.account || wallet.chainId !== CHAIN_ID) {
+    if (intent !== "ready") {
+      scheduleSettleRecheck();
       setCounts(null, null, "Connect owner wallet");
       setSelected();
       renderPunkPicker(picker, []);
