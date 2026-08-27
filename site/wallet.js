@@ -356,7 +356,9 @@ function loadReownBundle(browserWindow, browserDocument) {
   }
   browserWindow.__GOGH_REOWN_BUNDLE_PROMISE__ = new Promise((resolve, reject) => {
     const script = browserDocument.createElement("script");
-    script.src = "/reown-wallet-app.js";
+    // Keep this version aligned with the HTML wallet module URL. Wallet session
+    // fixes must not be stranded behind a stale mobile or desktop browser cache.
+    script.src = "/reown-wallet-app.js?v=reown-2";
     script.async = true;
     script.dataset.reownAppkit = "true";
     script.addEventListener("load", resolve, { once: true });

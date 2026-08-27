@@ -210,6 +210,8 @@ test("mobile wizard and AppKit source bind the required production experience", 
   assert.doesNotMatch(client, /projectId:\s*["'][0-9a-f]{32}/);
   assert.doesNotMatch(wallet, /setupReadOnlyWallet\(\{ windowObject: window/);
   assert.match(wallet, /First-time visitors load no AppKit code/);
+  assert.match(html, /\/wallet\.js\?v=reown-2/);
+  assert.match(wallet, /\/reown-wallet-app\.js\?v=reown-2/);
   assert.match(packageJson, /@reown\/appkit/);
   assert.match(netlify, /wss:\/\/relay\.walletconnect\.com/);
 });
