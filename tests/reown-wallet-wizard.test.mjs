@@ -174,11 +174,12 @@ test("a known prior Reown session restores idly without opening a wallet prompt"
   assert.deepEqual(fixture.calls, [], "restoration must not open a wallet selector");
 });
 
-test("disconnect clears wallet-scoped state and prevents stale Punk controls", async () => {
+test("disconnect clears only wallet-scoped state and prevents stale Punk controls", async () => {
   const fixture = reownFixture();
   fixture.current.account = { address: OWNER, isConnected: true, status: "connected" };
   for (const key of ["gogh.wallet.reown.returning.v1", "gogh.artBroker.setup.v1",
-    "gogh:activated-punk-ids:v1"]) {
+    "gogh:activated-punk-ids:v1", "gogh.controlCenter.v2",
+    `gogh.controlCenter.v2:${OWNER}:93`]) {
     fixture.storage.set(key, "wallet-data");
     fixture.sessionStorage.set(key, "wallet-data");
   }
@@ -191,7 +192,7 @@ test("disconnect clears wallet-scoped state and prevents stale Punk controls", a
   assert.equal(fixture.disconnectButton.hidden, false);
   assert.equal(fixture.disconnectButton.textContent, "Disconnect Wallet");
   await fixture.button.click();
-  assert.equal(fixture.calls.at(-1), "account");
+  assert.equal(fixture.calls.at(-1), "account", "connected button opens account menu");
   await fixture.disconnectButton.click();
   assert.equal(fixture.calls.at(-1), "disconnect");
   assert.equal(fixture.button.textContent, "Connect wallet");
@@ -199,6 +200,12 @@ test("disconnect clears wallet-scoped state and prevents stale Punk controls", a
   assert.equal(fixture.windowObject.__GOGH_WALLET_PROVIDER__, null);
   assert.equal(fixture.storage.get("gogh.global.metadata"), "keep");
   assert.equal(fixture.windowObject.__GOGH_OWNER_PUNKS__.punks.length, 0);
+  for (const key of ["gogh.wallet.reown.returning.v1", "gogh.artBroker.setup.v1",
+    "gogh:activated-punk-ids:v1", "gogh.controlCenter.v2",
+    `gogh.controlCenter.v2:${OWNER}:93`]) {
+    assert.equal(fixture.storage.has(key), false);
+    assert.equal(fixture.sessionStorage.has(key), false);
+  }
   assert.ok(fixture.dispatched.some(({ type }) => type === "gogh:wallet-disconnected"));
   controller.destroy();
 });

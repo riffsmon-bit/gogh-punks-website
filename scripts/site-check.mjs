@@ -7,6 +7,7 @@ const pages = [
   "index.html",
   "404.html",
   "broker/index.html",
+  "broker/punk/index.html",
   "discover/index.html",
   "punk/index.html",
 ];
@@ -29,6 +30,9 @@ function localTarget(reference) {
   const path = reference.split(/[?#]/, 1)[0] || "/";
   if (path.startsWith("/api/")) return null;
   if (path === "/") return join(root, "index.html");
+  if (path.startsWith("/broker/punk/") && path !== "/broker/punk/index.html") {
+    return join(root, "broker", "punk", "index.html");
+  }
   if (path.startsWith("/punk/") && path !== "/punk/index.html") {
     return join(root, "punk", "index.html");
   }
@@ -132,6 +136,7 @@ for (const file of ["styles.css", "main.js", "robots.txt", "site.webmanifest"]) 
 for (const file of [
   "broker.css", "broker.js", "wallet.js", "canary-execution.js", "keccak256.js",
   "owner-policy-controls.js",
+  "punk-control-center.js",
 ]) {
   readFileSync(join(root, file));
 }
@@ -163,6 +168,7 @@ const searchable = pages
     readFileSync(join(root, "canary-execution.js"), "utf8"),
     readFileSync(join(root, "account-funds.js"), "utf8"),
     readFileSync(join(root, "owner-policy-controls.js"), "utf8"),
+    readFileSync(join(root, "punk-control-center.js"), "utf8"),
     readFileSync(join(root, "keccak256.js"), "utf8"),
   )
   .join("\n");

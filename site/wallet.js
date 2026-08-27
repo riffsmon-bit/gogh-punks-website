@@ -102,7 +102,7 @@ export function walletPresentation({ available, pending, account, chainId, owner
       buttonLabel: shortAddress,
       statusText: `${shortAddress} connected to Robinhood Chain · choose a Punk below`,
       state: "connected",
-      disabled: true,
+      disabled: false,
     };
   }
   if (ownerAddress === account) {
@@ -110,7 +110,7 @@ export function walletPresentation({ available, pending, account, chainId, owner
       buttonLabel: shortAddress,
       statusText: `${tokenLabel} selected · live ownership verified for ${shortAddress}`,
       state: "owner",
-      disabled: true,
+      disabled: false,
     };
   }
   return {
@@ -375,16 +375,27 @@ const WALLET_SCOPED_STORAGE_KEYS = Object.freeze([
   REOWN_RETURNING_SESSION_KEY,
   "gogh.artBroker.setup.v1",
   "gogh:activated-punk-ids:v1",
+  "gogh.controlCenter.v2",
 ]);
+const WALLET_SCOPED_STORAGE_PREFIXES = Object.freeze(["gogh.controlCenter.v2:"]);
 
-function clearWalletStorage(storage) {
+function clearStorage(storage) {
   if (!storage) return;
   for (const key of WALLET_SCOPED_STORAGE_KEYS) storage.removeItem(key);
+  const discovered = [];
+  for (let index = 0; index < Number(storage.length ?? 0); index += 1) {
+    const key = storage.key?.(index);
+    if (typeof key === "string"
+      && WALLET_SCOPED_STORAGE_PREFIXES.some((prefix) => key.startsWith(prefix))) {
+      discovered.push(key);
+    }
+  }
+  for (const key of discovered) storage.removeItem(key);
 }
 
 export function clearWalletScopedState(browserWindow) {
-  try { clearWalletStorage(browserWindow.localStorage); } catch { /* storage is optional */ }
-  try { clearWalletStorage(browserWindow.sessionStorage); } catch { /* storage is optional */ }
+  try { clearStorage(browserWindow.localStorage); } catch { /* storage is optional */ }
+  try { clearStorage(browserWindow.sessionStorage); } catch { /* storage is optional */ }
   browserWindow.__GOGH_OWNER_PUNKS__ = Object.freeze({ punks: Object.freeze([]) });
   browserWindow.__GOGH_AUTOMATION_SNAPSHOT__ = null;
   browserWindow.__GOGH_OWNER_SNAPSHOT__ = null;

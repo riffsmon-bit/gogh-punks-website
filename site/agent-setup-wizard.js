@@ -274,10 +274,9 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
       body.append(title, status, facts);
       const actions = browserDocument.createElement("div");
       actions.className = "active-agent-actions";
-      const watch = browserDocument.createElement("button");
-      watch.type = "button";
-      watch.textContent = "Watch agent";
-      watch.addEventListener("click", () => openAgent(punk.tokenId));
+      const watch = browserDocument.createElement("a");
+      watch.href = `/broker/punk/${encodeURIComponent(punk.tokenId)}`;
+      watch.textContent = "Control center";
       const portfolio = browserDocument.createElement("a");
       portfolio.href = `/punk/${encodeURIComponent(punk.tokenId)}`;
       portfolio.textContent = "View portfolio";

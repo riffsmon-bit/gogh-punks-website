@@ -837,3 +837,96 @@ h3 { font-size: 1.45rem; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation: none !important; }
 }
+
+/* Punk Control Center V2 — local-first, progressively loaded. */
+.control-center { width: min(1180px, calc(100% - 40px)); margin: 0 auto; padding: 48px 0 100px; }
+.local-simulation-banner { margin: 0 0 22px; padding: 14px 18px; border: 1px solid var(--sun); color: var(--cream); background: rgba(255, 204, 51, 0.08); }
+.local-simulation-banner strong { color: var(--sun); }
+.control-identity { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 36px; align-items: center; }
+.control-punk-art { aspect-ratio: 1; overflow: hidden; border: 1px solid var(--line); background: var(--panel); }
+.control-punk-art img { width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; }
+.control-punk-copy, .control-summary article, .control-card { min-width: 0; }
+.control-punk-copy h1 { margin: 8px 0; font-size: clamp(2.8rem, 7vw, 6.4rem); line-height: 0.92; }
+.control-agent-state { margin: 18px 0; color: var(--aqua); font-weight: 800; letter-spacing: 0.08em; }
+.control-wallet-line { display: grid; gap: 7px; margin: 18px 0; color: var(--muted); }
+.control-wallet-line code { overflow-wrap: anywhere; color: var(--cream); font-size: clamp(0.8rem, 2vw, 1rem); }
+.control-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.control-actions button, .control-actions a, .control-card button, .control-card > a {
+  min-height: 46px; padding: 11px 17px; border: 1px solid var(--line); color: var(--cream); background: transparent; font: inherit; font-size: 0.72rem; font-weight: 850; letter-spacing: 0.08em; text-decoration: none; text-transform: uppercase;
+}
+.control-actions button:hover, .control-actions a:hover, .control-card button:hover { border-color: var(--aqua); color: var(--aqua); }
+.control-actions button:disabled, .control-card button:disabled { opacity: 0.42; cursor: not-allowed; }
+.control-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 40px 0; }
+.control-summary article { min-height: 140px; padding: 22px; border: 1px solid var(--line); background: var(--panel); }
+.control-summary span, .control-summary small { display: block; color: var(--muted); }
+.control-summary span { font-size: 0.67rem; font-weight: 850; letter-spacing: 0.14em; text-transform: uppercase; }
+.control-summary strong { display: block; margin: 18px 0 7px; color: var(--cream); font-family: var(--display); font-size: 2rem; font-weight: 500; }
+.control-summary strong { overflow-wrap: anywhere; }
+.control-tabs { display: flex; gap: 8px; overflow-x: auto; margin: 0 0 16px; padding: 4px 0; scrollbar-width: thin; }
+.control-tabs button { flex: 1 0 128px; min-height: 50px; border: 1px solid var(--line); color: var(--muted); background: transparent; font: inherit; font-weight: 800; text-transform: uppercase; }
+.control-tabs button[aria-selected="true"] { border-color: var(--aqua); color: var(--aqua); background: rgba(62, 205, 194, 0.08); }
+.control-panel { display: grid; gap: 16px; }
+.control-panel[hidden] { display: none; }
+.control-grid { display: grid; gap: 16px; }
+.control-grid.two-column { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.control-grid.three-column { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.control-card { padding: 28px; border: 1px solid var(--line); background: var(--panel); }
+.control-card h2 { margin: 8px 0 16px; font-size: clamp(1.8rem, 3.7vw, 3rem); line-height: 1; }
+.control-card p, .control-card li { color: var(--muted); line-height: 1.6; }
+.control-card .eyebrow { color: var(--sun); }
+.control-safety ul { display: grid; gap: 8px; margin: 12px 0 0; padding-left: 20px; }
+.control-facts { display: grid; margin: 0; }
+.control-facts div { display: flex; justify-content: space-between; gap: 20px; padding: 13px 0; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.control-facts dt { color: var(--muted); }
+.control-facts dd { margin: 0; color: var(--cream); text-align: right; }
+.control-button-stack { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.control-button-stack .danger { border-color: #ff8172; color: #ff8172; }
+.control-note { min-height: 26px; margin-top: 16px; color: var(--aqua) !important; }
+.panel-header { display: flex; justify-content: space-between; gap: 20px; align-items: start; }
+.control-form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: 18px 0; }
+.control-field { display: grid; gap: 8px; color: var(--muted); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.control-field input, .control-field select { width: 100%; min-height: 48px; padding: 10px 13px; border: 1px solid var(--line); border-radius: 0; color: var(--cream); background: #071321; font: inherit; }
+.control-toggle { display: flex; gap: 12px; align-items: start; margin: 15px 0; color: var(--cream); }
+.control-toggle input { width: 20px; height: 20px; accent-color: var(--aqua); }
+.paid-warning { padding: 15px; border-left: 3px solid var(--sun); background: rgba(255, 204, 51, 0.06); }
+.tag.off { color: var(--sun); }
+.control-asset-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.control-asset-card { overflow: hidden; border: 1px solid var(--line); background: var(--panel); }
+.control-asset-card img { width: 100%; aspect-ratio: 1; object-fit: cover; background: #071321; }
+.control-asset-card h3, .control-asset-card p, .control-asset-card a { margin-inline: 16px; }
+.control-asset-card a { display: inline-block; margin-bottom: 18px; color: var(--aqua); }
+.control-owner-assets { display: grid; grid-template-columns: repeat(2, minmax(0, 180px)); gap: 12px; margin: 16px 0 24px; }
+.control-owner-asset { display: grid; gap: 8px; min-width: 0; padding: 8px !important; text-align: left; text-transform: none !important; }
+.control-owner-asset img { width: 100%; aspect-ratio: 1; object-fit: cover; opacity: 0.72; }
+.control-owner-asset[aria-pressed="true"] { border-color: var(--aqua); color: var(--aqua); }
+.agent-timeline { display: grid; }
+.agent-timeline article { display: grid; grid-template-columns: 110px 1fr; gap: 18px; padding: 15px 0; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.agent-timeline time { color: var(--sun); font-size: 0.75rem; }
+.agent-timeline p { margin: 0; color: var(--cream); }
+.control-debug { padding: 20px; border: 1px dashed var(--line); }
+.control-debug dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.control-debug dl div { display: flex; justify-content: space-between; gap: 14px; padding: 9px; background: var(--panel); }
+.control-debug dd { margin: 0; color: var(--aqua); }
+
+@media (max-width: 760px) {
+  .control-center { width: 100%; padding: 24px 12px calc(92px + env(safe-area-inset-bottom)); }
+  .control-identity { grid-template-columns: 96px minmax(0, 1fr); gap: 16px; align-items: start; }
+  .control-punk-copy h1 { font-size: clamp(2.1rem, 10vw, 3.2rem); }
+  .control-agent-state { margin: 10px 0; font-size: 0.75rem; }
+  .control-wallet-line { margin: 10px 0; }
+  .control-actions { grid-column: 1 / -1; }
+  .control-actions { display: grid; grid-template-columns: 1fr; }
+  .control-actions button, .control-actions a { width: 100%; text-align: center; }
+  .control-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 24px 0; }
+  .control-summary article { min-height: 112px; padding: 16px; }
+  .control-summary strong { margin-top: 12px; font-size: 1.55rem; }
+  .control-tabs { position: sticky; z-index: 10; top: 64px; margin-inline: -12px; padding: 8px 12px; background: rgba(3, 7, 11, 0.97); }
+  .control-grid.two-column, .control-grid.three-column, .control-form-grid, .control-asset-grid { grid-template-columns: 1fr; }
+  .control-owner-assets { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .control-card { padding: 21px 18px; }
+  .control-card button { width: 100%; min-height: 52px; }
+  .panel-header { display: grid; }
+  .control-button-stack { grid-template-columns: 1fr; }
+  .agent-timeline article { grid-template-columns: 1fr; gap: 4px; }
+  .control-debug dl { grid-template-columns: 1fr; }
+}

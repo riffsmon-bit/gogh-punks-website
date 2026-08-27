@@ -5,6 +5,8 @@
   "description": "Official public website for the Gogh Punks collection",
   "type": "module",
   "scripts": {
+    "broker:v2:demo": "node scripts/run-v2-local-demo.mjs",
+    "broker:v2:screenshots": "node scripts/capture-v2-local-screenshots.mjs",
     "wallet:build": "node scripts/build-wallet-bundle.mjs",
     "broker:rpc:check": "node --env-file-if-exists=.env scripts/check-robinhood-rpc-pair.mjs",
     "broker:autonomy:plan": "node scripts/build-reviewed-free-mint-run-plan.mjs",
