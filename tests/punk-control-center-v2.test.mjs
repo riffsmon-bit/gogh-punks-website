@@ -299,3 +299,29 @@ test("Control Center is a dedicated progressive mobile route and remains local-o
   assert.match(css, /@media \(max-width: 760px\)/);
   assert.match(css, /env\(safe-area-inset-bottom\)/);
 });
+
+test("Control Center fails clearly across route, wallet, network, and worker states", async () => {
+  const [html, browser, css] = await Promise.all([
+    readFile(new URL("../site/broker/punk/index.html", import.meta.url), "utf8"),
+    readFile(new URL("../site/punk-control-center.js", import.meta.url), "utf8"),
+    readFile(new URL("../site/broker.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(html, /data-control-route-alert/);
+  assert.match(html, /Choose a Gogh Punk first/);
+  assert.match(html, /class="mobile-app-nav"/);
+  assert.match(html, /aria-controls="control-panel-overview"/);
+  assert.match(html, /id="control-panel-activity"[^>]+aria-labelledby="control-tab-activity"/);
+  assert.match(html, /data-agent-send disabled/);
+  assert.match(html, /data-directed-check disabled/);
+  assert.match(html, /data-activity-state aria-live="polite"/);
+  assert.match(browser, /state\.walletChainId !== CHAIN_ID/);
+  assert.match(browser, /SWITCH NETWORK/);
+  assert.match(browser, /CHECKING OWNERSHIP/);
+  assert.match(browser, /Different holder required/);
+  assert.match(browser, /autonomy-v3-activity\?tokenId=/);
+  assert.match(browser, /latest hosted event belongs to another Punk/);
+  assert.match(browser, /NFT inventory is temporarily unavailable/);
+  assert.match(browser, /aria-busy/);
+  assert.match(browser, /event\.key === "ArrowRight"/);
+  assert.match(css, /control-actions a\[aria-disabled="true"\]/);
+});

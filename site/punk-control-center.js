@@ -28,8 +28,9 @@ function routeTokenId() {
 }
 
 const state = {
-  tokenId: routeTokenId(), owner: null, account: null, provider: null,
-  owned: false, activated: false, automation: null, assets: [],
+  tokenId: routeTokenId(), owner: null, walletAccount: null, walletChainId: null,
+  account: null, provider: null, loading: false, error: null,
+  owned: false, activated: false, agentStatus: null, automation: null, assets: [],
   activity: [], timings: {}, revision: 0,
 };
 
@@ -59,31 +60,90 @@ function setText(selector, value) {
 
 function setActionAvailability(enabled) {
   for (const selector of ["[data-agent-send]", "[data-agent-pause]", "[data-agent-resume]",
-    "[data-agent-edit]", "[data-agent-revoke]", "[data-scout-simulate]"]) {
+    "[data-agent-edit]", "[data-agent-revoke]", "[data-scout-simulate]",
+    "[data-directed-check]", "[data-paid-save]", "[data-add-native]",
+    "[data-load-assets]", "[data-deposit-review]", "[data-activity-refresh]"]) {
     const element = query(selector);
     if (element) element.disabled = !enabled;
   }
 }
 
+function controlPresentation() {
+  if (!state.tokenId) return {
+    status: "🔴 CHOOSE A PUNK", heading: "Punk not selected",
+    detail: "Open My Art Brokers and choose a Punk before using its controls.",
+    account: "Choose a Punk first",
+  };
+  if (!state.walletAccount) return {
+    status: "⚪ CONNECT WALLET", heading: "Connect wallet",
+    detail: "Connect the current Punk holder to load live account and agent state.",
+    account: "Connect wallet to load",
+  };
+  if (state.walletChainId !== CHAIN_ID) return {
+    status: "🟡 SWITCH NETWORK", heading: "Wrong network",
+    detail: "Wallet connected. Switch to Robinhood Chain to verify this Punk.",
+    account: "Switch to Robinhood Chain",
+  };
+  if (state.loading) return {
+    status: "🔵 CHECKING OWNERSHIP", heading: "Checking live state",
+    detail: `Verifying Punk #${state.tokenId} and its wallet on Robinhood Chain…`,
+    account: "Loading Punk Wallet…",
+  };
+  if (state.error) return {
+    status: "🔴 NEEDS ATTENTION", heading: "Live state unavailable",
+    detail: state.error, account: state.account ?? "Punk Wallet unavailable",
+  };
+  if (state.owner && !state.owned) return {
+    status: "🔴 CONNECT CURRENT HOLDER", heading: "Different holder required",
+    detail: `The connected wallet does not currently hold Punk #${state.tokenId}.`,
+    account: state.account ?? "Control locked",
+  };
+  if (state.owned) return {
+    status: state.agentStatus === "SCANNING" || state.agentStatus === "MINTED"
+      ? `🟢 ${state.agentStatus}` : state.activated ? "🟡 PAUSED" : "⚪ READY TO ACTIVATE",
+    heading: state.agentStatus === "SCANNING" ? "Agent scanning"
+      : state.agentStatus === "MINTED" ? "Mint confirmed"
+        : state.activated ? "Agent paused" : "Ready to activate",
+    detail: "Live Punk ownership was checked for the connected wallet.",
+    account: state.account ?? "Loading Punk Wallet…",
+  };
+  return {
+    status: "⚪ CONNECT WALLET", heading: "Connect wallet",
+    detail: "Connect the current holder to verify this Punk.", account: "Connect wallet to load",
+  };
+}
+
 function renderIdentity() {
+  const presentation = controlPresentation();
   setText("[data-control-token]", state.tokenId ?? "—");
   setText("[data-directed-punk]", state.tokenId ? `#${state.tokenId}` : "—");
-  setText("[data-control-account]", state.account ?? "Waiting for live account…");
+  setText("[data-control-account]", presentation.account);
+  setText("[data-control-live-state]", presentation.detail);
+  const routeAlert = query("[data-control-route-alert]");
+  if (routeAlert) routeAlert.hidden = Boolean(state.tokenId);
   const copy = query("[data-control-copy]");
   if (copy) copy.disabled = !ADDRESS.test(state.account ?? "");
   const explorer = query("[data-control-explorer]");
-  if (explorer) explorer.href = state.account
-    ? `https://robinhoodchain.blockscout.com/address/${state.account}`
-    : "https://robinhoodchain.blockscout.com";
+  if (explorer) {
+    if (ADDRESS.test(state.account ?? "")) {
+      explorer.href = `https://robinhoodchain.blockscout.com/address/${state.account}`;
+      explorer.target = "_blank";
+      explorer.rel = "noopener noreferrer";
+      explorer.setAttribute("aria-disabled", "false");
+    } else {
+      explorer.removeAttribute("href");
+      explorer.removeAttribute("target");
+      explorer.removeAttribute("rel");
+      explorer.setAttribute("aria-disabled", "true");
+    }
+  }
   setText("[data-directed-recipient]", state.account ? formatAddress(state.account) : "Unavailable");
-  const status = state.owned ? (state.activated ? "🟢 ACTIVE" : "⚪ READY TO ACTIVATE")
-    : state.owner ? "🔴 CONNECT THE CURRENT HOLDER" : "⚪ CONNECT WALLET";
-  setText("[data-control-agent-state]", status);
-  setText("[data-overview-status]", status.replace(/^[^ ]+ /, ""));
-  setText("[data-overview-detail]", state.owned
-    ? "Live Punk ownership was checked for the connected wallet."
-    : "Controls remain locked until current ownership is verified live.");
+  setText("[data-control-agent-state]", presentation.status);
+  setText("[data-overview-status]", presentation.heading);
+  setText("[data-overview-detail]", presentation.detail);
   setActionAvailability(state.owned && state.activated);
+  const activityRefresh = query("[data-activity-refresh]");
+  if (activityRefresh) activityRefresh.disabled = !state.owned;
 }
 
 function ownerOfData(tokenId) {
@@ -131,6 +191,7 @@ function renderAutomation() {
     && state.owned && state.activated;
   const label = active ? heartbeat?.status === "MINT_CONFIRMED" ? "MINTED" : "SCANNING"
     : state.activated ? "PAUSED" : "INACTIVE";
+  state.agentStatus = label;
   setText("[data-agent-status]", label);
   setText("[data-agent-free]", active ? "ON" : "OFF");
   setText("[data-agent-mint-limit]", punk?.maxAcquisitionsPerDay
@@ -201,14 +262,36 @@ function addActivity(entry) {
 
 async function loadActivity() {
   const started = performance.now();
-  const response = await fetch("/api/broker/autonomy-v3-activity", {
-    headers: { accept: "application/json" }, cache: "no-store",
-  });
-  const payload = await response.json();
-  if (!response.ok || payload?.ok !== true) throw new Error("Activity unavailable");
-  if (payload.activity?.heartbeat) addActivity({ at: payload.activity.heartbeat.completedAt,
-    state: payload.activity.heartbeat.status, message: heartbeatMessage(payload.activity.heartbeat) });
-  metric("Activity", started);
+  const button = query("[data-activity-refresh]");
+  if (!state.owned) {
+    setText("[data-activity-state]", "Connect the current holder on Robinhood Chain to load Punk-specific activity.");
+    return;
+  }
+  if (button) button.disabled = true;
+  setText("[data-activity-state]", `Checking Punk #${state.tokenId}'s latest worker event…`);
+  try {
+    const response = await fetch(`/api/broker/autonomy-v3-activity?tokenId=${encodeURIComponent(state.tokenId)}`, {
+      headers: { accept: "application/json" }, cache: "no-store",
+    });
+    const payload = await response.json();
+    if (!response.ok || payload?.ok !== true) throw new Error("Activity is temporarily unavailable.");
+    const heartbeat = payload.activity?.heartbeat;
+    if (heartbeat && (!heartbeat.tokenId || String(heartbeat.tokenId) === state.tokenId)) {
+      addActivity({ at: heartbeat.completedAt, state: heartbeat.status,
+        message: heartbeatMessage(heartbeat) });
+      setText("[data-activity-state]", `Latest Punk #${state.tokenId} worker event loaded.`);
+    } else if (heartbeat) {
+      setText("[data-activity-state]", `No recent Punk #${state.tokenId} worker event was found. The latest hosted event belongs to another Punk.`);
+    } else {
+      setText("[data-activity-state]", `No hosted worker event has been recorded for Punk #${state.tokenId} yet.`);
+    }
+    metric("Activity", started);
+  } catch (error) {
+    setText("[data-activity-state]", `${error.message} Try again in a moment.`);
+    throw error;
+  } finally {
+    if (button) button.disabled = false;
+  }
 }
 
 function assetCard(asset) {
@@ -234,39 +317,49 @@ function assetCard(asset) {
 async function loadAssets() {
   if (!state.owned) throw new Error("Connect the current Punk holder first");
   const started = performance.now();
-  if (demo) {
-    state.assets = [
-      { name: "Demo Generative Study #441", tokenId: "441", source: "Directed Mint" },
-      { name: "Demo Pixel Bloom #12", tokenId: "12", source: "Art Broker" },
-      { name: "Demo Holder Pass #7", tokenId: "7", source: "Deposited" },
-    ];
-    setText("[data-summary-nfts]", String(state.assets.length));
-    setText("[data-assets-nft-count]", String(state.assets.length));
-    setText("[data-summary-tokens]", "3");
-    setText("[data-assets-token-count]", "3 recognized");
-    query("[data-asset-grid]").replaceChildren(...state.assets.map(assetCard));
-    metric("NFT inventory", started);
-    return;
-  }
-  const response = await fetch(`/api/broker/nft-withdrawal-assets?tokenId=${encodeURIComponent(state.tokenId)}`, {
-    headers: { accept: "application/json" }, cache: "no-store",
-  });
-  const payload = await response.json();
-  const items = payload?.ok === true && Array.isArray(payload.assets?.items)
-    ? payload.assets.items : [];
-  state.assets = items;
-  state.account = ADDRESS.test(payload?.assets?.account ?? "")
-    ? payload.assets.account : state.account;
-  setText("[data-summary-nfts]", String(items.length));
-  setText("[data-assets-nft-count]", String(items.length));
-  setText("[data-summary-tokens]", "0");
-  setText("[data-assets-token-count]", "0 recognized");
   const grid = query("[data-asset-grid]");
-  grid.replaceChildren(...(items.length ? items.map(assetCard) : [Object.assign(
-    document.createElement("p"), { className: "empty-state",
-      textContent: "No indexed NFTs are currently held by this Punk Wallet." })]));
-  renderIdentity();
-  metric("NFT inventory", started);
+  grid.setAttribute("aria-busy", "true");
+  grid.replaceChildren(Object.assign(document.createElement("p"), {
+    className: "empty-state", textContent: `Loading Punk #${state.tokenId} NFT inventory…`,
+  }));
+  try {
+    if (demo) {
+      state.assets = [
+        { name: "Demo Generative Study #441", tokenId: "441", source: "Directed Mint" },
+        { name: "Demo Pixel Bloom #12", tokenId: "12", source: "Art Broker" },
+        { name: "Demo Holder Pass #7", tokenId: "7", source: "Deposited" },
+      ];
+      setText("[data-summary-nfts]", String(state.assets.length));
+      setText("[data-assets-nft-count]", String(state.assets.length));
+      setText("[data-summary-tokens]", "3");
+      setText("[data-assets-token-count]", "3 recognized");
+      grid.replaceChildren(...state.assets.map(assetCard));
+      metric("NFT inventory", started);
+      return;
+    }
+    const response = await fetch(`/api/broker/nft-withdrawal-assets?tokenId=${encodeURIComponent(state.tokenId)}`, {
+      headers: { accept: "application/json" }, cache: "no-store",
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok || payload?.ok !== true || !Array.isArray(payload.assets?.items)) {
+      throw new Error("NFT inventory is temporarily unavailable");
+    }
+    const items = payload.assets.items;
+    state.assets = items;
+    state.account = ADDRESS.test(payload?.assets?.account ?? "")
+      ? payload.assets.account : state.account;
+    setText("[data-summary-nfts]", String(items.length));
+    setText("[data-assets-nft-count]", String(items.length));
+    setText("[data-summary-tokens]", "0");
+    setText("[data-assets-token-count]", "0 recognized");
+    grid.replaceChildren(...(items.length ? items.map(assetCard) : [Object.assign(
+      document.createElement("p"), { className: "empty-state",
+        textContent: "No indexed NFTs are currently held by this Punk Wallet." })]));
+    renderIdentity();
+    metric("NFT inventory", started);
+  } finally {
+    grid.removeAttribute("aria-busy");
+  }
 }
 
 function renderDemoOwnerAssets() {
@@ -297,7 +390,7 @@ function renderDemoOwnerAssets() {
 }
 
 function localPolicyKey() {
-  return `gogh.controlCenter.v2:${state.owner ?? "guest"}:${state.tokenId ?? "none"}`;
+  return `gogh.controlCenter.v2:${state.walletAccount ?? "guest"}:${state.tokenId ?? "none"}`;
 }
 
 function renderPaidPolicy(policy) {
@@ -376,17 +469,31 @@ function simulateDirectedMint() {
 }
 
 function bindTabs() {
-  for (const tab of queryAll("[data-control-tab]")) tab.addEventListener("click", () => {
+  const tabs = queryAll("[data-control-tab]");
+  for (const tab of tabs) tab.addEventListener("click", () => {
     const name = tab.dataset.controlTab;
     for (const candidate of queryAll("[data-control-tab]")) {
       candidate.setAttribute("aria-selected", String(candidate === tab));
+      candidate.tabIndex = candidate === tab ? 0 : -1;
     }
     for (const panel of queryAll("[data-control-panel]")) panel.hidden = panel.dataset.controlPanel !== name;
     history.replaceState(null, "", `#${name}`);
     if (name === "assets" && state.assets.length === 0) loadAssets().catch((error) => {
-      query("[data-asset-grid]").textContent = error.message;
+      query("[data-asset-grid]").replaceChildren(Object.assign(document.createElement("p"), {
+        className: "empty-state", textContent: `${error.message}. Try again after live ownership is available.`,
+      }));
     });
     if (name === "activity") loadActivity().catch(() => {});
+  });
+  for (const tab of tabs) tab.addEventListener("keydown", (event) => {
+    const index = tabs.indexOf(tab);
+    const nextIndex = event.key === "ArrowRight" ? (index + 1) % tabs.length
+      : event.key === "ArrowLeft" ? (index - 1 + tabs.length) % tabs.length
+        : event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : null;
+    if (nextIndex === null) return;
+    event.preventDefault();
+    tabs[nextIndex].focus();
+    tabs[nextIndex].click();
   });
 }
 
@@ -429,21 +536,31 @@ function bindActions() {
 
 async function applyWallet(wallet) {
   const revision = ++state.revision;
-  state.owner = wallet?.account?.toLowerCase?.() ?? null;
+  state.walletAccount = wallet?.account?.toLowerCase?.() ?? null;
+  state.walletChainId = wallet?.chainId ?? null;
+  state.owner = null;
   state.provider = window.__GOGH_WALLET_PROVIDER__ ?? null;
+  state.loading = false;
+  state.error = null;
   state.owned = false;
   state.activated = false;
+  state.agentStatus = null;
   state.account = null;
   state.automation = null;
   state.assets = [];
   renderIdentity();
   renderPaidPolicy(readPaidPolicy());
   if (!state.tokenId || !wallet?.account || wallet.chainId !== CHAIN_ID || !state.provider) return;
+  state.loading = true;
+  renderIdentity();
   try {
     await loadOwnership(wallet);
     if (revision !== state.revision) return;
+    state.loading = false;
     renderIdentity();
     if (!state.owned) return;
+    state.loading = true;
+    renderIdentity();
     await loadAutomation();
     if (revision !== state.revision) return;
     await loadBalance().catch(() => {});
@@ -451,14 +568,20 @@ async function applyWallet(wallet) {
       await loadAssets().catch(() => {});
     }
   } catch (error) {
-    setText("[data-overview-status]", "Needs attention");
-    setText("[data-overview-detail]", error.message);
+    state.error = error.message;
+  } finally {
+    if (revision === state.revision) {
+      state.loading = false;
+      renderIdentity();
+    }
   }
 }
 
 function loadDemo() {
   state.tokenId ||= "93";
   state.owner = DEMO_OWNER;
+  state.walletAccount = DEMO_OWNER;
+  state.walletChainId = CHAIN_ID;
   state.account = DEMO_ACCOUNT;
   state.owned = true;
   state.activated = true;
