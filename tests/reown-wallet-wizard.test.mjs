@@ -7,7 +7,9 @@ import {
   setupReownWallet,
   walletErrorMessage,
 } from "../site/wallet.js";
-import { safeWizardState, wizardResumeStep } from "../site/agent-setup-wizard.js";
+import {
+  agentRosterPunks, safeWizardState, wizardResumeStep,
+} from "../site/agent-setup-wizard.js";
 
 const OWNER = "0x1234567890123456789012345678901234567890";
 const PROVIDER = Object.freeze({ request: async () => null });
@@ -181,6 +183,15 @@ test("wizard persistence is bounded and resumes from authoritative state", () =>
     selectedPunk: "93", hostedGasReady: true,
     automation: { tokenId: "93", active: true, agentLive: true },
   }), "success");
+});
+
+test("active-agent roster includes V3-configured Punks without calling them live", () => {
+  const visible = agentRosterPunks([
+    { tokenId: "93", activated: true, automationConfigured: false },
+    { tokenId: "94", activated: false, automationConfigured: true },
+    { tokenId: "95", activated: false, automationConfigured: false },
+  ]);
+  assert.deepEqual(visible.map(({ tokenId }) => tokenId), ["93", "94"]);
 });
 
 test("mobile wizard and AppKit source bind the required production experience", async () => {

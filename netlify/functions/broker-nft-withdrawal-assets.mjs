@@ -9,6 +9,20 @@ import { nftDisplayMetadata, NFT_DISPLAY_METADATA_SELECT } from
 const TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 const ZERO_TOPIC = `0x${"0".repeat(64)}`;
 const OWNER_OF_ABI = parseAbi(["function ownerOf(uint256 tokenId) view returns (address)"]);
+const COLLECTION_NAME_ABI = parseAbi(["function name() view returns (string)"]);
+
+function displayCollectionName(value) {
+  if (typeof value !== "string") return null;
+  const clean = value.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
+  return clean ? clean.slice(0, 160) : null;
+}
+
+function collectionSlugName(value) {
+  if (typeof value !== "string" || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value)) return null;
+  return displayCollectionName(value.split("-").map((part) => (
+    `${part.charAt(0).toUpperCase()}${part.slice(1)}`
+  )).join(" "));
+}
 
 function tokenId(value) {
   const normalized = String(value);
@@ -103,7 +117,7 @@ export function erc721MintFromReceipt(run, receipt) {
 export async function buildWithdrawableNftAssets(
   selectedTokenId,
   { environment = process.env, database, gateBuilder = buildNftWithdrawalGate,
-    getReceipt, getOwner } = {},
+    getReceipt, getOwner, getCollectionName } = {},
 ) {
   const normalizedTokenId = tokenId(selectedTokenId);
   const gate = await gateBuilder(normalizedTokenId);
@@ -132,6 +146,11 @@ export async function buildWithdrawableNftAssets(
     address: getAddress(collection), abi: OWNER_OF_ABI, functionName: "ownerOf",
     args: [BigInt(mintedTokenId)],
   }));
+  const collectionNameReader = getCollectionName ?? (client
+    ? ((collection) => client.readContract({
+      address: getAddress(collection), abi: COLLECTION_NAME_ABI, functionName: "name",
+    }))
+    : (async () => null));
   const candidates = await Promise.all((result.rows ?? []).map(async (run) => {
     try {
       const item = erc721MintFromReceipt(run, await receiptReader(transactionHash(run.transaction_hash)));
@@ -143,6 +162,15 @@ export async function buildWithdrawableNftAssets(
     }
   }));
   const identities = candidates.filter(Boolean).map((item) => `${item.collection}:${item.tokenId}`);
+  const collectionNames = new Map(await Promise.all(
+    [...new Set(candidates.filter(Boolean).map((item) => item.collection))].map(async (collection) => {
+      try {
+        return [collection, displayCollectionName(await collectionNameReader(collection))];
+      } catch {
+        return [collection, null];
+      }
+    }),
+  ));
   let metadataByIdentity = new Map();
   if (identities.length) {
     try {
@@ -172,6 +200,8 @@ export async function buildWithdrawableNftAssets(
       const display = metadataByIdentity.get(`${item.collection}:${item.tokenId}`) ?? {};
       unique.set(`${item.collection}:${item.tokenId}`, Object.freeze({
         ...item,
+        collectionName: collectionNames.get(item.collection)
+          ?? collectionSlugName(display.collectionSlug),
         name: display.name ?? null,
         imageUrl: display.imageUrl ?? null,
       }));

@@ -29,6 +29,13 @@ export function wizardResumeStep({ selectedPunk, automation, hostedGasReady = fa
   return automation.agentLive ? "success" : "power";
 }
 
+export function agentRosterPunks(punks) {
+  if (!Array.isArray(punks)) return Object.freeze([]);
+  return Object.freeze(punks.filter((punk) => punk && typeof punk === "object"
+    && (Object.hasOwn(punk, "activated") && punk.activated === true
+      || Object.hasOwn(punk, "automationConfigured") && punk.automationConfigured === true)));
+}
+
 function readState(storage) {
   try { return safeWizardState(JSON.parse(storage?.getItem?.(STORAGE_KEY) ?? "null")); } catch { return null; }
 }
@@ -175,7 +182,7 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
 
   function renderActiveAgents() {
     if (!agentGrid || !agentEmpty) return;
-    const activeWallets = state.punks.filter((punk) => punk.activated === true);
+    const activeWallets = agentRosterPunks(state.punks);
     agentGrid.replaceChildren();
     agentEmpty.hidden = activeWallets.length > 0;
     agentEmpty.textContent = state.wallet?.account
@@ -203,6 +210,9 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
       status.textContent = live?.agentLive ? "Active · scanning"
         : live?.active ? "Authorized · worker unavailable"
           : live ? "Wallet active · setup needed" : "Select to check live agent";
+      if (!live && punk.automationConfigured) {
+        status.textContent = "Configured · select to verify live";
+      }
       const facts = browserDocument.createElement("dl");
       const entries = [
         ["Punk wallet", short(punk.account)],

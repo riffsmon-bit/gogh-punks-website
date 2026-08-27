@@ -566,6 +566,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
         tokenId: item.tokenId,
         account: item.account ?? null,
         activated: item.activated === true,
+        automationConfigured: item.automationConfigured === true,
         artwork: item.artwork ? Object.freeze({ ...item.artwork }) : null,
         rarity: item.rarity ? Object.freeze({ ...item.rarity }) : null,
       }))),
@@ -707,6 +708,13 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
           ? candidatesPayload.candidatePunks.map((item) => [String(item?.tokenId), item?.rarity])
           : [],
       );
+      const automationByToken = new Map(
+        Array.isArray(candidatesPayload?.candidatePunks)
+          ? candidatesPayload.candidatePunks.map((item) => [
+            String(item?.tokenId), item?.automationConfigured === true,
+          ])
+          : [],
+      );
       let accounts;
       if (walletOwned.length > 0) {
         const activated = await findBrowserOwnerAccounts(browserWindow.__GOGH_WALLET_PROVIDER__,
@@ -722,6 +730,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
         ...item,
         artwork: artworkByToken.get(item.tokenId) ?? null,
         rarity: rarityByToken.get(item.tokenId) ?? null,
+        automationConfigured: automationByToken.get(item.tokenId) === true,
       }));
       accounts = await hydrateOnchainPunkDecorations(
         browserWindow.__GOGH_WALLET_PROVIDER__,

@@ -472,6 +472,9 @@ function confirmedWorkerAssetCard(asset) {
   const badge = document.createElement("span");
   badge.className = "tag";
   badge.textContent = "AUTONOMOUS MINT · LIVE OWNERSHIP CHECKED";
+  const collection = document.createElement("p");
+  collection.className = "eyebrow";
+  collection.textContent = asset.collectionName ?? "Collection name unavailable";
   const title = document.createElement("h3");
   title.textContent = asset.name || `NFT #${asset.tokenId}`;
   const detail = document.createElement("p");
@@ -491,7 +494,7 @@ function confirmedWorkerAssetCard(asset) {
     link.textContent = text;
     links.append(link);
   }
-  card.append(badge, title, detail, links);
+  card.append(badge, collection, title, detail, links);
   return card;
 }
 

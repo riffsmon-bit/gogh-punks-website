@@ -153,6 +153,31 @@ export function configuredAutomationPunkIds(environment = process.env) {
   return Object.freeze([...tokenIds].sort((left, right) => Number(left) - Number(right)));
 }
 
+export async function enrolledAutomationPunkIds(owner, query = (...args) => (
+  getDatabase().pool.query(...args)
+)) {
+  const normalized = address(owner);
+  if (!normalized) throw new TypeError("invalid owner");
+  const result = await query(
+    `SELECT token_id::text AS token_id
+       FROM broker_automation_v3_enrollments
+      WHERE chain_id = $1
+        AND collection_address = $2
+        AND LOWER(owner_snapshot) = $3
+      ORDER BY token_id::numeric
+      LIMIT $4`,
+    [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, normalized, AUTOMATION_ROSTER_LIMIT + 1],
+  );
+  if (!Array.isArray(result?.rows) || result.rows.length > AUTOMATION_ROSTER_LIMIT) {
+    throw new RangeError("automation enrollment set is unavailable or too large");
+  }
+  const tokenIds = result.rows.map(({ token_id: value }) => punkTokenId(String(value)));
+  if (tokenIds.some((value) => value === null)) {
+    throw new TypeError("automation enrollment token is invalid");
+  }
+  return Object.freeze([...new Set(tokenIds)]);
+}
+
 async function boundedJson(response, source = "Owner candidate") {
   const declared = response.headers?.get?.("content-length");
   if (declared && /^\d+$/.test(declared) && Number(declared) > OPENSEA_RESPONSE_BYTES) {
@@ -241,12 +266,20 @@ export async function openSeaOwnerPunkIds(owner, options) {
   return Object.freeze(punks.map(({ tokenId }) => tokenId));
 }
 
-export function mergeOwnerPunkDecorations(tokenIds, cachedPunks, openSeaPunks) {
-  if (!Array.isArray(tokenIds) || !Array.isArray(cachedPunks) || !Array.isArray(openSeaPunks)) {
+export function mergeOwnerPunkDecorations(
+  tokenIds,
+  cachedPunks,
+  openSeaPunks,
+  automationTokenIds = [],
+) {
+  if (!Array.isArray(tokenIds) || !Array.isArray(cachedPunks)
+    || !Array.isArray(openSeaPunks) || !Array.isArray(automationTokenIds)
+    || automationTokenIds.some((value) => punkTokenId(String(value)) !== String(value))) {
     throw new TypeError("owner Punk decorations are invalid");
   }
   const cached = new Map(cachedPunks.map((item) => [String(item?.tokenId), item]));
   const external = new Map(openSeaPunks.map((item) => [String(item?.tokenId), item]));
+  const automation = new Set(automationTokenIds);
   return Object.freeze(tokenIds.map((tokenId) => {
     const cacheItem = cached.get(tokenId);
     const openSeaItem = external.get(tokenId);
@@ -256,6 +289,7 @@ export function mergeOwnerPunkDecorations(tokenIds, cachedPunks, openSeaPunks) {
       tokenId,
       artwork: artwork ?? null,
       rarity: openSeaItem?.rarity ?? null,
+      automationConfigured: automation.has(tokenId),
     });
   }));
 }
@@ -266,18 +300,22 @@ export default async function handler(request) {
   if (!owner) return json({ ok: false, code: "INVALID_OWNER" }, 400);
   try {
     const automationRoster = configuredAutomationPunkIds();
-    const [indexedResult, openSeaResult] = await Promise.allSettled([
+    const [indexedResult, openSeaResult, enrollmentResult] = await Promise.allSettled([
       indexedOwnerPunkIds(owner),
       openSeaOwnerPunks(owner, { apiKey: process.env.OPENSEA_API_KEY }),
+      enrolledAutomationPunkIds(owner),
     ]);
-    if (indexedResult.status !== "fulfilled" && openSeaResult.status !== "fulfilled") {
+    if (indexedResult.status !== "fulfilled" && openSeaResult.status !== "fulfilled"
+      && enrollmentResult.status !== "fulfilled") {
       throw new Error("all owner candidate sources unavailable");
     }
+    const enrolled = enrollmentResult.status === "fulfilled" ? enrollmentResult.value : [];
+    const automationTokenIds = [...new Set([...automationRoster, ...enrolled])];
     const candidateTokenIds = [...new Set([
       ...(indexedResult.status === "fulfilled" ? indexedResult.value : []),
       ...(openSeaResult.status === "fulfilled"
         ? openSeaResult.value.map(({ tokenId }) => tokenId) : []),
-      ...automationRoster,
+      ...automationTokenIds,
     ])].sort((left, right) => Number(left) - Number(right));
     if (candidateTokenIds.length > MAX_CANDIDATES) throw new RangeError("owner candidate set is too large");
     const cachedPunks = await ownerPunkArtwork(candidateTokenIds);
@@ -285,6 +323,7 @@ export default async function handler(request) {
       candidateTokenIds,
       cachedPunks,
       openSeaResult.status === "fulfilled" ? openSeaResult.value : [],
+      automationTokenIds,
     );
     return json({
       ok: true,
@@ -297,6 +336,7 @@ export default async function handler(request) {
         indexed: indexedResult.status === "fulfilled",
         openSea: openSeaResult.status === "fulfilled",
         automationRoster: automationRoster.length > 0,
+        automationEnrollments: enrollmentResult.status === "fulfilled",
       }),
       evidence: "DISCOVERY_CANDIDATES_ONLY_EACH_SELECTION_REQUIRES_LIVE_WALLET_OWNER_CHECK",
       activationAuthorized: false,

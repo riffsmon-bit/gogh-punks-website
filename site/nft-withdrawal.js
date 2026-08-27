@@ -304,7 +304,7 @@ async function fetchGate(fetchFunction, tokenId) {
 function assetItem(value) {
   exactKeys(value, [
     "standard", "collection", "tokenId", "amount", "transactionHash", "acquiredAt", "openSeaUrl",
-    "name", "imageUrl",
+    "collectionName", "name", "imageUrl",
   ], "withdrawable NFT");
   if (value.standard !== "ERC721" || value.amount !== "1") {
     fail("INVALID_ASSET_LIST", "withdrawable NFT standard is invalid");
@@ -317,6 +317,9 @@ function assetItem(value) {
     transactionHash: bytes32(value.transactionHash, "withdrawable NFT transaction"),
     acquiredAt: value.acquiredAt,
     openSeaUrl: value.openSeaUrl,
+    collectionName: typeof value.collectionName === "string"
+      && value.collectionName.length > 0 && value.collectionName.length <= 160
+      ? value.collectionName : null,
     name: typeof value.name === "string" && value.name.length <= 200 ? value.name : null,
     imageUrl: null,
   };
@@ -522,7 +525,7 @@ export function setupNftWithdrawal({ windowObject, documentObject, fetchFunction
       const name = browserDocument.createElement("strong");
       name.textContent = asset.name || `NFT #${asset.tokenId}`;
       const detail = browserDocument.createElement("small");
-      detail.textContent = `Held by Punk #${asset.punkTokenId ?? state.selection?.tokenId} · ${asset.collection.slice(0, 8)}…${asset.collection.slice(-6)}`;
+      detail.textContent = `Held by Punk #${asset.punkTokenId ?? state.selection?.tokenId} · ${asset.collectionName ?? `${asset.collection.slice(0, 8)}…${asset.collection.slice(-6)}`}`;
       card.append(name, detail);
       card.addEventListener("click", () => {
         assetPicker.value = String(index);

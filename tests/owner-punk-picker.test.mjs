@@ -4,6 +4,7 @@ import test from "node:test";
 import { encodeFunctionData, encodeFunctionResult, parseAbi } from "viem";
 import {
   configuredAutomationPunkIds,
+  enrolledAutomationPunkIds,
   indexedOwnerPunkIds,
   mergeOwnerPunkDecorations,
   openSeaOwnerPunkIds,
@@ -43,6 +44,19 @@ test("configured automation roster supplies bounded discovery hints without auth
       BROKER_AUTOMATION_V3_PUNK_IDS: value,
     }), /roster/);
   }
+});
+
+test("enrolled V3 Punks remain bounded owner-scoped discovery hints", async () => {
+  let captured;
+  const result = await enrolledAutomationPunkIds(OWNER, async (sql, values) => {
+    captured = { sql, values };
+    return { rows: [{ token_id: "93" }, { token_id: "94" }, { token_id: "94" }] };
+  });
+  assert.deepEqual(result, ["93", "94"]);
+  assert.match(captured.sql, /broker_automation_v3_enrollments/);
+  assert.match(captured.sql, /LOWER\(owner_snapshot\)/);
+  assert.equal(captured.values[2], OWNER.toLowerCase());
+  assert.equal(captured.values[3], 33);
 });
 
 function addressWord(value) {
@@ -165,10 +179,12 @@ test("cached images win while OpenSea fills missing artwork and never upgrades r
   }, {
     tokenId: "94", artwork: { name: "OpenSea #94", imageUrl: "https://i.seadn.io/os94.png" },
     rarity: { source: "OPENSEA_OPENRARITY_CURRENT", rank: 10 },
-  }]);
+  }], ["94"]);
   assert.equal(result[0].artwork.name, "Cached #93");
   assert.equal(result[0].rarity.rank, 9);
   assert.equal(result[1].artwork.name, "OpenSea #94");
+  assert.equal(result[0].automationConfigured, false);
+  assert.equal(result[1].automationConfigured, true);
 });
 
 test("canonical on-chain tokenURI supplies keyless artwork and only a rarity preview", async () => {

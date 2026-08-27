@@ -67,10 +67,12 @@ test("returns only confirmed worker mints still owned by the Punk wallet", async
     gateBuilder: async () => gate(),
     getReceipt: async () => receipt(),
     getOwner: async () => { ownerReads += 1; return ACCOUNT; },
+    getCollectionName: async () => "The Doll Club NFTs",
   });
   assert.equal(assets.capability, true);
   assert.equal(assets.items.length, 1);
   assert.equal(ownerReads, 2);
+  assert.equal(assets.items[0].collectionName, "The Doll Club NFTs");
   assert.equal(validateWithdrawableNftAssets(assets, "93").length, 1);
 
   const withdrawn = await buildWithdrawableNftAssets("93", {
@@ -115,7 +117,7 @@ test("one portfolio request groups confirmed NFTs across the holder's Punk agent
       standard: "ERC721", collection: COLLECTION, tokenId: id, amount: "1",
       transactionHash: HASH, acquiredAt: checkedAt,
       openSeaUrl: `https://opensea.io/item/robinhood/${COLLECTION}/${id}`,
-      name: `Mint ${id}`, imageUrl: null,
+      collectionName: "Example Collection", name: `Mint ${id}`, imageUrl: null,
     }],
   });
   const portfolio = await buildWithdrawableNftPortfolio(["93", "94", "1659"], {
