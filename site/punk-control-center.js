@@ -222,7 +222,7 @@ function heartbeatMessage(heartbeat) {
 
 async function loadAutomation() {
   const started = performance.now();
-  const response = await fetch(`/api/broker/autonomy-v3/status?tokenId=${encodeURIComponent(state.tokenId)}`, {
+  const response = await fetch(`/api/broker/autonomy-v3-status?tokenId=${encodeURIComponent(state.tokenId)}`, {
     headers: { accept: "application/json" }, cache: "no-store",
   });
   const payload = await response.json();
@@ -305,12 +305,15 @@ function assetCard(asset) {
     ? asset.imageUrl : "/assets/gogh-punks-pfp.png";
   const title = document.createElement("h3");
   title.textContent = asset.name || `NFT #${asset.tokenId}`;
+  const collection = document.createElement("p");
+  collection.className = "eyebrow";
+  collection.textContent = asset.collectionName ?? "Collection name unavailable";
   const source = document.createElement("p");
   source.textContent = asset.source || "Received";
   const withdrawal = document.createElement("a");
   withdrawal.href = `/punk/${state.tokenId}#nft-withdrawal-title`;
   withdrawal.textContent = "Withdraw to current holder";
-  card.append(image, title, source, withdrawal);
+  card.append(image, collection, title, source, withdrawal);
   return card;
 }
 
