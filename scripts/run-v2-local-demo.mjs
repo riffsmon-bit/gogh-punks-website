@@ -1,6 +1,8 @@
 import { createServer } from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import { extname, resolve, sep } from "node:path";
+import { localWalletConfiguration, localWalletReferer } from
+  "./lib/v2-local-wallet-config.mjs";
 
 const root = resolve(process.cwd(), "site");
 const portValue = process.env.GOGH_V2_DEMO_PORT ?? "8888";
@@ -12,6 +14,12 @@ const types = Object.freeze({ ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
   ".json": "application/json; charset=utf-8", ".png": "image/png",
   ".svg": "image/svg+xml", ".ico": "image/x-icon", ".webmanifest": "application/manifest+json" });
+
+function json(response, body, status = 200) {
+  response.writeHead(status, { "content-type": "application/json; charset=utf-8",
+    "cache-control": "no-store", "x-content-type-options": "nosniff" });
+  response.end(JSON.stringify(body));
+}
 
 function localPath(urlValue) {
   const url = new URL(urlValue, `http://127.0.0.1:${port}`);
@@ -25,6 +33,25 @@ function localPath(urlValue) {
 }
 
 const server = createServer(async (request, response) => {
+  const requestUrl = new URL(request.url ?? "/", `http://127.0.0.1:${port}`);
+  if (requestUrl.pathname === "/api/broker/wallet-config") {
+    if (request.method !== "GET") {
+      response.writeHead(405, { allow: "GET" }).end();
+      return;
+    }
+    const origin = localWalletReferer(request.headers.referer, port);
+    if (!origin) {
+      json(response, { ok: false, code: "LOCAL_CONTROL_CENTER_ONLY" }, 403);
+      return;
+    }
+    try {
+      const wallet = await localWalletConfiguration({ origin });
+      json(response, { ok: true, wallet });
+    } catch {
+      json(response, { ok: false, code: "LOCAL_WALLET_CONFIG_UNAVAILABLE" }, 503);
+    }
+    return;
+  }
   if (request.method !== "GET" && request.method !== "HEAD") {
     response.writeHead(405, { allow: "GET, HEAD" }).end();
     return;
@@ -45,5 +72,5 @@ const server = createServer(async (request, response) => {
 
 server.listen(port, "127.0.0.1", () => {
   console.log(`Gogh Punks V2 local demo: http://127.0.0.1:${port}/broker/punk/93?demo=1`);
-  console.log("LOCAL SIMULATION ONLY · no RPC, wallet signature, or transaction submission");
+  console.log("LOCAL SIMULATION ONLY · optional Reown connection; no signature or transaction submission");
 });

@@ -16,6 +16,8 @@ import { buildAssetDeposit, buildFixedOwnerWithdrawal, buildNativeDeposit,
 import { ROBINHOOD } from "../broker/src/config.mjs";
 import { buildWrappedNativeTransaction, decodeUint256, parseEthAmount,
   wrappedBalanceOfData } from "../site/wrapped-native.js";
+import { localWalletConfiguration, localWalletReferer } from
+  "../scripts/lib/v2-local-wallet-config.mjs";
 
 const ACCOUNT = "0x1111111111111111111111111111111111111111";
 const OWNER = "0x2222222222222222222222222222222222222222";
@@ -323,6 +325,28 @@ test("wrapped native actions permit only canonical one-for-one WETH deposit or w
   assert.equal(getterCalls, 0);
 });
 
+test("local demo relays only the public Reown identifier for exact Control Center origins", async () => {
+  assert.equal(localWalletReferer("http://127.0.0.1:8888/broker/punk/93?demo=1", 8888),
+    "http://127.0.0.1:8888");
+  assert.equal(localWalletReferer("http://127.0.0.1:8888/broker/", 8888), null);
+  assert.equal(localWalletReferer("https://evil.test/broker/punk/93", 8888), null);
+  let calls = 0;
+  const wallet = await localWalletConfiguration({ origin: "http://127.0.0.1:8888",
+    environment: {}, fetchFunction: async (url, options) => {
+      calls += 1;
+      assert.equal(url, "https://goghpunks.xyz/api/broker/wallet-config");
+      assert.equal(options.method, "GET");
+      return { ok: true, headers: { get: () => null }, text: async () => JSON.stringify({
+        ok: true, wallet: { configured: true, projectId: "a".repeat(32) },
+      }) };
+    } });
+  assert.equal(calls, 1);
+  assert.deepEqual(wallet, { configured: true, projectId: "a".repeat(32),
+    metadataUrl: "http://127.0.0.1:8888", reason: null });
+  await assert.rejects(localWalletConfiguration({ origin: "https://goghpunks.xyz",
+    environment: { NEXT_PUBLIC_REOWN_PROJECT_ID: "a".repeat(32) } }), /origin/);
+});
+
 test("Control Center is a dedicated progressive mobile route and remains local-only", async () => {
   const [html, browser, css, netlify] = await Promise.all([
     readFile(new URL("../site/broker/punk/index.html", import.meta.url), "utf8"),
@@ -340,6 +364,9 @@ test("Control Center is a dedicated progressive mobile route and remains local-o
   assert.match(browser, /nft-withdrawal-assets\?tokenId=/);
   assert.match(browser, /eth_call/);
   assert.doesNotMatch(browser, /eth_sendTransaction|wallet_sendCalls|sendRawTransaction/);
+  const demoServer = await readFile(new URL("../scripts/run-v2-local-demo.mjs", import.meta.url), "utf8");
+  assert.match(demoServer, /localWalletConfiguration/);
+  assert.doesNotMatch(demoServer, /privateKey|eth_send|wallet_send|sendRawTransaction/);
   assert.match(css, /@media \(max-width: 760px\)/);
   assert.match(css, /env\(safe-area-inset-bottom\)/);
 });
