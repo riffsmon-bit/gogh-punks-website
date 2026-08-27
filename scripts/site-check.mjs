@@ -68,6 +68,10 @@ for (const required of [
   "maxSupply() equals the historical mint count",
   "Trade on OpenSea",
   "Live on Robinhood Chain · The Art Broker",
+  "Give your Gogh Punk a job.",
+  "Launch Art Broker",
+  "Activate Your Punk",
+  "See Active Agents",
   "Punk Account",
   "Art Scout",
   "Living Gallery",
@@ -75,6 +79,12 @@ for (const required of [
   "spending limits, pause, and recovery remain separate controls",
 ]) {
   if (!index.includes(required)) fail(`home page is missing required value ${required}`);
+}
+
+const utilityPosition = index.indexOf('id="utility"');
+const collectionPosition = index.indexOf('id="collection"');
+if (utilityPosition < 0 || collectionPosition < 0 || utilityPosition > collectionPosition) {
+  fail("home page must introduce Art Broker before the collection gallery");
 }
 
 if (index.includes("/verify/")) {
