@@ -1,5 +1,10 @@
 const STORAGE_KEY = "gogh.artBroker.setup.v1";
-const VALID_STEPS = new Set(["choose", "wallet", "limits", "activate", "power", "success"]);
+const STEP_ORDER = Object.freeze([
+  "choose", "wallet", "limits", "activate", "power", "success",
+]);
+const VALID_STEPS = new Set(STEP_ORDER);
+const SETUP_STEPS = new Set(["wallet", "limits", "activate"]);
+const LIVE_STEPS = new Set(["power", "success"]);
 const MIN_CAP = 1;
 const MAX_CAP = 10;
 const MIN_DAYS = 1;
@@ -27,6 +32,17 @@ export function wizardResumeStep({ selectedPunk, automation, hostedGasReady = fa
   if (!automation.active) return "limits";
   if (!hostedGasReady) return "power";
   return automation.agentLive ? "success" : "power";
+}
+
+export function wizardStepIndex(step) {
+  const index = STEP_ORDER.indexOf(step);
+  return index === -1 ? 0 : index;
+}
+
+// Resuming may only carry an owner forward past setup an agent has already completed. It must
+// never pull someone backwards out of a screen they deliberately walked to.
+export function forwardOnlyWizardStep(currentStep, resumedStep) {
+  return wizardStepIndex(resumedStep) > wizardStepIndex(currentStep) ? resumedStep : currentStep;
 }
 
 export function agentRosterPunks(punks) {
@@ -105,6 +121,28 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
     return state.punks.find((item) => item.tokenId === state.selectedPunk) ?? null;
   }
 
+  // The automation snapshot only ever describes one Punk, so it is evidence about the current
+  // selection exactly when the token ids agree.
+  function selectedAutomation() {
+    return state.automation?.tokenId === state.selectedPunk ? state.automation : null;
+  }
+
+  function alreadyActive() {
+    return selectedAutomation()?.active === true;
+  }
+
+  function resume() {
+    const automation = selectedAutomation();
+    const resumed = wizardResumeStep({
+      selectedPunk: state.selectedPunk,
+      automation,
+      hostedGasReady: automation?.hostedGas?.ready === true,
+    });
+    // Only setup an agent has already finished may move someone on its own. The picker and the
+    // setup screens stay under the owner's control.
+    if (LIVE_STEPS.has(resumed)) showStep(forwardOnlyWizardStep(state.step, resumed));
+  }
+
   function selectUnderlyingPunk() {
     if (!state.selectedPunk) return;
     browserWindow.dispatchEvent(new browserWindow.CustomEvent("gogh:select-punk-request", {
@@ -115,8 +153,7 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
   function showStep(step) {
     state.step = VALID_STEPS.has(step) ? step : "choose";
     for (const screen of screens) screen.hidden = screen.dataset.wizardStep !== state.step;
-    const stepIndex = ["choose", "wallet", "limits", "activate", "power", "success"]
-      .indexOf(state.step);
+    const stepIndex = wizardStepIndex(state.step);
     for (const item of progress) {
       const index = Number(item.dataset.wizardProgress);
       item.classList.toggle("current", index === Math.min(stepIndex + 1, 5));
@@ -158,7 +195,7 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
       button.addEventListener("click", () => {
         state.selectedPunk = punk.tokenId;
         selectUnderlyingPunk();
-        showStep("wallet");
+        showStep(alreadyActive() ? "power" : "wallet");
         render();
       });
       punkCards.append(button);
@@ -214,10 +251,16 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
         status.textContent = "Configured · select to verify live";
       }
       const facts = browserDocument.createElement("dl");
+      // Only an authorized agent has an on-chain cap and expiry to report. Anything else keeps
+      // the placeholder rather than dressing a local default up as chain state.
+      const chainState = live?.active === true ? live : null;
       const entries = [
         ["Punk wallet", short(punk.account)],
-        ["Today", live ? `${live.acquisitionsToday} / ${live.cap}` : "Select to check"],
-        ["Authorization", live ? formatExpiry(live.authorizationValidUntil) : "Select to check"],
+        ["Today", Number.isInteger(chainState?.cap)
+          && Number.isInteger(chainState?.acquisitionsToday)
+          ? `${chainState.acquisitionsToday} / ${chainState.cap}` : "Select to check"],
+        ["Authorization", chainState
+          ? formatExpiry(chainState.authorizationValidUntil) : "Select to check"],
         ["Last worker check", live?.heartbeat?.completedAt
           ? new Date(live.heartbeat.completedAt).toLocaleString() : "Select to check"],
       ];
@@ -278,25 +321,30 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
     });
     if (customCap) customCap.value = String(state.dailyLimit);
     if (customDays) customDays.value = String(state.durationDays);
-    const automation = state.automation?.tokenId === state.selectedPunk ? state.automation : null;
+    const automation = selectedAutomation();
+    const active = automation?.active === true;
     const hostedGasReady = automation?.hostedGas?.ready === true;
     gasStatus.textContent = hostedGasReady ? "Ready ✓" : "Funding needed";
     fund.hidden = hostedGasReady;
-    send.disabled = !automation?.active || !hostedGasReady || !automation?.agentLive;
-    activate.disabled = !state.selectedPunk || retirement.checked !== true
+    send.disabled = !active || !hostedGasReady || !automation?.agentLive;
+    activate.disabled = !state.selectedPunk || active || retirement.checked !== true
       || Boolean(automation?.setupSubmission);
+    activate.textContent = active ? "Agent already active" : "Activate Agent";
+    retirement.disabled = active;
     if (automation?.setupSubmission) {
       stateText.textContent = automation.lastTransactionHash
         ? `Confirming setup ${automation.setupSubmission.index} of ${automation.setupSubmission.total}…`
         : "Waiting for wallet…";
     } else if (automation?.lastActionError) {
       stateText.textContent = automation.lastActionError;
-    } else if (automation?.active) {
+    } else if (active) {
       stateText.textContent = "Agent activated ✓";
-      if (["activate", "limits", "wallet"].includes(state.step)) showStep("power");
     } else {
       stateText.textContent = "Your wallet will show each required setup transaction here.";
     }
+    // Kept out of the message chain above: a recorded error must still be readable, but it must
+    // never strand an already-authorized agent on a setup screen.
+    if (active && !automation.setupSubmission && SETUP_STEPS.has(state.step)) showStep("power");
     const hash = automation?.lastTransactionHash;
     transactionLink.hidden = !/^0x[0-9a-fA-F]{64}$/.test(hash ?? "");
     if (!transactionLink.hidden) transactionLink.href = `https://robinhoodchain.blockscout.com/tx/${hash}`;
@@ -306,8 +354,9 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
   root.querySelectorAll("[data-wizard-next]").forEach((button) => {
     button.addEventListener("click", () => {
       const next = button.dataset.wizardNext;
-      if (next === "limits" && state.automation?.tokenId === state.selectedPunk
-        && state.automation.active) showStep("power");
+      // An authorized agent must never be walked back through any setup screen, no matter how
+      // late the live snapshot arrives relative to the owner tapping Continue.
+      if (alreadyActive() && SETUP_STEPS.has(next)) showStep("power");
       else showStep(next);
       render();
     });
@@ -339,6 +388,14 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
   });
   retirement.addEventListener("change", render);
   activate.addEventListener("click", () => {
+    // The advanced panel disables its own retirement disclosure for an active Punk, and this
+    // handler force-checks that box. Without this guard a stale button re-runs the whole
+    // owner-setup batch against an agent that is already authorized.
+    if (!state.selectedPunk || alreadyActive()) {
+      showStep(state.selectedPunk ? "power" : "choose");
+      render();
+      return;
+    }
     const cap = browserDocument.querySelector("[data-v2-cap]");
     const days = browserDocument.querySelector("[data-v2-days]");
     const disclosure = browserDocument.querySelector("[data-retirement-confirm]");
@@ -404,12 +461,14 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
   });
   browserWindow.addEventListener("gogh:automation-state", (event) => {
     state.automation = event.detail;
+    resume();
     render();
   });
   browserWindow.addEventListener("pageshow", () => {
     const resumed = readState(browserWindow.localStorage);
     if (resumed) Object.assign(state, resumed);
     selectUnderlyingPunk();
+    resume();
     render();
   });
   browserDocument.addEventListener("visibilitychange", () => {
@@ -419,6 +478,7 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
     }
   });
   showStep(state.step);
+  resume();
   render();
   return Object.freeze({ render, state });
 }

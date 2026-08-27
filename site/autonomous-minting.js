@@ -139,6 +139,20 @@ export function selectAutomationGeneration(v3Gate, v2Gate, tokenId) {
   return Object.freeze({ version: 2, gate: v2Gate });
 }
 
+// Agent statistics are chain evidence or nothing. The live reader nests the authorization expiry
+// under `authorization.validUntil`, and an inactive Punk has no enforced cap to report at all, so
+// every figure here stays null until the chain supplies it.
+export function automationSnapshotStats(selectedState) {
+  const active = selectedState?.active === true;
+  const integer = (value) => (active && Number.isInteger(value) ? value : null);
+  return Object.freeze({
+    cap: integer(selectedState?.maxAcquisitionsPerDay),
+    acquisitionsToday: integer(selectedState?.acquisitionsToday),
+    authorizationValidUntil: active
+      ? selectedState.authorization?.validUntil ?? null : null,
+  });
+}
+
 export function automationSelectionChanged(currentSelection, nextSelection) {
   const currentTokenId = currentSelection?.tokenId ?? null;
   const nextTokenId = nextSelection?.tokenId ?? null;
@@ -444,9 +458,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
       agentLive,
       capability: state.gate?.capability === true,
       workerOnline: state.gate?.heartbeat?.online === true,
-      cap: selectedState?.maxAcquisitionsPerDay ?? Number(cap.value),
-      acquisitionsToday: selectedState?.acquisitionsToday ?? 0,
-      authorizationValidUntil: selectedState?.authorizationValidUntil ?? null,
+      ...automationSnapshotStats(selectedState),
       setupSubmission: state.setupSubmission ? Object.freeze({ ...state.setupSubmission }) : null,
       lastTransactionHash: state.lastTransactionHash,
       lastActionError: state.lastActionError,
