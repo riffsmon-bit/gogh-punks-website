@@ -355,7 +355,7 @@ test("Control Center is a dedicated progressive mobile route and remains local-o
     readFile(new URL("../netlify.toml", import.meta.url), "utf8"),
   ]);
   for (const label of ["Punk Control Center", "Overview", "Agent", "Mint", "Assets",
-    "Activity", "Paid Mint Settings", "Direct Your Punk to a Mint", "Add Assets",
+    "Activity", "Disconnect Wallet", "Paid Mint Settings", "Direct Your Punk to a Mint", "Add Assets",
     "Wrap or Unwrap ETH"]) {
     assert.match(html, new RegExp(label));
   }
