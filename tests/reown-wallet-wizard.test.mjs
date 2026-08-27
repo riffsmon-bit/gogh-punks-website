@@ -214,6 +214,8 @@ test("mobile wizard and AppKit source bind the required production experience", 
   assert.match(wallet, /\/reown-wallet-app\.js\?v=reown-2/);
   assert.match(packageJson, /@reown\/appkit/);
   assert.match(netlify, /wss:\/\/relay\.walletconnect\.com/);
+  assert.match(netlify, /script-src 'self'; style-src 'self' 'unsafe-inline'/);
+  assert.doesNotMatch(netlify, /script-src[^;]*'unsafe-inline'/);
 });
 
 test("partial AppKit initialization never opens a misleading wallet modal", async () => {
