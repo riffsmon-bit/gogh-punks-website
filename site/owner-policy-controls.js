@@ -418,7 +418,6 @@ export function setupOwnerPolicyControls({ windowObject, documentObject, fetchFu
   const browserDocument = documentObject ?? (typeof document === "undefined" ? null : document);
   const panel = browserDocument?.querySelector?.("[data-owner-policy-controls]");
   if (!browserWindow || !panel) return null;
-  const provider = browserWindow.ethereum;
   const request = fetchFunction ?? browserWindow.fetch.bind(browserWindow);
   const elements = Object.fromEntries([
     "token", "account-short", "account-link", "mode", "pause-state", "usage", "version",
@@ -427,6 +426,10 @@ export function setupOwnerPolicyControls({ windowObject, documentObject, fetchFu
     "revoke", "state",
   ].map((name) => [name, panel.querySelector(`[data-policy-${name}]`)]));
   const state = { gate: null, selection: null, live: null, wallet: null, revision: 0, busy: false };
+
+  function walletProvider() {
+    return browserWindow.__GOGH_WALLET_PROVIDER__;
+  }
 
   function isCurrent(revision, token) {
     return revision === state.revision && token === state.selection?.tokenId;
@@ -476,7 +479,7 @@ export function setupOwnerPolicyControls({ windowObject, documentObject, fetchFu
     }
     try {
       state.gate ??= await fetchGate(request);
-      const live = await readOwnerPolicyState(provider, state.gate, state.selection);
+      const live = await readOwnerPolicyState(walletProvider(), state.gate, state.selection);
       if (!isCurrent(revision, state.selection.tokenId)) return;
       state.live = live;
       render();
@@ -494,7 +497,7 @@ export function setupOwnerPolicyControls({ windowObject, documentObject, fetchFu
     render("Reviewing and simulating the exact transaction…");
     try {
       const prepared = await prepare();
-      const result = await submitOwnerAction(provider, prepared, state.gate, state.selection,
+      const result = await submitOwnerAction(walletProvider(), prepared, state.gate, state.selection,
         () => isCurrent(revision, token));
       render(`SUBMITTED · ${result.hash} · refresh after the transaction confirms`);
       browserWindow.setTimeout?.(() => refresh("Refreshing confirmed chain state…"), 4_000);
@@ -511,8 +514,8 @@ export function setupOwnerPolicyControls({ windowObject, documentObject, fetchFu
   }
 
   function selectedCap() {
-    if (!/^(?:0|1|3|5|10)$/.test(elements.cap.value)) {
-      fail("INVALID_CAP", "choose one of the displayed hard daily caps");
+    if (!/^(?:0|[1-9]|10)$/.test(elements.cap.value)) {
+      fail("INVALID_CAP", "choose a hard daily cap from 0 through 10");
     }
     return Number(elements.cap.value);
   }
@@ -529,19 +532,19 @@ export function setupOwnerPolicyControls({ windowObject, documentObject, fetchFu
     elements[key].addEventListener("change", () => render());
   }
   elements["cap-submit"].addEventListener("click", () => run(() => prepareDailyCapUpdate(
-    provider, state.gate, state.selection, selectedCap(),
+    walletProvider(), state.gate, state.selection, selectedCap(),
   )));
   elements.deposit.addEventListener("click", () => run(() => prepareOwnerFunds(
-    provider, state.gate, state.selection, "deposit", elements["funds-amount"].value,
+    walletProvider(), state.gate, state.selection, "deposit", elements["funds-amount"].value,
   )));
   elements.withdraw.addEventListener("click", () => run(() => prepareOwnerFunds(
-    provider, state.gate, state.selection, "withdraw", elements["funds-amount"].value,
+    walletProvider(), state.gate, state.selection, "withdraw", elements["funds-amount"].value,
   )));
   elements.pause.addEventListener("click", () => run(() => prepareEmergencyPause(
-    provider, state.gate, state.selection,
+    walletProvider(), state.gate, state.selection,
   )));
   elements.revoke.addEventListener("click", () => run(() => prepareRevokeAllAgents(
-    provider, state.gate, state.selection,
+    walletProvider(), state.gate, state.selection,
   )));
   state.wallet = browserWindow.__GOGH_WALLET_SNAPSHOT__ ?? null;
   render();

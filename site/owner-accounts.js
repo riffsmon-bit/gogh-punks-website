@@ -562,6 +562,13 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
     const detail = Object.freeze({
       owner: typeof owner === "string" ? owner.toLowerCase() : null,
       tokenIds: Object.freeze(accounts.map(({ tokenId }) => tokenId)),
+      punks: Object.freeze(accounts.map((item) => Object.freeze({
+        tokenId: item.tokenId,
+        account: item.account ?? null,
+        activated: item.activated === true,
+        artwork: item.artwork ? Object.freeze({ ...item.artwork }) : null,
+        rarity: item.rarity ? Object.freeze({ ...item.rarity }) : null,
+      }))),
     });
     browserWindow.__GOGH_OWNER_PUNKS__ = detail;
     browserWindow.dispatchEvent(new browserWindow.CustomEvent("gogh:owner-punks", { detail }));
@@ -683,7 +690,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
         ? candidatesPayload.candidateTokenIds : [];
       let walletOwned = [];
       try {
-        walletOwned = await discoverWalletOwnedPunkIds(browserWindow.ethereum,
+        walletOwned = await discoverWalletOwnedPunkIds(browserWindow.__GOGH_WALLET_PROVIDER__,
           gatePayload.activationGate?.bindings?.punkCollection, wallet.account);
       } catch {
         // The bounded server and local candidates remain available and are each rechecked live.
@@ -702,12 +709,12 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       );
       let accounts;
       if (walletOwned.length > 0) {
-        const activated = await findBrowserOwnerAccounts(browserWindow.ethereum,
+        const activated = await findBrowserOwnerAccounts(browserWindow.__GOGH_WALLET_PROVIDER__,
           gatePayload.activationGate, wallet.account,
           [...remembered, ...indexed, ...walletOwned]);
         accounts = mergeWalletAndActivatedPunks(walletOwned, activated, wallet.account);
       } else {
-        accounts = await findBrowserOwnedPunks(browserWindow.ethereum,
+        accounts = await findBrowserOwnedPunks(browserWindow.__GOGH_WALLET_PROVIDER__,
           gatePayload.activationGate, wallet.account, candidates);
       }
       if (current !== revision) return;
@@ -717,7 +724,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
         rarity: rarityByToken.get(item.tokenId) ?? null,
       }));
       accounts = await hydrateOnchainPunkDecorations(
-        browserWindow.ethereum,
+        browserWindow.__GOGH_WALLET_PROVIDER__,
         gatePayload.activationGate?.bindings?.punkCollection,
         accounts,
       );

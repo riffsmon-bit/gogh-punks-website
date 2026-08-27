@@ -25,11 +25,43 @@ export function shortWalletAddress(value) {
   return address ? `${address.slice(0, 6)}…${address.slice(-4)}` : "";
 }
 
+export function authoritativeWalletProvider(windowObject = globalThis.window) {
+  return windowObject?.__GOGH_WALLET_PROVIDER__ ?? null;
+}
+
+export function walletErrorMessage(error, action = "connect") {
+  const code = error?.code ?? error?.cause?.code;
+  const message = String(error?.message ?? "").toLowerCase();
+  if (code === 4001 || code === "ACTION_REJECTED" || message.includes("user rejected")) {
+    return action === "switch"
+      ? "Robinhood Chain was not selected. You can try the network switch again."
+      : "Wallet connection was cancelled. Nothing was signed or submitted.";
+  }
+  if (code === "APKT006" || message.includes("expired") || message.includes("session")) {
+    return "Your wallet session expired. Reconnect to continue.";
+  }
+  if (code === "APKT004" || message.includes("timeout") || message.includes("timed out")) {
+    return "The wallet did not respond in time. Reopen your wallet and try again.";
+  }
+  if (code === "APKT002" || code === "APKT005") {
+    return "Wallet connection is not enabled for this site address. Use the official Gogh Punks link or contact support.";
+  }
+  if (code === "APKT001") {
+    return "Wallet connected, but Robinhood Chain is not available. Try the network switch again.";
+  }
+  if (message.includes("relay") || message.includes("network") || message.includes("fetch")) {
+    return "Wallet connection is temporarily unavailable. Check your connection and try again.";
+  }
+  return action === "switch"
+    ? "Robinhood Chain could not be selected. Open your wallet and try again."
+    : "The wallet did not connect. Reopen it and try again.";
+}
+
 export function walletPresentation({ available, pending, account, chainId, owner }) {
   if (!available) {
     return {
       buttonLabel: "Wallet unavailable",
-      statusText: "Install or enable an EVM wallet to use read-only ownership checks.",
+      statusText: "Wallet connection is temporarily unavailable. Refresh the page and try again.",
       state: "unavailable",
       disabled: true,
     };
@@ -143,6 +175,7 @@ export function setupReadOnlyWallet({ windowObject, documentObject } = {}) {
   if (!buttons.length) return null;
 
   const provider = browserWindow.ethereum ?? null;
+  browserWindow.__GOGH_WALLET_PROVIDER__ = provider;
   const state = {
     pending: false,
     account: null,
@@ -316,6 +349,275 @@ export function setupReadOnlyWallet({ windowObject, documentObject } = {}) {
   };
 }
 
+function loadReownBundle(browserWindow, browserDocument) {
+  if (browserWindow.GoghReownWallet?.createReownWalletSession) return Promise.resolve();
+  if (browserWindow.__GOGH_REOWN_BUNDLE_PROMISE__) {
+    return browserWindow.__GOGH_REOWN_BUNDLE_PROMISE__;
+  }
+  browserWindow.__GOGH_REOWN_BUNDLE_PROMISE__ = new Promise((resolve, reject) => {
+    const script = browserDocument.createElement("script");
+    script.src = "/reown-wallet-app.js";
+    script.async = true;
+    script.dataset.reownAppkit = "true";
+    script.addEventListener("load", resolve, { once: true });
+    script.addEventListener("error", () => reject(new Error("wallet bundle unavailable")), {
+      once: true,
+    });
+    browserDocument.head.append(script);
+  });
+  return browserWindow.__GOGH_REOWN_BUNDLE_PROMISE__;
+}
+
+const REOWN_RETURNING_SESSION_KEY = "gogh.wallet.reown.returning.v1";
+
+function returningSessionMarker(browserWindow) {
+  try {
+    return browserWindow.localStorage?.getItem(REOWN_RETURNING_SESSION_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function setReturningSessionMarker(browserWindow, connected) {
+  try {
+    if (connected) browserWindow.localStorage?.setItem(REOWN_RETURNING_SESSION_KEY, "1");
+    else browserWindow.localStorage?.removeItem(REOWN_RETURNING_SESSION_KEY);
+  } catch {
+    // Connection state remains authoritative when storage is unavailable or full.
+  }
+}
+
+export async function setupReownWallet({ windowObject, documentObject, fetchFunction,
+  sessionFactory } = {}) {
+  const browserWindow = windowObject ?? (typeof window === "undefined" ? null : window);
+  const browserDocument = documentObject ?? (typeof document === "undefined" ? null : document);
+  if (!browserWindow || !browserDocument) return null;
+  const buttons = [...browserDocument.querySelectorAll("[data-wallet-connect]")];
+  const switchButtons = [...browserDocument.querySelectorAll("[data-wallet-switch]")];
+  const statusTargets = [...browserDocument.querySelectorAll("[data-wallet-state]")];
+  if (!buttons.length) return null;
+  const request = fetchFunction ?? browserWindow.fetch?.bind(browserWindow);
+  if (!request && !sessionFactory) throw new Error("Wallet configuration is unavailable.");
+
+  const state = {
+    pending: false, account: null, chainId: null, owner: null, switching: false,
+    networkError: null, provider: null, session: null, sessionStatus: "idle",
+  };
+  const unsubscribers = [];
+  let initializationPromise = null;
+  let destroyed = false;
+
+  function render() {
+    const available = state.sessionStatus !== "unavailable";
+    const presentation = walletPresentation({
+      available,
+      pending: state.pending,
+      account: state.account,
+      chainId: state.chainId,
+      owner: state.owner,
+    });
+    for (const button of buttons) {
+      button.textContent = state.sessionStatus === "initializing"
+        ? "Preparing wallet…" : presentation.buttonLabel;
+      button.disabled = state.sessionStatus === "initializing";
+      button.setAttribute("aria-disabled", String(button.disabled));
+      button.dataset.walletStatus = presentation.state;
+      button.title = state.account ?? presentation.buttonLabel;
+    }
+    for (const target of statusTargets) {
+      target.textContent = state.switching
+        ? "Waiting for your wallet to select Robinhood Chain…"
+        : state.networkError ?? (state.account && state.chainId === ROBINHOOD_CHAIN_ID
+          ? `Connected · ${shortWalletAddress(state.account)} · Robinhood Chain`
+          : presentation.statusText);
+      target.dataset.walletStatus = presentation.state;
+    }
+    for (const button of switchButtons) {
+      button.hidden = presentation.state !== "wrong-network" && !state.switching;
+      button.disabled = state.switching;
+      button.textContent = state.switching ? "Switching network…" : "Switch Network";
+    }
+    const detail = Object.freeze({
+      account: state.account,
+      chainId: state.chainId,
+      owner: state.owner ? Object.freeze({ ...state.owner }) : null,
+      status: presentation.state,
+      providerType: "reown-appkit",
+    });
+    browserWindow.__GOGH_WALLET_PROVIDER__ = state.provider;
+    browserWindow.__GOGH_WALLET_SNAPSHOT__ = detail;
+    if (typeof browserWindow.dispatchEvent === "function"
+      && typeof browserWindow.CustomEvent === "function") {
+      browserWindow.dispatchEvent(new browserWindow.CustomEvent("gogh:wallet-state", { detail }));
+    }
+  }
+
+  function ownerSnapshot(event) {
+    const detail = event?.detail ?? {};
+    const address = normalizeWalletAddress(detail.address ?? detail.owner);
+    const tokenId = typeof detail.tokenId === "string" && /^(0|[1-9]\d*)$/.test(detail.tokenId)
+      ? detail.tokenId : null;
+    state.owner = address && tokenId ? { address, tokenId, source: "selection" } : null;
+    render();
+  }
+
+  async function connect() {
+    if (state.pending) return;
+    state.pending = true;
+    state.networkError = null;
+    render();
+    try {
+      await ensureSession();
+      if (!state.session) return;
+      state.pending = true;
+      render();
+      await state.session.open();
+    } catch (error) {
+      state.networkError = walletErrorMessage(error, "connect");
+    } finally {
+      state.pending = false;
+      render();
+    }
+  }
+
+  async function switchNetwork() {
+    if (state.switching) return;
+    state.switching = true;
+    state.networkError = null;
+    render();
+    try {
+      await ensureSession();
+      if (!state.session) return;
+      await state.session.switchNetwork();
+    } catch (error) {
+      state.networkError = walletErrorMessage(error, "switch");
+    } finally {
+      state.switching = false;
+      render();
+    }
+  }
+
+  for (const button of buttons) button.addEventListener("click", connect);
+  for (const button of switchButtons) button.addEventListener("click", switchNetwork);
+  browserWindow.addEventListener("gogh:owner-snapshot", ownerSnapshot);
+  browserWindow.addEventListener("gogh:punk-selected", ownerSnapshot);
+  render();
+
+  async function ensureSession() {
+    if (state.session) return state.session;
+    if (initializationPromise) return initializationPromise;
+    state.sessionStatus = "initializing";
+    state.networkError = null;
+    render();
+    initializationPromise = (async () => {
+      try {
+        let factory = sessionFactory;
+        let configuration = null;
+        if (!factory) {
+          const response = await request("/api/broker/wallet-config", {
+            headers: { accept: "application/json" }, cache: "no-store",
+          });
+          const payload = await response.json();
+          if (!response.ok || payload?.ok !== true || payload.wallet?.configured !== true) {
+            throw new Error("Reown wallet connection is not configured.");
+          }
+          configuration = payload.wallet;
+          await loadReownBundle(browserWindow, browserDocument);
+          factory = browserWindow.GoghReownWallet?.createReownWalletSession;
+        }
+        if (typeof factory !== "function") {
+          throw new Error("Reown wallet connection is unavailable.");
+        }
+        if (destroyed) return null;
+        state.session = factory(configuration ?? {});
+        state.provider = state.session.getProvider();
+        const accountState = state.session.getAccount?.();
+        state.account = accountState?.isConnected
+          ? normalizeWalletAddress(accountState.address) : null;
+        state.chainId = Number(state.session.getNetwork?.().chainId) || null;
+        setReturningSessionMarker(browserWindow, Boolean(state.account));
+        unsubscribers.push(state.session.subscribeProvider((provider) => {
+          state.provider = provider ?? null;
+          render();
+        }));
+        unsubscribers.push(state.session.subscribeAccount((account) => {
+          state.account = account?.isConnected ? normalizeWalletAddress(account.address) : null;
+          if (!state.account) state.owner = null;
+          state.pending = account?.status === "connecting" || account?.status === "reconnecting";
+          setReturningSessionMarker(browserWindow, Boolean(state.account));
+          render();
+        }));
+        unsubscribers.push(state.session.subscribeNetwork((network) => {
+          state.chainId = Number(network?.chainId) || null;
+          state.networkError = null;
+          render();
+        }));
+        if (typeof state.session.subscribeState === "function") {
+          unsubscribers.push(state.session.subscribeState(() => {
+            const error = state.session.getError?.();
+            if (error) state.networkError = walletErrorMessage({ message: error }, "connect");
+            render();
+          }));
+        }
+        const resume = () => {
+          if (!state.session || destroyed) return;
+          const account = state.session.getAccount?.();
+          state.account = account?.isConnected ? normalizeWalletAddress(account.address) : null;
+          state.chainId = Number(state.session.getNetwork?.().chainId) || null;
+          state.provider = state.session.getProvider?.() ?? null;
+          setReturningSessionMarker(browserWindow, Boolean(state.account));
+          render();
+        };
+        const handleVisibility = () => {
+          if (browserDocument.visibilityState === "visible") resume();
+        };
+        browserWindow.addEventListener("pageshow", resume);
+        browserDocument.addEventListener("visibilitychange", handleVisibility);
+        unsubscribers.push(() => browserWindow.removeEventListener("pageshow", resume));
+        unsubscribers.push(() => browserDocument.removeEventListener?.(
+          "visibilitychange", handleVisibility));
+        state.sessionStatus = "ready";
+        state.pending = false;
+        render();
+        return state.session;
+      } catch {
+        state.sessionStatus = "unavailable";
+        state.pending = false;
+        state.networkError = "Wallet connection is temporarily unavailable. Please refresh and try again.";
+        render();
+        return null;
+      }
+    })();
+    return initializationPromise;
+  }
+
+  // First-time visitors load no AppKit code and make no wallet/RPC calls. A small,
+  // non-sensitive marker allows a known prior session to restore in the background.
+  if (returningSessionMarker(browserWindow)) {
+    const restore = () => { void ensureSession(); };
+    if (typeof browserWindow.requestIdleCallback === "function") {
+      browserWindow.requestIdleCallback(restore, { timeout: 1_000 });
+    } else if (typeof browserWindow.setTimeout === "function") {
+      browserWindow.setTimeout(restore, 0);
+    } else {
+      queueMicrotask(restore);
+    }
+  }
+
+  return Object.freeze({
+    connect, switchNetwork, ensureSession,
+    get provider() { return state.provider; },
+    destroy() {
+      destroyed = true;
+      for (const button of buttons) button.removeEventListener("click", connect);
+      for (const button of switchButtons) button.removeEventListener("click", switchNetwork);
+      browserWindow.removeEventListener("gogh:owner-snapshot", ownerSnapshot);
+      browserWindow.removeEventListener("gogh:punk-selected", ownerSnapshot);
+      for (const unsubscribe of unsubscribers) unsubscribe?.();
+    },
+  });
+}
+
 if (typeof window !== "undefined" && typeof document !== "undefined") {
-  setupReadOnlyWallet({ windowObject: window, documentObject: document });
+  setupReownWallet({ windowObject: window, documentObject: document });
 }

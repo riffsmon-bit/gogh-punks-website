@@ -226,7 +226,6 @@ export function setupAccountActivation({ windowObject, documentObject, fetchFunc
   const browserDocument = documentObject ?? (typeof document === "undefined" ? null : document);
   const panel = browserDocument?.querySelector?.("[data-account-activation]");
   if (!browserWindow || !panel) return null;
-  const provider = browserWindow.ethereum;
   const request = fetchFunction ?? browserWindow.fetch.bind(browserWindow);
   const input = panel.querySelector("[data-activation-token]");
   const inspect = panel.querySelector("[data-activation-inspect]");
@@ -240,8 +239,12 @@ export function setupAccountActivation({ windowObject, documentObject, fetchFunc
   let revision = 0;
   let wallet = browserWindow.__GOGH_WALLET_SNAPSHOT__ ?? null;
 
+  function walletProvider() {
+    return browserWindow.__GOGH_WALLET_PROVIDER__;
+  }
+
   function connected() {
-    return Boolean(provider?.request && wallet?.account && wallet?.chainId === CHAIN_ID);
+    return Boolean(walletProvider()?.request && wallet?.account && wallet?.chainId === CHAIN_ID);
   }
   function render(message = null, kind = null) {
     inspect.disabled = busy || !gate || !connected();
@@ -257,7 +260,7 @@ export function setupAccountActivation({ windowObject, documentObject, fetchFunc
     const started = revision;
     render("Checking live ownership and the deterministic account…", "pending");
     try {
-      const result = await inspectPunkActivation(provider, gate, input.value);
+      const result = await inspectPunkActivation(walletProvider(), gate, input.value);
       if (started !== revision) throw new AccountActivationError("STATE_CHANGED", "Wallet changed");
       reviewed = result;
       if (result.activated) rememberActivatedPunk(browserWindow.localStorage, result.tokenId);
@@ -279,7 +282,7 @@ export function setupAccountActivation({ windowObject, documentObject, fetchFunc
     render("Rechecking everything before opening MetaMask…", "pending");
     try {
       const result = await submitPunkActivation(
-        provider,
+        walletProvider(),
         reviewed,
         gate,
         () => started === revision && confirm.checked,

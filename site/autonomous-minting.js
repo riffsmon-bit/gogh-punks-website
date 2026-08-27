@@ -6,7 +6,7 @@ const FUNDING_VALUES = new Set([
   "500000000000000", "1000000000000000", "2000000000000000",
 ]);
 
-const LIVE_REFRESH_INTERVAL_MS = 15_000;
+const ACTIVITY_REFRESH_INTERVAL_MS = 15_000;
 
 export const RETIREMENT_MINT_LIFETIMES = Object.freeze({
   COMMON: 100,
@@ -202,6 +202,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     gate: null, v3Gate: null, version: 2, selection: null, funding: false, running: false,
     refreshing: false, setupSubmission: null,
     lastSyncedAt: null, lastRefreshFailedAt: null, loadSequence: 0,
+    lastTransactionHash: null, lastActionError: null,
   };
 
   function heartbeatLabel(value) {
@@ -219,8 +220,9 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
   }
 
   async function rpc(method, params = []) {
-    if (!browserWindow.ethereum?.request) throw new Error("Connect MetaMask first.");
-    return browserWindow.ethereum.request({ method, params });
+    const provider = browserWindow.__GOGH_WALLET_PROVIDER__;
+    if (!provider?.request) throw new Error("Connect your wallet first.");
+    return provider.request({ method, params });
   }
 
   async function receipt(hash) {
@@ -270,6 +272,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
       message.textContent = `${label} ${index + 1} of ${transactions.length}: confirm ${transaction.purpose.replaceAll("_", " ").toLowerCase()} in MetaMask.`;
       await rpc("eth_call", [{ from: transaction.from, to: transaction.to, value: "0x0", data: transaction.data }, "latest"]);
       const hash = await rpc("eth_sendTransaction", [{ from: transaction.from, to: transaction.to, value: "0x0", data: transaction.data }]);
+      state.lastTransactionHash = hash;
       await receipt(hash);
     }
   }
@@ -405,7 +408,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     refresh.disabled = state.refreshing;
     refresh.textContent = state.refreshing ? "Refreshing…" : "Refresh live status";
     refreshed.textContent = state.lastSyncedAt
-      ? `Page synced ${state.lastSyncedAt.toLocaleTimeString()} · automatic check every 15 seconds`
+      ? `Page synced ${state.lastSyncedAt.toLocaleTimeString()} · lightweight activity check every 15 seconds`
       : state.lastRefreshFailedAt
         ? `Refresh failed ${state.lastRefreshFailedAt.toLocaleTimeString()} · retrying automatically`
         : "Page has not synced yet";
@@ -433,6 +436,31 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
         ? `Punk #${selectedState.tokenId} remains authorized on-chain. The latest worker run stopped safely and the scheduled worker will retry automatically. Manual scans wait for a healthy heartbeat; stop and revoke remains available here.`
         : `Punk #${selectedState.tokenId} remains authorized on-chain, but the hosted worker heartbeat is not current. Manual scans wait for it to recover; scheduled checks remain fail-closed. You can still stop and revoke it here.`;
     }
+    const wizardDetail = Object.freeze({
+      tokenId: state.selection?.tokenId ?? null,
+      version: state.version,
+      account: punkWallet,
+      active,
+      agentLive,
+      capability: state.gate?.capability === true,
+      workerOnline: state.gate?.heartbeat?.online === true,
+      cap: selectedState?.maxAcquisitionsPerDay ?? Number(cap.value),
+      acquisitionsToday: selectedState?.acquisitionsToday ?? 0,
+      authorizationValidUntil: selectedState?.authorizationValidUntil ?? null,
+      setupSubmission: state.setupSubmission ? Object.freeze({ ...state.setupSubmission }) : null,
+      lastTransactionHash: state.lastTransactionHash,
+      lastActionError: state.lastActionError,
+      hostedGas: gasReady ? Object.freeze({
+        address: gasAgent.address,
+        balanceWei: gasAgent.balanceWei,
+        ready: BigInt(gasAgent.balanceWei) > 0n,
+      }) : null,
+      heartbeat: state.gate?.heartbeat ? Object.freeze({ ...state.gate.heartbeat }) : null,
+    });
+    browserWindow.__GOGH_AUTOMATION_SNAPSHOT__ = wizardDetail;
+    browserWindow.dispatchEvent(new browserWindow.CustomEvent(
+      "gogh:automation-state", { detail: wizardDetail },
+    ));
   }
 
   async function copyAgentAddress() {
@@ -470,9 +498,9 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
 
   async function fundAgent() {
     if (state.funding || !agentFundConfirm.checked) return;
-    const provider = browserWindow.ethereum;
+    const provider = browserWindow.__GOGH_WALLET_PROVIDER__;
     if (!provider?.request) {
-      agentFundState.textContent = "Connect MetaMask before funding automation gas.";
+      agentFundState.textContent = "Connect your wallet before funding automation gas.";
       return;
     }
     state.funding = true;
@@ -562,7 +590,9 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
       const selectedState = state.gate?.punk?.tokenId === state.selection?.tokenId
         ? state.gate.punk : null;
       if (selectedState?.active === true
-        && [1, 3, 5, 10].includes(selectedState.maxAcquisitionsPerDay)
+        && Number.isInteger(selectedState.maxAcquisitionsPerDay)
+        && selectedState.maxAcquisitionsPerDay >= 1
+        && selectedState.maxAcquisitionsPerDay <= 10
         && (cap.dataset.liveToken !== selectedState.tokenId
           || cap.dataset.userEdited !== "true")) {
         cap.value = String(selectedState.maxAcquisitionsPerDay);
@@ -583,6 +613,34 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
   }
 
   const load = createCoalescedRefresh(loadOnce);
+
+  async function refreshActivity() {
+    if (!state.selection?.tokenId || !state.gate || browserDocument.visibilityState === "hidden") {
+      return;
+    }
+    try {
+      const response = await request(`/api/broker/autonomy-v3-activity?refresh=${Date.now()}`, {
+        headers: { accept: "application/json" }, cache: "no-store",
+      });
+      const payload = await response.json();
+      const activity = payload?.activity;
+      if (!response.ok || payload?.ok !== true || typeof activity !== "object") return;
+      const priorCompletedAt = state.gate?.heartbeat?.completedAt ?? null;
+      const heartbeat = activity.heartbeat
+        ? { ...activity.heartbeat, online: activity.online === true } : null;
+      state.gate = { ...state.gate, heartbeat };
+      if (state.v3Gate) state.v3Gate = { ...state.v3Gate, heartbeat, usage: activity.usage };
+      state.lastSyncedAt = new Date();
+      render();
+      if (heartbeat?.completedAt !== priorCompletedAt
+        && heartbeat?.status === "MINT_CONFIRMED"
+        && heartbeat?.tokenId === state.selection.tokenId) {
+        await load();
+      }
+    } catch {
+      // Advisory DB activity refresh never substitutes for an explicit live chain check.
+    }
+  }
 
   async function runAgentNow() {
     if (state.running || state.version !== 3 || !state.selection?.tokenId) return;
@@ -665,6 +723,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
   });
   setup.addEventListener("click", async () => {
     setup.disabled = true;
+    state.lastActionError = null;
     try {
       const review = await artifact();
       state.setupSubmission = { index: 0, total: review.setupTransactions.length };
@@ -675,6 +734,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
       cap.dataset.userEdited = "false";
       await load();
     } catch (error) {
+      state.lastActionError = error?.message ?? "Setup stopped safely.";
       message.textContent = error?.message ?? "Setup stopped safely.";
     } finally {
       state.setupSubmission = null;
@@ -716,12 +776,11 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     }
   });
   render();
-  load();
-  browserWindow.setInterval?.(() => { void load(); }, LIVE_REFRESH_INTERVAL_MS);
-  browserWindow.addEventListener?.("focus", () => { void load(); });
-  browserWindow.addEventListener?.("pageshow", () => { void load(); });
+  browserWindow.setInterval?.(() => { void refreshActivity(); }, ACTIVITY_REFRESH_INTERVAL_MS);
+  browserWindow.addEventListener?.("focus", () => { void refreshActivity(); });
+  browserWindow.addEventListener?.("pageshow", () => { void refreshActivity(); });
   browserDocument.addEventListener?.("visibilitychange", () => {
-    if (browserDocument.visibilityState === "visible") void load();
+    if (browserDocument.visibilityState === "visible") void refreshActivity();
   });
   return Object.freeze({ refresh: load });
 }

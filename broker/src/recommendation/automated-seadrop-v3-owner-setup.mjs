@@ -7,8 +7,10 @@ import { ROBINHOOD } from "../config.mjs";
 export const AUTOMATED_OWNER_SETUP_INPUT_SCHEMA = "GOGH_AUTOMATED_SEADROP_V3_OWNER_SETUP_INPUT_V1";
 export const AUTOMATED_OWNER_SETUP_SCHEMA = "GOGH_AUTOMATED_SEADROP_V3_OWNER_SETUP_V1";
 
-const CAPS = new Set([1, 3, 5, 10]);
-const DURATIONS = new Set([7, 14, 30]);
+const MIN_CAP = 1;
+const MAX_CAP = 10;
+const MIN_DURATION_DAYS = 1;
+const MAX_DURATION_DAYS = 30;
 const ZERO_VALUE = "0";
 
 const REGISTRY_ABI = Object.freeze([{
@@ -136,8 +138,16 @@ export function buildAutomatedSeaDropV3OwnerSetup(inputValue, options = {}) {
   }
 
   exactKeys(input.limits, ["maxMintsPerUtcDay", "authorizationDays"], "limits");
-  if (!CAPS.has(input.limits.maxMintsPerUtcDay)) fail("INVALID_CAP", "daily cap must be 1, 3, 5, or 10");
-  if (!DURATIONS.has(input.limits.authorizationDays)) fail("INVALID_DURATION", "authorization must be 7, 14, or 30 days");
+  if (!Number.isInteger(input.limits.maxMintsPerUtcDay)
+    || input.limits.maxMintsPerUtcDay < MIN_CAP
+    || input.limits.maxMintsPerUtcDay > MAX_CAP) {
+    fail("INVALID_CAP", "daily cap must be an integer from 1 through 10");
+  }
+  if (!Number.isInteger(input.limits.authorizationDays)
+    || input.limits.authorizationDays < MIN_DURATION_DAYS
+    || input.limits.authorizationDays > MAX_DURATION_DAYS) {
+    fail("INVALID_DURATION", "authorization must be an integer from 1 through 30 days");
+  }
   const authorizationEnds = BigInt(nowSeconds + (input.limits.authorizationDays * 86_400));
 
   exactKeys(input.globalAgent, ["approved", "validAfter", "validUntil"], "globalAgent");

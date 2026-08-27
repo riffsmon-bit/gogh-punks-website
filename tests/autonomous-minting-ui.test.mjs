@@ -95,7 +95,8 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.match(browser, /publicUsage\?\.autonomousPreferenceWallets/);
   assert.match(browser, /publicUsage\?\.latestConfirmedAt/);
   assert.match(browser, /durable history is not erased by a later failed scan/);
-  assert.match(browser, /automatic check every 15 seconds/);
+  assert.match(browser, /lightweight activity check every 15 seconds/);
+  assert.match(browser, /\/api\/broker\/autonomy-v3-activity/);
   assert.match(html, /data-v3-latest-mint/);
   assert.match(browser, /Latest autonomous mint/);
   assert.match(browser, /robinhoodchain\.blockscout\.com\/tx/);

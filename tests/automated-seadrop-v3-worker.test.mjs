@@ -21,6 +21,8 @@ import {
 import {
   automationV3WorkerAvailability, autonomyV3Status,
 } from "../netlify/functions/broker-autonomy-v3-status.mjs";
+import { automationV3Activity } from
+  "../netlify/functions/broker-autonomy-v3-activity.mjs";
 
 test("V3 worker remains disabled by default and uses the confirmed intent horizon", async () => {
   assert.deepEqual(await runAutomatedSeaDropV3Worker({}), {
@@ -157,6 +159,25 @@ test("V3 public status distinguishes a safe automatic retry from an unstarted wo
     },
   );
   assert.equal(automationV3WorkerAvailability(true, null, release).status, "WORKER_STARTING");
+});
+
+test("lightweight browser activity uses recorded worker state without chain RPC", () => {
+  const now = Date.parse("2026-08-26T12:00:00.000Z");
+  const release = "a".repeat(40);
+  const heartbeat = {
+    release, startedAt: "2026-08-26T11:59:56.000Z",
+    completedAt: "2026-08-26T11:59:58.000Z", status: "NO_ELIGIBLE_TARGETS",
+    submitted: 0, tokenId: null, account: null, collection: null,
+    transactionHash: null, failureCode: null,
+  };
+  const usage = { confirmedMints: "17" };
+  const activity = automationV3Activity(heartbeat, usage, {
+    BROKER_AUTOMATION_V3_ENABLED: "true",
+    BROKER_AUTOMATION_V3_WORKER_RELEASE: release,
+  }, now);
+  assert.equal(activity.online, true);
+  assert.equal(activity.heartbeat.status, "NO_ELIGIBLE_TARGETS");
+  assert.equal(activity.usage.confirmedMints, "17");
 });
 
 test("scheduled V3 runs rotate fairly after the most recently successful Punk", async () => {

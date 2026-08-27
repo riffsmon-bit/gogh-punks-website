@@ -26,3 +26,4 @@ ops/canary-final-teardown-attestation.json
 ops/reviewed-free-mint-queue.json
 ops/reviewed-free-mint-live-state.json
 ops/reviewed-free-mint-run-plan.json
+site/reown-wallet-app.js

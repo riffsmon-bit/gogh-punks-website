@@ -271,7 +271,8 @@ async function readPunk(clientValue, tokenId, nowSeconds) {
   normalized.active = normalized.policyModule === policyModule.toLowerCase()
     && normalized.owner === getAddress(tuple(policy, "configuredBy", 1)).toLowerCase()
     && normalized.mode === 3 && normalized.accountPaused === false && zeroConfig
-    && [1, 3, 5, 10].includes(normalized.maxAcquisitionsPerDay)
+    && Number.isInteger(normalized.maxAcquisitionsPerDay)
+    && normalized.maxAcquisitionsPerDay >= 1 && normalized.maxAcquisitionsPerDay <= 10
     && Number(tuple(config, "maxIntentAge", 8)) === 120
     && Number(tuple(config, "maxSlippageBps", 9)) === 0
     && tuple(config, "requireCollectionAllowlist", 10) === false
@@ -371,7 +372,8 @@ export async function buildLiveOwnerSetupInput(tokenIdValue, limits, environment
   }
   const cap = Number(limits.maxMintsPerUtcDay);
   const days = Number(limits.authorizationDays);
-  if (![1, 3, 5, 10].includes(cap) || ![7, 14, 30].includes(days)) {
+  if (!Number.isInteger(cap) || cap < 1 || cap > 10
+    || !Number.isInteger(days) || days < 1 || days > 30) {
     throw new TypeError("Choose a supported cap and authorization duration");
   }
   const primaryUrl = requiredHttps("ROBINHOOD_RPC_URL", environment.ROBINHOOD_RPC_URL ?? environment.RPC_URL);

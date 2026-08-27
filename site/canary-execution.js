@@ -744,7 +744,8 @@ export function setupCanaryExecution({ windowObject, documentObject, fetchFuncti
     const selected = state.validated;
     const submissionRevision = state.revision;
     try {
-      const { hash } = await submitCanaryTransaction(browserWindow.ethereum, selected, {
+      const { hash } = await submitCanaryTransaction(
+        browserWindow.__GOGH_WALLET_PROVIDER__, selected, {
         refreshValidated: async () => {
           const fresh = await fetchCanaryExecutionReview(fetchFunction);
           if (!fresh.validated) fail("STATUS_CHANGED", "the active review gate is closed");
@@ -777,7 +778,7 @@ export function setupCanaryExecution({ windowObject, documentObject, fetchFuncti
   submit?.addEventListener("click", submitReviewed);
   browserWindow.addEventListener("gogh:wallet-state", walletChanged);
   for (const eventName of ["accountsChanged", "chainChanged", "disconnect"]) {
-    browserWindow.ethereum?.on?.(eventName, providerStateChanged);
+    browserWindow.__GOGH_WALLET_PROVIDER__?.on?.(eventName, providerStateChanged);
   }
   refreshGate();
 
@@ -788,7 +789,7 @@ export function setupCanaryExecution({ windowObject, documentObject, fetchFuncti
       submit?.removeEventListener("click", submitReviewed);
       browserWindow.removeEventListener("gogh:wallet-state", walletChanged);
       for (const eventName of ["accountsChanged", "chainChanged", "disconnect"]) {
-        browserWindow.ethereum?.removeListener?.(eventName, providerStateChanged);
+        browserWindow.__GOGH_WALLET_PROVIDER__?.removeListener?.(eventName, providerStateChanged);
       }
       clearArtifact();
     },

@@ -286,7 +286,7 @@ export function setupAccountFunds({ windowObject, documentObject, fetchFunction 
       state.gate = await fetchGate(fetchFunction ?? browserWindow.fetch?.bind(browserWindow));
       state.bindings = validateAccountManagementGate(state.gate);
       if (ownerReady()) {
-        const live = await liveAccountState(browserWindow.ethereum, state.bindings);
+        const live = await liveAccountState(browserWindow.__GOGH_WALLET_PROVIDER__, state.bindings);
         state.balanceWei = live.balanceWei;
       }
     } catch {
@@ -313,12 +313,12 @@ export function setupAccountFunds({ windowObject, documentObject, fetchFunction 
     let outcome;
     try {
       const initial = await preflightAccountFunds(
-        browserWindow.ethereum,
+        browserWindow.__GOGH_WALLET_PROVIDER__,
         state.gate,
         action,
         amount.value,
       );
-      const { hash } = await submitAccountFunds(browserWindow.ethereum, initial, {
+      const { hash } = await submitAccountFunds(browserWindow.__GOGH_WALLET_PROVIDER__, initial, {
         isCurrent: () => state.revision === revision && confirmation.checked && ownerReady(),
       });
       outcome = `SUBMITTED · pending wallet receipt · ${hash}`;
@@ -342,7 +342,7 @@ export function setupAccountFunds({ windowObject, documentObject, fetchFunction 
   confirmation.addEventListener("change", render);
   browserWindow.addEventListener("gogh:wallet-state", changed);
   for (const eventName of ["accountsChanged", "chainChanged", "disconnect"]) {
-    browserWindow.ethereum?.on?.(eventName, providerChanged);
+    browserWindow.__GOGH_WALLET_PROVIDER__?.on?.(eventName, providerChanged);
   }
   refresh();
   return {
@@ -353,7 +353,7 @@ export function setupAccountFunds({ windowObject, documentObject, fetchFunction 
       confirmation.removeEventListener("change", render);
       browserWindow.removeEventListener("gogh:wallet-state", changed);
       for (const eventName of ["accountsChanged", "chainChanged", "disconnect"]) {
-        browserWindow.ethereum?.removeListener?.(eventName, providerChanged);
+        browserWindow.__GOGH_WALLET_PROVIDER__?.removeListener?.(eventName, providerChanged);
       }
     },
   };

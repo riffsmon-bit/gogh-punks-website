@@ -15,7 +15,8 @@ function files(path) {
 
 const scripts = roots
   .flatMap((root) => files(resolve(process.cwd(), root)))
-  .filter((file) => [".js", ".mjs"].includes(extname(file)));
+  .filter((file) => [".js", ".mjs"].includes(extname(file)))
+  .filter((file) => !file.endsWith("/site/reown-wallet-app.js"));
 
 for (const file of scripts) {
   const result = spawnSync(process.execPath, ["--check", file], { encoding: "utf8" });

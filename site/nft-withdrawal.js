@@ -551,7 +551,7 @@ export function setupNftWithdrawal({ windowObject, documentObject, fetchFunction
 
   async function act() {
     if (state.busy || !state.selection?.tokenId) return;
-    const provider = browserWindow.ethereum;
+    const provider = browserWindow.__GOGH_WALLET_PROVIDER__;
     const revision = state.revision;
     state.busy = true;
     render();
@@ -671,10 +671,10 @@ export function setupNftWithdrawal({ windowObject, documentObject, fetchFunction
     render();
     if (state.selection && !state.portfolioTokenIds.length) void loadSelectedPunkAssets(revision);
   });
-  browserWindow.ethereum?.on?.("accountsChanged", () => {
+  browserWindow.__GOGH_WALLET_PROVIDER__?.on?.("accountsChanged", () => {
     state.revision += 1; state.portfolioRevision += 1;
   });
-  browserWindow.ethereum?.on?.("chainChanged", () => {
+  browserWindow.__GOGH_WALLET_PROVIDER__?.on?.("chainChanged", () => {
     state.revision += 1; state.portfolioRevision += 1;
   });
   standard.addEventListener("change", render);

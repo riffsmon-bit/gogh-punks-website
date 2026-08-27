@@ -100,7 +100,7 @@ export async function readBrowserPunkDisplay(provider, status, tokenId) {
 
 export function setupLivePunkDisplay({ windowObject, fetchFunction } = {}) {
   const browserWindow = windowObject ?? (typeof window === "undefined" ? null : window);
-  if (!browserWindow?.ethereum?.request) return null;
+  if (!browserWindow) return null;
   const request = fetchFunction ?? browserWindow.fetch.bind(browserWindow);
   const match = browserWindow.location.pathname.match(/^\/punk\/(\d+)\/?$/);
   if (!match) return null;
@@ -117,7 +117,9 @@ export function setupLivePunkDisplay({ windowObject, fetchFunction } = {}) {
         });
         status = await response.json();
       }
-      const liveState = await readBrowserPunkDisplay(browserWindow.ethereum, status, match[1]);
+      const liveState = await readBrowserPunkDisplay(
+        browserWindow.__GOGH_WALLET_PROVIDER__, status, match[1],
+      );
       if (current !== revision || !liveState) return;
       browserWindow.dispatchEvent(new browserWindow.CustomEvent("gogh:live-punk-state", {
         detail: liveState,

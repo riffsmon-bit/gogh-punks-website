@@ -88,7 +88,6 @@ export function setupMandateEditor({ windowObject, documentObject, fetchFunction
   const request = fetchFunction ?? browserWindow?.fetch?.bind(browserWindow);
   const form = browserDocument?.querySelector("[data-mandate-form]");
   if (!browserWindow || !browserDocument || !form || typeof request !== "function") return null;
-  const provider = browserWindow.ethereum;
   const save = browserDocument.querySelector("[data-mandate-save]");
   const stateTarget = browserDocument.querySelector("[data-mandate-state]");
   const badge = browserDocument.querySelector("[data-mandate-badge]");
@@ -102,8 +101,12 @@ export function setupMandateEditor({ windowObject, documentObject, fetchFunction
   let selectionOwner = null;
   let loadRevision = 0;
 
+  function walletProvider() {
+    return browserWindow.__GOGH_WALLET_PROVIDER__;
+  }
+
   function ownerReady() {
-    return Boolean(provider?.request
+    return Boolean(walletProvider()?.request
       && wallet?.chainId === CHAIN_ID
       && /^0x[0-9a-fA-F]{40}$/.test(wallet?.account ?? "")
       && selectedTokenId !== null
@@ -216,6 +219,7 @@ export function setupMandateEditor({ windowObject, documentObject, fetchFunction
     render("Preparing a current-holder preference signature…", "pending");
     const expectedAccount = wallet.account.toLowerCase();
     const expectedTokenId = selectedTokenId;
+    const provider = walletProvider();
     try {
       const prepared = await responseJson(await request("/api/broker/mandate", {
         method: "POST",

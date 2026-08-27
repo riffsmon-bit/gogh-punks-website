@@ -141,12 +141,11 @@ function browserFixture() {
     },
   };
   const windowObject = {
-    ethereum: provider,
     addEventListener: (name, handler) => { windowListeners[name] = handler; },
     removeEventListener() {},
   };
   return { values, formListeners, windowListeners, documentObject, windowObject,
-    providerCalls, save, state, presetListeners };
+    provider, providerCalls, save, state, presetListeners };
 }
 
 test("maximum-coverage preset remains zero-price and requires a later owner signature", () => {
@@ -204,6 +203,7 @@ test("browser editor requires the live owner and saves with personal_sign only",
   const editor = setupMandateEditor({ ...fixture, fetchFunction });
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(fixture.save.disabled, true);
+  fixture.windowObject.__GOGH_WALLET_PROVIDER__ = fixture.provider;
   fixture.windowListeners["gogh:wallet-state"]({
     detail: { account: OWNER, chainId: 4663, status: "owner" },
   });

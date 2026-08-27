@@ -62,7 +62,7 @@ test("omits activation only when the fresh evidence proves the V2 account exists
 
 test("rejects unsafe caps, stale evidence, expired agents, role collisions, and hostile input", () => {
   const mutations = [
-    (value) => { value.limits.maxMintsPerUtcDay = 2; },
+    (value) => { value.limits.maxMintsPerUtcDay = 11; },
     (value) => { value.checkedAt = new Date((now - 31) * 1000).toISOString(); },
     (value) => { value.globalAgent.validUntil = String(now + 60); },
     (value) => { value.infrastructure.agent = value.punk.expectedOwner; },
