@@ -1,6 +1,7 @@
 const PROJECT_ID = /^[0-9a-f]{32}$/;
 const UPSTREAM = "https://goghpunks.xyz/api/broker/wallet-config";
 const MAX_RESPONSE_BYTES = 4_096;
+const WALLET_PAGE = /^(?:\/broker\/?|\/broker\/punk\/\d+\/?|\/punk\/\d+\/?|\/discover\/?)$/;
 
 function localOrigin(value) {
   const url = new URL(value);
@@ -36,7 +37,7 @@ export function localWalletReferer(value, port) {
     return null;
   }
   if (url.protocol !== "http:" || !["127.0.0.1", "localhost"].includes(url.hostname)
-    || url.port !== String(port) || !/^\/broker\/punk\/\d+\/?$/.test(url.pathname)) return null;
+    || url.port !== String(port) || !WALLET_PAGE.test(url.pathname)) return null;
   return url.origin;
 }
 

@@ -328,7 +328,12 @@ test("wrapped native actions permit only canonical one-for-one WETH deposit or w
 test("local demo relays only the public Reown identifier for exact Control Center origins", async () => {
   assert.equal(localWalletReferer("http://127.0.0.1:8888/broker/punk/93?demo=1", 8888),
     "http://127.0.0.1:8888");
-  assert.equal(localWalletReferer("http://127.0.0.1:8888/broker/", 8888), null);
+  for (const path of ["/broker/", "/broker/punk/93", "/punk/93", "/discover/"]) {
+    assert.equal(localWalletReferer(`http://127.0.0.1:8888${path}`, 8888),
+      "http://127.0.0.1:8888");
+  }
+  assert.equal(localWalletReferer("http://127.0.0.1:8888/", 8888), null);
+  assert.equal(localWalletReferer("http://127.0.0.1:8888/broker/admin", 8888), null);
   assert.equal(localWalletReferer("https://evil.test/broker/punk/93", 8888), null);
   let calls = 0;
   const wallet = await localWalletConfiguration({ origin: "http://127.0.0.1:8888",

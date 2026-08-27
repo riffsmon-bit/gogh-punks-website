@@ -12,12 +12,18 @@ npm run broker:v2:demo
 
 Open `http://127.0.0.1:8888/broker/punk/93?demo=1`. The demo server binds only to the local
 loopback interface, sends `no-store`, and serves repository files. When **Connect wallet** is
-explicitly selected from a Punk Control Center route, its one local API route retrieves only the
+explicitly selected from a wallet-enabled Broker, Punk, or Discover route, its one local API route retrieves only the
 public Reown project identifier from the deployed no-store wallet-config endpoint (or a valid local
 environment value). It does not proxy Alchemy or chain RPC traffic, cache the identifier, request a
 signature, or expose a transaction-submission action. Add the exact `http://127.0.0.1:8888` origin
 to the Reown project allowlist before testing. Tabs can be opened directly with `&tab=overview`,
 `agent`, `mint`, `assets`, or `activity`.
+
+After the first approved connection, Reown owns the session and a non-sensitive returning-session
+marker lets the next wallet-enabled page restore it without reopening the selector. Navigation never
+copies an address between pages as authority: every page receives the current account from Reown and
+rechecks live Punk ownership before enabling a privileged control. **Disconnect Wallet** removes the
+Reown session and clears the returning marker plus wallet-scoped Punk, portfolio, and wizard state.
 
 Generate the local screenshot set with:
 

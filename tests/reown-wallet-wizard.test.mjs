@@ -246,6 +246,21 @@ test("active-agent roster includes V3-configured Punks without calling them live
   assert.deepEqual(visible.map(({ tokenId }) => tokenId), ["93", "94"]);
 });
 
+test("every wallet-enabled page restores the one Reown session and exposes disconnect", async () => {
+  const pages = await Promise.all([
+    "../site/broker/index.html",
+    "../site/broker/punk/index.html",
+    "../site/punk/index.html",
+    "../site/discover/index.html",
+  ].map((path) => readFile(new URL(path, import.meta.url), "utf8")));
+  for (const page of pages) {
+    assert.match(page, /\/wallet\.js\?v=reown-2/);
+    assert.match(page, /data-wallet-connect/);
+    assert.match(page, /data-wallet-disconnect/);
+    assert.match(page, /Disconnect Wallet/);
+  }
+});
+
 test("mobile wizard and AppKit source bind the required production experience", async () => {
   const [html, css, client, wallet, packageJson, netlify] = await Promise.all([
     readFile(new URL("../site/broker/index.html", import.meta.url), "utf8"),

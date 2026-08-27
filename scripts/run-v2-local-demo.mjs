@@ -41,7 +41,7 @@ const server = createServer(async (request, response) => {
     }
     const origin = localWalletReferer(request.headers.referer, port);
     if (!origin) {
-      json(response, { ok: false, code: "LOCAL_CONTROL_CENTER_ONLY" }, 403);
+      json(response, { ok: false, code: "LOCAL_WALLET_PAGE_ONLY" }, 403);
       return;
     }
     try {
