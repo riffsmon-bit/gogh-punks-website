@@ -11,6 +11,15 @@ const ERC1155 = [{ type: "function", name: "safeTransferFrom", stateMutability: 
   inputs: [{ name: "from", type: "address" }, { name: "to", type: "address" },
     { name: "id", type: "uint256" }, { name: "amount", type: "uint256" },
     { name: "data", type: "bytes" }], outputs: [] }];
+const WETH = [{ type: "function", name: "deposit", stateMutability: "payable",
+  inputs: [], outputs: [] }, { type: "function", name: "withdraw", stateMutability: "nonpayable",
+  inputs: [{ name: "amount", type: "uint256" }], outputs: [] }];
+const ACCOUNT_EXECUTE = [{ type: "function", name: "execute", stateMutability: "payable",
+  inputs: [{ name: "to", type: "address" }, { name: "value", type: "uint256" },
+    { name: "data", type: "bytes" }, { name: "operation", type: "uint8" }],
+  outputs: [{ name: "result", type: "bytes" }] }];
+
+export const ROBINHOOD_WETH = "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73";
 
 function address(value, label) {
   if (typeof value !== "string" || !isAddress(value, { strict: true })) {
@@ -34,6 +43,32 @@ export function buildNativeDeposit(input) {
     "native deposit");
   return Object.freeze({ to: address(punkWallet, "Punk Wallet"),
     value: uint(amountWei, "amountWei", { positive: true }), data: "0x" });
+}
+
+export function buildWrappedNativeOwnerExecution(rawInput) {
+  const input = snapshotExactRecord(rawInput,
+    ["direction", "punkWallet", "currentOwner", "amountWei"], "wrapped native input");
+  const punk = address(input.punkWallet, "Punk Wallet");
+  const owner = address(input.currentOwner, "current owner");
+  const amount = uint(input.amountWei, "amountWei", { positive: true });
+  if (input.direction !== "WRAP" && input.direction !== "UNWRAP") {
+    throw new TypeError("wrapped native direction must be WRAP or UNWRAP");
+  }
+  const innerValue = input.direction === "WRAP" ? amount : 0n;
+  const innerData = encodeFunctionData({ abi: WETH,
+    functionName: input.direction === "WRAP" ? "deposit" : "withdraw",
+    args: input.direction === "WRAP" ? [] : [amount] });
+  const data = encodeFunctionData({ abi: ACCOUNT_EXECUTE, functionName: "execute",
+    args: [ROBINHOOD_WETH, innerValue, innerData, 0] });
+  return Object.freeze({
+    direction: input.direction,
+    amountWei: amount,
+    wrappedNative: ROBINHOOD_WETH,
+    innerTarget: ROBINHOOD_WETH,
+    innerValue,
+    innerData,
+    transaction: Object.freeze({ from: owner, to: punk, value: 0n, data }),
+  });
 }
 
 export function buildAssetDeposit(input) {

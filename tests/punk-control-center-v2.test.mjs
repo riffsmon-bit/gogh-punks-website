@@ -10,8 +10,12 @@ import { assertPaidMintSimulation, evaluatePaidMint } from
   "../broker/src/control-center/paid-mint-policy.mjs";
 import { InMemoryPaidSpendLedger } from
   "../broker/src/control-center/paid-spend-ledger.mjs";
-import { buildAssetDeposit, buildFixedOwnerWithdrawal, buildNativeDeposit } from
+import { buildAssetDeposit, buildFixedOwnerWithdrawal, buildNativeDeposit,
+  buildWrappedNativeOwnerExecution, ROBINHOOD_WETH } from
   "../broker/src/control-center/asset-transfers.mjs";
+import { ROBINHOOD } from "../broker/src/config.mjs";
+import { buildWrappedNativeTransaction, decodeUint256, parseEthAmount,
+  wrappedBalanceOfData } from "../site/wrapped-native.js";
 
 const ACCOUNT = "0x1111111111111111111111111111111111111111";
 const OWNER = "0x2222222222222222222222222222222222222222";
@@ -281,6 +285,44 @@ test("asset transfers are deterministic and bind only the Punk or current owner"
   assert.equal(getterCalls, 0);
 });
 
+test("wrapped native actions permit only canonical one-for-one WETH deposit or withdrawal", () => {
+  assert.equal(ROBINHOOD.wrappedNativeToken, ROBINHOOD_WETH.toLowerCase());
+  assert.equal(parseEthAmount("0.012"), 12_000_000_000_000_000n);
+  assert.throws(() => parseEthAmount("1e-3"), /amount/i);
+  assert.throws(() => parseEthAmount("0"), /greater than zero/);
+  assert.match(wrappedBalanceOfData(ACCOUNT), /^0x70a08231/);
+  assert.equal(decodeUint256(`0x${"0".repeat(63)}a`), 10n);
+
+  const wrap = buildWrappedNativeOwnerExecution({ direction: "WRAP", punkWallet: ACCOUNT,
+    currentOwner: OWNER, amountWei: "12000000000000000" });
+  assert.equal(wrap.wrappedNative, ROBINHOOD_WETH);
+  assert.equal(wrap.innerValue, 12_000_000_000_000_000n);
+  assert.equal(wrap.innerData, "0xd0e30db0");
+  assert.match(wrap.transaction.data, /^0x51945447/);
+
+  const browserWrap = buildWrappedNativeTransaction({ direction: "WRAP", punkWallet: ACCOUNT,
+    currentOwner: OWNER, amount: "0.012" });
+  assert.equal(browserWrap.transaction.data, wrap.transaction.data);
+  assert.deepEqual(browserWrap.transaction, {
+    from: OWNER, to: ACCOUNT, value: "0x0", data: wrap.transaction.data,
+  });
+
+  const unwrap = buildWrappedNativeOwnerExecution({ direction: "UNWRAP", punkWallet: ACCOUNT,
+    currentOwner: OWNER, amountWei: "12000000000000000" });
+  assert.equal(unwrap.innerValue, 0n);
+  assert.match(unwrap.innerData, /^0x2e1a7d4d/);
+  assert.equal(buildWrappedNativeTransaction({ direction: "UNWRAP", punkWallet: ACCOUNT,
+    currentOwner: OWNER, amount: "0.012" }).transaction.data, unwrap.transaction.data);
+  assert.throws(() => buildWrappedNativeOwnerExecution({ direction: "SWAP", punkWallet: ACCOUNT,
+    currentOwner: OWNER, amountWei: "1" }), /direction/);
+  let getterCalls = 0;
+  const hostile = { direction: "WRAP", punkWallet: ACCOUNT, currentOwner: OWNER };
+  Object.defineProperty(hostile, "amount", { enumerable: true,
+    get() { getterCalls += 1; return "0.012"; } });
+  assert.throws(() => buildWrappedNativeTransaction(hostile), /data fields/);
+  assert.equal(getterCalls, 0);
+});
+
 test("Control Center is a dedicated progressive mobile route and remains local-only", async () => {
   const [html, browser, css, netlify] = await Promise.all([
     readFile(new URL("../site/broker/punk/index.html", import.meta.url), "utf8"),
@@ -289,12 +331,14 @@ test("Control Center is a dedicated progressive mobile route and remains local-o
     readFile(new URL("../netlify.toml", import.meta.url), "utf8"),
   ]);
   for (const label of ["Punk Control Center", "Overview", "Agent", "Mint", "Assets",
-    "Activity", "Paid Mint Settings", "Direct Your Punk to a Mint", "Add Assets"]) {
+    "Activity", "Paid Mint Settings", "Direct Your Punk to a Mint", "Add Assets",
+    "Wrap or Unwrap ETH"]) {
     assert.match(html, new RegExp(label));
   }
   assert.match(netlify, /from = "\/broker\/punk\/\*"/);
   assert.match(browser, /LOCAL SIMULATION/);
   assert.match(browser, /nft-withdrawal-assets\?tokenId=/);
+  assert.match(browser, /eth_call/);
   assert.doesNotMatch(browser, /eth_sendTransaction|wallet_sendCalls|sendRawTransaction/);
   assert.match(css, /@media \(max-width: 760px\)/);
   assert.match(css, /env\(safe-area-inset-bottom\)/);

@@ -4,6 +4,7 @@ export const ROBINHOOD = Object.freeze({
   rpcUrl: "https://rpc.mainnet.chain.robinhood.com",
   explorerUrl: "https://robinhoodchain.blockscout.com",
   nativeCurrency: Object.freeze({ name: "Ether", symbol: "ETH", decimals: 18 }),
+  wrappedNativeToken: "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
   canonicalCollection: "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
   canonicalERC6551Registry: "0x000000006551c19487814612e58fe06813775758",
   canonicalERC6551RegistryRuntimeCodeHash:

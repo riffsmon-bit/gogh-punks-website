@@ -1,3 +1,7 @@
+import {
+  buildWrappedNativeTransaction, decodeUint256, ROBINHOOD_WETH, wrappedBalanceOfData,
+} from "./wrapped-native.js";
+
 const CHAIN_ID = 4663;
 const OWNER_OF_SELECTOR = "0x6352211e";
 const ADDRESS = /^0x[0-9a-f]{40}$/;
@@ -30,6 +34,7 @@ function routeTokenId() {
 const state = {
   tokenId: routeTokenId(), owner: null, walletAccount: null, walletChainId: null,
   account: null, provider: null, loading: false, error: null,
+  punkCollection: null, nativeBalance: null, wrappedBalance: null,
   owned: false, activated: false, agentStatus: null, automation: null, assets: [],
   activity: [], timings: {}, revision: 0,
 };
@@ -62,7 +67,8 @@ function setActionAvailability(enabled) {
   for (const selector of ["[data-agent-send]", "[data-agent-pause]", "[data-agent-resume]",
     "[data-agent-edit]", "[data-agent-revoke]", "[data-scout-simulate]",
     "[data-directed-check]", "[data-paid-save]", "[data-add-native]",
-    "[data-load-assets]", "[data-deposit-review]", "[data-activity-refresh]"]) {
+    "[data-load-assets]", "[data-deposit-review]", "[data-activity-refresh]",
+    "[data-wrap-review]"]) {
     const element = query(selector);
     if (element) element.disabled = !enabled;
   }
@@ -164,6 +170,7 @@ async function loadOwnership(wallet) {
   if (!response.ok || payload?.ok !== true || !ADDRESS.test(payload.collection ?? "")) {
     throw new Error("Punk ownership service unavailable");
   }
+  state.punkCollection = payload.collection.toLowerCase();
   const rawOwner = await rpc("eth_call", [{ to: payload.collection,
     data: ownerOfData(state.tokenId) }, "latest"]);
   if (typeof rawOwner !== "string" || !/^0x0{24}[0-9a-fA-F]{40}$/.test(rawOwner)) {
@@ -236,10 +243,66 @@ async function loadBalance() {
   if (!state.account) return;
   const started = performance.now();
   const balance = await rpc("eth_getBalance", [state.account, "latest"]);
+  state.nativeBalance = BigInt(balance);
   const formatted = formatNative(BigInt(balance));
   setText("[data-summary-balance]", formatted);
   setText("[data-assets-native]", formatted);
+  setText("[data-wrap-eth-balance]", formatted);
   metric("Wallet balance", started);
+}
+
+async function loadWrappedBalance() {
+  if (!state.account) return;
+  const started = performance.now();
+  const result = await rpc("eth_call", [{ to: ROBINHOOD_WETH,
+    data: wrappedBalanceOfData(state.account) }, "latest"]);
+  state.wrappedBalance = decodeUint256(result);
+  setText("[data-wrap-weth-balance]", formatNative(state.wrappedBalance).replace(" ETH", " WETH"));
+  metric("WETH balance", started);
+}
+
+async function verifyCurrentOwner() {
+  if (!state.punkCollection || !state.walletAccount) throw new Error("Live Punk owner is unavailable");
+  const rawOwner = await rpc("eth_call", [{ to: state.punkCollection,
+    data: ownerOfData(state.tokenId) }, "latest"]);
+  if (typeof rawOwner !== "string" || !/^0x0{24}[0-9a-fA-F]{40}$/.test(rawOwner)
+    || `0x${rawOwner.slice(-40)}`.toLowerCase() !== state.walletAccount) {
+    throw new Error("Punk ownership changed. Reconnect the current holder before continuing");
+  }
+}
+
+async function reviewWrappedNative() {
+  const output = query("[data-wrap-state]");
+  if (!state.owned || !state.activated || !state.account || !state.walletAccount) {
+    output.textContent = "Activate this Punk Wallet and connect its current holder first.";
+    return;
+  }
+  if (!query("[data-wrap-confirm]").checked) {
+    output.textContent = "Review and accept the exact Punk Wallet, direction, amount, and WETH contract first.";
+    return;
+  }
+  try {
+    const plan = buildWrappedNativeTransaction({
+      direction: query("[data-wrap-direction]").value,
+      punkWallet: state.account,
+      currentOwner: state.walletAccount,
+      amount: query("[data-wrap-amount]").value.trim(),
+    });
+    const available = plan.direction === "WRAP" ? state.nativeBalance : state.wrappedBalance;
+    if (typeof available !== "bigint" || plan.amountWei > available) {
+      throw new RangeError(`This Punk Wallet does not have enough ${plan.direction === "WRAP" ? "ETH" : "WETH"}`);
+    }
+    if (demo) {
+      output.textContent = `${plan.direction === "WRAP" ? "Wrap" : "Unwrap"} review passed for ${query("[data-wrap-amount]").value} ${plan.direction === "WRAP" ? "ETH" : "WETH"}. Exact owner-only calldata was built; nothing was submitted.`;
+      return;
+    }
+    output.textContent = "Rechecking the current holder and simulating the exact owner-only call…";
+    await verifyCurrentOwner();
+    await rpc("eth_call", [plan.transaction, "latest"]);
+    output.textContent = `${plan.direction === "WRAP" ? "Wrap" : "Unwrap"} simulation passed. No transaction was submitted by this local build.`;
+  } catch (error) {
+    output.textContent = `${error.message}. Nothing was submitted.`;
+  }
 }
 
 function addActivity(entry) {
@@ -529,6 +592,7 @@ function bindActions() {
       : "Activate this Punk Wallet before reviewing a deposit.");
   });
   query("[data-add-native]").addEventListener("click", () => query("[data-deposit-type]").focus());
+  query("[data-wrap-review]").addEventListener("click", reviewWrappedNative);
   query("[data-activity-refresh]").addEventListener("click", () => loadActivity().catch(() => {}));
   for (const button of queryAll("[data-agent-send], [data-agent-pause], [data-agent-resume], [data-agent-edit], [data-agent-revoke]")) {
     button.addEventListener("click", () => {
@@ -549,6 +613,9 @@ async function applyWallet(wallet) {
   state.activated = false;
   state.agentStatus = null;
   state.account = null;
+  state.punkCollection = null;
+  state.nativeBalance = null;
+  state.wrappedBalance = null;
   state.automation = null;
   state.assets = [];
   renderIdentity();
@@ -566,7 +633,7 @@ async function applyWallet(wallet) {
     renderIdentity();
     await loadAutomation();
     if (revision !== state.revision) return;
-    await loadBalance().catch(() => {});
+    await Promise.all([loadBalance(), loadWrappedBalance()]).catch(() => {});
     if (query('[data-control-tab="assets"]')?.getAttribute("aria-selected") === "true") {
       await loadAssets().catch(() => {});
     }
@@ -586,6 +653,9 @@ function loadDemo() {
   state.walletAccount = DEMO_OWNER;
   state.walletChainId = CHAIN_ID;
   state.account = DEMO_ACCOUNT;
+  state.punkCollection = "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6";
+  state.nativeBalance = 41_200_000_000_000_000n;
+  state.wrappedBalance = 12_000_000_000_000_000n;
   state.owned = true;
   state.activated = true;
   state.automation = { capability: true, punk: { tokenId: state.tokenId, account: DEMO_ACCOUNT,
@@ -596,6 +666,8 @@ function loadDemo() {
   query("[data-local-demo]").hidden = false;
   setText("[data-summary-balance]", "0.0412 ETH");
   setText("[data-assets-native]", "0.0412 ETH");
+  setText("[data-wrap-eth-balance]", "0.0412 ETH");
+  setText("[data-wrap-weth-balance]", "0.012 WETH");
   setText("[data-summary-nfts]", "18");
   setText("[data-summary-tokens]", "3");
   setText("[data-summary-lifetime]", "191");

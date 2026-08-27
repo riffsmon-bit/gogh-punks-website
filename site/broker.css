@@ -915,6 +915,10 @@ h3 { font-size: 1.45rem; }
 .control-debug dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .control-debug dl div { display: flex; justify-content: space-between; gap: 14px; padding: 9px; background: var(--panel); }
 .control-debug dd { margin: 0; color: var(--aqua); }
+.wrapped-native-panel .panel-header a { color: var(--aqua); font-size: 0.72rem; font-weight: 800; text-transform: uppercase; }
+.wrap-form { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 760px; }
+.wrap-balances { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 760px; }
+.wrap-balances div { min-width: 0; }
 
 @media (max-width: 760px) {
   .control-center { width: 100%; padding: 24px 12px calc(92px + env(safe-area-inset-bottom)); }
@@ -931,7 +935,7 @@ h3 { font-size: 1.45rem; }
   .control-summary article { min-height: 112px; padding: 16px; }
   .control-summary strong { margin-top: 12px; font-size: 1.55rem; }
   .control-tabs { position: sticky; z-index: 10; top: 64px; margin-inline: -12px; padding: 8px 12px; background: rgba(3, 7, 11, 0.97); }
-  .control-grid.two-column, .control-grid.three-column, .control-form-grid, .control-asset-grid { grid-template-columns: 1fr; }
+  .control-grid.two-column, .control-grid.three-column, .control-form-grid, .control-asset-grid, .wrap-balances { grid-template-columns: 1fr; }
   .control-owner-assets { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .control-card { padding: 21px 18px; }
   .control-card button { width: 100%; min-height: 52px; }
