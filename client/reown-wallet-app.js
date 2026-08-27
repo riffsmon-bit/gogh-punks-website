@@ -65,7 +65,10 @@ export function createReownWalletSession(configuration = {}) {
     disconnect: () => appKit.disconnect("eip155"),
     getAccount: () => appKit.getAccount("eip155"),
     getNetwork: () => ({ chainId: appKit.getChainId() }),
-    getProvider: () => appKit.getProviders()?.eip155 ?? appKit.getWalletProvider() ?? null,
+    // AppKit exposes the active EVM provider through getWalletProvider().
+    // getProviders() is not part of the public AppKit client API and calling it
+    // leaves the modal mounted while the surrounding session initialization fails.
+    getProvider: () => appKit.getWalletProvider() ?? null,
     getError: () => appKit.getError(),
     subscribeAccount: (callback) => appKit.subscribeAccount(callback, "eip155"),
     subscribeNetwork: (callback) => appKit.subscribeNetwork(callback),

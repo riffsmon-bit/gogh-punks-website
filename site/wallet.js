@@ -581,6 +581,12 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
         render();
         return state.session;
       } catch {
+        // Session initialization is atomic. AppKit mounts its modal as part of
+        // construction, so retaining a partially initialized session can open a
+        // working-looking selector while the page is permanently marked
+        // unavailable. Never allow connect() to use that partial session.
+        state.session = null;
+        state.provider = null;
         state.sessionStatus = "unavailable";
         state.pending = false;
         state.networkError = "Wallet connection is temporarily unavailable. Please refresh and try again.";

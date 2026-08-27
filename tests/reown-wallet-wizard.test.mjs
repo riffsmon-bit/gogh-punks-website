@@ -205,9 +205,28 @@ test("mobile wizard and AppKit source bind the required production experience", 
   assert.match(css, /@media \(max-width: 620px\)/);
   assert.match(client, /caipNetworkId: "eip155:4663"/);
   assert.match(client, /new EthersAdapter\(\)/);
+  assert.match(client, /appKit\.getWalletProvider\(\)/);
+  assert.doesNotMatch(client, /appKit\.getProviders\(\)/);
   assert.doesNotMatch(client, /projectId:\s*["'][0-9a-f]{32}/);
   assert.doesNotMatch(wallet, /setupReadOnlyWallet\(\{ windowObject: window/);
   assert.match(wallet, /First-time visitors load no AppKit code/);
   assert.match(packageJson, /@reown\/appkit/);
   assert.match(netlify, /wss:\/\/relay\.walletconnect\.com/);
+});
+
+test("partial AppKit initialization never opens a misleading wallet modal", async () => {
+  const fixture = reownFixture();
+  fixture.session.getProvider = () => {
+    throw new TypeError("unsupported provider accessor");
+  };
+  await setupReownWallet({
+    windowObject: fixture.windowObject,
+    documentObject: fixture.documentObject,
+    sessionFactory: () => fixture.session,
+  });
+
+  await fixture.button.click();
+  assert.deepEqual(fixture.calls, [], "a partially initialized session must never open");
+  assert.equal(fixture.button.textContent, "Wallet unavailable");
+  assert.equal(fixture.windowObject.__GOGH_WALLET_PROVIDER__, null);
 });
