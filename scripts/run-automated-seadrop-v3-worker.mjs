@@ -81,7 +81,7 @@ function httpsUrl(name, value) {
   return url.href;
 }
 
-function readClient(url) {
+function readClient(url, signal) {
   return createPublicClient({
     chain: CHAIN,
     transport: http(url, {
@@ -89,19 +89,22 @@ function readClient(url) {
       // accept the HTTP request. Small batches plus bounded retries keep the
       // worker inside free-provider throughput without weakening dual reads.
       batch: { batchSize: 5, wait: 25 }, retryCount: 3, retryDelay: 1_000,
-      timeout: 12_000,
+      timeout: 12_000, fetchOptions: signal ? { signal } : undefined,
     }),
   });
 }
 
-function discoveryClient(url) {
+function discoveryClient(url, signal) {
   return createPublicClient({
     chain: CHAIN,
     // Discovery hints are non-authoritative and every selected collection is
     // subsequently re-read and simulated by both full clients. A short,
     // no-retry transport prevents a slow hint provider from consuming the
     // scheduled function's entire execution budget.
-    transport: http(url, { batch: false, retryCount: 0, timeout: 5_000 }),
+    transport: http(url, {
+      batch: false, retryCount: 0, timeout: 5_000,
+      fetchOptions: signal ? { signal } : undefined,
+    }),
   });
 }
 
@@ -128,6 +131,14 @@ const DISCOVERY_BATCH_SIZE = 8;
 const DISCOVERY_RUNTIME_BATCH_SIZE = 4;
 const DISCOVERY_BATCH_DELAY_MS = 250;
 const CONFIGURED_PUNK_LIMIT = 32;
+// Netlify terminates the scheduled function at 60 seconds. Keep enough time
+// outside the worker for the durable heartbeat and lease cleanup, and never
+// begin a transaction unless both submission and confirmation fit inside the
+// remaining budget.
+export const AUTOMATION_V3_WORKER_TIME_BUDGET_MS = 48_000;
+const AUTOMATION_V3_SUBMISSION_RESERVE_MS = 17_000;
+const AUTOMATION_V3_PROFILE_BATCH_SIZE = 6;
+const AUTOMATION_V3_CANDIDATE_BATCH_SIZE = 4;
 
 function discoveryDelay() {
   return new Promise((resolve) => setTimeout(resolve, DISCOVERY_BATCH_DELAY_MS));
@@ -375,6 +386,24 @@ export async function fairlyOrderedAutomationV3Profiles(
   }
 }
 
+export function scheduledAutomationV3ProfileBatch(
+  profiles, requestedTokenId = null, nowMs = Date.now(), batchSize = AUTOMATION_V3_PROFILE_BATCH_SIZE,
+) {
+  if (!Array.isArray(profiles) || profiles.length > CONFIGURED_PUNK_LIMIT
+    || profiles.some((row) => !row || !/^(?:0|[1-9][0-9]{0,3})$/.test(String(row.token_id)))
+    || (requestedTokenId !== null
+      && !/^(?:0|[1-9][0-9]{0,3})$/.test(String(requestedTokenId)))
+    || !Number.isSafeInteger(nowMs) || nowMs < 0
+    || !Number.isSafeInteger(batchSize) || batchSize < 1 || batchSize > CONFIGURED_PUNK_LIMIT) {
+    throw new TypeError("invalid V3 scheduled profile batch");
+  }
+  if (requestedTokenId !== null || profiles.length <= batchSize) return [...profiles];
+  const batchCount = Math.ceil(profiles.length / batchSize);
+  const fiveMinuteWindow = Math.floor(nowMs / 300_000);
+  const offset = (fiveMinuteWindow % batchCount) * batchSize;
+  return [...profiles.slice(offset, offset + batchSize)];
+}
+
 export async function recentSeaDropCollections(
   client, confirmations = 20n, dependencies = {},
 ) {
@@ -614,6 +643,28 @@ function liveState(profile, state, screen, maxFeePerGasWei) {
 
 export async function runAutomatedSeaDropV3Worker(environment = process.env, dependencies = {}) {
   if (environment.BROKER_AUTOMATION_V3_ENABLED !== "true") return { status: "DISABLED", submitted: 0 };
+  const clock = dependencies.now ?? Date.now;
+  if (typeof clock !== "function") throw new TypeError("invalid V3 worker clock");
+  const startedAtMs = clock();
+  const deadlineMs = dependencies.deadlineMs ?? startedAtMs + AUTOMATION_V3_WORKER_TIME_BUDGET_MS;
+  if (!Number.isSafeInteger(startedAtMs) || startedAtMs < 0
+    || !Number.isSafeInteger(deadlineMs) || deadlineMs <= startedAtMs
+    || deadlineMs - startedAtMs > AUTOMATION_V3_WORKER_TIME_BUDGET_MS) {
+    throw new TypeError("invalid V3 worker time budget");
+  }
+  const controller = dependencies.abortSignal ? null : new AbortController();
+  const abortSignal = dependencies.abortSignal ?? controller.signal;
+  const abortTimer = dependencies.now || !controller ? null : setTimeout(
+    () => controller.abort(), Math.max(0, deadlineMs - Date.now()),
+  );
+  const budgetExpired = (reserveMs = 0) => clock() >= deadlineMs - reserveMs;
+  let currentDiagnostics = null;
+  let transactionSubmitted = false;
+  const budgetResult = () => ({
+    status: "NO_ELIGIBLE_TARGETS", submitted: 0,
+    diagnostics: { ...(currentDiagnostics ?? {}), scanBudgetExhausted: true },
+  });
+  try {
   const key = environment.BROKER_AUTOMATION_V3_AGENT_PRIVATE_KEY;
   let signingAccount = null;
   if (dependencies.readOnly !== true) {
@@ -631,9 +682,9 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   }
   const primaryUrl = httpsUrl("ROBINHOOD_RPC_URL", environment.ROBINHOOD_RPC_URL ?? environment.RPC_URL);
   const secondaryUrl = httpsUrl("ROBINHOOD_SECONDARY_RPC_URL", environment.ROBINHOOD_SECONDARY_RPC_URL);
-  const primary = dependencies.primary ?? readClient(primaryUrl);
-  const secondary = dependencies.secondary ?? readClient(secondaryUrl);
-  const discovery = dependencies.discovery ?? discoveryClient(primaryUrl);
+  const primary = dependencies.primary ?? readClient(primaryUrl, abortSignal);
+  const secondary = dependencies.secondary ?? readClient(secondaryUrl, abortSignal);
+  const discovery = dependencies.discovery ?? discoveryClient(primaryUrl, abortSignal);
   const global = await workerStage(
     "GLOBAL_STATE_READ_FAILED",
     () => readAutomationV3GlobalState(environment, { clients: [primary, secondary] }),
@@ -650,13 +701,17 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
     "PROFILE_DATABASE_READ_FAILED",
     () => eligibleAutomationV3Profiles(database, requestedTokenId, configuredTokenIds),
   );
-  const profiles = await workerStage(
+  const orderedProfiles = await workerStage(
     "PROFILE_ORDER_READ_FAILED",
     () => fairlyOrderedAutomationV3Profiles(
       database, eligibleProfiles, requestedTokenId, dependencies.report,
     ),
   );
+  const profiles = scheduledAutomationV3ProfileBatch(
+    orderedProfiles, requestedTokenId, startedAtMs,
+  );
   if (profiles.length === 0) return { status: "NO_AUTONOMOUS_MANDATES", submitted: 0 };
+  if (budgetExpired()) return budgetResult();
   // A reviewed operator may temporarily constrain discovery to a small exact set.
   // This does not bypass any runtime, public-drop, dual-provider, policy, or simulation
   // gate below; it only prevents another eligible collection from consuming the Punk's
@@ -665,22 +720,29 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   const priorityCollections = configuredPrioritySeaDropCollections(environment) ?? [];
   const discoveredCollections = directedCollections === null
     ? await workerStage("DISCOVERY_SCAN_FAILED", () => recentSeaDropCollections(discovery)) : [];
+  if (budgetExpired()) return budgetResult();
   const collections = directedCollections
     ?? mergePrioritySeaDropCollections(priorityCollections, discoveredCollections);
   // Use the archive provider for the indexed public-drop reads, then move the much
   // smaller active set to the canonical endpoint for runtime classification. This
   // avoids exhausting either provider's per-second allowance. Every selected target
   // is still independently re-read and simulated by both clients before submission.
-  const candidates = await workerStage(
+  const analyzedCandidates = await workerStage(
     "CANDIDATE_PREFILTER_FAILED",
     () => activeZeroPriceSeaDropCollections(secondary, primary, collections),
   );
+  if (budgetExpired()) return budgetResult();
+  const candidates = analyzedCandidates.slice(0, AUTOMATION_V3_CANDIDATE_BATCH_SIZE);
   if (candidates.length === 0) return {
     status: "NO_ANALYZED_ACTIVE_TARGETS", submitted: 0,
     diagnostics: { profiles: profiles.length, recentSeaDropCollections: collections.length,
       directedTargetCollections: directedCollections?.length ?? 0, onchainZeroPriceCandidates: 0 },
   };
   const diagnostics = rejectionDiagnostics(profiles, collections, candidates);
+  currentDiagnostics = diagnostics;
+  diagnostics.totalEligibleProfiles = orderedProfiles.length;
+  diagnostics.scheduledProfileBatch = profiles.length;
+  diagnostics.analyzedCandidateBatch = candidates.length;
   diagnostics.directedTargetCollections = directedCollections?.length ?? 0;
   diagnostics.priorityTargetCollections = priorityCollections.length;
   diagnostics.operatorConfiguredPunks = configuredTokenIds.length;
@@ -693,6 +755,7 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   const policyModule = getAddress(manifest.contracts.BrokerPolicyModuleV3.address);
   const agent = getAddress(AUTOMATION_V3_AGENT);
   for (const row of profiles) {
+    if (budgetExpired()) return budgetResult();
     const tokenId = String(row.token_id);
     let accountAddress;
     let expectedOwner;
@@ -728,6 +791,7 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
     }
     diagnostics.priorityStateReadFailures += priorityState.readFailures;
     for (const collection of candidates) {
+      if (budgetExpired()) return budgetResult();
       diagnostics.candidateStateReadAttempts += 1;
       let latestNonce;
       let latestPolicy;
@@ -767,6 +831,7 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
           { primaryUrl, secondaryUrl }, { confirmations: 20, maximumEvidenceAgeSeconds: 30 },
           { primary: readFacade(primary, primaryUrl), secondary: readFacade(secondary, secondaryUrl) });
       } catch (error) {
+        if (budgetExpired()) return budgetResult();
         recordLiveScreenRejection(diagnostics, error);
         continue;
       }
@@ -779,6 +844,7 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
           accountState(secondary, pinned, accountAddress, agent),
         ]);
       } catch {
+        if (budgetExpired()) return budgetResult();
         diagnostics.candidateStateReadFailures += 1;
         continue;
       }
@@ -840,16 +906,24 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
           diagnostics,
         };
       }
-      const wallet = createWalletClient({ account: signingAccount, chain: CHAIN, transport: http(primaryUrl, { retryCount: 0, timeout: 10_000 }) });
+      if (budgetExpired(AUTOMATION_V3_SUBMISSION_RESERVE_MS)) return budgetResult();
+      const wallet = createWalletClient({
+        account: signingAccount, chain: CHAIN,
+        transport: http(primaryUrl, { retryCount: 0, timeout: 5_000 }),
+      });
       const hash = await workerStage(
         "TRANSACTION_SUBMISSION_FAILED",
         () => wallet.sendTransaction({
           account: signingAccount, to: getAddress(tx.to), data: tx.data, value: 0n,
         }),
       );
+      transactionSubmitted = true;
       const receipt = await workerStage(
         "TRANSACTION_CONFIRMATION_UNCERTAIN",
-        () => primary.waitForTransactionReceipt({ hash, confirmations: 1, timeout: 60_000 }),
+        () => primary.waitForTransactionReceipt({
+          hash, confirmations: 1,
+          timeout: Math.max(1_000, Math.min(8_000, deadlineMs - clock() - 4_000)),
+        }),
       );
       if (receipt.status !== "success") {
         const error = new Error("AUTONOMOUS_MINT_REVERTED");
@@ -871,4 +945,12 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
     throw error;
   }
   return { status: "NO_ELIGIBLE_TARGETS", submitted: 0, diagnostics };
+  } catch (error) {
+    if (!transactionSubmitted && (budgetExpired() || error?.name === "AbortError")) {
+      return budgetResult();
+    }
+    throw error;
+  } finally {
+    if (abortTimer) clearTimeout(abortTimer);
+  }
 }

@@ -1,11 +1,13 @@
 import { getDatabase } from "@netlify/database";
 import { randomUUID } from "node:crypto";
-import { runAutomatedSeaDropV3Worker } from
+import {
+  AUTOMATION_V3_WORKER_TIME_BUDGET_MS, runAutomatedSeaDropV3Worker,
+} from
   "../../../scripts/run-automated-seadrop-v3-worker.mjs";
 import { recordAutomationV3WorkerHeartbeat } from "./automation-v3-worker-state.mjs";
 
 const WORKER_LOCK_ID = 46_630_003;
-const WORKER_LEASE_MILLISECONDS = 240_000;
+const WORKER_LEASE_MILLISECONDS = 90_000;
 
 function failureCode(error) {
   return typeof error?.code === "string" && /^[A-Z0-9_]{1,128}$/.test(error.code)
@@ -42,6 +44,7 @@ export async function runAutomationV3Once(options = {}) {
       const result = await worker(environment, {
         database,
         requestedTokenId: options.requestedTokenId ?? null,
+        deadlineMs: startedAt.getTime() + AUTOMATION_V3_WORKER_TIME_BUDGET_MS,
       });
       try {
         await record(result, {

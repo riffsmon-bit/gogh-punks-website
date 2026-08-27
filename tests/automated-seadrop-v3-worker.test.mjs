@@ -14,6 +14,7 @@ import {
   recentSeaDropCollections,
   rotateAutomationV3Profiles,
   runAutomatedSeaDropV3Worker,
+  scheduledAutomationV3ProfileBatch,
   selectActiveZeroPriceSeaDropCollections,
   selectReviewedStudioCollections,
   workerStageError,
@@ -212,6 +213,27 @@ test("scheduled V3 fairness cursor failure keeps the bounded roster available", 
   assert.match(reports[0], /AUTOMATION_V3_FAIRNESS_CURSOR_UNAVAILABLE/);
 });
 
+test("scheduled V3 passes rotate through a bounded roster without starving later Punks", () => {
+  const profiles = Array.from({ length: 15 }, (_, tokenId) => ({ token_id: String(tokenId) }));
+  assert.deepEqual(
+    scheduledAutomationV3ProfileBatch(profiles, null, 0).map(({ token_id }) => token_id),
+    ["0", "1", "2", "3", "4", "5"],
+  );
+  assert.deepEqual(
+    scheduledAutomationV3ProfileBatch(profiles, null, 300_000).map(({ token_id }) => token_id),
+    ["6", "7", "8", "9", "10", "11"],
+  );
+  assert.deepEqual(
+    scheduledAutomationV3ProfileBatch(profiles, null, 600_000).map(({ token_id }) => token_id),
+    ["12", "13", "14"],
+  );
+  assert.deepEqual(
+    scheduledAutomationV3ProfileBatch(profiles, "14", 600_000).map(({ token_id }) => token_id),
+    profiles.map(({ token_id }) => token_id),
+  );
+  assert.throws(() => scheduledAutomationV3ProfileBatch(profiles, null, -1));
+});
+
 test("V3 discovery has a bounded parallel RPC ceiling", async () => {
   let active = 0;
   let maximumActive = 0;
@@ -334,6 +356,10 @@ test("V3 worker source binds both runtime families and no paid or approval path"
   assert.match(source, /candidateStateReadFailures/);
   assert.match(source, /TRANSACTION_CONFIRMATION_UNCERTAIN/);
   assert.match(source, /GLOBAL_STATE_READ_FAILED/);
+  assert.match(source, /AUTOMATION_V3_WORKER_TIME_BUDGET_MS = 48_000/);
+  assert.match(source, /AUTOMATION_V3_SUBMISSION_RESERVE_MS = 17_000/);
+  assert.match(source, /scanBudgetExhausted: true/);
+  assert.match(source, /timeout: Math\.max\(1_000, Math\.min\(8_000/);
   assert.doesNotMatch(source, /approve\(|setApprovalForAll|execute\(address,uint256,bytes/);
 });
 

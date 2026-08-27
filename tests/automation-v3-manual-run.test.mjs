@@ -98,7 +98,7 @@ test("worker runner fails closed when another run holds the lock", async () => {
   assert.equal(called, false);
 });
 
-test("worker lease is crash-recoverable and bounded beyond the function timeout", async () => {
+test("worker lease and deadline recover before the next scheduled pass", async () => {
   const migration = await import("node:fs/promises").then(({ readFile }) => readFile(
     new URL("../netlify/database/migrations/20260825080000_create_automation_v3_worker_lease.sql", import.meta.url),
     "utf8",
@@ -108,7 +108,8 @@ test("worker lease is crash-recoverable and bounded beyond the function timeout"
     "utf8",
   ));
   assert.match(migration, /lease_until TIMESTAMPTZ NOT NULL/);
-  assert.match(source, /WORKER_LEASE_MILLISECONDS = 240_000/);
+  assert.match(source, /WORKER_LEASE_MILLISECONDS = 90_000/);
+  assert.match(source, /deadlineMs: startedAt\.getTime\(\) \+ AUTOMATION_V3_WORKER_TIME_BUDGET_MS/);
   assert.match(source, /lease_until <= NOW\(\)/);
   assert.doesNotMatch(source, /pg_try_advisory_lock|pg_advisory_unlock/);
 });
