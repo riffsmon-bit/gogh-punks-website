@@ -1,5 +1,8 @@
 [build]
-  command = "npm run site:check"
+  # The full local suite also validates Foundry build artifacts under contracts/out,
+  # which are intentionally not committed. Production runs the complete static,
+  # manifest, browser, wallet, and onboarding gate without depending on local output.
+  command = "npm run site:deploy-check"
   publish = "site"
 
 [build.environment]
