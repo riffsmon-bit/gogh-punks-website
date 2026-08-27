@@ -63,7 +63,7 @@ export function walletPresentation({ available, pending, account, chainId, owner
       buttonLabel: "Wallet unavailable",
       statusText: "Wallet connection is temporarily unavailable. Refresh the page and try again.",
       state: "unavailable",
-      disabled: true,
+      disabled: false,
     };
   }
   if (pending) {
@@ -71,7 +71,7 @@ export function walletPresentation({ available, pending, account, chainId, owner
       buttonLabel: "Connecting…",
       statusText: "Approve only the connection request. No signature or transaction is requested.",
       state: "pending",
-      disabled: true,
+      disabled: false,
     };
   }
   if (!account) {
@@ -89,7 +89,7 @@ export function walletPresentation({ available, pending, account, chainId, owner
       buttonLabel: shortAddress,
       statusText: `${shortAddress} connected · wrong network · select Robinhood Chain (4663) in your wallet`,
       state: "wrong-network",
-      disabled: true,
+      disabled: false,
     };
   }
 
@@ -117,7 +117,7 @@ export function walletPresentation({ available, pending, account, chainId, owner
     buttonLabel: shortAddress,
     statusText: `${tokenLabel} selected · this connected address is not its current holder`,
     state: "viewer",
-    disabled: true,
+    disabled: false,
   };
 }
 
@@ -371,6 +371,24 @@ function loadReownBundle(browserWindow, browserDocument) {
 }
 
 const REOWN_RETURNING_SESSION_KEY = "gogh.wallet.reown.returning.v1";
+const WALLET_SCOPED_STORAGE_KEYS = Object.freeze([
+  REOWN_RETURNING_SESSION_KEY,
+  "gogh.artBroker.setup.v1",
+  "gogh:activated-punk-ids:v1",
+]);
+
+function clearWalletStorage(storage) {
+  if (!storage) return;
+  for (const key of WALLET_SCOPED_STORAGE_KEYS) storage.removeItem(key);
+}
+
+export function clearWalletScopedState(browserWindow) {
+  try { clearWalletStorage(browserWindow.localStorage); } catch { /* storage is optional */ }
+  try { clearWalletStorage(browserWindow.sessionStorage); } catch { /* storage is optional */ }
+  browserWindow.__GOGH_OWNER_PUNKS__ = Object.freeze({ punks: Object.freeze([]) });
+  browserWindow.__GOGH_AUTOMATION_SNAPSHOT__ = null;
+  browserWindow.__GOGH_OWNER_SNAPSHOT__ = null;
+}
 
 function returningSessionMarker(browserWindow) {
   try {
@@ -396,6 +414,7 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
   if (!browserWindow || !browserDocument) return null;
   const buttons = [...browserDocument.querySelectorAll("[data-wallet-connect]")];
   const switchButtons = [...browserDocument.querySelectorAll("[data-wallet-switch]")];
+  const disconnectButtons = [...browserDocument.querySelectorAll("[data-wallet-disconnect]")];
   const statusTargets = [...browserDocument.querySelectorAll("[data-wallet-state]")];
   if (!buttons.length) return null;
   const request = fetchFunction ?? browserWindow.fetch?.bind(browserWindow);
@@ -439,6 +458,14 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
       button.disabled = state.switching;
       button.textContent = state.switching ? "Switching network…" : "Switch Network";
     }
+    for (const button of disconnectButtons) {
+      button.hidden = !state.account;
+      button.disabled = state.pending;
+      button.textContent = state.pending ? "Disconnecting…" : "Disconnect Wallet";
+      button.setAttribute("aria-disabled", String(button.disabled));
+      button.title = state.account
+        ? `Disconnect ${shortWalletAddress(state.account)}` : "Disconnect Wallet";
+    }
     const detail = Object.freeze({
       account: state.account,
       chainId: state.chainId,
@@ -473,9 +500,41 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
       if (!state.session) return;
       state.pending = true;
       render();
-      await state.session.open();
+      await (state.account && typeof state.session.openAccount === "function"
+        ? state.session.openAccount() : state.session.open());
     } catch (error) {
       state.networkError = walletErrorMessage(error, "connect");
+    } finally {
+      state.pending = false;
+      render();
+    }
+  }
+
+  async function disconnect() {
+    if (!state.session || !state.account || state.pending) return;
+    state.pending = true;
+    state.networkError = null;
+    render();
+    try {
+      await state.session.disconnect();
+      state.account = null;
+      state.chainId = null;
+      state.owner = null;
+      state.provider = null;
+      clearWalletScopedState(browserWindow);
+      const events = [
+        ["gogh:owner-punks", { punks: Object.freeze([]) }],
+        ["gogh:automation-state", null],
+        ["gogh:punk-selected", { tokenId: null, owner: null }],
+        ["gogh:wallet-disconnected", { disconnected: true }],
+      ];
+      if (typeof browserWindow.CustomEvent === "function") {
+        for (const [name, detail] of events) {
+          browserWindow.dispatchEvent(new browserWindow.CustomEvent(name, { detail }));
+        }
+      }
+    } catch (error) {
+      state.networkError = walletErrorMessage(error, "disconnect");
     } finally {
       state.pending = false;
       render();
@@ -501,6 +560,7 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
 
   for (const button of buttons) button.addEventListener("click", connect);
   for (const button of switchButtons) button.addEventListener("click", switchNetwork);
+  for (const button of disconnectButtons) button.addEventListener("click", disconnect);
   browserWindow.addEventListener("gogh:owner-snapshot", ownerSnapshot);
   browserWindow.addEventListener("gogh:punk-selected", ownerSnapshot);
   render();
@@ -613,12 +673,13 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
   }
 
   return Object.freeze({
-    connect, switchNetwork, ensureSession,
+    connect, disconnect, switchNetwork, ensureSession,
     get provider() { return state.provider; },
     destroy() {
       destroyed = true;
       for (const button of buttons) button.removeEventListener("click", connect);
       for (const button of switchButtons) button.removeEventListener("click", switchNetwork);
+      for (const button of disconnectButtons) button.removeEventListener("click", disconnect);
       browserWindow.removeEventListener("gogh:owner-snapshot", ownerSnapshot);
       browserWindow.removeEventListener("gogh:punk-selected", ownerSnapshot);
       for (const unsubscribe of unsubscribers) unsubscribe?.();

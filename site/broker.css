@@ -108,6 +108,26 @@ button { font: inherit; }
 .wallet-switch-button[hidden] { display: none; }
 .wallet-button[data-wallet-status="owner"] { border-color: rgba(54, 200, 182, 0.55); color: var(--teal); }
 .wallet-button[data-wallet-status="wrong-network"] { border-color: rgba(237, 130, 108, 0.55); color: var(--risk); }
+.wallet-disconnect {
+  min-height: 34px;
+  padding: 7px 11px;
+  border: 1px solid rgba(237, 130, 108, 0.55);
+  background: rgba(237, 130, 108, 0.06);
+  color: var(--risk);
+  font: inherit;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.wallet-disconnect:hover, .wallet-disconnect:focus-visible {
+  border-color: var(--risk);
+  background: rgba(237, 130, 108, 0.14);
+  color: var(--cream);
+}
+.wallet-disconnect:disabled { cursor: wait; opacity: 0.58; }
+.wallet-disconnect[hidden] { display: none; }
 .wallet-state {
   max-width: 310px;
   color: var(--muted);

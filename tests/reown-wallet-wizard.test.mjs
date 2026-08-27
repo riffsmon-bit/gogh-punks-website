@@ -28,6 +28,7 @@ class Element {
 function reownFixture() {
   const button = new Element();
   const switchButton = new Element();
+  const disconnectButton = new Element();
   const status = new Element();
   const windowListeners = new Map();
   const documentListeners = new Map();
@@ -40,8 +41,12 @@ function reownFixture() {
   };
   const calls = [];
   const storage = new Map();
+  const sessionStorage = new Map();
+  const dispatched = [];
   const session = {
     open: async () => { calls.push("open"); },
+    openAccount: async () => { calls.push("account"); },
+    disconnect: async () => { calls.push("disconnect"); },
     switchNetwork: async () => { calls.push("switch"); },
     getAccount: () => current.account,
     getNetwork: () => ({ chainId: current.chainId }),
@@ -54,27 +59,38 @@ function reownFixture() {
   };
   const windowObject = {
     localStorage: {
+      get length() { return storage.size; },
+      key: (index) => [...storage.keys()][index] ?? null,
       getItem: (key) => storage.get(key) ?? null,
       setItem: (key, value) => storage.set(key, String(value)),
       removeItem: (key) => storage.delete(key),
     },
+    sessionStorage: {
+      get length() { return sessionStorage.size; },
+      key: (index) => [...sessionStorage.keys()][index] ?? null,
+      getItem: (key) => sessionStorage.get(key) ?? null,
+      setItem: (key, value) => sessionStorage.set(key, String(value)),
+      removeItem: (key) => sessionStorage.delete(key),
+    },
     CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options.detail; } },
     addEventListener(name, listener) { windowListeners.set(name, listener); },
     removeEventListener(name) { windowListeners.delete(name); },
-    dispatchEvent() {},
+    dispatchEvent(event) { dispatched.push(event); },
   };
   const documentObject = {
     visibilityState: "visible",
     querySelectorAll(selector) {
       if (selector === "[data-wallet-connect]") return [button];
       if (selector === "[data-wallet-switch]") return [switchButton];
+      if (selector === "[data-wallet-disconnect]") return [disconnectButton];
       if (selector === "[data-wallet-state]") return [status];
       return [];
     },
     addEventListener(name, listener) { documentListeners.set(name, listener); },
   };
-  return { button, switchButton, status, callbacks, calls, current, session, storage,
-    windowObject, documentObject, windowListeners, documentListeners };
+  return { button, switchButton, disconnectButton, status, callbacks, calls, current,
+    session, storage, sessionStorage, dispatched, windowObject, documentObject,
+    windowListeners, documentListeners };
 }
 
 test("Reown runtime config is environment-only and fail-closed", () => {
@@ -156,6 +172,35 @@ test("a known prior Reown session restores idly without opening a wallet prompt"
   assert.equal(factoryCalls, 1);
   assert.equal(fixture.windowObject.__GOGH_WALLET_SNAPSHOT__.account, OWNER);
   assert.deepEqual(fixture.calls, [], "restoration must not open a wallet selector");
+});
+
+test("disconnect clears wallet-scoped state and prevents stale Punk controls", async () => {
+  const fixture = reownFixture();
+  fixture.current.account = { address: OWNER, isConnected: true, status: "connected" };
+  for (const key of ["gogh.wallet.reown.returning.v1", "gogh.artBroker.setup.v1",
+    "gogh:activated-punk-ids:v1"]) {
+    fixture.storage.set(key, "wallet-data");
+    fixture.sessionStorage.set(key, "wallet-data");
+  }
+  fixture.storage.set("gogh.global.metadata", "keep");
+  const controller = await setupReownWallet({
+    windowObject: fixture.windowObject, documentObject: fixture.documentObject,
+    sessionFactory: () => fixture.session,
+  });
+  await controller.ensureSession();
+  assert.equal(fixture.disconnectButton.hidden, false);
+  assert.equal(fixture.disconnectButton.textContent, "Disconnect Wallet");
+  await fixture.button.click();
+  assert.equal(fixture.calls.at(-1), "account");
+  await fixture.disconnectButton.click();
+  assert.equal(fixture.calls.at(-1), "disconnect");
+  assert.equal(fixture.button.textContent, "Connect wallet");
+  assert.equal(fixture.disconnectButton.hidden, true);
+  assert.equal(fixture.windowObject.__GOGH_WALLET_PROVIDER__, null);
+  assert.equal(fixture.storage.get("gogh.global.metadata"), "keep");
+  assert.equal(fixture.windowObject.__GOGH_OWNER_PUNKS__.punks.length, 0);
+  assert.ok(fixture.dispatched.some(({ type }) => type === "gogh:wallet-disconnected"));
+  controller.destroy();
 });
 
 test("wallet failures are plain-language across mobile rejection, timeout, and expiry", () => {
