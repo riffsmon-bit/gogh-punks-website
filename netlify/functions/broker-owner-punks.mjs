@@ -19,6 +19,7 @@ const OWNER_DISCOVERY_ABI = parseAbi([
 ]);
 const OWNER_SCAN_CHUNK = 200;
 const OWNER_SCAN_CONCURRENCY = 4;
+const MULTICALL3_ADDRESS = "0xca11bde05977b3631167028862be2a173976ca11";
 
 function own(value, key) {
   return value && typeof value === "object" && Object.hasOwn(value, key)
@@ -102,6 +103,7 @@ function ownerDiscoveryClient(environment = process.env) {
     name: ROBINHOOD.name,
     nativeCurrency: ROBINHOOD.nativeCurrency,
     rpcUrls: { default: { http: [rpcUrl.href] } },
+    contracts: { multicall3: { address: MULTICALL3_ADDRESS } },
   });
   return createPublicClient({
     chain,
@@ -446,10 +448,22 @@ export default async function handler(request) {
       // resulting list is still a server hint; browser Multicall remains the UI authority.
       candidateTokenIds = [...await liveOwnerPunkIds(owner, candidateTokenIds)];
       liveOwnerAvailable = true;
-    } catch (error) {
-      console.error(JSON.stringify({
-        event: "BROKER_OWNER_PUNK_LIVE_COMPLETION_UNAVAILABLE", type: error?.name,
-      }));
+    } catch (primaryError) {
+      try {
+        // A keyed provider is preferred, but Punk discovery must not disappear when that provider
+        // is rate-limited or misconfigured. The canonical public RPC is a read-only completion
+        // fallback used only for this owner-triggered request.
+        candidateTokenIds = [...await liveOwnerPunkIds(owner, candidateTokenIds, {
+          client: ownerDiscoveryClient({ ROBINHOOD_RPC_URL: ROBINHOOD.rpcUrl }),
+        })];
+        liveOwnerAvailable = true;
+      } catch (fallbackError) {
+        console.error(JSON.stringify({
+          event: "BROKER_OWNER_PUNK_LIVE_COMPLETION_UNAVAILABLE",
+          primaryType: primaryError?.name,
+          fallbackType: fallbackError?.name,
+        }));
+      }
     }
     if (candidateTokenIds.length > MAX_CANDIDATES) throw new RangeError("owner candidate set is too large");
     let cachedPunks = [];
