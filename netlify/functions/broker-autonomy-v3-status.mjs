@@ -8,6 +8,9 @@ import {
 import {
   getAutomationV3UsageStats, getAutomationV3WorkerHeartbeat, workerHeartbeatIsCurrent,
 } from "./_shared/automation-v3-worker-state.mjs";
+import {
+  getProductionAutomationV3Activity, isDeployPreview,
+} from "./_shared/automation-v3-production-bridge.mjs";
 
 const CONTRACT_NAMES = Object.freeze([
   "AutomatedSeaDropStudioFreeMintAdapter",
@@ -132,12 +135,18 @@ export default async function handler(request) {
     try {
       const params = new URL(request.url).searchParams;
       const tokenId = params.get("tokenId");
-      const [live, heartbeat, usage, selectedPunk] = await Promise.all([
+      const workerEvidence = isDeployPreview()
+        ? getProductionAutomationV3Activity()
+        : Promise.all([
+          getAutomationV3WorkerHeartbeat().catch(() => null),
+          getAutomationV3UsageStats().catch(() => null),
+        ]).then(([heartbeat, usage]) => ({ heartbeat, usage }));
+      const [live, evidence, selectedPunk] = await Promise.all([
         readAutomationV3GlobalState(),
-        getAutomationV3WorkerHeartbeat().catch(() => null),
-        getAutomationV3UsageStats().catch(() => null),
+        workerEvidence,
         tokenId === null ? null : readAutomationV3PunkState(tokenId),
       ]);
+      const { heartbeat, usage } = evidence;
       punk = selectedPunk;
       const globallyReady = live.configured === true && live.worker.enabled === true;
       const availability = automationV3WorkerAvailability(
