@@ -5,7 +5,7 @@ import { encodeFunctionData } from "viem";
 
 import { reviewOpenSeaMintForPunk } from
   "../broker/src/connector/opensea-directed-review.mjs";
-import { handleOpenSeaConnectorRequest } from
+import { handleOpenSeaConnectorRequest, requireTrustedOrigin } from
   "../netlify/functions/broker-connector-opensea.mjs";
 
 const OWNER = `0x${"1".repeat(40)}`;
@@ -94,4 +94,14 @@ test("paid and noncanonical proposals are never marked executable", async () => 
   await assert.rejects(reviewOpenSeaMintForPunk({ action: "prepare", tokenId: "93",
     walletAddress: OWNER, url: "https://opensea.io/drops/bad-drop" }, quantityTwo),
   /quantity-one/);
+});
+
+test("preview requests are limited to the exact served origin", () => {
+  const url = "https://deploy-preview-9--gogh-punks.netlify.app/api/broker/connector/opensea";
+  assert.doesNotThrow(() => requireTrustedOrigin(new Request(url, {
+    headers: { origin: "https://deploy-preview-9--gogh-punks.netlify.app" },
+  }), {}));
+  assert.throws(() => requireTrustedOrigin(new Request(url, {
+    headers: { origin: "https://attacker.example" },
+  }), {}), /origin was rejected/);
 });

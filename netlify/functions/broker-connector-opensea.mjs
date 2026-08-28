@@ -3,9 +3,9 @@ import { OpenSeaDirectedReviewError, reviewOpenSeaMintForPunk } from
 import { readAutomationV3PunkState } from "./_shared/autonomy-v3-live.mjs";
 import { json, PublicError, readJson } from "./_shared/http.mjs";
 
-function requireTrustedOrigin(request, environment = process.env) {
+export function requireTrustedOrigin(request, environment = process.env) {
   const origin = request.headers.get("origin");
-  const allowed = [environment.SITE_URL, environment.URL, environment.DEPLOY_PRIME_URL]
+  const allowed = [request.url, environment.SITE_URL, environment.URL, environment.DEPLOY_PRIME_URL]
     .filter((value) => typeof value === "string" && value.length <= 2_048)
     .map((value) => {
       try { return new URL(value).origin; } catch { return null; }
