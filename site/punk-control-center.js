@@ -34,7 +34,7 @@ const state = {
   punkCollection: null, nativeBalance: null, wrappedBalance: null,
   owned: false, activated: false, agentStatus: null, automation: null, assets: [],
   activity: [], timings: {}, revision: 0,
-  directedReviewId: null,
+  directedReviewId: null, directedSourceUrl: null,
 };
 
 async function localApi(path, options = {}) {
@@ -534,31 +534,49 @@ async function checkDirectedMint() {
     query("[data-directed-review]").hidden = true;
     return;
   }
-  if (!demo) {
-    setText("[data-directed-state]", "URL recognized. Authoritative contract and price resolution is local-only in this build, so execution is blocked.");
-    query("[data-directed-review]").hidden = true;
-    return;
-  }
   try {
-    setText("[data-directed-state]", "Resolving the local mint fixture and verifying its exact recipient…");
-    const payload = await localApi("/api/local-v2/directed/resolve", { body: {
-      tokenId: state.tokenId, url: input, recipient: state.account,
-    } });
+    setText("[data-directed-state]", demo
+      ? "Resolving the local mint fixture and verifying its exact recipient…"
+      : "Checking OpenSea drop details and live Punk ownership…");
+    const payload = demo
+      ? await localApi("/api/local-v2/directed/resolve", { body: {
+        tokenId: state.tokenId, url: input, recipient: state.account,
+      } })
+      : await localApi("/api/broker/connector/opensea", { body: {
+        action: "inspect", tokenId: state.tokenId, url: input,
+        walletAddress: state.walletAccount,
+      } });
     const policy = readPaidPolicy();
-    const priceWei = BigInt(payload.review.candidate.priceWei);
-    const gasWei = BigInt(payload.estimatedGasWei);
-    state.directedReviewId = payload.reviewId;
+    const review = payload.review;
+    state.directedReviewId = demo ? payload.reviewId : null;
+    state.directedSourceUrl = input;
     query("[data-directed-review]").hidden = false;
-    setText("[data-directed-collection]", payload.review.collectionName);
-    setText("[data-directed-price]", `${formatNative(priceWei)} · local fixture`);
-    setText("[data-directed-gas]", `${formatNative(gasWei)} · simulated`);
-    setText("[data-directed-maximum]", formatNative(priceWei + gasWei));
+    setText("[data-directed-collection]", review.collectionName);
+    if (demo) {
+      const priceWei = BigInt(review.candidate.priceWei);
+      const gasWei = BigInt(payload.estimatedGasWei);
+      setText("[data-directed-price]", `${formatNative(priceWei)} · local fixture`);
+      setText("[data-directed-gas]", `${formatNative(gasWei)} · simulated`);
+      setText("[data-directed-maximum]", formatNative(priceWei + gasWei));
+    } else {
+      setText("[data-directed-price]", "Prepare review to verify");
+      setText("[data-directed-gas]", "Not simulated");
+      setText("[data-directed-maximum]", "Not calculated");
+      setText("[data-directed-badge]", review.chainVerified
+        ? "ROBINHOOD DROP" : "CHAIN UNVERIFIED");
+    }
     setText("[data-directed-remaining]", `${policy.daily ?? "0.025"} ETH`);
-    setText("[data-directed-state]", "Supported local fixture resolved and stored for exact simulation. Nothing was submitted.");
+    setText("[data-directed-state]", demo
+      ? "Supported local fixture resolved and stored for exact simulation. Nothing was submitted."
+      : `${review.message} Nothing was signed or submitted.`);
+    setText("[data-directed-simulation]", demo
+      ? "Nothing has been submitted."
+      : "Press Prepare Bounded Review to request and decode OpenSea's proposed mint call.");
     await loadActivity();
     metric("Directed URL resolution", started);
   } catch (error) {
     state.directedReviewId = null;
+    state.directedSourceUrl = null;
     query("[data-directed-review]").hidden = true;
     setText("[data-directed-state]", `${error.message}. Nothing was submitted.`);
   }
@@ -566,18 +584,36 @@ async function checkDirectedMint() {
 
 async function simulateDirectedMint() {
   const started = performance.now();
-  if (!state.directedReviewId) {
-    setText("[data-directed-simulation]", "Check a supported local mint fixture first.");
+  if ((demo && !state.directedReviewId) || (!demo && !state.directedSourceUrl)) {
+    setText("[data-directed-simulation]", "Check a supported OpenSea mint first.");
     return;
   }
   try {
-    setText("[data-directed-simulation]", "Rechecking policy, recipient, price, and simulated asset effects…");
-    const payload = await localApi("/api/local-v2/directed/simulate", { body: {
-      tokenId: state.tokenId, reviewId: state.directedReviewId,
-    } });
-    setText("[data-directed-simulation]", payload.result.ready
-      ? "Simulation passed: exact spend, one expected NFT receipt, no approvals, outgoing assets, or contract creation. Nothing was broadcast."
-      : `Simulation blocked safely: ${payload.result.decision.code}.`);
+    setText("[data-directed-simulation]", demo
+      ? "Rechecking policy, recipient, price, and simulated asset effects…"
+      : "Requesting a quantity-one OpenSea proposal and decoding its exact call…");
+    if (demo) {
+      const payload = await localApi("/api/local-v2/directed/simulate", { body: {
+        tokenId: state.tokenId, reviewId: state.directedReviewId,
+      } });
+      setText("[data-directed-simulation]", payload.result.ready
+        ? "Simulation passed: exact spend, one expected NFT receipt, no approvals, outgoing assets, or contract creation. Nothing was broadcast."
+        : `Simulation blocked safely: ${payload.result.decision.code}.`);
+    } else {
+      const payload = await localApi("/api/broker/connector/opensea", { body: {
+        action: "prepare", tokenId: state.tokenId, url: state.directedSourceUrl,
+        walletAddress: state.walletAccount,
+      } });
+      const review = payload.review;
+      state.directedReviewId = review.reviewId;
+      setText("[data-directed-collection]", review.collectionName);
+      setText("[data-directed-price]", `${formatNative(review.proposal.valueWei)} · ${review.proposal.priceKind.toLowerCase()}`);
+      setText("[data-directed-gas]", "Not simulated");
+      setText("[data-directed-maximum]", `${formatNative(review.proposal.valueWei)} + gas`);
+      setText("[data-directed-badge]", review.proposal.currentFreeAdapterCompatible
+        ? "CALL SHAPE MATCH" : "BLOCKED SAFELY");
+      setText("[data-directed-simulation]", `${review.message} No signature or transaction was requested.`);
+    }
     await loadActivity();
     metric("Simulation", started);
   } catch (error) {

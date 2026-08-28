@@ -352,12 +352,13 @@ test("local demo relays only the public Reown identifier for exact Control Cente
     environment: { NEXT_PUBLIC_REOWN_PROJECT_ID: "a".repeat(32) } }), /origin/);
 });
 
-test("Control Center is a dedicated progressive mobile route and remains local-only", async () => {
-  const [html, browser, css, netlify] = await Promise.all([
+test("Control Center is progressive, mobile, and keeps mint execution disabled", async () => {
+  const [html, browser, css, netlify, connector] = await Promise.all([
     readFile(new URL("../site/broker/punk/index.html", import.meta.url), "utf8"),
     readFile(new URL("../site/punk-control-center.js", import.meta.url), "utf8"),
     readFile(new URL("../site/broker.css", import.meta.url), "utf8"),
     readFile(new URL("../netlify.toml", import.meta.url), "utf8"),
+    readFile(new URL("../netlify/functions/broker-connector-opensea.mjs", import.meta.url), "utf8"),
   ]);
   for (const label of ["Punk Control Center", "Overview", "Agent", "Mint", "Assets",
     "Activity", "Disconnect Wallet", "Paid Mint Settings", "Direct Your Punk to a Mint", "Add Assets",
@@ -366,12 +367,16 @@ test("Control Center is a dedicated progressive mobile route and remains local-o
   }
   assert.match(netlify, /from = "\/broker\/punk\/\*"/);
   assert.match(browser, /LOCAL SIMULATION/);
+  assert.match(browser, /\/api\/broker\/connector\/opensea/);
+  assert.match(html, /Prepare Bounded Review/);
   assert.match(browser, /nft-withdrawal-assets\?tokenId=/);
   assert.match(browser, /eth_call/);
   assert.doesNotMatch(browser, /eth_sendTransaction|wallet_sendCalls|sendRawTransaction/);
   const demoServer = await readFile(new URL("../scripts/run-v2-local-demo.mjs", import.meta.url), "utf8");
   assert.match(demoServer, /localWalletConfiguration/);
   assert.doesNotMatch(demoServer, /privateKey|eth_send|wallet_send|sendRawTransaction/);
+  assert.doesNotMatch(connector, /privateKey|eth_send|wallet_send|sendRawTransaction/);
+  assert.match(connector, /submissionPerformed/);
   assert.match(css, /@media \(max-width: 760px\)/);
   assert.match(css, /env\(safe-area-inset-bottom\)/);
 });
