@@ -81,7 +81,7 @@ function setActionAvailability(enabled) {
     "[data-agent-edit]", "[data-agent-revoke]", "[data-scout-simulate]",
     "[data-directed-check]", "[data-paid-save]", "[data-add-native]",
     "[data-load-assets]", "[data-deposit-review]", "[data-activity-refresh]",
-    "[data-wrap-review]"]) {
+    "[data-wrap-review]", "[data-schedule-save]"]) {
     const element = query(selector);
     if (element) element.disabled = !enabled;
   }
@@ -630,6 +630,7 @@ function bindActions() {
     query("[data-asset-grid]").textContent = error.message;
   }));
   query("[data-paid-save]").addEventListener("click", () => savePaidPolicy());
+  query("[data-schedule-save]").addEventListener("click", () => saveScoutingSchedule());
   query("[data-directed-check]").addEventListener("click", () => checkDirectedMint());
   query("[data-directed-simulate]").addEventListener("click", () => simulateDirectedMint());
   query("[data-scout-simulate]").addEventListener("click", async () => {
@@ -661,6 +662,38 @@ function bindActions() {
   }
 }
 
+function localDateTimeValue(date) {
+  const shifted = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return shifted.toISOString().slice(0, 16);
+}
+
+function initializeScheduleDefaults() {
+  const start = new Date(Date.now() + 5 * 60_000);
+  const end = new Date(start.getTime() + 24 * 60 * 60_000);
+  query("[data-schedule-start]").value ||= localDateTimeValue(start);
+  query("[data-schedule-end]").value ||= localDateTimeValue(end);
+}
+
+async function saveScoutingSchedule() {
+  if (!demo) {
+    setText("[data-schedule-state]", "The production schedule endpoint is intentionally disabled in this local-first branch. Open the local demo to exercise it.");
+    return;
+  }
+  try {
+    const start = new Date(query("[data-schedule-start]").value);
+    const end = new Date(query("[data-schedule-end]").value);
+    if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) throw new Error("Choose both dates");
+    const payload = await localApi("/api/local-v2/schedule", { body: { tokenId: state.tokenId,
+      startAt: start.toISOString(), endAt: end.toISOString(), timezone: "UTC",
+      enabled: query("[data-schedule-enabled]").checked } });
+    setText("[data-schedule-state]", payload.schedule.enabled
+      ? `Saved: ${new Date(payload.schedule.startAt).toLocaleString()} through ${new Date(payload.schedule.endAt).toLocaleString()} (stored as UTC).`
+      : "Scouting schedule disabled.");
+  } catch (error) {
+    setText("[data-schedule-state]", `${error.message}. No schedule was saved.`);
+  }
+}
+
 async function applyWallet(wallet) {
   const revision = ++state.revision;
   state.walletAccount = wallet?.account?.toLowerCase?.() ?? null;
@@ -684,15 +717,14 @@ async function applyWallet(wallet) {
   state.loading = true;
   renderIdentity();
   try {
-    await loadOwnership(wallet);
+    // Ownership and public agent status are independent reads. Start them together so the
+    // Control Center does not serialize two network round trips. Authority still depends only
+    // on the live ownerOf result below.
+    await Promise.all([loadOwnership(wallet), loadAutomation()]);
     if (revision !== state.revision) return;
     state.loading = false;
     renderIdentity();
     if (!state.owned) return;
-    state.loading = true;
-    renderIdentity();
-    await loadAutomation();
-    if (revision !== state.revision) return;
     await Promise.all([loadBalance(), loadWrappedBalance()]).catch(() => {});
     if (query('[data-control-tab="assets"]')?.getAttribute("aria-selected") === "true") {
       await loadAssets().catch(() => {});
@@ -755,6 +787,7 @@ async function loadDemo() {
 
 bindTabs();
 bindActions();
+initializeScheduleDefaults();
 renderIdentity();
 renderPaidPolicy(readPaidPolicy());
 if (demo) {

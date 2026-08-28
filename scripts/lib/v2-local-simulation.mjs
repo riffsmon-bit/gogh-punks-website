@@ -8,6 +8,8 @@ import { InMemoryPaidSpendLedger } from
   "../../broker/src/control-center/paid-spend-ledger.mjs";
 import { snapshotExactRecord } from
   "../../broker/src/control-center/strict-record.mjs";
+import { evaluateScoutingSchedule, normalizeScoutingSchedule } from
+  "../../broker/src/connector/scouting-schedule.mjs";
 
 const TOKEN_ID = /^(?:0|[1-9][0-9]{0,3})$/;
 const OWNER = "0x0000000000000000000000000000000000000001";
@@ -57,6 +59,7 @@ export class V2LocalSimulation {
   #policies = new Map();
   #reviews = new Map();
   #activity = new Map();
+  #schedules = new Map();
   #sequence = 0;
   #clock;
 
@@ -175,9 +178,37 @@ export class V2LocalSimulation {
   scout(raw) {
     const input = snapshotExactRecord(raw, ["tokenId"], "local scout request");
     const punkTokenId = tokenId(input.tokenId);
+    const schedule = this.#schedules.get(punkTokenId);
+    if (schedule) {
+      const decision = evaluateScoutingSchedule(schedule, this.#clock());
+      if (!decision.allowed) {
+        const error = new Error(`Scouting window is ${decision.state.toLowerCase()}`);
+        error.code = "OUTSIDE_SCOUTING_WINDOW";
+        throw error;
+      }
+    }
     this.#record(punkTokenId, "SCANNING", "Searching the locally supported mint-source fixture set.");
     this.#record(punkTokenId, "SKIPPED", "No eligible fixture was selected. No transaction was needed.");
     return Object.freeze({ status: "NO_ELIGIBLE_TARGETS", activity: clone(this.#activity.get(punkTokenId)) });
+  }
+
+  saveSchedule(raw) {
+    const input = snapshotExactRecord(raw,
+      ["tokenId", "startAt", "endAt", "timezone", "enabled"], "local schedule");
+    const schedule = normalizeScoutingSchedule({ schema: "GOGH_SCOUTING_SCHEDULE_V1", ...input,
+      tokenId: tokenId(input.tokenId) });
+    this.#schedules.set(schedule.tokenId, schedule);
+    this.#record(schedule.tokenId, "IDLE", schedule.enabled
+      ? `Scouting window saved: ${schedule.startAt} through ${schedule.endAt}.`
+      : "Scouting schedule disabled.");
+    return clone(schedule);
+  }
+
+  schedule(rawTokenId) {
+    const punkTokenId = tokenId(rawTokenId);
+    const schedule = this.#schedules.get(punkTokenId) ?? null;
+    return Object.freeze({ tokenId: punkTokenId, schedule: schedule ? clone(schedule) : null,
+      decision: schedule ? evaluateScoutingSchedule(schedule, this.#clock()) : null });
   }
 
   activity(rawTokenId) {

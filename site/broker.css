@@ -894,6 +894,10 @@ h3 { font-size: 1.45rem; }
 .control-form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: 18px 0; }
 .control-field { display: grid; gap: 8px; color: var(--muted); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
 .control-field input, .control-field select { width: 100%; min-height: 48px; padding: 10px 13px; border: 1px solid var(--line); border-radius: 0; color: var(--cream); background: #071321; font: inherit; }
+.scouting-schedule { margin-top: 16px; }
+.connector-console { background: #02090d; color: var(--cream); }
+.connector-console main { width: min(900px, calc(100% - 32px)); margin: 48px auto; display: grid; gap: 18px; }
+.connector-console pre { max-height: 48vh; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--teal); }
 .control-toggle { display: flex; gap: 12px; align-items: start; margin: 15px 0; color: var(--cream); }
 .control-toggle input { width: 20px; height: 20px; accent-color: var(--aqua); }
 .paid-warning { padding: 15px; border-left: 3px solid var(--sun); background: rgba(255, 204, 51, 0.06); }

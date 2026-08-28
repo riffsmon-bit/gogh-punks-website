@@ -53,3 +53,15 @@ test("local V2 service isolates Punk state and rejects unsafe or malformed revie
   assert.equal(service.activity("93").activity.length, 0);
   assert.equal(service.activity("94").activity.length, 2);
 });
+
+test("local V2 service enforces the selected UTC scouting window", () => {
+  const service = new V2LocalSimulation({ clock: () => NOW });
+  const saved = service.saveSchedule({ tokenId: "93",
+    startAt: "2026-08-27T11:00:00.000Z", endAt: "2026-08-27T13:00:00.000Z",
+    timezone: "UTC", enabled: true });
+  assert.equal(saved.timezone, "UTC");
+  assert.equal(service.scout({ tokenId: "93" }).status, "NO_ELIGIBLE_TARGETS");
+  service.saveSchedule({ tokenId: "93", startAt: "2026-08-27T13:01:00.000Z",
+    endAt: "2026-08-27T14:01:00.000Z", timezone: "UTC", enabled: true });
+  assert.throws(() => service.scout({ tokenId: "93" }), /scheduled/);
+});

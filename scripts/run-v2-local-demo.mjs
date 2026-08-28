@@ -6,6 +6,8 @@ import { localWalletConfiguration, localWalletReferer } from
 import { fetchLocalBrokerRead, LOCAL_BROKER_READ_PATHS } from
   "./lib/v2-local-read-proxy.mjs";
 import { V2LocalSimulation } from "./lib/v2-local-simulation.mjs";
+import { createLocalConnector } from "./lib/v2-local-connector.mjs";
+import { CONNECTOR_TOOL_DEFINITIONS } from "../broker/src/connector/gogh-connector.mjs";
 
 const root = resolve(process.cwd(), "site");
 const portValue = process.env.GOGH_V2_DEMO_PORT ?? "8888";
@@ -14,6 +16,7 @@ if (!/^[1-9][0-9]{0,4}$/.test(portValue) || Number(portValue) > 65_535) {
 }
 const port = Number(portValue);
 const simulation = new V2LocalSimulation();
+const localConnector = createLocalConnector(simulation);
 const MAX_JSON_BYTES = 16_384;
 const types = Object.freeze({ ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
@@ -47,6 +50,17 @@ function localApiRequest(request) {
   return Boolean(localWalletReferer(request.headers.referer, port));
 }
 
+function localConnectorApiRequest(request) {
+  if (typeof request.headers.referer !== "string") return false;
+  try {
+    const referer = new URL(request.headers.referer);
+    return referer.protocol === "http:"
+      && ["127.0.0.1", "localhost"].includes(referer.hostname)
+      && referer.port === String(port) && referer.pathname === "/dev/connector"
+      && !referer.username && !referer.password;
+  } catch { return false; }
+}
+
 async function handleSimulationApi(request, response, requestUrl) {
   if (!localApiRequest(request)) {
     json(response, { ok: false, code: "LOCAL_PAGE_ONLY" }, 403);
@@ -61,6 +75,10 @@ async function handleSimulationApi(request, response, requestUrl) {
       json(response, { ok: true, ...simulation.activity(requestUrl.searchParams.get("tokenId")) });
       return;
     }
+    if (request.method === "GET" && requestUrl.pathname === "/api/local-v2/schedule") {
+      json(response, { ok: true, ...simulation.schedule(requestUrl.searchParams.get("tokenId")) });
+      return;
+    }
     if (request.method !== "POST") {
       response.writeHead(405, { allow: "GET, POST" }).end();
       return;
@@ -68,6 +86,8 @@ async function handleSimulationApi(request, response, requestUrl) {
     const body = await readJson(request);
     const output = requestUrl.pathname === "/api/local-v2/policy"
       ? { policy: simulation.savePolicy(body) }
+      : requestUrl.pathname === "/api/local-v2/schedule"
+        ? { schedule: simulation.saveSchedule(body) }
       : requestUrl.pathname === "/api/local-v2/directed/resolve"
         ? await simulation.resolve(body)
         : requestUrl.pathname === "/api/local-v2/directed/simulate"
@@ -86,6 +106,79 @@ async function handleSimulationApi(request, response, requestUrl) {
   }
 }
 
+function bearer(request) {
+  const value = request.headers.authorization;
+  return typeof value === "string" && value.startsWith("Bearer ") ? value.slice(7) : "";
+}
+
+async function handleConnectorApi(request, response, requestUrl) {
+  if (!localConnectorApiRequest(request) || request.method !== "POST") {
+    json(response, { ok: false, code: "LOCAL_PAGE_ONLY",
+      message: "The connector console is local-only." }, 403);
+    return;
+  }
+  try {
+    const body = await readJson(request);
+    if (requestUrl.pathname === "/api/local-connector/authorize") {
+      if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).length) {
+        throw new TypeError("authorization body must be empty");
+      }
+      json(response, { ok: true, ...await localConnector.authorize() });
+      return;
+    }
+    if (requestUrl.pathname === "/api/local-connector/tools") {
+      if (!body || typeof body !== "object" || Array.isArray(body)) throw new TypeError("tool body is invalid");
+      const result = await localConnector.connector.call({ accessToken: bearer(request),
+        tool: body.tool, arguments: body.arguments, idempotencyKey: body.idempotencyKey ?? null });
+      json(response, result);
+      return;
+    }
+    json(response, { ok: false, code: "NOT_FOUND", message: "Connector route not found." }, 404);
+  } catch (error) {
+    json(response, { ok: false, code: error?.code ?? "INVALID_CONNECTOR_REQUEST",
+      message: error?.message ?? "Connector request failed safely." }, 400);
+  }
+}
+
+async function handleMcp(request, response) {
+  if (!localConnectorApiRequest(request) || request.method !== "POST") {
+    json(response, { jsonrpc: "2.0", id: null,
+      error: { code: -32001, message: "Local connector console only." } }, 403);
+    return;
+  }
+  let body;
+  try {
+    body = await readJson(request);
+    if (!body || body.jsonrpc !== "2.0" || !["string", "number"].includes(typeof body.id)) {
+      throw new TypeError("invalid JSON-RPC envelope");
+    }
+    if (body.method === "initialize") {
+      json(response, { jsonrpc: "2.0", id: body.id, result: { protocolVersion: "2025-06-18",
+        capabilities: { tools: {} }, serverInfo: { name: "gogh-agent-connector-local", version: "0.1.0" } } });
+      return;
+    }
+    if (body.method === "tools/list") {
+      json(response, { jsonrpc: "2.0", id: body.id, result: { tools: CONNECTOR_TOOL_DEFINITIONS.map((tool) => ({
+        name: tool.name, description: tool.description,
+        inputSchema: { type: "object", additionalProperties: false } })) } });
+      return;
+    }
+    if (body.method === "tools/call") {
+      const result = await localConnector.connector.call({ accessToken: bearer(request),
+        tool: body.params?.name, arguments: body.params?.arguments ?? {},
+        idempotencyKey: request.headers["idempotency-key"] ?? null });
+      json(response, { jsonrpc: "2.0", id: body.id, result: { content: [
+        { type: "text", text: JSON.stringify(result) }], structuredContent: result } });
+      return;
+    }
+    throw new TypeError("unsupported JSON-RPC method");
+  } catch (error) {
+    json(response, { jsonrpc: "2.0", id: body?.id ?? null,
+      error: { code: -32000, message: error?.message ?? "Connector request failed safely.",
+        data: { code: error?.code ?? "INVALID_REQUEST" } } }, 400);
+  }
+}
+
 function localPath(urlValue) {
   const url = new URL(urlValue, `http://127.0.0.1:${port}`);
   let pathname = decodeURIComponent(url.pathname);
@@ -101,6 +194,26 @@ const server = createServer(async (request, response) => {
   const requestUrl = new URL(request.url ?? "/", `http://127.0.0.1:${port}`);
   if (requestUrl.pathname.startsWith("/api/local-v2/")) {
     await handleSimulationApi(request, response, requestUrl);
+    return;
+  }
+  if (requestUrl.pathname.startsWith("/api/local-connector/")) {
+    await handleConnectorApi(request, response, requestUrl);
+    return;
+  }
+  if (requestUrl.pathname === "/api/mcp") {
+    await handleMcp(request, response);
+    return;
+  }
+  if (requestUrl.pathname === "/dev/connector") {
+    const body = await readFile(resolve(process.cwd(), "scripts/dev/connector-console.html"));
+    response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+    response.end(body);
+    return;
+  }
+  if (requestUrl.pathname === "/dev/connector-console.js") {
+    const body = await readFile(resolve(process.cwd(), "scripts/dev/connector-console.js"));
+    response.writeHead(200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" });
+    response.end(body);
     return;
   }
   if (requestUrl.pathname === "/api/broker/wallet-config") {
@@ -162,4 +275,5 @@ const server = createServer(async (request, response) => {
 server.listen(port, "127.0.0.1", () => {
   console.log(`Gogh Punks V2 local demo: http://127.0.0.1:${port}/broker/punk/93?demo=1`);
   console.log("LOCAL SIMULATION ONLY · optional Reown connection; no signature or transaction submission");
+  console.log(`Connector console: http://127.0.0.1:${port}/dev/connector`);
 });

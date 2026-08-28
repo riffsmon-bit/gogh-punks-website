@@ -73,6 +73,14 @@
           <article class="control-card"><p class="eyebrow">Agent status</p><h2 data-agent-status>Inactive</h2><dl class="control-facts"><div><dt>Daily mint limit</dt><dd data-agent-mint-limit>—</dd></div><div><dt>Daily spend limit</dt><dd data-agent-spend-limit>0 ETH</dd></div><div><dt>Maximum per mint</dt><dd data-agent-per-limit>0 ETH</dd></div><div><dt>Authorization</dt><dd data-agent-expiry>Not active</dd></div><div><dt>Free mints</dt><dd data-agent-free>—</dd></div><div><dt>Paid mints</dt><dd data-agent-paid>OFF</dd></div></dl></article>
           <article class="control-card"><p class="eyebrow">Owner controls</p><h2>Bounded and revocable</h2><div class="control-button-stack"><button type="button" data-agent-send disabled>Send Agent</button><button type="button" data-agent-pause disabled>Pause</button><button type="button" data-agent-resume disabled>Resume</button><button type="button" data-agent-edit disabled>Edit Limits</button><button class="danger" type="button" data-agent-revoke disabled>Revoke</button></div><p class="control-note" data-agent-action-note>Connect the current holder on Robinhood Chain to load available actions.</p></article>
         </div>
+        <article class="control-card scouting-schedule">
+          <div class="panel-header"><div><p class="eyebrow">Scouting window</p><h2>Choose When This Punk May Run</h2></div><span class="tag">UTC ENFORCED</span></div>
+          <p>Outside this exact window, connector and scheduled scouting requests stop before a job is queued. Mint limits and authorization expiry still apply inside the window.</p>
+          <label class="control-toggle"><input type="checkbox" data-schedule-enabled checked /><span>Use a scouting window</span></label>
+          <div class="control-form-grid"><label class="control-field"><span>Start (your device time)</span><input type="datetime-local" data-schedule-start /></label><label class="control-field"><span>End (your device time)</span><input type="datetime-local" data-schedule-end /></label></div>
+          <button type="button" data-schedule-save disabled>Save Local Scouting Window</button>
+          <p class="control-note" data-schedule-state>No window saved. Local times are converted to exact UTC timestamps before validation.</p>
+        </article>
       </section>
 
       <section id="control-panel-mint" class="control-panel" role="tabpanel" aria-labelledby="control-tab-mint" data-control-panel="mint" hidden>
