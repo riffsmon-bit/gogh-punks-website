@@ -232,16 +232,25 @@ test("initial artwork hydration is limited to active agents and the selected Pun
 });
 
 test("wallet rechecks ownership and labels activated versus activatable Punks", async () => {
+  const aggregate = (words) => encodeFunctionResult({
+    abi: MULTICALL_ABI,
+    functionName: "aggregate3",
+    result: words.map((value) => [true, value]),
+  });
+  const responses = [
+    aggregate([addressWord(OWNER), addressWord(OWNER), addressWord(REGISTRY)]),
+    aggregate([addressWord(ACCOUNT_A), addressWord(ACCOUNT_B), addressWord(ACCOUNT_B)]),
+    aggregate([`0x${1n.toString(16).padStart(64, "0")}`,
+      `0x${0n.toString(16).padStart(64, "0")}`,
+      `0x${0n.toString(16).padStart(64, "0")}`]),
+  ];
+  const calls = [];
   const provider = {
-    async request({ method, params }) {
-      if (method === "eth_call") {
-        const [{ to, data }] = params;
-        const token = BigInt(`0x${data.slice(-64)}`).toString();
-        if (to === COLLECTION) return addressWord(token === "9" ? REGISTRY : OWNER);
-        if (to === REGISTRY) return addressWord(token === "7" ? ACCOUNT_A : ACCOUNT_B);
-      }
-      if (method === "eth_getCode") return params[0] === ACCOUNT_A ? "0x6000" : "0x";
-      throw new Error(`unexpected ${method}`);
+    async request(call) {
+      calls.push(call);
+      if (call.method === "eth_call" && call.params[0].to
+        === "0xca11bde05977b3631167028862be2a173976ca11") return responses[calls.length - 1];
+      throw new Error(`unexpected ${call.method}`);
     },
   };
   const gate = { capability: true, bindings: { punkCollection: COLLECTION,
@@ -251,6 +260,7 @@ test("wallet rechecks ownership and labels activated versus activatable Punks", 
     { tokenId: "7", activated: true },
     { tokenId: "8", activated: false },
   ]);
+  assert.equal(calls.length, 3);
 });
 
 test("live-verified activated Punks remain visible when the wallet scan is incomplete", () => {
@@ -324,7 +334,8 @@ test("broker picker selects only a live-verified wallet-owned Punk", async () =>
   assert.match(accounts, /gogh:select-punk-request/);
   assert.match(endpoint, /DISCOVERY_CANDIDATES_ONLY_EACH_SELECTION_REQUIRES_LIVE_WALLET_OWNER_CHECK/);
   assert.match(endpoint, /liveMulticall: true/);
-  assert.match(endpoint, /openSea: false/);
+  assert.match(endpoint, /openSea: openSeaAvailable/);
+  assert.match(endpoint, /called only after an owner connects/);
   assert.match(endpoint, /unrelated marketplace API/);
   assert.match(accounts, /discoverWalletOwnedPunkIds/);
   assert.match(accounts, /Copy V1 wallet address/);

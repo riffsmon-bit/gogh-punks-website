@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { encodeFunctionResult, parseAbi } from "viem";
 
 import { setupOwnerAccounts, walletDiscoveryIntent } from "../site/owner-accounts.js";
 
@@ -8,6 +9,9 @@ const COLLECTION = "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6";
 const REGISTRY = "0xdca07046b4f95e79bbb421c97949473e75dffc65";
 const PUNK_ACCOUNT = "0x1111111111111111111111111111111111111111";
 const TOKEN_ID = "1738";
+const MULTICALL_ABI = parseAbi([
+  "function aggregate3((address target,bool allowFailure,bytes callData)[] calls) payable returns ((bool success,bytes returnData)[])",
+]);
 
 // The broker page carries the workspace picker and selected preview but no legacy [data-owner-accounts]
 // container, so the fixture mirrors that markup.
@@ -48,19 +52,25 @@ const addressWord = (value) => `0x${value.slice(2).padStart(64, "0")}`;
 // wallet scan fails the way a wallet that will not serve it does, leaving the indexed candidate
 // path — the same path the live site takes.
 function punkProvider() {
+  let multicallIndex = 0;
+  const aggregate = (value) => encodeFunctionResult({
+    abi: MULTICALL_ABI,
+    functionName: "aggregate3",
+    result: [[true, value]],
+  });
   return {
     async request({ method, params }) {
       const [call] = params ?? [];
-      if (method === "eth_getCode") return "0x";
       if (method !== "eth_call") throw new Error(`unexpected ${method}`);
       const data = call?.data ?? "";
       if (data.startsWith("0xd5abeb01")) return "0x";
-      if (data.startsWith("0x6352211e")) {
-        return data.endsWith(word(TOKEN_ID)) ? addressWord(OWNER) : addressWord(
-          "0x2222222222222222222222222222222222222222",
-        );
+      if (call?.to === "0xca11bde05977b3631167028862be2a173976ca11") {
+        const field = multicallIndex % 3;
+        multicallIndex += 1;
+        if (field === 0) return aggregate(addressWord(OWNER));
+        if (field === 1) return aggregate(addressWord(PUNK_ACCOUNT));
+        return aggregate(`0x${0n.toString(16).padStart(64, "0")}`);
       }
-      if (data.startsWith("0x2dd7c658")) return addressWord(PUNK_ACCOUNT);
       if (data.startsWith("0xc87b56dd")) return "0x";
       throw new Error(`unexpected call ${data.slice(0, 10)}`);
     },

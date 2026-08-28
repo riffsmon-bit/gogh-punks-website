@@ -309,11 +309,33 @@ export default async function handler(request) {
     // hint set instead of blocking the holder behind an unrelated marketplace API.
     const enrolled = enrollmentResult.status === "fulfilled" ? enrollmentResult.value : [];
     const automationTokenIds = [...new Set([...automationRoster, ...enrolled])];
-    const candidateTokenIds = [...new Set([
+    let candidateTokenIds = [...new Set([
       ...(indexedResult.status === "fulfilled" ? indexedResult.value : []),
       ...automationTokenIds,
     ])].sort((left, right) => Number(left) - Number(right));
     if (candidateTokenIds.length > MAX_CANDIDATES) throw new RangeError("owner candidate set is too large");
+    let openSeaPunks = [];
+    let openSeaAvailable = false;
+    if (process.env.OPENSEA_API_KEY) {
+      try {
+        // This route is called only after an owner connects. OpenSea is a bounded discovery hint
+        // that fills recently transferred/activated Punks which have not reached the local index
+        // yet; every returned ID is still live-verified through Multicall in the browser.
+        openSeaPunks = await openSeaOwnerPunks(owner, {
+          apiKey: process.env.OPENSEA_API_KEY,
+          timeoutMs: 2_500,
+        });
+        openSeaAvailable = true;
+        candidateTokenIds = [...new Set([
+          ...candidateTokenIds,
+          ...openSeaPunks.map(({ tokenId }) => tokenId),
+        ])].sort((left, right) => Number(left) - Number(right));
+      } catch (error) {
+        console.error(JSON.stringify({
+          event: "BROKER_OWNER_PUNK_OPENSEA_FALLBACK_UNAVAILABLE", type: error?.name,
+        }));
+      }
+    }
     let cachedPunks = [];
     let artworkAvailable = false;
     try {
@@ -331,7 +353,7 @@ export default async function handler(request) {
     const candidatePunks = mergeOwnerPunkDecorations(
       candidateTokenIds,
       cachedPunks,
-      [],
+      openSeaPunks,
       automationTokenIds,
     );
     return json({
@@ -343,7 +365,7 @@ export default async function handler(request) {
       candidatePunks,
       candidateSources: Object.freeze({
         indexed: indexedResult.status === "fulfilled",
-        openSea: false,
+        openSea: openSeaAvailable,
         liveMulticall: true,
         automationRoster: automationRoster.length > 0,
         automationEnrollments: enrollmentResult.status === "fulfilled",

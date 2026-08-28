@@ -3,6 +3,7 @@ const STORAGE_KEY = "gogh:activated-punk-ids:v1";
 const ACTIVATION_TOPIC = "0xbcba1c8ca6488532aba261811803bc402fd692b825e2a41dd2e555ec87989cc3";
 const OWNER_OF = "0x6352211e";
 const ACCOUNT = "0x2dd7c658";
+const IS_ACCOUNT_CREATED = "0x6170c368";
 const MAX_SUPPLY = "0xd5abeb01";
 const TOKEN_URI = "0xc87b56dd";
 const MULTICALL3 = "0xca11bde05977b3631167028862be2a173976ca11";
@@ -33,18 +34,19 @@ function abiWordAt(value, byteOffset) {
   return BigInt(`0x${wordValue}`);
 }
 
-export function encodeOwnerOfMulticall(collection, tokenIds) {
-  const target = normalizedAddress(collection);
+function encodeUintMulticall(contract, selector, tokenIds) {
+  const target = normalizedAddress(contract);
   if (!target || !Array.isArray(tokenIds) || tokenIds.length < 1 || tokenIds.length > 250
+    || typeof selector !== "string" || !/^0x[0-9a-fA-F]{8}$/.test(selector)
     || tokenIds.some((tokenId) => !/^(0|[1-9]\d{0,3})$/.test(String(tokenId)))) {
-    throw new TypeError("Owner multicall input is invalid");
+    throw new TypeError("Uint multicall input is invalid");
   }
   const bodies = tokenIds.map((tokenId) => [
     target.slice(2).padStart(64, "0"),
     word(1),
     word(96),
     word(36),
-    `${OWNER_OF.slice(2)}${word(tokenId)}`.padEnd(128, "0"),
+    `${selector.slice(2)}${word(tokenId)}`.padEnd(128, "0"),
   ].join(""));
   let offset = tokenIds.length * 32;
   const offsets = bodies.map((body) => {
@@ -55,13 +57,20 @@ export function encodeOwnerOfMulticall(collection, tokenIds) {
   return `${AGGREGATE3}${word(32)}${word(tokenIds.length)}${offsets.join("")}${bodies.join("")}`;
 }
 
-export function decodeOwnerOfMulticall(value, tokenIds, expectedOwner) {
-  const owner = normalizedAddress(expectedOwner);
-  if (!owner || !Array.isArray(tokenIds) || tokenIds.length < 1 || tokenIds.length > 250
+export function encodeOwnerOfMulticall(collection, tokenIds) {
+  try {
+    return encodeUintMulticall(collection, OWNER_OF, tokenIds);
+  } catch {
+    throw new TypeError("Owner multicall input is invalid");
+  }
+}
+
+function decodeWordMulticall(value, tokenIds) {
+  if (!Array.isArray(tokenIds) || tokenIds.length < 1 || tokenIds.length > 250
     || tokenIds.some((tokenId) => !/^(0|[1-9]\d{0,3})$/.test(String(tokenId)))
     || typeof value !== "string" || !/^0x(?:[0-9a-fA-F]{2})+$/.test(value)
     || byteLength(value) > 100_000 || abiWordAt(value, 0) !== 32n) {
-    throw new TypeError("Owner multicall response is invalid");
+    throw new TypeError("Multicall response is invalid");
   }
   const arrayStart = 32;
   if (abiWordAt(value, arrayStart) !== BigInt(tokenIds.length)) {
@@ -76,16 +85,33 @@ export function decodeOwnerOfMulticall(value, tokenIds, expectedOwner) {
     const bytesOffset = abiWordAt(value, tupleStart + 32);
     if (success > 1n || bytesOffset !== 64n) throw new TypeError("Owner multicall tuple is invalid");
     const resultLength = abiWordAt(value, tupleStart + Number(bytesOffset));
-    if (success === 0n) continue;
-    if (resultLength !== 32n) throw new TypeError("ownerOf returned an invalid address word");
+    if (success === 0n) {
+      output.push(null);
+      continue;
+    }
+    if (resultLength !== 32n) throw new TypeError("Multicall returned an invalid word");
     const dataStart = tupleStart + Number(bytesOffset) + 32;
     const resultWord = value.slice(2 + dataStart * 2, 2 + (dataStart + 32) * 2);
-    if (!/^0{24}[0-9a-fA-F]{40}$/.test(resultWord)) {
-      throw new TypeError("ownerOf returned a noncanonical address");
-    }
-    if (`0x${resultWord.slice(-40)}`.toLowerCase() === owner) output.push(String(tokenIds[index]));
+    if (!/^[0-9a-fA-F]{64}$/.test(resultWord)) throw new TypeError("Multicall word is invalid");
+    output.push(`0x${resultWord.toLowerCase()}`);
   }
   return output;
+}
+
+export function decodeOwnerOfMulticall(value, tokenIds, expectedOwner) {
+  const owner = normalizedAddress(expectedOwner);
+  if (!owner) throw new TypeError("Owner multicall response is invalid");
+  let words;
+  try { words = decodeWordMulticall(value, tokenIds); } catch {
+    throw new TypeError("Owner multicall response is invalid");
+  }
+  return tokenIds.flatMap((tokenId, index) => {
+    const resultWord = words[index];
+    if (resultWord === null) return [];
+    const decoded = decodedAddress(resultWord);
+    if (!decoded) throw new TypeError("ownerOf returned a noncanonical address");
+    return decoded === owner ? [String(tokenId)] : [];
+  });
 }
 
 export async function discoverWalletOwnedPunkIds(provider, collection, owner) {
@@ -449,29 +475,41 @@ export async function findBrowserOwnedPunks(provider, gate, owner, tokenIds = []
   const candidates = [...new Set(tokenIds.map(String).filter(
     (value) => /^(0|[1-9]\d{0,3})$/.test(value),
   ))].slice(0, 200);
-  const output = [];
-  for (let offset = 0; offset < candidates.length; offset += 12) {
-    const batch = await Promise.allSettled(candidates.slice(offset, offset + 12).map(async (tokenId) => {
-      const encoded = word(tokenId);
-      const [ownerRaw, accountRaw] = await Promise.all([
-        provider.request({ method: "eth_call", params: [{ to: bindings.punkCollection,
-          data: `${OWNER_OF}${encoded}` }, "latest"] }),
-        provider.request({ method: "eth_call", params: [{ to: bindings.accountRegistry,
-          data: `${ACCOUNT}${encoded}` }, "latest"] }),
-      ]);
-      const liveOwner = decodedAddress(ownerRaw);
-      const account = decodedAddress(accountRaw);
-      if (liveOwner !== normalizedOwner || !account) return null;
-      const code = await provider.request({ method: "eth_getCode", params: [account, "latest"] });
-      if (typeof code !== "string" || !/^0x(?:[0-9a-fA-F]{2})*$/.test(code)) return null;
-      return Object.freeze({ tokenId, account, owner: normalizedOwner,
-        activated: code !== "0x", status: code === "0x" ? "READY_TO_ACTIVATE" : "ACTIVATED_ONCHAIN" });
-    }));
-    output.push(...batch.flatMap((result) => (
-      result.status === "fulfilled" && result.value ? [result.value] : []
-    )));
-  }
-  return output.sort((left, right) => Number(left.tokenId) - Number(right.tokenId));
+  if (candidates.length === 0) return [];
+
+  // Ownership, deterministic account addresses, and deployment state are all view calls with the
+  // same uint256 input. Batch each field through Multicall3 so a mobile wallet performs three RPC
+  // round trips total instead of up to three requests per Punk. The action paths still repeat the
+  // live owner/account checks immediately before any transaction is constructed.
+  const [ownerResponse, accountResponse, createdResponse] = await Promise.all([
+    provider.request({ method: "eth_call", params: [{ to: MULTICALL3,
+      data: encodeUintMulticall(bindings.punkCollection, OWNER_OF, candidates) }, "latest"] }),
+    provider.request({ method: "eth_call", params: [{ to: MULTICALL3,
+      data: encodeUintMulticall(bindings.accountRegistry, ACCOUNT, candidates) }, "latest"] }),
+    provider.request({ method: "eth_call", params: [{ to: MULTICALL3,
+      data: encodeUintMulticall(bindings.accountRegistry, IS_ACCOUNT_CREATED, candidates) }, "latest"] }),
+  ]);
+  const ownerWords = decodeWordMulticall(ownerResponse, candidates);
+  const accountWords = decodeWordMulticall(accountResponse, candidates);
+  const createdWords = decodeWordMulticall(createdResponse, candidates);
+  return candidates.flatMap((tokenId, index) => {
+    const liveOwner = ownerWords[index] === null ? null : decodedAddress(ownerWords[index]);
+    if (liveOwner !== normalizedOwner) return [];
+    const account = accountWords[index] === null ? null : decodedAddress(accountWords[index]);
+    const createdWord = createdWords[index];
+    if (!account || createdWord === null || (createdWord !== `0x${word(0)}`
+      && createdWord !== `0x${word(1)}`)) {
+      throw new TypeError("Punk account multicall returned invalid state");
+    }
+    const activated = createdWord === `0x${word(1)}`;
+    return [Object.freeze({
+      tokenId,
+      account,
+      owner: normalizedOwner,
+      activated,
+      status: activated ? "ACTIVATED_ONCHAIN" : "READY_TO_ACTIVATE",
+    })];
+  });
 }
 
 function renderPunkPicker(picker, accounts, preferredTokenId = "") {
@@ -760,15 +798,8 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       const indexed = candidatesResponse.ok && candidatesPayload?.ok === true
         && Array.isArray(candidatesPayload.candidateTokenIds)
         ? candidatesPayload.candidateTokenIds : [];
-      let walletOwned = [];
-      try {
-        walletOwned = await discoverWalletOwnedPunkIds(browserWindow.__GOGH_WALLET_PROVIDER__,
-          gatePayload.activationGate?.bindings?.punkCollection, wallet.account);
-      } catch {
-        // The bounded server and local candidates remain available and are each rechecked live.
-      }
       const remembered = knownTokenIds(browserWindow.localStorage);
-      const candidates = [...new Set([...remembered, ...indexed, ...walletOwned])];
+      const candidates = [...new Set([...remembered, ...indexed])];
       const artworkByToken = new Map(
         Array.isArray(candidatesPayload?.candidatePunks)
           ? candidatesPayload.candidatePunks.map((item) => [String(item?.tokenId), item?.artwork])
@@ -786,15 +817,24 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
           ])
           : [],
       );
-      let accounts;
-      if (walletOwned.length > 0) {
-        const activated = await findBrowserOwnerAccounts(browserWindow.__GOGH_WALLET_PROVIDER__,
-          gatePayload.activationGate, wallet.account,
-          [...remembered, ...indexed, ...walletOwned]);
-        accounts = mergeWalletAndActivatedPunks(walletOwned, activated, wallet.account);
-      } else {
+      let accounts = [];
+      if (candidates.length > 0) {
+        // The indexed/enrolled IDs are hints only. Three Multicall reads verify ownership,
+        // deterministic account address, and deployment state for the whole bounded set before
+        // anything is shown. This is the normal mobile path and avoids scanning all 5,017 tokens.
         accounts = await findBrowserOwnedPunks(browserWindow.__GOGH_WALLET_PROVIDER__,
           gatePayload.activationGate, wallet.account, candidates);
+      } else {
+        // A new holder can temporarily be absent from both the local index and OpenSea fallback.
+        // Retain the exhaustive bounded scan only for that exceptional case, then recheck the
+        // resulting IDs through the same batched live account verifier.
+        const walletOwned = await discoverWalletOwnedPunkIds(
+          browserWindow.__GOGH_WALLET_PROVIDER__,
+          gatePayload.activationGate?.bindings?.punkCollection,
+          wallet.account,
+        );
+        accounts = await findBrowserOwnedPunks(browserWindow.__GOGH_WALLET_PROVIDER__,
+          gatePayload.activationGate, wallet.account, walletOwned);
       }
       if (current !== revision) return;
       accounts = accounts.map((item) => Object.freeze({

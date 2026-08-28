@@ -270,8 +270,8 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
       watch.href = `/broker/punk/${encodeURIComponent(punk.tokenId)}`;
       watch.textContent = "Open Punk wallet";
       const portfolio = browserDocument.createElement("a");
-      portfolio.href = `/punk/${encodeURIComponent(punk.tokenId)}`;
-      portfolio.textContent = "View portfolio";
+      portfolio.href = `/broker/punk/${encodeURIComponent(punk.tokenId)}#activity`;
+      portfolio.textContent = "Watch agent";
       actions.append(watch, portfolio);
       card.append(visual, body, actions);
       agentGrid.append(card);
