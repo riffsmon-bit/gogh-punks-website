@@ -1,6 +1,9 @@
 import {
   buildWrappedNativeTransaction, decodeUint256, ROBINHOOD_WETH, wrappedBalanceOfData,
 } from "./wrapped-native.js";
+import {
+  fetchOwnerPolicyGate, prepareOwnerFunds, submitOwnerAction,
+} from "./owner-policy-controls.js";
 
 const CHAIN_ID = 4663;
 const OWNER_OF_SELECTOR = "0x6352211e";
@@ -35,6 +38,7 @@ const state = {
   owned: false, activated: false, agentStatus: null, automation: null, assets: [],
   activity: [], timings: {}, revision: 0,
   directedReviewId: null, directedSourceUrl: null,
+  fundingBusy: false,
 };
 
 async function localApi(path, options = {}) {
@@ -85,6 +89,20 @@ function setActionAvailability(enabled) {
     const element = query(selector);
     if (element) element.disabled = !enabled;
   }
+  const amount = query("[data-punk-fund-amount]");
+  const confirmation = query("[data-punk-fund-confirm]");
+  if (amount) amount.disabled = !enabled || state.fundingBusy;
+  if (confirmation) confirmation.disabled = !enabled || state.fundingBusy;
+  renderFundingAction();
+}
+
+function renderFundingAction() {
+  const button = query("[data-punk-fund-submit]");
+  const confirmation = query("[data-punk-fund-confirm]");
+  if (!button) return;
+  button.disabled = !state.owned || !state.activated || state.fundingBusy
+    || confirmation?.checked !== true;
+  button.textContent = state.fundingBusy ? "CHECKING & SIMULATING…" : "FUND PUNK WALLET IN METAMASK";
 }
 
 function controlPresentation() {
@@ -138,6 +156,7 @@ function renderIdentity() {
   setText("[data-control-token]", state.tokenId ?? "—");
   setText("[data-directed-punk]", state.tokenId ? `#${state.tokenId}` : "—");
   setText("[data-control-account]", presentation.account);
+  setText("[data-punk-fund-account]", presentation.account);
   setText("[data-control-live-state]", presentation.detail);
   const routeAlert = query("[data-control-route-alert]");
   if (routeAlert) routeAlert.hidden = Boolean(state.tokenId);
@@ -282,6 +301,74 @@ async function verifyCurrentOwner() {
   if (typeof rawOwner !== "string" || !/^0x0{24}[0-9a-fA-F]{40}$/.test(rawOwner)
     || `0x${rawOwner.slice(-40)}`.toLowerCase() !== state.walletAccount) {
     throw new Error("Punk ownership changed. Reconnect the current holder before continuing");
+  }
+}
+
+async function waitForReceipt(hash, revision) {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    if (revision !== state.revision) throw new Error("Page state changed while confirming");
+    const receipt = await rpc("eth_getTransactionReceipt", [hash]);
+    if (receipt) {
+      if (receipt.status !== "0x1") throw new Error("Funding transaction reverted");
+      return receipt;
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, 2_000));
+  }
+  return null;
+}
+
+async function fundPunkWallet() {
+  const output = query("[data-punk-fund-state]");
+  const transactionLink = query("[data-punk-fund-transaction]");
+  if (state.fundingBusy) return;
+  if (demo) {
+    output.textContent = "Local demo: the exact owner-to-Punk deposit can be reviewed, but no wallet request is submitted.";
+    return;
+  }
+  if (!state.owned || !state.activated || !state.account || !state.walletAccount) {
+    output.textContent = "Connect the current holder and select an activated Punk first.";
+    return;
+  }
+  if (!query("[data-punk-fund-confirm]").checked) {
+    output.textContent = "Review the selected Punk Wallet, amount, and direction first.";
+    return;
+  }
+  const revision = state.revision;
+  const tokenId = state.tokenId;
+  const account = state.account;
+  const selection = Object.freeze({
+    tokenId, account, activated: true, owner: state.walletAccount,
+  });
+  state.fundingBusy = true;
+  renderFundingAction();
+  transactionLink.hidden = true;
+  try {
+    output.textContent = "Checking live ownership, Punk Wallet code, policy, and exact deposit simulation…";
+    const gate = await fetchOwnerPolicyGate((...args) => fetch(...args));
+    const prepared = await prepareOwnerFunds(state.provider, gate, selection, "deposit",
+      query("[data-punk-fund-amount]").value.trim());
+    if (revision !== state.revision || account !== state.account || tokenId !== state.tokenId) {
+      throw new Error("Selected Punk changed during review");
+    }
+    output.textContent = "Waiting for MetaMask…";
+    const submitted = await submitOwnerAction(state.provider, prepared, gate, selection,
+      () => revision === state.revision && account === state.account && tokenId === state.tokenId);
+    transactionLink.href = `https://robinhoodchain.blockscout.com/tx/${submitted.hash}`;
+    transactionLink.hidden = false;
+    output.textContent = "Transaction submitted. Waiting for confirmation…";
+    const receipt = await waitForReceipt(submitted.hash, revision);
+    if (!receipt) {
+      output.textContent = "Transaction submitted; confirmation is taking longer than one minute. Use the transaction link to follow it.";
+      return;
+    }
+    await loadBalance();
+    output.textContent = `Confirmed. Punk #${tokenId}'s wallet balance has been refreshed.`;
+    query("[data-punk-fund-confirm]").checked = false;
+  } catch (error) {
+    output.textContent = `${error?.message ?? "Funding was not submitted"}.`;
+  } finally {
+    state.fundingBusy = false;
+    renderFundingAction();
   }
 }
 
@@ -688,7 +775,9 @@ function bindActions() {
       ? `Local review ready: ${type.toUpperCase()} would move from the connected wallet to ${formatAddress(state.account)}. Nothing was submitted.`
       : "Activate this Punk Wallet before reviewing a deposit.");
   });
-  query("[data-add-native]").addEventListener("click", () => query("[data-deposit-type]").focus());
+  query("[data-add-native]").addEventListener("click", () => query("[data-punk-fund-amount]").focus());
+  query("[data-punk-fund-confirm]").addEventListener("change", renderFundingAction);
+  query("[data-punk-fund-submit]").addEventListener("click", fundPunkWallet);
   query("[data-wrap-review]").addEventListener("click", reviewWrappedNative);
   query("[data-activity-refresh]").addEventListener("click", () => loadActivity().catch(() => {}));
   for (const button of queryAll("[data-agent-send], [data-agent-pause], [data-agent-resume], [data-agent-edit], [data-agent-revoke]")) {
@@ -745,6 +834,7 @@ async function applyWallet(wallet) {
   state.punkCollection = null;
   state.nativeBalance = null;
   state.wrappedBalance = null;
+  state.fundingBusy = false;
   state.automation = null;
   state.assets = [];
   renderIdentity();

@@ -66,7 +66,13 @@
           <p>Pick the Gogh Punk you want to turn into an autonomous art curator.</p>
           <button class="wizard-primary wizard-connect" type="button" data-wallet-connect>Connect Wallet</button>
           <p class="wizard-wallet-state" data-wallet-state aria-live="polite">Wallet disconnected</p>
-          <div class="wizard-punk-grid" data-wizard-punks></div>
+          <label class="wizard-punk-select">
+            <span>Choose one of your live-verified Punks</span>
+            <select data-wizard-punks disabled>
+              <option value="">Connect wallet to load your Punks</option>
+            </select>
+            <small>Artwork loads after selection so wallets with many Punks become usable faster.</small>
+          </label>
           <p class="wizard-empty" data-wizard-empty hidden>No Gogh Punks were found in this wallet on Robinhood Chain.</p>
         </article>
 
@@ -178,8 +184,8 @@
           </select>
           <small>This selection drives wallet setup, limits, NFT recovery, and automation below. Choosing a Punk never authorizes an agent by itself.</small>
         </label>
-        <div class="punk-visual-picker" data-workspace-punk-cards aria-label="Choose one of my Punks">
-          <p class="empty-state">Connect your wallet to see your Gogh Punks.</p>
+        <div class="selected-punk-preview" data-workspace-punk-preview aria-live="polite">
+          <p class="empty-state">Choose a Punk above to load its artwork.</p>
         </div>
 
         <details class="workflow-step collapsible-section" id="automation-title" data-autonomous-minting open>

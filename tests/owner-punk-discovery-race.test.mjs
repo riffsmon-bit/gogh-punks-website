@@ -9,9 +9,9 @@ const REGISTRY = "0xdca07046b4f95e79bbb421c97949473e75dffc65";
 const PUNK_ACCOUNT = "0x1111111111111111111111111111111111111111";
 const TOKEN_ID = "1738";
 
-// The broker page carries the workspace picker and card grid but no legacy [data-owner-accounts]
+// The broker page carries the workspace picker and selected preview but no legacy [data-owner-accounts]
 // container, so the fixture mirrors that markup.
-const SINGLE = ["[data-workspace-punk-picker]", "[data-workspace-punk-cards]"];
+const SINGLE = ["[data-workspace-punk-picker]", "[data-workspace-punk-preview]"];
 const MANY = [
   "[data-owned-punk-count]", "[data-owned-punk-detail]", "[data-punk-account-count]",
   "[data-punk-account-detail]", "[data-selected-punk-display]", "[data-selected-gallery-link]",

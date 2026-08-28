@@ -20,6 +20,7 @@ import {
   encodeOwnerOfMulticall,
   findBrowserOwnedPunks,
   hydrateOnchainPunkDecorations,
+  priorityArtworkAccounts,
   mergeWalletAndActivatedPunks,
   selectedPunkGalleryPath,
 } from "../site/owner-accounts.js";
@@ -56,7 +57,7 @@ test("enrolled V3 Punks remain bounded owner-scoped discovery hints", async () =
   assert.match(captured.sql, /broker_automation_v3_enrollments/);
   assert.match(captured.sql, /LOWER\(owner_snapshot\)/);
   assert.equal(captured.values[2], OWNER.toLowerCase());
-  assert.equal(captured.values[3], 33);
+  assert.equal(captured.values[3], 201);
 });
 
 function addressWord(value) {
@@ -218,6 +219,18 @@ test("canonical on-chain tokenURI supplies keyless artwork and only a rarity pre
   assert.equal(calls[0].params[0].data.slice(0, 10), "0xc87b56dd");
 });
 
+test("initial artwork hydration is limited to active agents and the selected Punk", () => {
+  const accounts = [
+    { tokenId: "1", activated: false, automationConfigured: false },
+    { tokenId: "2", activated: true, automationConfigured: false },
+    { tokenId: "3", activated: false, automationConfigured: true },
+    { tokenId: "4", activated: false, automationConfigured: false },
+  ];
+  assert.deepEqual(priorityArtworkAccounts(accounts).map(({ tokenId }) => tokenId), ["2", "3"]);
+  assert.deepEqual(priorityArtworkAccounts(accounts, "4").map(({ tokenId }) => tokenId),
+    ["2", "3", "4"]);
+});
+
 test("wallet rechecks ownership and labels activated versus activatable Punks", async () => {
   const provider = {
     async request({ method, params }) {
@@ -296,19 +309,23 @@ test("broker picker selects only a live-verified wallet-owned Punk", async () =>
   assert.doesNotMatch(html, /data-owned-punk-picker|data-account-activation/);
   assert.doesNotMatch(html, /data-mandate-punk-picker/);
   assert.match(html, /data-workspace-punk-picker/);
-  assert.match(html, /data-workspace-punk-cards/);
+  assert.match(html, /data-workspace-punk-preview/);
+  assert.match(html, /<select data-wizard-punks disabled>/);
   assert.match(html, /data-punk-gallery-primary/);
   assert.doesNotMatch(html, /data-activation-token/);
   assert.match(html, /data-owned-punk-count/);
   assert.match(html, /data-selected-punk-display/);
   assert.doesNotMatch(html, /Scout Punk<\/span><strong data-scout-token-display/);
   assert.match(accounts, /findBrowserOwnedPunks/);
-  assert.match(accounts, /renderVisualPunkPicker/);
+  assert.match(accounts, /renderSelectedPunkPreview/);
+  assert.match(accounts, /priorityArtworkAccounts/);
   assert.match(accounts, /gogh:punk-selected/);
   assert.match(accounts, /gogh:owner-punks/);
   assert.match(accounts, /gogh:select-punk-request/);
   assert.match(endpoint, /DISCOVERY_CANDIDATES_ONLY_EACH_SELECTION_REQUIRES_LIVE_WALLET_OWNER_CHECK/);
-  assert.match(endpoint, /OPENSEA_API_KEY/);
+  assert.match(endpoint, /liveMulticall: true/);
+  assert.match(endpoint, /openSea: false/);
+  assert.match(endpoint, /unrelated marketplace API/);
   assert.match(accounts, /discoverWalletOwnedPunkIds/);
   assert.match(accounts, /Copy V1 wallet address/);
   assert.match(accounts, /Legacy V1 Punk wallet/);

@@ -119,6 +119,15 @@ The connector cannot:
 - list, sell, swap, bridge, lend, or transfer to an AI-selected recipient;
 - override Punk limits or survive an ownership change without reauthorization.
 
+## Punk Wallet funding
+
+The Control Center Assets tab provides a current-holder native deposit flow for an activated Punk.
+The destination is always the live-derived Punk Wallet, never an AI-selected address. The browser
+rebuilds and simulates the exact transfer after rechecking ownership, runtimes, modules, policy and
+selection; it repeats the full preflight immediately before asking MetaMask to submit. This is a
+manual owner deposit and does not grant the connector or hosted agent access to the owner's main
+wallet. Paid execution remains simulation-only in this branch.
+
 ## Production activation checklist
 
 1. Add the DB migration/repository for challenges, hashed sessions, intents, schedules,

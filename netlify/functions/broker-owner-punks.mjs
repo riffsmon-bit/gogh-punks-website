@@ -166,9 +166,9 @@ export async function enrolledAutomationPunkIds(owner, query = (...args) => (
         AND LOWER(owner_snapshot) = $3
       ORDER BY token_id::numeric
       LIMIT $4`,
-    [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, normalized, AUTOMATION_ROSTER_LIMIT + 1],
+    [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, normalized, MAX_CANDIDATES + 1],
   );
-  if (!Array.isArray(result?.rows) || result.rows.length > AUTOMATION_ROSTER_LIMIT) {
+  if (!Array.isArray(result?.rows) || result.rows.length > MAX_CANDIDATES) {
     throw new RangeError("automation enrollment set is unavailable or too large");
   }
   const tokenIds = result.rows.map(({ token_id: value }) => punkTokenId(String(value)));
@@ -300,29 +300,38 @@ export default async function handler(request) {
   if (!owner) return json({ ok: false, code: "INVALID_OWNER" }, 400);
   try {
     const automationRoster = configuredAutomationPunkIds();
-    const [indexedResult, openSeaResult, enrollmentResult] = await Promise.allSettled([
+    const [indexedResult, enrollmentResult] = await Promise.allSettled([
       indexedOwnerPunkIds(owner),
-      openSeaOwnerPunks(owner, { apiKey: process.env.OPENSEA_API_KEY }),
       enrolledAutomationPunkIds(owner),
     ]);
-    if (indexedResult.status !== "fulfilled" && openSeaResult.status !== "fulfilled"
-      && enrollmentResult.status !== "fulfilled") {
-      throw new Error("all owner candidate sources unavailable");
-    }
+    // This route only supplies discovery hints. The browser's bounded Multicall scan and the
+    // selection-time ownerOf check remain authoritative, so an index outage may return an empty
+    // hint set instead of blocking the holder behind an unrelated marketplace API.
     const enrolled = enrollmentResult.status === "fulfilled" ? enrollmentResult.value : [];
     const automationTokenIds = [...new Set([...automationRoster, ...enrolled])];
     const candidateTokenIds = [...new Set([
       ...(indexedResult.status === "fulfilled" ? indexedResult.value : []),
-      ...(openSeaResult.status === "fulfilled"
-        ? openSeaResult.value.map(({ tokenId }) => tokenId) : []),
       ...automationTokenIds,
     ])].sort((left, right) => Number(left) - Number(right));
     if (candidateTokenIds.length > MAX_CANDIDATES) throw new RangeError("owner candidate set is too large");
-    const cachedPunks = await ownerPunkArtwork(candidateTokenIds);
+    let cachedPunks = [];
+    let artworkAvailable = false;
+    try {
+      // Initial discovery does not need artwork for every inactive Punk. Active/enrolled cards
+      // may use cached decoration immediately; a newly selected Punk hydrates from tokenURI.
+      cachedPunks = await ownerPunkArtwork(automationTokenIds);
+      artworkAvailable = true;
+    } catch (error) {
+      // Artwork is decoration, never authority. A metadata/index outage must not prevent
+      // a holder from seeing and live-verifying their Punk IDs.
+      console.error(JSON.stringify({
+        event: "BROKER_OWNER_PUNK_ARTWORK_UNAVAILABLE", type: error?.name,
+      }));
+    }
     const candidatePunks = mergeOwnerPunkDecorations(
       candidateTokenIds,
       cachedPunks,
-      openSeaResult.status === "fulfilled" ? openSeaResult.value : [],
+      [],
       automationTokenIds,
     );
     return json({
@@ -334,9 +343,11 @@ export default async function handler(request) {
       candidatePunks,
       candidateSources: Object.freeze({
         indexed: indexedResult.status === "fulfilled",
-        openSea: openSeaResult.status === "fulfilled",
+        openSea: false,
+        liveMulticall: true,
         automationRoster: automationRoster.length > 0,
         automationEnrollments: enrollmentResult.status === "fulfilled",
+        artwork: artworkAvailable,
       }),
       evidence: "DISCOVERY_CANDIDATES_ONLY_EACH_SELECTION_REQUIRES_LIVE_WALLET_OWNER_CHECK",
       activationAuthorized: false,

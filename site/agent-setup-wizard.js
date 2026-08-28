@@ -87,7 +87,7 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
   if (!root || !browserWindow) return null;
   const screens = [...root.querySelectorAll("[data-wizard-step]")];
   const progress = [...root.querySelectorAll("[data-wizard-progress]")];
-  const punkCards = root.querySelector("[data-wizard-punks]");
+  const punkPicker = root.querySelector("[data-wizard-punks]");
   const empty = root.querySelector("[data-wizard-empty]");
   const selectedImages = [...root.querySelectorAll("[data-wizard-punk-image]")];
   const selectedLabels = [...root.querySelectorAll("[data-wizard-punk-label]")];
@@ -163,44 +163,36 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
   }
 
   function renderPunks() {
-    punkCards.replaceChildren();
-    empty.hidden = state.punks.length > 0 || !state.wallet?.account;
-    for (const punk of state.punks) {
-      const button = browserDocument.createElement("button");
-      button.type = "button";
-      button.className = "wizard-punk-card";
-      button.dataset.tokenId = punk.tokenId;
-      button.setAttribute("aria-pressed", String(punk.tokenId === state.selectedPunk));
-      const imageUrl = trustedImage(punk.artwork?.imageUrl);
-      if (imageUrl) {
-        const image = browserDocument.createElement("img");
-        image.src = imageUrl;
-        image.alt = punk.artwork?.name ?? `Gogh Punk #${punk.tokenId}`;
-        image.loading = "lazy";
-        button.append(image);
-      } else {
-        const placeholder = browserDocument.createElement("span");
-        placeholder.className = "wizard-punk-placeholder";
-        placeholder.textContent = `#${punk.tokenId}`;
-        button.append(placeholder);
-      }
-      const title = browserDocument.createElement("strong");
-      title.textContent = `Punk #${punk.tokenId}`;
-      const status = browserDocument.createElement("small");
+    const placeholder = browserDocument.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = state.punks.length
+      ? "Choose a Gogh Punk"
+      : "No wallet-owned Punks found";
+    punkPicker.replaceChildren(placeholder, ...state.punks.map((punk) => {
+      const option = browserDocument.createElement("option");
+      option.value = punk.tokenId;
       const sameAutomation = state.automation?.tokenId === punk.tokenId;
-      status.textContent = sameAutomation && state.automation.agentLive ? "Active"
-        : sameAutomation && state.automation.active ? "Paused or reconnecting"
-          : punk.activated ? "Ready to configure" : "Ready to activate";
-      button.append(title, status);
-      button.addEventListener("click", () => {
-        state.selectedPunk = punk.tokenId;
-        selectUnderlyingPunk();
-        showStep(alreadyActive() ? "power" : "wallet");
-        render();
-      });
-      punkCards.append(button);
+      const status = sameAutomation && state.automation.agentLive ? "active"
+        : sameAutomation && state.automation.active ? "authorized"
+          : punk.activated ? "wallet active" : "ready to activate";
+      option.textContent = `Punk #${punk.tokenId} · ${status}`;
+      return option;
+    }));
+    punkPicker.disabled = state.punks.length === 0;
+    if (state.punks.some(({ tokenId }) => tokenId === state.selectedPunk)) {
+      punkPicker.value = state.selectedPunk;
     }
+    empty.hidden = state.punks.length > 0 || !state.wallet?.account;
   }
+
+  punkPicker.addEventListener("change", () => {
+    const tokenId = String(punkPicker.value ?? "");
+    if (!state.punks.some((punk) => punk.tokenId === tokenId)) return;
+    state.selectedPunk = tokenId;
+    selectUnderlyingPunk();
+    showStep(alreadyActive() ? "power" : "wallet");
+    render();
+  });
 
   function openAgent(tokenId) {
     state.selectedPunk = tokenId;

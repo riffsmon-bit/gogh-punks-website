@@ -362,7 +362,7 @@ test("Control Center is progressive, mobile, and keeps mint execution disabled",
   ]);
   for (const label of ["Punk Control Center", "Overview", "Agent", "Mint", "Assets",
     "Activity", "Disconnect Wallet", "Paid Mint Settings", "Direct Your Punk to a Mint", "Add Assets",
-    "Wrap or Unwrap ETH"]) {
+    "Wrap or Unwrap ETH", "Add Funds to This Punk", "Fund Punk Wallet in MetaMask"]) {
     assert.match(html, new RegExp(label));
   }
   assert.match(netlify, /from = "\/broker\/punk\/\*"/);
@@ -371,6 +371,11 @@ test("Control Center is progressive, mobile, and keeps mint execution disabled",
   assert.match(html, /Prepare Bounded Review/);
   assert.match(browser, /nft-withdrawal-assets\?tokenId=/);
   assert.match(browser, /eth_call/);
+  assert.match(browser, /prepareOwnerFunds/);
+  assert.match(browser, /submitOwnerAction/);
+  assert.match(browser, /fetchOwnerPolicyGate/);
+  assert.match(browser, /Selected Punk changed during review/);
+  assert.match(browser, /waitForReceipt/);
   assert.doesNotMatch(browser, /eth_sendTransaction|wallet_sendCalls|sendRawTransaction/);
   const demoServer = await readFile(new URL("../scripts/run-v2-local-demo.mjs", import.meta.url), "utf8");
   assert.match(demoServer, /localWalletConfiguration/);

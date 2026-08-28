@@ -105,6 +105,15 @@
 
       <section id="control-panel-assets" class="control-panel" role="tabpanel" aria-labelledby="control-tab-assets" data-control-panel="assets" hidden>
         <div class="control-grid three-column"><article class="control-card"><p class="eyebrow">Native Token</p><h2 data-assets-native>—</h2><button type="button" data-add-native disabled>Add Funds</button><a data-withdraw-native href="/broker/">Withdraw</a></article><article class="control-card"><p class="eyebrow">Tokens</p><h2 data-assets-token-count>—</h2><p>Recognized balances appear here. Unknown tokens never imply value or safety.</p></article><article class="control-card"><p class="eyebrow">NFTs</p><h2 data-assets-nft-count>—</h2><button type="button" data-load-assets disabled>Load NFT Inventory</button></article></div>
+        <article class="control-card punk-wallet-funding">
+          <div class="panel-header"><div><p class="eyebrow">Punk Wallet Funds</p><h2>Add Funds to This Punk</h2></div><span class="tag">CURRENT HOLDER</span></div>
+          <p>These funds go directly from your connected wallet into the selected Punk Wallet. They belong to the Punk Wallet and may later pay the exact price of an owner-authorized paid mint. Hosted-agent gas is separate and your main wallet is never an autonomous spending source.</p>
+          <div class="control-form-grid"><label class="control-field"><span>Amount in ETH</span><input data-punk-fund-amount inputmode="decimal" autocomplete="off" placeholder="0.01" disabled /></label><div class="control-field"><span>Destination</span><strong data-punk-fund-account>Connect wallet to load</strong></div></div>
+          <label class="control-toggle"><input type="checkbox" data-punk-fund-confirm disabled /><span>I reviewed the selected Punk Wallet and amount. This sends native ETH into that Punk Wallet.</span></label>
+          <button type="button" data-punk-fund-submit disabled>Fund Punk Wallet in MetaMask</button>
+          <p class="control-note" data-punk-fund-state aria-live="polite">Connect the current holder and select an activated Punk.</p>
+          <a class="inline-link" data-punk-fund-transaction href="#" target="_blank" rel="noopener noreferrer" hidden>View funding transaction ↗</a>
+        </article>
         <article class="control-card wrapped-native-panel">
           <div class="panel-header"><div><p class="eyebrow">ETH ↔ WETH</p><h2>Wrap or Unwrap ETH</h2></div><a href="https://robinhoodchain.blockscout.com/address/0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73" target="_blank" rel="noopener noreferrer">Verified WETH</a></div>
           <p>Convert this Punk Wallet's ETH and canonical Robinhood WETH one-for-one. This is not a market swap: there is no price impact, router, slippage, or token approval.</p>

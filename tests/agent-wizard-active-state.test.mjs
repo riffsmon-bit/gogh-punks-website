@@ -128,8 +128,11 @@ function wizardFixture({ stored = null, punks = [], automation = null, wallet = 
     element: query,
     elements: queryAll,
     step: () => screens.find((screen) => !screen.hidden)?.dataset.wizardStep ?? null,
-    punkCard: (tokenId) => query("[data-wizard-punks]").children
-      .find((card) => card.dataset.tokenId === tokenId) ?? null,
+    choosePunk: (tokenId) => {
+      const picker = query("[data-wizard-punks]");
+      picker.value = tokenId;
+      return picker.dispatchEvent({ type: "change" });
+    },
     next: (step) => queryAll("[data-wizard-next]")
       .find((button) => button.dataset.wizardNext === step),
     automationState: (detail) => listeners.get("gogh:automation-state")?.({ detail }),
@@ -197,7 +200,7 @@ test("a late live snapshot cannot leave an authorized agent on the activation sc
   const fixture = wizardFixture({ punks: [ACTIVE_PUNK] });
   setupAgentWizard(fixture);
   // The status round trip has not answered yet, so the owner walks the setup screens freely.
-  fixture.punkCard("93").click();
+  fixture.choosePunk("93");
   assert.equal(fixture.step(), "wallet");
   fixture.next("limits").click();
   fixture.next("activate").click();
@@ -211,7 +214,7 @@ test("a late live snapshot cannot leave an authorized agent on the activation sc
 test("an authorized agent is skipped past setup however late the owner taps Continue", () => {
   const fixture = wizardFixture({ punks: [ACTIVE_PUNK] });
   setupAgentWizard(fixture);
-  fixture.punkCard("93").click();
+  fixture.choosePunk("93");
   fixture.next("limits").click();
   assert.equal(fixture.step(), "limits");
   // A recorded error is what keeps the render pass from rescuing this on its own, leaving the

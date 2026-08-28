@@ -131,6 +131,11 @@ const DISCOVERY_BATCH_SIZE = 8;
 const DISCOVERY_RUNTIME_BATCH_SIZE = 4;
 const DISCOVERY_BATCH_DELAY_MS = 250;
 const CONFIGURED_PUNK_LIMIT = 32;
+// The operator-provided emergency roster stays deliberately small, but the durable
+// enrollment/mandate roster must include the collection's complete active population.
+// Scheduled runs inspect only a small rotating batch, so loading the bounded roster does
+// not expand a single worker's transaction or RPC budget.
+const ELIGIBLE_PROFILE_LIMIT = 10_000;
 // Netlify terminates the scheduled function at 60 seconds. Keep enough time
 // outside the worker for the durable heartbeat and lease cleanup, and never
 // begin a transaction unless both submission and confirmation fit inside the
@@ -327,7 +332,8 @@ export async function eligibleAutomationV3Profiles(
       FROM enrolled
      WHERE ($3::numeric IS NULL OR token_id = $3::numeric)
      ORDER BY token_id
-     LIMIT 32`, [4663, ROBINHOOD.canonicalCollection, requestedTokenId]);
+     LIMIT $4`, [4663, ROBINHOOD.canonicalCollection, requestedTokenId,
+    ELIGIBLE_PROFILE_LIMIT]);
   const rows = [...result.rows];
   const known = new Set(rows.map(({ token_id: tokenId }) => String(tokenId)));
   const automaticTokenIds = requestedTokenId === null
@@ -346,11 +352,11 @@ export async function eligibleAutomationV3Profiles(
     }
   }
   return rows.sort((left, right) => Number(left.token_id) - Number(right.token_id))
-    .slice(0, CONFIGURED_PUNK_LIMIT);
+    .slice(0, ELIGIBLE_PROFILE_LIMIT);
 }
 
 export function rotateAutomationV3Profiles(profiles, lastMintedTokenId = null) {
-  if (!Array.isArray(profiles) || profiles.length > CONFIGURED_PUNK_LIMIT
+  if (!Array.isArray(profiles) || profiles.length > ELIGIBLE_PROFILE_LIMIT
     || profiles.some((row) => !row || !/^(?:0|[1-9][0-9]{0,3})$/.test(String(row.token_id)))) {
     throw new TypeError("invalid V3 automation profile rotation");
   }
@@ -389,7 +395,7 @@ export async function fairlyOrderedAutomationV3Profiles(
 export function scheduledAutomationV3ProfileBatch(
   profiles, requestedTokenId = null, nowMs = Date.now(), batchSize = AUTOMATION_V3_PROFILE_BATCH_SIZE,
 ) {
-  if (!Array.isArray(profiles) || profiles.length > CONFIGURED_PUNK_LIMIT
+  if (!Array.isArray(profiles) || profiles.length > ELIGIBLE_PROFILE_LIMIT
     || profiles.some((row) => !row || !/^(?:0|[1-9][0-9]{0,3})$/.test(String(row.token_id)))
     || (requestedTokenId !== null
       && !/^(?:0|[1-9][0-9]{0,3})$/.test(String(requestedTokenId)))

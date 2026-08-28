@@ -109,14 +109,25 @@ export async function discoverWalletOwnedPunkIds(provider, collection, owner) {
       (_, index) => String(first + index)));
   }
   const output = [];
-  for (const tokenIds of chunks) {
-    const response = await provider.request({
-      method: "eth_call",
-      params: [{ to: MULTICALL3, data: encodeOwnerOfMulticall(target, tokenIds) }, "latest"],
-    });
-    output.push(...decodeOwnerOfMulticall(response, tokenIds, expectedOwner));
-    if (output.length > 200) throw new RangeError("Wallet owns more Punks than the UI can display");
-  }
+  // A 5,016-token collection needs 26 bounded Multicall reads. Running those serially made
+  // wallet discovery appear hung on normal mobile RPC latency. Four workers materially reduce
+  // the wait without creating an unbounded provider burst.
+  let cursor = 0;
+  const scan = async () => {
+    while (cursor < chunks.length) {
+      const tokenIds = chunks[cursor];
+      cursor += 1;
+      const response = await provider.request({
+        method: "eth_call",
+        params: [{ to: MULTICALL3, data: encodeOwnerOfMulticall(target, tokenIds) }, "latest"],
+      });
+      output.push(...decodeOwnerOfMulticall(response, tokenIds, expectedOwner));
+      if (output.length > 200) {
+        throw new RangeError("Wallet owns more Punks than the UI can display");
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(4, chunks.length) }, () => scan()));
   return Object.freeze(output.sort((left, right) => Number(left) - Number(right)));
 }
 
@@ -287,48 +298,50 @@ export async function hydrateOnchainPunkDecorations(provider, collection, accoun
   return Object.freeze(output.map((item) => Object.freeze(item)));
 }
 
-export function renderVisualPunkPicker(container, accounts, selectedTokenId = "", onSelect = null) {
+export function priorityArtworkAccounts(accounts, selectedTokenId = "") {
+  if (!Array.isArray(accounts) || accounts.length > 200
+    || typeof selectedTokenId !== "string") {
+    throw new TypeError("Punk artwork priority input is invalid");
+  }
+  return Object.freeze(accounts.filter((item) => item && typeof item === "object"
+    && (item.activated === true || item.automationConfigured === true
+      || item.tokenId === selectedTokenId)));
+}
+
+export function renderSelectedPunkPreview(container, accounts, selectedTokenId = "") {
   if (!container) return;
   const documentObject = container.ownerDocument ?? globalThis.document;
   container.replaceChildren();
-  if (!accounts.length) {
+  const item = accounts.find(({ tokenId }) => tokenId === selectedTokenId) ?? null;
+  if (!item) {
     const empty = documentObject.createElement("p");
     empty.className = "empty-state";
-    empty.textContent = "Connect your wallet to see your Gogh Punks.";
+    empty.textContent = accounts.length
+      ? "Choose a Punk above to load its artwork."
+      : "Connect your wallet to see your Gogh Punks.";
     container.append(empty);
     return;
   }
-  for (const item of accounts) {
-    const button = documentObject.createElement("button");
-    button.type = "button";
-    button.className = "punk-choice-card";
-    button.dataset.tokenId = item.tokenId;
-    button.setAttribute("aria-pressed", String(item.tokenId === selectedTokenId));
-    const imageUrl = trustedArtworkUrl(item.artwork?.imageUrl);
-    if (imageUrl) {
-      const image = documentObject.createElement("img");
-      image.src = imageUrl;
-      image.alt = item.artwork?.name || `Gogh Punk #${item.tokenId}`;
-      image.loading = "lazy";
-      image.decoding = "async";
-      button.append(image);
-    } else {
-      const placeholder = documentObject.createElement("span");
-      placeholder.className = "punk-choice-placeholder";
-      placeholder.textContent = `#${item.tokenId}`;
-      button.append(placeholder);
-    }
-    const label = documentObject.createElement("strong");
-    label.textContent = `Punk #${item.tokenId}`;
-    const status = documentObject.createElement("small");
-    const lifecycle = item.rarity?.rank && item.rarity?.proposedTier
-      ? ` · OpenRarity #${item.rarity.rank.toLocaleString()} · ${item.rarity.proposedTier.toLowerCase()} preview`
-      : "";
-    status.textContent = `${item.activated ? "Active wallet" : "Ready to activate"}${lifecycle}`;
-    button.append(label, status);
-    button.addEventListener("click", () => onSelect?.(item.tokenId));
-    container.append(button);
+  const imageUrl = trustedArtworkUrl(item.artwork?.imageUrl);
+  const visual = documentObject.createElement(imageUrl ? "img" : "span");
+  if (imageUrl) {
+    visual.src = imageUrl;
+    visual.alt = item.artwork?.name || `Gogh Punk #${item.tokenId}`;
+    visual.decoding = "async";
+  } else {
+    visual.className = "selected-punk-placeholder loading";
+    visual.textContent = `#${item.tokenId}`;
   }
+  const detail = documentObject.createElement("div");
+  const label = documentObject.createElement("strong");
+  label.textContent = `Punk #${item.tokenId}`;
+  const status = documentObject.createElement("small");
+  const lifecycle = item.rarity?.rank && item.rarity?.proposedTier
+    ? ` · OpenRarity #${item.rarity.rank.toLocaleString()} · ${item.rarity.proposedTier.toLowerCase()} preview`
+    : "";
+  status.textContent = `${item.activated ? "Active wallet" : "Ready to activate"}${lifecycle}`;
+  detail.append(label, status);
+  container.append(visual, detail);
 }
 
 export async function copyPunkAccountAddress(navigatorObject, value) {
@@ -570,11 +583,12 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
   const picker = browserDocument?.querySelector?.("[data-owned-punk-picker]");
   const mandatePicker = browserDocument?.querySelector?.("[data-mandate-punk-picker]");
   const workspacePicker = browserDocument?.querySelector?.("[data-workspace-punk-picker]");
-  const visualPicker = browserDocument?.querySelector?.("[data-workspace-punk-cards]");
+  const selectedPreview = browserDocument?.querySelector?.("[data-workspace-punk-preview]");
   if (!browserWindow || (!container && !picker && !mandatePicker && !workspacePicker)) return null;
   const request = fetchFunction ?? browserWindow.fetch.bind(browserWindow);
   let revision = 0;
   let currentAccounts = [];
+  let currentCollection = null;
   let recheckTimer = null;
 
   function announceOwnerPunks(accounts, owner = null) {
@@ -645,7 +659,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
   function selectPunk(tokenId = "") {
     const item = currentAccounts.find((candidate) => candidate.tokenId === tokenId) ?? null;
     setSelected(item?.tokenId ?? "");
-    renderVisualPunkPicker(visualPicker, currentAccounts, item?.tokenId ?? "", selectPunk);
+    renderSelectedPunkPreview(selectedPreview, currentAccounts, item?.tokenId ?? "");
     for (const control of [workspacePicker, picker, mandatePicker]) {
       if (control && [...control.options].some((option) => option.value === (item?.tokenId ?? ""))) {
         control.value = item?.tokenId ?? "";
@@ -656,6 +670,23 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
         detail: Object.freeze({ tokenId: null, account: null, activated: false, owner: null }),
       }));
       return;
+    }
+    if (!trustedArtworkUrl(item.artwork?.imageUrl)) {
+      const selectionRevision = revision;
+      void hydrateOnchainPunkDecorations(
+        browserWindow.__GOGH_WALLET_PROVIDER__,
+        currentCollection,
+        [item],
+        { concurrency: 1 },
+      ).then(([decorated]) => {
+        if (selectionRevision !== revision || !decorated) return;
+        currentAccounts = currentAccounts.map((candidate) => (
+          candidate.tokenId === decorated.tokenId ? decorated : candidate
+        ));
+        renderSelectedPunkPreview(selectedPreview, currentAccounts, decorated.tokenId);
+        announceOwnerPunks(currentAccounts,
+          browserWindow.__GOGH_WALLET_SNAPSHOT__?.account ?? null);
+      }).catch(() => {});
     }
     const wallet = browserWindow.__GOGH_WALLET_SNAPSHOT__ ?? null;
     const detail = Object.freeze({
@@ -705,8 +736,9 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       renderPunkPicker(picker, []);
       renderPunkPicker(mandatePicker, []);
       renderPunkPicker(workspacePicker, []);
-      renderVisualPunkPicker(visualPicker, []);
+      renderSelectedPunkPreview(selectedPreview, []);
       currentAccounts = [];
+      currentCollection = null;
       announceOwnerPunks([]);
       setContainerHtml('<p class="empty-state">Connect the owner wallet on Robinhood Chain to load activated Punk Accounts.</p>');
       return;
@@ -724,6 +756,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       const [gatePayload, candidatesPayload] = await Promise.all([
         gateResponse.json(), candidatesResponse.json(),
       ]);
+      currentCollection = gatePayload.activationGate?.bindings?.punkCollection ?? null;
       const indexed = candidatesResponse.ok && candidatesPayload?.ok === true
         && Array.isArray(candidatesPayload.candidateTokenIds)
         ? candidatesPayload.candidateTokenIds : [];
@@ -770,11 +803,6 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
         rarity: rarityByToken.get(item.tokenId) ?? null,
         automationConfigured: automationByToken.get(item.tokenId) === true,
       }));
-      accounts = await hydrateOnchainPunkDecorations(
-        browserWindow.__GOGH_WALLET_PROVIDER__,
-        gatePayload.activationGate?.bindings?.punkCollection,
-        accounts,
-      );
       if (current !== revision) return;
       for (const item of accounts) {
         if (item.activated) rememberActivatedPunk(browserWindow.localStorage, item.tokenId);
@@ -793,9 +821,24 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       renderPunkPicker(workspacePicker, accounts, selectedTokenId);
       currentAccounts = accounts;
       announceOwnerPunks(accounts, wallet.account);
-      renderVisualPunkPicker(visualPicker, accounts, selectedTokenId, selectPunk);
+      renderSelectedPunkPreview(selectedPreview, accounts, selectedTokenId);
       if (container) renderOwnerAccounts(container, accounts);
       if (selectedTokenId) selectPunk(selectedTokenId);
+      const artworkTargets = priorityArtworkAccounts(accounts, selectedTokenId);
+      void hydrateOnchainPunkDecorations(
+        browserWindow.__GOGH_WALLET_PROVIDER__,
+        gatePayload.activationGate?.bindings?.punkCollection,
+        artworkTargets,
+      ).then((decoratedTargets) => {
+        if (current !== revision) return;
+        const decoratedByToken = new Map(decoratedTargets.map((item) => [item.tokenId, item]));
+        currentAccounts = currentAccounts.map((item) => decoratedByToken.get(item.tokenId) ?? item);
+        announceOwnerPunks(currentAccounts, wallet.account);
+        renderSelectedPunkPreview(selectedPreview, currentAccounts, selectedTokenId);
+        if (container) renderOwnerAccounts(container, currentAccounts);
+      }).catch(() => {
+        // Artwork is optional and never delays or changes live ownership evidence.
+      });
     } catch {
       if (current !== revision) return;
       setCounts(null, null, "Live check unavailable");
@@ -803,8 +846,9 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       renderPunkPicker(picker, []);
       renderPunkPicker(mandatePicker, []);
       renderPunkPicker(workspacePicker, []);
-      renderVisualPunkPicker(visualPicker, []);
+      renderSelectedPunkPreview(selectedPreview, []);
       currentAccounts = [];
+      currentCollection = null;
       announceOwnerPunks([]);
       setContainerHtml('<p class="empty-state">Punks could not be checked right now. No ownership or wallet status was inferred from stale data.</p>');
     }

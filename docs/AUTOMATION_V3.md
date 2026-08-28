@@ -84,3 +84,32 @@ before another nonce can be planned. Its transaction value is always zero; the
 separate hosted agent pays gas and the selected Punk Account receives the NFT.
 The V3 status endpoint is `/api/broker/autonomy-v3-status`; the owner setup
 endpoint is `/api/broker/autonomy-v3-owner-setup`.
+
+## Scheduled coverage
+
+Activation is intended to be "activate and leave it running." An owner does not need to press
+Send Agent on every scan. Durable V3 enrollments and saved mandates form the scheduled roster;
+each five-minute worker invocation takes a small rotating batch from the complete bounded roster.
+The operator environment override remains capped at 32 emergency IDs, but it is not the source of
+truth for enrolled users and does not cap scheduled coverage. Manual Send Agent remains an optional
+immediate scan, not a keepalive mechanism.
+
+## Local exact-price paid adapter
+
+`AutomatedSeaDropStudioPaidMintAdapter` is a local-only Phase 2 implementation. It reuses the
+existing account and policy enforcement while adding an exact-price native-token path for only the
+two reviewed OpenSea Studio runtime families. It accepts quantity one, canonical SeaDrop, an exact
+nonzero public-drop price, exact next token ID, zero slippage, empty adapter data, and no approval.
+Price drift requires a completely new intent. The existing policy independently enforces paid-mint
+permission, transaction/day/week budgets, maximum mint price, minimum native reserve, daily count,
+collection, venue, selector, adapter, authorization, pause, and current ownership.
+
+This adapter is **not deployed, registered, or enabled** by this local branch. Production requires
+a clean deployment proposal, source verification, independent security review, Guardian
+registration, owner-configured paid permissions and budgets, and worker/connector transaction
+integration. The connector continues to simulate directed paid mints and cannot broadcast them.
+
+The Punk Control Center can fund an already activated Punk Wallet from its current holder. Before
+MetaMask opens, it rechecks the current owner, deterministic account identity, exact runtimes,
+modules, footer, policy, usage and balance, then simulates the immutable native deposit. Funding a
+Punk Wallet grants no paid-mint permission by itself.
