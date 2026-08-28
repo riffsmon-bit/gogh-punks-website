@@ -22,7 +22,7 @@ export function automationV3Activity(heartbeat, usage, environment = process.env
 export default async function handler(request) {
   if (request.method !== "GET") return json({ ok: false, code: "METHOD_NOT_ALLOWED" }, 405);
   try {
-    const evidence = isDeployPreview()
+    const evidence = isDeployPreview(process.env, request.url)
       ? await getProductionAutomationV3Activity()
       : await Promise.all([
         getAutomationV3WorkerHeartbeat(), getAutomationV3UsageStats(),

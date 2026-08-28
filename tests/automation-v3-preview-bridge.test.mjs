@@ -42,6 +42,16 @@ test("only the exact Netlify deploy-preview context uses the production bridge",
   assert.equal(isDeployPreview({ CONTEXT: "production" }), false);
   assert.equal(isDeployPreview({ CONTEXT: "branch-deploy" }), false);
   assert.equal(isDeployPreview({ CONTEXT: "DEPLOY-PREVIEW" }), false);
+  assert.equal(isDeployPreview(
+    {}, "https://deploy-preview-9--gogh-punks.netlify.app/api/broker/autonomy-v3-status",
+  ), true);
+  assert.equal(isDeployPreview(
+    {}, "https://deploy-preview-0--gogh-punks.netlify.app/api/broker/autonomy-v3-status",
+  ), false);
+  assert.equal(isDeployPreview(
+    {}, "https://deploy-preview-9--gogh-punks.netlify.app.evil.example/api",
+  ), false);
+  assert.equal(isDeployPreview({}, "http://deploy-preview-9--gogh-punks.netlify.app/api"), false);
 });
 
 test("preview activity reads the fixed production endpoint and validates its evidence", async () => {

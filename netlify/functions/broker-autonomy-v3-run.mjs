@@ -74,7 +74,7 @@ export default async function handler(request) {
     }
     requireSameOrigin(request);
     const body = await readJson(request, 1_024);
-    if (isDeployPreview()) {
+    if (isDeployPreview(process.env, request.url)) {
       if (!allBody(body)) exactBody(body);
       const forwarded = await forwardProductionAutomationV3Run(body);
       return forwarded.ok

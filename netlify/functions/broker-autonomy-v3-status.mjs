@@ -135,7 +135,7 @@ export default async function handler(request) {
     try {
       const params = new URL(request.url).searchParams;
       const tokenId = params.get("tokenId");
-      const workerEvidence = isDeployPreview()
+      const workerEvidence = isDeployPreview(process.env, request.url)
         ? getProductionAutomationV3Activity()
         : Promise.all([
           getAutomationV3WorkerHeartbeat().catch(() => null),

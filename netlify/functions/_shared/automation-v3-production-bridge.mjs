@@ -40,8 +40,16 @@ async function productionJson(path, options, fetchFunction) {
   return { response, payload: plain(payload, "production response") };
 }
 
-export function isDeployPreview(environment = process.env) {
-  return environment.CONTEXT === "deploy-preview";
+export function isDeployPreview(environment = process.env, requestUrl = null) {
+  if (environment.CONTEXT === "deploy-preview") return true;
+  if (typeof requestUrl !== "string") return false;
+  try {
+    const url = new URL(requestUrl);
+    return url.protocol === "https:" && !url.username && !url.password && !url.port
+      && /^deploy-preview-[1-9][0-9]*--gogh-punks\.netlify\.app$/.test(url.hostname);
+  } catch {
+    return false;
+  }
 }
 
 export async function getProductionAutomationV3Activity(fetchFunction = fetch) {
