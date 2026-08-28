@@ -19,6 +19,13 @@ signature, or expose a transaction-submission action. Add the exact `http://127.
 to the Reown project allowlist before testing. Tabs can be opened directly with `&tab=overview`,
 `agent`, `mint`, `assets`, or `activity`.
 
+The demo is backed by a loopback-only in-memory service rather than browser-only success copy.
+Saving paid limits, resolving the directed OpenSea fixture, running the strict paid-mint policy and
+asset-effect simulation, starting a Scout check, and loading Punk-specific activity all cross that
+local API boundary. Per-Punk state remains isolated for the life of the server and resets when the
+server stops. Requests are bounded, accept JSON only, and require an exact local Control Center
+referer. The service cannot sign, submit, or broadcast a transaction.
+
 After the first approved connection, Reown owns the session and a non-sensitive returning-session
 marker lets the next wallet-enabled page restore it without reopening the selector. Navigation never
 copies an address between pages as authority: every page receives the current account from Reown and
@@ -33,9 +40,9 @@ npm run broker:v2:screenshots
 
 The capture script talks only to a local Chrome debugging endpoint and the loopback demo.
 
-Latest local Chrome capture timings (2026-08-27) were 119ms desktop load, 196ms at 375px,
-118ms at 390px, and 146ms at 430px. The in-memory directed resolver and simulation each
-completed below the browser timer's 1ms reporting resolution; fixture inventory rendered in 1ms.
+Latest local Chrome capture timings (2026-08-27) were 487ms desktop load, 185ms at 375px,
+177ms at 390px, and 147ms at 430px. The loopback directed resolver completed in 7–51ms and
+strict simulation in 13–17ms; fixture inventory rendered in 1ms.
 All measured document widths exactly matched their viewports. This route is new, so there is no
 honest same-route pre-V2 baseline; these are current measurements rather than a fabricated
 before/after claim. Network-backed production timing was intentionally not measured in this

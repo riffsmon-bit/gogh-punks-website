@@ -6,9 +6,6 @@ const CHAIN_ID = 4663;
 const OWNER_OF_SELECTOR = "0x6352211e";
 const ADDRESS = /^0x[0-9a-f]{40}$/;
 const TOKEN_ID = /^(?:0|[1-9][0-9]*)$/;
-const DEMO_ACCOUNT = "0x0000000000000000000000000000000000000093";
-const DEMO_OWNER = "0x0000000000000000000000000000000000000001";
-
 const page = document.querySelector("[data-punk-control-center]");
 if (!page) throw new Error("Punk Control Center root is missing");
 
@@ -37,7 +34,23 @@ const state = {
   punkCollection: null, nativeBalance: null, wrappedBalance: null,
   owned: false, activated: false, agentStatus: null, automation: null, assets: [],
   activity: [], timings: {}, revision: 0,
+  directedReviewId: null,
 };
+
+async function localApi(path, options = {}) {
+  const response = await fetch(path, {
+    method: options.body ? "POST" : "GET",
+    headers: options.body ? { accept: "application/json", "content-type": "application/json" }
+      : { accept: "application/json" },
+    body: options.body ? JSON.stringify(options.body) : undefined,
+    cache: "no-store",
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok || payload?.ok !== true) {
+    throw new Error(payload?.message ?? "Local simulation service is unavailable");
+  }
+  return payload;
+}
 
 function metric(name, started) {
   state.timings[name] = Math.max(0, Math.round(performance.now() - started));
@@ -110,7 +123,8 @@ function controlPresentation() {
     heading: state.agentStatus === "SCANNING" ? "Agent scanning"
       : state.agentStatus === "MINTED" ? "Mint confirmed"
         : state.activated ? "Agent paused" : "Ready to activate",
-    detail: "Live Punk ownership was checked for the connected wallet.",
+    detail: demo ? "Local Punk ownership fixture loaded; no chain authority is implied."
+      : "Live Punk ownership was checked for the connected wallet.",
     account: state.account ?? "Loading Punk Wallet…",
   };
   return {
@@ -333,11 +347,21 @@ async function loadActivity() {
   if (button) button.disabled = true;
   setText("[data-activity-state]", `Checking Punk #${state.tokenId}'s latest worker event…`);
   try {
-    const response = await fetch(`/api/broker/autonomy-v3-activity?tokenId=${encodeURIComponent(state.tokenId)}`, {
+    const endpoint = demo ? `/api/local-v2/activity?tokenId=${encodeURIComponent(state.tokenId)}`
+      : `/api/broker/autonomy-v3-activity?tokenId=${encodeURIComponent(state.tokenId)}`;
+    const response = await fetch(endpoint, {
       headers: { accept: "application/json" }, cache: "no-store",
     });
     const payload = await response.json();
     if (!response.ok || payload?.ok !== true) throw new Error("Activity is temporarily unavailable.");
+    if (demo) {
+      for (const entry of payload.activity ?? []) addActivity(entry);
+      setText("[data-activity-state]", payload.activity?.length
+        ? `Loaded ${payload.activity.length} local Punk #${state.tokenId} activity events.`
+        : `No local activity has been recorded for Punk #${state.tokenId} yet.`);
+      metric("Activity", started);
+      return;
+    }
     const heartbeat = payload.activity?.heartbeat;
     if (heartbeat && (!heartbeat.tokenId || String(heartbeat.tokenId) === state.tokenId)) {
       addActivity({ at: heartbeat.completedAt, state: heartbeat.status,
@@ -475,7 +499,7 @@ function readPaidPolicy() {
   catch { return {}; }
 }
 
-function savePaidPolicy() {
+async function savePaidPolicy() {
   const enabled = query("[data-paid-enabled]").checked;
   if (enabled && !query("[data-paid-confirm]").checked) {
     setText("[data-paid-state]", "Review and accept the paid-mode warning first.");
@@ -483,14 +507,22 @@ function savePaidPolicy() {
   }
   const policy = { enabled, daily: query("[data-paid-daily]").value,
     per: query("[data-paid-per]").value, count: query("[data-paid-count]").value };
-  localStorage.setItem(localPolicyKey(), JSON.stringify(policy));
-  renderPaidPolicy(policy);
-  setText("[data-paid-state]", enabled
-    ? "Saved locally for simulation. Production paid execution remains disabled."
-    : "Paid mints are OFF. No production permission was changed.");
+  try {
+    if (demo) await localApi("/api/local-v2/policy", { body: {
+      tokenId: state.tokenId, enabled, dailyEth: policy.daily, perMintEth: policy.per,
+      dailyMintLimit: Number(policy.count),
+    } });
+    localStorage.setItem(localPolicyKey(), JSON.stringify(policy));
+    renderPaidPolicy(policy);
+    setText("[data-paid-state]", enabled
+      ? "Saved in this local test session. Production paid execution remains disabled."
+      : "Paid mints are OFF. No production permission was changed.");
+  } catch (error) {
+    setText("[data-paid-state]", `${error.message}. No setting was saved.`);
+  }
 }
 
-function checkDirectedMint() {
+async function checkDirectedMint() {
   const started = performance.now();
   const input = query("[data-directed-url]").value.trim();
   let url;
@@ -507,31 +539,50 @@ function checkDirectedMint() {
     query("[data-directed-review]").hidden = true;
     return;
   }
-  const policy = readPaidPolicy();
-  query("[data-directed-review]").hidden = false;
-  setText("[data-directed-collection]", path[1].split("-").map((part) => part[0].toUpperCase() + part.slice(1)).join(" "));
-  setText("[data-directed-price]", "0.004 ETH · authoritative demo fixture");
-  setText("[data-directed-gas]", "0.0002 ETH · simulated");
-  setText("[data-directed-maximum]", "0.0042 ETH");
-  setText("[data-directed-remaining]", `${policy.daily ?? "0.025"} ETH`);
-  setText("[data-directed-state]", "Supported local fixture resolved. No transaction has been submitted.");
-  addActivity({ at: nowIso(), state: "VERIFYING_CONTRACT",
-    message: "Candidate found. The local resolver is checking its contract, price, and limits." });
-  metric("Directed URL resolution", started);
+  try {
+    setText("[data-directed-state]", "Resolving the local mint fixture and verifying its exact recipient…");
+    const payload = await localApi("/api/local-v2/directed/resolve", { body: {
+      tokenId: state.tokenId, url: input, recipient: state.account,
+    } });
+    const policy = readPaidPolicy();
+    const priceWei = BigInt(payload.review.candidate.priceWei);
+    const gasWei = BigInt(payload.estimatedGasWei);
+    state.directedReviewId = payload.reviewId;
+    query("[data-directed-review]").hidden = false;
+    setText("[data-directed-collection]", payload.review.collectionName);
+    setText("[data-directed-price]", `${formatNative(priceWei)} · local fixture`);
+    setText("[data-directed-gas]", `${formatNative(gasWei)} · simulated`);
+    setText("[data-directed-maximum]", formatNative(priceWei + gasWei));
+    setText("[data-directed-remaining]", `${policy.daily ?? "0.025"} ETH`);
+    setText("[data-directed-state]", "Supported local fixture resolved and stored for exact simulation. Nothing was submitted.");
+    await loadActivity();
+    metric("Directed URL resolution", started);
+  } catch (error) {
+    state.directedReviewId = null;
+    query("[data-directed-review]").hidden = true;
+    setText("[data-directed-state]", `${error.message}. Nothing was submitted.`);
+  }
 }
 
-function simulateDirectedMint() {
+async function simulateDirectedMint() {
   const started = performance.now();
-  const policy = readPaidPolicy();
-  const passed = policy.enabled === true && Number(policy.per ?? 0) >= 0.004
-    && Number(policy.daily ?? 0) >= 0.004;
-  setText("[data-directed-simulation]", passed
-    ? "Simulation passed: supported runtime, exact 0.004 ETH spend, one expected NFT receipt, no approvals or outgoing assets. Nothing was broadcast."
-    : "Simulation blocked: enable local paid mode and set limits that cover 0.004 ETH.");
-  addActivity({ at: nowIso(), state: passed ? "READY" : "SKIPPED",
-    message: passed ? "Simulation passed. The local directed mint is ready for review."
-      : "Mint skipped because its price is outside this Punk's simulated spending limits." });
-  metric("Simulation", started);
+  if (!state.directedReviewId) {
+    setText("[data-directed-simulation]", "Check a supported local mint fixture first.");
+    return;
+  }
+  try {
+    setText("[data-directed-simulation]", "Rechecking policy, recipient, price, and simulated asset effects…");
+    const payload = await localApi("/api/local-v2/directed/simulate", { body: {
+      tokenId: state.tokenId, reviewId: state.directedReviewId,
+    } });
+    setText("[data-directed-simulation]", payload.result.ready
+      ? "Simulation passed: exact spend, one expected NFT receipt, no approvals, outgoing assets, or contract creation. Nothing was broadcast."
+      : `Simulation blocked safely: ${payload.result.decision.code}.`);
+    await loadActivity();
+    metric("Simulation", started);
+  } catch (error) {
+    setText("[data-directed-simulation]", `${error.message}. Nothing was submitted.`);
+  }
 }
 
 function bindTabs() {
@@ -578,12 +629,21 @@ function bindActions() {
   query("[data-load-assets]").addEventListener("click", () => loadAssets().catch((error) => {
     query("[data-asset-grid]").textContent = error.message;
   }));
-  query("[data-paid-save]").addEventListener("click", savePaidPolicy);
-  query("[data-directed-check]").addEventListener("click", checkDirectedMint);
-  query("[data-directed-simulate]").addEventListener("click", simulateDirectedMint);
-  query("[data-scout-simulate]").addEventListener("click", () => {
-    setText("[data-scout-result]", "Local scout completed: no supported fixture was selected. No transaction was needed.");
-    addActivity({ at: nowIso(), state: "SCANNING", message: "Searching supported mint sources in local simulation." });
+  query("[data-paid-save]").addEventListener("click", () => savePaidPolicy());
+  query("[data-directed-check]").addEventListener("click", () => checkDirectedMint());
+  query("[data-directed-simulate]").addEventListener("click", () => simulateDirectedMint());
+  query("[data-scout-simulate]").addEventListener("click", async () => {
+    try {
+      const payload = demo ? await localApi("/api/local-v2/scout", {
+        body: { tokenId: state.tokenId },
+      }) : null;
+      setText("[data-scout-result]", payload
+        ? "Local scout completed: no eligible fixture was selected. No transaction was needed."
+        : "Scout review prepared. This local build did not submit a job or transaction.");
+      if (demo) await loadActivity();
+    } catch (error) {
+      setText("[data-scout-result]", `${error.message}. No transaction was submitted.`);
+    }
   });
   query("[data-deposit-review]").addEventListener("click", () => {
     const type = query("[data-deposit-type]").value;
@@ -647,18 +707,19 @@ async function applyWallet(wallet) {
   }
 }
 
-function loadDemo() {
+async function loadDemo() {
   state.tokenId ||= "93";
-  state.owner = DEMO_OWNER;
-  state.walletAccount = DEMO_OWNER;
+  const payload = await localApi(`/api/local-v2/session?tokenId=${encodeURIComponent(state.tokenId)}`);
+  state.owner = payload.session.owner;
+  state.walletAccount = payload.session.owner;
   state.walletChainId = CHAIN_ID;
-  state.account = DEMO_ACCOUNT;
+  state.account = payload.session.account;
   state.punkCollection = "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6";
   state.nativeBalance = 41_200_000_000_000_000n;
   state.wrappedBalance = 12_000_000_000_000_000n;
   state.owned = true;
   state.activated = true;
-  state.automation = { capability: true, punk: { tokenId: state.tokenId, account: DEMO_ACCOUNT,
+  state.automation = { capability: true, punk: { tokenId: state.tokenId, account: state.account,
     created: true, active: true, maxAcquisitionsPerDay: 3, acquisitionsToday: 1,
     authorization: { validUntil: String(Math.floor(Date.now() / 1_000) + 7 * 86_400) } },
   usage: { confirmedMints: "191" },
@@ -672,10 +733,16 @@ function loadDemo() {
   setText("[data-summary-tokens]", "3");
   setText("[data-summary-lifetime]", "191");
   renderAutomation();
-  renderPaidPolicy(readPaidPolicy());
+  const serverPolicy = payload.session.policy;
+  const localPolicy = { enabled: serverPolicy.paidMintsEnabled,
+    daily: String(Number(serverPolicy.dailySpendLimitWei) / 1e18),
+    per: String(Number(serverPolicy.maxPerMintWei) / 1e18),
+    count: String(serverPolicy.dailyMintLimit) };
+  const savedPolicy = readPaidPolicy();
+  renderPaidPolicy(Object.keys(savedPolicy).length ? savedPolicy : localPolicy);
   renderDemoOwnerAssets();
   query("[data-directed-url]").value = "https://opensea.io/collection/local-demo-drop";
-  checkDirectedMint();
+  await checkDirectedMint();
   for (const [offset, stateName, message] of [
     [180_000, "SCANNING", "Searching for eligible supported mints…"],
     [120_000, "CANDIDATE_FOUND", "Candidate found: Local Demo Drop."],
@@ -691,8 +758,10 @@ bindActions();
 renderIdentity();
 renderPaidPolicy(readPaidPolicy());
 if (demo) {
-  loadDemo();
-  openInitialTab();
+  loadDemo().then(openInitialTab).catch((error) => {
+    state.error = error.message;
+    renderIdentity();
+  });
 }
 else {
   openInitialTab();
