@@ -1,4 +1,5 @@
 import { getDatabase } from "@netlify/database";
+import { createPublicClient, defineChain, http, parseAbi } from "viem";
 import { ROBINHOOD } from "../../broker/src/config.mjs";
 import { json } from "./_shared/http.mjs";
 import { nftDisplayMetadata, NFT_DISPLAY_METADATA_SELECT } from
@@ -12,6 +13,12 @@ const OPENSEA_MAX_PAGES = 3;
 const AUTOMATION_ROSTER_LIMIT = 32;
 const GOGH_PUNKS_MAX_SUPPLY = 5_016;
 const OPENSEA_IMAGE_HOSTS = new Set(["i.seadn.io", "raw2.seadn.io"]);
+const OWNER_DISCOVERY_ABI = parseAbi([
+  "function balanceOf(address owner) view returns (uint256)",
+  "function ownerOf(uint256 tokenId) view returns (address)",
+]);
+const OWNER_SCAN_CHUNK = 200;
+const OWNER_SCAN_CONCURRENCY = 4;
 
 function own(value, key) {
   return value && typeof value === "object" && Object.hasOwn(value, key)
@@ -81,6 +88,103 @@ function openSeaDecoration(nft, tokenId) {
 function address(value) {
   return typeof value === "string" && /^0x[0-9a-fA-F]{40}$/.test(value)
     ? value.toLowerCase() : null;
+}
+
+function ownerDiscoveryClient(environment = process.env) {
+  const raw = environment.ROBINHOOD_RPC_URL ?? environment.RPC_URL ?? ROBINHOOD.rpcUrl;
+  let rpcUrl;
+  try { rpcUrl = new URL(raw); } catch { throw new TypeError("owner discovery RPC is invalid"); }
+  if (rpcUrl.protocol !== "https:" || rpcUrl.username || rpcUrl.password || rpcUrl.hash) {
+    throw new TypeError("owner discovery RPC is invalid");
+  }
+  const chain = defineChain({
+    id: ROBINHOOD.chainId,
+    name: ROBINHOOD.name,
+    nativeCurrency: ROBINHOOD.nativeCurrency,
+    rpcUrls: { default: { http: [rpcUrl.href] } },
+  });
+  return createPublicClient({
+    chain,
+    transport: http(rpcUrl.href, { retryCount: 1, timeout: 5_000 }),
+  });
+}
+
+async function liveOwnedFromCandidates(client, owner, tokenIds) {
+  const output = [];
+  for (let offset = 0; offset < tokenIds.length; offset += OWNER_SCAN_CHUNK) {
+    const chunk = tokenIds.slice(offset, offset + OWNER_SCAN_CHUNK);
+    const results = await client.multicall({
+      allowFailure: true,
+      contracts: chunk.map((tokenId) => ({
+        address: ROBINHOOD.canonicalCollection,
+        abi: OWNER_DISCOVERY_ABI,
+        functionName: "ownerOf",
+        args: [BigInt(tokenId)],
+      })),
+    });
+    if (!Array.isArray(results) || results.length !== chunk.length) {
+      throw new TypeError("owner discovery result count changed");
+    }
+    for (let index = 0; index < chunk.length; index += 1) {
+      const result = results[index];
+      if (result?.status === "success" && address(result.result) === owner) output.push(chunk[index]);
+    }
+  }
+  return output;
+}
+
+export async function liveOwnerPunkIds(owner, candidateTokenIds = [], {
+  client = ownerDiscoveryClient(),
+} = {}) {
+  const normalized = address(owner);
+  if (!normalized || !Array.isArray(candidateTokenIds)
+    || candidateTokenIds.length > MAX_CANDIDATES
+    || candidateTokenIds.some((value) => punkTokenId(String(value)) !== String(value))
+    || typeof client?.readContract !== "function" || typeof client?.multicall !== "function") {
+    throw new TypeError("live owner discovery input is invalid");
+  }
+  const balance = await client.readContract({
+    address: ROBINHOOD.canonicalCollection,
+    abi: OWNER_DISCOVERY_ABI,
+    functionName: "balanceOf",
+    args: [normalized],
+  });
+  if (typeof balance !== "bigint" || balance < 0n || balance > BigInt(MAX_CANDIDATES)) {
+    throw new RangeError("live owner Punk balance is outside the UI bound");
+  }
+  if (balance === 0n) return Object.freeze([]);
+
+  const boundedCandidates = [...new Set(candidateTokenIds)];
+  const verifiedCandidates = await liveOwnedFromCandidates(client, normalized, boundedCandidates);
+  if (BigInt(verifiedCandidates.length) === balance) {
+    return Object.freeze(verifiedCandidates.sort((left, right) => Number(left) - Number(right)));
+  }
+
+  // The local ownership index and marketplace cache are acceleration hints, not completeness
+  // evidence. Only when their live-verified count differs from balanceOf do we scan the bounded
+  // 5,017-token collection. Four workers keep this to 26 server-side Multicall reads rather than
+  // 5,017 wallet-provider requests; the browser still performs its own live verification.
+  const chunks = [];
+  for (let first = 0; first <= GOGH_PUNKS_MAX_SUPPLY; first += OWNER_SCAN_CHUNK) {
+    chunks.push(Array.from({
+      length: Math.min(OWNER_SCAN_CHUNK, GOGH_PUNKS_MAX_SUPPLY - first + 1),
+    }, (_, index) => String(first + index)));
+  }
+  const output = [];
+  let cursor = 0;
+  const scan = async () => {
+    while (cursor < chunks.length) {
+      const chunk = chunks[cursor];
+      cursor += 1;
+      output.push(...await liveOwnedFromCandidates(client, normalized, chunk));
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(OWNER_SCAN_CONCURRENCY, chunks.length) }, scan));
+  output.sort((left, right) => Number(left) - Number(right));
+  if (BigInt(output.length) !== balance || new Set(output).size !== output.length) {
+    throw new TypeError("live owner discovery did not reconcile the wallet balance");
+  }
+  return Object.freeze(output);
 }
 
 export async function indexedOwnerPunkIds(owner, query = (...args) => (
@@ -336,6 +440,18 @@ export default async function handler(request) {
         }));
       }
     }
+    let liveOwnerAvailable = false;
+    try {
+      // Complete the fast index/marketplace hints only when balanceOf proves they are stale. The
+      // resulting list is still a server hint; browser Multicall remains the UI authority.
+      candidateTokenIds = [...await liveOwnerPunkIds(owner, candidateTokenIds)];
+      liveOwnerAvailable = true;
+    } catch (error) {
+      console.error(JSON.stringify({
+        event: "BROKER_OWNER_PUNK_LIVE_COMPLETION_UNAVAILABLE", type: error?.name,
+      }));
+    }
+    if (candidateTokenIds.length > MAX_CANDIDATES) throw new RangeError("owner candidate set is too large");
     let cachedPunks = [];
     let artworkAvailable = false;
     try {
@@ -366,6 +482,7 @@ export default async function handler(request) {
       candidateSources: Object.freeze({
         indexed: indexedResult.status === "fulfilled",
         openSea: openSeaAvailable,
+        liveOwnerComplete: liveOwnerAvailable,
         liveMulticall: true,
         automationRoster: automationRoster.length > 0,
         automationEnrollments: enrollmentResult.status === "fulfilled",

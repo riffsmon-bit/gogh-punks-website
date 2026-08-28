@@ -6,6 +6,7 @@ import {
   configuredAutomationPunkIds,
   enrolledAutomationPunkIds,
   indexedOwnerPunkIds,
+  liveOwnerPunkIds,
   mergeOwnerPunkDecorations,
   openSeaOwnerPunkIds,
   openSeaOwnerPunks,
@@ -58,6 +59,41 @@ test("enrolled V3 Punks remain bounded owner-scoped discovery hints", async () =
   assert.match(captured.sql, /LOWER\(owner_snapshot\)/);
   assert.equal(captured.values[2], OWNER.toLowerCase());
   assert.equal(captured.values[3], 201);
+});
+
+test("live owner completion avoids a full scan when indexed candidates reconcile balance", async () => {
+  const calls = [];
+  const result = await liveOwnerPunkIds(OWNER, ["93", "94"], {
+    client: {
+      readContract: async () => 2n,
+      multicall: async ({ contracts }) => {
+        calls.push(contracts.map(({ args }) => String(args[0])));
+        return contracts.map(() => ({ status: "success", result: OWNER }));
+      },
+    },
+  });
+  assert.deepEqual(result, ["93", "94"]);
+  assert.deepEqual(calls, [["93", "94"]]);
+});
+
+test("live owner completion scans server-side only when hints omit an owned Punk", async () => {
+  const calls = [];
+  const owned = new Set(["93", "1616"]);
+  const result = await liveOwnerPunkIds(OWNER, ["93"], {
+    client: {
+      readContract: async () => 2n,
+      multicall: async ({ contracts }) => {
+        calls.push(contracts.length);
+        return contracts.map(({ args }) => owned.has(String(args[0]))
+          ? { status: "success", result: OWNER }
+          : { status: "failure", error: new Error("not minted") });
+      },
+    },
+  });
+  assert.deepEqual(result, ["93", "1616"]);
+  assert.equal(calls[0], 1, "the current index is checked before scanning");
+  assert.equal(calls.slice(1).reduce((sum, value) => sum + value, 0), 5_017);
+  assert.equal(calls.length, 27, "one hint check plus 26 bounded scan chunks");
 });
 
 function addressWord(value) {
