@@ -3,6 +3,8 @@ import { readFile, stat } from "node:fs/promises";
 import { extname, resolve, sep } from "node:path";
 import { localWalletConfiguration, localWalletReferer } from
   "./lib/v2-local-wallet-config.mjs";
+import { fetchLocalBrokerRead, LOCAL_BROKER_READ_PATHS } from
+  "./lib/v2-local-read-proxy.mjs";
 import { V2LocalSimulation } from "./lib/v2-local-simulation.mjs";
 
 const root = resolve(process.cwd(), "site");
@@ -116,6 +118,26 @@ const server = createServer(async (request, response) => {
       json(response, { ok: true, wallet });
     } catch {
       json(response, { ok: false, code: "LOCAL_WALLET_CONFIG_UNAVAILABLE" }, 503);
+    }
+    return;
+  }
+  if (LOCAL_BROKER_READ_PATHS.includes(requestUrl.pathname)) {
+    if (request.method !== "GET") {
+      response.writeHead(405, { allow: "GET" }).end();
+      return;
+    }
+    if (!localApiRequest(request)) {
+      json(response, { ok: false, code: "LOCAL_PAGE_ONLY" }, 403);
+      return;
+    }
+    try {
+      const upstream = await fetchLocalBrokerRead({ pathname: requestUrl.pathname,
+        searchParams: requestUrl.searchParams });
+      response.writeHead(upstream.status, { "content-type": "application/json; charset=utf-8",
+        "cache-control": "no-store", "x-content-type-options": "nosniff" });
+      response.end(upstream.body);
+    } catch {
+      json(response, { ok: false, code: "LOCAL_READ_UNAVAILABLE" }, 503);
     }
     return;
   }

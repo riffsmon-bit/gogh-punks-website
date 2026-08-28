@@ -26,6 +26,13 @@ local API boundary. Per-Punk state remains isolated for the life of the server a
 server stops. Requests are bounded, accept JSON only, and require an exact local Control Center
 referer. The service cannot sign, submit, or broadcast a transaction.
 
+For a real-wallet read test, remove `?demo=1` and connect Reown. The local server forwards only four
+explicit public `GET` reads—owner Punk discovery, selected-Punk V3 status, selected-Punk activity,
+and selected-Punk NFT inventory—to `goghpunks.xyz`. It forwards no cookie, bearer token, wallet
+signature, POST request, RPC URL, or write method. These reads are requested only after wallet
+connection or when the matching Activity/Assets view is opened; the local server does not perform a
+background Alchemy or full-wallet scan.
+
 After the first approved connection, Reown owns the session and a non-sensitive returning-session
 marker lets the next wallet-enabled page restore it without reopening the selector. Navigation never
 copies an address between pages as authority: every page receives the current account from Reown and
