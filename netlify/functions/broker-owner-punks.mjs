@@ -1,6 +1,7 @@
 import { getDatabase } from "@netlify/database";
 import { createPublicClient, defineChain, http, parseAbi } from "viem";
 import { ROBINHOOD } from "../../broker/src/config.mjs";
+import automationManifest from "../../deployments/robinhood-automation-v3.json" with { type: "json" };
 import { json } from "./_shared/http.mjs";
 import { nftDisplayMetadata, NFT_DISPLAY_METADATA_SELECT } from
   "./_shared/broker-display-metadata.mjs";
@@ -16,6 +17,9 @@ const OPENSEA_IMAGE_HOSTS = new Set(["i.seadn.io", "raw2.seadn.io"]);
 const OWNER_DISCOVERY_ABI = parseAbi([
   "function balanceOf(address owner) view returns (uint256)",
   "function ownerOf(uint256 tokenId) view returns (address)",
+]);
+const AUTOMATION_REGISTRY_ABI = parseAbi([
+  "function isAccountCreated(uint256 tokenId) view returns (bool)",
 ]);
 const OWNER_SCAN_CHUNK = 200;
 const OWNER_SCAN_CONCURRENCY = 4;
@@ -187,6 +191,34 @@ export async function liveOwnerPunkIds(owner, candidateTokenIds = [], {
     throw new TypeError("live owner discovery did not reconcile the wallet balance");
   }
   return Object.freeze(output);
+}
+
+export async function createdAutomationV3PunkIds(tokenIds, {
+  client = ownerDiscoveryClient(),
+  registry = automationManifest?.contracts?.GoghPunkAccountRegistryV3?.address,
+} = {}) {
+  const normalizedRegistry = address(registry);
+  if (!normalizedRegistry || !Array.isArray(tokenIds) || tokenIds.length > MAX_CANDIDATES
+    || tokenIds.some((value) => punkTokenId(String(value)) !== String(value))
+    || typeof client?.multicall !== "function") {
+    throw new TypeError("V3 Punk wallet discovery input is invalid");
+  }
+  if (tokenIds.length === 0) return Object.freeze([]);
+  const results = await client.multicall({
+    allowFailure: true,
+    contracts: tokenIds.map((tokenId) => ({
+      address: normalizedRegistry,
+      abi: AUTOMATION_REGISTRY_ABI,
+      functionName: "isAccountCreated",
+      args: [BigInt(tokenId)],
+    })),
+  });
+  if (!Array.isArray(results) || results.length !== tokenIds.length) {
+    throw new TypeError("V3 Punk wallet discovery result count changed");
+  }
+  return Object.freeze(tokenIds.filter((_, index) => (
+    results[index]?.status === "success" && results[index].result === true
+  )));
 }
 
 export async function indexedOwnerPunkIds(owner, query = (...args) => (
@@ -377,15 +409,19 @@ export function mergeOwnerPunkDecorations(
   cachedPunks,
   openSeaPunks,
   automationTokenIds = [],
+  automationCreatedTokenIds = [],
 ) {
   if (!Array.isArray(tokenIds) || !Array.isArray(cachedPunks)
     || !Array.isArray(openSeaPunks) || !Array.isArray(automationTokenIds)
-    || automationTokenIds.some((value) => punkTokenId(String(value)) !== String(value))) {
+    || !Array.isArray(automationCreatedTokenIds)
+    || automationTokenIds.some((value) => punkTokenId(String(value)) !== String(value))
+    || automationCreatedTokenIds.some((value) => punkTokenId(String(value)) !== String(value))) {
     throw new TypeError("owner Punk decorations are invalid");
   }
   const cached = new Map(cachedPunks.map((item) => [String(item?.tokenId), item]));
   const external = new Map(openSeaPunks.map((item) => [String(item?.tokenId), item]));
   const automation = new Set(automationTokenIds);
+  const automationCreated = new Set(automationCreatedTokenIds);
   return Object.freeze(tokenIds.map((tokenId) => {
     const cacheItem = cached.get(tokenId);
     const openSeaItem = external.get(tokenId);
@@ -396,6 +432,7 @@ export function mergeOwnerPunkDecorations(
       artwork: artwork ?? null,
       rarity: openSeaItem?.rarity ?? null,
       automationConfigured: automation.has(tokenId),
+      automationCreated: automationCreated.has(tokenId),
     });
   }));
 }
@@ -466,12 +503,33 @@ export default async function handler(request) {
       }
     }
     if (candidateTokenIds.length > MAX_CANDIDATES) throw new RangeError("owner candidate set is too large");
+    let automationCreatedTokenIds = [];
+    let automationWalletsAvailable = false;
+    try {
+      automationCreatedTokenIds = [...await createdAutomationV3PunkIds(candidateTokenIds)];
+      automationWalletsAvailable = true;
+    } catch (primaryError) {
+      try {
+        automationCreatedTokenIds = [...await createdAutomationV3PunkIds(candidateTokenIds, {
+          client: ownerDiscoveryClient({ ROBINHOOD_RPC_URL: ROBINHOOD.rpcUrl }),
+        })];
+        automationWalletsAvailable = true;
+      } catch (fallbackError) {
+        console.error(JSON.stringify({
+          event: "BROKER_OWNER_PUNK_V3_WALLETS_UNAVAILABLE",
+          primaryType: primaryError?.name,
+          fallbackType: fallbackError?.name,
+        }));
+      }
+    }
     let cachedPunks = [];
     let artworkAvailable = false;
     try {
       // Initial discovery does not need artwork for every inactive Punk. Active/enrolled cards
       // may use cached decoration immediately; a newly selected Punk hydrates from tokenURI.
-      cachedPunks = await ownerPunkArtwork(automationTokenIds);
+      cachedPunks = await ownerPunkArtwork([...new Set([
+        ...automationTokenIds, ...automationCreatedTokenIds,
+      ])]);
       artworkAvailable = true;
     } catch (error) {
       // Artwork is decoration, never authority. A metadata/index outage must not prevent
@@ -485,6 +543,7 @@ export default async function handler(request) {
       cachedPunks,
       openSeaPunks,
       automationTokenIds,
+      automationCreatedTokenIds,
     );
     return json({
       ok: true,
@@ -500,6 +559,7 @@ export default async function handler(request) {
         liveMulticall: true,
         automationRoster: automationRoster.length > 0,
         automationEnrollments: enrollmentResult.status === "fulfilled",
+        automationWallets: automationWalletsAvailable,
         artwork: artworkAvailable,
       }),
       evidence: "DISCOVERY_CANDIDATES_ONLY_EACH_SELECTION_REQUIRES_LIVE_WALLET_OWNER_CHECK",

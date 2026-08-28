@@ -49,7 +49,8 @@ export function agentRosterPunks(punks) {
   if (!Array.isArray(punks)) return Object.freeze([]);
   return Object.freeze(punks.filter((punk) => punk && typeof punk === "object"
     && (Object.hasOwn(punk, "activated") && punk.activated === true
-      || Object.hasOwn(punk, "automationConfigured") && punk.automationConfigured === true)));
+      || Object.hasOwn(punk, "automationConfigured") && punk.automationConfigured === true
+      || Object.hasOwn(punk, "automationCreated") && punk.automationCreated === true)));
 }
 
 function readState(storage) {
@@ -241,6 +242,8 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
           : live ? "Wallet active · setup needed" : "Select to check live agent";
       if (!live && punk.automationConfigured) {
         status.textContent = "Configured · select to verify live";
+      } else if (!live && punk.automationCreated) {
+        status.textContent = "Punk wallet active · select to verify agent";
       }
       const facts = browserDocument.createElement("dl");
       // Only an authorized agent has an on-chain cap and expiry to report. Anything else keeps
@@ -270,7 +273,7 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
       watch.href = `/broker/punk/${encodeURIComponent(punk.tokenId)}`;
       watch.textContent = "Open Punk wallet";
       const portfolio = browserDocument.createElement("a");
-      portfolio.href = `/broker/punk/${encodeURIComponent(punk.tokenId)}#activity`;
+      portfolio.href = `/broker/?punk=${encodeURIComponent(punk.tokenId)}#automation-title`;
       portfolio.textContent = "Watch agent";
       actions.append(watch, portfolio);
       card.append(visual, body, actions);

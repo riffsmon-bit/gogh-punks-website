@@ -4,6 +4,7 @@ import test from "node:test";
 import { encodeFunctionData, encodeFunctionResult, parseAbi } from "viem";
 import {
   configuredAutomationPunkIds,
+  createdAutomationV3PunkIds,
   enrolledAutomationPunkIds,
   indexedOwnerPunkIds,
   liveOwnerPunkIds,
@@ -23,6 +24,7 @@ import {
   hydrateOnchainPunkDecorations,
   priorityArtworkAccounts,
   mergeWalletAndActivatedPunks,
+  requestedBrokerPunk,
   selectedPunkGalleryPath,
 } from "../site/owner-accounts.js";
 
@@ -35,6 +37,14 @@ const MULTICALL_ABI = parseAbi([
   "function aggregate3((address target,bool allowFailure,bytes callData)[] calls) payable returns ((bool success,bytes returnData)[])",
 ]);
 const TOKEN_URI_ABI = parseAbi(["function tokenURI(uint256) view returns (string)"]);
+
+test("watch-agent links accept only one bounded Punk route selection", () => {
+  assert.equal(requestedBrokerPunk("https://goghpunks.xyz/broker/?punk=1616#automation-title"), "1616");
+  for (const value of ["https://goghpunks.xyz/broker/?punk=01616", "javascript:alert(1)",
+    "https://goghpunks.xyz/broker/?punk=10000", "not a url"]) {
+    assert.equal(requestedBrokerPunk(value), null);
+  }
+});
 
 test("configured automation roster supplies bounded discovery hints without authority", () => {
   assert.deepEqual(configuredAutomationPunkIds({
@@ -94,6 +104,28 @@ test("live owner completion scans server-side only when hints omit an owned Punk
   assert.equal(calls[0], 1, "the current index is checked before scanning");
   assert.equal(calls.slice(1).reduce((sum, value) => sum + value, 0), 5_017);
   assert.equal(calls.length, 27, "one hint check plus 26 bounded scan chunks");
+});
+
+test("every owned V3 Punk wallet is discovered in one bounded multicall", async () => {
+  const calls = [];
+  const result = await createdAutomationV3PunkIds(["93", "94", "95"], {
+    registry: REGISTRY,
+    client: {
+      multicall: async ({ contracts, allowFailure }) => {
+        calls.push({ contracts, allowFailure });
+        return [
+          { status: "success", result: true },
+          { status: "success", result: false },
+          { status: "failure", error: new Error("read failed") },
+        ];
+      },
+    },
+  });
+  assert.deepEqual(result, ["93"]);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].allowFailure, true);
+  assert.deepEqual(calls[0].contracts.map(({ args }) => String(args[0])), ["93", "94", "95"]);
+  assert.ok(calls[0].contracts.every(({ address: target }) => target === REGISTRY));
 });
 
 function addressWord(value) {
@@ -216,12 +248,14 @@ test("cached images win while OpenSea fills missing artwork and never upgrades r
   }, {
     tokenId: "94", artwork: { name: "OpenSea #94", imageUrl: "https://i.seadn.io/os94.png" },
     rarity: { source: "OPENSEA_OPENRARITY_CURRENT", rank: 10 },
-  }], ["94"]);
+  }], ["94"], ["93"]);
   assert.equal(result[0].artwork.name, "Cached #93");
   assert.equal(result[0].rarity.rank, 9);
   assert.equal(result[1].artwork.name, "OpenSea #94");
   assert.equal(result[0].automationConfigured, false);
   assert.equal(result[1].automationConfigured, true);
+  assert.equal(result[0].automationCreated, true);
+  assert.equal(result[1].automationCreated, false);
 });
 
 test("canonical on-chain tokenURI supplies keyless artwork and only a rarity preview", async () => {
@@ -260,11 +294,12 @@ test("initial artwork hydration is limited to active agents and the selected Pun
     { tokenId: "1", activated: false, automationConfigured: false },
     { tokenId: "2", activated: true, automationConfigured: false },
     { tokenId: "3", activated: false, automationConfigured: true },
-    { tokenId: "4", activated: false, automationConfigured: false },
+    { tokenId: "4", activated: false, automationConfigured: false, automationCreated: true },
+    { tokenId: "5", activated: false, automationConfigured: false },
   ];
-  assert.deepEqual(priorityArtworkAccounts(accounts).map(({ tokenId }) => tokenId), ["2", "3"]);
-  assert.deepEqual(priorityArtworkAccounts(accounts, "4").map(({ tokenId }) => tokenId),
-    ["2", "3", "4"]);
+  assert.deepEqual(priorityArtworkAccounts(accounts).map(({ tokenId }) => tokenId), ["2", "3", "4"]);
+  assert.deepEqual(priorityArtworkAccounts(accounts, "5").map(({ tokenId }) => tokenId),
+    ["2", "3", "4", "5"]);
 });
 
 test("wallet rechecks ownership and labels activated versus activatable Punks", async () => {

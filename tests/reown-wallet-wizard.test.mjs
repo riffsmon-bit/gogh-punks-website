@@ -237,13 +237,14 @@ test("wizard persistence is bounded and resumes from authoritative state", () =>
   }), "success");
 });
 
-test("active-agent roster includes V3-configured Punks without calling them live", () => {
+test("active-agent roster includes every created or configured V3 Punk without calling them live", () => {
   const visible = agentRosterPunks([
     { tokenId: "93", activated: true, automationConfigured: false },
     { tokenId: "94", activated: false, automationConfigured: true },
-    { tokenId: "95", activated: false, automationConfigured: false },
+    { tokenId: "95", activated: false, automationConfigured: false, automationCreated: true },
+    { tokenId: "96", activated: false, automationConfigured: false },
   ]);
-  assert.deepEqual(visible.map(({ tokenId }) => tokenId), ["93", "94"]);
+  assert.deepEqual(visible.map(({ tokenId }) => tokenId), ["93", "94", "95"]);
 });
 
 test("every wallet-enabled page restores the one Reown session and exposes disconnect", async () => {

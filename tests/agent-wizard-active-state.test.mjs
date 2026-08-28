@@ -279,7 +279,7 @@ test("active-agent cards link directly to each Punk wallet control center", () =
   setupAgentWizard(fixture);
   assert.deepEqual(agentCardActions(fixture), [
     { textContent: "Open Punk wallet", href: "/broker/punk/93" },
-    { textContent: "Watch agent", href: "/broker/punk/93#activity" },
+    { textContent: "Watch agent", href: "/broker/?punk=93#automation-title" },
   ]);
 });
 

@@ -186,6 +186,15 @@ function knownTokenIds(storage) {
   }
 }
 
+export function requestedBrokerPunk(value) {
+  try {
+    const tokenId = new URL(String(value)).searchParams.get("punk");
+    return /^(0|[1-9]\d{0,3})$/.test(tokenId ?? "") ? tokenId : null;
+  } catch {
+    return null;
+  }
+}
+
 export function rememberActivatedPunk(storage, tokenId) {
   if (!/^(0|[1-9]\d{0,3})$/.test(String(tokenId))) return;
   try {
@@ -331,6 +340,7 @@ export function priorityArtworkAccounts(accounts, selectedTokenId = "") {
   }
   return Object.freeze(accounts.filter((item) => item && typeof item === "object"
     && (item.activated === true || item.automationConfigured === true
+      || item.automationCreated === true
       || item.tokenId === selectedTokenId)));
 }
 
@@ -627,6 +637,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
   let revision = 0;
   let currentAccounts = [];
   let currentCollection = null;
+  let requestedTokenId = requestedBrokerPunk(browserWindow.location?.href);
   let recheckTimer = null;
 
   function announceOwnerPunks(accounts, owner = null) {
@@ -638,6 +649,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
         account: item.account ?? null,
         activated: item.activated === true,
         automationConfigured: item.automationConfigured === true,
+        automationCreated: item.automationCreated === true,
         artwork: item.artwork ? Object.freeze({ ...item.artwork }) : null,
         rarity: item.rarity ? Object.freeze({ ...item.rarity }) : null,
       }))),
@@ -817,6 +829,13 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
           ])
           : [],
       );
+      const automationCreatedByToken = new Map(
+        Array.isArray(candidatesPayload?.candidatePunks)
+          ? candidatesPayload.candidatePunks.map((item) => [
+            String(item?.tokenId), item?.automationCreated === true,
+          ])
+          : [],
+      );
       let accounts = [];
       if (candidates.length > 0) {
         // The indexed/enrolled IDs are hints only. Three Multicall reads verify ownership,
@@ -842,6 +861,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
         artwork: artworkByToken.get(item.tokenId) ?? null,
         rarity: rarityByToken.get(item.tokenId) ?? null,
         automationConfigured: automationByToken.get(item.tokenId) === true,
+        automationCreated: automationCreatedByToken.get(item.tokenId) === true,
       }));
       if (current !== revision) return;
       for (const item of accounts) {
@@ -853,10 +873,14 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
         ? `${readyCount} more owned ${readyCount === 1 ? "Punk" : "Punks"} ready to activate`
         : "Live ownership verified");
       renderPunkPicker(picker, accounts);
-      const previousSelection = workspacePicker?.value || mandatePicker?.value || picker?.value || "";
+      const routeSelection = requestedTokenId
+        && accounts.some(({ tokenId }) => tokenId === requestedTokenId) ? requestedTokenId : "";
+      const previousSelection = routeSelection
+        || workspacePicker?.value || mandatePicker?.value || picker?.value || "";
       const selectedTokenId = accounts.some(({ tokenId }) => tokenId === previousSelection)
         ? previousSelection
         : "";
+      if (routeSelection) requestedTokenId = null;
       renderPunkPicker(mandatePicker, accounts, selectedTokenId);
       renderPunkPicker(workspacePicker, accounts, selectedTokenId);
       currentAccounts = accounts;
