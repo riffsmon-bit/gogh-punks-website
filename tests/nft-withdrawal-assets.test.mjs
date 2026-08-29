@@ -16,6 +16,7 @@ const OWNER = "0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6";
 const COLLECTION = "0x1111111111111111111111111111111111111111";
 const HASH = `0x${"ab".repeat(32)}`;
 const TRANSFER = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+const IPFS_IMAGE = "https://ipfs.io/ipfs/bafybeifxubfqw4ijecm3adlgczd37x2kk3xu4mpsgelh7n4nxxq5ufmrsy";
 
 function addressTopic(value) {
   return `0x${value.slice(2).padStart(64, "0")}`;
@@ -113,6 +114,28 @@ test("adds advisory OpenSea art and floor while keeping receipt and live owner a
   const hostile = structuredClone(assets);
   hostile.items[0].floorPrice.sourceUrl = "https://evil.test/floor";
   assert.throws(() => validateWithdrawableNftAssets(hostile, "93"), /floor/);
+});
+
+test("falls back to exact on-chain tokenURI display when marketplace indexing lags", async () => {
+  let tokenUriReads = 0;
+  const assets = await buildWithdrawableNftAssets("93", {
+    database: { query: async (sql) => ({ rows: /worker_runs/.test(sql) ? [row()] : [] }) },
+    gateBuilder: async () => gate(),
+    getReceipt: async () => receipt(),
+    getOwner: async () => ACCOUNT,
+    getCollectionName: async () => "Pepe Brokers",
+    getTokenUri: async () => { tokenUriReads += 1; return "ipfs://metadata"; },
+    enrichItems: async (items) => items,
+    readTokenDisplay: async (uri) => {
+      assert.equal(uri, "ipfs://metadata");
+      return { name: "Pepe Brokers #99", imageUrl: IPFS_IMAGE };
+    },
+  });
+  assert.equal(tokenUriReads, 1);
+  assert.equal(assets.items[0].name, "Pepe Brokers #99");
+  assert.equal(assets.items[0].imageUrl, IPFS_IMAGE);
+  assert.equal(assets.items[0].floorPrice, null);
+  assert.equal(validateWithdrawableNftAssets(assets, "93")[0].imageUrl, IPFS_IMAGE);
 });
 
 test("asset list fails closed on a closed gate, malformed evidence, and hostile links", async () => {

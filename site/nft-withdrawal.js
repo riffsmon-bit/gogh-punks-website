@@ -330,8 +330,13 @@ function assetItem(value) {
   if (value.imageUrl !== null) {
     try {
       const url = new URL(value.imageUrl);
-      if (url.protocol !== "https:" || !["i.seadn.io", "raw2.seadn.io"].includes(url.hostname)
-        || url.username || url.password || url.port || url.hash) throw new Error("invalid");
+      const seaDn = ["i.seadn.io", "raw2.seadn.io"].includes(url.hostname);
+      const fixedIpfs = url.hostname === "ipfs.io"
+        && /^\/ipfs\/(?:Qm[1-9A-HJ-NP-Za-km-z]{44}|b[a-z2-7]{20,})(?:\/[A-Za-z0-9._~%-]+)*$/.test(url.pathname);
+      if (url.protocol !== "https:" || (!seaDn && !fixedIpfs)
+        || url.username || url.password || url.port || url.hash || url.search) {
+        throw new Error("invalid");
+      }
       normalized.imageUrl = url.href;
     } catch {
       fail("INVALID_ASSET_LIST", "withdrawable NFT image is invalid");

@@ -6,11 +6,13 @@ import { buildNftWithdrawalGate } from "./broker-nft-withdrawal-status.mjs";
 import { nftDisplayMetadata, NFT_DISPLAY_METADATA_SELECT } from
   "./_shared/broker-display-metadata.mjs";
 import { enrichOpenSeaPortfolio } from "../../broker/src/metadata/opensea-portfolio.mjs";
+import { readOnchainNftDisplay } from "../../broker/src/metadata/onchain-nft-display.mjs";
 
 const TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 const ZERO_TOPIC = `0x${"0".repeat(64)}`;
 const OWNER_OF_ABI = parseAbi(["function ownerOf(uint256 tokenId) view returns (address)"]);
 const COLLECTION_NAME_ABI = parseAbi(["function name() view returns (string)"]);
+const TOKEN_URI_ABI = parseAbi(["function tokenURI(uint256 tokenId) view returns (string)"]);
 
 function displayCollectionName(value) {
   if (typeof value !== "string") return null;
@@ -118,7 +120,8 @@ export function erc721MintFromReceipt(run, receipt) {
 export async function buildWithdrawableNftAssets(
   selectedTokenId,
   { environment = process.env, database, gateBuilder = buildNftWithdrawalGate,
-    getReceipt, getOwner, getCollectionName, enrichItems = enrichOpenSeaPortfolio } = {},
+    getReceipt, getOwner, getCollectionName, getTokenUri,
+    enrichItems = enrichOpenSeaPortfolio, readTokenDisplay = readOnchainNftDisplay } = {},
 ) {
   const normalizedTokenId = tokenId(selectedTokenId);
   const gate = await gateBuilder(normalizedTokenId);
@@ -152,6 +155,12 @@ export async function buildWithdrawableNftAssets(
       address: getAddress(collection), abi: COLLECTION_NAME_ABI, functionName: "name",
     }))
     : (async () => null));
+  const tokenUriReader = getTokenUri ?? (client
+    ? ((collection, mintedTokenId) => client.readContract({
+      address: getAddress(collection), abi: TOKEN_URI_ABI, functionName: "tokenURI",
+      args: [BigInt(mintedTokenId)],
+    }))
+    : null);
   const candidates = await Promise.all((result.rows ?? []).map(async (run) => {
     try {
       const item = erc721MintFromReceipt(run, await receiptReader(transactionHash(run.transaction_hash)));
@@ -218,6 +227,27 @@ export async function buildWithdrawableNftAssets(
     } catch {
       // Marketplace images and prices are advisory. Never fail ownership or recovery.
     }
+  }
+  if (tokenUriReader && typeof readTokenDisplay === "function") {
+    const hydrated = [];
+    for (let offset = 0; offset < items.length; offset += 4) {
+      const batch = await Promise.all(items.slice(offset, offset + 4).map(async (item) => {
+        if (item.name && item.imageUrl) return item;
+        try {
+          const display = await readTokenDisplay(await tokenUriReader(item.collection, item.tokenId));
+          if (!display) return item;
+          return Object.freeze({
+            ...item,
+            name: item.name ?? display.name ?? null,
+            imageUrl: item.imageUrl ?? display.imageUrl ?? null,
+          });
+        } catch {
+          return item;
+        }
+      }));
+      hydrated.push(...batch);
+    }
+    items = hydrated;
   }
   return Object.freeze({
     status: "READY", capability: true, reason: null, checkedAt: new Date().toISOString(),
