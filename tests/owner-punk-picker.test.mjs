@@ -8,12 +8,14 @@ import {
   enrolledAutomationPunkIds,
   indexedOwnerPunkIds,
   liveOwnerPunkIds,
+  liveOwnerPunkSnapshot,
   mergeOwnerPunkDecorations,
   openSeaOwnerPunkIds,
   openSeaOwnerPunks,
   ownerPunkArtwork,
   ownerPunkView,
   proposedRetirementTierForOpenSeaRank,
+  refreshIndexedOwnerPunks,
 } from "../netlify/functions/broker-owner-punks.mjs";
 import {
   copyPunkAccountAddress,
@@ -85,8 +87,10 @@ test("live owner completion avoids a full scan when indexed candidates reconcile
   const calls = [];
   const result = await liveOwnerPunkIds(OWNER, ["93", "94"], {
     client: {
+      getBlockNumber: async () => 123n,
       readContract: async () => 2n,
-      multicall: async ({ contracts }) => {
+      multicall: async ({ contracts, blockNumber }) => {
+        assert.equal(blockNumber, 123n);
         calls.push(contracts.map(({ args }) => String(args[0])));
         return contracts.map(() => ({ status: "success", result: OWNER }));
       },
@@ -101,8 +105,10 @@ test("live owner completion scans server-side only when hints omit an owned Punk
   const owned = new Set(["93", "1616"]);
   const result = await liveOwnerPunkIds(OWNER, ["93"], {
     client: {
+      getBlockNumber: async () => 456n,
       readContract: async () => 2n,
-      multicall: async ({ contracts }) => {
+      multicall: async ({ contracts, blockNumber }) => {
+        assert.equal(blockNumber, 456n);
         calls.push(contracts.length);
         return contracts.map(({ args }) => owned.has(String(args[0]))
           ? { status: "success", result: OWNER }
@@ -114,6 +120,51 @@ test("live owner completion scans server-side only when hints omit an owned Punk
   assert.equal(calls[0], 1, "the current index is checked before scanning");
   assert.equal(calls.slice(1).reduce((sum, value) => sum + value, 0), 5_017);
   assert.equal(calls.length, 27, "one hint check plus 26 bounded scan chunks");
+});
+
+test("live owner snapshot pins balance and every owner read to one block", async () => {
+  const reads = [];
+  const snapshot = await liveOwnerPunkSnapshot(OWNER, ["93"], {
+    client: {
+      getBlockNumber: async () => 789n,
+      readContract: async ({ blockNumber }) => {
+        reads.push(blockNumber);
+        return 1n;
+      },
+      multicall: async ({ contracts, blockNumber }) => {
+        reads.push(blockNumber);
+        return contracts.map(() => ({ status: "success", result: OWNER }));
+      },
+    },
+  });
+  assert.deepEqual(snapshot, { tokenIds: ["93"], blockNumber: 789n });
+  assert.deepEqual(reads, [789n, 789n]);
+});
+
+test("complete live owner snapshots atomically refresh indexed ownership hints", async () => {
+  let captured;
+  const result = await refreshIndexedOwnerPunks(OWNER, ["1616", "93", "93"], 987n,
+    async (sql, values) => {
+      captured = { sql, values };
+      return { rows: [{ cleared_count: 4, upserted_count: 2 }] };
+    });
+  assert.deepEqual(result, {
+    tokenIds: ["93", "1616"], blockNumber: 987n, clearedCount: 4, upsertedCount: 2,
+  });
+  assert.match(captured.sql, /WITH owned AS/);
+  assert.match(captured.sql, /owner_snapshot = NULL/);
+  assert.match(captured.sql, /ON CONFLICT \(chain_id, collection_address, token_id\)/);
+  assert.match(captured.sql, /owner_snapshot_block <= EXCLUDED\.owner_snapshot_block/);
+  assert.deepEqual(captured.values, [
+    4663, COLLECTION, OWNER.toLowerCase(), ["93", "1616"], "987",
+  ]);
+});
+
+test("owner index refresh rejects unpinned, duplicate-overflow, and malformed evidence", async () => {
+  const query = async () => ({ rows: [{ cleared_count: 0, upserted_count: 0 }] });
+  await assert.rejects(refreshIndexedOwnerPunks(OWNER, ["01"], 1n, query), /invalid/);
+  await assert.rejects(refreshIndexedOwnerPunks(OWNER, ["93"], -1n, query), /invalid/);
+  await assert.rejects(refreshIndexedOwnerPunks("0xwrong", ["93"], 1n, query), /invalid/);
 });
 
 test("every owned V3 Punk wallet is discovered in one bounded multicall", async () => {

@@ -124,12 +124,13 @@ function ownerDiscoveryClient(environment = process.env) {
   });
 }
 
-async function liveOwnedFromCandidates(client, owner, tokenIds) {
+async function liveOwnedFromCandidates(client, owner, tokenIds, blockNumber) {
   const output = [];
   for (let offset = 0; offset < tokenIds.length; offset += OWNER_SCAN_CHUNK) {
     const chunk = tokenIds.slice(offset, offset + OWNER_SCAN_CHUNK);
     const results = await client.multicall({
       allowFailure: true,
+      blockNumber,
       contracts: chunk.map((tokenId) => ({
         address: ROBINHOOD.canonicalCollection,
         abi: OWNER_DISCOVERY_ABI,
@@ -148,31 +149,47 @@ async function liveOwnedFromCandidates(client, owner, tokenIds) {
   return output;
 }
 
-export async function liveOwnerPunkIds(owner, candidateTokenIds = [], {
+export async function liveOwnerPunkSnapshot(owner, candidateTokenIds = [], {
   client = ownerDiscoveryClient(),
 } = {}) {
   const normalized = address(owner);
   if (!normalized || !Array.isArray(candidateTokenIds)
     || candidateTokenIds.length > MAX_CANDIDATES
     || candidateTokenIds.some((value) => punkTokenId(String(value)) !== String(value))
+    || typeof client?.getBlockNumber !== "function"
     || typeof client?.readContract !== "function" || typeof client?.multicall !== "function") {
     throw new TypeError("live owner discovery input is invalid");
+  }
+  const blockNumber = await client.getBlockNumber();
+  if (typeof blockNumber !== "bigint" || blockNumber < 0n
+    || blockNumber > 9_223_372_036_854_775_807n) {
+    throw new TypeError("live owner discovery block is invalid");
   }
   const balance = await client.readContract({
     address: ROBINHOOD.canonicalCollection,
     abi: OWNER_DISCOVERY_ABI,
     functionName: "balanceOf",
     args: [normalized],
+    blockNumber,
   });
   if (typeof balance !== "bigint" || balance < 0n || balance > BigInt(MAX_CANDIDATES)) {
     throw new RangeError("live owner Punk balance is outside the UI bound");
   }
-  if (balance === 0n) return Object.freeze([]);
+  if (balance === 0n) {
+    return Object.freeze({ tokenIds: Object.freeze([]), blockNumber });
+  }
 
   const boundedCandidates = [...new Set(candidateTokenIds)];
-  const verifiedCandidates = await liveOwnedFromCandidates(client, normalized, boundedCandidates);
+  const verifiedCandidates = await liveOwnedFromCandidates(
+    client, normalized, boundedCandidates, blockNumber,
+  );
   if (BigInt(verifiedCandidates.length) === balance) {
-    return Object.freeze(verifiedCandidates.sort((left, right) => Number(left) - Number(right)));
+    return Object.freeze({
+      tokenIds: Object.freeze(
+        verifiedCandidates.sort((left, right) => Number(left) - Number(right)),
+      ),
+      blockNumber,
+    });
   }
 
   // The local ownership index and marketplace cache are acceleration hints, not completeness
@@ -191,7 +208,7 @@ export async function liveOwnerPunkIds(owner, candidateTokenIds = [], {
     while (cursor < chunks.length) {
       const chunk = chunks[cursor];
       cursor += 1;
-      output.push(...await liveOwnedFromCandidates(client, normalized, chunk));
+      output.push(...await liveOwnedFromCandidates(client, normalized, chunk, blockNumber));
     }
   };
   await Promise.all(Array.from({ length: Math.min(OWNER_SCAN_CONCURRENCY, chunks.length) }, scan));
@@ -199,7 +216,11 @@ export async function liveOwnerPunkIds(owner, candidateTokenIds = [], {
   if (BigInt(output.length) !== balance || new Set(output).size !== output.length) {
     throw new TypeError("live owner discovery did not reconcile the wallet balance");
   }
-  return Object.freeze(output);
+  return Object.freeze({ tokenIds: Object.freeze(output), blockNumber });
+}
+
+export async function liveOwnerPunkIds(owner, candidateTokenIds = [], options = {}) {
+  return (await liveOwnerPunkSnapshot(owner, candidateTokenIds, options)).tokenIds;
 }
 
 export async function createdAutomationV3PunkIds(tokenIds, {
@@ -253,6 +274,77 @@ export async function indexedOwnerPunkIds(owner, query = (...args) => (
     throw new TypeError("indexed owner Punk token is invalid");
   }
   return Object.freeze([...new Set(tokenIds)]);
+}
+
+export async function refreshIndexedOwnerPunks(owner, tokenIds, blockNumber, query = (...args) => (
+  getDatabase().pool.query(...args)
+)) {
+  const normalized = address(owner);
+  if (!normalized || !Array.isArray(tokenIds) || tokenIds.length > MAX_CANDIDATES
+    || tokenIds.some((value) => punkTokenId(String(value)) !== String(value))
+    || typeof blockNumber !== "bigint" || blockNumber < 0n
+    || blockNumber > 9_223_372_036_854_775_807n || typeof query !== "function") {
+    throw new TypeError("owner Punk index refresh input is invalid");
+  }
+  const normalizedTokenIds = [...new Set(tokenIds)]
+    .sort((left, right) => Number(left) - Number(right));
+  const result = await query(
+    `WITH owned AS (
+       SELECT UNNEST($4::numeric[]) AS token_id
+     ), cleared AS (
+       UPDATE broker_punks AS punk
+          SET owner_snapshot = NULL,
+              owner_snapshot_block = $5,
+              indexed_through_block = GREATEST(
+                COALESCE(punk.indexed_through_block, $5), $5
+              ),
+              updated_at = NOW()
+        WHERE punk.chain_id = $1
+          AND punk.collection_address = $2
+          AND LOWER(punk.owner_snapshot) = $3
+          AND (punk.owner_snapshot_block IS NULL OR punk.owner_snapshot_block <= $5)
+          AND NOT EXISTS (
+            SELECT 1 FROM owned WHERE owned.token_id = punk.token_id
+          )
+       RETURNING punk.token_id
+     ), upserted AS (
+       INSERT INTO broker_punks
+         (chain_id, collection_address, token_id, owner_snapshot,
+          owner_snapshot_block, indexed_through_block, updated_at)
+       SELECT $1, $2, owned.token_id, $3, $5, $5, NOW()
+         FROM owned
+       ON CONFLICT (chain_id, collection_address, token_id) DO UPDATE
+         SET owner_snapshot = EXCLUDED.owner_snapshot,
+             owner_snapshot_block = EXCLUDED.owner_snapshot_block,
+             indexed_through_block = GREATEST(
+               COALESCE(broker_punks.indexed_through_block, EXCLUDED.indexed_through_block),
+               EXCLUDED.indexed_through_block
+             ),
+             updated_at = NOW()
+       WHERE broker_punks.owner_snapshot_block IS NULL
+          OR broker_punks.owner_snapshot_block <= EXCLUDED.owner_snapshot_block
+       RETURNING broker_punks.token_id
+     )
+     SELECT
+       (SELECT COUNT(*)::integer FROM cleared) AS cleared_count,
+       (SELECT COUNT(*)::integer FROM upserted) AS upserted_count`,
+    [
+      ROBINHOOD.chainId,
+      ROBINHOOD.canonicalCollection,
+      normalized,
+      normalizedTokenIds,
+      blockNumber.toString(),
+    ],
+  );
+  if (!Array.isArray(result?.rows) || result.rows.length !== 1) {
+    throw new TypeError("owner Punk index refresh result is invalid");
+  }
+  return Object.freeze({
+    tokenIds: Object.freeze(normalizedTokenIds),
+    blockNumber,
+    clearedCount: Number(result.rows[0].cleared_count ?? 0),
+    upsertedCount: Number(result.rows[0].upserted_count ?? 0),
+  });
 }
 
 export async function ownerPunkArtwork(tokenIds, query = (...args) => (
@@ -538,25 +630,41 @@ export default async function handler(request) {
       }
     }
     let liveOwnerAvailable = false;
+    let liveOwnerSnapshot = null;
     try {
       // Complete the fast index/marketplace hints only when balanceOf proves they are stale. The
       // resulting list is still a server hint; browser Multicall remains the UI authority.
-      candidateTokenIds = [...await liveOwnerPunkIds(owner, candidateTokenIds)];
+      liveOwnerSnapshot = await liveOwnerPunkSnapshot(owner, candidateTokenIds);
+      candidateTokenIds = [...liveOwnerSnapshot.tokenIds];
       liveOwnerAvailable = true;
     } catch (primaryError) {
       try {
         // A keyed provider is preferred, but Punk discovery must not disappear when that provider
         // is rate-limited or misconfigured. The canonical public RPC is a read-only completion
         // fallback used only for this owner-triggered request.
-        candidateTokenIds = [...await liveOwnerPunkIds(owner, candidateTokenIds, {
+        liveOwnerSnapshot = await liveOwnerPunkSnapshot(owner, candidateTokenIds, {
           client: ownerDiscoveryClient({ ROBINHOOD_RPC_URL: ROBINHOOD.rpcUrl }),
-        })];
+        });
+        candidateTokenIds = [...liveOwnerSnapshot.tokenIds];
         liveOwnerAvailable = true;
       } catch (fallbackError) {
         console.error(JSON.stringify({
           event: "BROKER_OWNER_PUNK_LIVE_COMPLETION_UNAVAILABLE",
           primaryType: primaryError?.name,
           fallbackType: fallbackError?.name,
+        }));
+      }
+    }
+    if (liveOwnerSnapshot) {
+      try {
+        // A complete balanceOf reconciliation at one pinned block is safe to persist as an
+        // acceleration index. The browser and every privileged action still recheck live ownerOf.
+        await refreshIndexedOwnerPunks(
+          owner, liveOwnerSnapshot.tokenIds, liveOwnerSnapshot.blockNumber,
+        );
+      } catch (error) {
+        console.error(JSON.stringify({
+          event: "BROKER_OWNER_PUNK_INDEX_REFRESH_UNAVAILABLE", type: error?.name,
         }));
       }
     }
