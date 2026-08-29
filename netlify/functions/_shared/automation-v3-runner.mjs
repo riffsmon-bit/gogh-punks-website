@@ -8,6 +8,7 @@ import { recordAutomationV3WorkerHeartbeat } from "./automation-v3-worker-state.
 
 const WORKER_LOCK_ID = 46_630_003;
 const WORKER_LEASE_MILLISECONDS = 90_000;
+export const SCHEDULED_WORKER_LEASE_MILLISECONDS = 240_000;
 
 function failureCode(error) {
   return typeof error?.code === "string" && /^[A-Z0-9_]{1,128}$/.test(error.code)
@@ -19,6 +20,8 @@ export async function runAutomationV3Once(options = {}) {
   const database = options.database ?? getDatabase().pool;
   const worker = options.worker ?? runAutomatedSeaDropV3Worker;
   const record = options.record ?? recordAutomationV3WorkerHeartbeat;
+  const leaseMilliseconds = options.leaseMilliseconds ?? WORKER_LEASE_MILLISECONDS;
+  const retainLease = options.retainLease === true;
   const client = await database.connect();
   const holder = randomUUID();
   let locked = false;
@@ -35,7 +38,7 @@ export async function runAutomationV3Once(options = {}) {
        WHERE broker_automation_v3_worker_leases.lease_until <= NOW()
        RETURNING holder`,
       [WORKER_LOCK_ID, holder, environment.BROKER_AUTOMATION_V3_WORKER_RELEASE,
-        WORKER_LEASE_MILLISECONDS],
+        leaseMilliseconds],
     );
     locked = lock.rows[0]?.holder === holder;
     if (!locked) return Object.freeze({ status: "RUN_IN_PROGRESS", submitted: 0 });
@@ -73,7 +76,7 @@ export async function runAutomationV3Once(options = {}) {
       throw error;
     }
   } finally {
-    if (locked) {
+    if (locked && !retainLease) {
       try {
         await client.query(
           "DELETE FROM broker_automation_v3_worker_leases WHERE lock_id = $1 AND holder = $2",
