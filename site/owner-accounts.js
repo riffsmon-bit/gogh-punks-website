@@ -662,12 +662,12 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
     if (container) container.innerHTML = value;
   }
 
-  function setCounts(owned, activated, detail) {
+  function setCounts(owned, activated, detail, ownedDetail = null) {
     browserDocument.querySelectorAll("[data-owned-punk-count]").forEach((target) => {
       target.textContent = owned === null ? "—" : String(owned);
     });
     browserDocument.querySelectorAll("[data-owned-punk-detail]").forEach((target) => {
-      target.textContent = owned === null ? detail : "Live wallet ownership verified";
+      target.textContent = owned === null ? detail : ownedDetail ?? "Live wallet ownership verified";
     });
     browserDocument.querySelectorAll("[data-punk-account-count]").forEach((target) => {
       target.textContent = activated === null ? "—" : String(activated);
@@ -769,6 +769,106 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
     }, SETTLE_RECHECK_MS);
   }
 
+  function candidateDecorationMaps(payload) {
+    const rows = Array.isArray(payload?.candidatePunks) ? payload.candidatePunks : [];
+    return Object.freeze({
+      artwork: new Map(rows.map((item) => [String(item?.tokenId), item?.artwork])),
+      rarity: new Map(rows.map((item) => [String(item?.tokenId), item?.rarity])),
+      automation: new Map(rows.map((item) => [
+        String(item?.tokenId), item?.automationConfigured === true,
+      ])),
+      automationCreated: new Map(rows.map((item) => [
+        String(item?.tokenId), item?.automationCreated === true,
+      ])),
+    });
+  }
+
+  function decorateVerifiedAccounts(accounts, payload) {
+    const maps = candidateDecorationMaps(payload);
+    return accounts.map((item) => Object.freeze({
+      ...item,
+      artwork: maps.artwork.get(item.tokenId) ?? item.artwork ?? null,
+      rarity: maps.rarity.get(item.tokenId) ?? item.rarity ?? null,
+      automationConfigured: maps.automation.get(item.tokenId) === true,
+      automationCreated: maps.automationCreated.get(item.tokenId) === true,
+    }));
+  }
+
+  function publishVerifiedAccounts(accounts, payload, wallet, current, { reconciled = false } = {}) {
+    if (current !== revision) return;
+    const decoratedAccounts = decorateVerifiedAccounts(accounts, payload);
+    for (const item of decoratedAccounts) {
+      if (item.activated) rememberActivatedPunk(browserWindow.localStorage, item.tokenId);
+    }
+    const activatedCount = decoratedAccounts.filter(({ activated }) => activated).length;
+    const readyCount = decoratedAccounts.length - activatedCount;
+    const detail = readyCount > 0
+      ? `${readyCount} more owned ${readyCount === 1 ? "Punk" : "Punks"} ready to activate`
+      : "Live ownership verified";
+    setCounts(decoratedAccounts.length, activatedCount, detail, reconciled
+      ? "Live ownership reconciled"
+      : "Punks ready · syncing latest ownership in the background");
+    renderPunkPicker(picker, decoratedAccounts);
+    const routeSelection = requestedTokenId
+      && decoratedAccounts.some(({ tokenId }) => tokenId === requestedTokenId)
+      ? requestedTokenId : "";
+    const previousSelection = routeSelection
+      || workspacePicker?.value || mandatePicker?.value || picker?.value || "";
+    const selectedTokenId = decoratedAccounts.some(({ tokenId }) => tokenId === previousSelection)
+      ? previousSelection : "";
+    if (routeSelection) requestedTokenId = null;
+    renderPunkPicker(mandatePicker, decoratedAccounts, selectedTokenId);
+    renderPunkPicker(workspacePicker, decoratedAccounts, selectedTokenId);
+    currentAccounts = decoratedAccounts;
+    announceOwnerPunks(decoratedAccounts, wallet.account);
+    renderSelectedPunkPreview(selectedPreview, decoratedAccounts, selectedTokenId);
+    if (container) renderOwnerAccounts(container, decoratedAccounts);
+    if (selectedTokenId) selectPunk(selectedTokenId);
+    const artworkTargets = priorityArtworkAccounts(decoratedAccounts, selectedTokenId);
+    void hydrateOnchainPunkDecorations(
+      browserWindow.__GOGH_WALLET_PROVIDER__,
+      currentCollection,
+      artworkTargets,
+    ).then((decoratedTargets) => {
+      if (current !== revision) return;
+      const decoratedByToken = new Map(decoratedTargets.map((item) => [item.tokenId, item]));
+      currentAccounts = currentAccounts.map((item) => decoratedByToken.get(item.tokenId) ?? item);
+      announceOwnerPunks(currentAccounts, wallet.account);
+      renderSelectedPunkPreview(selectedPreview, currentAccounts, selectedTokenId);
+      if (container) renderOwnerAccounts(container, currentAccounts);
+    }).catch(() => {
+      // Artwork is optional and never delays or changes live ownership evidence.
+    });
+  }
+
+  async function reconcileOwnerRoster(wallet, gatePayload, current, initialTokenIds) {
+    try {
+      const response = await request(
+        `/api/broker/owner-punks?owner=${encodeURIComponent(wallet.account)}&view=reconcile`,
+        { headers: { accept: "application/json" }, cache: "no-store" },
+      );
+      const payload = await response.json();
+      if (!response.ok || payload?.ok !== true || !Array.isArray(payload.candidateTokenIds)
+        || current !== revision) return;
+      const nextTokenIds = [...new Set(payload.candidateTokenIds.map(String))]
+        .sort((left, right) => Number(left) - Number(right));
+      const normalizedInitialTokenIds = [...new Set(initialTokenIds.map(String))]
+        .sort((left, right) => Number(left) - Number(right));
+      const sameRoster = nextTokenIds.length === normalizedInitialTokenIds.length
+        && nextTokenIds.every((tokenId, index) => tokenId === normalizedInitialTokenIds[index]);
+      const accounts = sameRoster ? currentAccounts : await findBrowserOwnedPunks(
+        browserWindow.__GOGH_WALLET_PROVIDER__, gatePayload.activationGate,
+        wallet.account, nextTokenIds,
+      );
+      publishVerifiedAccounts(accounts, payload, wallet, current, { reconciled: true });
+    } catch {
+      if (current === revision) {
+        setCounts(currentAccounts.length, currentAccounts.filter(({ activated }) => activated).length,
+          "Background ownership sync will retry", "Punks ready · background sync delayed");
+      }
+    }
+  }
+
   async function refresh(event) {
     const wallet = event?.detail ?? browserWindow.__GOGH_WALLET_SNAPSHOT__ ?? null;
     const intent = walletDiscoveryIntent(wallet);
@@ -799,8 +899,8 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
         request("/api/broker/account-activation-status", {
           headers: { accept: "application/json" }, cache: "no-store",
         }),
-        request(`/api/broker/owner-punks?owner=${encodeURIComponent(wallet.account)}`, {
-          headers: { accept: "application/json" }, cache: "no-store",
+        request(`/api/broker/owner-punks?owner=${encodeURIComponent(wallet.account)}&view=indexed`, {
+          headers: { accept: "application/json" }, cache: "no-cache",
         }),
       ]);
       const [gatePayload, candidatesPayload] = await Promise.all([
@@ -812,30 +912,6 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
         ? candidatesPayload.candidateTokenIds : [];
       const remembered = knownTokenIds(browserWindow.localStorage);
       const candidates = [...new Set([...remembered, ...indexed])];
-      const artworkByToken = new Map(
-        Array.isArray(candidatesPayload?.candidatePunks)
-          ? candidatesPayload.candidatePunks.map((item) => [String(item?.tokenId), item?.artwork])
-          : [],
-      );
-      const rarityByToken = new Map(
-        Array.isArray(candidatesPayload?.candidatePunks)
-          ? candidatesPayload.candidatePunks.map((item) => [String(item?.tokenId), item?.rarity])
-          : [],
-      );
-      const automationByToken = new Map(
-        Array.isArray(candidatesPayload?.candidatePunks)
-          ? candidatesPayload.candidatePunks.map((item) => [
-            String(item?.tokenId), item?.automationConfigured === true,
-          ])
-          : [],
-      );
-      const automationCreatedByToken = new Map(
-        Array.isArray(candidatesPayload?.candidatePunks)
-          ? candidatesPayload.candidatePunks.map((item) => [
-            String(item?.tokenId), item?.automationCreated === true,
-          ])
-          : [],
-      );
       let accounts = [];
       if (candidates.length > 0) {
         // The indexed/enrolled IDs are hints only. Three Multicall reads verify ownership,
@@ -856,53 +932,9 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
           gatePayload.activationGate, wallet.account, walletOwned);
       }
       if (current !== revision) return;
-      accounts = accounts.map((item) => Object.freeze({
-        ...item,
-        artwork: artworkByToken.get(item.tokenId) ?? null,
-        rarity: rarityByToken.get(item.tokenId) ?? null,
-        automationConfigured: automationByToken.get(item.tokenId) === true,
-        automationCreated: automationCreatedByToken.get(item.tokenId) === true,
-      }));
-      if (current !== revision) return;
-      for (const item of accounts) {
-        if (item.activated) rememberActivatedPunk(browserWindow.localStorage, item.tokenId);
-      }
-      const activatedCount = accounts.filter(({ activated }) => activated).length;
-      const readyCount = accounts.length - activatedCount;
-      setCounts(accounts.length, activatedCount, readyCount > 0
-        ? `${readyCount} more owned ${readyCount === 1 ? "Punk" : "Punks"} ready to activate`
-        : "Live ownership verified");
-      renderPunkPicker(picker, accounts);
-      const routeSelection = requestedTokenId
-        && accounts.some(({ tokenId }) => tokenId === requestedTokenId) ? requestedTokenId : "";
-      const previousSelection = routeSelection
-        || workspacePicker?.value || mandatePicker?.value || picker?.value || "";
-      const selectedTokenId = accounts.some(({ tokenId }) => tokenId === previousSelection)
-        ? previousSelection
-        : "";
-      if (routeSelection) requestedTokenId = null;
-      renderPunkPicker(mandatePicker, accounts, selectedTokenId);
-      renderPunkPicker(workspacePicker, accounts, selectedTokenId);
-      currentAccounts = accounts;
-      announceOwnerPunks(accounts, wallet.account);
-      renderSelectedPunkPreview(selectedPreview, accounts, selectedTokenId);
-      if (container) renderOwnerAccounts(container, accounts);
-      if (selectedTokenId) selectPunk(selectedTokenId);
-      const artworkTargets = priorityArtworkAccounts(accounts, selectedTokenId);
-      void hydrateOnchainPunkDecorations(
-        browserWindow.__GOGH_WALLET_PROVIDER__,
-        gatePayload.activationGate?.bindings?.punkCollection,
-        artworkTargets,
-      ).then((decoratedTargets) => {
-        if (current !== revision) return;
-        const decoratedByToken = new Map(decoratedTargets.map((item) => [item.tokenId, item]));
-        currentAccounts = currentAccounts.map((item) => decoratedByToken.get(item.tokenId) ?? item);
-        announceOwnerPunks(currentAccounts, wallet.account);
-        renderSelectedPunkPreview(selectedPreview, currentAccounts, selectedTokenId);
-        if (container) renderOwnerAccounts(container, currentAccounts);
-      }).catch(() => {
-        // Artwork is optional and never delays or changes live ownership evidence.
-      });
+      publishVerifiedAccounts(accounts, candidatesPayload, wallet, current);
+      void reconcileOwnerRoster(wallet, gatePayload, current,
+        candidates.map(String).sort((left, right) => Number(left) - Number(right)));
     } catch {
       if (current !== revision) return;
       setCounts(null, null, "Live check unavailable");

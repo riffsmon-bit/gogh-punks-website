@@ -95,6 +95,15 @@ function address(value) {
     ? value.toLowerCase() : null;
 }
 
+export function ownerPunkView(value) {
+  try {
+    const view = new URL(String(value)).searchParams.get("view");
+    return view === "indexed" ? "indexed" : "reconcile";
+  } catch {
+    return "reconcile";
+  }
+}
+
 function ownerDiscoveryClient(environment = process.env) {
   const raw = environment.ROBINHOOD_RPC_URL ?? environment.RPC_URL ?? ROBINHOOD.rpcUrl;
   let rpcUrl;
@@ -442,6 +451,7 @@ export default async function handler(request) {
   const owner = address(new URL(request.url).searchParams.get("owner"));
   if (!owner) return json({ ok: false, code: "INVALID_OWNER" }, 400);
   try {
+    const view = ownerPunkView(request.url);
     const automationRoster = configuredAutomationPunkIds();
     const [indexedResult, enrollmentResult] = await Promise.allSettled([
       indexedOwnerPunkIds(owner),
@@ -457,6 +467,54 @@ export default async function handler(request) {
       ...automationTokenIds,
     ])].sort((left, right) => Number(left) - Number(right));
     if (candidateTokenIds.length > MAX_CANDIDATES) throw new RangeError("owner candidate set is too large");
+    if (view === "indexed") {
+      let cachedPunks = [];
+      let artworkAvailable = false;
+      try {
+        // Immutable Punk artwork is safe to decorate from the local metadata index. Loading all
+        // indexed cards is one bounded SQL read and avoids delaying the first usable roster on
+        // OpenSea, tokenURI, or a wallet RPC. Ownership and wallet state remain unverified hints.
+        cachedPunks = await ownerPunkArtwork(candidateTokenIds);
+        artworkAvailable = true;
+      } catch (error) {
+        console.error(JSON.stringify({
+          event: "BROKER_OWNER_PUNK_INDEXED_ARTWORK_UNAVAILABLE", type: error?.name,
+        }));
+      }
+      const candidatePunks = mergeOwnerPunkDecorations(
+        candidateTokenIds,
+        cachedPunks,
+        [],
+        automationTokenIds,
+        // Enrollment is durable evidence that this wallet existed when the Punk last passed the
+        // live worker gate, but it is not current authority. Mark it only as a cached visual hint;
+        // browser Multicall and selection-time status replace it before actions are enabled.
+        enrolled,
+      );
+      return json({
+        ok: true,
+        chainId: ROBINHOOD.chainId,
+        collection: ROBINHOOD.canonicalCollection,
+        owner,
+        view,
+        candidateTokenIds,
+        candidatePunks,
+        candidateSources: Object.freeze({
+          indexed: indexedResult.status === "fulfilled",
+          openSea: false,
+          liveOwnerComplete: false,
+          liveMulticall: false,
+          automationRoster: automationRoster.length > 0,
+          automationEnrollments: enrollmentResult.status === "fulfilled",
+          automationWallets: false,
+          artwork: artworkAvailable,
+        }),
+        reconciliationRecommended: true,
+        evidence: "INDEXED_DISCOVERY_HINTS_ONLY_EACH_SELECTION_REQUIRES_LIVE_WALLET_OWNER_CHECK",
+        activationAuthorized: false,
+        autonomyAuthorized: false,
+      }, 200, { "cache-control": "private, max-age=15, stale-while-revalidate=45" });
+    }
     let openSeaPunks = [];
     let openSeaAvailable = false;
     if (process.env.OPENSEA_API_KEY) {
@@ -550,6 +608,7 @@ export default async function handler(request) {
       chainId: ROBINHOOD.chainId,
       collection: ROBINHOOD.canonicalCollection,
       owner,
+      view,
       candidateTokenIds,
       candidatePunks,
       candidateSources: Object.freeze({
@@ -562,6 +621,7 @@ export default async function handler(request) {
         automationWallets: automationWalletsAvailable,
         artwork: artworkAvailable,
       }),
+      reconciliationRecommended: false,
       evidence: "DISCOVERY_CANDIDATES_ONLY_EACH_SELECTION_REQUIRES_LIVE_WALLET_OWNER_CHECK",
       activationAuthorized: false,
       autonomyAuthorized: false,

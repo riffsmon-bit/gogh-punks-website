@@ -196,9 +196,11 @@ async function rpc(method, params) {
 
 async function loadOwnership(wallet) {
   const started = performance.now();
-  const response = await fetch(`/api/broker/owner-punks?owner=${encodeURIComponent(wallet.account)}`, {
-    headers: { accept: "application/json" }, cache: "no-store",
-  });
+  const response = await fetch(
+    `/api/broker/owner-punks?owner=${encodeURIComponent(wallet.account)}&view=indexed`, {
+      headers: { accept: "application/json" }, cache: "no-cache",
+    },
+  );
   const payload = await response.json();
   if (!response.ok || payload?.ok !== true || !ADDRESS.test(payload.collection ?? "")) {
     throw new Error("Punk ownership service unavailable");

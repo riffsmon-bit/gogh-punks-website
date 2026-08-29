@@ -12,6 +12,7 @@ import {
   openSeaOwnerPunkIds,
   openSeaOwnerPunks,
   ownerPunkArtwork,
+  ownerPunkView,
   proposedRetirementTierForOpenSeaRank,
 } from "../netlify/functions/broker-owner-punks.mjs";
 import {
@@ -44,6 +45,15 @@ test("watch-agent links accept only one bounded Punk route selection", () => {
     "https://goghpunks.xyz/broker/?punk=10000", "not a url"]) {
     assert.equal(requestedBrokerPunk(value), null);
   }
+});
+
+test("owner roster supports a fast indexed view and defaults to reconciliation", () => {
+  assert.equal(ownerPunkView("https://goghpunks.xyz/api/broker/owner-punks?view=indexed"),
+    "indexed");
+  assert.equal(ownerPunkView("https://goghpunks.xyz/api/broker/owner-punks?view=reconcile"),
+    "reconcile");
+  assert.equal(ownerPunkView("https://goghpunks.xyz/api/broker/owner-punks?view=unsafe"),
+    "reconcile");
 });
 
 test("configured automation roster supplies bounded discovery hints without authority", () => {
@@ -398,6 +408,9 @@ test("broker picker selects only a live-verified wallet-owned Punk", async () =>
   assert.match(html, /data-selected-punk-display/);
   assert.doesNotMatch(html, /Scout Punk<\/span><strong data-scout-token-display/);
   assert.match(accounts, /findBrowserOwnedPunks/);
+  assert.match(accounts, /view=indexed/);
+  assert.match(accounts, /view=reconcile/);
+  assert.match(accounts, /syncing latest ownership in the background/);
   assert.match(accounts, /renderSelectedPunkPreview/);
   assert.match(accounts, /priorityArtworkAccounts/);
   assert.match(accounts, /gogh:punk-selected/);
