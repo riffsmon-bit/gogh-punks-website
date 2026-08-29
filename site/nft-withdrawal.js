@@ -304,7 +304,7 @@ async function fetchGate(fetchFunction, tokenId) {
 function assetItem(value) {
   exactKeys(value, [
     "standard", "collection", "tokenId", "amount", "transactionHash", "acquiredAt", "openSeaUrl",
-    "collectionName", "name", "imageUrl",
+    "collectionName", "name", "imageUrl", "collectionSlug", "floorPrice",
   ], "withdrawable NFT");
   if (value.standard !== "ERC721" || value.amount !== "1") {
     fail("INVALID_ASSET_LIST", "withdrawable NFT standard is invalid");
@@ -322,6 +322,10 @@ function assetItem(value) {
       ? value.collectionName : null,
     name: typeof value.name === "string" && value.name.length <= 200 ? value.name : null,
     imageUrl: null,
+    collectionSlug: typeof value.collectionSlug === "string"
+      && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value.collectionSlug)
+      ? value.collectionSlug : null,
+    floorPrice: null,
   };
   if (value.imageUrl !== null) {
     try {
@@ -335,6 +339,23 @@ function assetItem(value) {
   }
   if (typeof normalized.acquiredAt !== "string" || !Number.isFinite(Date.parse(normalized.acquiredAt))) {
     fail("INVALID_ASSET_LIST", "withdrawable NFT timestamp is invalid");
+  }
+  if (value.floorPrice !== null) {
+    exactKeys(value.floorPrice, [
+      "amount", "currency", "source", "checkedAt", "collectionSlug", "sourceUrl",
+    ], "collection floor");
+    const expectedSlug = normalized.collectionSlug;
+    if (!expectedSlug || value.floorPrice.collectionSlug !== expectedSlug
+      || typeof value.floorPrice.amount !== "string"
+      || !/^(?:0|[1-9]\d*)(?:\.\d{1,18})?$/.test(value.floorPrice.amount)
+      || value.floorPrice.currency !== "ETH"
+      || value.floorPrice.source !== "OPENSEA_COLLECTION_FLOOR"
+      || typeof value.floorPrice.checkedAt !== "string"
+      || !Number.isFinite(Date.parse(value.floorPrice.checkedAt))
+      || value.floorPrice.sourceUrl !== `https://opensea.io/collection/${expectedSlug}`) {
+      fail("INVALID_ASSET_LIST", "collection floor is invalid");
+    }
+    normalized.floorPrice = Object.freeze({ ...value.floorPrice });
   }
   const expectedUrl = `https://opensea.io/item/robinhood/${normalized.collection}/${normalized.tokenId}`;
   if (normalized.openSeaUrl !== expectedUrl) {
@@ -527,6 +548,12 @@ export function setupNftWithdrawal({ windowObject, documentObject, fetchFunction
       const detail = browserDocument.createElement("small");
       detail.textContent = `Held by Punk #${asset.punkTokenId ?? state.selection?.tokenId} · ${asset.collectionName ?? `${asset.collection.slice(0, 8)}…${asset.collection.slice(-6)}`}`;
       card.append(name, detail);
+      if (asset.floorPrice) {
+        const floor = browserDocument.createElement("small");
+        floor.className = "nft-choice-floor";
+        floor.textContent = `OpenSea collection floor: ${asset.floorPrice.amount} ${asset.floorPrice.currency}`;
+        card.append(floor);
+      }
       card.addEventListener("click", () => {
         assetPicker.value = String(index);
         assetCards.querySelectorAll("[aria-pressed]").forEach((item) => {

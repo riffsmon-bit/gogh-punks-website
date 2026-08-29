@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">NFT artwork unavailable</title>
+  <desc id="desc">A neutral framed artwork placeholder.</desc>
+  <rect width="512" height="512" fill="#071321"/>
+  <rect x="64" y="64" width="384" height="384" fill="#0b1c2b" stroke="#d4ad35" stroke-width="4"/>
+  <circle cx="188" cy="180" r="38" fill="#56cfc3" opacity=".75"/>
+  <path d="M96 392l112-128 72 72 48-56 88 112z" fill="#d4ad35" opacity=".45"/>
+  <path d="M96 392l112-128 72 72 48-56 88 112" fill="none" stroke="#f2e8cb" stroke-width="8" stroke-linejoin="round"/>
+  <text x="256" y="438" fill="#f2e8cb" font-family="Georgia,serif" font-size="24" text-anchor="middle">ARTWORK LOADING</text>
+</svg>

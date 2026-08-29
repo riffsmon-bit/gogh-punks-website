@@ -153,12 +153,12 @@ test("Reown is the authoritative reconnecting wallet and provider session", asyn
   controller.destroy();
 });
 
-test("a known prior Reown session restores idly without opening a wallet prompt", async () => {
+test("a known prior Reown session restores immediately without opening a wallet prompt", async () => {
   const fixture = reownFixture();
   fixture.current.account = { address: OWNER, isConnected: true, status: "connected" };
   fixture.storage.set("gogh.wallet.reown.returning.v1", "1");
-  let idleCallback;
-  fixture.windowObject.requestIdleCallback = (callback) => { idleCallback = callback; };
+  let queuedCallback;
+  fixture.windowObject.queueMicrotask = (callback) => { queuedCallback = callback; };
   let factoryCalls = 0;
   await setupReownWallet({
     windowObject: fixture.windowObject,
@@ -166,8 +166,8 @@ test("a known prior Reown session restores idly without opening a wallet prompt"
     sessionFactory: () => { factoryCalls += 1; return fixture.session; },
   });
   assert.equal(factoryCalls, 0);
-  assert.equal(fixture.button.textContent, "Connect wallet");
-  await idleCallback();
+  assert.equal(typeof queuedCallback, "function");
+  await queuedCallback();
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.equal(factoryCalls, 1);
   assert.equal(fixture.windowObject.__GOGH_WALLET_SNAPSHOT__.account, OWNER);

@@ -362,7 +362,8 @@ test("Control Center is progressive, mobile, and keeps mint execution disabled",
   ]);
   for (const label of ["Punk Control Center", "Overview", "Agent", "Mint", "Assets",
     "Activity", "Disconnect Wallet", "Paid Mint Settings", "Direct Your Punk to a Mint", "Add Assets",
-    "Wrap or Unwrap ETH", "Add Funds to This Punk", "Fund Punk Wallet in MetaMask"]) {
+    "Wrap or Unwrap ETH", "Add Funds to This Punk", "Fund Punk Wallet in MetaMask",
+    "Collected NFTs", "Verify &amp; Withdraw in MetaMask"]) {
     assert.match(html, new RegExp(label));
   }
   assert.match(netlify, /from = "\/broker\/punk\/\*"/);
@@ -370,6 +371,9 @@ test("Control Center is progressive, mobile, and keeps mint execution disabled",
   assert.match(browser, /\/api\/broker\/connector\/opensea/);
   assert.match(html, /Prepare Bounded Review/);
   assert.match(browser, /nft-withdrawal-assets\?tokenId=/);
+  assert.match(browser, /preflightNftWithdrawal/);
+  assert.match(browser, /submitNftWithdrawal/);
+  assert.match(browser, /OPENSEA_COLLECTION_FLOOR|OpenSea collection floor/);
   assert.match(browser, /eth_call/);
   assert.match(browser, /prepareOwnerFunds/);
   assert.match(browser, /submitOwnerAction/);
@@ -401,6 +405,8 @@ test("Control Center fails clearly across route, wallet, network, and worker sta
   assert.match(html, /data-directed-check disabled/);
   assert.match(html, /data-activity-state aria-live="polite"/);
   assert.match(browser, /state\.walletChainId !== CHAIN_ID/);
+  assert.match(browser, /RESTORING WALLET/);
+  assert.match(browser, /wallet\?\.restoring === true/);
   assert.match(browser, /SWITCH NETWORK/);
   assert.match(browser, /CHECKING OWNERSHIP/);
   assert.match(browser, /Different holder required/);

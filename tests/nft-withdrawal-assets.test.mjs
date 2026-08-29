@@ -84,6 +84,37 @@ test("returns only confirmed worker mints still owned by the Punk wallet", async
   assert.deepEqual(withdrawn.items, []);
 });
 
+test("adds advisory OpenSea art and floor while keeping receipt and live owner authority", async () => {
+  let enrichCalls = 0;
+  const assets = await buildWithdrawableNftAssets("93", {
+    environment: { OPENSEA_API_KEY: "server-side-test-key" },
+    database: { query: async (sql) => ({ rows: /worker_runs/.test(sql) ? [row()] : [] }) },
+    gateBuilder: async () => gate(),
+    getReceipt: async () => receipt(),
+    getOwner: async () => ACCOUNT,
+    getCollectionName: async () => "Example Collection",
+    enrichItems: async (items, account, options) => {
+      enrichCalls += 1;
+      assert.equal(account, ACCOUNT);
+      assert.equal(options.apiKey, "server-side-test-key");
+      return items.map((item) => ({ ...item, name: "Example #99",
+        imageUrl: "https://i.seadn.io/example.png", collectionSlug: "example-collection",
+        floorPrice: { amount: "0.01", currency: "ETH",
+          source: "OPENSEA_COLLECTION_FLOOR", checkedAt: "2026-08-29T04:00:00.000Z",
+          collectionSlug: "example-collection",
+          sourceUrl: "https://opensea.io/collection/example-collection" } }));
+    },
+  });
+  assert.equal(enrichCalls, 1);
+  const [item] = validateWithdrawableNftAssets(assets, "93");
+  assert.equal(item.name, "Example #99");
+  assert.equal(item.imageUrl, "https://i.seadn.io/example.png");
+  assert.equal(item.floorPrice.amount, "0.01");
+  const hostile = structuredClone(assets);
+  hostile.items[0].floorPrice.sourceUrl = "https://evil.test/floor";
+  assert.throws(() => validateWithdrawableNftAssets(hostile, "93"), /floor/);
+});
+
 test("asset list fails closed on a closed gate, malformed evidence, and hostile links", async () => {
   const unavailable = await buildWithdrawableNftAssets("93", {
     gateBuilder: async () => ({ capability: false, reason: "ACCOUNT_NOT_ACTIVATED" }),
@@ -118,6 +149,7 @@ test("one portfolio request groups confirmed NFTs across the holder's Punk agent
       transactionHash: HASH, acquiredAt: checkedAt,
       openSeaUrl: `https://opensea.io/item/robinhood/${COLLECTION}/${id}`,
       collectionName: "Example Collection", name: `Mint ${id}`, imageUrl: null,
+      collectionSlug: null, floorPrice: null,
     }],
   });
   const portfolio = await buildWithdrawableNftPortfolio(["93", "94", "1659"], {

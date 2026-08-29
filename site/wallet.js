@@ -483,6 +483,7 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
       owner: state.owner ? Object.freeze({ ...state.owner }) : null,
       status: presentation.state,
       providerType: "reown-appkit",
+      restoring: state.sessionStatus === "initializing" && !state.account,
     });
     browserWindow.__GOGH_WALLET_PROVIDER__ = state.provider;
     browserWindow.__GOGH_WALLET_SNAPSHOT__ = detail;
@@ -670,17 +671,14 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
     return initializationPromise;
   }
 
-  // First-time visitors load no AppKit code and make no wallet/RPC calls. A small,
-  // non-sensitive marker allows a known prior session to restore in the background.
+  // First-time visitors load no AppKit code and make no wallet/RPC calls. A known
+  // prior session is different: restore it immediately. Deferring restoration to an
+  // idle callback left busy/mobile pages visibly disconnected because an idle period
+  // is not guaranteed while the page is rendering and fetching Punk state.
   if (returningSessionMarker(browserWindow)) {
     const restore = () => { void ensureSession(); };
-    if (typeof browserWindow.requestIdleCallback === "function") {
-      browserWindow.requestIdleCallback(restore, { timeout: 1_000 });
-    } else if (typeof browserWindow.setTimeout === "function") {
-      browserWindow.setTimeout(restore, 0);
-    } else {
-      queueMicrotask(restore);
-    }
+    if (typeof browserWindow.queueMicrotask === "function") browserWindow.queueMicrotask(restore);
+    else queueMicrotask(restore);
   }
 
   return Object.freeze({

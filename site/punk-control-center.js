@@ -4,6 +4,9 @@ import {
 import {
   fetchOwnerPolicyGate, prepareOwnerFunds, submitOwnerAction,
 } from "./owner-policy-controls.js";
+import {
+  preflightNftWithdrawal, submitNftWithdrawal, validateWithdrawableNftAssets,
+} from "./nft-withdrawal.js";
 
 const CHAIN_ID = 4663;
 const OWNER_OF_SELECTOR = "0x6352211e";
@@ -33,12 +36,12 @@ function routeTokenId() {
 
 const state = {
   tokenId: routeTokenId(), owner: null, walletAccount: null, walletChainId: null,
-  account: null, provider: null, loading: false, error: null,
+  account: null, provider: null, walletRestoring: false, loading: false, error: null,
   punkCollection: null, nativeBalance: null, wrappedBalance: null,
   owned: false, activated: false, agentStatus: null, automation: null, assets: [],
   activity: [], timings: {}, revision: 0,
   directedReviewId: null, directedSourceUrl: null,
-  fundingBusy: false,
+  fundingBusy: false, withdrawalAsset: null, withdrawalBusy: false,
 };
 
 async function localApi(path, options = {}) {
@@ -110,6 +113,11 @@ function controlPresentation() {
     status: "🔴 CHOOSE A PUNK", heading: "Punk not selected",
     detail: "Open My Art Brokers and choose a Punk before using its controls.",
     account: "Choose a Punk first",
+  };
+  if (state.walletRestoring && !state.walletAccount) return {
+    status: "🔵 RESTORING WALLET", heading: "Restoring wallet",
+    detail: "Restoring your existing wallet session. No signature or transaction is requested.",
+    account: "Restoring Punk Wallet…",
   };
   if (!state.walletAccount) return {
     status: "⚪ CONNECT WALLET", heading: "Connect wallet",
@@ -477,20 +485,129 @@ function assetCard(asset) {
   image.loading = "lazy";
   image.decoding = "async";
   image.alt = asset.name || `NFT #${asset.tokenId}`;
-  image.src = /^https:\/\/(?:i|raw2)\.seadn\.io\//.test(asset.imageUrl ?? "")
-    ? asset.imageUrl : "/assets/gogh-punks-pfp.png";
+  const validImage = /^https:\/\/(?:i|raw2)\.seadn\.io\//.test(asset.imageUrl ?? "");
+  image.src = validImage ? asset.imageUrl : "/assets/nft-placeholder.svg";
   const title = document.createElement("h3");
   title.textContent = asset.name || `NFT #${asset.tokenId}`;
   const collection = document.createElement("p");
   collection.className = "eyebrow";
   collection.textContent = asset.collectionName ?? "Collection name unavailable";
   const source = document.createElement("p");
-  source.textContent = asset.source || "Received";
-  const withdrawal = document.createElement("a");
-  withdrawal.href = `/punk/${state.tokenId}#nft-withdrawal-title`;
-  withdrawal.textContent = "Withdraw to current holder";
-  card.append(image, collection, title, source, withdrawal);
+  source.className = "control-asset-source";
+  source.textContent = asset.floorPrice
+    ? `OpenSea collection floor · ${asset.floorPrice.amount} ${asset.floorPrice.currency}`
+    : "Collection floor unavailable";
+  const actions = document.createElement("div");
+  actions.className = "control-asset-actions";
+  const openSea = document.createElement("a");
+  openSea.href = asset.openSeaUrl;
+  openSea.target = "_blank";
+  openSea.rel = "noopener noreferrer";
+  openSea.textContent = "View on OpenSea ↗";
+  const withdrawal = document.createElement("button");
+  withdrawal.type = "button";
+  withdrawal.textContent = "Withdraw to my wallet";
+  withdrawal.disabled = !state.owned || state.withdrawalBusy;
+  withdrawal.addEventListener("click", () => selectWithdrawalAsset(asset));
+  actions.append(openSea, withdrawal);
+  card.append(image, collection, title, source, actions);
   return card;
+}
+
+function withdrawalImage(asset) {
+  return /^https:\/\/(?:i|raw2)\.seadn\.io\//.test(asset?.imageUrl ?? "")
+    ? asset.imageUrl : "/assets/nft-placeholder.svg";
+}
+
+function floorLabel(asset) {
+  return asset?.floorPrice
+    ? `${asset.floorPrice.amount} ${asset.floorPrice.currency} · OpenSea collection estimate`
+    : "Not available — this does not block withdrawal";
+}
+
+function renderWithdrawal() {
+  const panel = query("[data-control-withdrawal]");
+  const asset = state.withdrawalAsset;
+  if (!panel) return;
+  panel.hidden = !asset;
+  if (!asset) return;
+  query("[data-withdrawal-image]").src = withdrawalImage(asset);
+  query("[data-withdrawal-image]").alt = asset.name || `NFT #${asset.tokenId}`;
+  setText("[data-withdrawal-name]", asset.name || `NFT #${asset.tokenId}`);
+  setText("[data-withdrawal-collection]", asset.collectionName ?? "Collection name unavailable");
+  setText("[data-withdrawal-punk]", state.tokenId ?? "—");
+  setText("[data-withdrawal-owner]", state.owner ? formatAddress(state.owner) : "Current Punk holder");
+  setText("[data-withdrawal-asset]", `${asset.standard} · token #${asset.tokenId}`);
+  setText("[data-withdrawal-floor]", floorLabel(asset));
+  const confirmation = query("[data-withdrawal-confirm]");
+  const submit = query("[data-withdrawal-submit]");
+  confirmation.disabled = !state.owned || state.withdrawalBusy;
+  submit.disabled = !state.owned || state.withdrawalBusy || !confirmation.checked;
+  submit.textContent = state.withdrawalBusy
+    ? "VERIFYING LIVE OWNERSHIP…" : "VERIFY & WITHDRAW IN METAMASK";
+}
+
+function selectWithdrawalAsset(asset) {
+  state.withdrawalAsset = asset;
+  const confirmation = query("[data-withdrawal-confirm]");
+  confirmation.checked = false;
+  query("[data-withdrawal-transaction]").hidden = true;
+  setText("[data-withdrawal-state]", "Review the NFT and fixed current-holder destination, then confirm.");
+  renderWithdrawal();
+  query("[data-control-withdrawal]").scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function cancelWithdrawal() {
+  if (state.withdrawalBusy) return;
+  state.withdrawalAsset = null;
+  query("[data-withdrawal-confirm]").checked = false;
+  renderWithdrawal();
+}
+
+async function fetchWithdrawalGate(token) {
+  const response = await fetch(
+    `/api/broker/nft-withdrawal-status?tokenId=${encodeURIComponent(token)}`,
+    { headers: { accept: "application/json" }, cache: "no-store" },
+  );
+  const payload = await response.json().catch(() => null);
+  if (!response.ok || payload?.ok !== true) throw new Error("NFT withdrawal status is unavailable");
+  return payload.recovery;
+}
+
+async function withdrawSelectedAsset() {
+  if (state.withdrawalBusy || !state.withdrawalAsset) return;
+  if (demo) {
+    setText("[data-withdrawal-state]", "Local demo: withdrawal was prepared but no wallet request was submitted.");
+    return;
+  }
+  if (!state.owned || !state.provider || !state.tokenId) {
+    setText("[data-withdrawal-state]", "Connect the current Punk holder on Robinhood Chain first.");
+    return;
+  }
+  const revision = state.revision;
+  const selectedToken = state.tokenId;
+  const asset = state.withdrawalAsset;
+  state.withdrawalBusy = true;
+  renderWithdrawal();
+  setText("[data-withdrawal-state]", "Checking live holder, Punk Wallet code, NFT ownership, and transfer simulation…");
+  try {
+    const gate = await fetchWithdrawalGate(selectedToken);
+    const initial = await preflightNftWithdrawal(state.provider, gate, selectedToken, asset);
+    const result = await submitNftWithdrawal(state.provider, initial, {
+      loadGate: fetchWithdrawalGate,
+      isCurrent: () => revision === state.revision && state.withdrawalAsset === asset,
+    });
+    const link = query("[data-withdrawal-transaction]");
+    link.href = `https://robinhoodchain.blockscout.com/tx/${result.hash}`;
+    link.hidden = false;
+    setText("[data-withdrawal-state]", "Withdrawal submitted to the wallet that currently holds this Gogh Punk.");
+    query("[data-withdrawal-confirm]").checked = false;
+  } catch (error) {
+    setText("[data-withdrawal-state]", error?.message ?? "NFT withdrawal stopped safely.");
+  } finally {
+    state.withdrawalBusy = false;
+    renderWithdrawal();
+  }
 }
 
 async function loadAssets() {
@@ -504,9 +621,18 @@ async function loadAssets() {
   try {
     if (demo) {
       state.assets = [
-        { name: "Demo Generative Study #441", tokenId: "441", source: "Directed Mint" },
-        { name: "Demo Pixel Bloom #12", tokenId: "12", source: "Art Broker" },
-        { name: "Demo Holder Pass #7", tokenId: "7", source: "Deposited" },
+        { name: "Demo Generative Study #441", collectionName: "Demo Studies",
+          collection: "0x4444444444444444444444444444444444444444", standard: "ERC721",
+          tokenId: "441", amount: "1", imageUrl: null, floorPrice: null,
+          openSeaUrl: "https://opensea.io/item/robinhood/0x4444444444444444444444444444444444444444/441" },
+        { name: "Demo Pixel Bloom #12", collectionName: "Demo Blooms",
+          collection: "0x5555555555555555555555555555555555555555", standard: "ERC721",
+          tokenId: "12", amount: "1", imageUrl: null, floorPrice: null,
+          openSeaUrl: "https://opensea.io/item/robinhood/0x5555555555555555555555555555555555555555/12" },
+        { name: "Demo Holder Pass #7", collectionName: "Demo Passes",
+          collection: "0x6666666666666666666666666666666666666666", standard: "ERC721",
+          tokenId: "7", amount: "1", imageUrl: null, floorPrice: null,
+          openSeaUrl: "https://opensea.io/item/robinhood/0x6666666666666666666666666666666666666666/7" },
       ];
       setText("[data-summary-nfts]", String(state.assets.length));
       setText("[data-assets-nft-count]", String(state.assets.length));
@@ -523,7 +649,7 @@ async function loadAssets() {
     if (!response.ok || payload?.ok !== true || !Array.isArray(payload.assets?.items)) {
       throw new Error("NFT inventory is temporarily unavailable");
     }
-    const items = payload.assets.items;
+    const items = validateWithdrawableNftAssets(payload.assets, state.tokenId);
     state.assets = items;
     state.account = ADDRESS.test(payload?.assets?.account ?? "")
       ? payload.assets.account : state.account;
@@ -781,6 +907,9 @@ function bindActions() {
   query("[data-punk-fund-confirm]").addEventListener("change", renderFundingAction);
   query("[data-punk-fund-submit]").addEventListener("click", fundPunkWallet);
   query("[data-wrap-review]").addEventListener("click", reviewWrappedNative);
+  query("[data-withdrawal-confirm]").addEventListener("change", renderWithdrawal);
+  query("[data-withdrawal-submit]").addEventListener("click", withdrawSelectedAsset);
+  query("[data-withdrawal-cancel]").addEventListener("click", cancelWithdrawal);
   query("[data-activity-refresh]").addEventListener("click", () => loadActivity().catch(() => {}));
   for (const button of queryAll("[data-agent-send], [data-agent-pause], [data-agent-resume], [data-agent-edit], [data-agent-revoke]")) {
     button.addEventListener("click", () => {
@@ -825,6 +954,7 @@ async function applyWallet(wallet) {
   const revision = ++state.revision;
   state.walletAccount = wallet?.account?.toLowerCase?.() ?? null;
   state.walletChainId = wallet?.chainId ?? null;
+  state.walletRestoring = wallet?.restoring === true || wallet?.status === "pending";
   state.owner = null;
   state.provider = window.__GOGH_WALLET_PROVIDER__ ?? null;
   state.loading = false;
@@ -839,9 +969,13 @@ async function applyWallet(wallet) {
   state.fundingBusy = false;
   state.automation = null;
   state.assets = [];
+  state.withdrawalAsset = null;
+  state.withdrawalBusy = false;
+  renderWithdrawal();
   renderIdentity();
   renderPaidPolicy(readPaidPolicy());
   if (!state.tokenId || !wallet?.account || wallet.chainId !== CHAIN_ID || !state.provider) return;
+  state.walletRestoring = false;
   state.loading = true;
   renderIdentity();
   try {

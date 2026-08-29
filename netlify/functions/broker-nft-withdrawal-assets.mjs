@@ -5,6 +5,7 @@ import { json } from "./_shared/http.mjs";
 import { buildNftWithdrawalGate } from "./broker-nft-withdrawal-status.mjs";
 import { nftDisplayMetadata, NFT_DISPLAY_METADATA_SELECT } from
   "./_shared/broker-display-metadata.mjs";
+import { enrichOpenSeaPortfolio } from "../../broker/src/metadata/opensea-portfolio.mjs";
 
 const TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 const ZERO_TOPIC = `0x${"0".repeat(64)}`;
@@ -117,7 +118,7 @@ export function erc721MintFromReceipt(run, receipt) {
 export async function buildWithdrawableNftAssets(
   selectedTokenId,
   { environment = process.env, database, gateBuilder = buildNftWithdrawalGate,
-    getReceipt, getOwner, getCollectionName } = {},
+    getReceipt, getOwner, getCollectionName, enrichItems = enrichOpenSeaPortfolio } = {},
 ) {
   const normalizedTokenId = tokenId(selectedTokenId);
   const gate = await gateBuilder(normalizedTokenId);
@@ -204,13 +205,24 @@ export async function buildWithdrawableNftAssets(
           ?? collectionSlugName(display.collectionSlug),
         name: display.name ?? null,
         imageUrl: display.imageUrl ?? null,
+        collectionSlug: display.collectionSlug ?? null,
+        floorPrice: null,
       }));
+    }
+  }
+  let items = [...unique.values()].slice(0, 64);
+  if (items.length && typeof environment.OPENSEA_API_KEY === "string"
+    && environment.OPENSEA_API_KEY.trim()) {
+    try {
+      items = await enrichItems(items, account, { apiKey: environment.OPENSEA_API_KEY });
+    } catch {
+      // Marketplace images and prices are advisory. Never fail ownership or recovery.
     }
   }
   return Object.freeze({
     status: "READY", capability: true, reason: null, checkedAt: new Date().toISOString(),
     punkTokenId: normalizedTokenId, account, owner,
-    items: Object.freeze([...unique.values()].slice(0, 64)),
+    items: Object.freeze(items),
   });
 }
 
