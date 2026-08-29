@@ -4,7 +4,8 @@ import test from "node:test";
 
 import {
   enrollAutomationV3Punk, getAutomationV3UsageStats,
-  recordAutomationV3WorkerHeartbeat, workerUsageFromRow,
+  recordAutomationV3WorkerHeartbeat, workerDiscoverySummary, workerHeartbeatFromRow,
+  workerUsageFromRow,
 } from "../netlify/functions/_shared/automation-v3-worker-state.mjs";
 
 const RELEASE = "a".repeat(40);
@@ -34,6 +35,12 @@ test("V3 worker records append-only history and the current heartbeat atomically
   const heartbeat = await recordAutomationV3WorkerHeartbeat({
     status: "MINT_CONFIRMED", submitted: 1, tokenId: "93", account: ACCOUNT,
     collection: COLLECTION, transactionHash: TRANSACTION,
+    diagnostics: { socialRanking: { discovered: 14, withWebsite: 8, withX: 6,
+      highPriority: 2, sentToOnchainValidation: 3, maximumOnchainValidations: 3 },
+    socialCandidates: [{ collection: COLLECTION, tier: "HIGH", score: 75,
+      signals: { projectName: "Example", imageUrl: "https://i.seadn.io/example.png",
+        websiteUrl: "https://example.com/", xUrl: "https://x.com/example" },
+      reasons: ["Free mint", "Supported contract runtime"] }] },
   }, {
     database, release: RELEASE, startedAt: "2026-08-24T12:00:00Z",
     completedAt: "2026-08-24T12:00:02Z",
@@ -43,6 +50,33 @@ test("V3 worker records append-only history and the current heartbeat atomically
   assert.match(calls[0].sql, /INSERT INTO broker_automation_v3_worker_runs/);
   assert.match(calls[0].sql, /INSERT INTO broker_automation_v3_worker_state/);
   assert.match(calls[0].sql, /ON CONFLICT DO NOTHING/);
+  assert.deepEqual(JSON.parse(calls[0].values[10]), {
+    discovered: 14, withWebsite: 8, withX: 6, highPriority: 2,
+    sentToOnchainValidation: 3, maximumOnchainValidations: 3,
+    candidates: [{ collection: COLLECTION, tier: "HIGH", score: 75,
+      projectName: "Example", imageUrl: "https://i.seadn.io/example.png",
+      websiteUrl: "https://example.com/", xUrl: "https://x.com/example",
+      reasons: ["Free mint", "Supported contract runtime"] }],
+  });
+});
+
+test("worker discovery summary is bounded, public, and never an execution approval", () => {
+  const summary = workerDiscoverySummary({ diagnostics: {
+    socialRanking: { discovered: 1000, withWebsite: 4, withX: 3,
+      highPriority: 2, sentToOnchainValidation: 3, maximumOnchainValidations: 3 },
+    socialCandidates: [{ collection: COLLECTION.toUpperCase().replace("0X", "0x"),
+      tier: "MEDIUM", score: 40, signals: { websiteUrl: "https://example.com/project",
+        xUrl: "https://x.com/example" }, reasons: ["Free mint"] }],
+  } });
+  assert.equal(summary.discovered, 0);
+  assert.equal(summary.sentToOnchainValidation, 3);
+  assert.doesNotMatch(JSON.stringify(summary), /approved|private|calldata/i);
+  const heartbeat = workerHeartbeatFromRow({
+    release_commit: RELEASE, started_at: "2026-08-24T12:00:00Z",
+    completed_at: "2026-08-24T12:00:02Z", status: "NO_ELIGIBLE_TARGETS",
+    submitted: 0, discovery_summary: summary,
+  });
+  assert.equal(heartbeat.discoverySummary.candidates[0].tier, "MEDIUM");
 });
 
 test("public V3 usage is aggregate, canonical, and contains no holder addresses", async () => {

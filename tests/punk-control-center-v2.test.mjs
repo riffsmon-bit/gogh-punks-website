@@ -374,6 +374,9 @@ test("Control Center is progressive, mobile, and keeps mint execution disabled",
   assert.match(browser, /preflightNftWithdrawal/);
   assert.match(browser, /submitNftWithdrawal/);
   assert.match(browser, /OPENSEA_COLLECTION_FLOOR|OpenSea collection floor/);
+  assert.match(html, /What your Punk considered/);
+  assert.match(browser, /Website and X links affect discovery priority only|sent into live contract safety checks/);
+  assert.match(browser, /View NFT \/ Withdraw/);
   assert.match(browser, /eth_call/);
   assert.match(browser, /prepareOwnerFunds/);
   assert.match(browser, /submitOwnerAction/);

@@ -78,6 +78,12 @@ export function sanitizeOpenSeaAccountNfts(payload, expectedAccount) {
         identity: `${collection}:${identifier}`,
         collection,
         tokenId: identifier,
+        standard: String(entry.token_standard ?? "erc721").toLowerCase() === "erc1155"
+          ? "ERC1155" : "ERC721",
+        amount: (() => {
+          const quantity = String(entry.quantity ?? "1");
+          return /^(?:0|[1-9]\d*)$/.test(quantity) && BigInt(quantity) > 0n ? quantity : "1";
+        })(),
         collectionSlug: slug,
         name: cleanText(entry.name, 200),
         imageUrl: imageUrl(entry.display_image_url ?? entry.image_url),
@@ -197,7 +203,7 @@ function trimCache(now) {
 }
 
 export async function enrichOpenSeaPortfolio(items, account, {
-  apiKey, fetchFn = fetch, now = Date.now(), source,
+  apiKey, fetchFn = fetch, now = Date.now(), source, indexedItems,
 } = {}) {
   if (!Array.isArray(items) || items.length > MAX_ITEMS) {
     throw new TypeError("portfolio items are invalid");
@@ -210,9 +216,9 @@ export async function enrichOpenSeaPortfolio(items, account, {
   const cached = portfolioCache.get(cacheKey);
   if (cached?.createdAt <= now && cached.expiresAt > now) return cached.items;
   const provider = source ?? new OpenSeaPortfolioSource({ apiKey, fetchFn });
-  let openSeaItems = [];
+  let openSeaItems = Array.isArray(indexedItems) ? indexedItems : [];
   try {
-    openSeaItems = await provider.accountNfts(canonicalAccount);
+    if (!Array.isArray(indexedItems)) openSeaItems = await provider.accountNfts(canonicalAccount);
   } catch {
     // OpenSea's account inventory can lag a confirmed Robinhood transfer. Exact
     // contract/token reads below are the bounded display fallback; receipt logs and

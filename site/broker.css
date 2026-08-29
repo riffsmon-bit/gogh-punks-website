@@ -918,6 +918,7 @@ h3 { font-size: 1.45rem; }
 .control-withdrawal-preview { display: grid; grid-template-columns: minmax(120px, 200px) 1fr; gap: 22px; align-items: center; margin-bottom: 20px; }
 .control-withdrawal-preview img { width: 100%; aspect-ratio: 1; object-fit: cover; border: 1px solid var(--line); background: #071321; }
 .control-withdrawal-preview h2, .control-withdrawal-preview p { margin-top: 0; }
+.withdrawal-quantity { max-width: 280px; margin: 16px 0; }
 .control-owner-assets { display: grid; grid-template-columns: repeat(2, minmax(0, 180px)); gap: 12px; margin: 16px 0 24px; }
 .control-owner-asset { display: grid; gap: 8px; min-width: 0; padding: 8px !important; text-align: left; text-transform: none !important; }
 .control-owner-asset img { width: 100%; aspect-ratio: 1; object-fit: cover; opacity: 0.72; }
@@ -926,6 +927,16 @@ h3 { font-size: 1.45rem; }
 .agent-timeline article { display: grid; grid-template-columns: 110px 1fr; gap: 18px; padding: 15px 0; border-top: 1px solid rgba(255, 255, 255, 0.08); }
 .agent-timeline time { color: var(--sun); font-size: 0.75rem; }
 .agent-timeline p { margin: 0; color: var(--cream); }
+.agent-timeline article > button { grid-column: 2; justify-self: start; margin: 0; }
+.agent-discovery-summary { border-color: rgba(82, 213, 207, 0.55); }
+.agent-candidate-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.agent-candidate-grid > article { min-width: 0; padding: 15px; border: 1px solid var(--line); background: #071321; }
+.agent-candidate-grid img { width: calc(100% + 30px); max-width: none; aspect-ratio: 1; object-fit: cover; margin: -15px -15px 15px; background: #02070c; }
+.agent-candidate-grid h3 { margin: 0 0 8px; font-size: 1rem; }
+.agent-candidate-grid code { overflow-wrap: anywhere; color: var(--aqua); }
+.agent-candidate-grid ul { padding-left: 0; list-style: none; color: var(--muted); }
+.agent-candidate-links { display: flex; flex-wrap: wrap; gap: 12px; }
+.agent-candidate-links a { color: var(--aqua); }
 .control-debug { padding: 20px; border: 1px dashed var(--line); }
 .control-debug dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .control-debug dl div { display: flex; justify-content: space-between; gap: 14px; padding: 9px; background: var(--panel); }
@@ -953,11 +964,18 @@ h3 { font-size: 1.45rem; }
   .control-grid.two-column, .control-grid.three-column, .control-form-grid, .control-asset-grid, .wrap-balances { grid-template-columns: 1fr; }
   .control-asset-heading { align-items: start; flex-direction: column; gap: 8px; }
   .control-withdrawal-preview { grid-template-columns: 96px 1fr; gap: 14px; }
+  .control-withdrawal-review { position: fixed; z-index: 80; inset: auto 0 0; margin: 0;
+    max-height: 88vh; overflow: auto; border-width: 1px 0 0; padding: 20px 18px
+      calc(20px + env(safe-area-inset-bottom)); box-shadow: 0 -18px 70px #000c; }
+  .control-withdrawal-review .control-actions { position: sticky; bottom: 0; background: var(--panel);
+    padding: 12px 0 calc(4px + env(safe-area-inset-bottom)); }
   .control-owner-assets { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .control-card { padding: 21px 18px; }
   .control-card button { width: 100%; min-height: 52px; }
   .panel-header { display: grid; }
   .control-button-stack { grid-template-columns: 1fr; }
   .agent-timeline article { grid-template-columns: 1fr; gap: 4px; }
+  .agent-timeline article > button { grid-column: 1; width: 100%; }
+  .agent-candidate-grid { grid-template-columns: 1fr; }
   .control-debug dl { grid-template-columns: 1fr; }
 }

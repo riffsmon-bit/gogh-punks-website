@@ -84,6 +84,12 @@ creation, or native spending.
 6. Recheck owner, authorization, chain, stage, eligibility, price, limits and simulation.
 7. In this branch return `SIMULATION COMPLETE`; no transaction is broadcast.
 
+The production-facing OpenSea review endpoint now persists the same five-minute review as a
+wallet-bound, Punk-bound, single-use database intent. Consuming the intent atomically marks it used
+and reruns the exact ownership, recipient, price, and calldata review. It still returns
+`executionReady: false`; a future transaction executor cannot be enabled until the full Punk Wallet
+simulation and expected-state-change gate is reviewed.
+
 Retries use an `Idempotency-Key`. A repeated key returns the original promise/result rather than
 creating a second job or intent. Requests are rate-limited per authenticated wallet and tool.
 

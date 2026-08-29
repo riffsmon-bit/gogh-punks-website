@@ -6,6 +6,7 @@ import {
 } from "./owner-policy-controls.js";
 import {
   preflightNftWithdrawal, submitNftWithdrawal, validateWithdrawableNftAssets,
+  waitForNftWithdrawalReceipt,
 } from "./nft-withdrawal.js";
 
 const CHAIN_ID = 4663;
@@ -40,8 +41,8 @@ const state = {
   punkCollection: null, nativeBalance: null, wrappedBalance: null,
   owned: false, activated: false, agentStatus: null, automation: null, assets: [],
   activity: [], timings: {}, revision: 0,
-  directedReviewId: null, directedSourceUrl: null,
-  fundingBusy: false, withdrawalAsset: null, withdrawalBusy: false,
+  directedReviewId: null, directedIntentId: null, directedSourceUrl: null,
+  fundingBusy: false, withdrawalAsset: null, withdrawalAmount: "1", withdrawalBusy: false,
 };
 
 async function localApi(path, options = {}) {
@@ -256,8 +257,12 @@ function renderAutomation() {
     setText("[data-agent-next-scan]", heartbeat.online === false ? "Waiting for worker"
       : `~${new Date(Date.parse(heartbeat.completedAt) + 5 * 60_000).toLocaleTimeString()}`);
   }
-  if (heartbeat && (!heartbeat.tokenId || heartbeat.tokenId === state.tokenId)) addActivity({ at: heartbeat.completedAt, state: heartbeat.status,
-    message: heartbeatMessage(heartbeat) });
+  if (heartbeat && (!heartbeat.tokenId || heartbeat.tokenId === state.tokenId)) {
+    addActivity({ at: heartbeat.completedAt, state: heartbeat.status,
+      message: heartbeatMessage(heartbeat),
+      action: heartbeat.status === "MINT_CONFIRMED" ? "OPEN_ASSETS" : null });
+    renderDiscoverySummary(heartbeat.discoverySummary);
+  }
   renderIdentity();
 }
 
@@ -268,6 +273,65 @@ function heartbeatMessage(heartbeat) {
     FAILED: "The worker stopped safely and will require attention before execution.",
   };
   return messages[heartbeat?.status] ?? "The hosted agent completed a bounded check.";
+}
+
+function renderDiscoverySummary(summary) {
+  const panel = query("[data-agent-discovery]");
+  if (!panel) return;
+  if (!summary || typeof summary !== "object") {
+    panel.hidden = true;
+    return;
+  }
+  const discovered = Number(summary.discovered ?? 0);
+  const websites = Number(summary.withWebsite ?? 0);
+  const xProfiles = Number(summary.withX ?? 0);
+  const validated = Number(summary.sentToOnchainValidation ?? 0);
+  setText("[data-agent-discovery-copy]", `${discovered} candidate${discovered === 1 ? "" : "s"} discovered · ${websites} with project websites · ${xProfiles} with X profiles · ${validated} sent into live contract safety checks.`);
+  const candidates = Array.isArray(summary.candidates) ? summary.candidates.slice(0, 3) : [];
+  setText("[data-agent-discovery-tier]", candidates[0]?.tier
+    ? `${candidates[0].tier} discovery priority` : "No ranked candidate");
+  const grid = query("[data-agent-candidate-grid]");
+  grid.replaceChildren(...candidates.map((candidate) => {
+    const card = document.createElement("article");
+    if (candidate.imageUrl) {
+      const image = document.createElement("img");
+      image.src = candidate.imageUrl;
+      image.alt = candidate.projectName ? `${candidate.projectName} artwork` : "Candidate collection artwork";
+      image.loading = "lazy";
+      image.decoding = "async";
+      card.append(image);
+    }
+    const title = document.createElement("h3");
+    const contract = document.createElement("code");
+    const reasons = document.createElement("ul");
+    title.textContent = candidate.projectName ?? `${candidate.tier} priority candidate`;
+    contract.textContent = `${candidate.collection.slice(0, 8)}…${candidate.collection.slice(-6)}`;
+    for (const reason of candidate.reasons ?? []) {
+      const item = document.createElement("li");
+      item.textContent = `✓ ${reason}`;
+      reasons.append(item);
+    }
+    const links = document.createElement("div");
+    links.className = "agent-candidate-links";
+    for (const [label, href] of [["Website ↗", candidate.websiteUrl], ["X ↗", candidate.xUrl]]) {
+      if (!href) continue;
+      const link = document.createElement("a");
+      link.href = href;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer nofollow";
+      link.textContent = label;
+      links.append(link);
+    }
+    card.append(title, contract, reasons, links);
+    return card;
+  }));
+  if (candidates.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "empty-state";
+    empty.textContent = "No socially ranked candidate reached live contract validation in this scan.";
+    grid.replaceChildren(empty);
+  }
+  panel.hidden = false;
 }
 
 async function loadAutomation() {
@@ -430,6 +494,13 @@ function addActivity(entry) {
     time.textContent = new Date(item.at ?? Date.now()).toLocaleTimeString();
     message.textContent = item.message;
     row.append(time, message);
+    if (item.action === "OPEN_ASSETS") {
+      const action = document.createElement("button");
+      action.type = "button";
+      action.textContent = "View NFT / Withdraw";
+      action.addEventListener("click", () => query('[data-control-tab="assets"]')?.click());
+      row.append(action);
+    }
     return row;
   }));
 }
@@ -462,7 +533,9 @@ async function loadActivity() {
     const heartbeat = payload.activity?.heartbeat;
     if (heartbeat && (!heartbeat.tokenId || String(heartbeat.tokenId) === state.tokenId)) {
       addActivity({ at: heartbeat.completedAt, state: heartbeat.status,
-        message: heartbeatMessage(heartbeat) });
+        message: heartbeatMessage(heartbeat),
+        action: heartbeat.status === "MINT_CONFIRMED" ? "OPEN_ASSETS" : null });
+      renderDiscoverySummary(heartbeat.discoverySummary);
       setText("[data-activity-state]", `Latest Punk #${state.tokenId} worker event loaded.`);
     } else if (heartbeat) {
       setText("[data-activity-state]", `No recent Punk #${state.tokenId} worker event was found. The latest hosted event belongs to another Punk.`);
@@ -495,9 +568,11 @@ function assetCard(asset) {
   collection.textContent = asset.collectionName ?? "Collection name unavailable";
   const source = document.createElement("p");
   source.className = "control-asset-source";
+  const origin = asset.provenance === "ART_BROKER" ? "Collected by this Punk"
+    : "Received by this Punk Wallet";
   source.textContent = asset.floorPrice
-    ? `OpenSea collection floor · ${asset.floorPrice.amount} ${asset.floorPrice.currency}`
-    : "Collection floor unavailable";
+    ? `${origin} · OpenSea collection floor ${asset.floorPrice.amount} ${asset.floorPrice.currency}`
+    : `${origin} · floor unavailable`;
   const actions = document.createElement("div");
   actions.className = "control-asset-actions";
   const openSea = document.createElement("a");
@@ -543,6 +618,11 @@ function renderWithdrawal() {
   setText("[data-withdrawal-floor]", floorLabel(asset));
   const confirmation = query("[data-withdrawal-confirm]");
   const submit = query("[data-withdrawal-submit]");
+  const quantityField = query("[data-withdrawal-quantity-field]");
+  const quantity = query("[data-withdrawal-quantity]");
+  quantityField.hidden = asset.standard !== "ERC1155";
+  quantity.max = asset.amount;
+  quantity.value = state.withdrawalAmount;
   confirmation.disabled = !state.owned || state.withdrawalBusy;
   submit.disabled = !state.owned || state.withdrawalBusy || !confirmation.checked;
   submit.textContent = state.withdrawalBusy
@@ -551,6 +631,7 @@ function renderWithdrawal() {
 
 function selectWithdrawalAsset(asset) {
   state.withdrawalAsset = asset;
+  state.withdrawalAmount = asset.standard === "ERC1155" ? "1" : asset.amount;
   const confirmation = query("[data-withdrawal-confirm]");
   confirmation.checked = false;
   query("[data-withdrawal-transaction]").hidden = true;
@@ -588,7 +669,9 @@ async function withdrawSelectedAsset() {
   }
   const revision = state.revision;
   const selectedToken = state.tokenId;
-  const asset = state.withdrawalAsset;
+  const asset = Object.freeze({ ...state.withdrawalAsset,
+    amount: state.withdrawalAsset.standard === "ERC1155"
+      ? state.withdrawalAmount : state.withdrawalAsset.amount });
   state.withdrawalBusy = true;
   renderWithdrawal();
   setText("[data-withdrawal-state]", "Checking live holder, Punk Wallet code, NFT ownership, and transfer simulation…");
@@ -602,8 +685,15 @@ async function withdrawSelectedAsset() {
     const link = query("[data-withdrawal-transaction]");
     link.href = `https://robinhoodchain.blockscout.com/tx/${result.hash}`;
     link.hidden = false;
-    setText("[data-withdrawal-state]", "Withdrawal submitted to the wallet that currently holds this Gogh Punk.");
+    setText("[data-withdrawal-state]", "Transaction submitted. Waiting for Robinhood Chain confirmation…");
+    await waitForNftWithdrawalReceipt(state.provider, result.hash);
+    setText("[data-withdrawal-state]", "NFT withdrawn ✓ Portfolio refreshed for the current Punk holder.");
     query("[data-withdrawal-confirm]").checked = false;
+    state.withdrawalAsset = null;
+    window.dispatchEvent(new CustomEvent("gogh:portfolio-invalidated", { detail: {
+      tokenId: selectedToken, owner: state.owner, transactionHash: result.hash,
+    } }));
+    await Promise.all([loadAssets(), loadActivity().catch(() => {})]);
   } catch (error) {
     setText("[data-withdrawal-state]", error?.message ?? "NFT withdrawal stopped safely.");
   } finally {
@@ -823,6 +913,7 @@ async function simulateDirectedMint() {
       } });
       const review = payload.review;
       state.directedReviewId = review.reviewId;
+      state.directedIntentId = review.intentId;
       setText("[data-directed-collection]", review.collectionName);
       setText("[data-directed-price]", `${formatNative(review.proposal.valueWei)} · ${review.proposal.priceKind.toLowerCase()}`);
       setText("[data-directed-gas]", "Not simulated");
@@ -830,11 +921,31 @@ async function simulateDirectedMint() {
       setText("[data-directed-badge]", review.proposal.currentFreeAdapterCompatible
         ? "CALL SHAPE MATCH" : "BLOCKED SAFELY");
       setText("[data-directed-simulation]", `${review.message} No signature or transaction was requested.`);
+      const button = query("[data-directed-simulate]");
+      button.textContent = review.intentId ? "Revalidate Mint Intent" : "Prepare Bounded Review";
     }
     await loadActivity();
     metric("Simulation", started);
   } catch (error) {
     setText("[data-directed-simulation]", `${error.message}. Nothing was submitted.`);
+  }
+}
+
+async function revalidateDirectedMintIntent() {
+  if (demo || !state.directedIntentId) return simulateDirectedMint();
+  try {
+    setText("[data-directed-simulation]", "Rechecking live ownership, recipient, price, and exact SeaDrop call…");
+    const payload = await localApi("/api/broker/connector/opensea", { body: {
+      action: "execute", tokenId: state.tokenId, intentId: state.directedIntentId,
+      walletAddress: state.walletAccount,
+    } });
+    state.directedIntentId = null;
+    query("[data-directed-simulate]").textContent = "Prepare New Review";
+    setText("[data-directed-simulation]", `${payload.review.message} Nothing was signed or submitted.`);
+  } catch (error) {
+    state.directedIntentId = null;
+    query("[data-directed-simulate]").textContent = "Prepare New Review";
+    setText("[data-directed-simulation]", `${error.message}. Check the mint again.`);
   }
 }
 
@@ -885,7 +996,9 @@ function bindActions() {
   query("[data-paid-save]").addEventListener("click", () => savePaidPolicy());
   query("[data-schedule-save]").addEventListener("click", () => saveScoutingSchedule());
   query("[data-directed-check]").addEventListener("click", () => checkDirectedMint());
-  query("[data-directed-simulate]").addEventListener("click", () => simulateDirectedMint());
+  query("[data-directed-simulate]").addEventListener("click", () => (
+    state.directedIntentId ? revalidateDirectedMintIntent() : simulateDirectedMint()
+  ));
   query("[data-scout-simulate]").addEventListener("click", async () => {
     try {
       const payload = demo ? await localApi("/api/local-v2/scout", {
@@ -910,6 +1023,13 @@ function bindActions() {
   query("[data-punk-fund-submit]").addEventListener("click", fundPunkWallet);
   query("[data-wrap-review]").addEventListener("click", reviewWrappedNative);
   query("[data-withdrawal-confirm]").addEventListener("change", renderWithdrawal);
+  query("[data-withdrawal-quantity]").addEventListener("input", (event) => {
+    const maximum = BigInt(state.withdrawalAsset?.amount ?? "1");
+    const value = event.target.value;
+    if (/^[1-9]\d*$/.test(value) && BigInt(value) <= maximum) state.withdrawalAmount = value;
+    query("[data-withdrawal-confirm]").checked = false;
+    renderWithdrawal();
+  });
   query("[data-withdrawal-submit]").addEventListener("click", withdrawSelectedAsset);
   query("[data-withdrawal-cancel]").addEventListener("click", cancelWithdrawal);
   query("[data-activity-refresh]").addEventListener("click", () => loadActivity().catch(() => {}));
@@ -972,7 +1092,9 @@ async function applyWallet(wallet) {
   state.automation = null;
   state.assets = [];
   state.withdrawalAsset = null;
+  state.withdrawalAmount = "1";
   state.withdrawalBusy = false;
+  state.directedIntentId = null;
   renderWithdrawal();
   renderIdentity();
   renderPaidPolicy(readPaidPolicy());

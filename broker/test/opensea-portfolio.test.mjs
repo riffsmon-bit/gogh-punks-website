@@ -41,6 +41,7 @@ test("sanitizes only exact Robinhood account NFT display fields", () => {
   assert.equal(items.length, 2);
   assert.deepEqual(items[0], {
     identity: `${COLLECTION}:7`, collection: COLLECTION, tokenId: "7",
+    standard: "ERC721", amount: "1",
     collectionSlug: "example-collection", name: "Example #7",
     imageUrl: "https://i.seadn.io/gcs/files/example.png",
   });

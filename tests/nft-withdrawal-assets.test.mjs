@@ -94,6 +94,7 @@ test("adds advisory OpenSea art and floor while keeping receipt and live owner a
     getReceipt: async () => receipt(),
     getOwner: async () => ACCOUNT,
     getCollectionName: async () => "Example Collection",
+    openSeaSource: { accountNfts: async () => [] },
     enrichItems: async (items, account, options) => {
       enrichCalls += 1;
       assert.equal(account, ACCOUNT);
@@ -114,6 +115,29 @@ test("adds advisory OpenSea art and floor while keeping receipt and live owner a
   const hostile = structuredClone(assets);
   hostile.items[0].floorPrice.sourceUrl = "https://evil.test/floor";
   assert.throws(() => validateWithdrawableNftAssets(hostile, "93"), /floor/);
+});
+
+test("includes manually received indexed ERC-721 and ERC-1155 assets for live withdrawal preflight", async () => {
+  const assets = await buildWithdrawableNftAssets("93", {
+    environment: { OPENSEA_API_KEY: "server-side-test-key" },
+    database: { query: async (sql) => ({ rows: /worker_runs/.test(sql) ? [] : [] }) },
+    gateBuilder: async () => gate(),
+    getReceipt: async () => null,
+    getOwner: async () => ACCOUNT,
+    openSeaSource: { accountNfts: async () => [{
+      identity: `${COLLECTION}:7`, collection: COLLECTION, tokenId: "7",
+      standard: "ERC1155", amount: "5", collectionSlug: "manual-edition",
+      name: "Manual Edition #7", imageUrl: "https://i.seadn.io/manual.png",
+    }] },
+    enrichItems: async (items) => items,
+  });
+  const [item] = validateWithdrawableNftAssets(assets, "93");
+  assert.equal(item.standard, "ERC1155");
+  assert.equal(item.amount, "5");
+  assert.equal(item.provenance, "RECEIVED");
+  assert.equal(item.ownershipStatus, "LIVE_CHECK_REQUIRED");
+  assert.equal(item.transactionHash, null);
+  assert.equal(item.acquiredAt, null);
 });
 
 test("falls back to exact on-chain tokenURI display when marketplace indexing lags", async () => {
@@ -170,6 +194,7 @@ test("one portfolio request groups confirmed NFTs across the holder's Punk agent
     items: [{
       standard: "ERC721", collection: COLLECTION, tokenId: id, amount: "1",
       transactionHash: HASH, acquiredAt: checkedAt,
+      provenance: "ART_BROKER", ownershipStatus: "LIVE_VERIFIED",
       openSeaUrl: `https://opensea.io/item/robinhood/${COLLECTION}/${id}`,
       collectionName: "Example Collection", name: `Mint ${id}`, imageUrl: null,
       collectionSlug: null, floorPrice: null,
@@ -198,6 +223,8 @@ test("site exposes a selectable NFT list while retaining a live-checked manual f
   assert.match(browser, /nft-withdrawal-assets\?tokenId=/);
   assert.match(browser, /nft-withdrawal-assets\?tokenIds=/);
   assert.match(browser, /gogh:select-punk-request/);
+  assert.match(browser, /waitForNftWithdrawalReceipt/);
+  assert.match(browser, /gogh:portfolio-invalidated/);
   assert.match(endpoint, /status = 'MINT_CONFIRMED'/);
   assert.doesNotMatch(endpoint, /eth_send|sendTransaction|privateKey|mnemonic/);
 });

@@ -21,6 +21,8 @@ import { AUTOMATION_V3_AGENT, readAutomationV3GlobalState } from
   "../netlify/functions/_shared/autonomy-v3-live.mjs";
 import { PUBLIC_DROP_UPDATED_EVENT } from
   "../broker/src/discovery/seadrop-public-drop-index.mjs";
+import { createOpenSeaSocialProfileSource, rankSeaDropCollections } from
+  "../broker/src/discovery/social-candidate-ranking.mjs";
 
 const ACCOUNT_ABI = parseAbi([
   "function owner() view returns (address)",
@@ -146,6 +148,14 @@ export const AUTOMATION_V3_WORKER_TIME_BUDGET_MS = 48_000;
 const AUTOMATION_V3_SUBMISSION_RESERVE_MS = 17_000;
 const AUTOMATION_V3_PROFILE_BATCH_SIZE = 6;
 const AUTOMATION_V3_CANDIDATE_BATCH_SIZE = 4;
+
+export function socialCandidateValidationLimit(environment = {}) {
+  const raw = environment.AGENT_MAX_CANDIDATES_TO_VALIDATE ?? "3";
+  if (typeof raw !== "string" || !/^[1-8]$/.test(raw)) {
+    throw new TypeError("AGENT_MAX_CANDIDATES_TO_VALIDATE must be 1 through 8");
+  }
+  return Math.min(Number(raw), AUTOMATION_V3_CANDIDATE_BATCH_SIZE);
+}
 
 function discoveryDelay() {
   return new Promise((resolve) => setTimeout(resolve, DISCOVERY_BATCH_DELAY_MS));
@@ -865,7 +875,29 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
     () => activeZeroPriceSeaDropCollections(secondary, primary, collections),
   );
   if (budgetExpired()) return budgetResult();
-  const candidates = analyzedCandidates.slice(0, AUTOMATION_V3_CANDIDATE_BATCH_SIZE);
+  const maximumSocialCandidates = socialCandidateValidationLimit(environment);
+  const operatorPriorities = new Set([...(directedCollections ?? []), ...priorityCollections]);
+  const exactPriorityCandidates = analyzedCandidates.filter((collection) => (
+    operatorPriorities.has(collection)
+  ));
+  const socialPool = analyzedCandidates.filter((collection) => !operatorPriorities.has(collection));
+  let socialRanking = null;
+  if (socialPool.length > 0 && (typeof dependencies.rankCandidates === "function"
+    || typeof environment.OPENSEA_API_KEY === "string" && environment.OPENSEA_API_KEY.trim())) {
+    socialRanking = await workerStage("SOCIAL_RANKING_FAILED", () => (
+      dependencies.rankCandidates
+        ? dependencies.rankCandidates(socialPool, maximumSocialCandidates)
+        : rankSeaDropCollections(socialPool, {
+          maximum: maximumSocialCandidates,
+          source: createOpenSeaSocialProfileSource({ apiKey: environment.OPENSEA_API_KEY }),
+        })
+    ));
+  }
+  const sociallySelected = socialRanking
+    ? socialRanking.selected.map(({ collection }) => collection)
+    : socialPool.slice(0, maximumSocialCandidates);
+  const candidates = [...new Set([...exactPriorityCandidates, ...sociallySelected])]
+    .slice(0, AUTOMATION_V3_CANDIDATE_BATCH_SIZE);
   if (candidates.length === 0) return {
     status: "NO_ANALYZED_ACTIVE_TARGETS", submitted: 0,
     diagnostics: { profiles: profiles.length, recentSeaDropCollections: collections.length,
@@ -890,6 +922,15 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   diagnostics.analyzedCandidateBatch = candidates.length;
   diagnostics.directedTargetCollections = directedCollections?.length ?? 0;
   diagnostics.priorityTargetCollections = priorityCollections.length;
+  diagnostics.socialRanking = socialRanking?.diagnostics ?? {
+    discovered: socialPool.length,
+    withWebsite: 0,
+    withX: 0,
+    highPriority: 0,
+    sentToOnchainValidation: sociallySelected.length,
+    maximumOnchainValidations: maximumSocialCandidates,
+  };
+  diagnostics.socialCandidates = socialRanking?.selected ?? [];
   diagnostics.operatorConfiguredPunks = configuredTokenIds.length;
   diagnostics.prioritySlotReservations = 0;
   diagnostics.priorityStateReadFailures = 0;

@@ -49,6 +49,79 @@ function address(value, name) {
   return text(value, /^0x[0-9a-fA-F]{40}$/, name);
 }
 
+function boundedInteger(value, maximum, fallback = 0) {
+  const number = Number(value);
+  return Number.isSafeInteger(number) && number >= 0 && number <= maximum ? number : fallback;
+}
+
+function advisoryUrl(value, kind) {
+  if (typeof value !== "string" || value.length > 2_048) return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" || url.username || url.password || url.port || url.hash) return null;
+    if (kind === "x" && !new Set(["x.com", "www.x.com"]).has(url.hostname.toLowerCase())) return null;
+    if (kind === "image" && !new Set(["i.seadn.io", "raw2.seadn.io"])
+      .has(url.hostname.toLowerCase())) return null;
+    return url.href;
+  } catch {
+    return null;
+  }
+}
+
+export function workerDiscoverySummary(result) {
+  const diagnostics = result?.diagnostics;
+  const ranking = diagnostics?.socialRanking;
+  if (!ranking || typeof ranking !== "object" || Array.isArray(ranking)) return null;
+  const candidates = Array.isArray(diagnostics.socialCandidates)
+    ? diagnostics.socialCandidates.slice(0, 3).flatMap((candidate) => {
+      if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)
+        || !/^0x[0-9a-fA-F]{40}$/.test(candidate.collection ?? "")
+        || !new Set(["HIGH", "MEDIUM", "LOW"]).has(candidate.tier)) return [];
+      const reasons = Array.isArray(candidate.reasons) ? candidate.reasons
+        .filter((reason) => typeof reason === "string" && reason.length > 0 && reason.length <= 80)
+        .slice(0, 8) : [];
+      return [Object.freeze({
+        collection: candidate.collection.toLowerCase(),
+        tier: candidate.tier,
+        score: boundedInteger(candidate.score, 100),
+        projectName: typeof candidate.signals?.projectName === "string"
+          && candidate.signals.projectName.length > 0 && candidate.signals.projectName.length <= 160
+          ? candidate.signals.projectName : null,
+        imageUrl: advisoryUrl(candidate.signals?.imageUrl, "image"),
+        websiteUrl: advisoryUrl(candidate.signals?.websiteUrl, "website"),
+        xUrl: advisoryUrl(candidate.signals?.xUrl, "x"),
+        reasons: Object.freeze(reasons),
+      })];
+    }) : [];
+  return Object.freeze({
+    discovered: boundedInteger(ranking.discovered, 64),
+    withWebsite: boundedInteger(ranking.withWebsite, 64),
+    withX: boundedInteger(ranking.withX, 64),
+    highPriority: boundedInteger(ranking.highPriority, 64),
+    sentToOnchainValidation: boundedInteger(ranking.sentToOnchainValidation, 8),
+    maximumOnchainValidations: boundedInteger(ranking.maximumOnchainValidations, 8),
+    candidates: Object.freeze(candidates),
+  });
+}
+
+function discoverySummaryFromRow(row) {
+  const raw = rowValue(row, "discovery_summary", "discoverySummary");
+  if (raw == null) return null;
+  try {
+    const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+    return workerDiscoverySummary({ diagnostics: {
+      socialRanking: parsed,
+      socialCandidates: parsed?.candidates?.map((candidate) => ({
+        ...candidate,
+        signals: { projectName: candidate?.projectName, imageUrl: candidate?.imageUrl,
+          websiteUrl: candidate?.websiteUrl, xUrl: candidate?.xUrl },
+      })),
+    } });
+  } catch {
+    throw new TypeError("worker discovery summary is invalid");
+  }
+}
+
 export async function enrollAutomationV3Punk(punk, options = {}) {
   if (!punk || punk.created !== true || punk.active !== true) {
     throw new TypeError("Punk automation is not active");
@@ -102,6 +175,7 @@ export function workerHeartbeatFromRow(row) {
     transactionHash: optional(rowValue(row, "transaction_hash", "transactionHash"), /^0x[0-9a-f]{64}$/, "transactionHash"),
     failureCode: rowValue(row, "failure_code", "failureCode") == null
       ? null : String(rowValue(row, "failure_code", "failureCode")),
+    discoverySummary: discoverySummaryFromRow(row),
   };
   if (!STATUSES.has(heartbeat.status) || ![0, 1].includes(heartbeat.submitted)
     || (heartbeat.tokenId !== null && !/^(?:0|[1-9][0-9]*)$/.test(heartbeat.tokenId))
@@ -144,20 +218,23 @@ export async function recordAutomationV3WorkerHeartbeat(result, options = {}) {
   if ((status === "FAILED") !== (failureCode !== null)) {
     throw new TypeError("worker failure code does not match status");
   }
+  const discoverySummary = workerDiscoverySummary(result);
   const database = options.database ?? getDatabase().pool;
   const query = await database.query(
     `WITH recorded AS (
        INSERT INTO broker_automation_v3_worker_runs
         (release_commit, started_at, completed_at, status, submitted,
-         punk_token_id, account_address, collection_address, transaction_hash, failure_code)
-       VALUES ($1, $2, $3, $4, $5, $6::numeric, $7, $8, $9, $10)
+         punk_token_id, account_address, collection_address, transaction_hash, failure_code,
+         discovery_summary)
+       VALUES ($1, $2, $3, $4, $5, $6::numeric, $7, $8, $9, $10, $11::jsonb)
        ON CONFLICT DO NOTHING
        RETURNING run_id
      )
      INSERT INTO broker_automation_v3_worker_state
       (singleton_id, release_commit, started_at, completed_at, status, submitted,
-       punk_token_id, account_address, collection_address, transaction_hash, failure_code)
-     VALUES (1, $1, $2, $3, $4, $5, $6::numeric, $7, $8, $9, $10)
+       punk_token_id, account_address, collection_address, transaction_hash, failure_code,
+       discovery_summary)
+     VALUES (1, $1, $2, $3, $4, $5, $6::numeric, $7, $8, $9, $10, $11::jsonb)
      ON CONFLICT (singleton_id) DO UPDATE SET
        release_commit = EXCLUDED.release_commit,
        started_at = EXCLUDED.started_at,
@@ -168,10 +245,12 @@ export async function recordAutomationV3WorkerHeartbeat(result, options = {}) {
        account_address = EXCLUDED.account_address,
        collection_address = EXCLUDED.collection_address,
        transaction_hash = EXCLUDED.transaction_hash,
-       failure_code = EXCLUDED.failure_code
+       failure_code = EXCLUDED.failure_code,
+       discovery_summary = EXCLUDED.discovery_summary
      WHERE broker_automation_v3_worker_state.completed_at <= EXCLUDED.completed_at
      RETURNING *`,
-    [release, startedAt, completedAt, status, submitted, tokenId, account, collection, transactionHash, failureCode],
+    [release, startedAt, completedAt, status, submitted, tokenId, account, collection,
+      transactionHash, failureCode, discoverySummary ? JSON.stringify(discoverySummary) : null],
   );
   return query.rows[0] ? workerHeartbeatFromRow(query.rows[0]) : null;
 }

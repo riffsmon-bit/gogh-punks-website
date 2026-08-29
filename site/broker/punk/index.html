@@ -129,16 +129,18 @@
         <article class="control-card control-withdrawal-review" data-control-withdrawal hidden>
           <div class="control-withdrawal-preview"><img data-withdrawal-image src="/assets/gogh-punks-pfp.png" alt="Selected NFT" /><div><p class="eyebrow">Withdraw NFT</p><h2 data-withdrawal-name>Select an NFT</h2><p data-withdrawal-collection>Choose an NFT above to prepare a fixed-destination withdrawal.</p></div></div>
           <dl class="control-facts"><div><dt>From</dt><dd>Punk #<span data-withdrawal-punk>—</span> NFT Wallet</dd></div><div><dt>To</dt><dd><code data-withdrawal-owner>Current Punk holder</code></dd></div><div><dt>Asset</dt><dd data-withdrawal-asset>—</dd></div><div><dt>Collection floor</dt><dd data-withdrawal-floor>Not available</dd></div></dl>
+          <label class="control-field withdrawal-quantity" data-withdrawal-quantity-field hidden><span>ERC-1155 quantity</span><input type="number" min="1" step="1" value="1" data-withdrawal-quantity /></label>
           <p class="control-note">The destination cannot be edited. Before MetaMask opens, the site rechecks the current Gogh Punk holder, verified Punk Wallet runtime, NFT ownership, and a full transfer simulation.</p>
           <label class="control-toggle"><input type="checkbox" data-withdrawal-confirm disabled /><span>I reviewed this NFT and the fixed current-holder destination.</span></label>
           <div class="control-actions"><button type="button" data-withdrawal-submit disabled>Verify &amp; Withdraw in MetaMask</button><button type="button" data-withdrawal-cancel>Cancel</button></div>
           <p class="control-note" data-withdrawal-state aria-live="polite">Select an NFT to begin.</p>
-          <a class="inline-link" data-withdrawal-transaction href="#" target="_blank" rel="noopener noreferrer" hidden>View withdrawal transaction ↗</a>
+          <a class="inline-link" data-withdrawal-transaction href="#" target="_blank" rel="noopener noreferrer" hidden>View withdrawal transaction / NFT in my wallet ↗</a>
         </article>
       </section>
 
       <section id="control-panel-activity" class="control-panel" role="tabpanel" aria-labelledby="control-tab-activity" data-control-panel="activity" hidden>
         <div class="control-grid three-column agent-heartbeat-summary"><article class="control-card"><p class="eyebrow">Last scan</p><h2 data-agent-last-scan>—</h2></article><article class="control-card"><p class="eyebrow">Result</p><h2 data-agent-last-result>Waiting</h2></article><article class="control-card"><p class="eyebrow">Next scheduled scan</p><h2 data-agent-next-scan>—</h2></article></div>
+        <article class="control-card agent-discovery-summary" data-agent-discovery hidden><div class="panel-header"><div><p class="eyebrow">Latest Search</p><h2>What your Punk considered</h2></div><span class="tag" data-agent-discovery-tier>Advisory ranking</span></div><p data-agent-discovery-copy></p><div class="agent-candidate-grid" data-agent-candidate-grid></div><p class="control-note">Website and X links affect discovery priority only. Every selected candidate must still pass the independent runtime, price, authorization, policy, and simulation checks.</p></article>
         <article class="control-card"><div class="panel-header"><div><p class="eyebrow">Agent Activity</p><h2>What your Punk is doing</h2></div><button type="button" data-activity-refresh disabled>Refresh</button></div><p class="control-note" data-activity-state aria-live="polite">Open Activity to load this Punk's latest worker event.</p><div class="agent-timeline" data-agent-timeline><p class="empty-state">No Punk-specific activity loaded yet.</p></div></article>
         <details class="control-debug" data-debug-panel><summary>Development performance</summary><dl data-debug-metrics></dl><p>Debug data contains timings and health labels only—never keys, signatures, or credentials.</p></details>
       </section>

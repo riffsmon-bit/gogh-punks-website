@@ -16,6 +16,7 @@ import {
   encodeNftWithdrawal,
   preflightNftWithdrawal,
   submitNftWithdrawal,
+  waitForNftWithdrawalReceipt,
   validateNftWithdrawalGate,
 } from "../site/nft-withdrawal.js";
 
@@ -197,4 +198,26 @@ test("withdrawal blocks the controlling Punk, arbitrary destination fields, and 
   assert.match(html, /data-nft-owned-asset/);
   assert.equal((source.match(/"eth_sendTransaction"/g) ?? []).length, 1);
   assert.doesNotMatch(source, /localStorage|sessionStorage|privateKey|mnemonic/);
+});
+
+test("withdrawal confirmation waits for one exact successful receipt and fails closed", async () => {
+  let clock = 0;
+  let reads = 0;
+  const provider = { request: async ({ method, params }) => {
+    assert.equal(method, "eth_getTransactionReceipt");
+    assert.deepEqual(params, [TX_HASH]);
+    reads += 1;
+    return reads === 1 ? null : {
+      transactionHash: TX_HASH, status: "0x1", blockNumber: "0x1237",
+    };
+  } };
+  const confirmed = await waitForNftWithdrawalReceipt(provider, TX_HASH, {
+    now: () => clock, sleep: async (milliseconds) => { clock += milliseconds; },
+    timeoutMs: 3_000, pollMs: 500,
+  });
+  assert.deepEqual(confirmed, { hash: TX_HASH, blockNumber: "4663" });
+  await assert.rejects(waitForNftWithdrawalReceipt({ request: async () => ({
+    transactionHash: TX_HASH, status: "0x0", blockNumber: "0x1",
+  }) }, TX_HASH, { now: () => 0, sleep: async () => {}, timeoutMs: 3_000, pollMs: 500 }),
+  /reverted/);
 });
