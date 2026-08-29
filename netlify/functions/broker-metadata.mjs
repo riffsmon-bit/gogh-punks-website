@@ -1,7 +1,15 @@
 import { metadataConfiguration, PostgresMetadataRepository } from "./broker/metadata-repository.mjs";
 import { createOpenSeaSource, refreshOpenSeaMetadata } from "../../broker/src/metadata/worker.mjs";
+import {
+  backgroundRpcDecision, logBackgroundRpcSkip,
+} from "./_shared/background-rpc-policy.mjs";
 
 export default async function handler() {
+  const decision = backgroundRpcDecision(process.env, "BROKER_METADATA");
+  if (!decision.enabled) {
+    logBackgroundRpcSkip(decision);
+    return;
+  }
   const configuration = metadataConfiguration(process.env);
   if (!configuration.enabled) {
     console.log(JSON.stringify({ event: "BROKER_METADATA_SKIPPED", reason: "DISABLED" }));

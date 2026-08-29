@@ -80,7 +80,22 @@ explicitly revised.
 
 After those values are reviewed, run `npm run broker:index`. Broad market-wide
 `nft_transfers` is excluded from the default stream set and must not be enabled
-without its own source-capacity and start-block review.
+without its own source-capacity and start-block review. The scheduled broad stream
+also requires `BROKER_ENABLE_CHAIN_WIDE_NFT_INDEXER=true`; leave it false by default.
+
+All scheduled Art Broker network jobs share two cost controls:
+
+```text
+ENABLE_PREVIEW_BACKGROUND_RPC=false
+PAUSE_BACKGROUND_RPC=false
+BROKER_ENABLE_CHAIN_WIDE_NFT_INDEXER=false
+```
+
+Deploy previews and branch deploys do not run autonomous workers or indexers unless
+preview background work is explicitly enabled. If provider usage spikes, set
+`PAUSE_BACKGROUND_RPC=true`; indexed pages and explicit user actions remain available.
+See [RPC_OPTIMIZATION_REPORT.md](RPC_OPTIMIZATION_REPORT.md) for the incident model,
+call-site inventory, and safe recovery procedure.
 
 Do not enable either production worker until the database migrations are applied,
 the Robinhood RPC/archive provider is selected, advisory-lock behavior is tested,

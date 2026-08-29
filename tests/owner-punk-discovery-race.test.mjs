@@ -185,7 +185,7 @@ test("a reconnect frame never cancels the scan already running for that owner", 
   assert.equal(final.owner, OWNER);
   assert.equal(fixture.element("[data-owned-punk-count]").textContent, "1");
   assert.equal(fixture.element("[data-owned-punk-detail]").textContent,
-    "Live ownership reconciled");
+    "Live ownership verified from indexed roster");
   assert.equal(fixture.element("[data-workspace-punk-picker]").children.length, 2);
 });
 

@@ -1,6 +1,14 @@
 import { runAutomationV3Once } from "./_shared/automation-v3-runner.mjs";
+import {
+  backgroundRpcDecision, logBackgroundRpcSkip,
+} from "./_shared/background-rpc-policy.mjs";
 
 export default async function handler() {
+  const decision = backgroundRpcDecision(process.env, "AUTOMATION_V3_WORKER");
+  if (!decision.enabled) {
+    logBackgroundRpcSkip(decision);
+    return;
+  }
   try {
     const result = await runAutomationV3Once();
     console.log(JSON.stringify({ event: "AUTOMATION_V3_WORKER", ...result }));

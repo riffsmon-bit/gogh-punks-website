@@ -179,8 +179,11 @@ export default async function handler(request) {
     }
   }
   return json({ ok: true, automation }, 200, {
-    "cache-control": "no-store, max-age=0",
-    "netlify-cdn-cache-control": "no-store",
+    // This response is public, contains no connected-wallet data, and is advisory UI state.
+    // Fifteen-second edge reuse collapses duplicate navigation/status requests. Every privileged
+    // mutation endpoint independently revalidates current ownership, policy, runtime, and chain.
+    "cache-control": "private, no-store, max-age=0",
+    "netlify-cdn-cache-control": "public, s-maxage=15, stale-while-revalidate=15",
   });
 }
 

@@ -807,7 +807,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       : "Live ownership verified";
     setCounts(decoratedAccounts.length, activatedCount, detail, reconciled
       ? "Live ownership reconciled"
-      : "Punks ready · syncing latest ownership in the background");
+      : "Live ownership verified from indexed roster");
     renderPunkPicker(picker, decoratedAccounts);
     const routeSelection = requestedTokenId
       && decoratedAccounts.some(({ tokenId }) => tokenId === requestedTokenId)
@@ -947,10 +947,11 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       publishVerifiedAccounts(accounts, rosterPayload, wallet, current, {
         reconciled: reconciledInitially,
       });
-      if (!reconciledInitially) {
-        void reconcileOwnerRoster(wallet, gatePayload, current,
-          candidates.map(String).sort((left, right) => Number(left) - Number(right)));
-      }
+      // A non-empty persistent ownership index is rendered after one bounded browser
+      // Multicall verification. Do not launch the 5,017-token server reconciliation on every
+      // navigation: the incremental Transfer index updates the roster, while privileged actions
+      // still recheck ownerOf live. A completely empty index retains the one-time completion path
+      // above so a first-time holder cannot disappear from the product.
     } catch {
       if (current !== revision) return;
       setCounts(null, null, "Live check unavailable");

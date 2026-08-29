@@ -1,7 +1,15 @@
 import { runAutomatedSeaDropWorker } from "../../scripts/run-automated-seadrop-worker.mjs";
 import { recordAutomationV2WorkerHeartbeat } from "./_shared/automation-v2-worker-state.mjs";
+import {
+  backgroundRpcDecision, logBackgroundRpcSkip,
+} from "./_shared/background-rpc-policy.mjs";
 
 export default async function handler() {
+  const decision = backgroundRpcDecision(process.env, "AUTOMATION_V2_WORKER");
+  if (!decision.enabled) {
+    logBackgroundRpcSkip(decision);
+    return;
+  }
   const startedAt = new Date();
   const release = process.env.BROKER_AUTOMATION_V2_WORKER_RELEASE;
   try {

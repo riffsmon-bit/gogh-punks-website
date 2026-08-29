@@ -1,4 +1,7 @@
 import { runBrokerIndexer } from "../../scripts/run-broker-indexer.mjs";
+import {
+  backgroundRpcDecision, logBackgroundRpcSkip,
+} from "./_shared/background-rpc-policy.mjs";
 
 function mintStreamEnabled(environment = process.env) {
   return (environment.BROKER_INDEX_STREAMS ?? "")
@@ -8,7 +11,14 @@ function mintStreamEnabled(environment = process.env) {
 }
 
 export default async function handler() {
-  if (process.env.BROKER_INDEXER_ENABLED !== "true" || !mintStreamEnabled()) {
+  const decision = backgroundRpcDecision(process.env, "CHAIN_WIDE_NFT_INDEXER");
+  if (!decision.enabled) {
+    logBackgroundRpcSkip(decision);
+    return;
+  }
+  if (process.env.BROKER_INDEXER_ENABLED !== "true"
+    || process.env.BROKER_ENABLE_CHAIN_WIDE_NFT_INDEXER !== "true"
+    || !mintStreamEnabled()) {
     console.log(JSON.stringify({ event: "BROKER_MINT_INDEXER_SKIPPED", reason: "DISABLED" }));
     return;
   }

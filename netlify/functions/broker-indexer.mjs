@@ -1,4 +1,7 @@
 import { runBrokerIndexer } from "../../scripts/run-broker-indexer.mjs";
+import {
+  backgroundRpcDecision, logBackgroundRpcSkip,
+} from "./_shared/background-rpc-policy.mjs";
 
 function coreStreams(environment = process.env) {
   if (environment.BROKER_INDEX_STREAMS === undefined) return null;
@@ -10,6 +13,11 @@ function coreStreams(environment = process.env) {
 }
 
 export default async function handler() {
+  const decision = backgroundRpcDecision(process.env, "BROKER_INDEXER");
+  if (!decision.enabled) {
+    logBackgroundRpcSkip(decision);
+    return;
+  }
   if (process.env.BROKER_INDEXER_ENABLED !== "true") {
     console.log(JSON.stringify({ event: "BROKER_INDEXER_SKIPPED", reason: "DISABLED" }));
     return;

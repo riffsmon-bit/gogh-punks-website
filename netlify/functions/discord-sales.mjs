@@ -6,6 +6,9 @@ import {
   buildDiscordSaleMessage,
   decodeReceiptSales,
 } from "./_shared/sales-feed.mjs";
+import {
+  backgroundRpcDecision, logBackgroundRpcSkip,
+} from "./_shared/background-rpc-policy.mjs";
 
 const FEED_KEY = "gogh-punks-opensea-native-v1";
 const EXPECTED_GUILD_ID = "1535718970471219232";
@@ -375,6 +378,11 @@ export async function runSalesFeed() {
 }
 
 export default async function handler() {
+  const decision = backgroundRpcDecision(process.env, "DISCORD_SALES_FEED");
+  if (!decision.enabled) {
+    logBackgroundRpcSkip(decision);
+    return;
+  }
   try {
     const result = await runSalesFeed();
     console.log(JSON.stringify({ event: "DISCORD_SALES_FEED", ...result }));
