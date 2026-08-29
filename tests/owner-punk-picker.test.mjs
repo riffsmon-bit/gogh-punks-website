@@ -4,13 +4,18 @@ import test from "node:test";
 import { encodeFunctionData, encodeFunctionResult, parseAbi } from "viem";
 import {
   configuredAutomationPunkIds,
+  createdAutomationV3PunkIds,
   enrolledAutomationPunkIds,
   indexedOwnerPunkIds,
+  liveOwnerPunkIds,
+  liveOwnerPunkSnapshot,
   mergeOwnerPunkDecorations,
   openSeaOwnerPunkIds,
   openSeaOwnerPunks,
   ownerPunkArtwork,
+  ownerPunkView,
   proposedRetirementTierForOpenSeaRank,
+  refreshIndexedOwnerPunks,
 } from "../netlify/functions/broker-owner-punks.mjs";
 import {
   copyPunkAccountAddress,
@@ -20,7 +25,9 @@ import {
   encodeOwnerOfMulticall,
   findBrowserOwnedPunks,
   hydrateOnchainPunkDecorations,
+  priorityArtworkAccounts,
   mergeWalletAndActivatedPunks,
+  requestedBrokerPunk,
   selectedPunkGalleryPath,
 } from "../site/owner-accounts.js";
 
@@ -33,6 +40,31 @@ const MULTICALL_ABI = parseAbi([
   "function aggregate3((address target,bool allowFailure,bytes callData)[] calls) payable returns ((bool success,bytes returnData)[])",
 ]);
 const TOKEN_URI_ABI = parseAbi(["function tokenURI(uint256) view returns (string)"]);
+
+test("watch-agent links accept only one bounded Punk route selection", () => {
+  assert.equal(requestedBrokerPunk("https://goghpunks.xyz/broker/?punk=1616#automation-title"), "1616");
+  for (const value of ["https://goghpunks.xyz/broker/?punk=01616", "javascript:alert(1)",
+    "https://goghpunks.xyz/broker/?punk=10000", "not a url"]) {
+    assert.equal(requestedBrokerPunk(value), null);
+  }
+});
+
+test("owner roster supports a fast indexed view and defaults to reconciliation", () => {
+  assert.equal(ownerPunkView("https://goghpunks.xyz/api/broker/owner-punks?view=indexed"),
+    "indexed");
+  assert.equal(ownerPunkView("https://goghpunks.xyz/api/broker/owner-punks?view=reconcile"),
+    "reconcile");
+  assert.equal(ownerPunkView("https://goghpunks.xyz/api/broker/owner-punks?view=unsafe"),
+    "reconcile");
+});
+
+test("first-time wallets reconcile server-side instead of scanning 5,017 Punks on mobile", async () => {
+  const source = await readFile(new URL("../site/owner-accounts.js", import.meta.url), "utf8");
+  assert.match(source, /first-time holder can be absent/);
+  assert.match(source, /view=reconcile/);
+  assert.match(source, /reconciledInitially = true/);
+  assert.doesNotMatch(source, /const walletOwned = await discoverWalletOwnedPunkIds/);
+});
 
 test("configured automation roster supplies bounded discovery hints without authority", () => {
   assert.deepEqual(configuredAutomationPunkIds({
@@ -56,7 +88,113 @@ test("enrolled V3 Punks remain bounded owner-scoped discovery hints", async () =
   assert.match(captured.sql, /broker_automation_v3_enrollments/);
   assert.match(captured.sql, /LOWER\(owner_snapshot\)/);
   assert.equal(captured.values[2], OWNER.toLowerCase());
-  assert.equal(captured.values[3], 33);
+  assert.equal(captured.values[3], 201);
+});
+
+test("live owner completion avoids a full scan when indexed candidates reconcile balance", async () => {
+  const calls = [];
+  const result = await liveOwnerPunkIds(OWNER, ["93", "94"], {
+    client: {
+      getBlockNumber: async () => 123n,
+      readContract: async () => 2n,
+      multicall: async ({ contracts, blockNumber }) => {
+        assert.equal(blockNumber, 123n);
+        calls.push(contracts.map(({ args }) => String(args[0])));
+        return contracts.map(() => ({ status: "success", result: OWNER }));
+      },
+    },
+  });
+  assert.deepEqual(result, ["93", "94"]);
+  assert.deepEqual(calls, [["93", "94"]]);
+});
+
+test("live owner completion scans server-side only when hints omit an owned Punk", async () => {
+  const calls = [];
+  const owned = new Set(["93", "1616"]);
+  const result = await liveOwnerPunkIds(OWNER, ["93"], {
+    client: {
+      getBlockNumber: async () => 456n,
+      readContract: async () => 2n,
+      multicall: async ({ contracts, blockNumber }) => {
+        assert.equal(blockNumber, 456n);
+        calls.push(contracts.length);
+        return contracts.map(({ args }) => owned.has(String(args[0]))
+          ? { status: "success", result: OWNER }
+          : { status: "failure", error: new Error("not minted") });
+      },
+    },
+  });
+  assert.deepEqual(result, ["93", "1616"]);
+  assert.equal(calls[0], 1, "the current index is checked before scanning");
+  assert.equal(calls.slice(1).reduce((sum, value) => sum + value, 0), 5_017);
+  assert.equal(calls.length, 27, "one hint check plus 26 bounded scan chunks");
+});
+
+test("live owner snapshot pins balance and every owner read to one block", async () => {
+  const reads = [];
+  const snapshot = await liveOwnerPunkSnapshot(OWNER, ["93"], {
+    client: {
+      getBlockNumber: async () => 789n,
+      readContract: async ({ blockNumber }) => {
+        reads.push(blockNumber);
+        return 1n;
+      },
+      multicall: async ({ contracts, blockNumber }) => {
+        reads.push(blockNumber);
+        return contracts.map(() => ({ status: "success", result: OWNER }));
+      },
+    },
+  });
+  assert.deepEqual(snapshot, { tokenIds: ["93"], blockNumber: 789n });
+  assert.deepEqual(reads, [789n, 789n]);
+});
+
+test("complete live owner snapshots atomically refresh indexed ownership hints", async () => {
+  let captured;
+  const result = await refreshIndexedOwnerPunks(OWNER, ["1616", "93", "93"], 987n,
+    async (sql, values) => {
+      captured = { sql, values };
+      return { rows: [{ cleared_count: 4, upserted_count: 2 }] };
+    });
+  assert.deepEqual(result, {
+    tokenIds: ["93", "1616"], blockNumber: 987n, clearedCount: 4, upsertedCount: 2,
+  });
+  assert.match(captured.sql, /WITH owned AS/);
+  assert.match(captured.sql, /owner_snapshot = NULL/);
+  assert.match(captured.sql, /ON CONFLICT \(chain_id, collection_address, token_id\)/);
+  assert.match(captured.sql, /owner_snapshot_block <= EXCLUDED\.owner_snapshot_block/);
+  assert.deepEqual(captured.values, [
+    4663, COLLECTION, OWNER.toLowerCase(), ["93", "1616"], "987",
+  ]);
+});
+
+test("owner index refresh rejects unpinned, duplicate-overflow, and malformed evidence", async () => {
+  const query = async () => ({ rows: [{ cleared_count: 0, upserted_count: 0 }] });
+  await assert.rejects(refreshIndexedOwnerPunks(OWNER, ["01"], 1n, query), /invalid/);
+  await assert.rejects(refreshIndexedOwnerPunks(OWNER, ["93"], -1n, query), /invalid/);
+  await assert.rejects(refreshIndexedOwnerPunks("0xwrong", ["93"], 1n, query), /invalid/);
+});
+
+test("every owned V3 Punk wallet is discovered in one bounded multicall", async () => {
+  const calls = [];
+  const result = await createdAutomationV3PunkIds(["93", "94", "95"], {
+    registry: REGISTRY,
+    client: {
+      multicall: async ({ contracts, allowFailure }) => {
+        calls.push({ contracts, allowFailure });
+        return [
+          { status: "success", result: true },
+          { status: "success", result: false },
+          { status: "failure", error: new Error("read failed") },
+        ];
+      },
+    },
+  });
+  assert.deepEqual(result, ["93"]);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].allowFailure, true);
+  assert.deepEqual(calls[0].contracts.map(({ args }) => String(args[0])), ["93", "94", "95"]);
+  assert.ok(calls[0].contracts.every(({ address: target }) => target === REGISTRY));
 });
 
 function addressWord(value) {
@@ -179,12 +317,14 @@ test("cached images win while OpenSea fills missing artwork and never upgrades r
   }, {
     tokenId: "94", artwork: { name: "OpenSea #94", imageUrl: "https://i.seadn.io/os94.png" },
     rarity: { source: "OPENSEA_OPENRARITY_CURRENT", rank: 10 },
-  }], ["94"]);
+  }], ["94"], ["93"]);
   assert.equal(result[0].artwork.name, "Cached #93");
   assert.equal(result[0].rarity.rank, 9);
   assert.equal(result[1].artwork.name, "OpenSea #94");
   assert.equal(result[0].automationConfigured, false);
   assert.equal(result[1].automationConfigured, true);
+  assert.equal(result[0].automationCreated, true);
+  assert.equal(result[1].automationCreated, false);
 });
 
 test("canonical on-chain tokenURI supplies keyless artwork and only a rarity preview", async () => {
@@ -218,17 +358,39 @@ test("canonical on-chain tokenURI supplies keyless artwork and only a rarity pre
   assert.equal(calls[0].params[0].data.slice(0, 10), "0xc87b56dd");
 });
 
+test("initial artwork hydration is limited to active agents and the selected Punk", () => {
+  const accounts = [
+    { tokenId: "1", activated: false, automationConfigured: false },
+    { tokenId: "2", activated: true, automationConfigured: false },
+    { tokenId: "3", activated: false, automationConfigured: true },
+    { tokenId: "4", activated: false, automationConfigured: false, automationCreated: true },
+    { tokenId: "5", activated: false, automationConfigured: false },
+  ];
+  assert.deepEqual(priorityArtworkAccounts(accounts).map(({ tokenId }) => tokenId), ["2", "3", "4"]);
+  assert.deepEqual(priorityArtworkAccounts(accounts, "5").map(({ tokenId }) => tokenId),
+    ["2", "3", "4", "5"]);
+});
+
 test("wallet rechecks ownership and labels activated versus activatable Punks", async () => {
+  const aggregate = (words) => encodeFunctionResult({
+    abi: MULTICALL_ABI,
+    functionName: "aggregate3",
+    result: words.map((value) => [true, value]),
+  });
+  const responses = [
+    aggregate([addressWord(OWNER), addressWord(OWNER), addressWord(REGISTRY)]),
+    aggregate([addressWord(ACCOUNT_A), addressWord(ACCOUNT_B), addressWord(ACCOUNT_B)]),
+    aggregate([`0x${1n.toString(16).padStart(64, "0")}`,
+      `0x${0n.toString(16).padStart(64, "0")}`,
+      `0x${0n.toString(16).padStart(64, "0")}`]),
+  ];
+  const calls = [];
   const provider = {
-    async request({ method, params }) {
-      if (method === "eth_call") {
-        const [{ to, data }] = params;
-        const token = BigInt(`0x${data.slice(-64)}`).toString();
-        if (to === COLLECTION) return addressWord(token === "9" ? REGISTRY : OWNER);
-        if (to === REGISTRY) return addressWord(token === "7" ? ACCOUNT_A : ACCOUNT_B);
-      }
-      if (method === "eth_getCode") return params[0] === ACCOUNT_A ? "0x6000" : "0x";
-      throw new Error(`unexpected ${method}`);
+    async request(call) {
+      calls.push(call);
+      if (call.method === "eth_call" && call.params[0].to
+        === "0xca11bde05977b3631167028862be2a173976ca11") return responses[calls.length - 1];
+      throw new Error(`unexpected ${call.method}`);
     },
   };
   const gate = { capability: true, bindings: { punkCollection: COLLECTION,
@@ -238,6 +400,7 @@ test("wallet rechecks ownership and labels activated versus activatable Punks", 
     { tokenId: "7", activated: true },
     { tokenId: "8", activated: false },
   ]);
+  assert.equal(calls.length, 3);
 });
 
 test("live-verified activated Punks remain visible when the wallet scan is incomplete", () => {
@@ -296,19 +459,27 @@ test("broker picker selects only a live-verified wallet-owned Punk", async () =>
   assert.doesNotMatch(html, /data-owned-punk-picker|data-account-activation/);
   assert.doesNotMatch(html, /data-mandate-punk-picker/);
   assert.match(html, /data-workspace-punk-picker/);
-  assert.match(html, /data-workspace-punk-cards/);
+  assert.match(html, /data-workspace-punk-preview/);
+  assert.match(html, /<select data-wizard-punks disabled>/);
   assert.match(html, /data-punk-gallery-primary/);
   assert.doesNotMatch(html, /data-activation-token/);
   assert.match(html, /data-owned-punk-count/);
   assert.match(html, /data-selected-punk-display/);
   assert.doesNotMatch(html, /Scout Punk<\/span><strong data-scout-token-display/);
   assert.match(accounts, /findBrowserOwnedPunks/);
-  assert.match(accounts, /renderVisualPunkPicker/);
+  assert.match(accounts, /view=indexed/);
+  assert.match(accounts, /view=reconcile/);
+  assert.match(accounts, /syncing latest ownership in the background/);
+  assert.match(accounts, /renderSelectedPunkPreview/);
+  assert.match(accounts, /priorityArtworkAccounts/);
   assert.match(accounts, /gogh:punk-selected/);
   assert.match(accounts, /gogh:owner-punks/);
   assert.match(accounts, /gogh:select-punk-request/);
   assert.match(endpoint, /DISCOVERY_CANDIDATES_ONLY_EACH_SELECTION_REQUIRES_LIVE_WALLET_OWNER_CHECK/);
-  assert.match(endpoint, /OPENSEA_API_KEY/);
+  assert.match(endpoint, /liveMulticall: true/);
+  assert.match(endpoint, /openSea: openSeaAvailable/);
+  assert.match(endpoint, /called only after an owner connects/);
+  assert.match(endpoint, /unrelated marketplace API/);
   assert.match(accounts, /discoverWalletOwnedPunkIds/);
   assert.match(accounts, /Copy V1 wallet address/);
   assert.match(accounts, /Legacy V1 Punk wallet/);

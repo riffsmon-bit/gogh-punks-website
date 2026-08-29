@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Open a Gogh Punk's wallet, agent settings, mint tools, assets, and activity." />
+    <meta name="theme-color" content="#071321" />
+    <title>Punk Control Center · Gogh Punks</title>
+    <link rel="icon" href="/assets/favicon.png" type="image/png" />
+    <link rel="stylesheet" href="/broker.css" />
+    <script src="/wallet.js?v=reown-2" type="module"></script>
+    <script src="/punk-control-center.js" type="module"></script>
+  </head>
+  <body data-punk-control-center>
+    <a class="skip-link" href="#control-center-main">Skip to Punk controls</a>
+    <header class="broker-header">
+      <a class="broker-brand" href="/"><img src="/assets/favicon.png" alt="" /><span>GOGH PUNKS</span></a>
+      <nav aria-label="Primary navigation"><a href="/broker/">Art Broker</a><a href="/broker/#active-agents-title">Agents</a><a href="/broker/#nft-portfolio-title">Portfolio</a><a href="/">Collection</a></nav>
+      <div class="wallet-control">
+        <button class="wallet-button" type="button" data-wallet-connect>Connect wallet</button>
+        <button class="wallet-button wallet-switch-button" type="button" data-wallet-switch hidden>Switch Network</button>
+        <button class="wallet-disconnect" type="button" data-wallet-disconnect hidden>Disconnect Wallet</button>
+        <span class="wallet-state" data-wallet-state aria-live="polite">Wallet disconnected</span>
+      </div>
+    </header>
+
+    <main class="control-center" id="control-center-main">
+      <p class="local-simulation-banner" data-local-demo hidden><strong>LOCAL SIMULATION</strong> Wallet connection is available for interface testing. All paid, directed-mint, deposit, withdrawal, and wrap actions on this page remain review-only and cannot broadcast.</p>
+      <aside class="control-route-alert" data-control-route-alert hidden aria-live="polite">
+        <strong>Choose a Gogh Punk first</strong>
+        <span>This Control Center needs a Punk selected from your connected wallet.</span>
+        <a href="/broker/">Open My Art Brokers</a>
+      </aside>
+      <section class="control-identity" aria-labelledby="control-title">
+        <div class="control-punk-art"><img data-control-punk-image src="/assets/gogh-punks-pfp.png" alt="Gogh Punk" /></div>
+        <div class="control-punk-copy">
+          <p class="eyebrow">Punk Control Center</p>
+          <h1 id="control-title">Gogh Punk #<span data-control-token>—</span></h1>
+          <p class="control-agent-state" data-control-agent-state>⚪ Connect the current holder</p>
+          <p class="control-live-state" data-control-live-state aria-live="polite">Connect your wallet to load live Punk controls.</p>
+          <div class="control-wallet-line"><span>Punk Wallet</span><code data-control-account>Waiting for live account…</code></div>
+          <div class="control-actions"><button type="button" data-control-copy disabled>Copy Address</button><a data-control-explorer aria-disabled="true">View Explorer</a><a href="/broker/#active-agent-console-title">All Art Brokers</a></div>
+        </div>
+      </section>
+
+      <section class="control-summary" aria-label="Punk summary">
+        <article><span>Punk Wallet Balance</span><strong data-summary-balance>—</strong><small>Robinhood native token</small></article>
+        <article><span>NFTs Held</span><strong data-summary-nfts>—</strong><small>Loaded on demand</small></article>
+        <article><span>Tokens Held</span><strong data-summary-tokens>—</strong><small>Recognized balances</small></article>
+        <article><span>Mints Today</span><strong data-summary-mints>—</strong><small>UTC day</small></article>
+        <article><span>Spent Today</span><strong data-summary-spent>—</strong><small>Local paid-mode ledger</small></article>
+        <article><span>Lifetime Mints</span><strong data-summary-lifetime>—</strong><small>Punk-specific history only</small></article>
+      </section>
+
+      <nav class="control-tabs" aria-label="Punk Control Center sections" role="tablist">
+        <button id="control-tab-overview" type="button" role="tab" aria-controls="control-panel-overview" aria-selected="true" tabindex="0" data-control-tab="overview">Overview</button>
+        <button id="control-tab-agent" type="button" role="tab" aria-controls="control-panel-agent" aria-selected="false" tabindex="-1" data-control-tab="agent">Agent</button>
+        <button id="control-tab-mint" type="button" role="tab" aria-controls="control-panel-mint" aria-selected="false" tabindex="-1" data-control-tab="mint">Mint</button>
+        <button id="control-tab-assets" type="button" role="tab" aria-controls="control-panel-assets" aria-selected="false" tabindex="-1" data-control-tab="assets">Assets</button>
+        <button id="control-tab-activity" type="button" role="tab" aria-controls="control-panel-activity" aria-selected="false" tabindex="-1" data-control-tab="activity">Activity</button>
+      </nav>
+
+      <section id="control-panel-overview" class="control-panel" role="tabpanel" aria-labelledby="control-tab-overview" data-control-panel="overview">
+        <div class="control-grid two-column">
+          <article class="control-card"><p class="eyebrow">Live status</p><h2 data-overview-status>Connect wallet</h2><p data-overview-detail>Live ownership and account state will be verified after connection.</p><a class="control-primary-link" href="/broker/">Choose another Punk</a></article>
+          <article class="control-card"><p class="eyebrow">How control works</p><h2>The Punk holder controls this wallet.</h2><p>Your Gogh Punk stays in your main wallet. Its separate Punk Wallet holds collected assets. A transfer of the controlling Punk pauses paid authority until the new holder explicitly reauthorizes it.</p></article>
+        </div>
+        <article class="control-card control-safety"><p class="eyebrow">Safety boundary</p><ul><li>Main-wallet funds are never an autonomous spending source.</li><li>Autonomous selling, arbitrary calldata, and general token approvals remain blocked.</li><li>Live ownership is rechecked before every privileged action.</li></ul></article>
+      </section>
+
+      <section id="control-panel-agent" class="control-panel" role="tabpanel" aria-labelledby="control-tab-agent" data-control-panel="agent" hidden>
+        <div class="control-grid two-column">
+          <article class="control-card"><p class="eyebrow">Agent status</p><h2 data-agent-status>Inactive</h2><dl class="control-facts"><div><dt>Daily mint limit</dt><dd data-agent-mint-limit>—</dd></div><div><dt>Daily spend limit</dt><dd data-agent-spend-limit>0 ETH</dd></div><div><dt>Maximum per mint</dt><dd data-agent-per-limit>0 ETH</dd></div><div><dt>Authorization</dt><dd data-agent-expiry>Not active</dd></div><div><dt>Free mints</dt><dd data-agent-free>—</dd></div><div><dt>Paid mints</dt><dd data-agent-paid>OFF</dd></div></dl></article>
+          <article class="control-card"><p class="eyebrow">Owner controls</p><h2>Bounded and revocable</h2><div class="control-button-stack"><button type="button" data-agent-send disabled>Send Agent</button><button type="button" data-agent-pause disabled>Pause</button><button type="button" data-agent-resume disabled>Resume</button><button type="button" data-agent-edit disabled>Edit Limits</button><button class="danger" type="button" data-agent-revoke disabled>Revoke</button></div><p class="control-note" data-agent-action-note>Connect the current holder on Robinhood Chain to load available actions.</p></article>
+        </div>
+        <article class="control-card scouting-schedule">
+          <div class="panel-header"><div><p class="eyebrow">Scouting window</p><h2>Choose When This Punk May Run</h2></div><span class="tag">UTC ENFORCED</span></div>
+          <p>Outside this exact window, connector and scheduled scouting requests stop before a job is queued. Mint limits and authorization expiry still apply inside the window.</p>
+          <label class="control-toggle"><input type="checkbox" data-schedule-enabled checked /><span>Use a scouting window</span></label>
+          <div class="control-form-grid"><label class="control-field"><span>Start (your device time)</span><input type="datetime-local" data-schedule-start /></label><label class="control-field"><span>End (your device time)</span><input type="datetime-local" data-schedule-end /></label></div>
+          <button type="button" data-schedule-save disabled>Save Local Scouting Window</button>
+          <p class="control-note" data-schedule-state>No window saved. Local times are converted to exact UTC timestamps before validation.</p>
+        </article>
+      </section>
+
+      <section id="control-panel-mint" class="control-panel" role="tabpanel" aria-labelledby="control-tab-mint" data-control-panel="mint" hidden>
+        <div class="control-grid two-column">
+          <article class="control-card"><p class="eyebrow">Scout mode</p><h2>Send Agent Scouting</h2><p>Search only the marketplaces and runtimes supported by the reviewed adapter set.</p><button type="button" data-scout-simulate disabled>Scout for Mints</button><p class="control-note" data-scout-result>Connect the current holder to load Scout controls.</p></article>
+          <article class="control-card"><p class="eyebrow">Directed mode</p><h2>Direct Your Punk to a Mint</h2><label class="control-field"><span>Paste an OpenSea mint link</span><input type="url" inputmode="url" data-directed-url placeholder="https://opensea.io/collection/..." /></label><button type="button" data-directed-check disabled>Check Mint</button><p class="control-note" data-directed-state>Entering a URL never authorizes spending.</p></article>
+        </div>
+        <article class="control-card directed-review" data-directed-review hidden>
+          <div class="panel-header"><div><p class="eyebrow">Directed Mint</p><h2 data-directed-collection>—</h2></div><span class="tag" data-directed-badge>SERVER REVIEW</span></div>
+          <dl class="control-facts review-facts"><div><dt>Punk</dt><dd data-directed-punk>—</dd></div><div><dt>Mint price</dt><dd data-directed-price>—</dd></div><div><dt>Estimated gas</dt><dd data-directed-gas>—</dd></div><div><dt>Expected maximum spend</dt><dd data-directed-maximum>—</dd></div><div><dt>Daily spend remaining</dt><dd data-directed-remaining>—</dd></div><div><dt>Recipient</dt><dd data-directed-recipient>—</dd></div></dl>
+          <button type="button" data-directed-simulate>Prepare Bounded Review</button><p class="control-note" data-directed-simulation>Nothing has been signed, simulated, or submitted.</p>
+        </article>
+        <article class="control-card paid-settings">
+          <div class="panel-header"><div><p class="eyebrow">Paid Mint Settings</p><h2>Set Today's Spending Limit</h2></div><span class="tag off">LOCAL SIMULATION ONLY</span></div>
+          <label class="control-toggle"><input type="checkbox" data-paid-enabled /><span>Enable simulated paid mints</span></label>
+          <p class="paid-warning">Paid Agent Mode allows this Punk to spend funds from its authorized Punk Wallet within the limits you set. Contract checks and simulation reduce risk but cannot guarantee every NFT or mint contract is safe.</p>
+          <div class="control-form-grid"><label class="control-field"><span>Daily spend limit</span><select data-paid-daily><option value="0.01">0.01 ETH</option><option value="0.025" selected>0.025 ETH</option><option value="0.05">0.05 ETH</option></select></label><label class="control-field"><span>Maximum per mint</span><select data-paid-per><option value="0.005">0.005 ETH</option><option value="0.01" selected>0.01 ETH</option><option value="0.025">0.025 ETH</option></select></label><label class="control-field"><span>Daily mint maximum</span><select data-paid-count><option>1</option><option selected>3</option><option>5</option></select></label></div>
+          <label class="control-toggle"><input type="checkbox" data-paid-confirm /><span>I understand autonomous paid execution may spend only Punk Wallet funds within these limits.</span></label>
+          <button type="button" data-paid-save disabled>Save Local Simulation Settings</button><p class="control-note" data-paid-state>Paid mints are OFF. No production permission will be changed.</p>
+        </article>
+      </section>
+
+      <section id="control-panel-assets" class="control-panel" role="tabpanel" aria-labelledby="control-tab-assets" data-control-panel="assets" hidden>
+        <div class="control-grid three-column"><article class="control-card"><p class="eyebrow">Native Token</p><h2 data-assets-native>—</h2><button type="button" data-add-native disabled>Add Funds</button><a data-withdraw-native href="/broker/">Withdraw</a></article><article class="control-card"><p class="eyebrow">Tokens</p><h2 data-assets-token-count>—</h2><p>Recognized balances appear here. Unknown tokens never imply value or safety.</p></article><article class="control-card"><p class="eyebrow">NFTs</p><h2 data-assets-nft-count>—</h2><button type="button" data-load-assets disabled>Load NFT Inventory</button></article></div>
+        <article class="control-card punk-wallet-funding">
+          <div class="panel-header"><div><p class="eyebrow">Punk Wallet Funds</p><h2>Add Funds to This Punk</h2></div><span class="tag">CURRENT HOLDER</span></div>
+          <p>These funds go directly from your connected wallet into the selected Punk Wallet. They belong to the Punk Wallet and may later pay the exact price of an owner-authorized paid mint. Hosted-agent gas is separate and your main wallet is never an autonomous spending source.</p>
+          <div class="control-form-grid"><label class="control-field"><span>Amount in ETH</span><input data-punk-fund-amount inputmode="decimal" autocomplete="off" placeholder="0.01" disabled /></label><div class="control-field"><span>Destination</span><strong data-punk-fund-account>Connect wallet to load</strong></div></div>
+          <label class="control-toggle"><input type="checkbox" data-punk-fund-confirm disabled /><span>I reviewed the selected Punk Wallet and amount. This sends native ETH into that Punk Wallet.</span></label>
+          <button type="button" data-punk-fund-submit disabled>Fund Punk Wallet in MetaMask</button>
+          <p class="control-note" data-punk-fund-state aria-live="polite">Connect the current holder and select an activated Punk.</p>
+          <a class="inline-link" data-punk-fund-transaction href="#" target="_blank" rel="noopener noreferrer" hidden>View funding transaction ↗</a>
+        </article>
+        <article class="control-card wrapped-native-panel">
+          <div class="panel-header"><div><p class="eyebrow">ETH ↔ WETH</p><h2>Wrap or Unwrap ETH</h2></div><a href="https://robinhoodchain.blockscout.com/address/0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73" target="_blank" rel="noopener noreferrer">Verified WETH</a></div>
+          <p>Convert this Punk Wallet's ETH and canonical Robinhood WETH one-for-one. This is not a market swap: there is no price impact, router, slippage, or token approval.</p>
+          <dl class="control-facts wrap-balances"><div><dt>Available ETH</dt><dd data-wrap-eth-balance>—</dd></div><div><dt>Available WETH</dt><dd data-wrap-weth-balance>—</dd></div></dl>
+          <div class="control-form-grid wrap-form"><label class="control-field"><span>Action</span><select data-wrap-direction><option value="WRAP">Wrap ETH into WETH</option><option value="UNWRAP">Unwrap WETH into ETH</option></select></label><label class="control-field"><span>Amount</span><input data-wrap-amount inputmode="decimal" autocomplete="off" placeholder="0.01" /></label></div>
+          <label class="control-toggle"><input type="checkbox" data-wrap-confirm /><span>I reviewed the selected Punk Wallet, direction, amount, and canonical WETH contract.</span></label>
+          <button type="button" data-wrap-review disabled>Review &amp; Simulate</button>
+          <p class="control-note" data-wrap-state>Connect the current Punk holder to load balances. This local build will not submit a transaction.</p>
+        </article>
+        <article class="control-card asset-deposit"><p class="eyebrow">Add Assets</p><h2>Add Assets to Your Punk</h2><p>Assets inside the Punk Wallet may help it qualify for future gated opportunities. Holding an asset never guarantees eligibility.</p><h3>Choose an asset from your wallet</h3><div class="control-owner-assets" data-owner-asset-grid><p class="empty-state">Wallet inventory loads only when you open Assets. The local demo uses clearly marked fixtures.</p></div><div class="control-form-grid"><label class="control-field"><span>Asset type</span><select data-deposit-type><option value="native">Native token</option><option value="erc20">Token (ERC-20)</option><option value="erc721">NFT (ERC-721)</option><option value="erc1155">NFT (ERC-1155)</option></select></label><label class="control-field"><span>Contract</span><input data-deposit-contract placeholder="0x… (not needed for native)" /></label><label class="control-field"><span>Token ID or amount</span><input data-deposit-value placeholder="Select an NFT or enter a local test value" /></label></div><button type="button" data-deposit-review disabled>Review Local Deposit</button><p class="control-note" data-deposit-state>No transaction will be submitted from this local build.</p></article>
+        <div class="control-asset-heading"><div><p class="eyebrow">Punk Wallet Collection</p><h2>Collected NFTs</h2></div><p>Artwork and collection floors are display estimates from OpenSea. Live chain ownership is checked separately before any withdrawal.</p></div>
+        <div class="control-asset-grid" data-asset-grid><p class="empty-state">Open Assets to load this Punk's indexed NFT inventory.</p></div>
+        <article class="control-card control-withdrawal-review" data-control-withdrawal hidden>
+          <div class="control-withdrawal-preview"><img data-withdrawal-image src="/assets/gogh-punks-pfp.png" alt="Selected NFT" /><div><p class="eyebrow">Withdraw NFT</p><h2 data-withdrawal-name>Select an NFT</h2><p data-withdrawal-collection>Choose an NFT above to prepare a fixed-destination withdrawal.</p></div></div>
+          <dl class="control-facts"><div><dt>From</dt><dd>Punk #<span data-withdrawal-punk>—</span> NFT Wallet</dd></div><div><dt>To</dt><dd><code data-withdrawal-owner>Current Punk holder</code></dd></div><div><dt>Asset</dt><dd data-withdrawal-asset>—</dd></div><div><dt>Collection floor</dt><dd data-withdrawal-floor>Not available</dd></div></dl>
+          <p class="control-note">The destination cannot be edited. Before MetaMask opens, the site rechecks the current Gogh Punk holder, verified Punk Wallet runtime, NFT ownership, and a full transfer simulation.</p>
+          <label class="control-toggle"><input type="checkbox" data-withdrawal-confirm disabled /><span>I reviewed this NFT and the fixed current-holder destination.</span></label>
+          <div class="control-actions"><button type="button" data-withdrawal-submit disabled>Verify &amp; Withdraw in MetaMask</button><button type="button" data-withdrawal-cancel>Cancel</button></div>
+          <p class="control-note" data-withdrawal-state aria-live="polite">Select an NFT to begin.</p>
+          <a class="inline-link" data-withdrawal-transaction href="#" target="_blank" rel="noopener noreferrer" hidden>View withdrawal transaction ↗</a>
+        </article>
+      </section>
+
+      <section id="control-panel-activity" class="control-panel" role="tabpanel" aria-labelledby="control-tab-activity" data-control-panel="activity" hidden>
+        <div class="control-grid three-column agent-heartbeat-summary"><article class="control-card"><p class="eyebrow">Last scan</p><h2 data-agent-last-scan>—</h2></article><article class="control-card"><p class="eyebrow">Result</p><h2 data-agent-last-result>Waiting</h2></article><article class="control-card"><p class="eyebrow">Next scheduled scan</p><h2 data-agent-next-scan>—</h2></article></div>
+        <article class="control-card"><div class="panel-header"><div><p class="eyebrow">Agent Activity</p><h2>What your Punk is doing</h2></div><button type="button" data-activity-refresh disabled>Refresh</button></div><p class="control-note" data-activity-state aria-live="polite">Open Activity to load this Punk's latest worker event.</p><div class="agent-timeline" data-agent-timeline><p class="empty-state">No Punk-specific activity loaded yet.</p></div></article>
+        <details class="control-debug" data-debug-panel><summary>Development performance</summary><dl data-debug-metrics></dl><p>Debug data contains timings and health labels only—never keys, signatures, or credentials.</p></details>
+      </section>
+    </main>
+    <nav class="mobile-app-nav" aria-label="Mobile navigation"><a href="/">Home</a><a href="/broker/">Broker</a><a href="/broker/#active-agent-console-title" aria-current="page">Agents</a><a href="/broker/#nft-portfolio-title">Portfolio</a><button type="button" data-wallet-connect>Wallet</button></nav>
+  </body>
+</html>

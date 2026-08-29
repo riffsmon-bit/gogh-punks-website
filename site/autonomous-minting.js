@@ -734,6 +734,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     void load();
   });
   setup.addEventListener("click", async () => {
+    let startFirstScan = false;
     setup.disabled = true;
     state.lastActionError = null;
     try {
@@ -742,9 +743,15 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
       render();
       account.textContent = shortAddress(review.punk.account);
       await submit(review.setupTransactions, "Setup");
-      message.textContent = `Automation is active for Punk #${review.punk.tokenId} until ${new Date(Number(review.limits.authorizationValidUntil) * 1_000).toLocaleString()}. The agent remains bounded by the selected daily cap.`;
+      message.textContent = `Automation is active for Punk #${review.punk.tokenId} until ${new Date(Number(review.limits.authorizationValidUntil) * 1_000).toLocaleString()}. Its first bounded scan is starting automatically.`;
       cap.dataset.userEdited = "false";
       await load();
+      // Activation used to stop after the on-chain confirmations. That made a Punk look active
+      // while leaving it out of the durable worker roster until its owner found and pressed the
+      // separate manual-run button. The existing run endpoint first rechecks live V3 authority,
+      // idempotently enrolls the Punk, and only then invokes the bounded worker. Start it once
+      // after setup so the product's activation promise is true without granting any new power.
+      startFirstScan = state.version === 3 && state.selection?.tokenId === review.punk.tokenId;
     } catch (error) {
       state.lastActionError = error?.message ?? "Setup stopped safely.";
       message.textContent = error?.message ?? "Setup stopped safely.";
@@ -752,6 +759,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
       state.setupSubmission = null;
       render();
     }
+    if (startFirstScan) void runAgentNow();
   });
   runNow.addEventListener("click", runAgentNow);
   runAll.addEventListener("click", runAllAgentsNow);

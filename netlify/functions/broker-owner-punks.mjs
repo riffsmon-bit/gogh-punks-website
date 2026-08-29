@@ -1,5 +1,7 @@
 import { getDatabase } from "@netlify/database";
+import { createPublicClient, defineChain, http, parseAbi } from "viem";
 import { ROBINHOOD } from "../../broker/src/config.mjs";
+import automationManifest from "../../deployments/robinhood-automation-v3.json" with { type: "json" };
 import { json } from "./_shared/http.mjs";
 import { nftDisplayMetadata, NFT_DISPLAY_METADATA_SELECT } from
   "./_shared/broker-display-metadata.mjs";
@@ -12,6 +14,16 @@ const OPENSEA_MAX_PAGES = 3;
 const AUTOMATION_ROSTER_LIMIT = 32;
 const GOGH_PUNKS_MAX_SUPPLY = 5_016;
 const OPENSEA_IMAGE_HOSTS = new Set(["i.seadn.io", "raw2.seadn.io"]);
+const OWNER_DISCOVERY_ABI = parseAbi([
+  "function balanceOf(address owner) view returns (uint256)",
+  "function ownerOf(uint256 tokenId) view returns (address)",
+]);
+const AUTOMATION_REGISTRY_ABI = parseAbi([
+  "function isAccountCreated(uint256 tokenId) view returns (bool)",
+]);
+const OWNER_SCAN_CHUNK = 200;
+const OWNER_SCAN_CONCURRENCY = 4;
+const MULTICALL3_ADDRESS = "0xca11bde05977b3631167028862be2a173976ca11";
 
 function own(value, key) {
   return value && typeof value === "object" && Object.hasOwn(value, key)
@@ -83,6 +95,162 @@ function address(value) {
     ? value.toLowerCase() : null;
 }
 
+export function ownerPunkView(value) {
+  try {
+    const view = new URL(String(value)).searchParams.get("view");
+    return view === "indexed" ? "indexed" : "reconcile";
+  } catch {
+    return "reconcile";
+  }
+}
+
+function ownerDiscoveryClient(environment = process.env) {
+  const raw = environment.ROBINHOOD_RPC_URL ?? environment.RPC_URL ?? ROBINHOOD.rpcUrl;
+  let rpcUrl;
+  try { rpcUrl = new URL(raw); } catch { throw new TypeError("owner discovery RPC is invalid"); }
+  if (rpcUrl.protocol !== "https:" || rpcUrl.username || rpcUrl.password || rpcUrl.hash) {
+    throw new TypeError("owner discovery RPC is invalid");
+  }
+  const chain = defineChain({
+    id: ROBINHOOD.chainId,
+    name: ROBINHOOD.name,
+    nativeCurrency: ROBINHOOD.nativeCurrency,
+    rpcUrls: { default: { http: [rpcUrl.href] } },
+    contracts: { multicall3: { address: MULTICALL3_ADDRESS } },
+  });
+  return createPublicClient({
+    chain,
+    transport: http(rpcUrl.href, { retryCount: 1, timeout: 5_000 }),
+  });
+}
+
+async function liveOwnedFromCandidates(client, owner, tokenIds, blockNumber) {
+  const output = [];
+  for (let offset = 0; offset < tokenIds.length; offset += OWNER_SCAN_CHUNK) {
+    const chunk = tokenIds.slice(offset, offset + OWNER_SCAN_CHUNK);
+    const results = await client.multicall({
+      allowFailure: true,
+      blockNumber,
+      contracts: chunk.map((tokenId) => ({
+        address: ROBINHOOD.canonicalCollection,
+        abi: OWNER_DISCOVERY_ABI,
+        functionName: "ownerOf",
+        args: [BigInt(tokenId)],
+      })),
+    });
+    if (!Array.isArray(results) || results.length !== chunk.length) {
+      throw new TypeError("owner discovery result count changed");
+    }
+    for (let index = 0; index < chunk.length; index += 1) {
+      const result = results[index];
+      if (result?.status === "success" && address(result.result) === owner) output.push(chunk[index]);
+    }
+  }
+  return output;
+}
+
+export async function liveOwnerPunkSnapshot(owner, candidateTokenIds = [], {
+  client = ownerDiscoveryClient(),
+} = {}) {
+  const normalized = address(owner);
+  if (!normalized || !Array.isArray(candidateTokenIds)
+    || candidateTokenIds.length > MAX_CANDIDATES
+    || candidateTokenIds.some((value) => punkTokenId(String(value)) !== String(value))
+    || typeof client?.getBlockNumber !== "function"
+    || typeof client?.readContract !== "function" || typeof client?.multicall !== "function") {
+    throw new TypeError("live owner discovery input is invalid");
+  }
+  const blockNumber = await client.getBlockNumber();
+  if (typeof blockNumber !== "bigint" || blockNumber < 0n
+    || blockNumber > 9_223_372_036_854_775_807n) {
+    throw new TypeError("live owner discovery block is invalid");
+  }
+  const balance = await client.readContract({
+    address: ROBINHOOD.canonicalCollection,
+    abi: OWNER_DISCOVERY_ABI,
+    functionName: "balanceOf",
+    args: [normalized],
+    blockNumber,
+  });
+  if (typeof balance !== "bigint" || balance < 0n || balance > BigInt(MAX_CANDIDATES)) {
+    throw new RangeError("live owner Punk balance is outside the UI bound");
+  }
+  if (balance === 0n) {
+    return Object.freeze({ tokenIds: Object.freeze([]), blockNumber });
+  }
+
+  const boundedCandidates = [...new Set(candidateTokenIds)];
+  const verifiedCandidates = await liveOwnedFromCandidates(
+    client, normalized, boundedCandidates, blockNumber,
+  );
+  if (BigInt(verifiedCandidates.length) === balance) {
+    return Object.freeze({
+      tokenIds: Object.freeze(
+        verifiedCandidates.sort((left, right) => Number(left) - Number(right)),
+      ),
+      blockNumber,
+    });
+  }
+
+  // The local ownership index and marketplace cache are acceleration hints, not completeness
+  // evidence. Only when their live-verified count differs from balanceOf do we scan the bounded
+  // 5,017-token collection. Four workers keep this to 26 server-side Multicall reads rather than
+  // 5,017 wallet-provider requests; the browser still performs its own live verification.
+  const chunks = [];
+  for (let first = 0; first <= GOGH_PUNKS_MAX_SUPPLY; first += OWNER_SCAN_CHUNK) {
+    chunks.push(Array.from({
+      length: Math.min(OWNER_SCAN_CHUNK, GOGH_PUNKS_MAX_SUPPLY - first + 1),
+    }, (_, index) => String(first + index)));
+  }
+  const output = [];
+  let cursor = 0;
+  const scan = async () => {
+    while (cursor < chunks.length) {
+      const chunk = chunks[cursor];
+      cursor += 1;
+      output.push(...await liveOwnedFromCandidates(client, normalized, chunk, blockNumber));
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(OWNER_SCAN_CONCURRENCY, chunks.length) }, scan));
+  output.sort((left, right) => Number(left) - Number(right));
+  if (BigInt(output.length) !== balance || new Set(output).size !== output.length) {
+    throw new TypeError("live owner discovery did not reconcile the wallet balance");
+  }
+  return Object.freeze({ tokenIds: Object.freeze(output), blockNumber });
+}
+
+export async function liveOwnerPunkIds(owner, candidateTokenIds = [], options = {}) {
+  return (await liveOwnerPunkSnapshot(owner, candidateTokenIds, options)).tokenIds;
+}
+
+export async function createdAutomationV3PunkIds(tokenIds, {
+  client = ownerDiscoveryClient(),
+  registry = automationManifest?.contracts?.GoghPunkAccountRegistryV3?.address,
+} = {}) {
+  const normalizedRegistry = address(registry);
+  if (!normalizedRegistry || !Array.isArray(tokenIds) || tokenIds.length > MAX_CANDIDATES
+    || tokenIds.some((value) => punkTokenId(String(value)) !== String(value))
+    || typeof client?.multicall !== "function") {
+    throw new TypeError("V3 Punk wallet discovery input is invalid");
+  }
+  if (tokenIds.length === 0) return Object.freeze([]);
+  const results = await client.multicall({
+    allowFailure: true,
+    contracts: tokenIds.map((tokenId) => ({
+      address: normalizedRegistry,
+      abi: AUTOMATION_REGISTRY_ABI,
+      functionName: "isAccountCreated",
+      args: [BigInt(tokenId)],
+    })),
+  });
+  if (!Array.isArray(results) || results.length !== tokenIds.length) {
+    throw new TypeError("V3 Punk wallet discovery result count changed");
+  }
+  return Object.freeze(tokenIds.filter((_, index) => (
+    results[index]?.status === "success" && results[index].result === true
+  )));
+}
+
 export async function indexedOwnerPunkIds(owner, query = (...args) => (
   getDatabase().pool.query(...args)
 )) {
@@ -106,6 +274,77 @@ export async function indexedOwnerPunkIds(owner, query = (...args) => (
     throw new TypeError("indexed owner Punk token is invalid");
   }
   return Object.freeze([...new Set(tokenIds)]);
+}
+
+export async function refreshIndexedOwnerPunks(owner, tokenIds, blockNumber, query = (...args) => (
+  getDatabase().pool.query(...args)
+)) {
+  const normalized = address(owner);
+  if (!normalized || !Array.isArray(tokenIds) || tokenIds.length > MAX_CANDIDATES
+    || tokenIds.some((value) => punkTokenId(String(value)) !== String(value))
+    || typeof blockNumber !== "bigint" || blockNumber < 0n
+    || blockNumber > 9_223_372_036_854_775_807n || typeof query !== "function") {
+    throw new TypeError("owner Punk index refresh input is invalid");
+  }
+  const normalizedTokenIds = [...new Set(tokenIds)]
+    .sort((left, right) => Number(left) - Number(right));
+  const result = await query(
+    `WITH owned AS (
+       SELECT UNNEST($4::numeric[]) AS token_id
+     ), cleared AS (
+       UPDATE broker_punks AS punk
+          SET owner_snapshot = NULL,
+              owner_snapshot_block = $5,
+              indexed_through_block = GREATEST(
+                COALESCE(punk.indexed_through_block, $5), $5
+              ),
+              updated_at = NOW()
+        WHERE punk.chain_id = $1
+          AND punk.collection_address = $2
+          AND LOWER(punk.owner_snapshot) = $3
+          AND (punk.owner_snapshot_block IS NULL OR punk.owner_snapshot_block <= $5)
+          AND NOT EXISTS (
+            SELECT 1 FROM owned WHERE owned.token_id = punk.token_id
+          )
+       RETURNING punk.token_id
+     ), upserted AS (
+       INSERT INTO broker_punks
+         (chain_id, collection_address, token_id, owner_snapshot,
+          owner_snapshot_block, indexed_through_block, updated_at)
+       SELECT $1, $2, owned.token_id, $3, $5, $5, NOW()
+         FROM owned
+       ON CONFLICT (chain_id, collection_address, token_id) DO UPDATE
+         SET owner_snapshot = EXCLUDED.owner_snapshot,
+             owner_snapshot_block = EXCLUDED.owner_snapshot_block,
+             indexed_through_block = GREATEST(
+               COALESCE(broker_punks.indexed_through_block, EXCLUDED.indexed_through_block),
+               EXCLUDED.indexed_through_block
+             ),
+             updated_at = NOW()
+       WHERE broker_punks.owner_snapshot_block IS NULL
+          OR broker_punks.owner_snapshot_block <= EXCLUDED.owner_snapshot_block
+       RETURNING broker_punks.token_id
+     )
+     SELECT
+       (SELECT COUNT(*)::integer FROM cleared) AS cleared_count,
+       (SELECT COUNT(*)::integer FROM upserted) AS upserted_count`,
+    [
+      ROBINHOOD.chainId,
+      ROBINHOOD.canonicalCollection,
+      normalized,
+      normalizedTokenIds,
+      blockNumber.toString(),
+    ],
+  );
+  if (!Array.isArray(result?.rows) || result.rows.length !== 1) {
+    throw new TypeError("owner Punk index refresh result is invalid");
+  }
+  return Object.freeze({
+    tokenIds: Object.freeze(normalizedTokenIds),
+    blockNumber,
+    clearedCount: Number(result.rows[0].cleared_count ?? 0),
+    upsertedCount: Number(result.rows[0].upserted_count ?? 0),
+  });
 }
 
 export async function ownerPunkArtwork(tokenIds, query = (...args) => (
@@ -166,9 +405,9 @@ export async function enrolledAutomationPunkIds(owner, query = (...args) => (
         AND LOWER(owner_snapshot) = $3
       ORDER BY token_id::numeric
       LIMIT $4`,
-    [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, normalized, AUTOMATION_ROSTER_LIMIT + 1],
+    [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, normalized, MAX_CANDIDATES + 1],
   );
-  if (!Array.isArray(result?.rows) || result.rows.length > AUTOMATION_ROSTER_LIMIT) {
+  if (!Array.isArray(result?.rows) || result.rows.length > MAX_CANDIDATES) {
     throw new RangeError("automation enrollment set is unavailable or too large");
   }
   const tokenIds = result.rows.map(({ token_id: value }) => punkTokenId(String(value)));
@@ -271,15 +510,19 @@ export function mergeOwnerPunkDecorations(
   cachedPunks,
   openSeaPunks,
   automationTokenIds = [],
+  automationCreatedTokenIds = [],
 ) {
   if (!Array.isArray(tokenIds) || !Array.isArray(cachedPunks)
     || !Array.isArray(openSeaPunks) || !Array.isArray(automationTokenIds)
-    || automationTokenIds.some((value) => punkTokenId(String(value)) !== String(value))) {
+    || !Array.isArray(automationCreatedTokenIds)
+    || automationTokenIds.some((value) => punkTokenId(String(value)) !== String(value))
+    || automationCreatedTokenIds.some((value) => punkTokenId(String(value)) !== String(value))) {
     throw new TypeError("owner Punk decorations are invalid");
   }
   const cached = new Map(cachedPunks.map((item) => [String(item?.tokenId), item]));
   const external = new Map(openSeaPunks.map((item) => [String(item?.tokenId), item]));
   const automation = new Set(automationTokenIds);
+  const automationCreated = new Set(automationCreatedTokenIds);
   return Object.freeze(tokenIds.map((tokenId) => {
     const cacheItem = cached.get(tokenId);
     const openSeaItem = external.get(tokenId);
@@ -290,6 +533,7 @@ export function mergeOwnerPunkDecorations(
       artwork: artwork ?? null,
       rarity: openSeaItem?.rarity ?? null,
       automationConfigured: automation.has(tokenId),
+      automationCreated: automationCreated.has(tokenId),
     });
   }));
 }
@@ -299,45 +543,193 @@ export default async function handler(request) {
   const owner = address(new URL(request.url).searchParams.get("owner"));
   if (!owner) return json({ ok: false, code: "INVALID_OWNER" }, 400);
   try {
+    const view = ownerPunkView(request.url);
     const automationRoster = configuredAutomationPunkIds();
-    const [indexedResult, openSeaResult, enrollmentResult] = await Promise.allSettled([
+    const [indexedResult, enrollmentResult] = await Promise.allSettled([
       indexedOwnerPunkIds(owner),
-      openSeaOwnerPunks(owner, { apiKey: process.env.OPENSEA_API_KEY }),
       enrolledAutomationPunkIds(owner),
     ]);
-    if (indexedResult.status !== "fulfilled" && openSeaResult.status !== "fulfilled"
-      && enrollmentResult.status !== "fulfilled") {
-      throw new Error("all owner candidate sources unavailable");
-    }
+    // This route only supplies discovery hints. The browser's bounded Multicall scan and the
+    // selection-time ownerOf check remain authoritative, so an index outage may return an empty
+    // hint set instead of blocking the holder behind an unrelated marketplace API.
     const enrolled = enrollmentResult.status === "fulfilled" ? enrollmentResult.value : [];
     const automationTokenIds = [...new Set([...automationRoster, ...enrolled])];
-    const candidateTokenIds = [...new Set([
+    let candidateTokenIds = [...new Set([
       ...(indexedResult.status === "fulfilled" ? indexedResult.value : []),
-      ...(openSeaResult.status === "fulfilled"
-        ? openSeaResult.value.map(({ tokenId }) => tokenId) : []),
       ...automationTokenIds,
     ])].sort((left, right) => Number(left) - Number(right));
     if (candidateTokenIds.length > MAX_CANDIDATES) throw new RangeError("owner candidate set is too large");
-    const cachedPunks = await ownerPunkArtwork(candidateTokenIds);
+    if (view === "indexed") {
+      let cachedPunks = [];
+      let artworkAvailable = false;
+      try {
+        // Immutable Punk artwork is safe to decorate from the local metadata index. Loading all
+        // indexed cards is one bounded SQL read and avoids delaying the first usable roster on
+        // OpenSea, tokenURI, or a wallet RPC. Ownership and wallet state remain unverified hints.
+        cachedPunks = await ownerPunkArtwork(candidateTokenIds);
+        artworkAvailable = true;
+      } catch (error) {
+        console.error(JSON.stringify({
+          event: "BROKER_OWNER_PUNK_INDEXED_ARTWORK_UNAVAILABLE", type: error?.name,
+        }));
+      }
+      const candidatePunks = mergeOwnerPunkDecorations(
+        candidateTokenIds,
+        cachedPunks,
+        [],
+        automationTokenIds,
+        // Enrollment is durable evidence that this wallet existed when the Punk last passed the
+        // live worker gate, but it is not current authority. Mark it only as a cached visual hint;
+        // browser Multicall and selection-time status replace it before actions are enabled.
+        enrolled,
+      );
+      return json({
+        ok: true,
+        chainId: ROBINHOOD.chainId,
+        collection: ROBINHOOD.canonicalCollection,
+        owner,
+        view,
+        candidateTokenIds,
+        candidatePunks,
+        candidateSources: Object.freeze({
+          indexed: indexedResult.status === "fulfilled",
+          openSea: false,
+          liveOwnerComplete: false,
+          liveMulticall: false,
+          automationRoster: automationRoster.length > 0,
+          automationEnrollments: enrollmentResult.status === "fulfilled",
+          automationWallets: false,
+          artwork: artworkAvailable,
+        }),
+        reconciliationRecommended: true,
+        evidence: "INDEXED_DISCOVERY_HINTS_ONLY_EACH_SELECTION_REQUIRES_LIVE_WALLET_OWNER_CHECK",
+        activationAuthorized: false,
+        autonomyAuthorized: false,
+      }, 200, { "cache-control": "private, max-age=15, stale-while-revalidate=45" });
+    }
+    let openSeaPunks = [];
+    let openSeaAvailable = false;
+    if (process.env.OPENSEA_API_KEY) {
+      try {
+        // This route is called only after an owner connects. OpenSea is a bounded discovery hint
+        // that fills recently transferred/activated Punks which have not reached the local index
+        // yet; every returned ID is still live-verified through Multicall in the browser.
+        openSeaPunks = await openSeaOwnerPunks(owner, {
+          apiKey: process.env.OPENSEA_API_KEY,
+          timeoutMs: 2_500,
+        });
+        openSeaAvailable = true;
+        candidateTokenIds = [...new Set([
+          ...candidateTokenIds,
+          ...openSeaPunks.map(({ tokenId }) => tokenId),
+        ])].sort((left, right) => Number(left) - Number(right));
+      } catch (error) {
+        console.error(JSON.stringify({
+          event: "BROKER_OWNER_PUNK_OPENSEA_FALLBACK_UNAVAILABLE", type: error?.name,
+        }));
+      }
+    }
+    let liveOwnerAvailable = false;
+    let liveOwnerSnapshot = null;
+    try {
+      // Complete the fast index/marketplace hints only when balanceOf proves they are stale. The
+      // resulting list is still a server hint; browser Multicall remains the UI authority.
+      liveOwnerSnapshot = await liveOwnerPunkSnapshot(owner, candidateTokenIds);
+      candidateTokenIds = [...liveOwnerSnapshot.tokenIds];
+      liveOwnerAvailable = true;
+    } catch (primaryError) {
+      try {
+        // A keyed provider is preferred, but Punk discovery must not disappear when that provider
+        // is rate-limited or misconfigured. The canonical public RPC is a read-only completion
+        // fallback used only for this owner-triggered request.
+        liveOwnerSnapshot = await liveOwnerPunkSnapshot(owner, candidateTokenIds, {
+          client: ownerDiscoveryClient({ ROBINHOOD_RPC_URL: ROBINHOOD.rpcUrl }),
+        });
+        candidateTokenIds = [...liveOwnerSnapshot.tokenIds];
+        liveOwnerAvailable = true;
+      } catch (fallbackError) {
+        console.error(JSON.stringify({
+          event: "BROKER_OWNER_PUNK_LIVE_COMPLETION_UNAVAILABLE",
+          primaryType: primaryError?.name,
+          fallbackType: fallbackError?.name,
+        }));
+      }
+    }
+    if (liveOwnerSnapshot) {
+      try {
+        // A complete balanceOf reconciliation at one pinned block is safe to persist as an
+        // acceleration index. The browser and every privileged action still recheck live ownerOf.
+        await refreshIndexedOwnerPunks(
+          owner, liveOwnerSnapshot.tokenIds, liveOwnerSnapshot.blockNumber,
+        );
+      } catch (error) {
+        console.error(JSON.stringify({
+          event: "BROKER_OWNER_PUNK_INDEX_REFRESH_UNAVAILABLE", type: error?.name,
+        }));
+      }
+    }
+    if (candidateTokenIds.length > MAX_CANDIDATES) throw new RangeError("owner candidate set is too large");
+    let automationCreatedTokenIds = [];
+    let automationWalletsAvailable = false;
+    try {
+      automationCreatedTokenIds = [...await createdAutomationV3PunkIds(candidateTokenIds)];
+      automationWalletsAvailable = true;
+    } catch (primaryError) {
+      try {
+        automationCreatedTokenIds = [...await createdAutomationV3PunkIds(candidateTokenIds, {
+          client: ownerDiscoveryClient({ ROBINHOOD_RPC_URL: ROBINHOOD.rpcUrl }),
+        })];
+        automationWalletsAvailable = true;
+      } catch (fallbackError) {
+        console.error(JSON.stringify({
+          event: "BROKER_OWNER_PUNK_V3_WALLETS_UNAVAILABLE",
+          primaryType: primaryError?.name,
+          fallbackType: fallbackError?.name,
+        }));
+      }
+    }
+    let cachedPunks = [];
+    let artworkAvailable = false;
+    try {
+      // Initial discovery does not need artwork for every inactive Punk. Active/enrolled cards
+      // may use cached decoration immediately; a newly selected Punk hydrates from tokenURI.
+      cachedPunks = await ownerPunkArtwork([...new Set([
+        ...automationTokenIds, ...automationCreatedTokenIds,
+      ])]);
+      artworkAvailable = true;
+    } catch (error) {
+      // Artwork is decoration, never authority. A metadata/index outage must not prevent
+      // a holder from seeing and live-verifying their Punk IDs.
+      console.error(JSON.stringify({
+        event: "BROKER_OWNER_PUNK_ARTWORK_UNAVAILABLE", type: error?.name,
+      }));
+    }
     const candidatePunks = mergeOwnerPunkDecorations(
       candidateTokenIds,
       cachedPunks,
-      openSeaResult.status === "fulfilled" ? openSeaResult.value : [],
+      openSeaPunks,
       automationTokenIds,
+      automationCreatedTokenIds,
     );
     return json({
       ok: true,
       chainId: ROBINHOOD.chainId,
       collection: ROBINHOOD.canonicalCollection,
       owner,
+      view,
       candidateTokenIds,
       candidatePunks,
       candidateSources: Object.freeze({
         indexed: indexedResult.status === "fulfilled",
-        openSea: openSeaResult.status === "fulfilled",
+        openSea: openSeaAvailable,
+        liveOwnerComplete: liveOwnerAvailable,
+        liveMulticall: true,
         automationRoster: automationRoster.length > 0,
         automationEnrollments: enrollmentResult.status === "fulfilled",
+        automationWallets: automationWalletsAvailable,
+        artwork: artworkAvailable,
       }),
+      reconciliationRecommended: false,
       evidence: "DISCOVERY_CANDIDATES_ONLY_EACH_SELECTION_REQUIRES_LIVE_WALLET_OWNER_CHECK",
       activationAuthorized: false,
       autonomyAuthorized: false,

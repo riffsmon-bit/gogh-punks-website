@@ -27,8 +27,16 @@
 [functions."broker-autonomy-v3-status"]
   included_files = ["deployments/robinhood-automation-v3.json", "deployments/robinhood.json", "broker/src/**/*.mjs", "netlify/functions/_shared/*.mjs"]
 
+[functions."broker-connector-opensea"]
+  included_files = ["deployments/robinhood-automation-v3.json", "deployments/robinhood.json", "broker/src/**/*.mjs", "netlify/functions/_shared/*.mjs"]
+
 [functions."broker-nft-withdrawal-assets"]
   included_files = ["deployments/robinhood-automation-v3.json", "deployments/robinhood.json", "broker/src/**/*.mjs", "netlify/functions/_shared/*.mjs", "netlify/functions/broker-nft-withdrawal-status.mjs"]
+
+[[redirects]]
+  from = "/broker/punk/*"
+  to = "/broker/punk/index.html"
+  status = 200
 
 [[redirects]]
   from = "/punk/*"

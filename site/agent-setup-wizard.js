@@ -49,7 +49,8 @@ export function agentRosterPunks(punks) {
   if (!Array.isArray(punks)) return Object.freeze([]);
   return Object.freeze(punks.filter((punk) => punk && typeof punk === "object"
     && (Object.hasOwn(punk, "activated") && punk.activated === true
-      || Object.hasOwn(punk, "automationConfigured") && punk.automationConfigured === true)));
+      || Object.hasOwn(punk, "automationConfigured") && punk.automationConfigured === true
+      || Object.hasOwn(punk, "automationCreated") && punk.automationCreated === true)));
 }
 
 function readState(storage) {
@@ -87,7 +88,7 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
   if (!root || !browserWindow) return null;
   const screens = [...root.querySelectorAll("[data-wizard-step]")];
   const progress = [...root.querySelectorAll("[data-wizard-progress]")];
-  const punkCards = root.querySelector("[data-wizard-punks]");
+  const punkPicker = root.querySelector("[data-wizard-punks]");
   const empty = root.querySelector("[data-wizard-empty]");
   const selectedImages = [...root.querySelectorAll("[data-wizard-punk-image]")];
   const selectedLabels = [...root.querySelectorAll("[data-wizard-punk-label]")];
@@ -163,44 +164,36 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
   }
 
   function renderPunks() {
-    punkCards.replaceChildren();
-    empty.hidden = state.punks.length > 0 || !state.wallet?.account;
-    for (const punk of state.punks) {
-      const button = browserDocument.createElement("button");
-      button.type = "button";
-      button.className = "wizard-punk-card";
-      button.dataset.tokenId = punk.tokenId;
-      button.setAttribute("aria-pressed", String(punk.tokenId === state.selectedPunk));
-      const imageUrl = trustedImage(punk.artwork?.imageUrl);
-      if (imageUrl) {
-        const image = browserDocument.createElement("img");
-        image.src = imageUrl;
-        image.alt = punk.artwork?.name ?? `Gogh Punk #${punk.tokenId}`;
-        image.loading = "lazy";
-        button.append(image);
-      } else {
-        const placeholder = browserDocument.createElement("span");
-        placeholder.className = "wizard-punk-placeholder";
-        placeholder.textContent = `#${punk.tokenId}`;
-        button.append(placeholder);
-      }
-      const title = browserDocument.createElement("strong");
-      title.textContent = `Punk #${punk.tokenId}`;
-      const status = browserDocument.createElement("small");
+    const placeholder = browserDocument.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = state.punks.length
+      ? "Choose a Gogh Punk"
+      : "No wallet-owned Punks found";
+    punkPicker.replaceChildren(placeholder, ...state.punks.map((punk) => {
+      const option = browserDocument.createElement("option");
+      option.value = punk.tokenId;
       const sameAutomation = state.automation?.tokenId === punk.tokenId;
-      status.textContent = sameAutomation && state.automation.agentLive ? "Active"
-        : sameAutomation && state.automation.active ? "Paused or reconnecting"
-          : punk.activated ? "Ready to configure" : "Ready to activate";
-      button.append(title, status);
-      button.addEventListener("click", () => {
-        state.selectedPunk = punk.tokenId;
-        selectUnderlyingPunk();
-        showStep(alreadyActive() ? "power" : "wallet");
-        render();
-      });
-      punkCards.append(button);
+      const status = sameAutomation && state.automation.agentLive ? "active"
+        : sameAutomation && state.automation.active ? "authorized"
+          : punk.activated ? "wallet active" : "ready to activate";
+      option.textContent = `Punk #${punk.tokenId} · ${status}`;
+      return option;
+    }));
+    punkPicker.disabled = state.punks.length === 0;
+    if (state.punks.some(({ tokenId }) => tokenId === state.selectedPunk)) {
+      punkPicker.value = state.selectedPunk;
     }
+    empty.hidden = state.punks.length > 0 || !state.wallet?.account;
   }
+
+  punkPicker.addEventListener("change", () => {
+    const tokenId = String(punkPicker.value ?? "");
+    if (!state.punks.some((punk) => punk.tokenId === tokenId)) return;
+    state.selectedPunk = tokenId;
+    selectUnderlyingPunk();
+    showStep(alreadyActive() ? "power" : "wallet");
+    render();
+  });
 
   function openAgent(tokenId) {
     state.selectedPunk = tokenId;
@@ -249,6 +242,8 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
           : live ? "Wallet active · setup needed" : "Select to check live agent";
       if (!live && punk.automationConfigured) {
         status.textContent = "Configured · select to verify live";
+      } else if (!live && punk.automationCreated) {
+        status.textContent = "Punk wallet active · select to verify agent";
       }
       const facts = browserDocument.createElement("dl");
       // Only an authorized agent has an on-chain cap and expiry to report. Anything else keeps
@@ -274,13 +269,12 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
       body.append(title, status, facts);
       const actions = browserDocument.createElement("div");
       actions.className = "active-agent-actions";
-      const watch = browserDocument.createElement("button");
-      watch.type = "button";
-      watch.textContent = "Watch agent";
-      watch.addEventListener("click", () => openAgent(punk.tokenId));
+      const watch = browserDocument.createElement("a");
+      watch.href = `/broker/punk/${encodeURIComponent(punk.tokenId)}`;
+      watch.textContent = "Open Punk wallet";
       const portfolio = browserDocument.createElement("a");
-      portfolio.href = `/punk/${encodeURIComponent(punk.tokenId)}`;
-      portfolio.textContent = "View portfolio";
+      portfolio.href = `/broker/?punk=${encodeURIComponent(punk.tokenId)}#automation-title`;
+      portfolio.textContent = "Watch agent";
       actions.append(watch, portfolio);
       card.append(visual, body, actions);
       agentGrid.append(card);

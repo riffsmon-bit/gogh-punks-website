@@ -153,12 +153,12 @@ test("Reown is the authoritative reconnecting wallet and provider session", asyn
   controller.destroy();
 });
 
-test("a known prior Reown session restores idly without opening a wallet prompt", async () => {
+test("a known prior Reown session restores immediately without opening a wallet prompt", async () => {
   const fixture = reownFixture();
   fixture.current.account = { address: OWNER, isConnected: true, status: "connected" };
   fixture.storage.set("gogh.wallet.reown.returning.v1", "1");
-  let idleCallback;
-  fixture.windowObject.requestIdleCallback = (callback) => { idleCallback = callback; };
+  let queuedCallback;
+  fixture.windowObject.queueMicrotask = (callback) => { queuedCallback = callback; };
   let factoryCalls = 0;
   await setupReownWallet({
     windowObject: fixture.windowObject,
@@ -166,19 +166,20 @@ test("a known prior Reown session restores idly without opening a wallet prompt"
     sessionFactory: () => { factoryCalls += 1; return fixture.session; },
   });
   assert.equal(factoryCalls, 0);
-  assert.equal(fixture.button.textContent, "Connect wallet");
-  await idleCallback();
+  assert.equal(typeof queuedCallback, "function");
+  await queuedCallback();
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.equal(factoryCalls, 1);
   assert.equal(fixture.windowObject.__GOGH_WALLET_SNAPSHOT__.account, OWNER);
   assert.deepEqual(fixture.calls, [], "restoration must not open a wallet selector");
 });
 
-test("disconnect clears wallet-scoped state and prevents stale Punk controls", async () => {
+test("disconnect clears only wallet-scoped state and prevents stale Punk controls", async () => {
   const fixture = reownFixture();
   fixture.current.account = { address: OWNER, isConnected: true, status: "connected" };
   for (const key of ["gogh.wallet.reown.returning.v1", "gogh.artBroker.setup.v1",
-    "gogh:activated-punk-ids:v1"]) {
+    "gogh:activated-punk-ids:v1", "gogh.controlCenter.v2",
+    `gogh.controlCenter.v2:${OWNER}:93`]) {
     fixture.storage.set(key, "wallet-data");
     fixture.sessionStorage.set(key, "wallet-data");
   }
@@ -191,7 +192,7 @@ test("disconnect clears wallet-scoped state and prevents stale Punk controls", a
   assert.equal(fixture.disconnectButton.hidden, false);
   assert.equal(fixture.disconnectButton.textContent, "Disconnect Wallet");
   await fixture.button.click();
-  assert.equal(fixture.calls.at(-1), "account");
+  assert.equal(fixture.calls.at(-1), "account", "connected button opens account menu");
   await fixture.disconnectButton.click();
   assert.equal(fixture.calls.at(-1), "disconnect");
   assert.equal(fixture.button.textContent, "Connect wallet");
@@ -199,6 +200,12 @@ test("disconnect clears wallet-scoped state and prevents stale Punk controls", a
   assert.equal(fixture.windowObject.__GOGH_WALLET_PROVIDER__, null);
   assert.equal(fixture.storage.get("gogh.global.metadata"), "keep");
   assert.equal(fixture.windowObject.__GOGH_OWNER_PUNKS__.punks.length, 0);
+  for (const key of ["gogh.wallet.reown.returning.v1", "gogh.artBroker.setup.v1",
+    "gogh:activated-punk-ids:v1", "gogh.controlCenter.v2",
+    `gogh.controlCenter.v2:${OWNER}:93`]) {
+    assert.equal(fixture.storage.has(key), false);
+    assert.equal(fixture.sessionStorage.has(key), false);
+  }
   assert.ok(fixture.dispatched.some(({ type }) => type === "gogh:wallet-disconnected"));
   controller.destroy();
 });
@@ -230,13 +237,29 @@ test("wizard persistence is bounded and resumes from authoritative state", () =>
   }), "success");
 });
 
-test("active-agent roster includes V3-configured Punks without calling them live", () => {
+test("active-agent roster includes every created or configured V3 Punk without calling them live", () => {
   const visible = agentRosterPunks([
     { tokenId: "93", activated: true, automationConfigured: false },
     { tokenId: "94", activated: false, automationConfigured: true },
-    { tokenId: "95", activated: false, automationConfigured: false },
+    { tokenId: "95", activated: false, automationConfigured: false, automationCreated: true },
+    { tokenId: "96", activated: false, automationConfigured: false },
   ]);
-  assert.deepEqual(visible.map(({ tokenId }) => tokenId), ["93", "94"]);
+  assert.deepEqual(visible.map(({ tokenId }) => tokenId), ["93", "94", "95"]);
+});
+
+test("every wallet-enabled page restores the one Reown session and exposes disconnect", async () => {
+  const pages = await Promise.all([
+    "../site/broker/index.html",
+    "../site/broker/punk/index.html",
+    "../site/punk/index.html",
+    "../site/discover/index.html",
+  ].map((path) => readFile(new URL(path, import.meta.url), "utf8")));
+  for (const page of pages) {
+    assert.match(page, /\/wallet\.js\?v=reown-2/);
+    assert.match(page, /data-wallet-connect/);
+    assert.match(page, /data-wallet-disconnect/);
+    assert.match(page, /Disconnect Wallet/);
+  }
 });
 
 test("mobile wizard and AppKit source bind the required production experience", async () => {

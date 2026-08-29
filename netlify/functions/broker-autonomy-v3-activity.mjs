@@ -2,6 +2,9 @@ import { json } from "./_shared/http.mjs";
 import {
   getAutomationV3UsageStats, getAutomationV3WorkerHeartbeat, workerHeartbeatIsCurrent,
 } from "./_shared/automation-v3-worker-state.mjs";
+import {
+  getProductionAutomationV3Activity, isDeployPreview,
+} from "./_shared/automation-v3-production-bridge.mjs";
 
 export function automationV3Activity(heartbeat, usage, environment = process.env,
   nowMs = Date.now()) {
@@ -19,9 +22,12 @@ export function automationV3Activity(heartbeat, usage, environment = process.env
 export default async function handler(request) {
   if (request.method !== "GET") return json({ ok: false, code: "METHOD_NOT_ALLOWED" }, 405);
   try {
-    const [heartbeat, usage] = await Promise.all([
-      getAutomationV3WorkerHeartbeat(), getAutomationV3UsageStats(),
-    ]);
+    const evidence = isDeployPreview(process.env, request.url)
+      ? await getProductionAutomationV3Activity()
+      : await Promise.all([
+        getAutomationV3WorkerHeartbeat(), getAutomationV3UsageStats(),
+      ]).then(([heartbeat, usage]) => ({ heartbeat, usage }));
+    const { heartbeat, usage } = evidence;
     return json({ ok: true, activity: automationV3Activity(heartbeat, usage) }, 200, {
       "cache-control": "no-store, max-age=0",
       "netlify-cdn-cache-control": "no-store",

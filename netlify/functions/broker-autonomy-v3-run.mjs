@@ -1,6 +1,9 @@
 import { readAutomationV3PunkState } from "./_shared/autonomy-v3-live.mjs";
 import { runAutomationV3Once } from "./_shared/automation-v3-runner.mjs";
 import { enrollAutomationV3Punk } from "./_shared/automation-v3-worker-state.mjs";
+import {
+  forwardProductionAutomationV3Run, isDeployPreview,
+} from "./_shared/automation-v3-production-bridge.mjs";
 import { json, PublicError, readJson, requireSameOrigin } from "./_shared/http.mjs";
 
 function exactBody(body) {
@@ -71,6 +74,15 @@ export default async function handler(request) {
     }
     requireSameOrigin(request);
     const body = await readJson(request, 1_024);
+    if (isDeployPreview(process.env, request.url)) {
+      if (!allBody(body)) exactBody(body);
+      const forwarded = await forwardProductionAutomationV3Run(body);
+      return forwarded.ok
+        ? json({ ok: true, run: forwarded.run }, forwarded.status, {
+          "netlify-cdn-cache-control": "no-store",
+        })
+        : json({ ok: false, code: forwarded.code, message: forwarded.message }, forwarded.status);
+    }
     return responseFor(allBody(body)
       ? await runAllAutomationV3(body)
       : await runSelectedAutomationV3(body));

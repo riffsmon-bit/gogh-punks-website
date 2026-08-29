@@ -66,7 +66,13 @@
           <p>Pick the Gogh Punk you want to turn into an autonomous art curator.</p>
           <button class="wizard-primary wizard-connect" type="button" data-wallet-connect>Connect Wallet</button>
           <p class="wizard-wallet-state" data-wallet-state aria-live="polite">Wallet disconnected</p>
-          <div class="wizard-punk-grid" data-wizard-punks></div>
+          <label class="wizard-punk-select">
+            <span>Choose one of your live-verified Punks</span>
+            <select data-wizard-punks disabled>
+              <option value="">Connect wallet to load your Punks</option>
+            </select>
+            <small>Artwork loads after selection so wallets with many Punks become usable faster.</small>
+          </label>
           <p class="wizard-empty" data-wizard-empty hidden>No Gogh Punks were found in this wallet on Robinhood Chain.</p>
         </article>
 
@@ -128,7 +134,7 @@
       <section class="active-agent-console" data-active-agent-console aria-labelledby="active-agent-console-title">
         <header>
           <div><p class="eyebrow">Returning collectors</p><h2 id="active-agent-console-title">Your Active Agents</h2></div>
-          <p>See every activated Punk wallet here. Select an agent to load its current authorization, daily usage, worker activity, and portfolio.</p>
+          <p>See every activated Punk wallet here. Open a Punk wallet for its live authorization, limits, activity, assets, and owner controls.</p>
         </header>
         <div class="active-agent-grid" data-active-agent-grid></div>
         <p class="active-agent-empty" data-active-agent-empty>Connect your wallet to see active Punk agents.</p>
@@ -178,8 +184,8 @@
           </select>
           <small>This selection drives wallet setup, limits, NFT recovery, and automation below. Choosing a Punk never authorizes an agent by itself.</small>
         </label>
-        <div class="punk-visual-picker" data-workspace-punk-cards aria-label="Choose one of my Punks">
-          <p class="empty-state">Connect your wallet to see your Gogh Punks.</p>
+        <div class="selected-punk-preview" data-workspace-punk-preview aria-live="polite">
+          <p class="empty-state">Choose a Punk above to load its artwork.</p>
         </div>
 
         <details class="workflow-step collapsible-section" id="automation-title" data-autonomous-minting open>
@@ -344,6 +350,6 @@
       </section>
     </main>
     <footer class="broker-footer">© <span data-year>2026</span> Gogh Punks. Curatorial scores and Gallery Value are estimates—not financial advice, profit promises, or contract-safety guarantees.</footer>
-    <nav class="mobile-app-nav" aria-label="Mobile navigation"><a href="/">Home</a><a href="/broker/" aria-current="page">Broker</a><a href="/broker/#automation-title">Agents</a><a href="/broker/#nft-portfolio-title">Portfolio</a><button type="button" data-wallet-connect>Wallet</button><button type="button" data-wallet-disconnect hidden>Disconnect</button></nav>
+    <nav class="mobile-app-nav" aria-label="Mobile navigation"><a href="/">Home</a><a href="/broker/" aria-current="page">Broker</a><a href="/broker/#automation-title">Agents</a><a href="/broker/#nft-portfolio-title">Portfolio</a><button type="button" data-wallet-connect>Wallet</button><button type="button" data-wallet-disconnect hidden>Disconnect Wallet</button></nav>
   </body>
 </html>

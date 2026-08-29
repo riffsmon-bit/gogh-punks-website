@@ -102,6 +102,8 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.match(browser, /robinhoodchain\.blockscout\.com\/tx/);
   assert.match(browser, /createCoalescedRefresh\(loadOnce\)/);
   assert.match(browser, /\/api\/broker\/autonomy-v3-run/);
+  assert.match(browser, /Its first bounded scan is starting automatically/);
+  assert.match(browser, /if \(startFirstScan\) void runAgentNow\(\)/);
   assert.match(browser, /JSON\.stringify\(\{ all: true \}\)/);
   assert.match(browser, /NO_ANALYZED_ACTIVE_TARGETS/);
   assert.match(browser, /visibilitychange/);

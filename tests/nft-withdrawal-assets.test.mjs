@@ -16,6 +16,7 @@ const OWNER = "0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6";
 const COLLECTION = "0x1111111111111111111111111111111111111111";
 const HASH = `0x${"ab".repeat(32)}`;
 const TRANSFER = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+const IPFS_IMAGE = "https://ipfs.io/ipfs/bafybeifxubfqw4ijecm3adlgczd37x2kk3xu4mpsgelh7n4nxxq5ufmrsy";
 
 function addressTopic(value) {
   return `0x${value.slice(2).padStart(64, "0")}`;
@@ -84,6 +85,59 @@ test("returns only confirmed worker mints still owned by the Punk wallet", async
   assert.deepEqual(withdrawn.items, []);
 });
 
+test("adds advisory OpenSea art and floor while keeping receipt and live owner authority", async () => {
+  let enrichCalls = 0;
+  const assets = await buildWithdrawableNftAssets("93", {
+    environment: { OPENSEA_API_KEY: "server-side-test-key" },
+    database: { query: async (sql) => ({ rows: /worker_runs/.test(sql) ? [row()] : [] }) },
+    gateBuilder: async () => gate(),
+    getReceipt: async () => receipt(),
+    getOwner: async () => ACCOUNT,
+    getCollectionName: async () => "Example Collection",
+    enrichItems: async (items, account, options) => {
+      enrichCalls += 1;
+      assert.equal(account, ACCOUNT);
+      assert.equal(options.apiKey, "server-side-test-key");
+      return items.map((item) => ({ ...item, name: "Example #99",
+        imageUrl: "https://i.seadn.io/example.png", collectionSlug: "example-collection",
+        floorPrice: { amount: "0.01", currency: "ETH",
+          source: "OPENSEA_COLLECTION_FLOOR", checkedAt: "2026-08-29T04:00:00.000Z",
+          collectionSlug: "example-collection",
+          sourceUrl: "https://opensea.io/collection/example-collection" } }));
+    },
+  });
+  assert.equal(enrichCalls, 1);
+  const [item] = validateWithdrawableNftAssets(assets, "93");
+  assert.equal(item.name, "Example #99");
+  assert.equal(item.imageUrl, "https://i.seadn.io/example.png");
+  assert.equal(item.floorPrice.amount, "0.01");
+  const hostile = structuredClone(assets);
+  hostile.items[0].floorPrice.sourceUrl = "https://evil.test/floor";
+  assert.throws(() => validateWithdrawableNftAssets(hostile, "93"), /floor/);
+});
+
+test("falls back to exact on-chain tokenURI display when marketplace indexing lags", async () => {
+  let tokenUriReads = 0;
+  const assets = await buildWithdrawableNftAssets("93", {
+    database: { query: async (sql) => ({ rows: /worker_runs/.test(sql) ? [row()] : [] }) },
+    gateBuilder: async () => gate(),
+    getReceipt: async () => receipt(),
+    getOwner: async () => ACCOUNT,
+    getCollectionName: async () => "Pepe Brokers",
+    getTokenUri: async () => { tokenUriReads += 1; return "ipfs://metadata"; },
+    enrichItems: async (items) => items,
+    readTokenDisplay: async (uri) => {
+      assert.equal(uri, "ipfs://metadata");
+      return { name: "Pepe Brokers #99", imageUrl: IPFS_IMAGE };
+    },
+  });
+  assert.equal(tokenUriReads, 1);
+  assert.equal(assets.items[0].name, "Pepe Brokers #99");
+  assert.equal(assets.items[0].imageUrl, IPFS_IMAGE);
+  assert.equal(assets.items[0].floorPrice, null);
+  assert.equal(validateWithdrawableNftAssets(assets, "93")[0].imageUrl, IPFS_IMAGE);
+});
+
 test("asset list fails closed on a closed gate, malformed evidence, and hostile links", async () => {
   const unavailable = await buildWithdrawableNftAssets("93", {
     gateBuilder: async () => ({ capability: false, reason: "ACCOUNT_NOT_ACTIVATED" }),
@@ -118,6 +172,7 @@ test("one portfolio request groups confirmed NFTs across the holder's Punk agent
       transactionHash: HASH, acquiredAt: checkedAt,
       openSeaUrl: `https://opensea.io/item/robinhood/${COLLECTION}/${id}`,
       collectionName: "Example Collection", name: `Mint ${id}`, imageUrl: null,
+      collectionSlug: null, floorPrice: null,
     }],
   });
   const portfolio = await buildWithdrawableNftPortfolio(["93", "94", "1659"], {

@@ -403,7 +403,7 @@ function shortAddress(value) {
   return `${value.slice(0, 8)}…${value.slice(-6)}`;
 }
 
-async function fetchGate(fetchFunction) {
+export async function fetchOwnerPolicyGate(fetchFunction) {
   const response = await fetchFunction("/api/broker/owner-policy-status", {
     headers: { accept: "application/json" }, cache: "no-store",
   });
@@ -478,7 +478,7 @@ export function setupOwnerPolicyControls({ windowObject, documentObject, fetchFu
       return;
     }
     try {
-      state.gate ??= await fetchGate(request);
+      state.gate ??= await fetchOwnerPolicyGate(request);
       const live = await readOwnerPolicyState(walletProvider(), state.gate, state.selection);
       if (!isCurrent(revision, state.selection.tokenId)) return;
       state.live = live;

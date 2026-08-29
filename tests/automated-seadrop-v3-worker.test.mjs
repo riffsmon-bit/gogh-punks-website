@@ -115,6 +115,7 @@ test("V3 automatic profile uses enrolled, saved, configured, or immediately requ
   };
   const scheduled = await eligibleAutomationV3Profiles(database, null, ["1797"]);
   assert.deepEqual(scheduled.map((row) => String(row.token_id)), ["93", "1797"]);
+  assert.equal(calls[0].values[3], 10_000);
   assert.match(calls[0].sql, /broker_automation_v3_enrollments/);
   assert.match(calls[0].sql, /latest_saved_punks/);
   assert.doesNotMatch(calls[0].sql, /m\.mode = 'AUTONOMOUS'/);
@@ -232,6 +233,29 @@ test("scheduled V3 passes rotate through a bounded roster without starving later
     profiles.map(({ token_id }) => token_id),
   );
   assert.throws(() => scheduledAutomationV3ProfileBatch(profiles, null, -1));
+});
+
+test("scheduled V3 passes include enrolled Punks beyond the former 32-Punk ceiling", async () => {
+  const rows = Array.from({ length: 96 }, (_, tokenId) => ({
+    token_id: String(tokenId), configured_by: null, economic_settings: null,
+    risk_settings: null, artistic_preferences: null, automatic_profile: true,
+  }));
+  const profiles = await eligibleAutomationV3Profiles({
+    query: async (_sql, values) => {
+      assert.equal(values[3], 10_000);
+      return { rows };
+    },
+  });
+  assert.equal(profiles.length, 96);
+
+  const scheduledTokenIds = new Set();
+  for (let window = 0; window < 16; window += 1) {
+    for (const { token_id: tokenId } of scheduledAutomationV3ProfileBatch(
+      profiles, null, window * 300_000,
+    )) scheduledTokenIds.add(tokenId);
+  }
+  assert.equal(scheduledTokenIds.size, 96);
+  assert.equal(scheduledTokenIds.has("95"), true);
 });
 
 test("V3 discovery has a bounded parallel RPC ceiling", async () => {
