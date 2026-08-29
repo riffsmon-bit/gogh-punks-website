@@ -108,7 +108,8 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.match(browser, /NO_ANALYZED_ACTIVE_TARGETS/);
   assert.match(browser, /visibilitychange/);
   assert.match(browser, /addEventListener\?\.\("focus"/);
-  assert.match(browser, /refresh: String\(Date\.now\(\)\)/);
+  assert.doesNotMatch(browser, /refresh: String\(Date\.now\(\)\)/);
+  assert.match(browser, /status route carries a short CDN cache/);
   assert.match(browser, /acquisitionsToday/);
   assert.match(browser, /maxAcquisitionsPerDay/);
   assert.match(browser, /dataset\.userEdited/);

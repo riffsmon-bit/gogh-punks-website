@@ -601,7 +601,7 @@ export default async function handler(request) {
           automationWallets: false,
           artwork: artworkAvailable,
         }),
-        reconciliationRecommended: true,
+        reconciliationRecommended: candidateTokenIds.length === 0,
         evidence: "INDEXED_DISCOVERY_HINTS_ONLY_EACH_SELECTION_REQUIRES_LIVE_WALLET_OWNER_CHECK",
         activationAuthorized: false,
         autonomyAuthorized: false,

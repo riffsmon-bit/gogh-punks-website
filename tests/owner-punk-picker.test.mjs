@@ -469,7 +469,8 @@ test("broker picker selects only a live-verified wallet-owned Punk", async () =>
   assert.match(accounts, /findBrowserOwnedPunks/);
   assert.match(accounts, /view=indexed/);
   assert.match(accounts, /view=reconcile/);
-  assert.match(accounts, /syncing latest ownership in the background/);
+  assert.match(accounts, /Live ownership verified from indexed roster/);
+  assert.match(accounts, /Do not launch the 5,017-token server reconciliation on every/);
   assert.match(accounts, /renderSelectedPunkPreview/);
   assert.match(accounts, /priorityArtworkAccounts/);
   assert.match(accounts, /gogh:punk-selected/);

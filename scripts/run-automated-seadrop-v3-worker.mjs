@@ -88,7 +88,7 @@ function readClient(url, signal) {
       // Public RPCs can omit responses from large mixed batches even when they
       // accept the HTTP request. Small batches plus bounded retries keep the
       // worker inside free-provider throughput without weakening dual reads.
-      batch: { batchSize: 5, wait: 25 }, retryCount: 3, retryDelay: 1_000,
+      batch: { batchSize: 5, wait: 25 }, retryCount: 1, retryDelay: 1_000,
       timeout: 12_000, fetchOptions: signal ? { signal } : undefined,
     }),
   });
@@ -127,6 +127,8 @@ const DISCOVERY_LOG_CHUNK_SIZE = 5_000n;
 const DISCOVERY_MAX_LOG_CHUNKS = 16n;
 const DISCOVERY_BLOCK_WINDOW = DISCOVERY_LOG_CHUNK_SIZE * DISCOVERY_MAX_LOG_CHUNKS;
 const DISCOVERY_LOG_BATCH_SIZE = 4;
+const DISCOVERY_INCREMENTAL_MAX_CHUNKS = 4n;
+const DISCOVERY_REORG_OVERLAP = 64n;
 const DISCOVERY_BATCH_SIZE = 8;
 const DISCOVERY_RUNTIME_BATCH_SIZE = 4;
 const DISCOVERY_BATCH_DELAY_MS = 250;
@@ -469,6 +471,137 @@ export async function recentSeaDropCollections(
   return [...collections];
 }
 
+function validDiscoveryDatabase(value) {
+  return value && typeof value.query === "function";
+}
+
+export async function incrementalSeaDropCollections(
+  client, database, confirmations = 20n, dependencies = {},
+) {
+  if (!validDiscoveryDatabase(database)) {
+    const error = new TypeError("SeaDrop discovery index is unavailable");
+    error.code = "DISCOVERY_INDEX_UNAVAILABLE";
+    throw error;
+  }
+  const pause = dependencies.pause ?? discoveryDelay;
+  const head = await client.getBlockNumber();
+  const confirmedBlock = head > confirmations ? head - confirmations : 0n;
+  const checkpointResult = await database.query(
+    `SELECT indexed_through_block::text AS indexed_through_block
+       FROM broker_seadrop_discovery_state
+      WHERE chain_id = $1`,
+    [4663],
+  );
+  const checkpointValue = checkpointResult.rows?.[0]?.indexed_through_block;
+  const checkpoint = typeof checkpointValue === "string" && /^(?:0|[1-9][0-9]*)$/.test(checkpointValue)
+    ? BigInt(checkpointValue) : null;
+  const bootstrapWindow = DISCOVERY_LOG_CHUNK_SIZE * DISCOVERY_INCREMENTAL_MAX_CHUNKS;
+  const firstUnseen = checkpoint === null
+    ? (confirmedBlock + 1n > bootstrapWindow ? confirmedBlock - bootstrapWindow + 1n : 0n)
+    : checkpoint + 1n;
+  const fromBlock = checkpoint !== null && firstUnseen > DISCOVERY_REORG_OVERLAP
+    ? firstUnseen - DISCOVERY_REORG_OVERLAP : firstUnseen;
+  const maximumTo = fromBlock + bootstrapWindow - 1n;
+  const toBlock = maximumTo < confirmedBlock ? maximumTo : confirmedBlock;
+  const logs = [];
+  if (fromBlock <= toBlock) {
+    for (let cursor = fromBlock; cursor <= toBlock; cursor += DISCOVERY_LOG_CHUNK_SIZE) {
+      const chunkTo = cursor + DISCOVERY_LOG_CHUNK_SIZE - 1n < toBlock
+        ? cursor + DISCOVERY_LOG_CHUNK_SIZE - 1n : toBlock;
+      logs.push(...await client.getLogs({
+        address: getAddress(SEA_DROP), event: PUBLIC_DROP_UPDATED_EVENT,
+        fromBlock: cursor, toBlock: chunkTo,
+      }));
+      if (chunkTo < toBlock) await pause();
+    }
+  }
+  const latest = new Map();
+  for (const log of logs) {
+    const collection = getAddress(log.args.nftContract).toLowerCase();
+    const drop = log.args.publicDrop;
+    const blockNumber = BigInt(log.blockNumber);
+    const prior = latest.get(collection);
+    if (!prior || blockNumber >= prior.blockNumber) {
+      latest.set(collection, {
+        collection, blockNumber,
+        blockHash: String(log.blockHash).toLowerCase(),
+        transactionHash: String(log.transactionHash).toLowerCase(),
+        mintPrice: BigInt(drop.mintPrice).toString(),
+        startTime: BigInt(drop.startTime).toString(),
+        endTime: BigInt(drop.endTime).toString(),
+        maximum: Number(drop.maxTotalMintableByWallet),
+      });
+    }
+  }
+  const updates = [...latest.values()];
+  await database.query(
+    `WITH updates AS (
+       SELECT * FROM UNNEST(
+         $2::text[], $3::numeric[], $4::numeric[], $5::numeric[], $6::integer[],
+         $7::numeric[], $8::text[], $9::text[]
+       ) AS item(collection_address, mint_price_wei, start_time, end_time,
+         max_total_mintable_by_wallet, update_block_number, update_block_hash,
+         update_transaction_hash)
+     ), upserted AS (
+       INSERT INTO broker_seadrop_public_drops
+         (chain_id, collection_address, mint_price_wei, start_time, end_time,
+          max_total_mintable_by_wallet, update_block_number, update_block_hash,
+          update_transaction_hash, updated_at)
+       SELECT $1, collection_address, mint_price_wei, start_time, end_time,
+              max_total_mintable_by_wallet, update_block_number, update_block_hash,
+              update_transaction_hash, NOW()
+         FROM updates
+       ON CONFLICT (chain_id, collection_address) DO UPDATE
+         SET mint_price_wei = EXCLUDED.mint_price_wei,
+             start_time = EXCLUDED.start_time,
+             end_time = EXCLUDED.end_time,
+             max_total_mintable_by_wallet = EXCLUDED.max_total_mintable_by_wallet,
+             update_block_number = EXCLUDED.update_block_number,
+             update_block_hash = EXCLUDED.update_block_hash,
+             update_transaction_hash = EXCLUDED.update_transaction_hash,
+             updated_at = NOW()
+       WHERE broker_seadrop_public_drops.update_block_number <= EXCLUDED.update_block_number
+     )
+     INSERT INTO broker_seadrop_discovery_state
+       (chain_id, indexed_through_block, updated_at)
+     VALUES ($1, $10, NOW())
+     ON CONFLICT (chain_id) DO UPDATE
+       SET indexed_through_block = GREATEST(
+             broker_seadrop_discovery_state.indexed_through_block,
+             EXCLUDED.indexed_through_block
+           ),
+           updated_at = NOW()`,
+    [
+      4663,
+      updates.map((item) => item.collection),
+      updates.map((item) => item.mintPrice),
+      updates.map((item) => item.startTime),
+      updates.map((item) => item.endTime),
+      updates.map((item) => item.maximum),
+      updates.map((item) => item.blockNumber.toString()),
+      updates.map((item) => item.blockHash),
+      updates.map((item) => item.transactionHash),
+      toBlock.toString(),
+    ],
+  );
+  const nowSeconds = Math.floor((dependencies.nowMs ?? Date.now()) / 1_000);
+  const active = await database.query(
+    `SELECT collection_address
+       FROM broker_seadrop_public_drops
+      WHERE chain_id = $1
+        AND mint_price_wei = 0
+        AND start_time <= $2
+        AND end_time >= $2
+        AND max_total_mintable_by_wallet > 0
+      ORDER BY update_block_number DESC, collection_address
+      LIMIT $3`,
+    [4663, String(nowSeconds), DISCOVERY_COLLECTION_LIMIT],
+  );
+  return Object.freeze((active.rows ?? []).map(({ collection_address: value }) => (
+    getAddress(value).toLowerCase()
+  )));
+}
+
 function configuredCollectionList(environment, name, label) {
   const raw = environment[name];
   if (raw === undefined || raw === "") return null;
@@ -691,15 +824,6 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   const primary = dependencies.primary ?? readClient(primaryUrl, abortSignal);
   const secondary = dependencies.secondary ?? readClient(secondaryUrl, abortSignal);
   const discovery = dependencies.discovery ?? discoveryClient(primaryUrl, abortSignal);
-  const global = await workerStage(
-    "GLOBAL_STATE_READ_FAILED",
-    () => readAutomationV3GlobalState(environment, { clients: [primary, secondary] }),
-  );
-  if (!global.configured || !global.worker.enabled) {
-    const error = new TypeError("GLOBAL_V3_GATE_CLOSED");
-    error.code = "GLOBAL_V3_GATE_CLOSED";
-    throw error;
-  }
   const database = dependencies.database ?? getDatabase().pool;
   const requestedTokenId = dependencies.requestedTokenId ?? null;
   const configuredTokenIds = configuredAutomationV3PunkIds(environment);
@@ -725,7 +849,10 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   const directedCollections = configuredSeaDropCollections(environment);
   const priorityCollections = configuredPrioritySeaDropCollections(environment) ?? [];
   const discoveredCollections = directedCollections === null
-    ? await workerStage("DISCOVERY_SCAN_FAILED", () => recentSeaDropCollections(discovery)) : [];
+    ? await workerStage(
+      "DISCOVERY_SCAN_FAILED",
+      () => incrementalSeaDropCollections(discovery, database),
+    ) : [];
   if (budgetExpired()) return budgetResult();
   const collections = directedCollections
     ?? mergePrioritySeaDropCollections(priorityCollections, discoveredCollections);
@@ -744,6 +871,18 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
     diagnostics: { profiles: profiles.length, recentSeaDropCollections: collections.length,
       directedTargetCollections: directedCollections?.length ?? 0, onchainZeroPriceCandidates: 0 },
   };
+  // Global policy/runtime evidence is expensive (eleven reads from each independent
+  // provider). It remains mandatory before any account or transaction work, but an idle
+  // scan with no candidate no longer spends RPC budget re-proving unchanged global state.
+  const global = await workerStage(
+    "GLOBAL_STATE_READ_FAILED",
+    () => readAutomationV3GlobalState(environment, { clients: [primary, secondary] }),
+  );
+  if (!global.configured || !global.worker.enabled) {
+    const error = new TypeError("GLOBAL_V3_GATE_CLOSED");
+    error.code = "GLOBAL_V3_GATE_CLOSED";
+    throw error;
+  }
   const diagnostics = rejectionDiagnostics(profiles, collections, candidates);
   currentDiagnostics = diagnostics;
   diagnostics.totalEligibleProfiles = orderedProfiles.length;

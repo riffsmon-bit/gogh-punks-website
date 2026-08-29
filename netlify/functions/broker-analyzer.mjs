@@ -1,6 +1,14 @@
 import { runBrokerAnalysis } from "../../scripts/run-broker-analysis.mjs";
+import {
+  backgroundRpcDecision, logBackgroundRpcSkip,
+} from "./_shared/background-rpc-policy.mjs";
 
 export default async function handler() {
+  const decision = backgroundRpcDecision(process.env, "BROKER_ANALYZER");
+  if (!decision.enabled) {
+    logBackgroundRpcSkip(decision);
+    return;
+  }
   if (process.env.BROKER_ANALYZER_ENABLED !== "true") {
     console.log(JSON.stringify({ event: "BROKER_ANALYZER_SKIPPED", reason: "DISABLED" }));
     return;

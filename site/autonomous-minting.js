@@ -572,12 +572,17 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     state.refreshing = true;
     render();
     try {
-      const params = new URLSearchParams({ refresh: String(Date.now()) });
+      // The status route carries a short CDN cache for wallet-independent live evidence. Avoid a
+      // timestamp query key that defeats that cache on every page navigation. Privileged setup,
+      // stop, funding, and execution routes still perform their own fresh chain checks.
+      const params = new URLSearchParams();
       if (requestedTokenId) params.set("tokenId", requestedTokenId);
-      const query = `?${params}`;
+      const query = params.size > 0 ? `?${params}` : "";
       const fetchGate = async (version) => {
         const response = await request(`/api/broker/autonomy-v${version}-status${query}`, {
-          headers: { accept: "application/json" }, cache: "no-store",
+          // The edge may reuse this public advisory response briefly; its browser response is
+          // still private/no-store. Mutation routes independently perform fresh live checks.
+          headers: { accept: "application/json" },
         });
         const payload = await response.json();
         if (!response.ok || payload?.ok !== true || typeof payload?.automation !== "object") {
