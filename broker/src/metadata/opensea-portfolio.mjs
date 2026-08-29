@@ -88,6 +88,28 @@ export function sanitizeOpenSeaAccountNfts(payload, expectedAccount) {
   }));
 }
 
+export function sanitizeOpenSeaExactNft(payload, expectedCollection, expectedTokenId) {
+  const collection = normalizeAddress(expectedCollection, "OpenSea NFT contract");
+  const identifier = tokenId(expectedTokenId);
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new TypeError("OpenSea NFT response is invalid");
+  }
+  if (normalizeAddress(payload.contract, "OpenSea NFT contract") !== collection
+    || tokenId(payload.identifier) !== identifier) {
+    throw new TypeError("OpenSea NFT response identity does not match the request");
+  }
+  const slug = typeof payload.collection === "string" && SLUG.test(payload.collection)
+    ? payload.collection : null;
+  return Object.freeze({
+    identity: `${collection}:${identifier}`,
+    collection,
+    tokenId: identifier,
+    collectionSlug: slug,
+    name: cleanText(payload.name, 200),
+    imageUrl: imageUrl(payload.display_image_url ?? payload.image_url),
+  });
+}
+
 export function sanitizeOpenSeaCollectionFloor(payload, slug, checkedAt) {
   if (typeof slug !== "string" || !SLUG.test(slug)
     || !payload || typeof payload !== "object" || Array.isArray(payload)) return null;
@@ -147,6 +169,18 @@ export class OpenSeaPortfolioSource {
     return sanitizeOpenSeaAccountNfts(await this.#get(endpoint), canonical);
   }
 
+  async exactNft(collection, identifier) {
+    const canonicalCollection = normalizeAddress(collection, "OpenSea NFT contract");
+    const canonicalIdentifier = tokenId(identifier);
+    const endpoint = new URL(
+      `https://api.opensea.io/api/v2/chain/robinhood/contract/${canonicalCollection}`
+      + `/nfts/${canonicalIdentifier}`,
+    );
+    return sanitizeOpenSeaExactNft(
+      await this.#get(endpoint), canonicalCollection, canonicalIdentifier,
+    );
+  }
+
   async collectionFloor(slug) {
     if (typeof slug !== "string" || !SLUG.test(slug)) return null;
     const checkedAt = new Date().toISOString();
@@ -174,10 +208,34 @@ export async function enrichOpenSeaPortfolio(items, account, {
   const identities = items.map((item) => `${item.collection}:${item.tokenId}`).sort();
   const cacheKey = `${canonicalAccount}:${identities.join(",")}`;
   const cached = portfolioCache.get(cacheKey);
-  if (cached?.expiresAt > now) return cached.items;
+  if (cached?.createdAt <= now && cached.expiresAt > now) return cached.items;
   const provider = source ?? new OpenSeaPortfolioSource({ apiKey, fetchFn });
-  const openSeaItems = await provider.accountNfts(canonicalAccount);
+  let openSeaItems = [];
+  try {
+    openSeaItems = await provider.accountNfts(canonicalAccount);
+  } catch {
+    // OpenSea's account inventory can lag a confirmed Robinhood transfer. Exact
+    // contract/token reads below are the bounded display fallback; receipt logs and
+    // live ownerOf remain the only authority for whether an item is withdrawable.
+  }
   const displayByIdentity = new Map(openSeaItems.map((item) => [item.identity, item]));
+  const missing = items.filter((item) => {
+    const display = displayByIdentity.get(`${item.collection}:${item.tokenId}`);
+    return !display || (!display.name && !display.imageUrl && !display.collectionSlug);
+  });
+  if (typeof provider.exactNft === "function") {
+    // Bound concurrency so a portfolio with several items does not burst the
+    // marketplace API. Only exact, receipt/live-owner-verified identities are read.
+    for (let offset = 0; offset < missing.length; offset += 4) {
+      const exact = await Promise.all(missing.slice(offset, offset + 4).map(async (item) => {
+        try { return await provider.exactNft(item.collection, item.tokenId); }
+        catch { return null; }
+      }));
+      for (const display of exact) {
+        if (display) displayByIdentity.set(display.identity, display);
+      }
+    }
+  }
   // Request collection stats only for the exact authoritative assets being rendered.
   // A Punk Wallet may hold many unrelated/spam NFTs; fetching every wallet collection
   // would waste API credits and delay this small recovery inventory.
@@ -200,6 +258,6 @@ export async function enrichOpenSeaPortfolio(items, account, {
       floorPrice: display?.collectionSlug ? floors.get(display.collectionSlug) ?? null : null,
     });
   }));
-  portfolioCache.set(cacheKey, { expiresAt: now + CACHE_TTL_MS, items: enriched });
+  portfolioCache.set(cacheKey, { createdAt: now, expiresAt: now + CACHE_TTL_MS, items: enriched });
   return enriched;
 }

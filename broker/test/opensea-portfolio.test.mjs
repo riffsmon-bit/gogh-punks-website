@@ -6,6 +6,7 @@ import {
   OpenSeaPortfolioSource,
   sanitizeOpenSeaAccountNfts,
   sanitizeOpenSeaCollectionFloor,
+  sanitizeOpenSeaExactNft,
 } from "../src/metadata/opensea-portfolio.mjs";
 
 const ACCOUNT = "0x1111111111111111111111111111111111111111";
@@ -62,26 +63,72 @@ test("accepts only bounded native collection-floor estimates", () => {
     "example-collection", at), null);
 });
 
+test("sanitizes an exact NFT only when contract and token identity match", () => {
+  assert.deepEqual(sanitizeOpenSeaExactNft({
+    identifier: "7", collection: "example-collection", contract: COLLECTION,
+    name: "Example #7", image_url: "https://i.seadn.io/example.png",
+  }, COLLECTION, "7"), {
+    identity: `${COLLECTION}:7`, collection: COLLECTION, tokenId: "7",
+    collectionSlug: "example-collection", name: "Example #7",
+    imageUrl: "https://i.seadn.io/example.png",
+  });
+  assert.throws(() => sanitizeOpenSeaExactNft({
+    identifier: "8", collection: "example-collection", contract: COLLECTION,
+  }, COLLECTION, "7"), /identity/);
+  assert.throws(() => sanitizeOpenSeaExactNft({
+    identifier: "7", collection: "example-collection", contract: OTHER_COLLECTION,
+  }, COLLECTION, "7"), /identity/);
+});
+
 test("OpenSea source keeps the key server-side and uses fixed read-only endpoints", async () => {
   const calls = [];
   const source = new OpenSeaPortfolioSource({ apiKey: "server-secret-key", fetchFn: async (url, options) => {
     calls.push({ url: String(url), options });
-    return calls.length === 1 ? response({ nfts: [{
+    if (calls.length === 1) return response({ nfts: [{
       identifier: "7", collection: "example-collection", contract: COLLECTION,
       name: "Example #7", image_url: "https://raw2.seadn.io/example.png",
-    }] }) : response({ total: { floor_price: 0.01 } });
+    }] });
+    if (calls.length === 2) return response({
+      identifier: "7", collection: "example-collection", contract: COLLECTION,
+      name: "Example #7", image_url: "https://raw2.seadn.io/example.png",
+    });
+    return response({ total: { floor_price: 0.01 } });
   } });
   assert.equal((await source.accountNfts(ACCOUNT))[0].tokenId, "7");
+  assert.equal((await source.exactNft(COLLECTION, "7")).tokenId, "7");
   assert.equal((await source.collectionFloor("example-collection")).amount, "0.01");
   assert.equal(calls[0].url,
     `https://api.opensea.io/api/v2/chain/robinhood/account/${ACCOUNT}/nfts?limit=64`);
   assert.equal(calls[1].url,
+    `https://api.opensea.io/api/v2/chain/robinhood/contract/${COLLECTION}/nfts/7`);
+  assert.equal(calls[2].url,
     "https://api.opensea.io/api/v2/collections/example-collection/stats");
   for (const call of calls) {
     assert.equal(call.options.method, "GET");
     assert.equal(call.options.redirect, "error");
     assert.equal(call.options.headers["x-api-key"], "server-secret-key");
   }
+});
+
+test("enrichment falls back to bounded exact NFT reads when account inventory lags", async () => {
+  const requested = [];
+  const source = {
+    accountNfts: async () => { throw new Error("index lag"); },
+    exactNft: async (collection, identifier) => {
+      requested.push(`${collection}:${identifier}`);
+      return { identity: `${collection}:${identifier}`, collection, tokenId: identifier,
+        collectionSlug: "exact-collection", name: "Exact #7",
+        imageUrl: "https://i.seadn.io/exact.png" };
+    },
+    collectionFloor: async (slug) => ({ amount: "0.03", currency: "ETH",
+      source: "OPENSEA_COLLECTION_FLOOR", checkedAt: "2026-08-29T04:00:00.000Z",
+      collectionSlug: slug, sourceUrl: `https://opensea.io/collection/${slug}` }),
+  };
+  const [item] = await enrichOpenSeaPortfolio([baseItem()], ACCOUNT, { source, now: 1_200_000 });
+  assert.deepEqual(requested, [`${COLLECTION}:7`]);
+  assert.equal(item.name, "Exact #7");
+  assert.equal(item.imageUrl, "https://i.seadn.io/exact.png");
+  assert.equal(item.floorPrice.amount, "0.03");
 });
 
 test("enrichment adds advisory art and floor without changing authoritative identity", async () => {
