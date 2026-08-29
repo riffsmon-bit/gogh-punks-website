@@ -58,6 +58,14 @@ test("owner roster supports a fast indexed view and defaults to reconciliation",
     "reconcile");
 });
 
+test("first-time wallets reconcile server-side instead of scanning 5,017 Punks on mobile", async () => {
+  const source = await readFile(new URL("../site/owner-accounts.js", import.meta.url), "utf8");
+  assert.match(source, /first-time holder can be absent/);
+  assert.match(source, /view=reconcile/);
+  assert.match(source, /reconciledInitially = true/);
+  assert.doesNotMatch(source, /const walletOwned = await discoverWalletOwnedPunkIds/);
+});
+
 test("configured automation roster supplies bounded discovery hints without authority", () => {
   assert.deepEqual(configuredAutomationPunkIds({
     BROKER_AUTOMATION_V3_PUNK_IDS: "1797,1639,1755",

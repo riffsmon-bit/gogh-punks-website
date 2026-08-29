@@ -911,7 +911,9 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
         && Array.isArray(candidatesPayload.candidateTokenIds)
         ? candidatesPayload.candidateTokenIds : [];
       const remembered = knownTokenIds(browserWindow.localStorage);
-      const candidates = [...new Set([...remembered, ...indexed])];
+      let candidates = [...new Set([...remembered, ...indexed])];
+      let rosterPayload = candidatesPayload;
+      let reconciledInitially = false;
       let accounts = [];
       if (candidates.length > 0) {
         // The indexed/enrolled IDs are hints only. Three Multicall reads verify ownership,
@@ -920,21 +922,35 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
         accounts = await findBrowserOwnedPunks(browserWindow.__GOGH_WALLET_PROVIDER__,
           gatePayload.activationGate, wallet.account, candidates);
       } else {
-        // A new holder can temporarily be absent from both the local index and OpenSea fallback.
-        // Retain the exhaustive bounded scan only for that exceptional case, then recheck the
-        // resulting IDs through the same batched live account verifier.
-        const walletOwned = await discoverWalletOwnedPunkIds(
-          browserWindow.__GOGH_WALLET_PROVIDER__,
-          gatePayload.activationGate?.bindings?.punkCollection,
-          wallet.account,
+        // A first-time holder can be absent from both the persistent index and local memory. Do
+        // the bounded full-collection completion on the server, where it is 26 parallelized
+        // Multicalls, rather than making a phone scan 5,017 ownerOf calls. The resulting IDs are
+        // still only hints: the wallet provider verifies every returned owner and Punk Account
+        // binding in the same three live Multicalls used by the indexed path.
+        const reconcileResponse = await request(
+          `/api/broker/owner-punks?owner=${encodeURIComponent(wallet.account)}&view=reconcile`,
+          { headers: { accept: "application/json" }, cache: "no-store" },
         );
+        const reconcilePayload = await reconcileResponse.json();
+        if (!reconcileResponse.ok || reconcilePayload?.ok !== true
+          || !Array.isArray(reconcilePayload.candidateTokenIds)) {
+          throw new TypeError("Live Punk roster reconciliation is unavailable");
+        }
+        rosterPayload = reconcilePayload;
+        reconciledInitially = true;
+        candidates = [...new Set(reconcilePayload.candidateTokenIds.map(String))]
+          .sort((left, right) => Number(left) - Number(right));
         accounts = await findBrowserOwnedPunks(browserWindow.__GOGH_WALLET_PROVIDER__,
-          gatePayload.activationGate, wallet.account, walletOwned);
+          gatePayload.activationGate, wallet.account, candidates);
       }
       if (current !== revision) return;
-      publishVerifiedAccounts(accounts, candidatesPayload, wallet, current);
-      void reconcileOwnerRoster(wallet, gatePayload, current,
-        candidates.map(String).sort((left, right) => Number(left) - Number(right)));
+      publishVerifiedAccounts(accounts, rosterPayload, wallet, current, {
+        reconciled: reconciledInitially,
+      });
+      if (!reconciledInitially) {
+        void reconcileOwnerRoster(wallet, gatePayload, current,
+          candidates.map(String).sort((left, right) => Number(left) - Number(right)));
+      }
     } catch {
       if (current !== revision) return;
       setCounts(null, null, "Live check unavailable");
