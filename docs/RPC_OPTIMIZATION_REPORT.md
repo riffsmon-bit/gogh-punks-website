@@ -95,10 +95,13 @@ scheduled worker. Recommended settings:
 ENABLE_PREVIEW_BACKGROUND_RPC=false
 BROKER_ENABLE_CHAIN_WIDE_NFT_INDEXER=false
 PAUSE_BACKGROUND_RPC=false
+BACKGROUND_RPC_ALLOWED_TASKS=AUTOMATION_V3_WORKER
 ```
 
 If provider usage spikes, set `PAUSE_BACKGROUND_RPC=true` immediately. Do not enable the
 chain-wide NFT stream until it has a reviewed narrow start block and an explicit cost budget.
+The task allowlist permits the optimized V3 worker while keeping the Discord scanner and all
+other scheduled RPC consumers off; an explicitly empty allowlist disables every scheduled task.
 
 ## Remaining measurement work
 

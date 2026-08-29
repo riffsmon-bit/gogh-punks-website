@@ -22,6 +22,28 @@ test("deploy previews and the emergency switch suppress autonomous background RP
   assert.equal(backgroundRpcDecision({
     CONTEXT: "production", PAUSE_BACKGROUND_RPC: "true",
   }).reason, "EMERGENCY_PAUSE");
+  assert.equal(backgroundRpcDecision({
+    CONTEXT: "production",
+    BACKGROUND_RPC_ALLOWED_TASKS: "AUTOMATION_V3_WORKER",
+  }, "AUTOMATION_V3_WORKER").enabled, true);
+  assert.deepEqual(backgroundRpcDecision({
+    CONTEXT: "production",
+    BACKGROUND_RPC_ALLOWED_TASKS: "AUTOMATION_V3_WORKER",
+  }, "DISCORD_SALES_FEED"), {
+    enabled: false,
+    reason: "TASK_NOT_ALLOWED",
+    task: "DISCORD_SALES_FEED",
+    context: "production",
+  });
+  assert.equal(backgroundRpcDecision({
+    CONTEXT: "production",
+    BACKGROUND_RPC_ALLOWED_TASKS: "",
+  }, "AUTOMATION_V3_WORKER").reason, "TASK_NOT_ALLOWED");
+  assert.equal(backgroundRpcDecision({
+    CONTEXT: "production",
+    PAUSE_BACKGROUND_RPC: "true",
+    BACKGROUND_RPC_ALLOWED_TASKS: "AUTOMATION_V3_WORKER",
+  }, "AUTOMATION_V3_WORKER").reason, "EMERGENCY_PAUSE");
 });
 
 test("SeaDrop discovery advances from its checkpoint instead of rescanning 80,000 blocks", async () => {
