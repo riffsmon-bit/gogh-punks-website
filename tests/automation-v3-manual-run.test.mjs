@@ -98,6 +98,29 @@ test("worker runner fails closed when another run holds the lock", async () => {
   assert.equal(called, false);
 });
 
+test("scheduled runner retains a four-minute lease to deduplicate repeated delivery", async () => {
+  const queries = [];
+  const client = {
+    query: async (sql, values) => {
+      queries.push([sql, values]);
+      return sql.includes("INSERT INTO broker_automation_v3_worker_leases")
+        ? { rows: [{ holder: values[1] }] } : { rows: [] };
+    },
+    release() { queries.push(["release"]); },
+  };
+  const result = await runAutomationV3Once({
+    database: { connect: async () => client },
+    leaseMilliseconds: 240_000,
+    retainLease: true,
+    worker: async () => ({ status: "NO_ELIGIBLE_TARGETS", submitted: 0 }),
+    record: async () => {},
+  });
+  assert.equal(result.status, "NO_ELIGIBLE_TARGETS");
+  assert.equal(queries[0][1][3], 240_000);
+  assert.equal(queries.some(([sql]) => /DELETE FROM broker_automation_v3_worker_leases/.test(sql)), false);
+  assert.deepEqual(queries.at(-1), ["release"]);
+});
+
 test("worker lease and deadline recover before the next scheduled pass", async () => {
   const migration = await import("node:fs/promises").then(({ readFile }) => readFile(
     new URL("../netlify/database/migrations/20260825080000_create_automation_v3_worker_lease.sql", import.meta.url),
@@ -109,6 +132,7 @@ test("worker lease and deadline recover before the next scheduled pass", async (
   ));
   assert.match(migration, /lease_until TIMESTAMPTZ NOT NULL/);
   assert.match(source, /WORKER_LEASE_MILLISECONDS = 90_000/);
+  assert.match(source, /SCHEDULED_WORKER_LEASE_MILLISECONDS = 240_000/);
   assert.match(source, /deadlineMs: startedAt\.getTime\(\) \+ AUTOMATION_V3_WORKER_TIME_BUDGET_MS/);
   assert.match(source, /lease_until <= NOW\(\)/);
   assert.doesNotMatch(source, /pg_try_advisory_lock|pg_advisory_unlock/);
