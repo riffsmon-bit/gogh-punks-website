@@ -373,6 +373,11 @@ test("Control Center is progressive, mobile, and keeps mint execution disabled",
   assert.match(browser, /nft-withdrawal-assets\?tokenId=/);
   assert.match(browser, /preflightNftWithdrawal/);
   assert.match(browser, /submitNftWithdrawal/);
+  assert.match(browser, /state\.withdrawalAsset === selectedAsset/);
+  assert.match(browser, /state\.withdrawalAmount === selectedAmount/);
+  assert.doesNotMatch(browser, /state\.withdrawalAsset === asset/);
+  assert.match(html, /Withdraw to my wallet/);
+  assert.match(html, /destination is always the wallet that currently owns this Gogh Punk/);
   assert.match(browser, /OPENSEA_COLLECTION_FLOOR|OpenSea collection floor/);
   assert.match(html, /What your Punk considered/);
   assert.match(browser, /Website and X links affect discovery priority only|sent into live contract safety checks/);

@@ -660,8 +660,12 @@ function renderWithdrawal() {
   quantityField.hidden = asset.standard !== "ERC1155";
   quantity.max = asset.amount;
   quantity.value = state.withdrawalAmount;
+  const validQuantity = asset.standard !== "ERC1155"
+    || (/^[1-9]\d*$/.test(state.withdrawalAmount)
+      && BigInt(state.withdrawalAmount) <= BigInt(asset.amount));
   confirmation.disabled = !state.owned || state.withdrawalBusy;
-  submit.disabled = !state.owned || state.withdrawalBusy || !confirmation.checked;
+  submit.disabled = !state.owned || state.withdrawalBusy || !confirmation.checked
+    || !validQuantity;
   submit.textContent = state.withdrawalBusy
     ? "VERIFYING LIVE OWNERSHIP…" : "VERIFY & WITHDRAW IN METAMASK";
 }
@@ -706,8 +710,10 @@ async function withdrawSelectedAsset() {
   }
   const revision = state.revision;
   const selectedToken = state.tokenId;
-  const asset = Object.freeze({ ...state.withdrawalAsset,
-    amount: state.withdrawalAsset.standard === "ERC1155"
+  const selectedAsset = state.withdrawalAsset;
+  const selectedAmount = state.withdrawalAmount;
+  const asset = Object.freeze({ ...selectedAsset,
+    amount: selectedAsset.standard === "ERC1155"
       ? state.withdrawalAmount : state.withdrawalAsset.amount });
   state.withdrawalBusy = true;
   renderWithdrawal();
@@ -717,7 +723,9 @@ async function withdrawSelectedAsset() {
     const initial = await preflightNftWithdrawal(state.provider, gate, selectedToken, asset);
     const result = await submitNftWithdrawal(state.provider, initial, {
       loadGate: fetchWithdrawalGate,
-      isCurrent: () => revision === state.revision && state.withdrawalAsset === asset,
+      isCurrent: () => revision === state.revision
+        && state.withdrawalAsset === selectedAsset
+        && state.withdrawalAmount === selectedAmount,
     });
     const link = query("[data-withdrawal-transaction]");
     link.href = `https://robinhoodchain.blockscout.com/tx/${result.hash}`;
@@ -1061,9 +1069,7 @@ function bindActions() {
   query("[data-wrap-review]").addEventListener("click", reviewWrappedNative);
   query("[data-withdrawal-confirm]").addEventListener("change", renderWithdrawal);
   query("[data-withdrawal-quantity]").addEventListener("input", (event) => {
-    const maximum = BigInt(state.withdrawalAsset?.amount ?? "1");
-    const value = event.target.value;
-    if (/^[1-9]\d*$/.test(value) && BigInt(value) <= maximum) state.withdrawalAmount = value;
+    state.withdrawalAmount = event.target.value;
     query("[data-withdrawal-confirm]").checked = false;
     renderWithdrawal();
   });
