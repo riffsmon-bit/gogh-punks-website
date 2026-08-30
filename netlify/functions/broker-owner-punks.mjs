@@ -444,7 +444,11 @@ function agentSummaryStatus(row, nowMs = Date.now()) {
   }
   if (row.worker_state === "PAUSED") return "PAUSED";
   if (row.worker_state === "ERROR") return "NEEDS_ATTENTION";
-  if (row.worker_state === "SCANNING") return "SCANNING";
+  if (["SUBMITTING", "CONFIRMING"].includes(row.worker_state)) return "MINTING";
+  if (["SCANNING", "CANDIDATE_FOUND", "VERIFYING_CONTRACT", "CHECKING_PRICE",
+    "CHECKING_ELIGIBILITY", "CHECKING_LIMITS", "SIMULATING", "READY"].includes(
+    row.worker_state,
+  )) return "SCANNING";
   if (row.worker_state === "QUEUED") return "QUEUED";
   return "ACTIVE";
 }
@@ -672,6 +676,19 @@ export default async function handler(request) {
     ])].sort((left, right) => Number(left) - Number(right));
     if (candidateTokenIds.length > MAX_CANDIDATES) throw new RangeError("owner candidate set is too large");
     if (view === "indexed") {
+      let indexedAutomationCreated = [];
+      let automationWalletsAvailable = false;
+      try {
+        // One bounded Multicall supplies the immutable V3 wallet-created bit for the complete
+        // indexed roster. Without it, the fast path showed only locally configured/enrolled
+        // rows and a holder's active-agent count could collapse until a slow reconciliation.
+        indexedAutomationCreated = [...await createdAutomationV3PunkIds(candidateTokenIds)];
+        automationWalletsAvailable = true;
+      } catch {
+        // Durable enrollments are still useful display hints when the one live batch is
+        // temporarily unavailable. Selection and every privileged action recheck the chain.
+        indexedAutomationCreated = [...enrolled];
+      }
       let cachedPunks = [];
       let artworkAvailable = false;
       try {
@@ -693,7 +710,7 @@ export default async function handler(request) {
         // Enrollment is durable evidence that this wallet existed when the Punk last passed the
         // live worker gate, but it is not current authority. Mark it only as a cached visual hint;
         // browser Multicall and selection-time status replace it before actions are enabled.
-        enrolled,
+        indexedAutomationCreated,
         agentSummaries,
       );
       return json({
@@ -711,7 +728,7 @@ export default async function handler(request) {
           liveMulticall: false,
           automationRoster: automationRoster.length > 0,
           automationEnrollments: enrollmentResult.status === "fulfilled",
-          automationWallets: false,
+          automationWallets: automationWalletsAvailable,
           agentSummaries: agentSummaryResult.status === "fulfilled",
           artwork: artworkAvailable,
         }),

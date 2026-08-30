@@ -117,6 +117,12 @@ test("owner agent summaries distinguish worker proof from configuration", async 
         worker_state: null, last_scheduled_scan: null, last_actual_scan: null,
         last_successful_mint: null, next_scan_estimate: null, reason: null, updated_at: null,
         global_status: null, global_completed_at: null },
+      { token_id: "4184", configured: true, enrolled: true, account_address: ACCOUNT_A,
+        worker_state: "CONFIRMING", last_scheduled_scan: "2026-08-29T12:09:00Z",
+        last_actual_scan: "2026-08-29T12:09:02Z", last_successful_mint: null,
+        next_scan_estimate: "2026-08-29T14:24:00Z", reason: "MINT_SUBMITTED",
+        updated_at: "2026-08-29T12:09:30Z", global_status: "NO_ELIGIBLE_TARGETS",
+        global_completed_at: "2026-08-29T12:09:30Z" },
     ] };
   }, now);
   assert.equal(summaries[0].status, "ACTIVE");
@@ -124,6 +130,7 @@ test("owner agent summaries distinguish worker proof from configuration", async 
   assert.equal(summaries[1].status, "NEEDS_ENROLLMENT");
   assert.equal(summaries[2].status, "NEEDS_ATTENTION");
   assert.equal(summaries[3].status, "AWAITING_WORKER_EVIDENCE");
+  assert.equal(summaries[4].status, "MINTING");
   assert.match(captured.sql, /broker_punk_agent_heartbeats/);
   assert.match(captured.sql, /broker_automation_v3_worker_state/);
   assert.equal(captured.values[2], OWNER.toLowerCase());

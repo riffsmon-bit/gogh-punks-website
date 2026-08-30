@@ -64,7 +64,8 @@ class El {
   click() { this.clicks += 1; return this.listeners.get("click")?.(); }
 }
 
-function wizardFixture({ stored = null, punks = [], automation = null, wallet = true } = {}) {
+function wizardFixture({ stored = null, punks = [], automation = null, wallet = true,
+  fetchFunction = null } = {}) {
   const elements = new Map();
   const put = (selector, element) => {
     elements.set(selector, [...(elements.get(selector) ?? []), element]);
@@ -125,7 +126,7 @@ function wizardFixture({ stored = null, punks = [], automation = null, wallet = 
   put("[data-active-agent-grid]", new El());
   put("[data-active-agent-empty]", new El());
   return {
-    root, screens, windowObject, documentObject, listeners, dispatched, storage,
+    root, screens, windowObject, documentObject, listeners, dispatched, storage, fetchFunction,
     element: query,
     elements: queryAll,
     step: () => screens.find((screen) => !screen.hidden)?.dataset.wizardStep ?? null,
@@ -272,26 +273,30 @@ test("agent cards report the authorization expiry the live reader actually publi
   assert.notEqual(facts.Authorization, "Select to check");
 });
 
-test("active-agent cards link directly to each Punk wallet control center", () => {
+test("active-agent cards separate same-page monitoring, wallet assets, and safe restart", () => {
   const fixture = wizardFixture({
     punks: [ACTIVE_PUNK],
     automation: activeAutomation(),
   });
   setupAgentWizard(fixture);
   assert.deepEqual(agentCardActions(fixture), [
-    { textContent: "Watch agent", href: "/broker/punk/93#activity" },
+    { textContent: "Watch agent", href: "/broker/?punk=93#automation-title" },
     { textContent: "Open wallet", href: "/broker/punk/93#assets" },
+    { textContent: "Restart agent", href: undefined },
   ]);
 });
 
-test("wizard Watch Agent opens the Punk Control Center instead of a second setup panel", () => {
+test("wizard Watch Agent selects the Punk and opens same-page monitoring", () => {
   const fixture = wizardFixture({
     stored: { selectedPunk: "93", step: "success", dailyLimit: 3, durationDays: 7 },
     punks: [ACTIVE_PUNK], automation: activeAutomation(),
   });
   setupAgentWizard(fixture);
   fixture.element("[data-wizard-watch]").click();
-  assert.deepEqual(fixture.windowObject.location.assigned, ["/broker/punk/93#activity"]);
+  assert.equal(fixture.element("[data-advanced-workspace]").open, "");
+  assert.equal(fixture.element("#automation-title").open, "");
+  assert.equal(fixture.dispatched.at(-1).type, "gogh:select-punk-request");
+  assert.equal(fixture.dispatched.at(-1).detail.tokenId, "93");
 });
 
 test("agent cards never present a local draft limit as an on-chain cap", () => {
@@ -320,6 +325,32 @@ test("indexed worker evidence distinguishes enrollment from actual processing", 
   assert.equal(agentCardPresentation({ tokenId: "96", agentSummary: {
     configured: true, enrolled: true, status: "AWAITING_WORKER_EVIDENCE",
   } }).label, "Awaiting worker evidence");
+  assert.equal(agentCardPresentation({ tokenId: "97", agentSummary: {
+    configured: true, enrolled: true, status: "MINTING", workerState: "CONFIRMING",
+  } }).label, "Minting now");
+});
+
+test("Restart Agent uses only the fixed Punk run endpoint and reports queue state", async () => {
+  const calls = [];
+  const fixture = wizardFixture({
+    punks: [{ ...ACTIVE_PUNK, automationCreated: true }],
+    automation: activeAutomation(),
+    fetchFunction: async (url, options) => {
+      calls.push({ url, options });
+      return { ok: true, status: 202, json: async () => ({ ok: true,
+        run: { status: "RUN_IN_PROGRESS" } }) };
+    },
+  });
+  setupAgentWizard(fixture);
+  const card = fixture.element("[data-active-agent-grid]").children[0];
+  const status = card.children[1].children[1];
+  const restart = card.children[2].children[2];
+  await restart.click();
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, "/api/broker/autonomy-v3-run");
+  assert.deepEqual(JSON.parse(calls[0].options.body), { tokenId: "93" });
+  assert.equal(status.textContent, "Queued · worker is finishing another scan");
+  assert.equal(restart.textContent, "Restart agent");
 });
 
 test("shared hosted gas is optional and never blocks an otherwise-live agent", () => {

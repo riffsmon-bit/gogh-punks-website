@@ -46,12 +46,18 @@ test("only the exact Netlify deploy-preview context uses the production bridge",
     {}, "https://deploy-preview-9--gogh-punks.netlify.app/api/broker/autonomy-v3-status",
   ), true);
   assert.equal(isDeployPreview(
+    {}, "https://deploy-preview-13.preview.goghpunks.xyz/api/broker/autonomy-v3-status",
+  ), true);
+  assert.equal(isDeployPreview(
     {}, "https://deploy-preview-0--gogh-punks.netlify.app/api/broker/autonomy-v3-status",
   ), false);
   assert.equal(isDeployPreview(
     {}, "https://deploy-preview-9--gogh-punks.netlify.app.evil.example/api",
   ), false);
   assert.equal(isDeployPreview({}, "http://deploy-preview-9--gogh-punks.netlify.app/api"), false);
+  assert.equal(isDeployPreview(
+    {}, "https://deploy-preview-13.preview.goghpunks.xyz.evil.example/api",
+  ), false);
 });
 
 test("preview activity reads the fixed production endpoint and validates its evidence", async () => {

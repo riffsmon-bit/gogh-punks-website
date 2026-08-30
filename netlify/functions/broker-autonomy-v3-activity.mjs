@@ -34,15 +34,25 @@ export default async function handler(request) {
       && !/^(?:0|[1-9][0-9]{0,3})$/.test(selectedTokenId))) {
       return json({ ok: false, code: "INVALID_TOKEN_ID" }, 400);
     }
-    const evidence = isDeployPreview(process.env, request.url)
+    const preview = isDeployPreview(process.env, request.url);
+    const evidence = preview
       ? await getProductionAutomationV3Activity(undefined, selectedTokenId)
       : await Promise.all([
         getAutomationV3WorkerHeartbeat(), getAutomationV3UsageStats(),
         selectedTokenId === null ? null : getAutomationV3PunkWorkerActivity(selectedTokenId),
       ]).then(([heartbeat, usage, punk]) => ({ heartbeat, usage, punk }));
     const { heartbeat, usage, punk = null } = evidence;
-    return json({ ok: true,
-      activity: automationV3Activity(heartbeat, usage, process.env, Date.now(), punk) }, 200, {
+    // A deploy preview deliberately has no autonomous worker of its own. Production already
+    // validates its configured release before publishing `online`; recomputing that result with
+    // the preview commit SHA would make every healthy production heartbeat look stale.
+    const activity = preview ? Object.freeze({
+      checkedAt: evidence.checkedAt,
+      online: evidence.online,
+      heartbeat,
+      usage,
+      punk,
+    }) : automationV3Activity(heartbeat, usage, process.env, Date.now(), punk);
+    return json({ ok: true, activity }, 200, {
       "cache-control": "no-store, max-age=0",
       "netlify-cdn-cache-control": "no-store",
     });

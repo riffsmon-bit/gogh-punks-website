@@ -19,7 +19,7 @@ test("automation panel selects the best fully ready generation and preserves the
     readFile(new URL("site/autonomous-minting.js", root), "utf8"),
   ]);
   assert.match(html, /Continuous free-mint automation/);
-  assert.match(html, /<details class="active-agent-console" data-active-agent-console open>/);
+  assert.match(html, /<details class="active-agent-console" data-active-agent-console>/);
   assert.match(html, /Your Active Agents/);
   assert.match(html, /Selected Punk agent controls/);
   assert.match(html, /Activation and limit setup use the single guided wizard above/);
@@ -86,7 +86,7 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.match(browser, /autonomy-v\$\{state\.version\}-owner-setup/i);
   assert.match(browser, /autonomy-v\$\{version\}-status/i);
   assert.match(browser, /automationGateNeedsLegacyFallback\(v3Gate, requestedTokenId\)/);
-  assert.match(browser, /v3Gate\?\.capability === true/);
+  assert.match(browser, /v3Gate\?\.setupTransactionAvailable === true/);
   assert.match(browser, /v3Gate\?\.setupTransactionAvailable === true/);
   assert.match(browser, /selectAutomationGeneration/);
   assert.match(browser, /disableAutomatedSeaDropPolicy|stopTransactions/i);

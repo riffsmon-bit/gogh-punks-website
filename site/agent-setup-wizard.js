@@ -60,6 +60,7 @@ export function agentCardPresentation(punk, live = null) {
   const labels = Object.freeze({
     ACTIVE: "Active · worker verified",
     SCANNING: "Scanning now",
+    MINTING: "Minting now",
     QUEUED: "Queued for worker",
     WAITING_FOR_FIRST_SCAN: "Enrolled · waiting for first scan",
     NEEDS_ENROLLMENT: "Needs enrollment repair",
@@ -92,7 +93,7 @@ export function agentCardPresentation(punk, live = null) {
     : summary?.enrolled ? "WAITING_FOR_FIRST_SCAN"
       : summary?.configured ? "NEEDS_ENROLLMENT"
         : punk?.automationCreated ? "READY" : "READY";
-  const workerVerified = ["ACTIVE", "SCANNING"].includes(status);
+  const workerVerified = ["ACTIVE", "SCANNING", "MINTING"].includes(status);
   return Object.freeze({
     status,
     label: labels[status],
@@ -147,11 +148,12 @@ function short(value) {
     ? `${value.slice(0, 6)}…${value.slice(-4)}` : "Preparing…";
 }
 
-export function setupAgentWizard({ windowObject, documentObject } = {}) {
+export function setupAgentWizard({ windowObject, documentObject, fetchFunction } = {}) {
   const browserWindow = windowObject ?? globalThis.window;
   const browserDocument = documentObject ?? globalThis.document;
   const root = browserDocument?.querySelector?.("[data-agent-wizard]");
   if (!root || !browserWindow) return null;
+  const request = fetchFunction ?? browserWindow.fetch?.bind(browserWindow);
   const screens = [...root.querySelectorAll("[data-wizard-step]")];
   const progress = [...root.querySelectorAll("[data-wizard-progress]")];
   const punkPicker = root.querySelector("[data-wizard-punks]");
@@ -183,6 +185,7 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
     step: stored?.step ?? "choose",
     dailyLimit: stored?.dailyLimit ?? 3,
     durationDays: stored?.durationDays ?? 7,
+    restarting: new Set(),
   };
 
   function selected() {
@@ -266,14 +269,50 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
     state.selectedPunk = tokenId;
     selectUnderlyingPunk();
     render();
-    const route = `/broker/punk/${encodeURIComponent(tokenId)}#activity`;
-    if (typeof browserWindow.location?.assign === "function") {
-      browserWindow.location.assign(route);
-      return;
+    try {
+      const url = new URL(browserWindow.location?.href ?? "/broker/", "https://goghpunks.xyz");
+      url.pathname = "/broker/";
+      url.searchParams.set("punk", tokenId);
+      url.hash = "automation-title";
+      browserWindow.history?.replaceState?.({}, "", `${url.pathname}${url.search}${url.hash}`);
+    } catch {
+      // URL decoration is a navigation convenience and never authorization evidence.
     }
     browserDocument.querySelector("[data-advanced-workspace]")?.setAttribute("open", "");
     browserDocument.querySelector("#automation-title")?.setAttribute("open", "");
     browserDocument.querySelector("#automation-title")?.scrollIntoView({ behavior: "smooth" });
+  }
+
+  async function restartAgent(tokenId, button, status) {
+    if (!request || state.restarting.has(tokenId)) return;
+    state.restarting.add(tokenId);
+    button.disabled = true;
+    button.textContent = "Restarting…";
+    status.textContent = "Re-enrolling and requesting a scan…";
+    try {
+      const response = await request("/api/broker/autonomy-v3-run", {
+        method: "POST",
+        headers: { accept: "application/json", "content-type": "application/json" },
+        body: JSON.stringify({ tokenId }),
+        cache: "no-store",
+      });
+      const payload = await response.json();
+      if ((!response.ok && response.status !== 202) || payload?.ok !== true) {
+        throw new Error(payload?.message ?? "The agent could not be restarted safely.");
+      }
+      status.textContent = payload.run?.status === "MINT_CONFIRMED"
+        ? "Mint confirmed"
+        : payload.run?.status === "RUN_IN_PROGRESS"
+          ? "Queued · worker is finishing another scan"
+          : "Restarted · scan completed safely";
+      selectUnderlyingPunk();
+    } catch (error) {
+      status.textContent = error?.message ?? "Restart stopped safely. No transaction was sent.";
+    } finally {
+      state.restarting.delete(tokenId);
+      button.disabled = false;
+      button.textContent = "Restart agent";
+    }
   }
 
   function formatExpiry(value) {
@@ -290,17 +329,20 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
     ));
     if (agentHealth) {
       const counts = presentations.reduce((output, item, index) => {
-        if (["ACTIVE", "SCANNING"].includes(item.status)) output.active += 1;
+        if (["ACTIVE", "SCANNING", "MINTING"].includes(item.status)) output.active += 1;
         if (item.status === "SCANNING") output.scanning += 1;
+        if (item.status === "MINTING") output.minting += 1;
         if (["NEEDS_ENROLLMENT", "NEEDS_AUTHORIZATION", "NEEDS_ATTENTION",
           "AUTOMATION_OFFLINE"].includes(item.status)) output.attention += 1;
         if (item.status === "AUTOMATION_OFFLINE") output.workerOnline = false;
         if (activeWallets[index]?.agentSummary?.lastActualScan) output.workerEvidence = true;
         return output;
-      }, { active: 0, scanning: 0, attention: 0, workerOnline: true, workerEvidence: false });
+      }, { active: 0, scanning: 0, minting: 0, attention: 0,
+        workerOnline: true, workerEvidence: false });
       const values = [
         ["Agents", activeWallets.length], ["Active", counts.active],
-        ["Scanning", counts.scanning], ["Needs attention", counts.attention],
+        ["Scanning", counts.scanning], ["Minting", counts.minting],
+        ["Needs attention", counts.attention],
         ["Worker", !activeWallets.length ? "—" : !counts.workerOnline ? "Degraded"
           : counts.workerEvidence ? "Online" : "Pending evidence"],
       ];
@@ -364,12 +406,20 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
       const actions = browserDocument.createElement("div");
       actions.className = "active-agent-actions";
       const watch = browserDocument.createElement("a");
-      watch.href = `/broker/punk/${encodeURIComponent(punk.tokenId)}#activity`;
+      watch.href = `/broker/?punk=${encodeURIComponent(punk.tokenId)}#automation-title`;
       watch.textContent = "Watch agent";
+      watch.addEventListener("click", (event) => {
+        event?.preventDefault?.();
+        openAgent(punk.tokenId);
+      });
       const wallet = browserDocument.createElement("a");
       wallet.href = `/broker/punk/${encodeURIComponent(punk.tokenId)}#assets`;
       wallet.textContent = "Open wallet";
-      actions.append(watch, wallet);
+      const restart = browserDocument.createElement("button");
+      restart.type = "button";
+      restart.textContent = "Restart agent";
+      restart.addEventListener("click", () => restartAgent(punk.tokenId, restart, status));
+      actions.append(watch, wallet, restart);
       card.append(visual, body, actions);
       agentGrid.append(card);
     }

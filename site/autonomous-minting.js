@@ -127,8 +127,7 @@ export function automationPunkWalletOpenSeaUrl(value) {
 }
 
 export function selectAutomationGeneration(v3Gate, v2Gate, tokenId) {
-  const v3Ready = v3Gate?.capability === true
-    && v3Gate?.setupTransactionAvailable === true;
+  const v3Ready = v3Gate?.setupTransactionAvailable === true;
   const selectedV3Punk = tokenId && v3Gate?.punk?.tokenId === tokenId
     ? v3Gate.punk : null;
   const selectedV3Deployed = selectedV3Punk?.created === true
@@ -369,7 +368,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
       ? `This exact V${state.version} wallet receives the selected Punk’s autonomous mints.`
       : "Select a live-verified Punk to reveal its NFT wallet.";
     const gasAgent = state.gate?.agent;
-    const gasReady = state.gate?.capability === true && gasAgent?.codeFree === true
+    const gasReady = gasAgent?.codeFree === true
       && /^0x[0-9a-f]{40}$/.test(gasAgent.address ?? "")
       && /^(?:0|[1-9][0-9]*)$/.test(gasAgent.balanceWei ?? "");
     const balanceLabel = formatAutomationGasBalance(gasAgent?.balanceWei);
@@ -381,8 +380,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     agentCopy.disabled = !gasReady;
     agentFundAmount.disabled = !gasReady || state.funding;
     agentFund.disabled = !gasReady || state.funding || !agentFundConfirm.checked;
-    const ready = state.gate?.capability === true
-      && state.gate?.setupTransactionAvailable === true && Boolean(state.selection);
+    const ready = state.gate?.setupTransactionAvailable === true && Boolean(state.selection);
     setup.disabled = !ready || Boolean(state.setupSubmission)
       || (!active && retirementConfirm.checked !== true);
     runNow.disabled = !agentLive || state.version !== 3 || state.running;
@@ -390,17 +388,17 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     runAll.disabled = state.version !== 3 || state.gate?.capability !== true || state.running;
     runAll.textContent = state.running ? "Agent scan running…" : "Scan all my active Punks";
     stop.disabled = !active;
-    cap.disabled = state.gate?.capability !== true;
-    days.disabled = state.gate?.capability !== true;
-    preset.disabled = state.gate?.capability !== true;
+    cap.disabled = state.gate?.setupTransactionAvailable !== true;
+    days.disabled = state.gate?.setupTransactionAvailable !== true;
+    preset.disabled = state.gate?.setupTransactionAvailable !== true;
     setup.textContent = state.setupSubmission
       ? `Confirming ${setupIndex} of ${state.setupSubmission.total}…`
       : active ? "Update cap or run time" : "Set up and start agent";
     const workerRetrying = state.gate?.status === "WORKER_DEGRADED";
     badge.textContent = agentLive ? "LIVE" : active
       ? workerRetrying ? "WORKER RETRYING" : "WORKER OFFLINE"
-      : state.gate?.capability === true ? "READY" : "NOT READY";
-    badge.classList.toggle("off", !agentLive && state.gate?.capability !== true);
+      : ready ? "READY" : "NOT READY";
+    badge.classList.toggle("off", !agentLive && !ready);
     worker.textContent = state.gate?.heartbeat?.online === true ? "CHECKING FOR FREE MINTS"
       : ["WORKER_STARTING", "WORKER_DEGRADED"].includes(state.gate?.status)
         ? "RETRYING" : "OFFLINE";
@@ -429,7 +427,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     status.textContent = agentLive
       ? "LIVE · CHECKING FOR FREE MINTS"
       : active ? "SET UP · WORKER OFFLINE"
-      : state.gate?.capability === true
+      : ready
         ? state.gate.reason === null ? "READY TO START" : "FINAL SAFETY CHECK PENDING"
       : state.gate?.status === "DEPLOYED_AWAITING_LIVE_GATE"
         ? "LIVE SAFETY CHECK PENDING"

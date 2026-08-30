@@ -48,7 +48,8 @@ export function isDeployPreview(environment = process.env, requestUrl = null) {
   try {
     const url = new URL(requestUrl);
     return url.protocol === "https:" && !url.username && !url.password && !url.port
-      && /^deploy-preview-[1-9][0-9]*--gogh-punks\.netlify\.app$/.test(url.hostname);
+      && (/^deploy-preview-[1-9][0-9]*--gogh-punks\.netlify\.app$/.test(url.hostname)
+        || /^deploy-preview-[1-9][0-9]*\.preview\.goghpunks\.xyz$/.test(url.hostname));
   } catch {
     return false;
   }
