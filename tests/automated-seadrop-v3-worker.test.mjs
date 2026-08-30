@@ -23,8 +23,20 @@ import {
 import {
   automationV3WorkerAvailability, automationV3WorkerConfigured, autonomyV3Status,
 } from "../netlify/functions/broker-autonomy-v3-status.mjs";
-import { automationV3Activity } from
+import { automationV3Activity, automationV3ActivityQuery } from
   "../netlify/functions/broker-autonomy-v3-activity.mjs";
+
+test("activity timeline queries are lightweight, bounded, and cannot request per-Punk usage", () => {
+  assert.deepEqual(automationV3ActivityQuery(
+    "https://goghpunks.xyz/api/broker/autonomy-v3-activity?limit=20&timeline=1",
+  ), { selectedTokenId: null, limit: 20, before: null, timelineOnly: true });
+  assert.throws(() => automationV3ActivityQuery(
+    "https://goghpunks.xyz/api/broker/autonomy-v3-activity?tokenId=93&timeline=1",
+  ), /query is invalid/);
+  assert.throws(() => automationV3ActivityQuery(
+    "https://goghpunks.xyz/api/broker/autonomy-v3-activity?timeline=true",
+  ), /query is invalid/);
+});
 
 test("V3 worker remains disabled by default and uses the confirmed intent horizon", async () => {
   assert.deepEqual(await runAutomatedSeaDropV3Worker({}), {

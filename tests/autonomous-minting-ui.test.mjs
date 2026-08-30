@@ -20,11 +20,12 @@ test("automation panel selects the best fully ready generation and preserves the
     readFile(new URL("site/autonomous-minting.js", root), "utf8"),
   ]);
   assert.match(html, /Continuous free-mint automation/);
-  assert.match(html, /<details class="active-agent-console" data-active-agent-console>/);
+  assert.match(html, /<details class="active-agent-console" data-active-agent-console open>/);
   assert.match(html, /Your Active Agents/);
   assert.match(html, /How rotation works:[\s\S]*every 5 minutes[\s\S]*up to 6 due Punks/);
-  assert.match(html, /Live agent scan terminal/);
-  assert.match(html, /data-v3-scan-terminal/);
+  assert.match(html, /GOGH AGENT MATRIX/);
+  assert.match(html, /data-agent-matrix/);
+  assert.match(html, /Persisted worker activity/);
   assert.match(html, /Activation and limit setup use the single guided wizard above/);
   assert.equal((html.match(/data-wallet-disconnect/g) ?? []).length, 1);
   assert.match(html, /Automatic safe profile/);
@@ -170,7 +171,7 @@ test("wizard exposes a bounded searchable Punk picker instead of a large native 
   const brokerHtml = await readFile(new URL("site/broker/index.html", root), "utf8");
   assert.match(brokerHtml, /data-wizard-punk-search/);
   assert.match(brokerHtml, /data-wizard-punk-results/);
-  assert.match(brokerHtml, /GOGH \/ LIVE WORKER/);
+  assert.match(brokerHtml, /GOGH AGENT MATRIX/);
 });
 
 test("activation disclosure binds the exact draft lifetimes and fails closed without rarity evidence", () => {

@@ -334,14 +334,15 @@ export function setupAgentWizard({ windowObject, documentObject, fetchFunction }
       const url = new URL(browserWindow.location?.href ?? "/broker/", "https://goghpunks.xyz");
       url.pathname = "/broker/";
       url.searchParams.set("punk", tokenId);
-      url.hash = "automation-title";
+      url.hash = "agent-matrix-title";
       browserWindow.history?.replaceState?.({}, "", `${url.pathname}${url.search}${url.hash}`);
     } catch {
       // URL decoration is a navigation convenience and never authorization evidence.
     }
-    browserDocument.querySelector("[data-advanced-workspace]")?.setAttribute("open", "");
-    browserDocument.querySelector("#automation-title")?.setAttribute("open", "");
-    browserDocument.querySelector("#automation-title")?.scrollIntoView({ behavior: "smooth" });
+    browserWindow.dispatchEvent(new browserWindow.CustomEvent("gogh:matrix-focus", {
+      detail: Object.freeze({ tokenId }),
+    }));
+    browserDocument.querySelector("#agent-matrix-title")?.scrollIntoView({ behavior: "smooth" });
   }
 
   async function restartAgent(tokenId, button, status) {
@@ -464,13 +465,11 @@ export function setupAgentWizard({ windowObject, documentObject, fetchFunction }
       // Only an authorized agent has an on-chain cap and expiry to report. Anything else keeps
       // the placeholder rather than dressing a local default up as chain state.
       const entries = [
-        ["Punk wallet", short(punk.account)],
-        ["Today", presentation.today],
-        ["Authorization", live?.active === true
-          ? formatExpiry(live.authorizationValidUntil) : presentation.authorization],
-        ["Last worker check", presentation.lastWorkerCheck
+        ["NFTs collected", punk.agentSummary?.nftCount ?? "Syncing"],
+        ["Mints today", presentation.today],
+        ["Last scan", presentation.lastWorkerCheck
           ? new Date(presentation.lastWorkerCheck).toLocaleString() : "Waiting for first scan"],
-        ["Next worker turn", agentRotationCountdown(punk.agentSummary?.nextScanEstimate)],
+        ["Next scan", agentRotationCountdown(punk.agentSummary?.nextScanEstimate)],
         ["Last result", humanWorkerReason(punk.agentSummary?.reason)],
       ];
       for (const [term, description] of entries) {
@@ -478,7 +477,7 @@ export function setupAgentWizard({ windowObject, documentObject, fetchFunction }
         const dd = browserDocument.createElement("dd");
         dt.textContent = term;
         dd.textContent = description;
-        if (term === "Next worker turn") {
+        if (term === "Next scan") {
           dd.dataset.agentNextScan = punk.agentSummary?.nextScanEstimate ?? "";
           dd.title = punk.agentSummary?.nextScanEstimate
             ? `Advisory estimate: ${new Date(punk.agentSummary.nextScanEstimate).toLocaleString()}`
@@ -490,7 +489,7 @@ export function setupAgentWizard({ windowObject, documentObject, fetchFunction }
       const actions = browserDocument.createElement("div");
       actions.className = "active-agent-actions";
       const watch = browserDocument.createElement("a");
-      watch.href = `/broker/?punk=${encodeURIComponent(punk.tokenId)}#automation-title`;
+      watch.href = `/broker/?punk=${encodeURIComponent(punk.tokenId)}#agent-matrix-title`;
       watch.textContent = "Watch agent";
       watch.addEventListener("click", (event) => {
         event?.preventDefault?.();

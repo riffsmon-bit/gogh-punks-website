@@ -323,6 +323,7 @@ export function punkWorkerActivityFromRow(row) {
       /^0x[0-9a-f]{64}$/, "transactionHash",
     ),
     occurredAt: iso(rowValue(row, "occurred_at", "occurredAt"), "occurredAt"),
+    source: "worker",
   });
 }
 
@@ -351,6 +352,26 @@ export async function getAutomationV3PunkWorkerActivity(value, options = {}) {
       ? punkWorkerEvidenceFromRow(heartbeatResult.rows[0]) : null,
     events: Object.freeze((activityResult.rows ?? []).map(punkWorkerActivityFromRow)),
   });
+}
+
+export async function getAutomationV3RecentWorkerActivity(options = {}) {
+  const database = options.database ?? getDatabase().pool;
+  const requestedLimit = Number(options.limit ?? 50);
+  if (!Number.isSafeInteger(requestedLimit) || requestedLimit < 1 || requestedLimit > 100) {
+    throw new TypeError("Punk activity limit is invalid");
+  }
+  const before = options.before == null ? null : iso(options.before, "activity cursor");
+  const result = await database.query(
+    `SELECT punk_token_id::text, event_id, job_id, state, reason,
+            collection_address, transaction_hash, occurred_at
+       FROM broker_punk_agent_activity
+      WHERE chain_id = 4663
+        AND ($1::timestamptz IS NULL OR occurred_at < $1::timestamptz)
+      ORDER BY occurred_at DESC, event_id DESC
+      LIMIT $2::integer`,
+    [before, requestedLimit],
+  );
+  return Object.freeze((result.rows ?? []).map(punkWorkerActivityFromRow));
 }
 
 export function workerUsageFromRow(row) {

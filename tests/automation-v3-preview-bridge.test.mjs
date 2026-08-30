@@ -118,6 +118,61 @@ test("preview activity forwards one exact Punk selection", async () => {
   assert.equal(result.punk.heartbeat.tokenId, "93");
 });
 
+test("preview activity can request the lightweight production timeline without usage aggregation", async () => {
+  let call;
+  const event = {
+    tokenId: "93", eventId: "event-0001", jobId: "job-000001", state: "MINTED",
+    reason: "MINT_CONFIRMED", collection: "0x1111111111111111111111111111111111111111",
+    transactionHash: `0x${"2".repeat(64)}`, occurredAt: "2026-08-28T13:52:57.000Z",
+    source: "worker",
+  };
+  const result = await getProductionAutomationV3Activity(async (url) => {
+    call = url;
+    return jsonResponse({ ok: true, activity: {
+      checkedAt: "2026-08-28T13:53:00.000Z", online: true,
+      heartbeat, usage: null, punk: null, events: [event],
+    } });
+  }, null, { limit: 20, timelineOnly: true });
+  assert.equal(call,
+    `${AUTOMATION_V3_PRODUCTION_ORIGIN}/api/broker/autonomy-v3-activity?limit=20&timeline=1`);
+  assert.equal(result.usage, null);
+  assert.equal(result.events[0].eventId, "event-0001");
+  await assert.rejects(
+    getProductionAutomationV3Activity(async () => jsonResponse({}), "93", { timelineOnly: true }),
+    /timeline option is invalid/,
+  );
+});
+
+test("preview timeline falls back only when the older production endpoint rejects that query", async () => {
+  const calls = [];
+  const result = await getProductionAutomationV3Activity(async (url) => {
+    calls.push(url);
+    if (calls.length === 1) {
+      return jsonResponse({ ok: false, code: "INVALID_ACTIVITY_QUERY" }, 400);
+    }
+    return jsonResponse({ ok: true, activity: {
+      checkedAt: "2026-08-28T13:53:00.000Z", online: true,
+      heartbeat, usage, punk: null,
+    } });
+  }, null, { limit: 20, timelineOnly: true });
+  assert.deepEqual(calls, [
+    `${AUTOMATION_V3_PRODUCTION_ORIGIN}/api/broker/autonomy-v3-activity?limit=20&timeline=1`,
+    `${AUTOMATION_V3_PRODUCTION_ORIGIN}/api/broker/autonomy-v3-activity?limit=20`,
+  ]);
+  assert.equal(result.online, true);
+  assert.deepEqual(result.events, []);
+
+  let count = 0;
+  await assert.rejects(
+    getProductionAutomationV3Activity(async () => {
+      count += 1;
+      return jsonResponse({ ok: false, code: "AUTOMATION_ACTIVITY_UNAVAILABLE" }, 503);
+    }, null, { timelineOnly: true }),
+    /Production activity is unavailable/,
+  );
+  assert.equal(count, 1);
+});
+
 test("preview activity fails closed on malformed production evidence", async () => {
   await assert.rejects(
     getProductionAutomationV3Activity(async () => jsonResponse({

@@ -12,6 +12,7 @@
     <script src="/wallet.js?v=reown-4" type="module"></script>
     <script src="/owner-accounts.js" type="module"></script>
     <script src="/autonomous-minting.js" type="module"></script>
+    <script src="/agent-matrix.js" type="module"></script>
     <script src="/agent-setup-wizard.js" type="module"></script>
     <script src="/nft-withdrawal.js" type="module"></script>
   </head>
@@ -37,6 +38,10 @@
           <p class="eyebrow">Gogh Punk Art Broker · Robinhood Chain</p>
           <h1>Give your Gogh Punk a job.</h1>
           <p class="lede">Activate an Art Broker and let your Punk search for eligible free NFT mints. You set the limits. The hosted agent pays the gas. Collected NFTs go directly into your Punk’s wallet.</p>
+          <div class="broker-hero-actions">
+            <a class="action-button" href="#agent-wizard-title">Activate a Punk</a>
+            <a class="action-button secondary-action" href="#active-agent-console-title">View Active Agents</a>
+          </div>
         </div>
         <aside class="status-panel" aria-label="Protocol status">
           <div class="status-line"><span class="status-dot"></span><strong data-protocol-status class="loading">CHECKING FOUNDATION</strong></div>
@@ -139,7 +144,7 @@
         </article>
       </section>
 
-      <details class="active-agent-console" data-active-agent-console>
+      <details class="active-agent-console" data-active-agent-console open>
         <summary>
           <span><small class="eyebrow">Returning collectors</small><strong id="active-agent-console-title">Your Active Agents</strong></span>
           <span>Monitor agents</span>
@@ -150,6 +155,53 @@
         <div class="active-agent-grid" data-active-agent-grid></div>
         <p class="active-agent-empty" data-active-agent-empty>Connect your wallet to see active Punk agents.</p>
       </details>
+
+      <section class="agent-matrix" data-agent-matrix data-visible="true"
+        aria-labelledby="agent-matrix-title">
+        <header class="agent-matrix-header">
+          <div>
+            <p class="eyebrow">Persisted worker activity</p>
+            <h2 id="agent-matrix-title">GOGH AGENT MATRIX</h2>
+          </div>
+          <div class="agent-matrix-health" aria-label="Agent system summary">
+            <span><i data-matrix-live data-online="false"></i> Live</span>
+            <span><strong data-matrix-active>0</strong> enrolled</span>
+            <span><strong data-matrix-scanning>0</strong> scanning</span>
+            <span><strong data-matrix-minted>0</strong> recent mints</span>
+            <span><strong data-matrix-candidates>0</strong> latest candidates</span>
+            <span>Worker <strong data-matrix-worker>Pending</strong></span>
+          </div>
+        </header>
+        <p class="agent-matrix-intro">Every line below is a real persisted worker event. The moving glyphs, clock, scanline, and cursor are ambient interface effects—not agent or blockchain activity.</p>
+        <div class="agent-matrix-controls" aria-label="Filter agent activity">
+          <div class="agent-matrix-filters">
+            <button type="button" data-matrix-filter="all" aria-pressed="true">All</button>
+            <button type="button" data-matrix-filter="mine" aria-pressed="false">My Punks</button>
+            <button type="button" data-matrix-filter="mints" aria-pressed="false">Mints</button>
+            <button type="button" data-matrix-filter="scans" aria-pressed="false">Scans</button>
+            <button type="button" data-matrix-filter="errors" aria-pressed="false">Warnings</button>
+          </div>
+          <label><span class="sr-only">Filter by Punk</span><select data-matrix-punk><option value="">All Punks</option></select></label>
+        </div>
+        <div class="agent-matrix-screen" role="region" aria-label="Realtime agent activity" tabindex="0">
+          <div class="agent-matrix-rain" aria-hidden="true"><span>01GOGH101001</span><span>ART01011001</span><span>PUNK10100110</span><span>MINT0100110</span><span>CHAIN1011001</span><span>AGENT010101</span></div>
+          <ol class="agent-matrix-events" data-matrix-events aria-live="polite"></ol>
+        </div>
+        <footer class="agent-matrix-footer">
+          <span data-matrix-state aria-live="polite">Loading persisted worker activity…</span>
+          <span class="agent-matrix-clock"><span aria-hidden="true">LOCAL CLOCK</span> <time data-matrix-clock>--:--:--</time></span>
+          <button type="button" data-matrix-pause aria-pressed="false">Pause scroll</button>
+          <button type="button" data-matrix-jump hidden>Jump to live</button>
+          <button type="button" data-matrix-earlier>Load earlier</button>
+        </footer>
+        <dialog class="agent-matrix-dialog" data-matrix-details>
+          <button class="agent-matrix-dialog-close" type="button" data-matrix-close aria-label="Close event details">×</button>
+          <p class="eyebrow">Recorded agent event</p>
+          <h3 data-matrix-detail-punk>Punk</h3>
+          <dl><div><dt>Event</dt><dd data-matrix-detail-event>—</dd></div><div><dt>Message</dt><dd data-matrix-detail-message>—</dd></div><div><dt>Collection</dt><dd data-matrix-detail-collection>Not recorded</dd></div><div><dt>Time</dt><dd data-matrix-detail-time>—</dd></div><div><dt>Source</dt><dd data-matrix-detail-source>worker</dd></div></dl>
+          <div class="agent-matrix-dialog-actions"><a data-matrix-detail-punk-link href="#">Open Punk</a><a data-matrix-detail-transaction href="#" target="_blank" rel="noopener noreferrer" hidden>View transaction ↗</a></div>
+        </dialog>
+      </section>
 
       <aside class="safety-banner beta-test-banner" aria-label="Current automation scope">
         <strong>Automation checkpoint:</strong> The page shows the active automation generation, worker heartbeat,
@@ -262,10 +314,6 @@
               <article class="panel agent-command-center">
                 <div class="panel-header"><h3>Live agent scan terminal</h3><span class="tag off" data-v2-badge>CHECKING</span></div>
                 <p class="locked-note">Activation and limit setup use the single guided wizard above. This indexed feed shows every configured Punk in your wallet without polling the chain for each card. “Scanning” and “minting” appear only when the worker records those real states.</p>
-                <div class="agent-scan-terminal" role="region" aria-label="Punk agent scan terminal">
-                  <div class="agent-scan-terminal-bar"><span>GOGH / LIVE WORKER</span><span data-v3-scan-terminal-summary>Loading agent roster…</span></div>
-                  <pre data-v3-scan-terminal aria-live="polite">SYSTEM  waiting for the indexed agent roster</pre>
-                </div>
                 <label class="mandate-field" hidden><span>Quick setup</span><select data-v2-preset disabled><option value="1:7">Conservative · 1 mint/day for 7 days</option><option value="5:14">Standard · 5 mints/day for 14 days</option><option value="10:30">Active · 10 mints/day for 30 days</option><option value="custom">Custom limits</option></select></label>
                 <label class="mandate-field" hidden><span>Hard daily maximum</span><input data-v2-cap disabled type="number" inputmode="numeric" min="1" max="10" step="1" value="1" /></label>
                 <label class="mandate-field" hidden><span>How long it may run (days)</span><input data-v2-days disabled type="number" inputmode="numeric" min="1" max="30" step="1" value="7" /></label>
