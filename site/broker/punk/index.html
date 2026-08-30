@@ -8,7 +8,7 @@
     <title>Punk Control Center · Gogh Punks</title>
     <link rel="icon" href="/assets/favicon.png" type="image/png" />
     <link rel="stylesheet" href="/broker.css" />
-    <script src="/wallet.js?v=reown-2" type="module"></script>
+    <script src="/wallet.js?v=reown-4" type="module"></script>
     <script src="/punk-control-center.js" type="module"></script>
   </head>
   <body data-punk-control-center>
@@ -76,10 +76,10 @@
         <article class="control-card scouting-schedule">
           <div class="panel-header"><div><p class="eyebrow">Scouting window</p><h2>Choose When This Punk May Run</h2></div><span class="tag">UTC ENFORCED</span></div>
           <p>Outside this exact window, connector and scheduled scouting requests stop before a job is queued. Mint limits and authorization expiry still apply inside the window.</p>
-          <label class="control-toggle"><input type="checkbox" data-schedule-enabled checked /><span>Use a scouting window</span></label>
+          <label class="control-toggle"><input type="checkbox" data-schedule-enabled checked /><span>Allow scheduled scouting inside this window</span></label>
           <div class="control-form-grid"><label class="control-field"><span>Start (your device time)</span><input type="datetime-local" data-schedule-start /></label><label class="control-field"><span>End (your device time)</span><input type="datetime-local" data-schedule-end /></label></div>
-          <button type="button" data-schedule-save disabled>Save Local Scouting Window</button>
-          <p class="control-note" data-schedule-state>No window saved. Local times are converted to exact UTC timestamps before validation.</p>
+          <button type="button" data-schedule-save disabled>Save Scouting Window</button>
+          <p class="control-note" data-schedule-state>No window saved; this Punk uses the normal worker rotation. Local times are converted to exact UTC timestamps before validation.</p>
         </article>
       </section>
 
@@ -121,24 +121,27 @@
           <div class="control-form-grid wrap-form"><label class="control-field"><span>Action</span><select data-wrap-direction><option value="WRAP">Wrap ETH into WETH</option><option value="UNWRAP">Unwrap WETH into ETH</option></select></label><label class="control-field"><span>Amount</span><input data-wrap-amount inputmode="decimal" autocomplete="off" placeholder="0.01" /></label></div>
           <label class="control-toggle"><input type="checkbox" data-wrap-confirm /><span>I reviewed the selected Punk Wallet, direction, amount, and canonical WETH contract.</span></label>
           <button type="button" data-wrap-review disabled>Review &amp; Simulate</button>
-          <p class="control-note" data-wrap-state>Connect the current Punk holder to load balances. This local build will not submit a transaction.</p>
+          <p class="control-note" data-wrap-state>Connect the current Punk holder to load balances. A review and exact simulation happen before MetaMask opens.</p>
+          <a class="inline-link" data-wrap-transaction href="#" target="_blank" rel="noopener noreferrer" hidden>View WETH transaction ↗</a>
         </article>
         <article class="control-card asset-deposit"><p class="eyebrow">Add Assets</p><h2>Add Assets to Your Punk</h2><p>Assets inside the Punk Wallet may help it qualify for future gated opportunities. Holding an asset never guarantees eligibility.</p><h3>Choose an asset from your wallet</h3><div class="control-owner-assets" data-owner-asset-grid><p class="empty-state">Wallet inventory loads only when you open Assets. The local demo uses clearly marked fixtures.</p></div><div class="control-form-grid"><label class="control-field"><span>Asset type</span><select data-deposit-type><option value="native">Native token</option><option value="erc20">Token (ERC-20)</option><option value="erc721">NFT (ERC-721)</option><option value="erc1155">NFT (ERC-1155)</option></select></label><label class="control-field"><span>Contract</span><input data-deposit-contract placeholder="0x… (not needed for native)" /></label><label class="control-field"><span>Token ID or amount</span><input data-deposit-value placeholder="Select an NFT or enter a local test value" /></label></div><button type="button" data-deposit-review disabled>Review Local Deposit</button><p class="control-note" data-deposit-state>No transaction will be submitted from this local build.</p></article>
-        <div class="control-asset-heading"><div><p class="eyebrow">Punk Wallet Collection</p><h2>Collected NFTs</h2></div><p>Artwork and collection floors are display estimates from OpenSea. Live chain ownership is checked separately before any withdrawal.</p></div>
+        <div class="control-asset-heading"><div><p class="eyebrow">Punk Wallet Collection</p><h2>Collected NFTs</h2></div><p>Choose an NFT below and select <strong>Withdraw to my wallet</strong>. The destination is always the wallet that currently owns this Gogh Punk; live ownership and a full transfer simulation are checked before MetaMask opens.</p></div>
         <div class="control-asset-grid" data-asset-grid><p class="empty-state">Open Assets to load this Punk's indexed NFT inventory.</p></div>
         <article class="control-card control-withdrawal-review" data-control-withdrawal hidden>
           <div class="control-withdrawal-preview"><img data-withdrawal-image src="/assets/gogh-punks-pfp.png" alt="Selected NFT" /><div><p class="eyebrow">Withdraw NFT</p><h2 data-withdrawal-name>Select an NFT</h2><p data-withdrawal-collection>Choose an NFT above to prepare a fixed-destination withdrawal.</p></div></div>
           <dl class="control-facts"><div><dt>From</dt><dd>Punk #<span data-withdrawal-punk>—</span> NFT Wallet</dd></div><div><dt>To</dt><dd><code data-withdrawal-owner>Current Punk holder</code></dd></div><div><dt>Asset</dt><dd data-withdrawal-asset>—</dd></div><div><dt>Collection floor</dt><dd data-withdrawal-floor>Not available</dd></div></dl>
+          <label class="control-field withdrawal-quantity" data-withdrawal-quantity-field hidden><span>ERC-1155 quantity</span><input type="number" min="1" step="1" value="1" data-withdrawal-quantity /></label>
           <p class="control-note">The destination cannot be edited. Before MetaMask opens, the site rechecks the current Gogh Punk holder, verified Punk Wallet runtime, NFT ownership, and a full transfer simulation.</p>
           <label class="control-toggle"><input type="checkbox" data-withdrawal-confirm disabled /><span>I reviewed this NFT and the fixed current-holder destination.</span></label>
           <div class="control-actions"><button type="button" data-withdrawal-submit disabled>Verify &amp; Withdraw in MetaMask</button><button type="button" data-withdrawal-cancel>Cancel</button></div>
           <p class="control-note" data-withdrawal-state aria-live="polite">Select an NFT to begin.</p>
-          <a class="inline-link" data-withdrawal-transaction href="#" target="_blank" rel="noopener noreferrer" hidden>View withdrawal transaction ↗</a>
+          <a class="inline-link" data-withdrawal-transaction href="#" target="_blank" rel="noopener noreferrer" hidden>View withdrawal transaction / NFT in my wallet ↗</a>
         </article>
       </section>
 
       <section id="control-panel-activity" class="control-panel" role="tabpanel" aria-labelledby="control-tab-activity" data-control-panel="activity" hidden>
         <div class="control-grid three-column agent-heartbeat-summary"><article class="control-card"><p class="eyebrow">Last scan</p><h2 data-agent-last-scan>—</h2></article><article class="control-card"><p class="eyebrow">Result</p><h2 data-agent-last-result>Waiting</h2></article><article class="control-card"><p class="eyebrow">Next scheduled scan</p><h2 data-agent-next-scan>—</h2></article></div>
+        <article class="control-card agent-discovery-summary" data-agent-discovery hidden><div class="panel-header"><div><p class="eyebrow">Latest Search</p><h2>What your Punk considered</h2></div><span class="tag" data-agent-discovery-tier>Advisory ranking</span></div><p data-agent-discovery-copy></p><div class="agent-candidate-grid" data-agent-candidate-grid></div><p class="control-note">Website and X links affect discovery priority only. Every selected candidate must still pass the independent runtime, price, authorization, policy, and simulation checks.</p></article>
         <article class="control-card"><div class="panel-header"><div><p class="eyebrow">Agent Activity</p><h2>What your Punk is doing</h2></div><button type="button" data-activity-refresh disabled>Refresh</button></div><p class="control-note" data-activity-state aria-live="polite">Open Activity to load this Punk's latest worker event.</p><div class="agent-timeline" data-agent-timeline><p class="empty-state">No Punk-specific activity loaded yet.</p></div></article>
         <details class="control-debug" data-debug-panel><summary>Development performance</summary><dl data-debug-metrics></dl><p>Debug data contains timings and health labels only—never keys, signatures, or credentials.</p></details>
       </section>

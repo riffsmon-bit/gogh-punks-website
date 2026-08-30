@@ -21,6 +21,26 @@ function allBody(body) {
     && Object.keys(body).length === 1 && body.all === true);
 }
 
+export function requireAutomationV3RunOrigin(request, environment = process.env) {
+  if (!isDeployPreview(environment, request.url)) {
+    requireSameOrigin(request);
+    return;
+  }
+  // The browser calls the deploy-preview function from the exact preview origin. The preview
+  // function then performs a separate fixed-origin server request to production. Do not compare
+  // the browser's preview Origin with production SITE_URL, and do not accept sibling/attacker
+  // preview origins.
+  let servedOrigin;
+  try {
+    servedOrigin = new URL(request.url).origin;
+  } catch {
+    servedOrigin = null;
+  }
+  if (!servedOrigin || request.headers.get("origin") !== servedOrigin) {
+    throw new PublicError(403, "ORIGIN_REJECTED", "The request origin was rejected.");
+  }
+}
+
 export async function runSelectedAutomationV3(body, dependencies = {}) {
   const tokenId = exactBody(body);
   const readPunk = dependencies.readPunk ?? readAutomationV3PunkState;
@@ -72,9 +92,10 @@ export default async function handler(request) {
     if (request.method !== "POST") {
       return json({ ok: false, code: "METHOD_NOT_ALLOWED" }, 405);
     }
-    requireSameOrigin(request);
+    const preview = isDeployPreview(process.env, request.url);
+    requireAutomationV3RunOrigin(request, process.env);
     const body = await readJson(request, 1_024);
-    if (isDeployPreview(process.env, request.url)) {
+    if (preview) {
       if (!allBody(body)) exactBody(body);
       const forwarded = await forwardProductionAutomationV3Run(body);
       return forwarded.ok

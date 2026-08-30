@@ -1,12 +1,17 @@
 import {
-  buildWrappedNativeTransaction, decodeUint256, ROBINHOOD_WETH, wrappedBalanceOfData,
+  buildWrappedNativeTransaction, decodeUint256, ROBINHOOD_WETH,
+  simulateWrappedNativeTransaction, submitWrappedNativeTransaction, wrappedBalanceOfData,
 } from "./wrapped-native.js";
 import {
-  fetchOwnerPolicyGate, prepareOwnerFunds, submitOwnerAction,
+  fetchOwnerPolicyGate, prepareOwnerFunds, readOwnerPolicyState, submitOwnerAction,
 } from "./owner-policy-controls.js";
 import {
   preflightNftWithdrawal, submitNftWithdrawal, validateWithdrawableNftAssets,
+  waitForNftWithdrawalReceipt,
 } from "./nft-withdrawal.js";
+import {
+  agentVisualState, confirmedMintHash, showConfirmedMintToast,
+} from "./agent-live-ui.js";
 
 const CHAIN_ID = 4663;
 const OWNER_OF_SELECTOR = "0x6352211e";
@@ -40,8 +45,11 @@ const state = {
   punkCollection: null, nativeBalance: null, wrappedBalance: null,
   owned: false, activated: false, agentStatus: null, automation: null, assets: [],
   activity: [], timings: {}, revision: 0,
-  directedReviewId: null, directedSourceUrl: null,
-  fundingBusy: false, withdrawalAsset: null, withdrawalBusy: false,
+  punkHeartbeat: null, observedMintHash: null, mintBaselineReady: false,
+  activityLoading: false,
+  directedReviewId: null, directedIntentId: null, directedSourceUrl: null,
+  fundingBusy: false, wrappedBusy: false, wrappedPlan: null,
+  withdrawalAsset: null, withdrawalAmount: "1", withdrawalBusy: false,
 };
 
 async function localApi(path, options = {}) {
@@ -236,10 +244,12 @@ function renderAutomation() {
   state.account = [punk?.account, punk?.wallet, punk?.nftWallet]
     .find((value) => ADDRESS.test(value ?? ""))?.toLowerCase() ?? state.account;
   state.activated = punk?.created === true;
-  const heartbeat = automation?.heartbeat;
+  const globalHeartbeat = automation?.heartbeat;
+  const heartbeat = state.punkHeartbeat ?? (globalHeartbeat?.tokenId === state.tokenId
+    ? globalHeartbeat : null);
   const active = automation?.capability === true && punk?.active === true
     && state.owned && state.activated;
-  const label = active ? heartbeat?.status === "MINT_CONFIRMED" ? "MINTED" : "SCANNING"
+  const label = active ? agentVisualState(heartbeat, true)
     : state.activated ? "PAUSED" : "INACTIVE";
   state.agentStatus = label;
   setText("[data-agent-status]", label);
@@ -256,8 +266,12 @@ function renderAutomation() {
     setText("[data-agent-next-scan]", heartbeat.online === false ? "Waiting for worker"
       : `~${new Date(Date.parse(heartbeat.completedAt) + 5 * 60_000).toLocaleTimeString()}`);
   }
-  if (heartbeat && (!heartbeat.tokenId || heartbeat.tokenId === state.tokenId)) addActivity({ at: heartbeat.completedAt, state: heartbeat.status,
-    message: heartbeatMessage(heartbeat) });
+  if (heartbeat && (!heartbeat.tokenId || heartbeat.tokenId === state.tokenId)) {
+    addActivity({ at: heartbeat.completedAt, state: heartbeat.status,
+      message: heartbeatMessage(heartbeat),
+      action: heartbeat.status === "MINT_CONFIRMED" ? "OPEN_ASSETS" : null });
+    renderDiscoverySummary(heartbeat.discoverySummary);
+  }
   renderIdentity();
 }
 
@@ -268,6 +282,81 @@ function heartbeatMessage(heartbeat) {
     FAILED: "The worker stopped safely and will require attention before execution.",
   };
   return messages[heartbeat?.status] ?? "The hosted agent completed a bounded check.";
+}
+
+function punkWorkerMessage(event) {
+  const reasons = {
+    NO_ELIGIBLE_TARGETS: "Scan complete — no mint passed every contract and policy check.",
+    NO_ACTIVE_CANDIDATES: "Scan complete — no active mint candidate was available.",
+    WAITING_FOR_WORKER_CAPACITY: "This Punk is enrolled and waiting in the worker rotation.",
+    MINT_CONFIRMED: "Mint successful. The NFT was sent to this Punk Wallet.",
+    ELIGIBLE_SIMULATION_PASSED: "A candidate passed simulation without being submitted.",
+    PROFILE_STATE_READ_FAILED: "The live Punk state check failed safely.",
+    PROVIDER_OWNER_DISAGREEMENT: "Ownership providers disagreed, so the scan stopped safely.",
+    ACCOUNT_NOT_CREATED: "This Punk Wallet has not been created.",
+  };
+  return reasons[event?.reason] ?? (event?.state === "MINTED"
+    ? "Mint successful. The NFT was sent to this Punk Wallet."
+    : "The hosted agent completed a bounded scan for this Punk.");
+}
+
+function renderDiscoverySummary(summary) {
+  const panel = query("[data-agent-discovery]");
+  if (!panel) return;
+  if (!summary || typeof summary !== "object") {
+    panel.hidden = true;
+    return;
+  }
+  const discovered = Number(summary.discovered ?? 0);
+  const websites = Number(summary.withWebsite ?? 0);
+  const xProfiles = Number(summary.withX ?? 0);
+  const validated = Number(summary.sentToOnchainValidation ?? 0);
+  setText("[data-agent-discovery-copy]", `${discovered} candidate${discovered === 1 ? "" : "s"} discovered · ${websites} with project websites · ${xProfiles} with X profiles · ${validated} sent into live contract safety checks.`);
+  const candidates = Array.isArray(summary.candidates) ? summary.candidates.slice(0, 3) : [];
+  setText("[data-agent-discovery-tier]", candidates[0]?.tier
+    ? `${candidates[0].tier} discovery priority` : "No ranked candidate");
+  const grid = query("[data-agent-candidate-grid]");
+  grid.replaceChildren(...candidates.map((candidate) => {
+    const card = document.createElement("article");
+    if (candidate.imageUrl) {
+      const image = document.createElement("img");
+      image.src = candidate.imageUrl;
+      image.alt = candidate.projectName ? `${candidate.projectName} artwork` : "Candidate collection artwork";
+      image.loading = "lazy";
+      image.decoding = "async";
+      card.append(image);
+    }
+    const title = document.createElement("h3");
+    const contract = document.createElement("code");
+    const reasons = document.createElement("ul");
+    title.textContent = candidate.projectName ?? `${candidate.tier} priority candidate`;
+    contract.textContent = `${candidate.collection.slice(0, 8)}…${candidate.collection.slice(-6)}`;
+    for (const reason of candidate.reasons ?? []) {
+      const item = document.createElement("li");
+      item.textContent = `✓ ${reason}`;
+      reasons.append(item);
+    }
+    const links = document.createElement("div");
+    links.className = "agent-candidate-links";
+    for (const [label, href] of [["Website ↗", candidate.websiteUrl], ["X ↗", candidate.xUrl]]) {
+      if (!href) continue;
+      const link = document.createElement("a");
+      link.href = href;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer nofollow";
+      link.textContent = label;
+      links.append(link);
+    }
+    card.append(title, contract, reasons, links);
+    return card;
+  }));
+  if (candidates.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "empty-state";
+    empty.textContent = "No socially ranked candidate reached live contract validation in this scan.";
+    grid.replaceChildren(empty);
+  }
+  panel.hidden = false;
 }
 
 async function loadAutomation() {
@@ -319,7 +408,7 @@ async function waitForReceipt(hash, revision) {
     if (revision !== state.revision) throw new Error("Page state changed while confirming");
     const receipt = await rpc("eth_getTransactionReceipt", [hash]);
     if (receipt) {
-      if (receipt.status !== "0x1") throw new Error("Funding transaction reverted");
+      if (receipt.status !== "0x1") throw new Error("Transaction reverted");
       return receipt;
     }
     await new Promise((resolve) => window.setTimeout(resolve, 2_000));
@@ -384,6 +473,8 @@ async function fundPunkWallet() {
 
 async function reviewWrappedNative() {
   const output = query("[data-wrap-state]");
+  const transactionLink = query("[data-wrap-transaction]");
+  if (state.wrappedBusy) return;
   if (!state.owned || !state.activated || !state.account || !state.walletAccount) {
     output.textContent = "Activate this Punk Wallet and connect its current holder first.";
     return;
@@ -392,27 +483,70 @@ async function reviewWrappedNative() {
     output.textContent = "Review and accept the exact Punk Wallet, direction, amount, and WETH contract first.";
     return;
   }
-  try {
-    const plan = buildWrappedNativeTransaction({
-      direction: query("[data-wrap-direction]").value,
-      punkWallet: state.account,
-      currentOwner: state.walletAccount,
-      amount: query("[data-wrap-amount]").value.trim(),
-    });
-    const available = plan.direction === "WRAP" ? state.nativeBalance : state.wrappedBalance;
-    if (typeof available !== "bigint" || plan.amountWei > available) {
+  const revision = state.revision;
+  const tokenId = state.tokenId;
+  const account = state.account;
+  const direction = query("[data-wrap-direction]").value;
+  const amount = query("[data-wrap-amount]").value.trim();
+  const selection = Object.freeze({ tokenId, account, activated: true, owner: state.walletAccount });
+  const isCurrent = () => revision === state.revision && tokenId === state.tokenId
+    && account === state.account && direction === query("[data-wrap-direction]").value
+    && amount === query("[data-wrap-amount]").value.trim();
+  const prepare = async () => {
+    const gate = await fetchOwnerPolicyGate((...args) => fetch(...args));
+    const live = await readOwnerPolicyState(state.provider, gate, selection);
+    const plan = buildWrappedNativeTransaction({ direction, punkWallet: live.account,
+      currentOwner: live.owner, amount });
+    const wrappedRaw = await rpc("eth_call", [{ to: ROBINHOOD_WETH,
+      data: wrappedBalanceOfData(live.account) }, "latest"]);
+    const wrapped = decodeUint256(wrappedRaw);
+    const available = plan.direction === "WRAP" ? live.balanceWei : wrapped;
+    if (plan.amountWei > available) {
       throw new RangeError(`This Punk Wallet does not have enough ${plan.direction === "WRAP" ? "ETH" : "WETH"}`);
     }
-    if (demo) {
-      output.textContent = `${plan.direction === "WRAP" ? "Wrap" : "Unwrap"} review passed for ${query("[data-wrap-amount]").value} ${plan.direction === "WRAP" ? "ETH" : "WETH"}. Exact owner-only calldata was built; nothing was submitted.`;
+    await simulateWrappedNativeTransaction(state.provider, plan);
+    return plan;
+  };
+  state.wrappedBusy = true;
+  query("[data-wrap-review]").disabled = true;
+  try {
+    if (!state.wrappedPlan) {
+      output.textContent = "Rechecking the current holder, verified Punk Wallet, balance, and exact WETH call…";
+      const plan = demo ? buildWrappedNativeTransaction({ direction, punkWallet: account,
+        currentOwner: state.walletAccount, amount }) : await prepare();
+      if (!isCurrent()) throw new Error("Selected Punk or WETH action changed during review");
+      state.wrappedPlan = plan;
+      query("[data-wrap-review]").textContent = demo ? "Local Review Complete" : "Submit in MetaMask";
+      output.textContent = demo
+        ? `${direction === "WRAP" ? "Wrap" : "Unwrap"} review passed. Exact owner-only calldata was built; nothing was submitted.`
+        : `${direction === "WRAP" ? "Wrap" : "Unwrap"} simulation passed. Review once more, then submit in MetaMask.`;
       return;
     }
-    output.textContent = "Rechecking the current holder and simulating the exact owner-only call…";
-    await verifyCurrentOwner();
-    await rpc("eth_call", [plan.transaction, "latest"]);
-    output.textContent = `${plan.direction === "WRAP" ? "Wrap" : "Unwrap"} simulation passed. No transaction was submitted by this local build.`;
+    if (demo) return;
+    output.textContent = "Rechecking every binding before opening MetaMask…";
+    const submitted = await submitWrappedNativeTransaction(
+      state.provider, state.wrappedPlan, prepare, isCurrent,
+    );
+    transactionLink.href = `https://robinhoodchain.blockscout.com/tx/${submitted.hash}`;
+    transactionLink.hidden = false;
+    output.textContent = "Transaction submitted. Waiting for confirmation…";
+    const receipt = await waitForReceipt(submitted.hash, revision);
+    if (!receipt) {
+      output.textContent = "Transaction submitted; confirmation is taking longer than one minute. Follow it with the transaction link.";
+      return;
+    }
+    state.wrappedPlan = null;
+    query("[data-wrap-confirm]").checked = false;
+    query("[data-wrap-review]").textContent = "Review & Simulate";
+    await Promise.all([loadBalance(), loadWrappedBalance()]);
+    output.textContent = `${direction === "WRAP" ? "Wrap" : "Unwrap"} confirmed ✓ Balances refreshed.`;
   } catch (error) {
-    output.textContent = `${error.message}. Nothing was submitted.`;
+    state.wrappedPlan = null;
+    query("[data-wrap-review]").textContent = "Review & Simulate";
+    output.textContent = `${error?.message ?? "WETH action stopped safely"}.`;
+  } finally {
+    state.wrappedBusy = false;
+    query("[data-wrap-review]").disabled = !(state.owned && state.activated);
   }
 }
 
@@ -430,17 +564,26 @@ function addActivity(entry) {
     time.textContent = new Date(item.at ?? Date.now()).toLocaleTimeString();
     message.textContent = item.message;
     row.append(time, message);
+    if (item.action === "OPEN_ASSETS") {
+      const action = document.createElement("button");
+      action.type = "button";
+      action.textContent = "View NFT / Withdraw";
+      action.addEventListener("click", () => query('[data-control-tab="assets"]')?.click());
+      row.append(action);
+    }
     return row;
   }));
 }
 
 async function loadActivity() {
+  if (state.activityLoading) return;
   const started = performance.now();
   const button = query("[data-activity-refresh]");
   if (!state.owned) {
     setText("[data-activity-state]", "Connect the current holder on Robinhood Chain to load Punk-specific activity.");
     return;
   }
+  state.activityLoading = true;
   if (button) button.disabled = true;
   setText("[data-activity-state]", `Checking Punk #${state.tokenId}'s latest worker event…`);
   try {
@@ -459,10 +602,47 @@ async function loadActivity() {
       metric("Activity", started);
       return;
     }
+    const punkActivity = payload.activity?.punk;
+    if (punkActivity?.heartbeat) {
+      state.punkHeartbeat = punkActivity.heartbeat;
+      const latestMintHash = confirmedMintHash(punkActivity.heartbeat);
+      if (!state.mintBaselineReady) {
+        state.observedMintHash = latestMintHash;
+        state.mintBaselineReady = true;
+      } else if (latestMintHash && latestMintHash !== state.observedMintHash) {
+        state.observedMintHash = latestMintHash;
+        showConfirmedMintToast({ documentObject: document, tokenId: state.tokenId,
+          transactionHash: latestMintHash });
+        void loadAssets().catch(() => {});
+      }
+      renderAutomation();
+    }
+    if (punkActivity?.events?.length) {
+      for (const event of [...punkActivity.events].reverse()) {
+        addActivity({ at: event.occurredAt, state: event.state,
+          message: punkWorkerMessage(event),
+          action: event.state === "MINTED" ? "OPEN_ASSETS" : null });
+      }
+      setText("[data-activity-state]",
+        `Loaded ${punkActivity.events.length} Punk #${state.tokenId} worker event${punkActivity.events.length === 1 ? "" : "s"}.`);
+      metric("Activity", started);
+      return;
+    }
+    if (punkActivity?.heartbeat) {
+      const event = punkActivity.heartbeat;
+      addActivity({ at: event.lastActualScan ?? event.updatedAt, state: event.state,
+        message: punkWorkerMessage(event),
+        action: event.state === "MINTED" ? "OPEN_ASSETS" : null });
+      setText("[data-activity-state]", `Latest Punk #${state.tokenId} worker state loaded.`);
+      metric("Activity", started);
+      return;
+    }
     const heartbeat = payload.activity?.heartbeat;
     if (heartbeat && (!heartbeat.tokenId || String(heartbeat.tokenId) === state.tokenId)) {
       addActivity({ at: heartbeat.completedAt, state: heartbeat.status,
-        message: heartbeatMessage(heartbeat) });
+        message: heartbeatMessage(heartbeat),
+        action: heartbeat.status === "MINT_CONFIRMED" ? "OPEN_ASSETS" : null });
+      renderDiscoverySummary(heartbeat.discoverySummary);
       setText("[data-activity-state]", `Latest Punk #${state.tokenId} worker event loaded.`);
     } else if (heartbeat) {
       setText("[data-activity-state]", `No recent Punk #${state.tokenId} worker event was found. The latest hosted event belongs to another Punk.`);
@@ -474,6 +654,7 @@ async function loadActivity() {
     setText("[data-activity-state]", `${error.message} Try again in a moment.`);
     throw error;
   } finally {
+    state.activityLoading = false;
     if (button) button.disabled = false;
   }
 }
@@ -488,6 +669,11 @@ function assetCard(asset) {
   const validImage = /^https:\/\/(?:i|raw2)\.seadn\.io\//.test(asset.imageUrl ?? "")
     || /^https:\/\/ipfs\.io\/ipfs\/(?:Qm[1-9A-HJ-NP-Za-km-z]{44}|b[a-z2-7]{20,})(?:\/[A-Za-z0-9._~%-]+)*$/.test(asset.imageUrl ?? "");
   image.src = validImage ? asset.imageUrl : "/assets/nft-placeholder.svg";
+  image.addEventListener("error", () => {
+    if (!image.src.endsWith("/assets/nft-placeholder.svg")) {
+      image.src = "/assets/nft-placeholder.svg";
+    }
+  }, { once: true });
   const title = document.createElement("h3");
   title.textContent = asset.name || `NFT #${asset.tokenId}`;
   const collection = document.createElement("p");
@@ -495,9 +681,11 @@ function assetCard(asset) {
   collection.textContent = asset.collectionName ?? "Collection name unavailable";
   const source = document.createElement("p");
   source.className = "control-asset-source";
+  const origin = asset.provenance === "ART_BROKER" ? "Collected by this Punk"
+    : "Received by this Punk Wallet";
   source.textContent = asset.floorPrice
-    ? `OpenSea collection floor · ${asset.floorPrice.amount} ${asset.floorPrice.currency}`
-    : "Collection floor unavailable";
+    ? `${origin} · OpenSea collection floor ${asset.floorPrice.amount} ${asset.floorPrice.currency}`
+    : `${origin} · floor unavailable`;
   const actions = document.createElement("div");
   actions.className = "control-asset-actions";
   const openSea = document.createElement("a");
@@ -534,6 +722,11 @@ function renderWithdrawal() {
   panel.hidden = !asset;
   if (!asset) return;
   query("[data-withdrawal-image]").src = withdrawalImage(asset);
+  query("[data-withdrawal-image]").onerror = (event) => {
+    const image = event.currentTarget;
+    image.onerror = null;
+    image.src = "/assets/nft-placeholder.svg";
+  };
   query("[data-withdrawal-image]").alt = asset.name || `NFT #${asset.tokenId}`;
   setText("[data-withdrawal-name]", asset.name || `NFT #${asset.tokenId}`);
   setText("[data-withdrawal-collection]", asset.collectionName ?? "Collection name unavailable");
@@ -543,14 +736,24 @@ function renderWithdrawal() {
   setText("[data-withdrawal-floor]", floorLabel(asset));
   const confirmation = query("[data-withdrawal-confirm]");
   const submit = query("[data-withdrawal-submit]");
+  const quantityField = query("[data-withdrawal-quantity-field]");
+  const quantity = query("[data-withdrawal-quantity]");
+  quantityField.hidden = asset.standard !== "ERC1155";
+  quantity.max = asset.amount;
+  quantity.value = state.withdrawalAmount;
+  const validQuantity = asset.standard !== "ERC1155"
+    || (/^[1-9]\d*$/.test(state.withdrawalAmount)
+      && BigInt(state.withdrawalAmount) <= BigInt(asset.amount));
   confirmation.disabled = !state.owned || state.withdrawalBusy;
-  submit.disabled = !state.owned || state.withdrawalBusy || !confirmation.checked;
+  submit.disabled = !state.owned || state.withdrawalBusy || !confirmation.checked
+    || !validQuantity;
   submit.textContent = state.withdrawalBusy
     ? "VERIFYING LIVE OWNERSHIP…" : "VERIFY & WITHDRAW IN METAMASK";
 }
 
 function selectWithdrawalAsset(asset) {
   state.withdrawalAsset = asset;
+  state.withdrawalAmount = asset.standard === "ERC1155" ? "1" : asset.amount;
   const confirmation = query("[data-withdrawal-confirm]");
   confirmation.checked = false;
   query("[data-withdrawal-transaction]").hidden = true;
@@ -588,7 +791,11 @@ async function withdrawSelectedAsset() {
   }
   const revision = state.revision;
   const selectedToken = state.tokenId;
-  const asset = state.withdrawalAsset;
+  const selectedAsset = state.withdrawalAsset;
+  const selectedAmount = state.withdrawalAmount;
+  const asset = Object.freeze({ ...selectedAsset,
+    amount: selectedAsset.standard === "ERC1155"
+      ? state.withdrawalAmount : state.withdrawalAsset.amount });
   state.withdrawalBusy = true;
   renderWithdrawal();
   setText("[data-withdrawal-state]", "Checking live holder, Punk Wallet code, NFT ownership, and transfer simulation…");
@@ -597,13 +804,22 @@ async function withdrawSelectedAsset() {
     const initial = await preflightNftWithdrawal(state.provider, gate, selectedToken, asset);
     const result = await submitNftWithdrawal(state.provider, initial, {
       loadGate: fetchWithdrawalGate,
-      isCurrent: () => revision === state.revision && state.withdrawalAsset === asset,
+      isCurrent: () => revision === state.revision
+        && state.withdrawalAsset === selectedAsset
+        && state.withdrawalAmount === selectedAmount,
     });
     const link = query("[data-withdrawal-transaction]");
     link.href = `https://robinhoodchain.blockscout.com/tx/${result.hash}`;
     link.hidden = false;
-    setText("[data-withdrawal-state]", "Withdrawal submitted to the wallet that currently holds this Gogh Punk.");
+    setText("[data-withdrawal-state]", "Transaction submitted. Waiting for Robinhood Chain confirmation…");
+    await waitForNftWithdrawalReceipt(state.provider, result.hash);
+    setText("[data-withdrawal-state]", "NFT withdrawn ✓ Portfolio refreshed for the current Punk holder.");
     query("[data-withdrawal-confirm]").checked = false;
+    state.withdrawalAsset = null;
+    window.dispatchEvent(new CustomEvent("gogh:portfolio-invalidated", { detail: {
+      tokenId: selectedToken, owner: state.owner, transactionHash: result.hash,
+    } }));
+    await Promise.all([loadAssets(), loadActivity().catch(() => {})]);
   } catch (error) {
     setText("[data-withdrawal-state]", error?.message ?? "NFT withdrawal stopped safely.");
   } finally {
@@ -823,6 +1039,7 @@ async function simulateDirectedMint() {
       } });
       const review = payload.review;
       state.directedReviewId = review.reviewId;
+      state.directedIntentId = review.intentId;
       setText("[data-directed-collection]", review.collectionName);
       setText("[data-directed-price]", `${formatNative(review.proposal.valueWei)} · ${review.proposal.priceKind.toLowerCase()}`);
       setText("[data-directed-gas]", "Not simulated");
@@ -830,11 +1047,31 @@ async function simulateDirectedMint() {
       setText("[data-directed-badge]", review.proposal.currentFreeAdapterCompatible
         ? "CALL SHAPE MATCH" : "BLOCKED SAFELY");
       setText("[data-directed-simulation]", `${review.message} No signature or transaction was requested.`);
+      const button = query("[data-directed-simulate]");
+      button.textContent = review.intentId ? "Revalidate Mint Intent" : "Prepare Bounded Review";
     }
     await loadActivity();
     metric("Simulation", started);
   } catch (error) {
     setText("[data-directed-simulation]", `${error.message}. Nothing was submitted.`);
+  }
+}
+
+async function revalidateDirectedMintIntent() {
+  if (demo || !state.directedIntentId) return simulateDirectedMint();
+  try {
+    setText("[data-directed-simulation]", "Rechecking live ownership, recipient, price, and exact SeaDrop call…");
+    const payload = await localApi("/api/broker/connector/opensea", { body: {
+      action: "execute", tokenId: state.tokenId, intentId: state.directedIntentId,
+      walletAddress: state.walletAccount,
+    } });
+    state.directedIntentId = null;
+    query("[data-directed-simulate]").textContent = "Prepare New Review";
+    setText("[data-directed-simulation]", `${payload.review.message} Nothing was signed or submitted.`);
+  } catch (error) {
+    state.directedIntentId = null;
+    query("[data-directed-simulate]").textContent = "Prepare New Review";
+    setText("[data-directed-simulation]", `${error.message}. Check the mint again.`);
   }
 }
 
@@ -885,7 +1122,9 @@ function bindActions() {
   query("[data-paid-save]").addEventListener("click", () => savePaidPolicy());
   query("[data-schedule-save]").addEventListener("click", () => saveScoutingSchedule());
   query("[data-directed-check]").addEventListener("click", () => checkDirectedMint());
-  query("[data-directed-simulate]").addEventListener("click", () => simulateDirectedMint());
+  query("[data-directed-simulate]").addEventListener("click", () => (
+    state.directedIntentId ? revalidateDirectedMintIntent() : simulateDirectedMint()
+  ));
   query("[data-scout-simulate]").addEventListener("click", async () => {
     try {
       const payload = demo ? await localApi("/api/local-v2/scout", {
@@ -909,7 +1148,19 @@ function bindActions() {
   query("[data-punk-fund-confirm]").addEventListener("change", renderFundingAction);
   query("[data-punk-fund-submit]").addEventListener("click", fundPunkWallet);
   query("[data-wrap-review]").addEventListener("click", reviewWrappedNative);
+  for (const control of queryAll("[data-wrap-direction], [data-wrap-amount], [data-wrap-confirm]")) {
+    control.addEventListener("input", () => {
+      state.wrappedPlan = null;
+      query("[data-wrap-review]").textContent = "Review & Simulate";
+      query("[data-wrap-transaction]").hidden = true;
+    });
+  }
   query("[data-withdrawal-confirm]").addEventListener("change", renderWithdrawal);
+  query("[data-withdrawal-quantity]").addEventListener("input", (event) => {
+    state.withdrawalAmount = event.target.value;
+    query("[data-withdrawal-confirm]").checked = false;
+    renderWithdrawal();
+  });
   query("[data-withdrawal-submit]").addEventListener("click", withdrawSelectedAsset);
   query("[data-withdrawal-cancel]").addEventListener("click", cancelWithdrawal);
   query("[data-activity-refresh]").addEventListener("click", () => loadActivity().catch(() => {}));
@@ -932,21 +1183,78 @@ function initializeScheduleDefaults() {
   query("[data-schedule-end]").value ||= localDateTimeValue(end);
 }
 
-async function saveScoutingSchedule() {
-  if (!demo) {
-    setText("[data-schedule-state]", "The production schedule endpoint is intentionally disabled in this local-first branch. Open the local demo to exercise it.");
+function applyScoutingSchedule(schedule) {
+  if (!schedule) {
+    setText("[data-schedule-state]", "No window saved; this Punk uses the normal worker rotation.");
     return;
   }
+  query("[data-schedule-enabled]").checked = schedule.enabled === true;
+  query("[data-schedule-start]").value = localDateTimeValue(new Date(schedule.startAt));
+  query("[data-schedule-end]").value = localDateTimeValue(new Date(schedule.endAt));
+  setText("[data-schedule-state]", schedule.enabled
+    ? `Scheduled: ${new Date(schedule.startAt).toLocaleString()} through ${new Date(schedule.endAt).toLocaleString()}. Outside this UTC-bound window, the worker skips this Punk.`
+    : "Scheduled scouting is stopped for this Punk. Re-enable and save a future window to resume scheduled runs.");
+}
+
+async function loadScoutingSchedule() {
+  if (!state.tokenId || demo) return;
+  const response = await fetch(
+    `/api/broker/scouting-schedule?tokenId=${encodeURIComponent(state.tokenId)}`,
+    { headers: { accept: "application/json" }, cache: "no-store" },
+  );
+  const payload = await response.json().catch(() => null);
+  if (!response.ok || payload?.ok !== true) throw new Error("Scouting schedule is temporarily unavailable");
+  applyScoutingSchedule(payload.schedule);
+}
+
+async function saveScoutingSchedule() {
   try {
+    if (!state.owned || !state.provider || !state.walletAccount) {
+      throw new Error("Connect the current Punk holder on Robinhood Chain first");
+    }
     const start = new Date(query("[data-schedule-start]").value);
     const end = new Date(query("[data-schedule-end]").value);
     if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) throw new Error("Choose both dates");
-    const payload = await localApi("/api/local-v2/schedule", { body: { tokenId: state.tokenId,
+    const schedule = { schema: "GOGH_SCOUTING_SCHEDULE_V1", tokenId: state.tokenId,
       startAt: start.toISOString(), endAt: end.toISOString(), timezone: "UTC",
-      enabled: query("[data-schedule-enabled]").checked } });
-    setText("[data-schedule-state]", payload.schedule.enabled
-      ? `Saved: ${new Date(payload.schedule.startAt).toLocaleString()} through ${new Date(payload.schedule.endAt).toLocaleString()} (stored as UTC).`
-      : "Scouting schedule disabled.");
+      enabled: query("[data-schedule-enabled]").checked };
+    if (demo) {
+      const { schema: _schema, ...localSchedule } = schedule;
+      const payload = await localApi("/api/local-v2/schedule", { body: localSchedule });
+      applyScoutingSchedule(payload.schedule);
+      return;
+    }
+    const expectedAccount = state.walletAccount;
+    const expectedTokenId = state.tokenId;
+    setText("[data-schedule-state]", "Preparing a free owner signature for this exact UTC window…");
+    const preparedResponse = await fetch("/api/broker/scouting-schedule", {
+      method: "POST", headers: { accept: "application/json", "content-type": "application/json" },
+      body: JSON.stringify({ action: "prepare", walletAddress: expectedAccount, schedule }),
+    });
+    const prepared = await preparedResponse.json().catch(() => null);
+    if (!preparedResponse.ok || prepared?.ok !== true) {
+      throw new Error(prepared?.message ?? "The schedule could not be prepared");
+    }
+    const signature = await state.provider.request({ method: "personal_sign",
+      params: [prepared.message, expectedAccount] });
+    const [accounts, chainRaw] = await Promise.all([
+      state.provider.request({ method: "eth_accounts" }),
+      state.provider.request({ method: "eth_chainId" }),
+    ]);
+    if (!Array.isArray(accounts) || accounts[0]?.toLowerCase() !== expectedAccount
+      || Number.parseInt(chainRaw, 16) !== CHAIN_ID || state.tokenId !== expectedTokenId) {
+      throw new Error("Wallet account, network, or selected Punk changed before saving");
+    }
+    const completeResponse = await fetch("/api/broker/scouting-schedule", {
+      method: "POST", headers: { accept: "application/json", "content-type": "application/json" },
+      body: JSON.stringify({ action: "complete", challengeId: prepared.challengeId,
+        walletAddress: expectedAccount, signature }),
+    });
+    const completed = await completeResponse.json().catch(() => null);
+    if (!completeResponse.ok || completed?.ok !== true) {
+      throw new Error(completed?.message ?? "The schedule could not be saved");
+    }
+    applyScoutingSchedule(completed.schedule);
   } catch (error) {
     setText("[data-schedule-state]", `${error.message}. No schedule was saved.`);
   }
@@ -969,10 +1277,14 @@ async function applyWallet(wallet) {
   state.nativeBalance = null;
   state.wrappedBalance = null;
   state.fundingBusy = false;
+  state.wrappedBusy = false;
+  state.wrappedPlan = null;
   state.automation = null;
   state.assets = [];
   state.withdrawalAsset = null;
+  state.withdrawalAmount = "1";
   state.withdrawalBusy = false;
+  state.directedIntentId = null;
   renderWithdrawal();
   renderIdentity();
   renderPaidPolicy(readPaidPolicy());
@@ -987,9 +1299,13 @@ async function applyWallet(wallet) {
     await Promise.all([loadOwnership(wallet), loadAutomation()]);
     if (revision !== state.revision) return;
     state.loading = false;
-    renderIdentity();
+    // Automation and live ownership are intentionally fetched in parallel. The automation
+    // response can finish before ownerOf, so its first render may not yet have enough authority
+    // evidence to call the agent active. Recompute after both reads settle to avoid leaving a
+    // genuinely active Punk mislabeled as PAUSED solely because of response ordering.
+    renderAutomation();
     if (!state.owned) return;
-    await Promise.all([loadBalance(), loadWrappedBalance()]).catch(() => {});
+    await Promise.all([loadBalance(), loadWrappedBalance(), loadScoutingSchedule()]).catch(() => {});
     if (query('[data-control-tab="assets"]')?.getAttribute("aria-selected") === "true") {
       await loadAssets().catch(() => {});
     }
@@ -1065,4 +1381,14 @@ else {
   window.addEventListener("gogh:wallet-state", (event) => applyWallet(event.detail));
   window.addEventListener("gogh:wallet-disconnected", () => applyWallet(null));
   applyWallet(window.__GOGH_WALLET_SNAPSHOT__ ?? null);
+  window.setInterval(() => {
+    if (document.visibilityState === "visible" && state.owned) {
+      void loadActivity().catch(() => {});
+    }
+  }, 20_000);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && state.owned) {
+      void loadActivity().catch(() => {});
+    }
+  });
 }

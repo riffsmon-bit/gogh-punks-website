@@ -41,6 +41,7 @@ test("sanitizes only exact Robinhood account NFT display fields", () => {
   assert.equal(items.length, 2);
   assert.deepEqual(items[0], {
     identity: `${COLLECTION}:7`, collection: COLLECTION, tokenId: "7",
+    standard: "ERC721", amount: "1",
     collectionSlug: "example-collection", name: "Example #7",
     imageUrl: "https://i.seadn.io/gcs/files/example.png",
   });
@@ -129,6 +130,26 @@ test("enrichment falls back to bounded exact NFT reads when account inventory la
   assert.equal(item.name, "Exact #7");
   assert.equal(item.imageUrl, "https://i.seadn.io/exact.png");
   assert.equal(item.floorPrice.amount, "0.03");
+});
+
+test("enrichment refreshes an exact NFT when account inventory omits revealed artwork", async () => {
+  const requested = [];
+  const source = {
+    accountNfts: async () => [{ identity: `${COLLECTION}:7`, collection: COLLECTION,
+      tokenId: "7", collectionSlug: "secret-hoods-millionaire",
+      name: "Secret Hoods Pre Reveal", imageUrl: null }],
+    exactNft: async (collection, identifier) => {
+      requested.push(`${collection}:${identifier}`);
+      return { identity: `${collection}:${identifier}`, collection, tokenId: identifier,
+        collectionSlug: "secret-hoods-millionaire", name: "Secret Hoods Pre Reveal",
+        imageUrl: "https://i.seadn.io/revealed.png" };
+    },
+    collectionFloor: async () => null,
+  };
+  const [item] = await enrichOpenSeaPortfolio([baseItem()], ACCOUNT,
+    { source, now: 1_800_000 });
+  assert.deepEqual(requested, [`${COLLECTION}:7`]);
+  assert.equal(item.imageUrl, "https://i.seadn.io/revealed.png");
 });
 
 test("enrichment adds advisory art and floor without changing authoritative identity", async () => {

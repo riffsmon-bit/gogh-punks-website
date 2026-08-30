@@ -7,7 +7,8 @@ import {
   automationSelectionChanged,
   buildAutomationGasFundingTransaction,
   createCoalescedRefresh, formatAutomationGasBalance, RETIREMENT_MINT_LIFETIMES,
-  retirementActivationDisclosure, selectAutomationGeneration,
+  automationTerminalSnapshot, ownerRosterHasNoPunks, retirementActivationDisclosure, selectAutomationGeneration,
+  selectedAutomationPunk,
 } from "../site/autonomous-minting.js";
 import { DRAFT_RARITY_MINT_LIMITS } from "../broker/src/retirement/deflationary-model.mjs";
 
@@ -19,6 +20,12 @@ test("automation panel selects the best fully ready generation and preserves the
     readFile(new URL("site/autonomous-minting.js", root), "utf8"),
   ]);
   assert.match(html, /Continuous free-mint automation/);
+  assert.match(html, /<details class="active-agent-console" data-active-agent-console>/);
+  assert.match(html, /Your Active Agents/);
+  assert.match(html, /Live agent scan terminal/);
+  assert.match(html, /data-v3-scan-terminal/);
+  assert.match(html, /Activation and limit setup use the single guided wizard above/);
+  assert.equal((html.match(/data-wallet-disconnect/g) ?? []).length, 1);
   assert.match(html, /Automatic safe profile/);
   assert.match(html, /exact reviewed OpenSea Studio runtime/i);
   assert.match(html, /data-v3-upgrade/);
@@ -81,7 +88,7 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.match(browser, /autonomy-v\$\{state\.version\}-owner-setup/i);
   assert.match(browser, /autonomy-v\$\{version\}-status/i);
   assert.match(browser, /automationGateNeedsLegacyFallback\(v3Gate, requestedTokenId\)/);
-  assert.match(browser, /v3Gate\?\.capability === true/);
+  assert.match(browser, /v3Gate\?\.setupTransactionAvailable === true/);
   assert.match(browser, /v3Gate\?\.setupTransactionAvailable === true/);
   assert.match(browser, /selectAutomationGeneration/);
   assert.match(browser, /disableAutomatedSeaDropPolicy|stopTransactions/i);
@@ -103,7 +110,7 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.match(browser, /createCoalescedRefresh\(loadOnce\)/);
   assert.match(browser, /\/api\/broker\/autonomy-v3-run/);
   assert.match(browser, /Its first bounded scan is starting automatically/);
-  assert.match(browser, /if \(startFirstScan\) void runAgentNow\(\)/);
+  assert.match(browser, /if \(startFirstScan\)[\s\S]*await runAgentNow\(\)/);
   assert.match(browser, /JSON\.stringify\(\{ all: true \}\)/);
   assert.match(browser, /NO_ANALYZED_ACTIVE_TARGETS/);
   assert.match(browser, /visibilitychange/);
@@ -119,6 +126,50 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.match(browser, /eth_sendTransaction/);
   assert.match(browser, /automationPunkWalletOpenSeaUrl/);
   assert.match(browser, /Copied the selected Punk’s V\$\{state\.version\} NFT wallet—not the hosted gas payer/);
+});
+
+test("agent terminal separates enrollment from real scanning and minting without live fan-out", () => {
+  const snapshot = automationTerminalSnapshot([
+    { tokenId: "93", agentSummary: { configured: true, enrolled: true,
+      status: "AWAITING_WORKER_EVIDENCE" } },
+    { tokenId: "94", agentSummary: { configured: true, enrolled: true,
+      status: "SCANNING", reason: "NO_ACTIVE_CANDIDATES" } },
+    { tokenId: "96", agentSummary: { configured: true, enrolled: false,
+      status: "NEEDS_ENROLLMENT" } },
+  ], "94", true);
+  assert.deepEqual(snapshot.counts, {
+    agents: 3, enrolled: 2, scanning: 1, minting: 0, attention: 1,
+  });
+  assert.equal(snapshot.running, true);
+  assert.match(snapshot.lines[0], /worker ONLINE · 2\/3 locally indexed as enrolled/);
+  assert.match(snapshot.lines[1], /WORKER\s+waiting for the first production heartbeat/);
+  assert.match(snapshot.lines[3], /#93\s+enrolled · awaiting fresh worker evidence/);
+  assert.match(snapshot.lines[4], /#94\s+scanning candidates now.*< selected/);
+  assert.match(snapshot.lines[5], /#96\s+needs enrollment repair/);
+});
+
+test("agent terminal shows real production heartbeat and mint evidence separately from preview enrollment", () => {
+  const snapshot = automationTerminalSnapshot([
+    { tokenId: "93", agentSummary: { configured: true, enrolled: true,
+      status: "AWAITING_WORKER_EVIDENCE" } },
+  ], "93", true, {
+    heartbeat: { online: true, status: "MINT_CONFIRMED", tokenId: "1132",
+      completedAt: "2026-08-30T11:47:09.205Z",
+      transactionHash: `0x${"ab".repeat(32)}` },
+    usage: { confirmedMints: 1231, mintingPunks: 145,
+      latestConfirmedAt: "2026-08-30T11:47:09.205Z" },
+  });
+  assert.match(snapshot.lines.join("\n"), /WORKER\s+MINT_CONFIRMED · Punk #1132/);
+  assert.match(snapshot.lines.join("\n"), /MINT\s+Punk #1132 confirmed/);
+  assert.match(snapshot.lines.join("\n"), /1,231 confirmed mints · 145 Punk agents/);
+  assert.match(snapshot.lines.join("\n"), /preview enrollment index; per-Punk heartbeat/);
+});
+
+test("wizard exposes a bounded searchable Punk picker instead of a large native menu", async () => {
+  const brokerHtml = await readFile(new URL("site/broker/index.html", root), "utf8");
+  assert.match(brokerHtml, /data-wizard-punk-search/);
+  assert.match(brokerHtml, /data-wizard-punk-results/);
+  assert.match(brokerHtml, /GOGH \/ LIVE WORKER/);
 });
 
 test("activation disclosure binds the exact draft lifetimes and fails closed without rarity evidence", () => {
@@ -152,6 +203,19 @@ test("activation disclosure binds the exact draft lifetimes and fails closed wit
   assert.equal(assigned.limit, 100);
   assert.equal(assigned.remaining, 83);
   assert.match(assigned.summary, /83 remaining/);
+});
+
+test("zero-Punk wallets never select an absent automation Punk", () => {
+  assert.equal(ownerRosterHasNoPunks({ tokenIds: [] }), true);
+  assert.equal(ownerRosterHasNoPunks({ tokenIds: ["93"] }), false);
+  assert.equal(ownerRosterHasNoPunks(null), false);
+  assert.equal(selectedAutomationPunk(null, null), null);
+  assert.equal(selectedAutomationPunk({}, null), null);
+  assert.equal(selectedAutomationPunk({ punk: null }, { tokenId: "93" }), null);
+  assert.equal(selectedAutomationPunk({ punk: { tokenId: "93" } }, null), null);
+  const punk = { tokenId: "93", active: true };
+  assert.equal(selectedAutomationPunk({ punk }, { tokenId: "93" }), punk);
+  assert.equal(selectedAutomationPunk({ punk }, { tokenId: "94" }), null);
 });
 
 test("live refreshes coalesce instead of invalidating a slower status response", async () => {

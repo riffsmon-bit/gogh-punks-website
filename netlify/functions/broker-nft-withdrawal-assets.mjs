@@ -5,7 +5,8 @@ import { json } from "./_shared/http.mjs";
 import { buildNftWithdrawalGate } from "./broker-nft-withdrawal-status.mjs";
 import { nftDisplayMetadata, NFT_DISPLAY_METADATA_SELECT } from
   "./_shared/broker-display-metadata.mjs";
-import { enrichOpenSeaPortfolio } from "../../broker/src/metadata/opensea-portfolio.mjs";
+import { enrichOpenSeaPortfolio, OpenSeaPortfolioSource } from
+  "../../broker/src/metadata/opensea-portfolio.mjs";
 import { readOnchainNftDisplay } from "../../broker/src/metadata/onchain-nft-display.mjs";
 
 const TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
@@ -113,6 +114,8 @@ export function erc721MintFromReceipt(run, receipt) {
     amount: "1",
     transactionHash: hash,
     acquiredAt: new Date(run.completed_at ?? run.acquiredAt).toISOString(),
+    provenance: "ART_BROKER",
+    ownershipStatus: "LIVE_VERIFIED",
     openSeaUrl: `https://opensea.io/item/robinhood/${collection}/${matches[0]}`,
   }) : null;
 }
@@ -121,7 +124,8 @@ export async function buildWithdrawableNftAssets(
   selectedTokenId,
   { environment = process.env, database, gateBuilder = buildNftWithdrawalGate,
     getReceipt, getOwner, getCollectionName, getTokenUri,
-    enrichItems = enrichOpenSeaPortfolio, readTokenDisplay = readOnchainNftDisplay } = {},
+    enrichItems = enrichOpenSeaPortfolio, readTokenDisplay = readOnchainNftDisplay,
+    openSeaSource } = {},
 ) {
   const normalizedTokenId = tokenId(selectedTokenId);
   const gate = await gateBuilder(normalizedTokenId);
@@ -220,12 +224,40 @@ export async function buildWithdrawableNftAssets(
     }
   }
   let items = [...unique.values()].slice(0, 64);
-  if (items.length && typeof environment.OPENSEA_API_KEY === "string"
-    && environment.OPENSEA_API_KEY.trim()) {
+  // The marketplace account index broadens display beyond broker mint history so manually
+  // deposited and externally received NFTs can be selected. It remains advisory: every
+  // withdrawal performs a fresh standard-specific owner/balance check before simulation.
+  if (typeof environment.OPENSEA_API_KEY === "string" && environment.OPENSEA_API_KEY.trim()) {
     try {
-      items = await enrichItems(items, account, { apiKey: environment.OPENSEA_API_KEY });
+      const provider = openSeaSource ?? new OpenSeaPortfolioSource({
+        apiKey: environment.OPENSEA_API_KEY,
+      });
+      const indexed = await provider.accountNfts(account);
+      const known = new Set(items.map((item) => `${item.collection}:${item.tokenId}`));
+      for (const item of indexed) {
+        if (items.length >= 64 || known.has(item.identity)) continue;
+        known.add(item.identity);
+        items.push(Object.freeze({
+          standard: item.standard,
+          collection: item.collection,
+          tokenId: item.tokenId,
+          amount: item.amount,
+          transactionHash: null,
+          acquiredAt: null,
+          provenance: "RECEIVED",
+          ownershipStatus: "LIVE_CHECK_REQUIRED",
+          openSeaUrl: `https://opensea.io/item/robinhood/${item.collection}/${item.tokenId}`,
+          collectionName: collectionSlugName(item.collectionSlug),
+          name: item.name,
+          imageUrl: item.imageUrl,
+          collectionSlug: item.collectionSlug,
+          floorPrice: null,
+        }));
+      }
+      items = await enrichItems(items, account, { apiKey: environment.OPENSEA_API_KEY,
+        source: provider, indexedItems: indexed });
     } catch {
-      // Marketplace images and prices are advisory. Never fail ownership or recovery.
+      // Account inventory is an optional indexed fast path; confirmed broker holdings remain.
     }
   }
   if (tokenUriReader && typeof readTokenDisplay === "function") {

@@ -114,10 +114,14 @@ test("V3 automatic profile uses enrolled, saved, configured, or immediately requ
     },
   };
   const scheduled = await eligibleAutomationV3Profiles(database, null, ["1797"]);
-  assert.deepEqual(scheduled.map((row) => String(row.token_id)), ["93", "1797"]);
+  assert.deepEqual(scheduled.map((row) => String(row.token_id)), ["93"]);
   assert.equal(calls[0].values[3], 10_000);
+  assert.deepEqual(calls[0].values[4], ["1797"]);
   assert.match(calls[0].sql, /broker_automation_v3_enrollments/);
   assert.match(calls[0].sql, /latest_saved_punks/);
+  assert.match(calls[0].sql, /UNNEST\(\$5::numeric\[\]\)/);
+  assert.match(calls[0].sql, /broker_scouting_schedules/);
+  assert.match(calls[0].sql, /NOW\(\) >= schedule\.start_at/);
   assert.doesNotMatch(calls[0].sql, /m\.mode = 'AUTONOMOUS'/);
 
   const immediate = await eligibleAutomationV3Profiles(
@@ -180,6 +184,7 @@ test("lightweight browser activity uses recorded worker state without chain RPC"
   assert.equal(activity.online, true);
   assert.equal(activity.heartbeat.status, "NO_ELIGIBLE_TARGETS");
   assert.equal(activity.usage.confirmedMints, "17");
+  assert.equal(activity.punk, null);
 });
 
 test("scheduled V3 runs rotate fairly after the most recently successful Punk", async () => {
@@ -192,10 +197,13 @@ test("scheduled V3 runs rotate fairly after the most recently successful Punk", 
     rotateAutomationV3Profiles(profiles, "1797").map(({ token_id }) => token_id),
     ["93", "94", "1728", "1797"],
   );
-  const database = { query: async () => ({ rows: [{ punk_token_id: "1728" }] }) };
+  const database = { query: async (_sql, values) => {
+    assert.deepEqual(values, [["93", "94", "1728", "1797"]]);
+    return { rows: ["1728", "93", "1797", "94"].map((punk_token_id) => ({ punk_token_id })) };
+  } };
   assert.deepEqual(
     (await fairlyOrderedAutomationV3Profiles(database, profiles)).map(({ token_id }) => token_id),
-    ["1797", "93", "94", "1728"],
+    ["1728", "93", "1797", "94"],
   );
   const directlyRequested = await fairlyOrderedAutomationV3Profiles(
     { query: async () => { throw new Error("must not query cursor"); } },
@@ -231,6 +239,11 @@ test("scheduled V3 passes rotate through a bounded roster without starving later
   assert.deepEqual(
     scheduledAutomationV3ProfileBatch(profiles, "14", 600_000).map(({ token_id }) => token_id),
     profiles.map(({ token_id }) => token_id),
+  );
+  assert.deepEqual(
+    scheduledAutomationV3ProfileBatch(profiles, null, 600_000, 6, true)
+      .map(({ token_id }) => token_id),
+    ["0", "1", "2", "3", "4", "5"],
   );
   assert.throws(() => scheduledAutomationV3ProfileBatch(profiles, null, -1));
 });
@@ -341,6 +354,21 @@ test("V3 candidate prefilter tolerates partial read failure but not total outage
     assert.equal(error.code, "DISCOVERY_RPC_UNAVAILABLE");
     return true;
   });
+
+  let fallbackDropReads = 0;
+  assert.deepEqual(await activeZeroPriceSeaDropCollections({
+    getBlockNumber: async () => { throw new TypeError("primary unavailable"); },
+    readContract: async () => { throw new TypeError("primary unavailable"); },
+    getCode: async () => { throw new TypeError("primary unavailable"); },
+  }, {
+    getBlockNumber: async () => 1_020n,
+    getBlock: async () => ({ timestamp: 1_000n }),
+    readContract: async () => { fallbackDropReads += 1; return freeDrop; },
+    getCode: async () => clone,
+  }, ["0x1111111111111111111111111111111111111111"]), [
+    "0x1111111111111111111111111111111111111111",
+  ]);
+  assert.equal(fallbackDropReads, 1);
 });
 
 test("V3 worker source binds both runtime families and no paid or approval path", async () => {

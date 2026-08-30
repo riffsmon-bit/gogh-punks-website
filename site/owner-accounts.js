@@ -639,6 +639,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
   let currentCollection = null;
   let requestedTokenId = requestedBrokerPunk(browserWindow.location?.href);
   let recheckTimer = null;
+  let summaryRefreshRunning = false;
 
   function announceOwnerPunks(accounts, owner = null) {
     const detail = Object.freeze({
@@ -650,6 +651,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
         activated: item.activated === true,
         automationConfigured: item.automationConfigured === true,
         automationCreated: item.automationCreated === true,
+        agentSummary: item.agentSummary ? Object.freeze({ ...item.agentSummary }) : null,
         artwork: item.artwork ? Object.freeze({ ...item.artwork }) : null,
         rarity: item.rarity ? Object.freeze({ ...item.rarity }) : null,
       }))),
@@ -780,6 +782,9 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       automationCreated: new Map(rows.map((item) => [
         String(item?.tokenId), item?.automationCreated === true,
       ])),
+      agentSummary: new Map(rows.map((item) => [
+        String(item?.tokenId), item?.agentSummary ?? null,
+      ])),
     });
   }
 
@@ -791,6 +796,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       rarity: maps.rarity.get(item.tokenId) ?? item.rarity ?? null,
       automationConfigured: maps.automation.get(item.tokenId) === true,
       automationCreated: maps.automationCreated.get(item.tokenId) === true,
+      agentSummary: maps.agentSummary.get(item.tokenId) ?? item.agentSummary ?? null,
     }));
   }
 
@@ -967,7 +973,47 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
     }
   }
 
+  async function refreshIndexedAgentSummaries() {
+    const wallet = browserWindow.__GOGH_WALLET_SNAPSHOT__ ?? null;
+    if (summaryRefreshRunning || walletDiscoveryIntent(wallet) !== "ready"
+      || currentAccounts.length === 0 || browserDocument.visibilityState === "hidden") return;
+    const current = revision;
+    summaryRefreshRunning = true;
+    try {
+      const response = await request(
+        `/api/broker/owner-punks?owner=${encodeURIComponent(wallet.account)}&view=indexed`,
+        { headers: { accept: "application/json" }, cache: "no-store" },
+      );
+      const payload = await response.json();
+      if (!response.ok || payload?.ok !== true || current !== revision
+        || browserWindow.__GOGH_WALLET_SNAPSHOT__?.account?.toLowerCase?.()
+          !== wallet.account.toLowerCase()) return;
+      const refreshed = decorateVerifiedAccounts(currentAccounts, payload);
+      const before = JSON.stringify(currentAccounts.map(({ tokenId, agentSummary }) => (
+        [tokenId, agentSummary]
+      )));
+      const after = JSON.stringify(refreshed.map(({ tokenId, agentSummary }) => (
+        [tokenId, agentSummary]
+      )));
+      if (before === after) return;
+      currentAccounts = refreshed;
+      announceOwnerPunks(currentAccounts, wallet.account);
+      renderSelectedPunkPreview(selectedPreview, currentAccounts,
+        workspacePicker?.value || mandatePicker?.value || picker?.value || "");
+      if (container) renderOwnerAccounts(container, currentAccounts);
+    } catch {
+      // This refresh is a database-only display optimization. Existing roster evidence remains
+      // visible and privileged actions continue to perform their independent live checks.
+    } finally {
+      summaryRefreshRunning = false;
+    }
+  }
+
   browserWindow.addEventListener("gogh:wallet-state", refresh);
+  browserWindow.setInterval?.(() => { void refreshIndexedAgentSummaries(); }, 30_000);
+  browserDocument.addEventListener?.("visibilitychange", () => {
+    if (browserDocument.visibilityState === "visible") void refreshIndexedAgentSummaries();
+  });
   picker?.addEventListener("change", () => {
     selectPunk(picker.value);
   });

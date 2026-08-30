@@ -34,6 +34,10 @@ function dependencies(overrides = {}) {
         functionName: "mintPublic", args: [COLLECTION, FEE, ZERO, 1n] }) })
       : response({ name: "Test Drop", chain: "robinhood" }),
     nowMs: Date.parse("2026-08-28T05:00:00.000Z"),
+    createIntent: async ({ review }) => ({
+      intentId: "dmi_11111111-1111-4111-8111-111111111111",
+      expiresAt: "2026-08-28T05:05:00.000Z", reviewId: review.reviewId,
+    }),
     ...overrides,
   };
 }
@@ -65,6 +69,33 @@ test("bounded proposal decodes canonical quantity-one free SeaDrop calldata", as
   assert.equal(result.safety.signingPerformed, false);
   assert.equal(result.safety.submissionPerformed, false);
   assert.match(result.reviewId, /^osr_[0-9a-f]{64}$/);
+  assert.match(result.intentId, /^dmi_/);
+  assert.equal(result.expiresAt, "2026-08-28T05:05:00.000Z");
+});
+
+test("single-use intent execution revalidates exact ownership, recipient, price, and calldata", async () => {
+  const prepared = await handleOpenSeaConnectorRequest({ action: "prepare", tokenId: "93",
+    walletAddress: OWNER, url: "https://opensea.io/drops/test-drop" }, dependencies());
+  let consumed = 0;
+  const result = await handleOpenSeaConnectorRequest({ action: "execute", tokenId: "93",
+    walletAddress: OWNER, intentId: prepared.intentId }, dependencies({
+    consumeIntent: async () => {
+      consumed += 1;
+      return { intentId: prepared.intentId, reviewId: prepared.reviewId,
+        sourceUrl: prepared.sourceUrl, expiresAt: prepared.expiresAt };
+    },
+  }));
+  assert.equal(consumed, 1);
+  assert.equal(result.status, "INTENT_REVALIDATED");
+  assert.equal(result.executionReady, false);
+  assert.match(result.message, /execution remains disabled/);
+
+  await assert.rejects(handleOpenSeaConnectorRequest({ action: "execute", tokenId: "93",
+    walletAddress: OWNER, intentId: prepared.intentId }, dependencies({
+    consumeIntent: async () => ({ intentId: prepared.intentId,
+      reviewId: `osr_${"f".repeat(64)}`, sourceUrl: prepared.sourceUrl,
+      expiresAt: prepared.expiresAt }),
+  })), /price or transaction changed/i);
 });
 
 test("review fails closed for ownership mismatch and unknown request fields", async () => {

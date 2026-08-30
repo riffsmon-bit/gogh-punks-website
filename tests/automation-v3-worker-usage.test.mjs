@@ -3,8 +3,11 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
-  enrollAutomationV3Punk, getAutomationV3UsageStats,
-  recordAutomationV3WorkerHeartbeat, workerUsageFromRow,
+  automationV3PunkEnrollment, enrollAutomationV3Punk,
+  getAutomationV3PunkWorkerActivity, getAutomationV3UsageStats,
+  punkWorkerActivityFromRow, punkWorkerEvidenceFromRow, recordAutomationV3PunkWorkerEvidence,
+  recordAutomationV3WorkerHeartbeat, workerDiscoverySummary, workerHeartbeatFromRow,
+  workerUsageFromRow,
 } from "../netlify/functions/_shared/automation-v3-worker-state.mjs";
 
 const RELEASE = "a".repeat(40);
@@ -34,6 +37,12 @@ test("V3 worker records append-only history and the current heartbeat atomically
   const heartbeat = await recordAutomationV3WorkerHeartbeat({
     status: "MINT_CONFIRMED", submitted: 1, tokenId: "93", account: ACCOUNT,
     collection: COLLECTION, transactionHash: TRANSACTION,
+    diagnostics: { socialRanking: { discovered: 14, withWebsite: 8, withX: 6,
+      highPriority: 2, sentToOnchainValidation: 3, maximumOnchainValidations: 3 },
+    socialCandidates: [{ collection: COLLECTION, tier: "HIGH", score: 75,
+      signals: { projectName: "Example", imageUrl: "https://i.seadn.io/example.png",
+        websiteUrl: "https://example.com/", xUrl: "https://x.com/example" },
+      reasons: ["Free mint", "Supported contract runtime"] }] },
   }, {
     database, release: RELEASE, startedAt: "2026-08-24T12:00:00Z",
     completedAt: "2026-08-24T12:00:02Z",
@@ -43,6 +52,118 @@ test("V3 worker records append-only history and the current heartbeat atomically
   assert.match(calls[0].sql, /INSERT INTO broker_automation_v3_worker_runs/);
   assert.match(calls[0].sql, /INSERT INTO broker_automation_v3_worker_state/);
   assert.match(calls[0].sql, /ON CONFLICT DO NOTHING/);
+  assert.deepEqual(JSON.parse(calls[0].values[10]), {
+    discovered: 14, withWebsite: 8, withX: 6, highPriority: 2,
+    sentToOnchainValidation: 3, maximumOnchainValidations: 3,
+    candidates: [{ collection: COLLECTION, tier: "HIGH", score: 75,
+      projectName: "Example", imageUrl: "https://i.seadn.io/example.png",
+      websiteUrl: "https://example.com/", xUrl: "https://x.com/example",
+      reasons: ["Free mint", "Supported contract runtime"] }],
+  });
+});
+
+test("V3 worker records one bounded evidence row for every scheduled Punk", async () => {
+  const calls = [];
+  const database = { async query(sql, values) {
+    calls.push({ sql, values });
+    return { rows: [{
+      punk_token_id: values[0], state: values[1], current_job_id: values[2],
+      last_scheduled_scan: values[3], last_actual_scan: values[4],
+      last_successful_mint: values[5], next_scan_estimate: values[6],
+      reason: values[7], updated_at: values[8],
+    }] };
+  } };
+  const evidence = await recordAutomationV3PunkWorkerEvidence({
+    status: "NO_ELIGIBLE_TARGETS", submitted: 0,
+    diagnostics: {
+      totalEligibleProfiles: 161,
+      scheduledProfileBatch: 6,
+      scheduledTokenIds: ["93", "1616"],
+      profileOutcomes: [{ tokenId: "93", account: ACCOUNT,
+        state: "SKIPPED", reason: "NO_ELIGIBLE_TARGETS" }],
+    },
+  }, {
+    database, jobId: "12345678-1234-1234-1234-123456789abc",
+    startedAt: "2026-08-29T12:00:00Z", completedAt: "2026-08-29T12:00:02Z",
+  });
+  assert.equal(evidence.length, 2);
+  assert.deepEqual(evidence.map(({ tokenId, state, reason }) => ({ tokenId, state, reason })), [
+    { tokenId: "93", state: "SKIPPED", reason: "NO_ELIGIBLE_TARGETS" },
+    { tokenId: "1616", state: "QUEUED", reason: "WAITING_FOR_WORKER_CAPACITY" },
+  ]);
+  assert.equal(calls[0].values[4], "2026-08-29T12:00:02.000Z");
+  assert.equal(calls[1].values[4], null);
+  assert.equal(calls[0].values[6], "2026-08-29T14:15:00.000Z");
+  assert.match(calls[0].sql, /broker_punk_agent_heartbeats/);
+  assert.match(calls[0].sql, /broker_punk_agent_activity/);
+  assert.match(calls[0].sql, /WHERE broker_punk_agent_heartbeats\.updated_at <= EXCLUDED\.updated_at/);
+  assert.equal(calls[0].values[11], true);
+  assert.equal(calls[1].values[11], false);
+  assert.match(calls[0].values[9], /^[0-9a-f]{64}$/);
+});
+
+test("Punk activity reads one exact indexed timeline without chain RPC", async () => {
+  const calls = [];
+  const database = { async query(sql, values) {
+    calls.push({ sql, values });
+    if (/broker_punk_agent_heartbeats/.test(sql)) return { rows: [{
+      punk_token_id: "93", state: "SKIPPED", current_job_id: "12345678",
+      last_scheduled_scan: "2026-08-29T12:00:00Z",
+      last_actual_scan: "2026-08-29T12:00:02Z", last_successful_mint: null,
+      next_scan_estimate: "2026-08-29T14:15:00Z", reason: "NO_ELIGIBLE_TARGETS",
+      updated_at: "2026-08-29T12:00:02Z",
+    }] };
+    return { rows: [{
+      punk_token_id: "93", event_id: "a".repeat(64), job_id: "12345678",
+      state: "SKIPPED", reason: "NO_ELIGIBLE_TARGETS", collection_address: null,
+      transaction_hash: null, occurred_at: "2026-08-29T12:00:02Z",
+    }] };
+  } };
+  const result = await getAutomationV3PunkWorkerActivity("93", { database });
+  assert.equal(result.heartbeat.tokenId, "93");
+  assert.equal(result.events[0].reason, "NO_ELIGIBLE_TARGETS");
+  assert.equal(calls.length, 2);
+  assert.ok(calls.every(({ values }) => values[0] === "93"));
+  assert.deepEqual(punkWorkerActivityFromRow({
+    punk_token_id: "93", event_id: "b".repeat(64), job_id: null,
+    state: "MINTED", reason: "MINT_CONFIRMED", collection_address: COLLECTION,
+    transaction_hash: TRANSACTION, occurred_at: "2026-08-29T12:00:02Z",
+  }).transactionHash, TRANSACTION);
+});
+
+test("per-Punk worker evidence rejects unscheduled or malformed outcomes", async () => {
+  const options = {
+    database: { async query() { throw new Error("must not query"); } },
+    jobId: "12345678-1234-1234-1234-123456789abc",
+    startedAt: "2026-08-29T12:00:00Z", completedAt: "2026-08-29T12:00:02Z",
+  };
+  await assert.rejects(() => recordAutomationV3PunkWorkerEvidence({ diagnostics: {
+    scheduledTokenIds: ["93"], scheduledProfileBatch: 1, totalEligibleProfiles: 1,
+    profileOutcomes: [{ tokenId: "94", state: "READY", reason: "ELIGIBLE" }],
+  } }, options), /not scheduled/);
+  assert.throws(() => punkWorkerEvidenceFromRow({
+    punk_token_id: "93", state: "FAKE_ACTIVE", reason: "NOPE",
+    updated_at: "2026-08-29T12:00:02Z",
+  }), /state is invalid/);
+});
+
+test("worker discovery summary is bounded, public, and never an execution approval", () => {
+  const summary = workerDiscoverySummary({ diagnostics: {
+    socialRanking: { discovered: 1000, withWebsite: 4, withX: 3,
+      highPriority: 2, sentToOnchainValidation: 3, maximumOnchainValidations: 3 },
+    socialCandidates: [{ collection: COLLECTION.toUpperCase().replace("0X", "0x"),
+      tier: "MEDIUM", score: 40, signals: { websiteUrl: "https://example.com/project",
+        xUrl: "https://x.com/example" }, reasons: ["Free mint"] }],
+  } });
+  assert.equal(summary.discovered, 0);
+  assert.equal(summary.sentToOnchainValidation, 3);
+  assert.doesNotMatch(JSON.stringify(summary), /approved|private|calldata/i);
+  const heartbeat = workerHeartbeatFromRow({
+    release_commit: RELEASE, started_at: "2026-08-24T12:00:00Z",
+    completed_at: "2026-08-24T12:00:02Z", status: "NO_ELIGIBLE_TARGETS",
+    submitted: 0, discovery_summary: summary,
+  });
+  assert.equal(heartbeat.discoverySummary.candidates[0].tier, "MEDIUM");
 });
 
 test("public V3 usage is aggregate, canonical, and contains no holder addresses", async () => {
@@ -101,6 +222,24 @@ test("active Punk enrollment is idempotent and contains no signing authority", a
   await assert.rejects(
     () => enrollAutomationV3Punk({ ...punk, active: false }), /not active/,
   );
+});
+
+test("backfill enrollment evidence binds the exact Punk account and owner", async () => {
+  const punk = { tokenId: "93", account: ACCOUNT, owner: COLLECTION };
+  assert.equal(await automationV3PunkEnrollment(punk, { database: {
+    async query(sql, values) {
+      assert.match(sql, /token_id = \$2::numeric/);
+      assert.equal(values[1], "93");
+      return { rows: [{ account_address: ACCOUNT, owner_snapshot: COLLECTION }] };
+    },
+  } }), true);
+  assert.equal(await automationV3PunkEnrollment(punk, { database: {
+    async query() { return { rows: [] }; },
+  } }), false);
+  assert.equal(await automationV3PunkEnrollment(punk, { database: {
+    async query() { return { rows: [{ account_address: ACCOUNT,
+      owner_snapshot: `0x${"4".repeat(40)}` }] }; },
+  } }), false);
 });
 
 test("V3 enrollment migration keeps a chain-qualified public Punk roster", async () => {

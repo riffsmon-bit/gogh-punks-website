@@ -8,6 +8,8 @@ import { privateKeyToAccount } from "viem/accounts";
 import manifest from "../deployments/robinhood-automation-v3.json" with { type: "json" };
 import coreManifest from "../deployments/robinhood.json" with { type: "json" };
 import { ROBINHOOD } from "../broker/src/config.mjs";
+import { resolveRobinhoodRpcPair } from
+  "../broker/src/infrastructure/robinhood-rpc-endpoints.mjs";
 import { attestAutomatedSeaDropV3CandidateLive } from
   "../broker/src/discovery/automated-seadrop-v3-live-screen.mjs";
 import { buildAutomatedSeaDropV3ExecutionBatch } from
@@ -21,6 +23,8 @@ import { AUTOMATION_V3_AGENT, readAutomationV3GlobalState } from
   "../netlify/functions/_shared/autonomy-v3-live.mjs";
 import { PUBLIC_DROP_UPDATED_EVENT } from
   "../broker/src/discovery/seadrop-public-drop-index.mjs";
+import { createOpenSeaSocialProfileSource, rankSeaDropCollections } from
+  "../broker/src/discovery/social-candidate-ranking.mjs";
 
 const ACCOUNT_ABI = parseAbi([
   "function owner() view returns (address)",
@@ -74,12 +78,6 @@ const CHAIN = {
   nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
   rpcUrls: { default: { http: [ROBINHOOD.rpcUrl] } },
 };
-
-function httpsUrl(name, value) {
-  const url = new URL(value ?? "");
-  if (url.protocol !== "https:" || url.hash) throw new TypeError(`${name} must be HTTPS`);
-  return url.href;
-}
 
 function readClient(url, signal) {
   return createPublicClient({
@@ -146,6 +144,14 @@ export const AUTOMATION_V3_WORKER_TIME_BUDGET_MS = 48_000;
 const AUTOMATION_V3_SUBMISSION_RESERVE_MS = 17_000;
 const AUTOMATION_V3_PROFILE_BATCH_SIZE = 6;
 const AUTOMATION_V3_CANDIDATE_BATCH_SIZE = 4;
+
+export function socialCandidateValidationLimit(environment = {}) {
+  const raw = environment.AGENT_MAX_CANDIDATES_TO_VALIDATE ?? "3";
+  if (typeof raw !== "string" || !/^[1-8]$/.test(raw)) {
+    throw new TypeError("AGENT_MAX_CANDIDATES_TO_VALIDATE must be 1 through 8");
+  }
+  return Math.min(Number(raw), AUTOMATION_V3_CANDIDATE_BATCH_SIZE);
+}
 
 function discoveryDelay() {
   return new Promise((resolve) => setTimeout(resolve, DISCOVERY_BATCH_DELAY_MS));
@@ -220,6 +226,9 @@ async function accountState(client, blockNumber, account, agent) {
 function rejectionDiagnostics(profiles, collections, candidates) {
   return {
     profiles: profiles.length,
+    scheduledTokenIds: profiles.map(({ token_id: tokenId }) => String(tokenId)),
+    processedTokenIds: [],
+    profileOutcomes: [],
     recentSeaDropCollections: collections.length,
     onchainZeroPriceCandidates: candidates.length,
     missingActivatedAccounts: 0,
@@ -228,6 +237,20 @@ function rejectionDiagnostics(profiles, collections, candidates) {
     providerStateDisagreements: 0,
     executionSimulationsPassed: 0,
   };
+}
+
+function recordProfileOutcome(diagnostics, tokenId, state, reason, account = null) {
+  if (!diagnostics || !/^(?:0|[1-9][0-9]{0,3})$/.test(String(tokenId))
+    || !new Set(["MINTED", "SKIPPED", "ERROR", "READY"]).has(state)
+    || !/^[A-Z0-9_]{3,64}$/.test(reason)
+    || (account !== null && !/^0x[0-9a-f]{40}$/.test(account))) return;
+  if (!diagnostics.processedTokenIds.includes(String(tokenId))) {
+    diagnostics.processedTokenIds.push(String(tokenId));
+  }
+  const index = diagnostics.profileOutcomes.findIndex((item) => item.tokenId === String(tokenId));
+  const outcome = Object.freeze({ tokenId: String(tokenId), state, reason, account });
+  if (index === -1) diagnostics.profileOutcomes.push(outcome);
+  else diagnostics.profileOutcomes[index] = outcome;
 }
 
 function recordExecutionSimulationRejection(diagnostics, error) {
@@ -327,19 +350,29 @@ export async function eligibleAutomationV3Profiles(
        WHERE e.chain_id = $1 AND e.collection_address = $2
       UNION
       SELECT token_id FROM latest_saved_punks
+      UNION
+      SELECT UNNEST($5::numeric[]) AS token_id
     )
-    SELECT token_id, NULL::text AS configured_by, NULL::jsonb AS economic_settings,
+    SELECT enrolled.token_id, NULL::text AS configured_by, NULL::jsonb AS economic_settings,
            NULL::jsonb AS risk_settings, NULL::jsonb AS artistic_preferences,
            TRUE AS automatic_profile
       FROM enrolled
-     WHERE ($3::numeric IS NULL OR token_id = $3::numeric)
-     ORDER BY token_id
+      LEFT JOIN broker_scouting_schedules schedule
+        ON schedule.chain_id = $1
+       AND schedule.collection_address = $2
+       AND schedule.token_id = enrolled.token_id
+     WHERE ($3::numeric IS NULL OR enrolled.token_id = $3::numeric)
+       AND (schedule.token_id IS NULL OR (schedule.enabled = TRUE
+         AND NOW() >= schedule.start_at AND NOW() < schedule.end_at))
+     ORDER BY enrolled.token_id
      LIMIT $4`, [4663, ROBINHOOD.canonicalCollection, requestedTokenId,
-    ELIGIBLE_PROFILE_LIMIT]);
+    ELIGIBLE_PROFILE_LIMIT, configuredTokenIds]);
   const rows = [...result.rows];
   const known = new Set(rows.map(({ token_id: tokenId }) => String(tokenId)));
-  const automaticTokenIds = requestedTokenId === null
-    ? configuredTokenIds : [...new Set([...configuredTokenIds, requestedTokenId])];
+  // An explicit owner-triggered scan is allowed immediately even when it falls
+  // outside a saved recurring window. Environment-configured recurring Punks
+  // are part of the SQL roster above so the persisted window cannot be bypassed.
+  const automaticTokenIds = requestedTokenId === null ? [] : [requestedTokenId];
   for (const tokenId of automaticTokenIds) {
     if ((requestedTokenId === null || requestedTokenId === tokenId) && !known.has(tokenId)) {
       rows.push(Object.freeze({
@@ -378,13 +411,25 @@ export async function fairlyOrderedAutomationV3Profiles(
 ) {
   if (requestedTokenId !== null) return rotateAutomationV3Profiles(profiles);
   try {
+    const tokenIds = profiles.map(({ token_id: tokenId }) => String(tokenId));
     const result = await pool.query(`
-      SELECT punk_token_id
-        FROM broker_automation_v3_worker_runs
-       WHERE status = 'MINT_CONFIRMED' AND punk_token_id IS NOT NULL
-       ORDER BY completed_at DESC, run_id DESC
-       LIMIT 1`);
-    return rotateAutomationV3Profiles(profiles, result.rows?.[0]?.punk_token_id ?? null);
+      SELECT requested.punk_token_id,
+             heartbeat.last_scheduled_scan,
+             heartbeat.last_actual_scan
+        FROM UNNEST($1::numeric[]) WITH ORDINALITY
+          AS requested(punk_token_id, roster_position)
+        LEFT JOIN broker_punk_agent_heartbeats heartbeat
+          ON heartbeat.chain_id = 4663
+         AND heartbeat.punk_token_id = requested.punk_token_id
+       ORDER BY heartbeat.last_scheduled_scan ASC NULLS FIRST,
+                heartbeat.last_actual_scan ASC NULLS FIRST,
+                requested.roster_position ASC`, [tokenIds]);
+    const byTokenId = new Map(profiles.map((profile) => [String(profile.token_id), profile]));
+    const ordered = (result.rows ?? []).map(({ punk_token_id: tokenId }) => (
+      byTokenId.get(String(tokenId))
+    )).filter(Boolean);
+    if (ordered.length !== profiles.length) throw new TypeError("incomplete Punk fairness roster");
+    return ordered;
   } catch (error) {
     report(JSON.stringify({
       event: "AUTOMATION_V3_FAIRNESS_CURSOR_UNAVAILABLE",
@@ -396,16 +441,19 @@ export async function fairlyOrderedAutomationV3Profiles(
 
 export function scheduledAutomationV3ProfileBatch(
   profiles, requestedTokenId = null, nowMs = Date.now(), batchSize = AUTOMATION_V3_PROFILE_BATCH_SIZE,
+  oldestDueFirst = false,
 ) {
   if (!Array.isArray(profiles) || profiles.length > ELIGIBLE_PROFILE_LIMIT
     || profiles.some((row) => !row || !/^(?:0|[1-9][0-9]{0,3})$/.test(String(row.token_id)))
     || (requestedTokenId !== null
       && !/^(?:0|[1-9][0-9]{0,3})$/.test(String(requestedTokenId)))
     || !Number.isSafeInteger(nowMs) || nowMs < 0
-    || !Number.isSafeInteger(batchSize) || batchSize < 1 || batchSize > CONFIGURED_PUNK_LIMIT) {
+    || !Number.isSafeInteger(batchSize) || batchSize < 1 || batchSize > CONFIGURED_PUNK_LIMIT
+    || typeof oldestDueFirst !== "boolean") {
     throw new TypeError("invalid V3 scheduled profile batch");
   }
   if (requestedTokenId !== null || profiles.length <= batchSize) return [...profiles];
+  if (oldestDueFirst) return [...profiles.slice(0, batchSize)];
   const batchCount = Math.ceil(profiles.length / batchSize);
   const fiveMinuteWindow = Math.floor(nowMs / 300_000);
   const offset = (fiveMinuteWindow % batchCount) * batchSize;
@@ -697,9 +745,20 @@ export async function activeZeroPriceSeaDropCollections(
   client, runtimeClient, collections, confirmations = 20n,
 ) {
   if (collections.length === 0) return [];
-  const head = await client.getBlockNumber();
-  const blockNumber = head - confirmations;
-  const block = await client.getBlock({ blockNumber });
+  let blockNumber;
+  let block;
+  try {
+    const head = await client.getBlockNumber();
+    blockNumber = head - confirmations;
+    block = await client.getBlock({ blockNumber });
+  } catch {
+    // This is only the bounded candidate prefilter. Final execution still requires the existing
+    // independent-provider agreement, runtime, policy, price, recipient, and simulation gates.
+    // A single discovery provider outage must not stop every enrolled Punk before those gates.
+    const head = await runtimeClient.getBlockNumber();
+    blockNumber = head - confirmations;
+    block = await runtimeClient.getBlock({ blockNumber });
+  }
   const results = [];
   for (let offset = 0; offset < collections.length; offset += DISCOVERY_BATCH_SIZE) {
     const batch = collections.slice(offset, offset + DISCOVERY_BATCH_SIZE);
@@ -710,8 +769,16 @@ export async function activeZeroPriceSeaDropCollections(
           functionName: "getPublicDrop", args: [collection], blockNumber,
         });
         return { status: "success", result };
-      } catch (error) {
-        return { status: "failure", error };
+      } catch (firstError) {
+        try {
+          const result = await runtimeClient.readContract({
+            address: getAddress(SEA_DROP), abi: PUBLIC_DROP_ABI,
+            functionName: "getPublicDrop", args: [collection], blockNumber,
+          });
+          return { status: "success", result };
+        } catch (error) {
+          return { status: "failure", error: error ?? firstError };
+        }
       }
     })));
     await discoveryDelay();
@@ -731,8 +798,12 @@ export async function activeZeroPriceSeaDropCollections(
       try {
         return (await runtimeClient.getCode({ address: collection, blockNumber })) ?? "0x";
       } catch {
-        codeReadFailures += 1;
-        return "0x";
+        try {
+          return (await client.getCode({ address: collection, blockNumber })) ?? "0x";
+        } catch {
+          codeReadFailures += 1;
+          return "0x";
+        }
       }
     })));
     await discoveryDelay();
@@ -819,8 +890,7 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
       throw error;
     }
   }
-  const primaryUrl = httpsUrl("ROBINHOOD_RPC_URL", environment.ROBINHOOD_RPC_URL ?? environment.RPC_URL);
-  const secondaryUrl = httpsUrl("ROBINHOOD_SECONDARY_RPC_URL", environment.ROBINHOOD_SECONDARY_RPC_URL);
+  const { primary: primaryUrl, secondary: secondaryUrl } = resolveRobinhoodRpcPair(environment);
   const primary = dependencies.primary ?? readClient(primaryUrl, abortSignal);
   const secondary = dependencies.secondary ?? readClient(secondaryUrl, abortSignal);
   const discovery = dependencies.discovery ?? discoveryClient(primaryUrl, abortSignal);
@@ -838,9 +908,13 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
     ),
   );
   const profiles = scheduledAutomationV3ProfileBatch(
-    orderedProfiles, requestedTokenId, startedAtMs,
+    orderedProfiles, requestedTokenId, startedAtMs, AUTOMATION_V3_PROFILE_BATCH_SIZE, true,
   );
   if (profiles.length === 0) return { status: "NO_AUTONOMOUS_MANDATES", submitted: 0 };
+  currentDiagnostics = rejectionDiagnostics(profiles, [], []);
+  currentDiagnostics.totalEligibleProfiles = orderedProfiles.length;
+  currentDiagnostics.scheduledProfileBatch = profiles.length;
+  currentDiagnostics.operatorConfiguredPunks = configuredTokenIds.length;
   if (budgetExpired()) return budgetResult();
   // A reviewed operator may temporarily constrain discovery to a small exact set.
   // This does not bypass any runtime, public-drop, dual-provider, policy, or simulation
@@ -856,6 +930,9 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   if (budgetExpired()) return budgetResult();
   const collections = directedCollections
     ?? mergePrioritySeaDropCollections(priorityCollections, discoveredCollections);
+  currentDiagnostics.recentSeaDropCollections = collections.length;
+  currentDiagnostics.directedTargetCollections = directedCollections?.length ?? 0;
+  currentDiagnostics.priorityTargetCollections = priorityCollections.length;
   // Use the archive provider for the indexed public-drop reads, then move the much
   // smaller active set to the canonical endpoint for runtime classification. This
   // avoids exhausting either provider's per-second allowance. Every selected target
@@ -865,12 +942,47 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
     () => activeZeroPriceSeaDropCollections(secondary, primary, collections),
   );
   if (budgetExpired()) return budgetResult();
-  const candidates = analyzedCandidates.slice(0, AUTOMATION_V3_CANDIDATE_BATCH_SIZE);
-  if (candidates.length === 0) return {
-    status: "NO_ANALYZED_ACTIVE_TARGETS", submitted: 0,
-    diagnostics: { profiles: profiles.length, recentSeaDropCollections: collections.length,
-      directedTargetCollections: directedCollections?.length ?? 0, onchainZeroPriceCandidates: 0 },
-  };
+  const maximumSocialCandidates = socialCandidateValidationLimit(environment);
+  const operatorPriorities = new Set([...(directedCollections ?? []), ...priorityCollections]);
+  const exactPriorityCandidates = analyzedCandidates.filter((collection) => (
+    operatorPriorities.has(collection)
+  ));
+  const socialPool = analyzedCandidates.filter((collection) => !operatorPriorities.has(collection));
+  let socialRanking = null;
+  if (socialPool.length > 0 && (typeof dependencies.rankCandidates === "function"
+    || typeof environment.OPENSEA_API_KEY === "string" && environment.OPENSEA_API_KEY.trim())) {
+    socialRanking = await workerStage("SOCIAL_RANKING_FAILED", () => (
+      dependencies.rankCandidates
+        ? dependencies.rankCandidates(socialPool, maximumSocialCandidates)
+        : rankSeaDropCollections(socialPool, {
+          maximum: maximumSocialCandidates,
+          source: createOpenSeaSocialProfileSource({ apiKey: environment.OPENSEA_API_KEY }),
+        })
+    ));
+  }
+  const sociallySelected = socialRanking
+    ? socialRanking.selected.map(({ collection }) => collection)
+    : socialPool.slice(0, maximumSocialCandidates);
+  const candidates = [...new Set([...exactPriorityCandidates, ...sociallySelected])]
+    .slice(0, AUTOMATION_V3_CANDIDATE_BATCH_SIZE);
+  if (candidates.length === 0) {
+    const diagnostics = rejectionDiagnostics(profiles, collections, candidates);
+    diagnostics.totalEligibleProfiles = orderedProfiles.length;
+    diagnostics.scheduledProfileBatch = profiles.length;
+    diagnostics.analyzedCandidateBatch = 0;
+    diagnostics.directedTargetCollections = directedCollections?.length ?? 0;
+    diagnostics.priorityTargetCollections = priorityCollections.length;
+    diagnostics.operatorConfiguredPunks = configuredTokenIds.length;
+    diagnostics.socialRanking = socialRanking?.diagnostics ?? {
+      discovered: socialPool.length, withWebsite: 0, withX: 0, highPriority: 0,
+      sentToOnchainValidation: 0, maximumOnchainValidations: maximumSocialCandidates,
+    };
+    diagnostics.socialCandidates = socialRanking?.selected ?? [];
+    for (const { token_id: tokenId } of profiles) {
+      recordProfileOutcome(diagnostics, String(tokenId), "SKIPPED", "NO_ACTIVE_CANDIDATES");
+    }
+    return { status: "NO_ANALYZED_ACTIVE_TARGETS", submitted: 0, diagnostics };
+  }
   // Global policy/runtime evidence is expensive (eleven reads from each independent
   // provider). It remains mandatory before any account or transaction work, but an idle
   // scan with no candidate no longer spends RPC budget re-proving unchanged global state.
@@ -890,6 +1002,15 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   diagnostics.analyzedCandidateBatch = candidates.length;
   diagnostics.directedTargetCollections = directedCollections?.length ?? 0;
   diagnostics.priorityTargetCollections = priorityCollections.length;
+  diagnostics.socialRanking = socialRanking?.diagnostics ?? {
+    discovered: socialPool.length,
+    withWebsite: 0,
+    withX: 0,
+    highPriority: 0,
+    sentToOnchainValidation: sociallySelected.length,
+    maximumOnchainValidations: maximumSocialCandidates,
+  };
+  diagnostics.socialCandidates = socialRanking?.selected ?? [];
   diagnostics.operatorConfiguredPunks = configuredTokenIds.length;
   diagnostics.prioritySlotReservations = 0;
   diagnostics.priorityStateReadFailures = 0;
@@ -902,6 +1023,7 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   for (const row of profiles) {
     if (budgetExpired()) return budgetResult();
     const tokenId = String(row.token_id);
+    if (!diagnostics.processedTokenIds.includes(tokenId)) diagnostics.processedTokenIds.push(tokenId);
     let accountAddress;
     let expectedOwner;
     let priorityState;
@@ -911,6 +1033,7 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
       });
       if (((await primary.getCode({ address: accountAddress })) ?? "0x") === "0x") {
         diagnostics.missingActivatedAccounts += 1;
+        recordProfileOutcome(diagnostics, tokenId, "ERROR", "ACCOUNT_NOT_CREATED");
         continue;
       }
       const ownerRequest = {
@@ -922,6 +1045,7 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
       ]);
       if (getAddress(primaryOwner) !== getAddress(secondaryOwner)) {
         diagnostics.providerStateDisagreements += 1;
+        recordProfileOutcome(diagnostics, tokenId, "ERROR", "PROVIDER_OWNER_DISAGREEMENT");
         continue;
       }
       expectedOwner = getAddress(primaryOwner).toLowerCase();
@@ -932,6 +1056,7 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
       // One stale or rate-limited Punk must not stop the remaining authorized
       // roster. No transaction is built until all of this Punk's reads pass.
       diagnostics.profileStateReadFailures += 1;
+      recordProfileOutcome(diagnostics, tokenId, "ERROR", "PROFILE_STATE_READ_FAILED");
       continue;
     }
     diagnostics.priorityStateReadFailures += priorityState.readFailures;
@@ -1042,6 +1167,10 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
       }
       diagnostics.executionSimulationsPassed += 1;
       if (dependencies.readOnly === true) {
+        recordProfileOutcome(
+          diagnostics, tokenId, "READY", "ELIGIBLE_SIMULATION_PASSED",
+          accountAddress.toLowerCase(),
+        );
         return {
           status: "READ_ONLY_ELIGIBLE",
           submitted: 0,
@@ -1075,8 +1204,16 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
         error.code = "AUTONOMOUS_MINT_REVERTED";
         throw error;
       }
-      return { status: "MINT_CONFIRMED", submitted: 1, tokenId, account: accountAddress.toLowerCase(), collection, transactionHash: hash };
+      recordProfileOutcome(
+        diagnostics, tokenId, "MINTED", "MINT_CONFIRMED", accountAddress.toLowerCase(),
+      );
+      return { status: "MINT_CONFIRMED", submitted: 1, tokenId,
+        account: accountAddress.toLowerCase(), collection, transactionHash: hash, diagnostics };
     }
+    recordProfileOutcome(
+      diagnostics, tokenId, "SKIPPED", "NO_ELIGIBLE_TARGETS",
+      typeof accountAddress === "string" ? accountAddress.toLowerCase() : null,
+    );
   }
   if (diagnostics.profileStateReadFailures === profiles.length) {
     const error = new Error("PROFILE_STATE_READ_FAILED");
@@ -1093,6 +1230,14 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   } catch (error) {
     if (!transactionSubmitted && (budgetExpired() || error?.name === "AbortError")) {
       return budgetResult();
+    }
+    if (currentDiagnostics && error && typeof error === "object") {
+      const code = typeof error.code === "string" && /^[A-Z0-9_]{3,64}$/.test(error.code)
+        ? error.code : "WORKER_RUN_FAILED";
+      for (const tokenId of currentDiagnostics.scheduledTokenIds ?? []) {
+        recordProfileOutcome(currentDiagnostics, tokenId, "ERROR", code);
+      }
+      error.diagnostics = currentDiagnostics;
     }
     throw error;
   } finally {

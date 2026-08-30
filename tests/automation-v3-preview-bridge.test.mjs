@@ -7,6 +7,8 @@ import {
   getProductionAutomationV3Activity,
   isDeployPreview,
 } from "../netlify/functions/_shared/automation-v3-production-bridge.mjs";
+import { requireAutomationV3RunOrigin } from
+  "../netlify/functions/broker-autonomy-v3-run.mjs";
 
 const release = "a".repeat(40);
 const heartbeat = Object.freeze({
@@ -46,12 +48,31 @@ test("only the exact Netlify deploy-preview context uses the production bridge",
     {}, "https://deploy-preview-9--gogh-punks.netlify.app/api/broker/autonomy-v3-status",
   ), true);
   assert.equal(isDeployPreview(
+    {}, "https://deploy-preview-13.preview.goghpunks.xyz/api/broker/autonomy-v3-status",
+  ), true);
+  assert.equal(isDeployPreview(
     {}, "https://deploy-preview-0--gogh-punks.netlify.app/api/broker/autonomy-v3-status",
   ), false);
   assert.equal(isDeployPreview(
     {}, "https://deploy-preview-9--gogh-punks.netlify.app.evil.example/api",
   ), false);
   assert.equal(isDeployPreview({}, "http://deploy-preview-9--gogh-punks.netlify.app/api"), false);
+  assert.equal(isDeployPreview(
+    {}, "https://deploy-preview-13.preview.goghpunks.xyz.evil.example/api",
+  ), false);
+});
+
+test("custom preview manual runs accept only their exact served browser origin", () => {
+  const url = "https://deploy-preview-13.preview.goghpunks.xyz/api/broker/autonomy-v3-run";
+  assert.doesNotThrow(() => requireAutomationV3RunOrigin(new Request(url, {
+    method: "POST", headers: { origin: "https://deploy-preview-13.preview.goghpunks.xyz" },
+  }), {}));
+  assert.throws(() => requireAutomationV3RunOrigin(new Request(url, {
+    method: "POST", headers: { origin: "https://deploy-preview-12.preview.goghpunks.xyz" },
+  }), {}), /origin was rejected/);
+  assert.throws(() => requireAutomationV3RunOrigin(new Request(url, {
+    method: "POST", headers: { origin: "https://attacker.example" },
+  }), {}), /origin was rejected/);
 });
 
 test("preview activity reads the fixed production endpoint and validates its evidence", async () => {
@@ -65,6 +86,7 @@ test("preview activity reads the fixed production endpoint and validates its evi
         online: true,
         heartbeat,
         usage,
+        punk: null,
       },
     });
   });
@@ -74,6 +96,26 @@ test("preview activity reads the fixed production endpoint and validates its evi
   assert.equal(result.online, true);
   assert.equal(result.heartbeat.release, release);
   assert.equal(result.usage.confirmedMints, "728");
+});
+
+test("preview activity forwards one exact Punk selection", async () => {
+  let call;
+  const result = await getProductionAutomationV3Activity(async (url) => {
+    call = url;
+    return jsonResponse({ ok: true, activity: {
+      checkedAt: "2026-08-28T13:53:00.000Z", online: true,
+      heartbeat, usage, punk: { heartbeat: {
+        tokenId: "93", state: "SKIPPED", jobId: "12345678",
+        lastScheduledScan: "2026-08-28T13:52:50.000Z",
+        lastActualScan: "2026-08-28T13:52:57.000Z", lastSuccessfulMint: null,
+        nextScanEstimate: "2026-08-28T16:07:50.000Z", reason: "NO_ELIGIBLE_TARGETS",
+        updatedAt: "2026-08-28T13:52:57.000Z",
+      }, events: [] },
+    } });
+  }, "93");
+  assert.equal(call,
+    `${AUTOMATION_V3_PRODUCTION_ORIGIN}/api/broker/autonomy-v3-activity?tokenId=93`);
+  assert.equal(result.punk.heartbeat.tokenId, "93");
 });
 
 test("preview activity fails closed on malformed production evidence", async () => {

@@ -1,3 +1,5 @@
+import { confirmedMintHash, showConfirmedMintToast } from "./agent-live-ui.js";
+
 const STORAGE_KEY = "gogh.artBroker.setup.v1";
 const STEP_ORDER = Object.freeze([
   "choose", "wallet", "limits", "activate", "power", "success",
@@ -30,7 +32,8 @@ export function wizardResumeStep({ selectedPunk, automation, hostedGasReady = fa
   if (!selectedPunk) return "choose";
   if (!automation || automation.tokenId !== selectedPunk) return "wallet";
   if (!automation.active) return "limits";
-  if (!hostedGasReady) return "power";
+  // Hosted gas is a shared operational pool. A holder may contribute, but an otherwise-live
+  // Punk must never be sent back through setup or blocked because that holder did not fund it.
   return automation.agentLive ? "success" : "power";
 }
 
@@ -50,7 +53,73 @@ export function agentRosterPunks(punks) {
   return Object.freeze(punks.filter((punk) => punk && typeof punk === "object"
     && (Object.hasOwn(punk, "activated") && punk.activated === true
       || Object.hasOwn(punk, "automationConfigured") && punk.automationConfigured === true
-      || Object.hasOwn(punk, "automationCreated") && punk.automationCreated === true)));
+      || Object.hasOwn(punk, "automationCreated") && punk.automationCreated === true
+      || punk.agentSummary?.configured === true || punk.agentSummary?.enrolled === true)));
+}
+
+export function agentCardPresentation(punk, live = null) {
+  const summary = punk?.agentSummary ?? null;
+  const labels = Object.freeze({
+    ACTIVE: "Active · worker verified",
+    SCANNING: "Scanning now",
+    MINTING: "Minting now",
+    QUEUED: "Queued for worker",
+    WAITING_FOR_FIRST_SCAN: "Enrolled · waiting for first scan",
+    NEEDS_ENROLLMENT: "Needs enrollment repair",
+    NEEDS_AUTHORIZATION: "Needs authorization",
+    PAUSED: "Paused",
+    AUTOMATION_OFFLINE: "Automation offline",
+    AWAITING_WORKER_EVIDENCE: "Awaiting worker evidence",
+    NEEDS_ATTENTION: "Needs attention",
+    READY: "Ready to activate",
+  });
+  if (live?.active === true) {
+    const status = live.agentLive === true ? "ACTIVE"
+      : summary?.status && labels[summary.status] ? summary.status : "AWAITING_WORKER_EVIDENCE";
+    return Object.freeze({
+      status,
+      label: live.agentLive === true
+        ? "Active · live authority verified" : "Authorized · worker not verified",
+      authorization: "Active",
+      today: Number.isInteger(live.cap) && Number.isInteger(live.acquisitionsToday)
+        ? `${live.acquisitionsToday} / ${live.cap}` : "Live",
+      lastWorkerCheck: live.heartbeat?.completedAt ?? summary?.lastActualScan ?? null,
+    });
+  }
+  if (live && live.active !== true) {
+    return Object.freeze({ status: "NEEDS_AUTHORIZATION", label: labels.NEEDS_AUTHORIZATION,
+      authorization: "Needs setup", today: "—",
+      lastWorkerCheck: summary?.lastActualScan ?? null });
+  }
+  const status = labels[summary?.status] ? summary.status
+    : summary?.enrolled ? "WAITING_FOR_FIRST_SCAN"
+      : summary?.configured ? "NEEDS_ENROLLMENT"
+        : punk?.automationCreated ? "READY" : "READY";
+  const workerVerified = ["ACTIVE", "SCANNING", "MINTING"].includes(status);
+  return Object.freeze({
+    status,
+    label: labels[status],
+    authorization: workerVerified ? "Verified at last scan"
+      : status === "NEEDS_ENROLLMENT" ? "Configured; not enrolled"
+        : status === "QUEUED" || status === "WAITING_FOR_FIRST_SCAN"
+          ? "Enrollment recorded" : "Open agent to verify",
+    today: "Open agent for live usage",
+    lastWorkerCheck: summary?.lastActualScan ?? summary?.updatedAt ?? null,
+  });
+}
+
+function humanWorkerReason(reason) {
+  const messages = Object.freeze({
+    NO_ELIGIBLE_TARGETS: "No mint passed every check",
+    NO_ACTIVE_CANDIDATES: "No active mint candidates",
+    WAITING_FOR_WORKER_CAPACITY: "Waiting in the worker rotation",
+    MINT_CONFIRMED: "Mint confirmed",
+    ELIGIBLE_SIMULATION_PASSED: "Candidate simulation passed",
+    PROFILE_STATE_READ_FAILED: "Live state check failed safely",
+    PROVIDER_OWNER_DISAGREEMENT: "Ownership providers disagreed",
+    ACCOUNT_NOT_CREATED: "Punk wallet is not created",
+  });
+  return messages[reason] ?? (reason ? "Scan stopped safely" : "Waiting for first scan");
 }
 
 function readState(storage) {
@@ -81,14 +150,18 @@ function short(value) {
     ? `${value.slice(0, 6)}…${value.slice(-4)}` : "Preparing…";
 }
 
-export function setupAgentWizard({ windowObject, documentObject } = {}) {
+export function setupAgentWizard({ windowObject, documentObject, fetchFunction } = {}) {
   const browserWindow = windowObject ?? globalThis.window;
   const browserDocument = documentObject ?? globalThis.document;
   const root = browserDocument?.querySelector?.("[data-agent-wizard]");
   if (!root || !browserWindow) return null;
+  const request = fetchFunction ?? browserWindow.fetch?.bind(browserWindow);
   const screens = [...root.querySelectorAll("[data-wizard-step]")];
   const progress = [...root.querySelectorAll("[data-wizard-progress]")];
   const punkPicker = root.querySelector("[data-wizard-punks]");
+  const punkSearch = root.querySelector("[data-wizard-punk-search]");
+  const punkResults = root.querySelector("[data-wizard-punk-results]");
+  const punkCount = root.querySelector("[data-wizard-punk-count]");
   const empty = root.querySelector("[data-wizard-empty]");
   const selectedImages = [...root.querySelectorAll("[data-wizard-punk-image]")];
   const selectedLabels = [...root.querySelectorAll("[data-wizard-punk-label]")];
@@ -107,6 +180,7 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
   const gasAmount = root.querySelector("[data-wizard-gas-amount]");
   const agentGrid = browserDocument.querySelector("[data-active-agent-grid]");
   const agentEmpty = browserDocument.querySelector("[data-active-agent-empty]");
+  const agentHealth = browserDocument.querySelector("[data-agent-health-summary]");
   const stored = readState(browserWindow.localStorage);
   const state = {
     wallet: browserWindow.__GOGH_WALLET_SNAPSHOT__ ?? null,
@@ -116,6 +190,8 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
     step: stored?.step ?? "choose",
     dailyLimit: stored?.dailyLimit ?? 3,
     durationDays: stored?.durationDays ?? 7,
+    restarting: new Set(),
+    observedMintHashes: new Map(),
   };
 
   function selected() {
@@ -183,6 +259,45 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
     if (state.punks.some(({ tokenId }) => tokenId === state.selectedPunk)) {
       punkPicker.value = state.selectedPunk;
     }
+    if (punkSearch) punkSearch.disabled = state.punks.length === 0;
+    if (punkResults) {
+      const query = String(punkSearch?.value ?? "").trim().replace(/^#/, "");
+      const matches = state.punks.filter(({ tokenId }) => !query || String(tokenId).includes(query));
+      const visible = matches.slice(0, 24);
+      punkResults.replaceChildren(...visible.map((punk) => {
+        const button = browserDocument.createElement("button");
+        button.type = "button";
+        button.dataset.tokenId = punk.tokenId;
+        button.setAttribute("role", "option");
+        button.setAttribute("aria-selected", punk.tokenId === state.selectedPunk ? "true" : "false");
+        const imageUrl = trustedImage(punk.artwork?.imageUrl);
+        if (imageUrl) {
+          const image = browserDocument.createElement("img");
+          image.src = imageUrl;
+          image.alt = "";
+          image.loading = "lazy";
+          button.append(image);
+        }
+        const label = browserDocument.createElement("span");
+        label.textContent = `Punk #${punk.tokenId}`;
+        const live = state.automation?.tokenId === punk.tokenId ? state.automation : null;
+        const detail = browserDocument.createElement("small");
+        detail.textContent = live?.agentLive ? "Agent live" : live?.active
+          ? "Authorized" : punk.activated ? "Wallet active" : "Ready to activate";
+        button.append(label, detail);
+        button.addEventListener("click", () => {
+          punkPicker.value = punk.tokenId;
+          punkPicker.dispatchEvent(new browserWindow.Event("change", { bubbles: true }));
+        });
+        return button;
+      }));
+      punkResults.hidden = visible.length === 0;
+      if (punkCount) punkCount.textContent = !state.punks.length
+        ? "No wallet-owned Punks found."
+        : query
+          ? `${matches.length} matching Punk${matches.length === 1 ? "" : "s"}.`
+          : `${state.punks.length} wallet-owned Punks loaded. Showing ${visible.length}; search by number to narrow the list.`;
+    }
     empty.hidden = state.punks.length > 0 || !state.wallet?.account;
   }
 
@@ -194,14 +309,56 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
     showStep(alreadyActive() ? "power" : "wallet");
     render();
   });
+  punkSearch?.addEventListener("input", renderPunks);
 
   function openAgent(tokenId) {
     state.selectedPunk = tokenId;
     selectUnderlyingPunk();
     render();
+    try {
+      const url = new URL(browserWindow.location?.href ?? "/broker/", "https://goghpunks.xyz");
+      url.pathname = "/broker/";
+      url.searchParams.set("punk", tokenId);
+      url.hash = "automation-title";
+      browserWindow.history?.replaceState?.({}, "", `${url.pathname}${url.search}${url.hash}`);
+    } catch {
+      // URL decoration is a navigation convenience and never authorization evidence.
+    }
     browserDocument.querySelector("[data-advanced-workspace]")?.setAttribute("open", "");
     browserDocument.querySelector("#automation-title")?.setAttribute("open", "");
     browserDocument.querySelector("#automation-title")?.scrollIntoView({ behavior: "smooth" });
+  }
+
+  async function restartAgent(tokenId, button, status) {
+    if (!request || state.restarting.has(tokenId)) return;
+    state.restarting.add(tokenId);
+    button.disabled = true;
+    button.textContent = "Restarting…";
+    status.textContent = "Re-enrolling and requesting a scan…";
+    try {
+      const response = await request("/api/broker/autonomy-v3-run", {
+        method: "POST",
+        headers: { accept: "application/json", "content-type": "application/json" },
+        body: JSON.stringify({ tokenId }),
+        cache: "no-store",
+      });
+      const payload = await response.json();
+      if ((!response.ok && response.status !== 202) || payload?.ok !== true) {
+        throw new Error(payload?.message ?? "The agent could not be restarted safely.");
+      }
+      status.textContent = payload.run?.status === "MINT_CONFIRMED"
+        ? "Mint confirmed"
+        : payload.run?.status === "RUN_IN_PROGRESS"
+          ? "Queued · worker is finishing another scan"
+          : "Restarted · scan completed safely";
+      selectUnderlyingPunk();
+    } catch (error) {
+      status.textContent = error?.message ?? "Restart stopped safely. No transaction was sent.";
+    } finally {
+      state.restarting.delete(tokenId);
+      button.disabled = false;
+      button.textContent = "Restart agent";
+    }
   }
 
   function formatExpiry(value) {
@@ -213,6 +370,45 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
   function renderActiveAgents() {
     if (!agentGrid || !agentEmpty) return;
     const activeWallets = agentRosterPunks(state.punks);
+    const presentations = activeWallets.map((punk) => agentCardPresentation(
+      punk, state.automation?.tokenId === punk.tokenId ? state.automation : null,
+    ));
+    if (agentHealth) {
+      const counts = presentations.reduce((output, item, index) => {
+        if (activeWallets[index]?.agentSummary?.enrolled === true) output.enrolled += 1;
+        if (["ACTIVE", "SCANNING", "MINTING"].includes(item.status)) output.active += 1;
+        if (item.status === "SCANNING") output.scanning += 1;
+        if (item.status === "MINTING") output.minting += 1;
+        if (["NEEDS_ENROLLMENT", "NEEDS_AUTHORIZATION", "NEEDS_ATTENTION",
+          "AUTOMATION_OFFLINE"].includes(item.status)) output.attention += 1;
+        if (item.status === "AUTOMATION_OFFLINE") output.workerOnline = false;
+        if (activeWallets[index]?.agentSummary?.lastActualScan) output.workerEvidence = true;
+        return output;
+      }, { enrolled: 0, active: 0, scanning: 0, minting: 0, attention: 0,
+        workerOnline: true, workerEvidence: false });
+      const globalHeartbeat = state.automation?.heartbeat ?? null;
+      const globalWorkerOnline = state.automation?.workerOnline === true
+        || globalHeartbeat?.online === true;
+      const latestWorkerResult = globalHeartbeat?.status === "MINT_CONFIRMED"
+        ? `Mint · Punk #${globalHeartbeat.tokenId ?? "?"}`
+        : globalHeartbeat?.status === "RUN_IN_PROGRESS" ? "Processing" : "Online";
+      const values = [
+        ["Enrolled", counts.enrolled], ["Per-Punk verified", counts.workerEvidence ? counts.active : "—"],
+        ["Scanning", counts.scanning], ["Minting", counts.minting],
+        ["Needs attention", counts.attention],
+        ["Production worker", !activeWallets.length ? "—" : globalWorkerOnline
+          ? latestWorkerResult : !counts.workerOnline ? "Degraded" : "Pending evidence"],
+      ];
+      agentHealth.replaceChildren(...values.map(([label, value]) => {
+        const item = browserDocument.createElement("span");
+        const strong = browserDocument.createElement("strong");
+        const small = browserDocument.createElement("small");
+        strong.textContent = String(value);
+        small.textContent = label;
+        item.append(strong, small);
+        return item;
+      }));
+    }
     agentGrid.replaceChildren();
     agentEmpty.hidden = activeWallets.length > 0;
     agentEmpty.textContent = state.wallet?.account
@@ -235,29 +431,31 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
       const body = browserDocument.createElement("div");
       const title = browserDocument.createElement("h3");
       title.textContent = `Punk #${punk.tokenId}`;
+      const presentation = agentCardPresentation(punk, live);
+      card.dataset.agentState = presentation.status;
       const status = browserDocument.createElement("strong");
       status.className = "agent-card-state";
-      status.textContent = live?.agentLive ? "Active · scanning"
-        : live?.active ? "Authorized · worker unavailable"
-          : live ? "Wallet active · setup needed" : "Select to check live agent";
-      if (!live && punk.automationConfigured) {
-        status.textContent = "Configured · select to verify live";
-      } else if (!live && punk.automationCreated) {
-        status.textContent = "Punk wallet active · select to verify agent";
+      status.textContent = presentation.label;
+      status.dataset.agentState = presentation.status;
+      const mintHash = confirmedMintHash(punk.agentSummary);
+      if (!state.observedMintHashes.has(punk.tokenId)) {
+        state.observedMintHashes.set(punk.tokenId, mintHash);
+      } else if (mintHash && state.observedMintHashes.get(punk.tokenId) !== mintHash) {
+        state.observedMintHashes.set(punk.tokenId, mintHash);
+        showConfirmedMintToast({ documentObject: browserDocument,
+          tokenId: punk.tokenId, transactionHash: mintHash });
       }
       const facts = browserDocument.createElement("dl");
       // Only an authorized agent has an on-chain cap and expiry to report. Anything else keeps
       // the placeholder rather than dressing a local default up as chain state.
-      const chainState = live?.active === true ? live : null;
       const entries = [
         ["Punk wallet", short(punk.account)],
-        ["Today", Number.isInteger(chainState?.cap)
-          && Number.isInteger(chainState?.acquisitionsToday)
-          ? `${chainState.acquisitionsToday} / ${chainState.cap}` : "Select to check"],
-        ["Authorization", chainState
-          ? formatExpiry(chainState.authorizationValidUntil) : "Select to check"],
-        ["Last worker check", live?.heartbeat?.completedAt
-          ? new Date(live.heartbeat.completedAt).toLocaleString() : "Select to check"],
+        ["Today", presentation.today],
+        ["Authorization", live?.active === true
+          ? formatExpiry(live.authorizationValidUntil) : presentation.authorization],
+        ["Last worker check", presentation.lastWorkerCheck
+          ? new Date(presentation.lastWorkerCheck).toLocaleString() : "Waiting for first scan"],
+        ["Last result", humanWorkerReason(punk.agentSummary?.reason)],
       ];
       for (const [term, description] of entries) {
         const dt = browserDocument.createElement("dt");
@@ -270,12 +468,20 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
       const actions = browserDocument.createElement("div");
       actions.className = "active-agent-actions";
       const watch = browserDocument.createElement("a");
-      watch.href = `/broker/punk/${encodeURIComponent(punk.tokenId)}`;
-      watch.textContent = "Open Punk wallet";
-      const portfolio = browserDocument.createElement("a");
-      portfolio.href = `/broker/?punk=${encodeURIComponent(punk.tokenId)}#automation-title`;
-      portfolio.textContent = "Watch agent";
-      actions.append(watch, portfolio);
+      watch.href = `/broker/?punk=${encodeURIComponent(punk.tokenId)}#automation-title`;
+      watch.textContent = "Watch agent";
+      watch.addEventListener("click", (event) => {
+        event?.preventDefault?.();
+        openAgent(punk.tokenId);
+      });
+      const wallet = browserDocument.createElement("a");
+      wallet.href = `/broker/punk/${encodeURIComponent(punk.tokenId)}#assets`;
+      wallet.textContent = "Open wallet";
+      const restart = browserDocument.createElement("button");
+      restart.type = "button";
+      restart.textContent = "Restart agent";
+      restart.addEventListener("click", () => restartAgent(punk.tokenId, restart, status));
+      actions.append(watch, wallet, restart);
       card.append(visual, body, actions);
       agentGrid.append(card);
     }
@@ -318,9 +524,11 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
     const automation = selectedAutomation();
     const active = automation?.active === true;
     const hostedGasReady = automation?.hostedGas?.ready === true;
-    gasStatus.textContent = hostedGasReady ? "Ready ✓" : "Funding needed";
-    fund.hidden = hostedGasReady;
-    send.disabled = !active || !hostedGasReady || !automation?.agentLive;
+    gasStatus.textContent = hostedGasReady
+      ? "Ready — no payment required ✓" : "No payment required to launch";
+    fund.hidden = false;
+    send.disabled = !active || automation?.version !== 3 || automation?.running === true;
+    send.textContent = automation?.running === true ? "Sending agent…" : "Send Agent";
     activate.disabled = !state.selectedPunk || active || retirement.checked !== true
       || Boolean(automation?.setupSubmission);
     activate.textContent = active ? "Agent already active" : "Activate Agent";
@@ -420,7 +628,6 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
   });
   send.addEventListener("click", () => {
     browserDocument.querySelector("[data-v3-run-now]")?.click();
-    showStep("success");
     render();
   });
   root.querySelector("[data-wizard-watch]")?.addEventListener("click", () => {

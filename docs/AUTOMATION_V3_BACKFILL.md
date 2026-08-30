@@ -15,7 +15,9 @@ npm run broker:autonomy:v3-backfill:dry-run
 The command discovers exact `GoghPunkAccountActivated` events from the reviewed V3 facade, then
 uses the existing dual-provider live-state validator for every Punk. It reports `WOULD_ENROLL`
 only when the account is created, its zero-price policy is active, and its agent authorization is
-currently effective. Provider disagreement or missing evidence is skipped closed.
+currently effective. Exact account and owner snapshots already present in the durable roster are
+reported as `ALREADY_ENROLLED`; only missing or stale records are reported as `WOULD_ENROLL`.
+Provider disagreement or missing evidence is skipped closed.
 
 After reviewing a successful report, the reversible database-only apply path is:
 

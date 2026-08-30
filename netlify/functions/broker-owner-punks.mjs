@@ -417,6 +417,115 @@ export async function enrolledAutomationPunkIds(owner, query = (...args) => (
   return Object.freeze([...new Set(tokenIds)]);
 }
 
+function agentSummaryStatus(row, nowMs = Date.now()) {
+  const configured = row.configured === true;
+  const enrolled = row.enrolled === true;
+  const globalCompletedAt = row.global_completed_at == null
+    ? Number.NaN : Date.parse(row.global_completed_at);
+  const workerOnline = row.global_status !== "FAILED" && Number.isFinite(globalCompletedAt)
+    && globalCompletedAt <= nowMs + 30_000 && globalCompletedAt >= nowMs - 12 * 60_000;
+  if (!enrolled) return configured ? "NEEDS_ENROLLMENT" : "READY";
+  // Missing/stale preview evidence is not proof that production automation is offline. Only a
+  // recent explicit FAILED heartbeat can support that claim; otherwise keep the transitional
+  // state honest until this deployment's per-Punk recorder has observed the agent.
+  const explicitRecentFailure = row.global_status === "FAILED"
+    && Number.isFinite(globalCompletedAt) && globalCompletedAt <= nowMs + 30_000
+    && globalCompletedAt >= nowMs - 12 * 60_000;
+  if (!workerOnline) return explicitRecentFailure
+    ? "AUTOMATION_OFFLINE" : "AWAITING_WORKER_EVIDENCE";
+  if (row.worker_state == null) return "WAITING_FOR_FIRST_SCAN";
+  const evidenceAt = row.updated_at == null ? Number.NaN : Date.parse(row.updated_at);
+  const nextScanAt = row.next_scan_estimate == null
+    ? Number.NaN : Date.parse(row.next_scan_estimate);
+  if (!Number.isFinite(evidenceAt) || evidenceAt > nowMs + 30_000
+    || evidenceAt < nowMs - 3 * 60 * 60_000
+    || (Number.isFinite(nextScanAt) && nextScanAt < nowMs - 15 * 60_000)) {
+    return "NEEDS_ATTENTION";
+  }
+  if (row.worker_state === "PAUSED") return "PAUSED";
+  if (row.worker_state === "ERROR") return "NEEDS_ATTENTION";
+  if (["SUBMITTING", "CONFIRMING"].includes(row.worker_state)) return "MINTING";
+  if (["SCANNING", "CANDIDATE_FOUND", "VERIFYING_CONTRACT", "CHECKING_PRICE",
+    "CHECKING_ELIGIBILITY", "CHECKING_LIMITS", "SIMULATING", "READY"].includes(
+    row.worker_state,
+  )) return "SCANNING";
+  if (row.worker_state === "QUEUED") return "QUEUED";
+  return "ACTIVE";
+}
+
+export async function automationPunkAgentSummaries(owner, query = (...args) => (
+  getDatabase().pool.query(...args)
+), nowMs = Date.now()) {
+  const normalized = address(owner);
+  if (!normalized || typeof query !== "function" || !Number.isSafeInteger(nowMs) || nowMs < 0) {
+    throw new TypeError("agent summary input is invalid");
+  }
+  const result = await query(
+    `WITH latest_mandates AS (
+       SELECT DISTINCT ON (token_id) token_id, mode, configured_by
+         FROM broker_art_mandates
+        WHERE chain_id = $1 AND collection_address = $2
+        ORDER BY token_id, version DESC
+     ), roster AS (
+       SELECT token_id, TRUE AS configured, FALSE AS enrolled, NULL::text AS account_address
+         FROM latest_mandates
+        WHERE LOWER(configured_by) = $3 AND mode = 'AUTONOMOUS'
+       UNION ALL
+       SELECT token_id, FALSE AS configured, TRUE AS enrolled, account_address::text
+         FROM broker_automation_v3_enrollments
+        WHERE chain_id = $1 AND collection_address = $2 AND LOWER(owner_snapshot) = $3
+     ), combined AS (
+       SELECT token_id, BOOL_OR(configured) AS configured, BOOL_OR(enrolled) AS enrolled,
+              MAX(account_address) AS account_address
+         FROM roster GROUP BY token_id
+     )
+     SELECT combined.token_id::text, combined.configured, combined.enrolled,
+            combined.account_address, heartbeat.state AS worker_state,
+            heartbeat.last_scheduled_scan, heartbeat.last_actual_scan,
+            heartbeat.last_successful_mint, heartbeat.next_scan_estimate,
+            heartbeat.reason, heartbeat.updated_at,
+            global.status AS global_status, global.completed_at AS global_completed_at
+       FROM combined
+       LEFT JOIN broker_punk_agent_heartbeats AS heartbeat
+         ON heartbeat.chain_id = $1 AND heartbeat.punk_token_id = combined.token_id
+       LEFT JOIN broker_automation_v3_worker_state AS global ON global.singleton_id = 1
+      ORDER BY combined.token_id
+      LIMIT $4`,
+    [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, normalized, MAX_CANDIDATES + 1],
+  );
+  if (!Array.isArray(result?.rows) || result.rows.length > MAX_CANDIDATES) {
+    throw new RangeError("agent summary set is unavailable or too large");
+  }
+  return Object.freeze(result.rows.map((row) => {
+    const selectedTokenId = punkTokenId(String(row.token_id));
+    if (!selectedTokenId) throw new TypeError("agent summary token is invalid");
+    const timestamp = (value) => value == null ? null : new Date(value).toISOString();
+    const transactionHash = row.last_successful_mint == null
+      ? null : String(row.last_successful_mint).toLowerCase();
+    if (transactionHash !== null && !/^0x[0-9a-f]{64}$/.test(transactionHash)) {
+      throw new TypeError("agent summary mint hash is invalid");
+    }
+    const reason = row.reason == null ? null : String(row.reason);
+    if (reason !== null && !/^[A-Z0-9_]{3,64}$/.test(reason)) {
+      throw new TypeError("agent summary reason is invalid");
+    }
+    return Object.freeze({
+      tokenId: selectedTokenId,
+      configured: row.configured === true,
+      enrolled: row.enrolled === true,
+      account: address(row.account_address),
+      status: agentSummaryStatus(row, nowMs),
+      workerState: row.worker_state == null ? null : String(row.worker_state),
+      lastScheduledScan: timestamp(row.last_scheduled_scan),
+      lastActualScan: timestamp(row.last_actual_scan),
+      lastSuccessfulMint: transactionHash,
+      nextScanEstimate: timestamp(row.next_scan_estimate),
+      reason,
+      updatedAt: timestamp(row.updated_at),
+    });
+  }));
+}
+
 async function boundedJson(response, source = "Owner candidate") {
   const declared = response.headers?.get?.("content-length");
   if (declared && /^\d+$/.test(declared) && Number(declared) > OPENSEA_RESPONSE_BYTES) {
@@ -511,10 +620,11 @@ export function mergeOwnerPunkDecorations(
   openSeaPunks,
   automationTokenIds = [],
   automationCreatedTokenIds = [],
+  agentSummaries = [],
 ) {
   if (!Array.isArray(tokenIds) || !Array.isArray(cachedPunks)
     || !Array.isArray(openSeaPunks) || !Array.isArray(automationTokenIds)
-    || !Array.isArray(automationCreatedTokenIds)
+    || !Array.isArray(automationCreatedTokenIds) || !Array.isArray(agentSummaries)
     || automationTokenIds.some((value) => punkTokenId(String(value)) !== String(value))
     || automationCreatedTokenIds.some((value) => punkTokenId(String(value)) !== String(value))) {
     throw new TypeError("owner Punk decorations are invalid");
@@ -523,6 +633,7 @@ export function mergeOwnerPunkDecorations(
   const external = new Map(openSeaPunks.map((item) => [String(item?.tokenId), item]));
   const automation = new Set(automationTokenIds);
   const automationCreated = new Set(automationCreatedTokenIds);
+  const summaries = new Map(agentSummaries.map((item) => [String(item?.tokenId), item]));
   return Object.freeze(tokenIds.map((tokenId) => {
     const cacheItem = cached.get(tokenId);
     const openSeaItem = external.get(tokenId);
@@ -534,6 +645,7 @@ export function mergeOwnerPunkDecorations(
       rarity: openSeaItem?.rarity ?? null,
       automationConfigured: automation.has(tokenId),
       automationCreated: automationCreated.has(tokenId),
+      agentSummary: summaries.get(tokenId) ?? null,
     });
   }));
 }
@@ -545,21 +657,38 @@ export default async function handler(request) {
   try {
     const view = ownerPunkView(request.url);
     const automationRoster = configuredAutomationPunkIds();
-    const [indexedResult, enrollmentResult] = await Promise.allSettled([
+    const [indexedResult, enrollmentResult, agentSummaryResult] = await Promise.allSettled([
       indexedOwnerPunkIds(owner),
       enrolledAutomationPunkIds(owner),
+      automationPunkAgentSummaries(owner),
     ]);
     // This route only supplies discovery hints. The browser's bounded Multicall scan and the
     // selection-time ownerOf check remain authoritative, so an index outage may return an empty
     // hint set instead of blocking the holder behind an unrelated marketplace API.
     const enrolled = enrollmentResult.status === "fulfilled" ? enrollmentResult.value : [];
-    const automationTokenIds = [...new Set([...automationRoster, ...enrolled])];
+    const agentSummaries = agentSummaryResult.status === "fulfilled" ? agentSummaryResult.value : [];
+    const automationTokenIds = [...new Set([
+      ...automationRoster, ...enrolled, ...agentSummaries.map(({ tokenId }) => tokenId),
+    ])];
     let candidateTokenIds = [...new Set([
       ...(indexedResult.status === "fulfilled" ? indexedResult.value : []),
       ...automationTokenIds,
     ])].sort((left, right) => Number(left) - Number(right));
     if (candidateTokenIds.length > MAX_CANDIDATES) throw new RangeError("owner candidate set is too large");
     if (view === "indexed") {
+      let indexedAutomationCreated = [];
+      let automationWalletsAvailable = false;
+      try {
+        // One bounded Multicall supplies the immutable V3 wallet-created bit for the complete
+        // indexed roster. Without it, the fast path showed only locally configured/enrolled
+        // rows and a holder's active-agent count could collapse until a slow reconciliation.
+        indexedAutomationCreated = [...await createdAutomationV3PunkIds(candidateTokenIds)];
+        automationWalletsAvailable = true;
+      } catch {
+        // Durable enrollments are still useful display hints when the one live batch is
+        // temporarily unavailable. Selection and every privileged action recheck the chain.
+        indexedAutomationCreated = [...enrolled];
+      }
       let cachedPunks = [];
       let artworkAvailable = false;
       try {
@@ -581,7 +710,8 @@ export default async function handler(request) {
         // Enrollment is durable evidence that this wallet existed when the Punk last passed the
         // live worker gate, but it is not current authority. Mark it only as a cached visual hint;
         // browser Multicall and selection-time status replace it before actions are enabled.
-        enrolled,
+        indexedAutomationCreated,
+        agentSummaries,
       );
       return json({
         ok: true,
@@ -598,7 +728,8 @@ export default async function handler(request) {
           liveMulticall: false,
           automationRoster: automationRoster.length > 0,
           automationEnrollments: enrollmentResult.status === "fulfilled",
-          automationWallets: false,
+          automationWallets: automationWalletsAvailable,
+          agentSummaries: agentSummaryResult.status === "fulfilled",
           artwork: artworkAvailable,
         }),
         reconciliationRecommended: candidateTokenIds.length === 0,
@@ -710,6 +841,7 @@ export default async function handler(request) {
       openSeaPunks,
       automationTokenIds,
       automationCreatedTokenIds,
+      agentSummaries,
     );
     return json({
       ok: true,
@@ -727,6 +859,7 @@ export default async function handler(request) {
         automationRoster: automationRoster.length > 0,
         automationEnrollments: enrollmentResult.status === "fulfilled",
         automationWallets: automationWalletsAvailable,
+        agentSummaries: agentSummaryResult.status === "fulfilled",
         artwork: artworkAvailable,
       }),
       reconciliationRecommended: false,

@@ -3,6 +3,8 @@ import { createPublicClient, getAddress, http, keccak256, parseAbi } from "viem"
 import automationManifest from "../../../deployments/robinhood-automation-v3.json" with { type: "json" };
 import coreManifest from "../../../deployments/robinhood.json" with { type: "json" };
 import { ROBINHOOD } from "../../../broker/src/config.mjs";
+import { resolveRobinhoodRpcPair } from
+  "../../../broker/src/infrastructure/robinhood-rpc-endpoints.mjs";
 import {
   NATIVE_CURRENCY, SEA_DROP_MINT_PUBLIC_SELECTOR,
 } from "../../../broker/src/recommendation/automated-seadrop-v3-run-plan.mjs";
@@ -60,13 +62,6 @@ const ACCOUNT_POLICY_ABI = [{
   "function venueCurrencyMaximum(address account,address venue,address currency) view returns (uint256)",
   "function mintControls(address account) view returns ((bool ownerApprovedMints,bool autonomousFreeMints,bool autonomousPaidMints))",
 ])];
-
-function requiredHttps(name, value) {
-  if (typeof value !== "string" || value.length > 2_048) throw new TypeError(`${name} is unavailable`);
-  const url = new URL(value);
-  if (url.protocol !== "https:" || url.hash) throw new TypeError(`${name} must use HTTPS`);
-  return url.href;
-}
 
 function client(url) {
   return createPublicClient({
@@ -191,11 +186,7 @@ async function readGlobal(clientValue) {
 }
 
 export async function readAutomationV3GlobalState(environment = process.env, options = {}) {
-  const primaryUrl = requiredHttps("ROBINHOOD_RPC_URL", environment.ROBINHOOD_RPC_URL ?? environment.RPC_URL);
-  const secondaryUrl = requiredHttps("ROBINHOOD_SECONDARY_RPC_URL", environment.ROBINHOOD_SECONDARY_RPC_URL);
-  if (new URL(primaryUrl).hostname === new URL(secondaryUrl).hostname) {
-    throw new TypeError("V3 readiness requires two distinct RPC hosts");
-  }
+  const { primary: primaryUrl, secondary: secondaryUrl } = resolveRobinhoodRpcPair(environment);
   const clients = options.clients ?? [client(primaryUrl), client(secondaryUrl)];
   const nowSeconds = options.nowSeconds ?? Math.floor(Date.now() / 1_000);
   const [primary, secondary] = await Promise.all(clients.map(readGlobal));
@@ -293,8 +284,7 @@ export async function readAutomationV3PunkState(tokenIdValue, environment = proc
   if (typeof tokenIdValue !== "string" || !/^(?:0|[1-9][0-9]{0,3})$/.test(tokenIdValue)) {
     throw new TypeError("Choose a valid Gogh Punk ID");
   }
-  const primaryUrl = requiredHttps("ROBINHOOD_RPC_URL", environment.ROBINHOOD_RPC_URL ?? environment.RPC_URL);
-  const secondaryUrl = requiredHttps("ROBINHOOD_SECONDARY_RPC_URL", environment.ROBINHOOD_SECONDARY_RPC_URL);
+  const { primary: primaryUrl, secondary: secondaryUrl } = resolveRobinhoodRpcPair(environment);
   const clients = options.clients ?? [client(primaryUrl), client(secondaryUrl)];
   const nowSeconds = options.nowSeconds ?? Math.floor(Date.now() / 1_000);
   const states = await Promise.all(clients.map((rpc) => readPunk(rpc, BigInt(tokenIdValue), nowSeconds)));
@@ -344,17 +334,7 @@ export async function readAutomationV3RecoveryState(
   if (typeof tokenIdValue !== "string" || !/^(?:0|[1-9][0-9]{0,3})$/.test(tokenIdValue)) {
     throw new TypeError("Choose a valid Gogh Punk ID");
   }
-  const primaryUrl = requiredHttps(
-    "ROBINHOOD_RPC_URL",
-    environment.ROBINHOOD_RPC_URL ?? environment.RPC_URL,
-  );
-  const secondaryUrl = requiredHttps(
-    "ROBINHOOD_SECONDARY_RPC_URL",
-    environment.ROBINHOOD_SECONDARY_RPC_URL,
-  );
-  if (new URL(primaryUrl).hostname === new URL(secondaryUrl).hostname) {
-    throw new TypeError("V3 recovery requires two distinct RPC hosts");
-  }
+  const { primary: primaryUrl, secondary: secondaryUrl } = resolveRobinhoodRpcPair(environment);
   const clients = options.clients ?? [client(primaryUrl), client(secondaryUrl)];
   const states = await Promise.all(clients.map((rpc) => readRecoveryState(
     rpc,
@@ -376,8 +356,7 @@ export async function buildLiveOwnerSetupInput(tokenIdValue, limits, environment
     || !Number.isInteger(days) || days < 1 || days > 30) {
     throw new TypeError("Choose a supported cap and authorization duration");
   }
-  const primaryUrl = requiredHttps("ROBINHOOD_RPC_URL", environment.ROBINHOOD_RPC_URL ?? environment.RPC_URL);
-  const secondaryUrl = requiredHttps("ROBINHOOD_SECONDARY_RPC_URL", environment.ROBINHOOD_SECONDARY_RPC_URL);
+  const { primary: primaryUrl, secondary: secondaryUrl } = resolveRobinhoodRpcPair(environment);
   const clients = [client(primaryUrl), client(secondaryUrl)];
   const global = await readAutomationV3GlobalState(environment, { clients });
   if (!global.configured || !global.worker.enabled) throw new TypeError("V3 worker is not ready");

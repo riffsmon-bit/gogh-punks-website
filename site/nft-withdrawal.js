@@ -290,6 +290,33 @@ export async function submitNftWithdrawal(provider, initial, options = {}) {
   return Object.freeze({ hash, transaction: fresh.transaction });
 }
 
+export async function waitForNftWithdrawalReceipt(provider, hash, {
+  now = () => Date.now(), sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+  timeoutMs = 120_000, pollMs = 3_000,
+} = {}) {
+  if (typeof hash !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(hash)
+    || typeof now !== "function" || typeof sleep !== "function"
+    || !Number.isSafeInteger(timeoutMs) || timeoutMs < 3_000 || timeoutMs > 300_000
+    || !Number.isSafeInteger(pollMs) || pollMs < 500 || pollMs > 10_000) {
+    fail("CONFIRMATION_INVALID", "withdrawal confirmation request is invalid");
+  }
+  const started = now();
+  while (now() - started <= timeoutMs) {
+    const receipt = await request(provider, "eth_getTransactionReceipt", [hash]);
+    if (receipt !== null) {
+      if (!receipt || typeof receipt !== "object" || Array.isArray(receipt)
+        || String(receipt.transactionHash ?? "").toLowerCase() !== hash.toLowerCase()) {
+        fail("CONFIRMATION_INVALID", "wallet returned an invalid withdrawal receipt");
+      }
+      if (receipt.status !== "0x1") fail("TRANSACTION_REVERTED", "NFT withdrawal reverted on-chain");
+      return Object.freeze({ hash: hash.toLowerCase(), blockNumber:
+        parseHexUint(receipt.blockNumber, "withdrawal block").toString() });
+    }
+    await sleep(pollMs);
+  }
+  fail("CONFIRMATION_PENDING", "Withdrawal is still confirming. Use the transaction link to follow it.");
+}
+
 async function fetchGate(fetchFunction, tokenId) {
   const response = await fetchFunction(
     `/api/broker/nft-withdrawal-status?tokenId=${encodeURIComponent(tokenId)}`,
@@ -304,18 +331,23 @@ async function fetchGate(fetchFunction, tokenId) {
 function assetItem(value) {
   exactKeys(value, [
     "standard", "collection", "tokenId", "amount", "transactionHash", "acquiredAt", "openSeaUrl",
-    "collectionName", "name", "imageUrl", "collectionSlug", "floorPrice",
+    "collectionName", "name", "imageUrl", "collectionSlug", "floorPrice", "provenance",
+    "ownershipStatus",
   ], "withdrawable NFT");
-  if (value.standard !== "ERC721" || value.amount !== "1") {
+  if (!new Set(["ERC721", "ERC1155"]).has(value.standard)
+    || typeof value.amount !== "string" || !/^[1-9]\d*$/.test(value.amount)) {
     fail("INVALID_ASSET_LIST", "withdrawable NFT standard is invalid");
   }
   const normalized = {
-    standard: "ERC721",
+    standard: value.standard,
     collection: address(value.collection, "withdrawable NFT collection"),
     tokenId: uint(value.tokenId, "withdrawable NFT token ID").toString(),
-    amount: "1",
-    transactionHash: bytes32(value.transactionHash, "withdrawable NFT transaction"),
+    amount: value.amount,
+    transactionHash: value.transactionHash === null ? null
+      : bytes32(value.transactionHash, "withdrawable NFT transaction"),
     acquiredAt: value.acquiredAt,
+    provenance: value.provenance,
+    ownershipStatus: value.ownershipStatus,
     openSeaUrl: value.openSeaUrl,
     collectionName: typeof value.collectionName === "string"
       && value.collectionName.length > 0 && value.collectionName.length <= 160
@@ -342,9 +374,16 @@ function assetItem(value) {
       fail("INVALID_ASSET_LIST", "withdrawable NFT image is invalid");
     }
   }
-  if (typeof normalized.acquiredAt !== "string" || !Number.isFinite(Date.parse(normalized.acquiredAt))) {
+  if (normalized.acquiredAt !== null && (typeof normalized.acquiredAt !== "string"
+    || !Number.isFinite(Date.parse(normalized.acquiredAt)))) {
     fail("INVALID_ASSET_LIST", "withdrawable NFT timestamp is invalid");
   }
+  const liveVerified = normalized.ownershipStatus === "LIVE_VERIFIED"
+    && normalized.provenance === "ART_BROKER" && normalized.transactionHash !== null
+    && normalized.acquiredAt !== null;
+  const indexed = normalized.ownershipStatus === "LIVE_CHECK_REQUIRED"
+    && normalized.provenance === "RECEIVED" && normalized.transactionHash === null;
+  if (!liveVerified && !indexed) fail("INVALID_ASSET_LIST", "withdrawable NFT provenance is invalid");
   if (value.floorPrice !== null) {
     exactKeys(value.floorPrice, [
       "amount", "currency", "source", "checkedAt", "collectionSlug", "sourceUrl",
@@ -604,8 +643,19 @@ export function setupNftWithdrawal({ windowObject, documentObject, fetchFunction
         loadGate: (id) => fetchGate(fetcher, id),
         isCurrent: () => revision === state.revision,
       });
-      status.innerHTML = `Withdrawal submitted to the current holder. <a href="https://robinhoodchain.blockscout.com/tx/${result.hash}" target="_blank" rel="noopener noreferrer">View transaction ↗</a>`;
+      status.innerHTML = `Withdrawal submitted. Waiting for confirmation… <a href="https://robinhoodchain.blockscout.com/tx/${result.hash}" target="_blank" rel="noopener noreferrer">View transaction ↗</a>`;
+      await waitForNftWithdrawalReceipt(provider, result.hash);
+      status.innerHTML = `NFT withdrawn to the current Punk holder ✓ <a href="https://robinhoodchain.blockscout.com/tx/${result.hash}" target="_blank" rel="noopener noreferrer">View confirmed transaction ↗</a>`;
       confirmation.checked = false;
+      browserWindow.dispatchEvent(new browserWindow.CustomEvent("gogh:portfolio-invalidated", {
+        detail: Object.freeze({ tokenId: state.selection.tokenId, owner: state.selection.owner ?? null }),
+      }));
+      if (state.portfolioTokenIds.length) {
+        await loadOwnerPortfolio({ detail: { tokenIds: state.portfolioTokenIds } });
+      } else {
+        state.assets = [];
+        await loadSelectedPunkAssets(state.revision);
+      }
     } catch (error) {
       status.textContent = error?.message ?? "NFT withdrawal stopped safely.";
     } finally {

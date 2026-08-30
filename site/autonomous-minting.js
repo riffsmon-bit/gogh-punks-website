@@ -127,8 +127,7 @@ export function automationPunkWalletOpenSeaUrl(value) {
 }
 
 export function selectAutomationGeneration(v3Gate, v2Gate, tokenId) {
-  const v3Ready = v3Gate?.capability === true
-    && v3Gate?.setupTransactionAvailable === true;
+  const v3Ready = v3Gate?.setupTransactionAvailable === true;
   const selectedV3Punk = tokenId && v3Gate?.punk?.tokenId === tokenId
     ? v3Gate.punk : null;
   const selectedV3Deployed = selectedV3Punk?.created === true
@@ -163,6 +162,90 @@ export function automationGateNeedsLegacyFallback(v3Gate, tokenId) {
   return selectAutomationGeneration(v3Gate, null, tokenId).version !== 3;
 }
 
+export function selectedAutomationPunk(gate, selection) {
+  const selectedTokenId = selection?.tokenId;
+  const candidate = gate?.punk;
+  return typeof selectedTokenId === "string" && selectedTokenId.length > 0
+    && candidate?.tokenId === selectedTokenId ? candidate : null;
+}
+
+export function ownerRosterHasNoPunks(roster) {
+  return Array.isArray(roster?.tokenIds) && roster.tokenIds.length === 0;
+}
+
+const TERMINAL_AGENT_STATES = Object.freeze({
+  ACTIVE: "active · last worker check verified",
+  SCANNING: "scanning candidates now",
+  MINTING: "mint transaction in progress",
+  QUEUED: "queued for the worker",
+  WAITING_FOR_FIRST_SCAN: "enrolled · waiting for first scan",
+  AWAITING_WORKER_EVIDENCE: "enrolled · awaiting fresh worker evidence",
+  NEEDS_ENROLLMENT: "needs enrollment repair",
+  NEEDS_AUTHORIZATION: "needs owner authorization",
+  PAUSED: "paused",
+  AUTOMATION_OFFLINE: "automation offline",
+  NEEDS_ATTENTION: "needs attention",
+  READY: "ready to activate",
+});
+
+// This is intentionally an indexed worker view, not a disguised fan-out of live RPC reads.
+// Privileged buttons still perform their existing live owner/authorization checks.
+function terminalTime(value) {
+  const date = new Date(value ?? "");
+  return Number.isNaN(date.getTime()) ? "--:--:--" : date.toLocaleTimeString([], { hour12: false });
+}
+
+export function automationTerminalSnapshot(punks, selectedTokenId = null, workerOnline = null,
+  evidence = {}) {
+  const agents = Array.isArray(punks) ? punks.filter((punk) => punk && typeof punk === "object"
+    && (punk.agentSummary || punk.automationConfigured === true || punk.automationCreated === true)) : [];
+  const counts = { agents: agents.length, enrolled: 0, scanning: 0, minting: 0, attention: 0 };
+  const lines = agents.map((punk) => {
+    const summary = punk.agentSummary ?? {};
+    const status = Object.hasOwn(TERMINAL_AGENT_STATES, summary.status)
+      ? summary.status : summary.enrolled === true ? "WAITING_FOR_FIRST_SCAN"
+        : summary.configured === true ? "NEEDS_ENROLLMENT" : "READY";
+    if (summary.enrolled === true) counts.enrolled += 1;
+    if (status === "SCANNING") counts.scanning += 1;
+    if (status === "MINTING") counts.minting += 1;
+    if (["NEEDS_ENROLLMENT", "NEEDS_AUTHORIZATION", "AUTOMATION_OFFLINE",
+      "NEEDS_ATTENTION"].includes(status)) counts.attention += 1;
+    const tokenId = typeof punk.tokenId === "string" && /^(?:0|[1-9][0-9]{0,3})$/.test(punk.tokenId)
+      ? punk.tokenId : "?";
+    const selected = tokenId === selectedTokenId ? "  < selected" : "";
+    const result = summary.reason ? ` · ${String(summary.reason).toLowerCase().replaceAll("_", " ")}` : "";
+    return `#${tokenId.padEnd(4)} ${TERMINAL_AGENT_STATES[status]}${result}${selected}`;
+  });
+  const worker = workerOnline === true ? "ONLINE" : workerOnline === false ? "DEGRADED" : "PENDING EVIDENCE";
+  const heartbeat = evidence?.heartbeat && typeof evidence.heartbeat === "object"
+    ? evidence.heartbeat : null;
+  const usage = evidence?.usage && typeof evidence.usage === "object" ? evidence.usage : null;
+  const heartbeatLine = heartbeat
+    ? `${terminalTime(heartbeat.completedAt)}  WORKER  ${heartbeat.status ?? "CHECK COMPLETE"}${heartbeat.tokenId ? ` · Punk #${heartbeat.tokenId}` : ""}`
+    : "--:--:--  WORKER  waiting for the first production heartbeat";
+  const mintLine = heartbeat?.status === "MINT_CONFIRMED"
+    ? `${terminalTime(heartbeat.completedAt)}  MINT    Punk #${heartbeat.tokenId ?? "?"} confirmed${heartbeat.transactionHash ? ` · ${heartbeat.transactionHash.slice(0, 10)}…` : ""}`
+    : usage?.latestConfirmedAt
+      ? `${terminalTime(usage.latestConfirmedAt)}  MINT    latest confirmed autonomous collection`
+      : null;
+  const usageLine = Number.isInteger(usage?.confirmedMints)
+    ? `HISTORY   ${usage.confirmedMints.toLocaleString()} confirmed mints · ${usage.mintingPunks ?? "—"} Punk agents have collected`
+    : null;
+  return Object.freeze({
+    counts: Object.freeze(counts),
+    running: counts.scanning > 0 || counts.minting > 0,
+    lines: Object.freeze([
+      `GOGH/PRODUCTION  worker ${worker} · ${counts.enrolled}/${counts.agents} locally indexed as enrolled`,
+      heartbeatLine,
+      ...(mintLine ? [mintLine] : []),
+      ...(usageLine ? [usageLine] : []),
+      "YOUR PUNKS  preview enrollment index; per-Punk heartbeat arrives after the worker release",
+      ...lines,
+      ...(lines.length ? [] : ["SYSTEM  no configured Punk agents found"]),
+    ]),
+  });
+}
+
 export function setupAutonomousMinting({ windowObject, documentObject, fetchFunction } = {}) {
   const browserWindow = windowObject ?? (typeof window === "undefined" ? null : window);
   const browserDocument = documentObject ?? (typeof document === "undefined" ? null : document);
@@ -193,6 +276,8 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
   const runNow = panel.querySelector("[data-v3-run-now]");
   const runAll = panel.querySelector("[data-v3-run-all]");
   const runState = panel.querySelector("[data-v3-run-state]");
+  const scanTerminal = panel.querySelector("[data-v3-scan-terminal]");
+  const scanTerminalSummary = panel.querySelector("[data-v3-scan-terminal-summary]");
   const stop = panel.querySelector("[data-v2-stop]");
   const preset = panel.querySelector("[data-v2-preset]");
   const cap = panel.querySelector("[data-v2-cap]");
@@ -212,12 +297,37 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
   const usageMintsDetail = panel.querySelector("[data-v3-usage-mints-detail]");
   const usagePunks = panel.querySelector("[data-v3-usage-punks]");
   const usageWallets = panel.querySelector("[data-v3-usage-wallets]");
+  const initialOwnerRoster = browserWindow.__GOGH_OWNER_PUNKS__;
   const state = {
     gate: null, v3Gate: null, version: 2, selection: null, funding: false, running: false,
     refreshing: false, setupSubmission: null,
     lastSyncedAt: null, lastRefreshFailedAt: null, loadSequence: 0,
     lastTransactionHash: null, lastActionError: null,
+    ownerPunksKnown: Array.isArray(initialOwnerRoster?.tokenIds),
+    ownerPunkCount: Array.isArray(initialOwnerRoster?.tokenIds)
+      ? initialOwnerRoster.tokenIds.length : null,
+    ownerPunks: Array.isArray(initialOwnerRoster?.punks) ? [...initialOwnerRoster.punks] : [],
   };
+
+  function renderScanTerminal() {
+    if (!scanTerminal) return;
+    const snapshot = automationTerminalSnapshot(
+      state.ownerPunks,
+      state.selection?.tokenId ?? null,
+      state.gate?.heartbeat?.online ?? state.v3Gate?.heartbeat?.online ?? null,
+      { heartbeat: state.gate?.heartbeat ?? state.v3Gate?.heartbeat ?? null,
+        usage: state.v3Gate?.usage ?? null },
+    );
+    scanTerminal.textContent = snapshot.lines.join("\n");
+    scanTerminal.dataset.running = snapshot.running || state.gate?.heartbeat?.online === true
+      ? "true" : "false";
+    if (scanTerminalSummary) {
+      const productionState = state.gate?.heartbeat?.online === true
+        ? "production online" : state.gate?.heartbeat?.online === false
+          ? "production degraded" : "production evidence pending";
+      scanTerminalSummary.textContent = `${productionState} · ${snapshot.counts.enrolled} enrolled · ${snapshot.counts.scanning} per-Punk scanning · ${snapshot.counts.minting} minting`;
+    }
+  }
 
   function heartbeatLabel(value) {
     if (!value) return "No worker check recorded yet";
@@ -291,7 +401,47 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     }
   }
 
+  function renderNoOwnedPunks() {
+    renderScanTerminal();
+    status.textContent = "NO PUNKS FOUND";
+    status.classList.add("off");
+    punk.textContent = "No Punk selected";
+    account.textContent = "No Punk wallet available";
+    accountCopy.disabled = true;
+    accountOpenSea.hidden = true;
+    accountOpenSea.removeAttribute("href");
+    accountCopyState.textContent = "No wallet-owned Punks found.";
+    badge.textContent = "CONNECT A PUNK OWNER";
+    badge.classList.add("off");
+    worker.textContent = "NOT STARTED";
+    workerDetail.textContent = "Connect a wallet that owns a Gogh Punk to activate an agent.";
+    latestMint.hidden = true;
+    setup.disabled = true;
+    runNow.disabled = true;
+    runAll.disabled = true;
+    stop.disabled = true;
+    preset.disabled = true;
+    cap.disabled = true;
+    days.disabled = true;
+    retirementConfirm.disabled = true;
+    agentFundAmount.disabled = true;
+    agentFundConfirm.disabled = true;
+    agentFund.disabled = true;
+    progressSummary.textContent = "No wallet-owned Punks found. Choose a different wallet to begin.";
+    confirmationPlan.textContent = "Agent setup becomes available after a wallet-owned Punk is found.";
+    message.textContent = "No wallet-owned Punks found.";
+    browserWindow.__GOGH_AUTOMATION_SNAPSHOT__ = Object.freeze({
+      tokenId: null, version: state.version, account: null, active: false,
+      agentLive: false, running: false, capability: false, workerOnline: false,
+    });
+  }
+
   function render() {
+    if (state.ownerPunksKnown && state.ownerPunkCount === 0) {
+      renderNoOwnedPunks();
+      return;
+    }
+    renderScanTerminal();
     const publicUsage = state.v3Gate?.usage;
     usageMints.textContent = publicUsage?.confirmedMints ?? "—";
     usagePunks.textContent = publicUsage?.mintingPunks ?? "—";
@@ -311,8 +461,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
           : "V2 remains active until every V3 deployment, source, guardian, and worker gate passes.";
     }
     punk.textContent = state.selection?.tokenId ? `#${state.selection.tokenId}` : "Choose a Punk";
-    const selectedState = state.gate?.punk?.tokenId === state.selection?.tokenId
-      ? state.gate.punk : null;
+    const selectedState = selectedAutomationPunk(state.gate, state.selection);
     const active = selectedState?.active === true;
     const retirement = retirementActivationDisclosure(
       state.selection?.tokenId ?? null,
@@ -369,7 +518,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
       ? `This exact V${state.version} wallet receives the selected Punk’s autonomous mints.`
       : "Select a live-verified Punk to reveal its NFT wallet.";
     const gasAgent = state.gate?.agent;
-    const gasReady = state.gate?.capability === true && gasAgent?.codeFree === true
+    const gasReady = gasAgent?.codeFree === true
       && /^0x[0-9a-f]{40}$/.test(gasAgent.address ?? "")
       && /^(?:0|[1-9][0-9]*)$/.test(gasAgent.balanceWei ?? "");
     const balanceLabel = formatAutomationGasBalance(gasAgent?.balanceWei);
@@ -381,26 +530,28 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     agentCopy.disabled = !gasReady;
     agentFundAmount.disabled = !gasReady || state.funding;
     agentFund.disabled = !gasReady || state.funding || !agentFundConfirm.checked;
-    const ready = state.gate?.capability === true
-      && state.gate?.setupTransactionAvailable === true && Boolean(state.selection);
+    const ready = state.gate?.setupTransactionAvailable === true && Boolean(state.selection);
     setup.disabled = !ready || Boolean(state.setupSubmission)
       || (!active && retirementConfirm.checked !== true);
-    runNow.disabled = !agentLive || state.version !== 3 || state.running;
+    // The safe run endpoint performs its own fresh ownership, authorization, enrollment, policy,
+    // and worker-lock checks. An authorized Punk needs this control most when its prior heartbeat
+    // is stale, so heartbeat health must not disable the recovery request in the browser.
+    runNow.disabled = !active || state.version !== 3 || state.running;
     runNow.textContent = state.running ? "Agent scan running…" : "Send selected agent now";
     runAll.disabled = state.version !== 3 || state.gate?.capability !== true || state.running;
     runAll.textContent = state.running ? "Agent scan running…" : "Scan all my active Punks";
     stop.disabled = !active;
-    cap.disabled = state.gate?.capability !== true;
-    days.disabled = state.gate?.capability !== true;
-    preset.disabled = state.gate?.capability !== true;
+    cap.disabled = state.gate?.setupTransactionAvailable !== true;
+    days.disabled = state.gate?.setupTransactionAvailable !== true;
+    preset.disabled = state.gate?.setupTransactionAvailable !== true;
     setup.textContent = state.setupSubmission
       ? `Confirming ${setupIndex} of ${state.setupSubmission.total}…`
       : active ? "Update cap or run time" : "Set up and start agent";
     const workerRetrying = state.gate?.status === "WORKER_DEGRADED";
     badge.textContent = agentLive ? "LIVE" : active
       ? workerRetrying ? "WORKER RETRYING" : "WORKER OFFLINE"
-      : state.gate?.capability === true ? "READY" : "NOT READY";
-    badge.classList.toggle("off", !agentLive && state.gate?.capability !== true);
+      : ready ? "READY" : "NOT READY";
+    badge.classList.toggle("off", !agentLive && !ready);
     worker.textContent = state.gate?.heartbeat?.online === true ? "CHECKING FOR FREE MINTS"
       : ["WORKER_STARTING", "WORKER_DEGRADED"].includes(state.gate?.status)
         ? "RETRYING" : "OFFLINE";
@@ -429,7 +580,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     status.textContent = agentLive
       ? "LIVE · CHECKING FOR FREE MINTS"
       : active ? "SET UP · WORKER OFFLINE"
-      : state.gate?.capability === true
+      : ready
         ? state.gate.reason === null ? "READY TO START" : "FINAL SAFETY CHECK PENDING"
       : state.gate?.status === "DEPLOYED_AWAITING_LIVE_GATE"
         ? "LIVE SAFETY CHECK PENDING"
@@ -456,6 +607,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
       account: punkWallet,
       active,
       agentLive,
+      running: state.running,
       capability: state.gate?.capability === true,
       workerOnline: state.gate?.heartbeat?.online === true,
       ...automationSnapshotStats(selectedState),
@@ -487,8 +639,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
   }
 
   async function copyPunkWalletAddress() {
-    const selectedState = state.gate?.punk?.tokenId === state.selection?.tokenId
-      ? state.gate.punk : null;
+    const selectedState = selectedAutomationPunk(state.gate, state.selection);
     const value = selectedState?.account;
     if (!/^0x[0-9a-fA-F]{40}$/.test(value ?? "")) return;
     try {
@@ -604,8 +755,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
       state.gate = selected.gate;
       state.lastSyncedAt = new Date();
       state.lastRefreshFailedAt = null;
-      const selectedState = state.gate?.punk?.tokenId === state.selection?.tokenId
-        ? state.gate.punk : null;
+      const selectedState = selectedAutomationPunk(state.gate, state.selection);
       if (selectedState?.active === true
         && Number.isInteger(selectedState.maxAcquisitionsPerDay)
         && selectedState.maxAcquisitionsPerDay >= 1
@@ -636,14 +786,23 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
       return;
     }
     try {
-      const response = await request(`/api/broker/autonomy-v3-activity?refresh=${Date.now()}`, {
+      const response = await request(`/api/broker/autonomy-v3-activity?tokenId=${encodeURIComponent(state.selection.tokenId)}&refresh=${Date.now()}`, {
         headers: { accept: "application/json" }, cache: "no-store",
       });
       const payload = await response.json();
       const activity = payload?.activity;
       if (!response.ok || payload?.ok !== true || typeof activity !== "object") return;
       const priorCompletedAt = state.gate?.heartbeat?.completedAt ?? null;
-      const heartbeat = activity.heartbeat
+      const punkHeartbeat = activity.punk?.heartbeat ?? null;
+      const heartbeat = punkHeartbeat ? {
+        state: punkHeartbeat.state,
+        status: punkHeartbeat.state,
+        tokenId: state.selection.tokenId,
+        completedAt: punkHeartbeat.lastActualScan ?? punkHeartbeat.updatedAt,
+        transactionHash: punkHeartbeat.lastSuccessfulMint,
+        failureCode: punkHeartbeat.reason,
+        online: activity.online === true,
+      } : activity.heartbeat
         ? { ...activity.heartbeat, online: activity.online === true } : null;
       state.gate = { ...state.gate, heartbeat };
       if (state.v3Gate) state.v3Gate = { ...state.v3Gate, heartbeat, usage: activity.usage };
@@ -660,7 +819,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
   }
 
   async function runAgentNow() {
-    if (state.running || state.version !== 3 || !state.selection?.tokenId) return;
+    if (state.running || state.version !== 3 || !state.selection?.tokenId) return null;
     state.running = true;
     render();
     runState.textContent = "Running the exact V3 target, policy, and simulation checks now…";
@@ -686,8 +845,10 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
               ? "Scan complete. No target passed every live safety and simulation check."
               : "Scan complete. No transaction was needed.";
       await load();
+      return outcome;
     } catch (error) {
       runState.textContent = error?.message ?? "The agent scan stopped safely.";
+      return null;
     } finally {
       state.running = false;
       render();
@@ -738,6 +899,19 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     render();
     void load();
   });
+  browserWindow.addEventListener("gogh:owner-punks", (event) => {
+    const tokenIds = event.detail?.tokenIds;
+    if (!Array.isArray(tokenIds)) return;
+    state.ownerPunksKnown = true;
+    state.ownerPunkCount = tokenIds.length;
+    state.ownerPunks = Array.isArray(event.detail?.punks) ? [...event.detail.punks] : [];
+    if (tokenIds.length === 0) {
+      state.selection = null;
+      state.gate = null;
+      state.v3Gate = null;
+    }
+    render();
+  });
   setup.addEventListener("click", async () => {
     let startFirstScan = false;
     setup.disabled = true;
@@ -764,7 +938,16 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
       state.setupSubmission = null;
       render();
     }
-    if (startFirstScan) void runAgentNow();
+    if (startFirstScan) {
+      message.textContent = "Punk activated. Enrolling its worker and requesting the first scan…";
+      const outcome = await runAgentNow();
+      message.textContent = outcome
+        ? outcome.status === "RUN_IN_PROGRESS"
+          ? "Punk activated and enrolled. A worker is already running; this Punk is queued."
+          : "Punk activated, enrolled, and its first scan completed."
+        : "Punk activated, but worker enrollment or the first scan could not be confirmed. Retry Send Agent.";
+      render();
+    }
   });
   runNow.addEventListener("click", runAgentNow);
   runAll.addEventListener("click", runAllAgentsNow);
@@ -800,7 +983,8 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
       render();
     }
   });
-  render();
+  if (ownerRosterHasNoPunks(initialOwnerRoster)) renderNoOwnedPunks();
+  else render();
   browserWindow.setInterval?.(() => { void refreshActivity(); }, ACTIVITY_REFRESH_INTERVAL_MS);
   browserWindow.addEventListener?.("focus", () => { void refreshActivity(); });
   browserWindow.addEventListener?.("pageshow", () => { void refreshActivity(); });

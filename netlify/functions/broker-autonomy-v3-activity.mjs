@@ -1,13 +1,14 @@
 import { json } from "./_shared/http.mjs";
 import {
-  getAutomationV3UsageStats, getAutomationV3WorkerHeartbeat, workerHeartbeatIsCurrent,
+  getAutomationV3PunkWorkerActivity, getAutomationV3UsageStats,
+  getAutomationV3WorkerHeartbeat, workerHeartbeatIsCurrent,
 } from "./_shared/automation-v3-worker-state.mjs";
 import {
   getProductionAutomationV3Activity, isDeployPreview,
 } from "./_shared/automation-v3-production-bridge.mjs";
 
 export function automationV3Activity(heartbeat, usage, environment = process.env,
-  nowMs = Date.now()) {
+  nowMs = Date.now(), punk = null) {
   const release = environment.BROKER_AUTOMATION_V3_WORKER_RELEASE?.trim() ?? "";
   const enabled = environment.BROKER_AUTOMATION_V3_ENABLED === "true"
     && /^[0-9a-f]{40}$/.test(release);
@@ -16,19 +17,42 @@ export function automationV3Activity(heartbeat, usage, environment = process.env
     online: enabled && workerHeartbeatIsCurrent(heartbeat, release, nowMs),
     heartbeat: heartbeat ? Object.freeze({ ...heartbeat }) : null,
     usage: usage ? Object.freeze({ ...usage }) : null,
+    punk: punk ? Object.freeze({
+      heartbeat: punk.heartbeat ? Object.freeze({ ...punk.heartbeat }) : null,
+      events: Object.freeze((punk.events ?? []).map((event) => Object.freeze({ ...event }))),
+    }) : null,
   });
 }
 
 export default async function handler(request) {
   if (request.method !== "GET") return json({ ok: false, code: "METHOD_NOT_ALLOWED" }, 405);
   try {
-    const evidence = isDeployPreview(process.env, request.url)
-      ? await getProductionAutomationV3Activity()
+    const url = new URL(request.url);
+    const tokenValues = url.searchParams.getAll("tokenId");
+    const selectedTokenId = tokenValues.length === 0 ? null : tokenValues[0];
+    if (tokenValues.length > 1 || (selectedTokenId !== null
+      && !/^(?:0|[1-9][0-9]{0,3})$/.test(selectedTokenId))) {
+      return json({ ok: false, code: "INVALID_TOKEN_ID" }, 400);
+    }
+    const preview = isDeployPreview(process.env, request.url);
+    const evidence = preview
+      ? await getProductionAutomationV3Activity(undefined, selectedTokenId)
       : await Promise.all([
         getAutomationV3WorkerHeartbeat(), getAutomationV3UsageStats(),
-      ]).then(([heartbeat, usage]) => ({ heartbeat, usage }));
-    const { heartbeat, usage } = evidence;
-    return json({ ok: true, activity: automationV3Activity(heartbeat, usage) }, 200, {
+        selectedTokenId === null ? null : getAutomationV3PunkWorkerActivity(selectedTokenId),
+      ]).then(([heartbeat, usage, punk]) => ({ heartbeat, usage, punk }));
+    const { heartbeat, usage, punk = null } = evidence;
+    // A deploy preview deliberately has no autonomous worker of its own. Production already
+    // validates its configured release before publishing `online`; recomputing that result with
+    // the preview commit SHA would make every healthy production heartbeat look stale.
+    const activity = preview ? Object.freeze({
+      checkedAt: evidence.checkedAt,
+      online: evidence.online,
+      heartbeat,
+      usage,
+      punk,
+    }) : automationV3Activity(heartbeat, usage, process.env, Date.now(), punk);
+    return json({ ok: true, activity }, 200, {
       "cache-control": "no-store, max-age=0",
       "netlify-cdn-cache-control": "no-store",
     });

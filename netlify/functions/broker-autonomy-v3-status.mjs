@@ -135,30 +135,53 @@ export default async function handler(request) {
     try {
       const params = new URL(request.url).searchParams;
       const tokenId = params.get("tokenId");
-      const workerEvidence = isDeployPreview(process.env, request.url)
+      const preview = isDeployPreview(process.env, request.url);
+      const workerEvidence = preview
         ? getProductionAutomationV3Activity()
         : Promise.all([
           getAutomationV3WorkerHeartbeat().catch(() => null),
           getAutomationV3UsageStats().catch(() => null),
         ]).then(([heartbeat, usage]) => ({ heartbeat, usage }));
-      const [live, evidence, selectedPunk] = await Promise.all([
+      const [liveResult, evidenceResult, selectedPunkResult] = await Promise.allSettled([
         readAutomationV3GlobalState(),
         workerEvidence,
         tokenId === null ? null : readAutomationV3PunkState(tokenId),
       ]);
-      const { heartbeat, usage } = evidence;
+      const selectedPunk = selectedPunkResult.status === "fulfilled"
+        ? selectedPunkResult.value : null;
       punk = selectedPunk;
+      if (liveResult.status !== "fulfilled") {
+        automation = Object.freeze({
+          ...base,
+          reason: "AUTOMATION_V3_LIVE_READ_UNAVAILABLE",
+          punk,
+        });
+        return json({ ok: true, automation }, 200, {
+          "cache-control": "private, no-store, max-age=0",
+          "netlify-cdn-cache-control": "public, s-maxage=15, stale-while-revalidate=15",
+        });
+      }
+      const live = liveResult.value;
+      const evidence = evidenceResult.status === "fulfilled"
+        ? evidenceResult.value : { heartbeat: null, usage: null, online: false };
+      const { heartbeat, usage } = evidence;
       const globallyReady = live.configured === true && live.worker.enabled === true;
       const availability = automationV3WorkerAvailability(
         globallyReady, heartbeat, live.worker.release, Date.now(),
       );
-      const workerOnline = availability.online;
+      // Preview automation is intentionally not scheduled. Its manual run endpoint is bridged to
+      // production, so the preview must display the production endpoint's already-validated
+      // heartbeat rather than comparing that heartbeat with the preview commit SHA.
+      const workerOnline = preview ? evidence.online === true : availability.online;
       const ready = globallyReady && workerOnline;
       automation = Object.freeze({
         ...base,
-        status: availability.status,
+        status: ready ? "READY" : availability.status,
         capability: ready,
-        setupTransactionAvailable: ready,
+        // Owner setup is a separate live-checked transaction builder. A transient hosted-worker
+        // outage must pause submissions, but must not prevent an owner from creating/updating the
+        // bounded on-chain authorization that the worker will use after recovery.
+        setupTransactionAvailable: globallyReady,
         automaticSubmission: ready,
         scheduledRetry: availability.status === "WORKER_DEGRADED",
         reason: ready ? null : availability.reason ?? (live.configured

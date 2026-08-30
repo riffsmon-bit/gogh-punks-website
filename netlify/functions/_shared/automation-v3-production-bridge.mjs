@@ -1,4 +1,6 @@
 import {
+  punkWorkerActivityFromRow,
+  punkWorkerEvidenceFromRow,
   workerHeartbeatFromRow,
   workerUsageFromRow,
 } from "./automation-v3-worker-state.mjs";
@@ -46,15 +48,19 @@ export function isDeployPreview(environment = process.env, requestUrl = null) {
   try {
     const url = new URL(requestUrl);
     return url.protocol === "https:" && !url.username && !url.password && !url.port
-      && /^deploy-preview-[1-9][0-9]*--gogh-punks\.netlify\.app$/.test(url.hostname);
+      && (/^deploy-preview-[1-9][0-9]*--gogh-punks\.netlify\.app$/.test(url.hostname)
+        || /^deploy-preview-[1-9][0-9]*\.preview\.goghpunks\.xyz$/.test(url.hostname));
   } catch {
     return false;
   }
 }
 
-export async function getProductionAutomationV3Activity(fetchFunction = fetch) {
+export async function getProductionAutomationV3Activity(fetchFunction = fetch, tokenId = null) {
+  const selectedTokenId = tokenId == null ? null
+    : bounded(String(tokenId), /^(?:0|[1-9][0-9]{0,3})$/, "activity token ID");
   const { response, payload } = await productionJson(
-    "/api/broker/autonomy-v3-activity",
+    `/api/broker/autonomy-v3-activity${selectedTokenId === null
+      ? "" : `?tokenId=${encodeURIComponent(selectedTokenId)}`}`,
     { method: "GET", headers: { accept: "application/json" }, cache: "no-store" },
     fetchFunction,
   );
@@ -68,11 +74,18 @@ export async function getProductionAutomationV3Activity(fetchFunction = fetch) {
   if (!Number.isFinite(Date.parse(checkedAt)) || typeof activity.online !== "boolean") {
     throw new TypeError("Production activity state is invalid");
   }
+  const punk = activity.punk == null ? null : plain(activity.punk, "Punk activity");
   return Object.freeze({
     checkedAt,
     online: activity.online,
     heartbeat: activity.heartbeat == null ? null : workerHeartbeatFromRow(activity.heartbeat),
     usage: activity.usage == null ? null : workerUsageFromRow(activity.usage),
+    punk: punk === null ? null : Object.freeze({
+      heartbeat: punk.heartbeat == null
+        ? null : punkWorkerEvidenceFromRow(plain(punk.heartbeat, "Punk heartbeat")),
+      events: Object.freeze((Array.isArray(punk.events) ? punk.events : [])
+        .map((event) => punkWorkerActivityFromRow(plain(event, "Punk activity event")))),
+    }),
   });
 }
 

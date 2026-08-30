@@ -62,6 +62,7 @@ export function createReownWalletSession(configuration = {}) {
     open: () => appKit.open(),
     openAccount: () => appKit.open({ view: "Account" }),
     openNetwork: () => appKit.open({ view: "Networks" }),
+    close: () => appKit.close(),
     switchNetwork: () => appKit.switchNetwork(ROBINHOOD, { throwOnFailure: true }),
     disconnect: () => appKit.disconnect("eip155"),
     getAccount: () => appKit.getAccount("eip155"),
