@@ -158,6 +158,8 @@ test("a wallet frame is classified by whether it can be acted on", () => {
   assert.equal(walletDiscoveryIntent({ account: null, chainId: null, status: "pending" }), "transient");
   assert.equal(walletDiscoveryIntent({ account: OWNER, chainId: null, status: "wrong-network" }), "transient");
   assert.equal(walletDiscoveryIntent({ account: null, chainId: null, status: "unavailable" }), "transient");
+  assert.equal(walletDiscoveryIntent({ account: null, chainId: null, status: "disconnected",
+    restoring: true }), "transient");
   // Settled states that really should clear the roster.
   assert.equal(walletDiscoveryIntent({ account: null, chainId: null, status: "disconnected" }), "settled");
   assert.equal(walletDiscoveryIntent({ account: OWNER, chainId: 1, status: "wrong-network" }), "settled");
@@ -205,6 +207,28 @@ test("a settled disconnect still clears the roster", async () => {
   assert.deepEqual([...cleared.tokenIds], []);
   assert.equal(cleared.owner, null);
   assert.equal(fixture.element("[data-owned-punk-count]").textContent, "—");
+});
+
+test("a failed refresh preserves the last live-verified Punk roster", async () => {
+  const fixture = ownerFixture();
+  setupOwnerAccounts(fixture);
+  fixture.setSnapshot(CONNECTED);
+  fixture.walletState(CONNECTED);
+  fixture.releaseApis();
+  for (let tick = 0; tick < 12; tick += 1) await settle();
+  assert.deepEqual([...fixture.announced.at(-1).tokenIds], [TOKEN_ID]);
+
+  fixture.windowObject.__GOGH_WALLET_PROVIDER__ = {
+    request: async () => { throw new Error("temporary provider reconnect"); },
+  };
+  fixture.walletState(CONNECTED);
+  for (let tick = 0; tick < 12; tick += 1) await settle();
+
+  assert.deepEqual([...fixture.announced.at(-1).tokenIds], [TOKEN_ID],
+    "a temporary refresh failure must not publish an empty replacement roster");
+  assert.equal(fixture.element("[data-owned-punk-count]").textContent, "1");
+  assert.match(fixture.element("[data-owned-punk-detail]").textContent, /refresh retrying/i);
+  assert.equal(fixture.element("[data-workspace-punk-picker]").children.length, 2);
 });
 
 test("a settled snapshot that arrives without an event of its own is picked up", async () => {
