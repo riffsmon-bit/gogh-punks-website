@@ -271,9 +271,9 @@ test("agent cards report the authorization expiry the live reader actually publi
   });
   setupAgentWizard(fixture);
   const facts = agentCardFacts(fixture);
-  assert.equal(facts.Today, "1 / 3");
-  assert.equal(facts.Authorization, new Date(Number(VALID_UNTIL) * 1_000).toLocaleString());
-  assert.notEqual(facts.Authorization, "Select to check");
+  assert.equal(facts["Mints today"], "1 / 3");
+  assert.equal(facts["NFTs collected"], "Syncing");
+  assert.equal(facts["Last result"], "No eligible mint passed every safety check");
 });
 
 test("active-agent cards separate same-page monitoring, wallet assets, and safe restart", () => {
@@ -283,7 +283,7 @@ test("active-agent cards separate same-page monitoring, wallet assets, and safe 
   });
   setupAgentWizard(fixture);
   assert.deepEqual(agentCardActions(fixture), [
-    { textContent: "Watch agent", href: "/broker/?punk=93#automation-title" },
+    { textContent: "Watch agent", href: "/broker/?punk=93#agent-matrix-title" },
     { textContent: "Open wallet", href: "/broker/punk/93#assets" },
     { textContent: "Restart agent", href: undefined },
   ]);
@@ -296,9 +296,9 @@ test("wizard Watch Agent selects the Punk and opens same-page monitoring", () =>
   });
   setupAgentWizard(fixture);
   fixture.element("[data-wizard-watch]").click();
-  assert.equal(fixture.element("[data-advanced-workspace]").open, "");
-  assert.equal(fixture.element("#automation-title").open, "");
-  assert.equal(fixture.dispatched.at(-1).type, "gogh:select-punk-request");
+  assert.equal(fixture.dispatched.at(-2).type, "gogh:select-punk-request");
+  assert.equal(fixture.dispatched.at(-2).detail.tokenId, "93");
+  assert.equal(fixture.dispatched.at(-1).type, "gogh:matrix-focus");
   assert.equal(fixture.dispatched.at(-1).detail.tokenId, "93");
 });
 
@@ -310,8 +310,8 @@ test("agent cards never present a local draft limit as an on-chain cap", () => {
   });
   setupAgentWizard(fixture);
   const facts = agentCardFacts(fixture);
-  assert.equal(facts.Today, "—");
-  assert.equal(facts.Authorization, "Needs setup");
+  assert.equal(facts["Mints today"], "—");
+  assert.equal(facts["NFTs collected"], "Syncing");
 });
 
 test("indexed worker evidence distinguishes enrollment from actual processing", () => {

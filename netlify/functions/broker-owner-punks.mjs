@@ -95,6 +95,13 @@ function address(value) {
     ? value.toLowerCase() : null;
 }
 
+function optionalCount(value, name) {
+  if (value == null) return null;
+  const count = Number(value);
+  if (!Number.isSafeInteger(count) || count < 0) throw new TypeError(`${name} is invalid`);
+  return count;
+}
+
 export function ownerPunkView(value) {
   try {
     const view = new URL(String(value)).searchParams.get("view");
@@ -482,11 +489,20 @@ export async function automationPunkAgentSummaries(owner, query = (...args) => (
             heartbeat.last_scheduled_scan, heartbeat.last_actual_scan,
             heartbeat.last_successful_mint, heartbeat.next_scan_estimate,
             heartbeat.reason, heartbeat.updated_at,
-            global.status AS global_status, global.completed_at AS global_completed_at
+            global.status AS global_status, global.completed_at AS global_completed_at,
+            portfolio.nft_count
        FROM combined
        LEFT JOIN broker_punk_agent_heartbeats AS heartbeat
          ON heartbeat.chain_id = $1 AND heartbeat.punk_token_id = combined.token_id
        LEFT JOIN broker_automation_v3_worker_state AS global ON global.singleton_id = 1
+       LEFT JOIN LATERAL (
+         SELECT nft_count
+           FROM broker_portfolio_snapshots
+          WHERE chain_id = $1
+            AND LOWER(account_address) = LOWER(combined.account_address)
+          ORDER BY snapshot_block DESC
+          LIMIT 1
+       ) AS portfolio ON TRUE
       ORDER BY combined.token_id
       LIMIT $4`,
     [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, normalized, MAX_CANDIDATES + 1],
@@ -518,6 +534,7 @@ export async function automationPunkAgentSummaries(owner, query = (...args) => (
       lastActualScan: timestamp(row.last_actual_scan),
       lastSuccessfulMint: transactionHash,
       nextScanEstimate: timestamp(row.next_scan_estimate),
+      nftCount: optionalCount(row.nft_count, "agent portfolio count"),
       reason,
       updatedAt: timestamp(row.updated_at),
     });

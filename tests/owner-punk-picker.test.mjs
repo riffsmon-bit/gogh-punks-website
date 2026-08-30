@@ -100,6 +100,7 @@ test("owner agent summaries distinguish worker proof from configuration", async 
     captured = { sql, values };
     return { rows: [
       { token_id: "93", configured: true, enrolled: true, account_address: ACCOUNT_A,
+        nft_count: 8,
         worker_state: "SKIPPED", last_scheduled_scan: "2026-08-29T12:08:00Z",
         last_actual_scan: "2026-08-29T12:08:02Z", last_successful_mint: null,
         next_scan_estimate: "2026-08-29T14:23:00Z", reason: "NO_ELIGIBLE_TARGETS",
@@ -141,6 +142,7 @@ test("owner agent summaries distinguish worker proof from configuration", async 
     ] };
   }, now);
   assert.equal(summaries[0].status, "ACTIVE");
+  assert.equal(summaries[0].nftCount, 8);
   assert.equal(summaries[0].lastActualScan, "2026-08-29T12:08:02.000Z");
   assert.equal(summaries[1].status, "NEEDS_ENROLLMENT");
   assert.equal(summaries[2].status, "NEEDS_ATTENTION");
@@ -150,6 +152,7 @@ test("owner agent summaries distinguish worker proof from configuration", async 
   assert.equal(summaries[6].status, "RETRY_SCHEDULED");
   assert.match(captured.sql, /broker_punk_agent_heartbeats/);
   assert.match(captured.sql, /broker_automation_v3_worker_state/);
+  assert.match(captured.sql, /broker_portfolio_snapshots/);
   assert.equal(captured.values[2], OWNER.toLowerCase());
 });
 

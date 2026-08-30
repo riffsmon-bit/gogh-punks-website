@@ -55,12 +55,20 @@ export function isDeployPreview(environment = process.env, requestUrl = null) {
   }
 }
 
-export async function getProductionAutomationV3Activity(fetchFunction = fetch, tokenId = null) {
+export async function getProductionAutomationV3Activity(fetchFunction = fetch, tokenId = null,
+  { limit = 50, before = null } = {}) {
   const selectedTokenId = tokenId == null ? null
     : bounded(String(tokenId), /^(?:0|[1-9][0-9]{0,3})$/, "activity token ID");
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+    throw new TypeError("activity limit is invalid");
+  }
+  const query = new URLSearchParams();
+  if (selectedTokenId !== null) query.set("tokenId", selectedTokenId);
+  if (limit !== 50) query.set("limit", String(limit));
+  if (before !== null) query.set("before", bounded(before,
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/, "activity cursor"));
   const { response, payload } = await productionJson(
-    `/api/broker/autonomy-v3-activity${selectedTokenId === null
-      ? "" : `?tokenId=${encodeURIComponent(selectedTokenId)}`}`,
+    `/api/broker/autonomy-v3-activity${query.size > 0 ? `?${query}` : ""}`,
     { method: "GET", headers: { accept: "application/json" }, cache: "no-store" },
     fetchFunction,
   );
@@ -80,6 +88,8 @@ export async function getProductionAutomationV3Activity(fetchFunction = fetch, t
     online: activity.online,
     heartbeat: activity.heartbeat == null ? null : workerHeartbeatFromRow(activity.heartbeat),
     usage: activity.usage == null ? null : workerUsageFromRow(activity.usage),
+    events: Object.freeze((Array.isArray(activity.events) ? activity.events : [])
+      .map((event) => punkWorkerActivityFromRow(plain(event, "worker activity event")))),
     punk: punk === null ? null : Object.freeze({
       heartbeat: punk.heartbeat == null
         ? null : punkWorkerEvidenceFromRow(plain(punk.heartbeat, "Punk heartbeat")),
