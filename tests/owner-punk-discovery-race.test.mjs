@@ -13,9 +13,9 @@ const MULTICALL_ABI = parseAbi([
   "function aggregate3((address target,bool allowFailure,bytes callData)[] calls) payable returns ((bool success,bytes returnData)[])",
 ]);
 
-// The broker page carries the workspace picker and selected preview but no legacy [data-owner-accounts]
-// container, so the fixture mirrors that markup.
-const SINGLE = ["[data-workspace-punk-picker]", "[data-workspace-punk-preview]"];
+// The lightweight Broker page carries the verified launcher roster. Legacy pickers remain optional
+// consumers of the same module on older routes, so this fixture exercises only the launcher surface.
+const SINGLE = ["[data-owner-accounts]", "[data-ownership-state]"];
 const MANY = [
   "[data-owned-punk-count]", "[data-owned-punk-detail]", "[data-punk-account-count]",
   "[data-punk-account-detail]", "[data-selected-punk-display]", "[data-selected-gallery-link]",
@@ -188,8 +188,8 @@ test("a reconnect frame never cancels the scan already running for that owner", 
   assert.equal(final.owner, OWNER);
   assert.equal(fixture.element("[data-owned-punk-count]").textContent, "1");
   assert.equal(fixture.element("[data-owned-punk-detail]").textContent,
-    "Live ownership verified from indexed roster");
-  assert.equal(fixture.element("[data-workspace-punk-picker]").children.length, 2);
+    "Canonical balance and indexed ownership agree.");
+  assert.equal(fixture.element("[data-owner-accounts]").children.length, 1);
 });
 
 test("a settled disconnect still clears the roster", async () => {
@@ -229,7 +229,7 @@ test("a failed refresh preserves the last live-verified Punk roster", async () =
     "a temporary refresh failure must not publish an empty replacement roster");
   assert.equal(fixture.element("[data-owned-punk-count]").textContent, "1");
   assert.match(fixture.element("[data-owned-punk-detail]").textContent, /refresh retrying/i);
-  assert.equal(fixture.element("[data-workspace-punk-picker]").children.length, 2);
+  assert.equal(fixture.element("[data-owner-accounts]").children.length, 1);
 });
 
 test("a settled snapshot that arrives without an event of its own is picked up", async () => {

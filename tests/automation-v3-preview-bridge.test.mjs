@@ -83,7 +83,11 @@ test("preview activity reads the fixed production endpoint and validates its evi
       ok: true,
       activity: {
         checkedAt: "2026-08-28T13:53:00.000Z",
+        configured: true,
         online: true,
+        executionReady: true,
+        platformHealth: { status: "HEALTHY", reason: null,
+          lastSuccessfulAt: "2026-08-28T13:52:57.000Z", consecutiveFailures: 0 },
         heartbeat,
         usage,
         punk: null,
@@ -103,7 +107,10 @@ test("preview activity forwards one exact Punk selection", async () => {
   const result = await getProductionAutomationV3Activity(async (url) => {
     call = url;
     return jsonResponse({ ok: true, activity: {
-      checkedAt: "2026-08-28T13:53:00.000Z", online: true,
+      checkedAt: "2026-08-28T13:53:00.000Z", configured: true, online: true,
+      executionReady: true,
+      platformHealth: { status: "HEALTHY", reason: null,
+        lastSuccessfulAt: "2026-08-28T13:52:57.000Z", consecutiveFailures: 0 },
       heartbeat, usage, punk: { heartbeat: {
         tokenId: "93", state: "SKIPPED", jobId: "12345678",
         lastScheduledScan: "2026-08-28T13:52:50.000Z",
@@ -124,7 +131,11 @@ test("preview activity fails closed on malformed production evidence", async () 
       ok: true,
       activity: {
         checkedAt: "not-a-time",
+        configured: true,
         online: true,
+        executionReady: true,
+        platformHealth: { status: "HEALTHY", reason: null,
+          lastSuccessfulAt: "2026-08-28T13:52:57.000Z", consecutiveFailures: 0 },
         heartbeat,
         usage,
       },
@@ -136,7 +147,11 @@ test("preview activity fails closed on malformed production evidence", async () 
       ok: true,
       activity: {
         checkedAt: "2026-08-28T13:53:00.000Z",
+        configured: true,
         online: "yes",
+        executionReady: true,
+        platformHealth: { status: "HEALTHY", reason: null,
+          lastSuccessfulAt: "2026-08-28T13:52:57.000Z", consecutiveFailures: 0 },
         heartbeat,
         usage,
       },

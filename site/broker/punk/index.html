@@ -39,7 +39,7 @@
           <p class="control-agent-state" data-control-agent-state>⚪ Connect the current holder</p>
           <p class="control-live-state" data-control-live-state aria-live="polite">Connect your wallet to load live Punk controls.</p>
           <div class="control-wallet-line"><span>Punk Wallet</span><code data-control-account>Waiting for live account…</code></div>
-          <div class="control-actions"><button type="button" data-control-copy disabled>Copy Address</button><a data-control-explorer aria-disabled="true">View Explorer</a><a href="/broker/#active-agent-console-title">All Art Brokers</a></div>
+          <div class="control-actions"><button type="button" data-control-copy disabled>Copy Address</button><a data-control-explorer aria-disabled="true">View Explorer</a><a href="/broker/">All Gogh Punks</a></div>
         </div>
       </section>
 
@@ -61,6 +61,13 @@
       </nav>
 
       <section id="control-panel-overview" class="control-panel" role="tabpanel" aria-labelledby="control-tab-overview" data-control-panel="overview">
+        <article class="control-card control-activation">
+          <div class="panel-header"><div><p class="eyebrow">Art Broker activation</p><h2 data-control-activation-title>Connect the current holder</h2></div><span class="tag">ON-CHAIN</span></div>
+          <p data-control-activation-copy>Your Punk stays in your main wallet. Connect its current holder to review activation.</p>
+          <div class="control-form-grid"><label class="control-field"><span>Daily free-mint limit</span><select data-control-activation-cap><option value="1">1 per UTC day</option><option value="3" selected>3 per UTC day</option><option value="5">5 per UTC day</option><option value="10">10 per UTC day</option></select></label><label class="control-field"><span>Authorization duration</span><select data-control-activation-days><option value="1">1 day</option><option value="7" selected>7 days</option><option value="30">30 days</option></select></label></div>
+          <button type="button" data-control-activate disabled>Activate Art Broker</button>
+          <p class="control-note" data-control-activation-state aria-live="polite">Live ownership and setup readiness will be checked first.</p>
+        </article>
         <div class="control-grid two-column">
           <article class="control-card"><p class="eyebrow">Live status</p><h2 data-overview-status>Connect wallet</h2><p data-overview-detail>Live ownership and account state will be verified after connection.</p><a class="control-primary-link" href="/broker/">Choose another Punk</a></article>
           <article class="control-card"><p class="eyebrow">How control works</p><h2>The Punk holder controls this wallet.</h2><p>Your Gogh Punk stays in your main wallet. Its separate Punk Wallet holds collected assets. A transfer of the controlling Punk pauses paid authority until the new holder explicitly reauthorizes it.</p></article>
@@ -142,10 +149,10 @@
       <section id="control-panel-activity" class="control-panel" role="tabpanel" aria-labelledby="control-tab-activity" data-control-panel="activity" hidden>
         <div class="control-grid three-column agent-heartbeat-summary"><article class="control-card"><p class="eyebrow">Last scan</p><h2 data-agent-last-scan>—</h2></article><article class="control-card"><p class="eyebrow">Result</p><h2 data-agent-last-result>Waiting</h2></article><article class="control-card"><p class="eyebrow">Next scheduled scan</p><h2 data-agent-next-scan>—</h2></article></div>
         <article class="control-card agent-discovery-summary" data-agent-discovery hidden><div class="panel-header"><div><p class="eyebrow">Latest Search</p><h2>What your Punk considered</h2></div><span class="tag" data-agent-discovery-tier>Advisory ranking</span></div><p data-agent-discovery-copy></p><div class="agent-candidate-grid" data-agent-candidate-grid></div><p class="control-note">Website and X links affect discovery priority only. Every selected candidate must still pass the independent runtime, price, authorization, policy, and simulation checks.</p></article>
-        <article class="control-card"><div class="panel-header"><div><p class="eyebrow">Agent Activity</p><h2>What your Punk is doing</h2></div><button type="button" data-activity-refresh disabled>Refresh</button></div><p class="control-note" data-activity-state aria-live="polite">Open Activity to load this Punk's latest worker event.</p><div class="agent-timeline" data-agent-timeline><p class="empty-state">No Punk-specific activity loaded yet.</p></div></article>
+        <article class="control-card punk-agent-terminal"><div class="panel-header"><div><p class="eyebrow">Gogh / Punk Terminal</p><h2>Punk #<span data-terminal-punk>—</span></h2></div><div class="terminal-health"><span aria-hidden="true"></span><strong data-terminal-status>WAITING</strong><button type="button" data-activity-refresh disabled>Refresh</button></div></div><p class="control-note" data-activity-state aria-live="polite">Open Activity to load this Punk's latest worker event.</p><div class="agent-timeline" data-agent-timeline role="log" aria-live="polite" aria-relevant="additions"><p class="empty-state">No Punk-specific activity loaded yet.</p></div></article>
         <details class="control-debug" data-debug-panel><summary>Development performance</summary><dl data-debug-metrics></dl><p>Debug data contains timings and health labels only—never keys, signatures, or credentials.</p></details>
       </section>
     </main>
-    <nav class="mobile-app-nav" aria-label="Mobile navigation"><a href="/">Home</a><a href="/broker/">Broker</a><a href="/broker/#active-agent-console-title" aria-current="page">Agents</a><a href="/broker/#nft-portfolio-title">Portfolio</a><button type="button" data-wallet-connect>Wallet</button></nav>
+    <nav class="mobile-app-nav" aria-label="Mobile navigation"><a href="/">Home</a><a href="/broker/">My Punks</a><a href="#control-panel-agent">Agent</a><a href="#control-panel-assets">NFTs</a><button type="button" data-wallet-connect>Wallet</button></nav>
   </body>
 </html>

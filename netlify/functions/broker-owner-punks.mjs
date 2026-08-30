@@ -6,7 +6,10 @@ import { json } from "./_shared/http.mjs";
 import { nftDisplayMetadata, NFT_DISPLAY_METADATA_SELECT } from
   "./_shared/broker-display-metadata.mjs";
 
-const MAX_CANDIDATES = 200;
+// A holder may own any bounded subset of the canonical collection. Candidate reads are still
+// chunked below, so this collection-sized ceiling prevents a false "unavailable" result for a
+// legitimate large holder without turning one RPC request into an unbounded call.
+const MAX_CANDIDATES = 5_017;
 const OPENSEA_COLLECTION_SLUG = "gogh-punks-255843210";
 const OPENSEA_RESPONSE_BYTES = 1_000_000;
 const OPENSEA_PAGE_LIMIT = 200;
@@ -430,7 +433,7 @@ function agentSummaryStatus(row, nowMs = Date.now()) {
   // per-Punk worker evidence for the card and reserve global failures for the worker-health tile.
   if (!Number.isFinite(evidenceAt) || evidenceAt > nowMs + 30_000
     || evidenceAt < nowMs - 3 * 60 * 60_000) {
-    return "NEEDS_ATTENTION";
+    return "WAITING_FOR_WORKER";
   }
   if (row.worker_state === "PAUSED") return "PAUSED";
   if (row.worker_state === "ERROR") {
@@ -440,7 +443,7 @@ function agentSummaryStatus(row, nowMs = Date.now()) {
     return new Set([
       "DISCOVERY_SCAN_FAILED", "PROFILE_STATE_READ_FAILED", "CANDIDATE_STATE_READ_FAILED",
       "PROVIDER_OWNER_DISAGREEMENT", "WORKER_RUN_FAILED",
-    ]).has(row.reason) ? "RETRY_SCHEDULED" : "NEEDS_ATTENTION";
+    ]).has(row.reason) ? "WAITING_FOR_WORKER" : "PUNK_ERROR";
   }
   if (["SUBMITTING", "CONFIRMING"].includes(row.worker_state)) return "MINTING";
   if (["SCANNING", "CANDIDATE_FOUND", "VERIFYING_CONTRACT", "CHECKING_PRICE",
@@ -513,6 +516,8 @@ export async function automationPunkAgentSummaries(owner, query = (...args) => (
       enrolled: row.enrolled === true,
       account: address(row.account_address),
       status: agentSummaryStatus(row, nowMs),
+      authorizationStatus: row.enrolled === true ? "AUTHORIZED_EVIDENCE"
+        : row.configured === true ? "NOT_VERIFIED" : "NOT_ACTIVATED",
       workerState: row.worker_state == null ? null : String(row.worker_state),
       lastScheduledScan: timestamp(row.last_scheduled_scan),
       lastActualScan: timestamp(row.last_actual_scan),
@@ -653,6 +658,7 @@ export default async function handler(request) {
   const owner = address(new URL(request.url).searchParams.get("owner"));
   if (!owner) return json({ ok: false, code: "INVALID_OWNER" }, 400);
   try {
+    const requestStartedAt = Date.now();
     const view = ownerPunkView(request.url);
     const automationRoster = configuredAutomationPunkIds();
     const [indexedResult, enrollmentResult, agentSummaryResult] = await Promise.allSettled([
@@ -672,6 +678,7 @@ export default async function handler(request) {
       ...(indexedResult.status === "fulfilled" ? indexedResult.value : []),
       ...automationTokenIds,
     ])].sort((left, right) => Number(left) - Number(right));
+    const indexedCandidateCount = candidateTokenIds.length;
     if (candidateTokenIds.length > MAX_CANDIDATES) throw new RangeError("owner candidate set is too large");
     if (view === "indexed") {
       let indexedAutomationCreated = [];
@@ -731,9 +738,20 @@ export default async function handler(request) {
           artwork: artworkAvailable,
         }),
         reconciliationRecommended: candidateTokenIds.length === 0,
+        reconciliationState: candidateTokenIds.length === 0 ? "RECONCILING" : "VERIFYING",
         complete: false,
         balanceOf: null,
         source: "indexed-hints",
+        diagnostics: Object.freeze({
+          canonicalBalance: null,
+          indexedCandidateCount,
+          verifiedCandidateCount: 0,
+          reconciledCount: 0,
+          blockNumber: null,
+          rpcSource: null,
+          fallbackReason: null,
+          durationMs: Date.now() - requestStartedAt,
+        }),
         evidence: "INDEXED_DISCOVERY_HINTS_ONLY_EACH_SELECTION_REQUIRES_LIVE_WALLET_OWNER_CHECK",
         activationAuthorized: false,
         autonomyAuthorized: false,
@@ -763,6 +781,8 @@ export default async function handler(request) {
     }
     let liveOwnerAvailable = false;
     let liveOwnerSnapshot = null;
+    let rpcSource = "configured-primary";
+    let fallbackReason = null;
     try {
       // Complete the fast index/marketplace hints only when balanceOf proves they are stale. The
       // resulting list is still a server hint; browser Multicall remains the UI authority.
@@ -770,6 +790,7 @@ export default async function handler(request) {
       candidateTokenIds = [...liveOwnerSnapshot.tokenIds];
       liveOwnerAvailable = true;
     } catch (primaryError) {
+      fallbackReason = primaryError?.name ?? "PRIMARY_RPC_FAILED";
       try {
         // A keyed provider is preferred, but Punk discovery must not disappear when that provider
         // is rate-limited or misconfigured. The canonical public RPC is a read-only completion
@@ -779,6 +800,7 @@ export default async function handler(request) {
         });
         candidateTokenIds = [...liveOwnerSnapshot.tokenIds];
         liveOwnerAvailable = true;
+        rpcSource = "canonical-public-fallback";
       } catch (fallbackError) {
         console.error(JSON.stringify({
           event: "BROKER_OWNER_PUNK_LIVE_COMPLETION_UNAVAILABLE",
@@ -854,9 +876,22 @@ export default async function handler(request) {
       candidatePunks,
       balanceOf: liveOwnerSnapshot ? Number(liveOwnerSnapshot.balance) : null,
       complete: liveOwnerAvailable,
+      reconciliationState: liveOwnerAvailable
+        ? Number(liveOwnerSnapshot.balance) === 0 ? "ZERO_BALANCE_CONFIRMED" : "VERIFIED"
+        : "RPC_UNAVAILABLE",
       indexedBlock: liveOwnerSnapshot ? Number(liveOwnerSnapshot.blockNumber) : null,
       headBlock: liveOwnerSnapshot ? Number(liveOwnerSnapshot.blockNumber) : null,
       source: liveOwnerAvailable ? "index+live-balance-reconcile" : "discovery-hints",
+      diagnostics: Object.freeze({
+        canonicalBalance: liveOwnerSnapshot ? Number(liveOwnerSnapshot.balance) : null,
+        indexedCandidateCount,
+        verifiedCandidateCount: liveOwnerSnapshot ? liveOwnerSnapshot.tokenIds.length : 0,
+        reconciledCount: liveOwnerSnapshot ? candidateTokenIds.length : 0,
+        blockNumber: liveOwnerSnapshot ? Number(liveOwnerSnapshot.blockNumber) : null,
+        rpcSource: liveOwnerAvailable ? rpcSource : null,
+        fallbackReason,
+        durationMs: Date.now() - requestStartedAt,
+      }),
       updatedAt: new Date().toISOString(),
       candidateSources: Object.freeze({
         indexed: indexedResult.status === "fulfilled",
@@ -869,7 +904,7 @@ export default async function handler(request) {
         agentSummaries: agentSummaryResult.status === "fulfilled",
         artwork: artworkAvailable,
       }),
-      reconciliationRecommended: false,
+      reconciliationRecommended: !liveOwnerAvailable,
       evidence: "DISCOVERY_CANDIDATES_ONLY_EACH_SELECTION_REQUIRES_LIVE_WALLET_OWNER_CHECK",
       activationAuthorized: false,
       autonomyAuthorized: false,

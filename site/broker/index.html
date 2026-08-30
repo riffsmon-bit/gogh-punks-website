@@ -3,372 +3,69 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Choose a Gogh Punk, set a daily cap, and start bounded autonomous free-mint collection." />
+    <meta name="description" content="Choose a Gogh Punk and open its owner-controlled Art Broker." />
     <meta name="theme-color" content="#071321" />
     <title>Art Broker · Gogh Punks</title>
     <link rel="icon" href="/assets/favicon.png" type="image/png" />
     <link rel="stylesheet" href="/broker.css" />
-    <script src="/broker.js" defer></script>
     <script src="/wallet.js?v=reown-4" type="module"></script>
     <script src="/owner-accounts.js" type="module"></script>
-    <script src="/autonomous-minting.js" type="module"></script>
-    <script src="/agent-setup-wizard.js" type="module"></script>
-    <script src="/nft-withdrawal.js" type="module"></script>
   </head>
-  <body>
-    <a class="skip-link" href="#main">Skip to Art Broker</a>
+  <body class="broker-launcher-page">
+    <a class="skip-link" href="#main">Skip to your Gogh Punks</a>
     <header class="broker-header">
       <a class="broker-brand" href="/"><img src="/assets/favicon.png" alt="" /><span>GOGH PUNKS</span></a>
       <nav aria-label="Primary navigation">
         <a href="/broker/" aria-current="page">Art Broker</a>
-        <a href="/broker/#nft-portfolio-title">NFT Portfolio</a>
         <a href="/">Collection</a>
       </nav>
       <div class="wallet-control">
         <button class="wallet-button" type="button" data-wallet-connect>Connect wallet</button>
         <button class="wallet-button wallet-switch-button" type="button" data-wallet-switch hidden>Switch to Robinhood Chain</button>
-        <button class="wallet-disconnect" type="button" data-wallet-disconnect hidden>Disconnect Wallet</button>
-        <span class="wallet-state" data-wallet-state aria-live="polite">Wallet disconnected · no automatic signatures or transactions</span>
+        <button class="wallet-disconnect" type="button" data-wallet-disconnect hidden>Disconnect</button>
+        <span class="wallet-state" data-wallet-state aria-live="polite">Wallet disconnected</span>
       </div>
     </header>
-    <main class="broker-main" id="main">
-      <section class="broker-hero broker-hero-compact">
-        <div>
-          <p class="eyebrow">Gogh Punk Art Broker · Robinhood Chain</p>
-          <h1>Give your Gogh Punk a job.</h1>
-          <p class="lede">Activate an Art Broker and let your Punk search for eligible free NFT mints. You set the limits. The hosted agent pays the gas. Collected NFTs go directly into your Punk’s wallet.</p>
-        </div>
-        <aside class="status-panel" aria-label="Protocol status">
-          <div class="status-line"><span class="status-dot"></span><strong data-protocol-status class="loading">CHECKING FOUNDATION</strong></div>
-          <p><strong data-owner-execution-status>Checking execution state…</strong></p>
-          <p>Autonomous execution: <strong data-autonomy-status>OFF</strong></p>
-          <p class="status-explainer">Only live on-chain permissions can start or stop autonomous collection.</p>
-        </aside>
-      </section>
-      <p class="safety-banner"><strong>Live status:</strong> <span data-live-summary>Checking deployed contracts and execution controls…</span></p>
 
-      <section class="agent-wizard" data-agent-wizard aria-labelledby="agent-wizard-title">
-        <header class="wizard-header">
-          <div><p class="eyebrow">Mobile setup</p><h2 id="agent-wizard-title">Activate an Art Broker</h2></div>
-          <button class="wizard-exit" type="button" data-wizard-exit>Exit setup</button>
-        </header>
-        <ol class="wizard-progress" aria-label="Setup progress">
-          <li data-wizard-progress="1"><span>1</span><small>Punk</small></li>
-          <li data-wizard-progress="2"><span>2</span><small>Wallet</small></li>
-          <li data-wizard-progress="3"><span>3</span><small>Rules</small></li>
-          <li data-wizard-progress="4"><span>4</span><small>Activate</small></li>
-          <li data-wizard-progress="5"><span>5</span><small>Launch</small></li>
-        </ol>
-
-        <article class="wizard-screen" data-wizard-step="choose">
-          <p class="eyebrow">Step 1 of 5</p>
-          <h3>Choose Your Punk</h3>
-          <p>Pick the Gogh Punk you want to turn into an autonomous art curator.</p>
-          <button class="wizard-primary wizard-connect" type="button" data-wallet-connect>Connect Wallet</button>
-          <p class="wizard-wallet-state" data-wallet-state aria-live="polite">Wallet disconnected</p>
-          <label class="wizard-punk-select">
-            <span>Choose one of your live-verified Punks</span>
-            <select data-wizard-punks disabled>
-              <option value="">Connect wallet to load your Punks</option>
-            </select>
-            <input data-wizard-punk-search type="search" inputmode="numeric" autocomplete="off"
-              placeholder="Search by Punk number" aria-label="Search your Gogh Punks" disabled />
-            <div class="wizard-punk-results" data-wizard-punk-results role="listbox"
-              aria-label="Wallet-owned Gogh Punks"></div>
-            <small data-wizard-punk-count>Connect your wallet to load your Punks.</small>
-          </label>
-          <p class="wizard-empty" data-wizard-empty hidden>No Gogh Punks were found in this wallet on Robinhood Chain.</p>
-        </article>
-
-        <article class="wizard-screen" data-wizard-step="wallet" hidden>
-          <p class="eyebrow">Step 2 of 5</p>
-          <h3>Your Punk Gets Its Own Wallet</h3>
-          <div class="wizard-punk-identity">
-            <img data-wizard-punk-image alt="" hidden />
-            <div><strong data-wizard-punk-label>Choose a Punk</strong><small>Punk wallet</small><code data-wizard-punk-wallet>Preparing…</code></div>
-          </div>
-          <p>This wallet belongs to your Gogh Punk and holds the NFTs it collects.</p>
-          <p>Your Gogh Punk stays in your main wallet. Ownership of the Punk controls its Art Broker wallet.</p>
-          <details><summary>How does this work?</summary><p>The wallet is derived from the Punk’s on-chain identity. It has no separate seed phrase, and control follows the Punk’s current holder.</p></details>
-          <div class="wizard-action-bar"><button class="wizard-secondary" type="button" data-wizard-back="choose">Back</button><button class="wizard-primary" type="button" data-wizard-next="limits">Continue</button></div>
-        </article>
-
-        <article class="wizard-screen" data-wizard-step="limits" hidden>
-          <p class="eyebrow">Step 3 of 5</p>
-          <h3>Set the Rules</h3>
-          <p>You decide how much your Punk is allowed to do.</p>
-          <fieldset class="wizard-choice-group"><legend>Daily mint limit</legend><div class="wizard-choice-row"><button type="button" data-wizard-cap="1">1</button><button type="button" data-wizard-cap="3">3</button><button type="button" data-wizard-cap="5">5</button><button type="button" data-wizard-custom-cap-toggle>Custom</button></div><label class="wizard-custom-field"><span>Custom daily limit (1–10)</span><input data-wizard-custom-cap type="number" inputmode="numeric" min="1" max="10" step="1" value="3" hidden /></label><small>Your agent will never autonomously mint more than this number per UTC day.</small></fieldset>
-          <fieldset class="wizard-choice-group"><legend>Run time</legend><div class="wizard-choice-row"><button type="button" data-wizard-days="1">24 hours</button><button type="button" data-wizard-days="7">7 days</button><button type="button" data-wizard-days="30">30 days</button><button type="button" data-wizard-custom-days-toggle>Custom</button></div><label class="wizard-custom-field"><span>Custom run time (1–30 days)</span><input data-wizard-custom-days type="number" inputmode="numeric" min="1" max="30" step="1" value="7" hidden /></label></fieldset>
-          <div class="wizard-summary"><span>Your Punk can collect up to <strong data-wizard-summary-cap>3 per day</strong></span><span>Agent authorization: <strong data-wizard-summary-days>7 days</strong></span></div>
-          <div class="wizard-action-bar"><button class="wizard-secondary" type="button" data-wizard-back="wallet">Back</button><button class="wizard-primary" type="button" data-wizard-next="activate">Continue</button></div>
-        </article>
-
-        <article class="wizard-screen" data-wizard-step="activate" hidden>
-          <p class="eyebrow">Step 4 of 5</p>
-          <h3>Activate Your Art Broker</h3>
-          <dl class="wizard-review"><div><dt>Punk</dt><dd data-wizard-punk-label>—</dd></div><div><dt>Daily limit</dt><dd data-wizard-summary-cap>3 per day</dd></div><div><dt>Duration</dt><dd data-wizard-summary-days>7 days</dd></div><div><dt>Paid mints</dt><dd>Blocked</dd></div><div><dt>Autonomous selling</dt><dd>Blocked</dd></div></dl>
-          <p>Activating creates the bounded permissions your hosted Art Broker needs to search for eligible free mints. Your wallet may show multiple setup confirmations; each one is confirmed on-chain before setup continues.</p>
-          <label class="wizard-confirm"><input type="checkbox" data-wizard-retirement /> I reviewed this Punk’s lifecycle notice. Any future retirement requires a separately published rarity tier and a separate holder-confirmed burn.</label>
-          <p class="wizard-state" data-wizard-state aria-live="polite">Your wallet will show each required setup transaction here.</p>
-          <a data-wizard-transaction href="#" target="_blank" rel="noopener noreferrer" hidden>View latest transaction ↗</a>
-          <div class="wizard-action-bar"><button class="wizard-secondary" type="button" data-wizard-back="limits">Back</button><button class="wizard-primary" type="button" data-wizard-activate>Activate Agent</button></div>
-        </article>
-
-        <article class="wizard-screen" data-wizard-step="power" hidden>
-          <p class="eyebrow">Step 5 of 5</p>
-          <h3>Launch Your Agent</h3>
-          <p>The shared hosted-gas pool pays the Robinhood Chain network fee when the Art Broker collects an eligible free mint. No payment is required from you to launch an already-activated Punk.</p>
-          <div class="wallet-role-grid"><div><strong>Your wallet</strong><small>Owns the Gogh Punk</small></div><div><strong>Punk wallet</strong><small>Stores collected NFTs</small></div><div><strong>Hosted gas</strong><small>Pays autonomous transaction fees</small></div></div>
-          <div class="wizard-gas-status"><span>Shared Hosted Gas</span><strong data-wizard-gas-status>Checking…</strong></div>
-          <button class="wizard-primary wizard-launch" type="button" data-wizard-send disabled>Send Agent</button>
-          <p class="wizard-note">Send your Punk scouting for an eligible zero-price mint. The on-chain cap, expiry, reviewed runtime, and zero-price checks still apply.</p>
-          <details class="wizard-gas-contribution">
-            <summary>Optional: support the shared hosted-gas pool</summary>
-            <p>This contribution supports all hosted agents. It does not activate your Punk and is never required to press Send Agent.</p>
-            <label class="wizard-custom-field"><span>Optional pool contribution</span><select data-wizard-gas-amount><option value="500000000000000">Small · 0.0005 ETH</option><option value="1000000000000000">Medium · 0.001 ETH</option><option value="2000000000000000">Large · 0.002 ETH</option></select></label>
-            <button class="wizard-secondary" type="button" data-wizard-fund>Contribute to Shared Gas Pool (Optional)</button>
-          </details>
-        </article>
-
-        <article class="wizard-screen wizard-success" data-wizard-step="success" hidden>
-          <span class="wizard-success-mark" aria-hidden="true">✓</span>
-          <p class="eyebrow">Setup complete</p>
-          <h3><span data-wizard-punk-label>Your Punk</span> Is Alive</h3>
-          <dl class="wizard-review"><div><dt>Agent</dt><dd>Active</dd></div><div><dt>Daily limit</dt><dd data-wizard-summary-cap>—</dd></div><div><dt>Collected today</dt><dd>Live in Agent Console</dd></div><div><dt>Punk wallet</dt><dd data-wizard-punk-wallet>—</dd></div></dl>
-          <div class="wizard-success-actions"><button class="wizard-primary" type="button" data-wizard-watch>Watch Agent</button><button class="wizard-secondary" type="button" data-wizard-portfolio>View Portfolio</button><button class="wizard-secondary" type="button" data-wizard-another>Activate Another Punk</button></div>
-        </article>
+    <main class="broker-main broker-launcher" id="main">
+      <section class="launcher-hero" aria-labelledby="launcher-title">
+        <p class="eyebrow">Gogh Punks Art Broker · Robinhood Chain</p>
+        <h1 id="launcher-title">Turn your Gogh Punk into an autonomous art collector.</h1>
+        <p>Choose a Punk you own to activate its Art Broker, watch its agent, manage its wallet, and see everything it collects.</p>
+        <button class="launcher-connect" type="button" data-wallet-connect>Connect Wallet</button>
       </section>
 
-      <details class="active-agent-console" data-active-agent-console>
-        <summary>
-          <span><small class="eyebrow">Returning collectors</small><strong id="active-agent-console-title">Your Active Agents</strong></span>
-          <span>Monitor agents</span>
-        </summary>
-        <p class="active-agent-intro">See every activated Punk wallet here. Open a Punk wallet for its live authorization, limits, activity, assets, and owner controls.</p>
-        <p class="agent-rotation-note"><strong>How rotation works:</strong> Production starts a fair worker cycle every 5 minutes and processes up to 6 due Punks, oldest first. A large roster takes multiple cycles to complete. “Next worker turn” is an advisory countdown—not a deadline and not a reason to restart an authorized agent.</p>
-        <div class="agent-health-summary" data-agent-health-summary aria-live="polite"></div>
-        <div class="active-agent-grid" data-active-agent-grid></div>
-        <p class="active-agent-empty" data-active-agent-empty>Connect your wallet to see active Punk agents.</p>
-      </details>
-
-      <aside class="safety-banner beta-test-banner" aria-label="Current automation scope">
-        <strong>Automation checkpoint:</strong> The page shows the active automation generation, worker heartbeat,
-        Punk authorization, and hosted-agent gas separately. Art-taste settings do not gate mints;
-        funding a Punk Account does not fund the hosted transaction signer.
-      </aside>
-
-      <nav class="workspace-jump-nav" aria-label="Art Broker setup steps">
-        <a href="#owner-workspace-title"><span>1</span> Choose Punk</a>
-        <a href="#active-agent-console-title"><span>2</span> Watch agents</a>
-        <a href="#results-title"><span>3</span> View results</a>
-      </nav>
-
-      <details class="getting-started-guide">
-        <summary><strong>Before you begin</strong><span>Wallet, gas, custody, and safety details</span></summary>
-        <div class="getting-started-grid">
-          <article><span>01</span><h3>Use the current holder wallet</h3><p>Connect the wallet that currently owns the Gogh Punk. Ownership is checked directly against the collection on Robinhood Chain before each gated action.</p></article>
-          <article><span>02</span><h3>Its NFT wallet is permanent</h3><p>The first setup creates one deterministic ERC-6551 wallet for the selected Punk. Control follows the Punk’s current holder; setup does not transfer the Punk or its assets.</p></article>
-          <article><span>03</span><h3>Know which wallet pays gas</h3><p>Your connected owner wallet pays one-time setup transactions. The hosted automation agent pays later mint gas. The Punk Account receives NFTs and does not pay hosted-worker gas.</p></article>
-          <article><span>04</span><h3>Limits stay enforceable</h3><p>Daily mint caps, reviewed adapters, collection permissions, prices, reserves, agent authorization, pause, and revocation are checked on-chain—not trusted to website copy.</p></article>
-          <article><span>05</span><h3>Approve setup, not every mint</h3><p>After one bounded on-chain setup, the encrypted agent can collect from the approved target set without another wallet popup for each mint. It stops at its cap, expiry, reserve, pause, or revocation.</p></article>
-          <article><span>06</span><h3>Every target is screened twice</h3><p>The continuous route does not require a wallet prompt per mint. The worker screens each candidate, then the on-chain adapter independently accepts only an active zero-price SeaDrop mint from an exactly reviewed OpenSea Studio runtime. Paid mints, approvals, arbitrary calldata, and selling stay impossible.</p></article>
-        </div>
-      </details>
-
-      <details class="advanced-workspace" data-advanced-workspace>
-        <summary><strong>Agent console, portfolio & advanced controls</strong><span>Live status, emergency controls, and withdrawals</span></summary>
-      <section class="section-block owner-workspace" aria-labelledby="owner-workspace-title">
-        <div class="section-heading owner-workspace-heading">
-          <div><p class="eyebrow">One-page setup</p><h2 id="owner-workspace-title">Your Punk workspace</h2></div>
+      <section class="ownership-launcher" aria-labelledby="your-punks-title">
+        <header class="ownership-launcher-header">
           <div>
-            <p>Only Punks proven to belong to the connected wallet appear here. Nothing is selected while the wallet is disconnected.</p>
-            <button class="action-link" type="button" data-refresh-owner-punks>Refresh My Punks</button>
+            <p class="eyebrow">Your collection</p>
+            <h2 id="your-punks-title">Your Gogh Punks</h2>
           </div>
-        </div>
-        <div class="metric-grid owner-metrics">
-          <article class="metric"><span>Wallet-owned Punks</span><strong data-owned-punk-count>—</strong><small data-owned-punk-detail>Connect owner wallet</small></article>
-          <article class="metric"><span>Selected Punk</span><strong data-selected-punk-display>—</strong><small>Chosen by you in a control below</small></article>
-          <article class="metric"><span>Agent execution</span><strong data-autonomy-status>OFF</strong><small>Controlled separately on-chain</small></article>
+          <button class="status-refresh-button" type="button" data-refresh-owner-punks>Refresh My Punks</button>
+        </header>
+
+        <div class="ownership-verification" role="status" aria-live="polite">
+          <strong data-ownership-state>CONNECT WALLET</strong>
+          <span data-owned-punk-detail>Canonical ownership will be verified on Robinhood Chain.</span>
+          <span><b data-owned-punk-count>—</b> verified</span>
         </div>
 
-        <label class="mandate-field workspace-master-picker">
-          <span>Choose one of my live-verified Punks</span>
-          <select data-workspace-punk-picker disabled>
-            <option value="">Connect wallet to load your Punks</option>
-          </select>
-          <small>This selection drives wallet setup, limits, NFT recovery, and automation below. Choosing a Punk never authorizes an agent by itself.</small>
-        </label>
-        <div class="selected-punk-preview" data-workspace-punk-preview aria-live="polite">
-          <p class="empty-state">Choose a Punk above to load its artwork.</p>
+        <div class="owner-account-grid punk-launcher-grid" data-owner-accounts>
+          <p class="empty-state">Connect the wallet that owns your Gogh Punks.</p>
         </div>
 
-        <details class="workflow-step collapsible-section" id="automation-title" data-autonomous-minting open>
-          <summary><span><span class="workflow-number">2</span><strong>Continuous free-mint automation</strong></span><small>Automatic safe profile · bounded and revocable</small></summary>
-          <div class="collapsible-content">
-            <p class="workflow-help">Choose a Punk above, pick a daily cap and run period, then confirm the setup transactions in your connected wallet. After setup, scheduled eligible free mints need no repeated wallet approval. The fixed safety profile still checks every target, runtime, price, and transaction.</p>
-            <ol class="automation-progress" aria-label="Agent setup progress" data-v2-progress>
-              <li data-v2-progress-step="choose"><span>1</span><strong>Choose Punk</strong></li>
-              <li data-v2-progress-step="limits"><span>2</span><strong>Set limits</strong></li>
-              <li data-v2-progress-step="confirm"><span>3</span><strong>Confirm setup</strong></li>
-              <li data-v2-progress-step="live"><span>4</span><strong>Agent live</strong></li>
-            </ol>
-            <p class="automation-progress-summary" data-v2-progress-summary aria-live="polite">Connect your wallet and choose a Punk to begin.</p>
-            <div class="metric-grid policy-live-grid automation-live-grid">
-              <article class="metric"><span>Automation readiness</span><strong data-v2-status>CHECKING</strong><small>Live safety and worker checks</small></article>
-              <article class="metric"><span>Selected Punk</span><strong data-v2-punk>Choose a Punk</strong><small>Must be live-owned by the connected wallet</small></article>
-              <article class="metric automation-wallet-metric">
-                <span>Punk NFT wallet</span>
-                <strong data-v2-account>Checking verified deployment</strong>
-                <small>Receives this Punk’s autonomous mints; it is not the hosted gas payer</small>
-                <div class="automation-wallet-actions">
-                  <button class="status-refresh-button" type="button" data-v3-account-copy disabled>Copy NFT-wallet address</button>
-                  <a class="status-refresh-button owner-account-gallery" data-punk-gallery-primary href="#" hidden>View verified NFT gallery</a>
-                  <a class="status-refresh-button owner-account-opensea" data-v3-account-opensea href="#" target="_blank" rel="noopener noreferrer" hidden>OpenSea (may update slowly) ↗</a>
-                </div>
-                <small data-v3-account-copy-state aria-live="polite">Select a live-verified Punk to reveal its NFT wallet.</small>
-              </article>
-              <article class="metric"><span>Hosted gas payer</span><strong data-v2-agent>CHECKING</strong><small data-v2-agent-balance>Live balance unavailable</small></article>
-              <article class="metric"><span>Per-mint payment</span><strong>0 ETH</strong><small>Gas only · paid mints remain blocked</small></article>
-              <article class="metric automation-worker-metric"><span>Hosted agent</span><strong data-v2-worker>CHECKING</strong><small data-v2-worker-detail>Waiting for a verified worker heartbeat</small><a class="status-refresh-button" data-v3-latest-mint href="#" target="_blank" rel="noopener noreferrer" hidden>No confirmed mint in the latest worker run</a><button class="status-refresh-button" type="button" data-v2-refresh>Refresh live status</button><small data-v2-refreshed aria-live="polite">Page has not synced yet</small></article>
-            </div>
-            <details class="automation-subpanel">
-              <summary><strong>Network activity</strong><span>Aggregate usage and adoption</span></summary>
-              <div class="metric-grid automation-secondary-metrics">
-                <article class="metric"><span>Confirmed autonomous mints</span><strong data-v3-usage-mints>—</strong><small data-v3-usage-mints-detail>Aggregate hosted-worker history</small></article>
-                <article class="metric"><span>Punk agents that have minted</span><strong data-v3-usage-punks>—</strong><small>Privacy-preserving aggregate · Punks are not people</small></article>
-                <article class="metric"><span>Wallets requesting autonomy</span><strong data-v3-usage-wallets>—</strong><small>Saved preference only · not proof of authorization</small></article>
-              </div>
-            </details>
-            <details class="automation-subpanel">
-              <summary><strong>Hosted-agent gas</strong><span>Optional shared gas contribution</span></summary>
-              <aside class="automation-gas-card" aria-labelledby="automation-gas-title">
-              <div>
-                <p class="eyebrow">Transaction gas</p>
-                <h3 id="automation-gas-title">Fund the hosted automation agent</h3>
-                <p>The hosted agent signs and pays network gas for eligible autonomous mints. This is a shared operational gas wallet—not your Punk’s asset wallet. Send only a small amount; Punk Account withdrawal controls cannot recover funds sent here.</p>
-                <code data-v2-agent-full>Waiting for verified live status…</code>
-              </div>
-              <div class="automation-gas-actions">
-                <strong data-v2-agent-balance-large>— ETH</strong>
-                <button class="action-button secondary-action" type="button" data-v2-agent-copy disabled>Copy gas-wallet address</button>
-                <label class="mandate-field"><span>Amount to contribute</span><select data-v2-agent-fund-amount disabled><option value="500000000000000">0.0005 ETH — recommended test amount</option><option value="1000000000000000">0.001 ETH</option><option value="2000000000000000">0.002 ETH</option></select></label>
-                <label class="canary-confirmation"><input type="checkbox" data-v2-agent-fund-confirm /> I understand this funds the shared hosted transaction signer, not my Punk Account, and is not recoverable through Punk withdrawal controls.</label>
-                <button class="action-button" type="button" data-v2-agent-fund disabled>Fund automation gas</button>
-                <p class="mandate-state" data-v2-agent-fund-state aria-live="polite">Live status must verify the exact gas-wallet address before funding is enabled.</p>
-              </div>
-              </aside>
-            </details>
-            <div class="layout-two owner-control-layout">
-              <article class="panel agent-command-center">
-                <div class="panel-header"><h3>Live agent scan terminal</h3><span class="tag off" data-v2-badge>CHECKING</span></div>
-                <p class="locked-note">Activation and limit setup use the single guided wizard above. This indexed feed shows every configured Punk in your wallet without polling the chain for each card. “Scanning” and “minting” appear only when the worker records those real states.</p>
-                <div class="agent-scan-terminal" role="region" aria-label="Punk agent scan terminal">
-                  <div class="agent-scan-terminal-bar"><span>GOGH / LIVE WORKER</span><span data-v3-scan-terminal-summary>Loading agent roster…</span></div>
-                  <pre data-v3-scan-terminal aria-live="polite">SYSTEM  waiting for the indexed agent roster</pre>
-                </div>
-                <label class="mandate-field" hidden><span>Quick setup</span><select data-v2-preset disabled><option value="1:7">Conservative · 1 mint/day for 7 days</option><option value="5:14">Standard · 5 mints/day for 14 days</option><option value="10:30">Active · 10 mints/day for 30 days</option><option value="custom">Custom limits</option></select></label>
-                <label class="mandate-field" hidden><span>Hard daily maximum</span><input data-v2-cap disabled type="number" inputmode="numeric" min="1" max="10" step="1" value="1" /></label>
-                <label class="mandate-field" hidden><span>How long it may run (days)</span><input data-v2-days disabled type="number" inputmode="numeric" min="1" max="30" step="1" value="7" /></label>
-                <aside class="retirement-activation-warning" data-retirement-disclosure hidden>
-                  <p class="eyebrow">Punk lifecycle warning</p>
-                  <h4 data-retirement-title>Verified retirement tier pending</h4>
-                  <p data-retirement-summary>Select a Punk to review its mint lifetime. No retirement countdown is active until a published rarity snapshot assigns that Punk an exact tier.</p>
-                  <details>
-                    <summary>How the proposed 1,420-supply retirement model works</summary>
-                    <div class="retirement-tier-grid" aria-label="Draft mint lifetimes by rarity">
-                      <span><strong>Common</strong>Ranks 3,011–5,016 · 100 mints</span>
-                      <span><strong>Uncommon</strong>Ranks 1,757–3,010 · 200 mints</span>
-                      <span><strong>Rare</strong>Ranks 754–1,756 · 400 mints</span>
-                      <span><strong>Epic</strong>Ranks 252–753 · 800 mints</span>
-                      <span><strong>Legendary</strong>Ranks 52–251 · 1,600 mints</span>
-                      <span><strong>Mythic</strong>Ranks 1–51 · 3,200 mints</span>
-                    </div>
-                    <p>OpenSea’s current OpenRarity rank may preview the band above. A live marketplace rank is not permanent evidence; the enforceable countdown cannot begin until the complete collection ranking is frozen, reviewed, and published with a canonical hash.</p>
-                    <ol class="retirement-sequence">
-                      <li>The lifetime counts only confirmed autonomous mints.</li>
-                      <li>At the limit, this Punk's automation stops and cannot begin another minting round.</li>
-                      <li>The holder reviews and withdraws every known NFT, token, and native balance.</li>
-                      <li>After a cooldown, only the current holder may explicitly confirm the irreversible Punk burn.</li>
-                    </ol>
-                    <p><strong>The agent never burns a Punk automatically.</strong> The current collection cannot force a holder to burn, and its direct burn function means the website cannot guarantee a permanent 1,420 floor.</p>
-                  </details>
-                  <label class="canary-confirmation"><input type="checkbox" data-retirement-confirm /> <span data-retirement-confirm-label>I reviewed the lifecycle and understand that retirement becomes required to continue automation after the verified mint lifetime; the final burn remains a separate owner-confirmed action.</span></label>
-                </aside>
-                <p class="setup-confirmation-plan" data-v2-confirmation-plan hidden>Setup confirmation count appears after you choose a Punk.</p>
-                <button class="action-button" type="button" data-v2-setup disabled hidden>Set up and start agent</button>
-                <button class="action-button secondary-action" type="button" data-v3-run-now disabled>Send selected agent now</button>
-                <button class="action-button secondary-action" type="button" data-v3-run-all disabled>Scan all my active Punks</button>
-                <p class="locked-note" data-v3-run-state>Sends the selected, already-authorized Punk into an immediate scan and enrolls it for scheduled scans. It grants no authority and still requires every live target, zero price, cap, runtime, and simulation check.</p>
-                <p class="locked-note" data-v2-message>This button unlocks only after the selected automation generation is deployed, fully verified, configured by the guardian, and checked against live chain state. Art Mandate preferences are not required.</p>
-                <p class="locked-note" data-v3-upgrade>Checking the broader V3 OpenSea Studio release.</p>
-              </article>
-              <article class="panel">
-                <div class="panel-header"><h3>What it may do</h3><span class="tag">FIXED SAFETY ENVELOPE</span></div>
-                <ul class="plain-safety-list"><li>Exact reviewed OpenSea Studio runtime only</li><li>Active public drop with mint price exactly 0</li><li>One ERC-721 per transaction</li><li>No token approvals or arbitrary calldata</li><li>Stops at daily cap, expiry, low gas, pause, or revocation</li></ul>
-                <details class="automation-coverage-note">
-                  <summary>Marketplace coverage</summary>
-                  <p><strong>Live:</strong> reviewed OpenSea Studio SeaDrop runtimes. <strong>Prepared, not live:</strong> target-specific Scatter and legacy HoodMarket HoodDrop V2 adapters. HoodMarket V3 is not yet supported. Each new collection still needs an exact runtime review, adapter deployment, Guardian registration, owner permissions, and a canary before the hosted agent may use it.</p>
-                </details>
-                <button class="action-button danger-action" type="button" data-v2-stop disabled>Stop and revoke automation</button>
-              </article>
-            </div>
-            <details class="automation-subpanel asset-recovery" id="nft-portfolio-title" data-nft-withdrawal>
-              <summary><strong>My Punk-agent NFT portfolio</strong><span>View and withdraw in one place</span></summary>
-              <div class="asset-recovery-grid">
-                <div>
-                  <p class="workflow-help">See confirmed NFTs still held across all of your live-owned Punk-agent wallets. Choose one below and its controlling Punk is selected automatically. A withdrawal can go only to the wallet that currently holds that Gogh Punk.</p>
-                  <ul class="plain-safety-list"><li>Live Punk ownership checked again before submission</li><li>Exact V3 Punk-wallet runtime verified</li><li>NFT ownership or balance proven live</li><li>Complete transfer simulated before MetaMask opens</li></ul>
-                </div>
-                <div class="asset-recovery-form">
-                  <label class="mandate-field"><span>Choose an NFT from any of my Punk agents</span><select data-nft-owned-asset disabled><option value="">Connect your wallet to load the portfolio</option></select><small data-nft-owned-detail>Confirmed autonomous mints are grouped by Punk and rechecked live before they appear.</small></label>
-                  <div class="nft-visual-picker" data-nft-owned-cards aria-label="Choose an NFT to withdraw"></div>
-                  <details class="manual-nft-entry">
-                    <summary>Manual contract and token entry</summary>
-                    <p class="locked-note">Use this fallback for an NFT transferred directly to the Punk wallet or not yet present in hosted mint history. Live ownership is still required.</p>
-                  <label class="mandate-field"><span>NFT standard</span><select data-nft-standard><option value="ERC721">ERC-721</option><option value="ERC1155">ERC-1155</option></select></label>
-                  <label class="mandate-field"><span>NFT collection contract</span><input data-nft-collection inputmode="text" placeholder="0x…" autocomplete="off" /></label>
-                  <label class="mandate-field"><span>NFT token ID</span><input data-nft-token-id inputmode="numeric" placeholder="Token ID" autocomplete="off" /></label>
-                  <label class="mandate-field" data-nft-amount-field hidden><span>ERC-1155 amount</span><input data-nft-amount inputmode="numeric" value="1" autocomplete="off" /></label>
-                  </details>
-                  <label class="canary-confirmation"><input type="checkbox" data-nft-confirm /> I reviewed the selected Punk, collection, token ID, and fixed current-holder destination.</label>
-                  <button class="action-button" type="button" data-nft-submit disabled>Verify and withdraw</button>
-                  <p class="mandate-state" data-nft-state aria-live="polite">Choose one of your wallet-owned Punks above.</p>
-                </div>
-              </div>
-            </details>
+        <details class="launcher-explainer">
+          <summary>How does an Art Broker work?</summary>
+          <div>
+            <p><strong>Your wallet</strong> keeps the Gogh Punk and controls every owner action.</p>
+            <p><strong>The Punk Wallet</strong> is the Punk’s separate on-chain wallet for collected NFTs.</p>
+            <p><strong>The hosted agent</strong> scouts only within the limits you authorize. Autonomous execution remains bounded: paid mints, selling, arbitrary calls, and main-wallet spending remain blocked.</p>
           </div>
         </details>
-
-        <details class="workflow-step collapsible-section public-scout-step" id="results-title">
-          <summary><span><span class="workflow-number">3</span><strong>Research and mint results</strong></span><small>Public read-only activity</small></summary>
-          <div class="collapsible-content">
-            <p class="workflow-help">Review what Scout found and what each Punk actually collected. This public data is separate from connected-wallet ownership and never selects a Punk for you.</p>
-            <div class="workspace-actions" aria-label="Research and results links">
-              <a class="action-link" href="#owner-workspace-title" data-selected-gallery-link aria-disabled="true">Choose a Punk to open its activity and gallery</a>
-              <a class="action-link" href="/discover/">Browse Scout discoveries</a>
-            </div>
-            <div class="metric-grid public-scout-metrics">
-              <article class="metric"><span>Selected Punk gallery</span><strong data-public-scout-token-display>—</strong><small>Follows your wallet-derived selection</small></article>
-              <article class="metric"><span>Discoveries</span><strong data-opportunity-count>0</strong><small>Historical signals</small></article>
-              <article class="metric"><span>Recommendations</span><strong data-recommendation-count>0</strong><small>Read-only Scout</small></article>
-              <article class="metric"><span>NFT artwork</span><strong data-metadata-count>0</strong><small>Sanitized metadata</small></article>
-            </div>
-          </div>
-        </details>
-      </section>
-      </details>
-
-      <section class="section-block" aria-labelledby="controls-title">
-        <div class="section-heading"><div><p class="eyebrow">Emergency controls</p><h2 id="controls-title">Owner remains in control.</h2></div><p>Owner recovery never depends on the AI backend. Global emergency roles can disable components but cannot seize Punk assets.</p></div>
-        <div class="metric-grid">
-          <article class="metric"><span>Pause agent</span><strong>Owner</strong><small>Independent of Scout service</small></article>
-          <article class="metric"><span>Revoke agent</span><strong>Owner</strong><small>Immediate on-chain check</small></article>
-          <article class="metric"><span>Withdraw assets</span><strong>Current holder</strong><small>No protocol-admin withdrawal path</small></article>
-          <article class="metric"><span>Autonomous selling</span><strong>OFF</strong><small>Not implemented in v1</small></article>
-        </div>
       </section>
     </main>
-    <footer class="broker-footer">© <span data-year>2026</span> Gogh Punks. Curatorial scores and Gallery Value are estimates—not financial advice, profit promises, or contract-safety guarantees.</footer>
-    <nav class="mobile-app-nav" aria-label="Mobile navigation"><a href="/">Home</a><a href="/broker/" aria-current="page">Broker</a><a href="/broker/#active-agent-console-title">Agents</a><a href="/broker/#nft-portfolio-title">Portfolio</a><button type="button" data-wallet-connect>Wallet</button></nav>
+
+    <footer class="broker-footer">Gogh Punks Art Broker · Owner-controlled and bounded on-chain.</footer>
+    <nav class="mobile-app-nav" aria-label="Mobile navigation"><a href="/">Home</a><a href="/broker/" aria-current="page">Broker</a><button type="button" data-wallet-connect>Wallet</button></nav>
   </body>
 </html>

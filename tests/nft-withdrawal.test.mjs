@@ -191,11 +191,11 @@ test("withdrawal blocks the controlling Punk, arbitrary destination fields, and 
       collection: COLLECTION, standard: "ERC721", tokenId, amount: "1",
     }));
   }
-  const html = await readFile(new URL("../site/broker/index.html", import.meta.url), "utf8");
+  const html = await readFile(new URL("../site/broker/punk/index.html", import.meta.url), "utf8");
   const source = await readFile(new URL("../site/nft-withdrawal.js", import.meta.url), "utf8");
   assert.doesNotMatch(html, /data-nft-(?:destination|calldata)/i);
-  assert.match(html, /withdrawal can go only to the wallet that currently holds/i);
-  assert.match(html, /data-nft-owned-asset/);
+  assert.match(html, /destination is always the wallet that currently owns this Gogh Punk/i);
+  assert.match(html, /data-control-withdrawal/);
   assert.equal((source.match(/"eth_sendTransaction"/g) ?? []).length, 1);
   assert.doesNotMatch(source, /localStorage|sessionStorage|privateKey|mnemonic/);
 });

@@ -129,8 +129,11 @@ test("wrong owner, wrong runtime, and changed review fail closed", async () => {
 test("legacy activation compatibility remains inert and is absent from the current broker UI", async () => {
   const source = await readFile(new URL("../site/account-activation.js", import.meta.url), "utf8");
   const html = await readFile(new URL("../site/broker/index.html", import.meta.url), "utf8");
+  const control = await readFile(new URL("../site/broker/punk/index.html", import.meta.url), "utf8");
   assert.match(source, /createAccount/);
   assert.doesNotMatch(source, /privateKey|mnemonic|personal_sign|eth_sign|wallet_addEthereumChain/);
   assert.doesNotMatch(html, /data-account-activation|account-activation\.js/);
-  assert.match(html, /Choosing a Punk never authorizes an agent by itself/);
+  assert.match(html, /Choose a Punk you own to activate its Art Broker/);
+  assert.match(control, /data-control-activate/);
+  assert.match(control, /Your Punk stays in your main wallet/);
 });

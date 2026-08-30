@@ -7,7 +7,7 @@ import {
   getAutomationV3PunkWorkerActivity, getAutomationV3UsageStats,
   punkWorkerActivityFromRow, punkWorkerEvidenceFromRow, recordAutomationV3PunkWorkerEvidence,
   recordAutomationV3WorkerHeartbeat, workerDiscoverySummary, workerHeartbeatFromRow,
-  workerUsageFromRow,
+  workerPlatformHealth, workerUsageFromRow,
 } from "../netlify/functions/_shared/automation-v3-worker-state.mjs";
 
 const RELEASE = "a".repeat(40);
@@ -52,6 +52,8 @@ test("V3 worker records append-only history and the current heartbeat atomically
   assert.match(calls[0].sql, /INSERT INTO broker_automation_v3_worker_runs/);
   assert.match(calls[0].sql, /INSERT INTO broker_automation_v3_worker_state/);
   assert.match(calls[0].sql, /ON CONFLICT DO NOTHING/);
+  assert.match(calls[0].sql, /last_successful_completed_at/);
+  assert.match(calls[0].sql, /consecutive_failure_count/);
   assert.deepEqual(JSON.parse(calls[0].values[10]), {
     discovered: 14, withWebsite: 8, withX: 6, highPriority: 2,
     sentToOnchainValidation: 3, maximumOnchainValidations: 3,
@@ -60,6 +62,53 @@ test("V3 worker records append-only history and the current heartbeat atomically
       websiteUrl: "https://example.com/", xUrl: "https://x.com/example",
       reasons: ["Free mint", "Supported contract runtime"] }],
   });
+});
+
+test("one failed worker attempt preserves recent platform life while execution fails closed", () => {
+  const completedAt = "2026-08-30T12:00:00.000Z";
+  const heartbeat = workerHeartbeatFromRow({
+    release_commit: RELEASE,
+    started_at: "2026-08-30T12:04:00.000Z",
+    completed_at: "2026-08-30T12:04:02.000Z",
+    status: "FAILED",
+    submitted: 0,
+    failure_code: "DISCOVERY_SCAN_FAILED",
+    last_successful_release_commit: RELEASE,
+    last_successful_started_at: "2026-08-30T11:59:58.000Z",
+    last_successful_completed_at: completedAt,
+    last_successful_status: "NO_ELIGIBLE_TARGETS",
+    consecutive_failure_count: 1,
+    last_failure_reason: "DISCOVERY_SCAN_FAILED",
+  });
+  assert.equal(heartbeat.consecutiveFailures, 1);
+  assert.deepEqual(workerPlatformHealth(
+    heartbeat, RELEASE, Date.parse("2026-08-30T12:05:00.000Z"),
+  ), {
+    status: "RECOVERING",
+    reason: "WORKER_RETRYING",
+    lastSuccessfulAt: completedAt,
+    consecutiveFailures: 1,
+  });
+});
+
+test("repeated failures become degraded without erasing last successful evidence", () => {
+  const heartbeat = workerHeartbeatFromRow({
+    release_commit: RELEASE,
+    started_at: "2026-08-30T12:24:00.000Z",
+    completed_at: "2026-08-30T12:24:02.000Z",
+    status: "FAILED",
+    submitted: 0,
+    failure_code: "DISCOVERY_SCAN_FAILED",
+    last_successful_release_commit: RELEASE,
+    last_successful_started_at: "2026-08-30T11:59:58.000Z",
+    last_successful_completed_at: "2026-08-30T12:00:00.000Z",
+    last_successful_status: "NO_ELIGIBLE_TARGETS",
+    consecutive_failure_count: 3,
+    last_failure_reason: "DISCOVERY_SCAN_FAILED",
+  });
+  assert.equal(workerPlatformHealth(
+    heartbeat, RELEASE, Date.parse("2026-08-30T12:25:00.000Z"),
+  ).status, "DEGRADED");
 });
 
 test("V3 worker records one bounded evidence row for every scheduled Punk", async () => {

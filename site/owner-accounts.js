@@ -9,6 +9,7 @@ const MAX_SUPPLY = "0xd5abeb01";
 const TOKEN_URI = "0xc87b56dd";
 const MULTICALL3 = "0xca11bde05977b3631167028862be2a173976ca11";
 const AGGREGATE3 = "0x82ad56cb";
+const MAX_OWNED_PUNKS = 5_017;
 
 function word(value) {
   return BigInt(value).toString(16).padStart(64, "0");
@@ -87,7 +88,9 @@ export async function readBrowserOwnerPunkBalance(provider, collection, owner) {
     throw new TypeError("Punk balance response is invalid");
   }
   const balance = BigInt(response);
-  if (balance > 200n) throw new RangeError("Wallet owns more Punks than the UI can display");
+  if (balance > BigInt(MAX_OWNED_PUNKS)) {
+    throw new RangeError("Wallet balance exceeds the canonical collection bound");
+  }
   return Number(balance);
 }
 
@@ -174,8 +177,8 @@ export async function discoverWalletOwnedPunkIds(provider, collection, owner) {
         params: [{ to: MULTICALL3, data: encodeOwnerOfMulticall(target, tokenIds) }, "latest"],
       });
       output.push(...decodeOwnerOfMulticall(response, tokenIds, expectedOwner));
-      if (output.length > 200) {
-        throw new RangeError("Wallet owns more Punks than the UI can display");
+      if (output.length > MAX_OWNED_PUNKS) {
+        throw new RangeError("Wallet ownership exceeds the canonical collection bound");
       }
     }
   };
@@ -360,7 +363,7 @@ export async function hydrateOnchainPunkDecorations(provider, collection, accoun
 }
 
 export function priorityArtworkAccounts(accounts, selectedTokenId = "") {
-  if (!Array.isArray(accounts) || accounts.length > 200
+  if (!Array.isArray(accounts) || accounts.length > MAX_OWNED_PUNKS
     || typeof selectedTokenId !== "string") {
     throw new TypeError("Punk artwork priority input is invalid");
   }
@@ -424,80 +427,61 @@ export function selectedPunkGalleryPath(tokenId) {
 }
 
 export function renderOwnerAccounts(container, accounts) {
+  const documentObject = container.ownerDocument ?? globalThis.document;
   container.replaceChildren();
   if (!accounts.length) {
-    const empty = document.createElement("p");
+    const empty = documentObject.createElement("p");
     empty.className = "empty-state";
-    empty.textContent = "No wallet-owned Punks were found from the indexed candidates. You can still enter a Punk ID manually above.";
+    empty.textContent = "This wallet does not currently own a Gogh Punk on Robinhood Chain.";
     container.append(empty);
     return;
   }
-  const activatedAccounts = accounts.filter(({ activated }) => activated);
-  const readyCount = accounts.length - activatedAccounts.length;
-  if (readyCount > 0) {
-    const summary = document.createElement("p");
-    summary.className = "empty-state owner-account-summary";
-    summary.textContent = `${readyCount} additional wallet-owned ${readyCount === 1 ? "Punk is" : "Punks are"} ready in the activation selector above.`;
-    container.append(summary);
-  }
-  for (const item of activatedAccounts) {
-    const card = document.createElement("article");
-    card.className = "panel owner-account-card";
-    const identity = document.createElement("div");
-    const eyebrow = document.createElement("p");
-    eyebrow.className = "eyebrow";
-    eyebrow.textContent = item.activated ? "Activated Punk Account" : "Owned Punk · ready to activate";
-    const title = document.createElement("h3");
-    const gallery = document.createElement("a");
-    gallery.href = `/punk/${encodeURIComponent(item.tokenId)}`;
-    gallery.textContent = `Gogh Punk #${item.tokenId}`;
-    title.append(gallery);
-    const label = document.createElement("p");
-    label.className = "locked-note";
-    label.textContent = item.activated
-      ? "Legacy V1 Punk wallet · separate from the V3 automation NFT wallet"
-      : "Deterministic future agent-wallet address";
-    const account = document.createElement("a");
-    account.className = "owner-account-address";
-    account.href = `https://robinhoodchain.blockscout.com/address/${item.account}`;
-    account.target = "_blank";
-    account.rel = "noopener noreferrer";
-    account.textContent = `${shortAddress(item.account)} ↗`;
-    account.title = item.account;
-    const actions = document.createElement("div");
-    actions.className = "owner-account-actions";
-    const copy = document.createElement("button");
-    copy.type = "button";
-    copy.className = "status-refresh-button";
-    copy.textContent = "Copy V1 wallet address";
-    copy.setAttribute("aria-label", `Copy Punk #${item.tokenId} legacy V1 wallet address`);
-    copy.addEventListener("click", async () => {
-      copy.disabled = true;
-      try {
-        await copyPunkAccountAddress(container.ownerDocument?.defaultView?.navigator,
-          item.account);
-        copy.textContent = "Address copied";
-      } catch {
-        copy.textContent = "Copy unavailable";
-      }
-      container.ownerDocument?.defaultView?.setTimeout?.(() => {
-        copy.textContent = "Copy V1 wallet address";
-        copy.disabled = false;
-      }, 1_800);
-    });
-    const openSea = document.createElement("a");
-    openSea.className = "status-refresh-button owner-account-opensea";
-    openSea.href = `https://opensea.io/${item.account}`;
-    openSea.target = "_blank";
-    openSea.rel = "noopener noreferrer";
-    openSea.textContent = "View V1 NFTs on OpenSea ↗";
-    actions.append(copy, openSea);
-    identity.append(eyebrow, title, label, account, actions);
-    const badge = document.createElement("span");
-    badge.className = "tag";
-    badge.classList.toggle("off", !item.activated);
-    badge.textContent = item.activated ? "ACTIVATED ONCHAIN" : "READY TO ACTIVATE";
-    card.append(identity, badge);
+  const labels = Object.freeze({
+    ACTIVE: ["ACTIVE", "Your Punk is in the worker rotation."],
+    QUEUED: ["WAITING IN ROTATION", "Your Punk is activated and waiting for its turn."],
+    WAITING_FOR_WORKER: ["WAITING FOR WORKER", "Still activated. No owner action is required."],
+    SCANNING: ["SCANNING", "Your Punk is checking mint candidates."],
+    MINTING: ["MINTING", "A verified mint is being submitted."],
+    PAUSED: ["PAUSED", "Open this Punk to review its controls."],
+    PUNK_ERROR: ["NEEDS YOUR ATTENTION", "This Punk has a Punk-specific issue to review."],
+  });
+  for (const item of accounts) {
+    const card = documentObject.createElement("article");
+    card.className = "punk-launcher-card";
+    const imageUrl = trustedArtworkUrl(item.artwork?.imageUrl);
+    const visual = documentObject.createElement(imageUrl ? "img" : "span");
+    visual.className = imageUrl ? "punk-launcher-art" : "punk-launcher-art placeholder";
+    if (imageUrl) {
+      visual.src = imageUrl;
+      visual.alt = item.artwork?.name || `Gogh Punk #${item.tokenId}`;
+      visual.loading = "lazy";
+      visual.decoding = "async";
+    } else {
+      visual.textContent = `#${item.tokenId}`;
+      visual.setAttribute("aria-label", `Artwork for Gogh Punk #${item.tokenId} is loading`);
+    }
+    const content = documentObject.createElement("div");
+    content.className = "punk-launcher-copy";
+    const title = documentObject.createElement("h3");
+    title.textContent = `Gogh Punk #${item.tokenId}`;
+    const status = item.agentSummary?.status ?? null;
+    const activated = item.agentSummary?.enrolled === true
+      || item.automationCreated === true || item.automationConfigured === true;
+    const [statusLabel, detail] = labels[status]
+      ?? (activated
+        ? ["READY", "Open this Punk to verify its live authorization."]
+        : ["NOT ACTIVATED", "Open this Punk to activate its Art Broker."]);
+    const badge = documentObject.createElement("strong");
+    badge.className = `punk-launcher-status status-${String(status ?? "inactive").toLowerCase()}`;
+    badge.textContent = statusLabel;
+    const description = documentObject.createElement("p");
+    description.textContent = detail;
+    const open = documentObject.createElement("a");
+    open.className = "punk-launcher-open";
+    open.href = `/broker/punk/${encodeURIComponent(item.tokenId)}`;
+    open.textContent = activated ? "Open Art Broker" : "Activate Art Broker";
+    content.append(title, badge, description, open);
+    card.append(visual, content);
     container.append(card);
   }
 }
@@ -510,7 +494,7 @@ export async function findBrowserOwnedPunks(provider, gate, owner, tokenIds = []
     || !normalizedAddress(bindings?.accountRegistry)) throw new Error("live gate unavailable");
   const candidates = [...new Set(tokenIds.map(String).filter(
     (value) => /^(0|[1-9]\d{0,3})$/.test(value),
-  ))].slice(0, 200);
+  ))].slice(0, MAX_OWNED_PUNKS);
   if (candidates.length === 0) return [];
 
   // Ownership, deterministic account addresses, and deployment state are all view calls with the
@@ -621,7 +605,7 @@ export async function findBrowserOwnerAccounts(provider, gate, owner, hints = []
 export function mergeWalletAndActivatedPunks(walletOwned, activated, owner) {
   const normalizedOwner = normalizedAddress(owner);
   if (!normalizedOwner || !Array.isArray(walletOwned) || !Array.isArray(activated)
-    || walletOwned.length > 200 || activated.length > 200) {
+    || walletOwned.length > MAX_OWNED_PUNKS || activated.length > MAX_OWNED_PUNKS) {
     throw new TypeError("Punk account merge input is invalid");
   }
   const activatedById = new Map();
@@ -689,6 +673,18 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
 
   function setContainerHtml(value) {
     if (container) container.innerHTML = value;
+  }
+
+  function setOwnershipState(status, detail = null) {
+    browserDocument.querySelectorAll("[data-ownership-state]").forEach((target) => {
+      target.textContent = status;
+      target.dataset.state = status.toLowerCase();
+    });
+    if (detail !== null) {
+      browserDocument.querySelectorAll("[data-owned-punk-detail]").forEach((target) => {
+        target.textContent = detail;
+      });
+    }
   }
 
   function setCounts(owned, activated, detail, ownedDetail = null) {
@@ -841,6 +837,10 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
     setCounts(decoratedAccounts.length, activatedCount, detail, reconciled
       ? "Live ownership reconciled"
       : "Live ownership verified from indexed roster");
+    setOwnershipState(decoratedAccounts.length === 0
+      ? "ZERO BALANCE CONFIRMED" : "VERIFIED",
+    reconciled ? "Canonical ownership reconciled and verified."
+      : "Canonical balance and indexed ownership agree.");
     renderPunkPicker(picker, decoratedAccounts);
     const routeSelection = requestedTokenId
       && decoratedAccounts.some(({ tokenId }) => tokenId === requestedTokenId)
@@ -924,9 +924,13 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       currentAccounts = [];
       currentCollection = null;
       announceOwnerPunks([]);
-      setContainerHtml('<p class="empty-state">Connect the owner wallet on Robinhood Chain to load activated Punk Accounts.</p>');
+      setOwnershipState("CONNECT WALLET", "Canonical ownership will be verified on Robinhood Chain.");
+      setContainerHtml('<p class="empty-state">Connect the wallet that owns your Gogh Punks.</p>');
       return;
     }
+    setOwnershipState(forceReconcile ? "RECONCILING" : "VERIFYING",
+      forceReconcile ? "Repairing and verifying the complete ownership roster…"
+        : "Checking canonical balance and indexed candidates…");
     setContainerHtml('<p class="empty-state loading">Loading indexed candidates and checking each live owner…</p>');
     try {
       const [gateResponse, candidatesResponse] = await Promise.all([
@@ -964,6 +968,8 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
         if (accounts.length !== liveBalance) {
           // A non-empty index can still omit a newly transferred Punk. balanceOf is the cheap
           // completeness assertion: only a mismatch pays for the bounded server reconciliation.
+          setOwnershipState("RECONCILING",
+            `The index found ${accounts.length} of ${liveBalance}. Repairing the roster…`);
           const reconcileResponse = await request(
             `/api/broker/owner-punks?owner=${encodeURIComponent(wallet.account)}&view=reconcile`,
             { headers: { accept: "application/json" }, cache: "no-store" },
@@ -991,6 +997,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
         // Multicalls, rather than making a phone scan 5,017 ownerOf calls. The resulting IDs are
         // still only hints: the wallet provider verifies every returned owner and Punk Account
         // binding in the same three live Multicalls used by the indexed path.
+        setOwnershipState("RECONCILING", "The ownership index is empty. Checking the collection…");
         const reconcileResponse = await request(
           `/api/broker/owner-punks?owner=${encodeURIComponent(wallet.account)}&view=reconcile`,
           { headers: { accept: "application/json" }, cache: "no-store" },
@@ -1029,6 +1036,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
         renderSelectedPunkPreview(selectedPreview, currentAccounts,
           workspacePicker?.value || mandatePicker?.value || picker?.value || "");
         if (container) renderOwnerAccounts(container, currentAccounts);
+        setOwnershipState("INDEX STALE", "Previously verified Punks remain visible; live refresh retrying.");
         return;
       }
       setCounts(null, null, "Live check unavailable");
@@ -1040,6 +1048,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       currentAccounts = [];
       currentCollection = null;
       announceOwnerPunks([]);
+      setOwnershipState("RPC UNAVAILABLE", "Ownership could not be verified. No zero-balance claim was made.");
       setContainerHtml('<p class="empty-state">Punks could not be checked right now. No ownership or wallet status was inferred from stale data.</p>');
     }
   }

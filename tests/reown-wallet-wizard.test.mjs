@@ -329,28 +329,28 @@ test("every wallet-enabled page restores the one Reown session and exposes disco
     assert.match(page, /\/wallet\.js\?v=reown-4/);
     assert.match(page, /data-wallet-connect/);
     assert.match(page, /data-wallet-disconnect/);
-    assert.match(page, /Disconnect Wallet/);
+    assert.match(page, /Disconnect(?: Wallet)?/);
   }
 });
 
-test("mobile wizard and AppKit source bind the required production experience", async () => {
-  const [html, css, client, wallet, packageJson, netlify] = await Promise.all([
+test("mobile Punk launcher and activation flow bind the required production experience", async () => {
+  const [launcher, html, css, client, wallet, packageJson, netlify] = await Promise.all([
     readFile(new URL("../site/broker/index.html", import.meta.url), "utf8"),
+    readFile(new URL("../site/broker/punk/index.html", import.meta.url), "utf8"),
     readFile(new URL("../site/broker.css", import.meta.url), "utf8"),
     readFile(new URL("../client/reown-wallet-app.js", import.meta.url), "utf8"),
     readFile(new URL("../site/wallet.js", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
     readFile(new URL("../netlify.toml", import.meta.url), "utf8"),
   ]);
-  for (const copy of ["Choose Your Punk", "Your Punk Gets Its Own Wallet", "Set the Rules",
-    "Activate Your Art Broker", "Launch Your Agent", "Send Agent", "Activate Another Punk",
-    "Your Active Agents"]) {
+  for (const copy of ["Punk Control Center", "Activate Art Broker", "Daily mint limit",
+    "Authorization duration", "Activate Art Broker", "Agent", "NFTs", "Activity"]) {
     assert.match(html, new RegExp(copy));
   }
-  assert.match(html, /data-wizard-step="choose"/);
-  assert.match(html, /data-wizard-step="success"/);
-  assert.match(html, /Custom daily limit \(1–10\)/);
-  assert.match(html, /Custom run time \(1–30 days\)/);
+  assert.match(launcher, /Turn your Gogh Punk into an autonomous art collector/);
+  assert.match(launcher, /data-owner-accounts/);
+  assert.match(html, /data-control-activation-cap/);
+  assert.match(html, /data-control-activation-days/);
   assert.match(css, /env\(safe-area-inset-bottom\)/);
   assert.match(css, /@media \(max-width: 620px\)/);
   assert.match(client, /caipNetworkId: "eip155:4663"/);

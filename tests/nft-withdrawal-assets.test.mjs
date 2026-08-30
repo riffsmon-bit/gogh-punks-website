@@ -210,16 +210,16 @@ test("one portfolio request groups confirmed NFTs across the holder's Punk agent
 });
 
 test("site exposes a selectable NFT list while retaining a live-checked manual fallback", async () => {
-  const html = await readFile(new URL("../site/broker/index.html", import.meta.url), "utf8");
+  const html = await readFile(new URL("../site/broker/punk/index.html", import.meta.url), "utf8");
   const browser = await readFile(new URL("../site/nft-withdrawal.js", import.meta.url), "utf8");
   const endpoint = await readFile(
     new URL("../netlify/functions/broker-nft-withdrawal-assets.mjs", import.meta.url), "utf8",
   );
-  assert.match(html, /data-nft-owned-asset/);
-  assert.match(html, /data-nft-owned-cards/);
-  assert.match(html, /My Punk-agent NFT portfolio/);
-  assert.match(html, /href="\/broker\/#nft-portfolio-title"/);
-  assert.match(html, /Manual contract and token entry/);
+  assert.match(html, /data-asset-grid/);
+  assert.match(html, /data-control-withdrawal/);
+  assert.match(html, /Collected NFTs/);
+  assert.match(html, /Withdraw to my wallet/i);
+  assert.match(html, /data-withdrawal-submit/);
   assert.match(browser, /nft-withdrawal-assets\?tokenId=/);
   assert.match(browser, /nft-withdrawal-assets\?tokenIds=/);
   assert.match(browser, /gogh:select-punk-request/);

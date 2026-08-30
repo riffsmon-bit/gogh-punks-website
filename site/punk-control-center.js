@@ -12,6 +12,9 @@ import {
 import {
   agentVisualState, confirmedMintHash, showConfirmedMintToast,
 } from "./agent-live-ui.js";
+import {
+  requestOwnerSetupArtifact, submitOwnerSetupTransactions,
+} from "./owner-agent-activation.js";
 
 const CHAIN_ID = 4663;
 const OWNER_OF_SELECTOR = "0x6352211e";
@@ -49,6 +52,7 @@ const state = {
   activityLoading: false,
   directedReviewId: null, directedIntentId: null, directedSourceUrl: null,
   fundingBusy: false, wrappedBusy: false, wrappedPlan: null,
+  activationBusy: false, activationMessage: null,
   withdrawalAsset: null, withdrawalAmount: "1", withdrawalBusy: false,
 };
 
@@ -105,6 +109,42 @@ function setActionAvailability(enabled) {
   if (amount) amount.disabled = !enabled || state.fundingBusy;
   if (confirmation) confirmation.disabled = !enabled || state.fundingBusy;
   renderFundingAction();
+  renderActivation();
+}
+
+function setupPurpose(value) {
+  return ({ ACTIVATE_V3_PUNK_ACCOUNT: "Create Punk Wallet",
+    CONFIGURE_ZERO_SPEND_AUTONOMOUS_POLICY: "Set Free-Mint Limits",
+    AUTHORIZE_PUBLISHED_AGENT: "Authorize Art Broker" })[value]
+    ?? "Confirm Art Broker Setup";
+}
+
+function renderActivation() {
+  const button = query("[data-control-activate]");
+  if (!button) return;
+  const authorizationActive = state.automation?.punk?.active === true;
+  const setupAvailable = state.automation?.setupTransactionAvailable === true;
+  const title = authorizationActive ? "Art Broker Active" : state.activated
+    ? "Reactivate This Art Broker" : "Activate This Art Broker";
+  const copy = authorizationActive
+    ? "This Punk is authorized and remains in the fair worker rotation. A temporary worker delay does not require reactivation."
+    : state.activated
+      ? "The Punk Wallet already exists. Confirm only the remaining bounded permission steps shown by your wallet."
+      : "Create this Punk's wallet, set a free-mint limit, and authorize the hosted Art Broker. Your Gogh Punk stays in your main wallet.";
+  setText("[data-control-activation-title]", title);
+  setText("[data-control-activation-copy]", copy);
+  setText("[data-control-activation-state]", state.activationMessage
+    ?? (authorizationActive ? "Confirmed on-chain. No owner action is required."
+      : setupAvailable ? "Ready. The site will label every required wallet transaction before it opens."
+        : "The live setup service is not ready. Your Punk and assets remain safe."));
+  button.hidden = authorizationActive;
+  button.disabled = state.activationBusy || !state.owned || !setupAvailable || authorizationActive;
+  button.textContent = state.activationBusy ? "ACTIVATION IN PROGRESS…"
+    : state.activated ? "REACTIVATE ART BROKER" : "ACTIVATE ART BROKER";
+  for (const selector of ["[data-control-activation-cap]", "[data-control-activation-days]"]) {
+    const element = query(selector);
+    if (element) element.disabled = state.activationBusy || !state.owned || authorizationActive;
+  }
 }
 
 function renderFundingAction() {
@@ -152,13 +192,28 @@ function controlPresentation() {
     account: state.account ?? "Control locked",
   };
   if (state.owned) return {
-    status: state.agentStatus === "SCANNING" || state.agentStatus === "MINTED"
-      ? `🟢 ${state.agentStatus}` : state.activated ? "🟡 PAUSED" : "⚪ READY TO ACTIVATE",
+    status: ["SCANNING", "MINTING", "MINTED", "ACTIVE"].includes(state.agentStatus)
+      ? `🟢 ${state.agentStatus}`
+      : ["WAITING", "QUEUED", "WAITING_FOR_WORKER"].includes(state.agentStatus)
+        ? "🟡 WAITING FOR WORKER"
+        : state.agentStatus === "PAUSED" ? "🟡 PAUSED"
+          : state.agentStatus === "PUNK_ERROR" ? "🔴 NEEDS YOUR ATTENTION"
+            : state.activated ? "🟡 CHECKING AUTHORIZATION" : "⚪ READY TO ACTIVATE",
     heading: state.agentStatus === "SCANNING" ? "Agent scanning"
-      : state.agentStatus === "MINTED" ? "Mint confirmed"
-        : state.activated ? "Agent paused" : "Ready to activate",
+      : state.agentStatus === "MINTING" ? "Mint in progress"
+        : state.agentStatus === "MINTED" ? "Mint confirmed"
+          : ["WAITING", "QUEUED", "WAITING_FOR_WORKER"].includes(state.agentStatus)
+            ? "Waiting in worker rotation"
+            : state.agentStatus === "PAUSED" ? "Agent paused"
+              : state.agentStatus === "PUNK_ERROR" ? "Punk needs attention"
+                : state.agentStatus === "ACTIVE" ? "Art Broker active"
+                  : state.activated ? "Checking authorization" : "Ready to activate",
     detail: demo ? "Local Punk ownership fixture loaded; no chain authority is implied."
-      : "Live Punk ownership was checked for the connected wallet.",
+      : ["WAITING", "QUEUED", "WAITING_FOR_WORKER"].includes(state.agentStatus)
+        ? "Your Punk is still activated. The hosted worker is temporarily delayed or this Punk is waiting for its fair turn. No owner action is required."
+        : state.agentStatus === "PUNK_ERROR"
+          ? "This Punk has a Punk-specific issue. Open Activity for the exact recorded reason."
+          : "Live Punk ownership and authorization were checked independently.",
     account: state.account ?? "Loading Punk Wallet…",
   };
   return {
@@ -170,6 +225,7 @@ function controlPresentation() {
 function renderIdentity() {
   const presentation = controlPresentation();
   setText("[data-control-token]", state.tokenId ?? "—");
+  setText("[data-terminal-punk]", state.tokenId ?? "—");
   setText("[data-directed-punk]", state.tokenId ? `#${state.tokenId}` : "—");
   setText("[data-control-account]", presentation.account);
   setText("[data-punk-fund-account]", presentation.account);
@@ -247,13 +303,24 @@ function renderAutomation() {
   const globalHeartbeat = automation?.heartbeat;
   const heartbeat = state.punkHeartbeat ?? (globalHeartbeat?.tokenId === state.tokenId
     ? globalHeartbeat : null);
-  const active = automation?.capability === true && punk?.active === true
-    && state.owned && state.activated;
-  const label = active ? agentVisualState(heartbeat, true)
-    : state.activated ? "PAUSED" : "INACTIVE";
+  const authorizationActive = punk?.active === true && state.owned && state.activated;
+  const platformStatus = automation?.platformHealth?.status ?? null;
+  const visual = authorizationActive ? agentVisualState(heartbeat, true) : "INACTIVE";
+  const punkSpecificFailure = visual === "NEEDS_ATTENTION"
+    && !new Set(["FAILED", "WORKER_RUN_FAILED", "DISCOVERY_SCAN_FAILED",
+      "PROFILE_STATE_READ_FAILED", "PROVIDER_OWNER_DISAGREEMENT"]).has(
+      String(heartbeat?.status ?? heartbeat?.reason ?? ""),
+    );
+  const label = !state.activated ? "INACTIVE"
+    : !authorizationActive ? "PAUSED"
+      : punkSpecificFailure ? "PUNK_ERROR"
+        : ["SCANNING", "MINTING", "MINTED", "QUEUED"].includes(visual) ? visual
+          : platformStatus && platformStatus !== "HEALTHY" ? "WAITING_FOR_WORKER"
+            : visual === "NEEDS_ATTENTION" ? "WAITING_FOR_WORKER" : "ACTIVE";
   state.agentStatus = label;
+  setText("[data-terminal-status]", label.replaceAll("_", " "));
   setText("[data-agent-status]", label);
-  setText("[data-agent-free]", active ? "ON" : "OFF");
+  setText("[data-agent-free]", authorizationActive ? "ON" : "OFF");
   setText("[data-agent-mint-limit]", punk?.maxAcquisitionsPerDay
     ? `${punk.maxAcquisitionsPerDay} NFTs/day` : "Not configured");
   setText("[data-agent-expiry]", punk?.authorization?.validUntil
@@ -263,7 +330,8 @@ function renderAutomation() {
   if (heartbeat?.completedAt) {
     setText("[data-agent-last-scan]", new Date(heartbeat.completedAt).toLocaleTimeString());
     setText("[data-agent-last-result]", heartbeatMessage(heartbeat));
-    setText("[data-agent-next-scan]", heartbeat.online === false ? "Waiting for worker"
+    setText("[data-agent-next-scan]", platformStatus && platformStatus !== "HEALTHY"
+      ? "Waiting for worker"
       : `~${new Date(Date.parse(heartbeat.completedAt) + 5 * 60_000).toLocaleTimeString()}`);
   }
   if (heartbeat && (!heartbeat.tokenId || heartbeat.tokenId === state.tokenId)) {
@@ -279,7 +347,7 @@ function heartbeatMessage(heartbeat) {
   const messages = {
     NO_ELIGIBLE_TARGETS: "No eligible supported mint was found in the latest scan.",
     MINT_CONFIRMED: "Mint successful. The NFT was sent to its Punk Wallet.",
-    FAILED: "The worker stopped safely and will require attention before execution.",
+    FAILED: "The worker stopped safely. This Punk stays activated and will retry after recovery.",
   };
   return messages[heartbeat?.status] ?? "The hosted agent completed a bounded check.";
 }
@@ -414,6 +482,73 @@ async function waitForReceipt(hash, revision) {
     await new Promise((resolve) => window.setTimeout(resolve, 2_000));
   }
   return null;
+}
+
+async function activateArtBroker() {
+  if (state.activationBusy) return;
+  if (demo) {
+    state.activationMessage = "Local demo: the reviewed activation plan is available, but no wallet transaction was submitted.";
+    renderActivation();
+    return;
+  }
+  if (!state.owned || !state.provider || !state.walletAccount || !state.tokenId) {
+    state.activationMessage = "Connect the wallet that currently owns this Punk on Robinhood Chain.";
+    renderActivation();
+    return;
+  }
+  if (state.automation?.setupTransactionAvailable !== true) {
+    state.activationMessage = "The live setup service is temporarily unavailable. No transaction was requested.";
+    renderActivation();
+    return;
+  }
+  const revision = state.revision;
+  const tokenId = state.tokenId;
+  const owner = state.walletAccount;
+  const isCurrent = () => revision === state.revision && state.tokenId === tokenId
+    && state.walletAccount === owner && state.owned === true;
+  const selection = Object.freeze({ tokenId, owner,
+    cap: query("[data-control-activation-cap]").value,
+    days: query("[data-control-activation-days]").value });
+  state.activationBusy = true;
+  state.activationMessage = "Preparing a live-checked activation plan for this Punk…";
+  renderActivation();
+  try {
+    await verifyCurrentOwner();
+    const artifact = await requestOwnerSetupArtifact((...args) => fetch(...args), selection);
+    await submitOwnerSetupTransactions(state.provider, artifact, selection, {
+      isCurrent,
+      onProgress(progress) {
+        const purpose = setupPurpose(progress.transaction.purpose);
+        state.activationMessage = progress.phase === "wallet"
+          ? `Transaction ${progress.index} of ${progress.total} — ${purpose}. Waiting for your wallet…`
+          : progress.phase === "confirming"
+            ? `Transaction ${progress.index} of ${progress.total} submitted — confirming ${purpose}…`
+            : `Transaction ${progress.index} of ${progress.total} confirmed ✓ — ${purpose}`;
+        renderActivation();
+      },
+    });
+    if (!isCurrent()) throw new Error("The selected wallet or Punk changed after activation");
+    state.activationMessage = "On-chain activation confirmed. Enrolling the agent and requesting its first scan…";
+    renderActivation();
+    const response = await fetch("/api/broker/autonomy-v3-run", {
+      method: "POST", headers: { accept: "application/json", "content-type": "application/json" },
+      body: JSON.stringify({ tokenId }), cache: "no-store",
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok || payload?.ok !== true) {
+      state.activationMessage = "Punk activated on-chain, but worker enrollment could not be confirmed. Your authorization remains intact; retry from Agent when the worker recovers.";
+    } else {
+      state.activationMessage = payload.run?.status === "RUN_IN_PROGRESS"
+        ? "Art Broker active ✓ Enrolled and waiting in the fair worker rotation."
+        : "Art Broker active ✓ Enrolled and first scan requested.";
+    }
+    await loadAutomation();
+  } catch (error) {
+    state.activationMessage = `${error?.message ?? "Activation stopped safely"}. No further transaction was submitted.`;
+  } finally {
+    state.activationBusy = false;
+    renderActivation();
+  }
 }
 
 async function fundPunkWallet() {
@@ -1119,6 +1254,7 @@ function bindActions() {
   query("[data-load-assets]").addEventListener("click", () => loadAssets().catch((error) => {
     query("[data-asset-grid]").textContent = error.message;
   }));
+  query("[data-control-activate]").addEventListener("click", activateArtBroker);
   query("[data-paid-save]").addEventListener("click", () => savePaidPolicy());
   query("[data-schedule-save]").addEventListener("click", () => saveScoutingSchedule());
   query("[data-directed-check]").addEventListener("click", () => checkDirectedMint());
@@ -1277,6 +1413,8 @@ async function applyWallet(wallet) {
   state.nativeBalance = null;
   state.wrappedBalance = null;
   state.fundingBusy = false;
+  state.activationBusy = false;
+  state.activationMessage = null;
   state.wrappedBusy = false;
   state.wrappedPlan = null;
   state.automation = null;

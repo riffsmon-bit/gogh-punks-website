@@ -13,6 +13,7 @@ const RUN_STATUSES = new Set([
   "MINT_CONFIRMED",
   "RUN_IN_PROGRESS",
 ]);
+const PLATFORM_STATUSES = new Set(["HEALTHY", "DELAYED", "RECOVERING", "DEGRADED", "OUTAGE"]);
 
 function plain(value, name) {
   if (!value || typeof value !== "object" || Array.isArray(value)
@@ -71,13 +72,34 @@ export async function getProductionAutomationV3Activity(fetchFunction = fetch, t
     /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
     "production activity time",
   );
-  if (!Number.isFinite(Date.parse(checkedAt)) || typeof activity.online !== "boolean") {
+  if (!Number.isFinite(Date.parse(checkedAt)) || typeof activity.configured !== "boolean"
+    || typeof activity.online !== "boolean" || typeof activity.executionReady !== "boolean") {
     throw new TypeError("Production activity state is invalid");
+  }
+  const platform = plain(activity.platformHealth, "production platform health");
+  const platformStatus = bounded(platform.status, /^[A-Z_]{3,32}$/, "platform status");
+  const platformReason = platform.reason == null ? null
+    : bounded(platform.reason, /^[A-Z0-9_]{3,64}$/, "platform reason");
+  if (!PLATFORM_STATUSES.has(platformStatus)
+    || !Number.isSafeInteger(platform.consecutiveFailures)
+    || platform.consecutiveFailures < 0
+    || (platform.lastSuccessfulAt !== null
+      && (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(platform.lastSuccessfulAt)
+        || !Number.isFinite(Date.parse(platform.lastSuccessfulAt))))) {
+    throw new TypeError("Production platform health is invalid");
   }
   const punk = activity.punk == null ? null : plain(activity.punk, "Punk activity");
   return Object.freeze({
     checkedAt,
+    configured: activity.configured,
     online: activity.online,
+    executionReady: activity.executionReady,
+    platformHealth: Object.freeze({
+      status: platformStatus,
+      reason: platformReason,
+      lastSuccessfulAt: platform.lastSuccessfulAt,
+      consecutiveFailures: platform.consecutiveFailures,
+    }),
     heartbeat: activity.heartbeat == null ? null : workerHeartbeatFromRow(activity.heartbeat),
     usage: activity.usage == null ? null : workerUsageFromRow(activity.usage),
     punk: punk === null ? null : Object.freeze({
