@@ -227,7 +227,11 @@ export async function enrichOpenSeaPortfolio(items, account, {
   const displayByIdentity = new Map(openSeaItems.map((item) => [item.identity, item]));
   const missing = items.filter((item) => {
     const display = displayByIdentity.get(`${item.collection}:${item.tokenId}`);
-    return !display || (!display.name && !display.imageUrl && !display.collectionSlug);
+    // The account inventory can know the NFT identity/name while omitting its
+    // current reveal image. In that case the exact NFT endpoint is still needed;
+    // treating any one display field as "complete" left valid OpenSea artwork on
+    // the placeholder indefinitely.
+    return !display || !display.name || !display.imageUrl || !display.collectionSlug;
   });
   if (typeof provider.exactNft === "function") {
     // Bound concurrency so a portfolio with several items does not burst the
@@ -260,7 +264,7 @@ export async function enrichOpenSeaPortfolio(items, account, {
       ...item,
       name: item.name ?? display?.name ?? null,
       imageUrl: item.imageUrl ?? display?.imageUrl ?? null,
-      collectionSlug: display?.collectionSlug ?? null,
+      collectionSlug: display?.collectionSlug ?? item.collectionSlug ?? null,
       floorPrice: display?.collectionSlug ? floors.get(display.collectionSlug) ?? null : null,
     });
   }));

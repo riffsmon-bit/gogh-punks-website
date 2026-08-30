@@ -132,6 +132,26 @@ test("enrichment falls back to bounded exact NFT reads when account inventory la
   assert.equal(item.floorPrice.amount, "0.03");
 });
 
+test("enrichment refreshes an exact NFT when account inventory omits revealed artwork", async () => {
+  const requested = [];
+  const source = {
+    accountNfts: async () => [{ identity: `${COLLECTION}:7`, collection: COLLECTION,
+      tokenId: "7", collectionSlug: "secret-hoods-millionaire",
+      name: "Secret Hoods Pre Reveal", imageUrl: null }],
+    exactNft: async (collection, identifier) => {
+      requested.push(`${collection}:${identifier}`);
+      return { identity: `${collection}:${identifier}`, collection, tokenId: identifier,
+        collectionSlug: "secret-hoods-millionaire", name: "Secret Hoods Pre Reveal",
+        imageUrl: "https://i.seadn.io/revealed.png" };
+    },
+    collectionFloor: async () => null,
+  };
+  const [item] = await enrichOpenSeaPortfolio([baseItem()], ACCOUNT,
+    { source, now: 1_800_000 });
+  assert.deepEqual(requested, [`${COLLECTION}:7`]);
+  assert.equal(item.imageUrl, "https://i.seadn.io/revealed.png");
+});
+
 test("enrichment adds advisory art and floor without changing authoritative identity", async () => {
   const checkedAt = "2026-08-29T04:00:00.000Z";
   const source = {

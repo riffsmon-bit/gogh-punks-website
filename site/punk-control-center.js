@@ -1,8 +1,9 @@
 import {
-  buildWrappedNativeTransaction, decodeUint256, ROBINHOOD_WETH, wrappedBalanceOfData,
+  buildWrappedNativeTransaction, decodeUint256, ROBINHOOD_WETH,
+  simulateWrappedNativeTransaction, submitWrappedNativeTransaction, wrappedBalanceOfData,
 } from "./wrapped-native.js";
 import {
-  fetchOwnerPolicyGate, prepareOwnerFunds, submitOwnerAction,
+  fetchOwnerPolicyGate, prepareOwnerFunds, readOwnerPolicyState, submitOwnerAction,
 } from "./owner-policy-controls.js";
 import {
   preflightNftWithdrawal, submitNftWithdrawal, validateWithdrawableNftAssets,
@@ -42,7 +43,8 @@ const state = {
   owned: false, activated: false, agentStatus: null, automation: null, assets: [],
   activity: [], timings: {}, revision: 0,
   directedReviewId: null, directedIntentId: null, directedSourceUrl: null,
-  fundingBusy: false, withdrawalAsset: null, withdrawalAmount: "1", withdrawalBusy: false,
+  fundingBusy: false, wrappedBusy: false, wrappedPlan: null,
+  withdrawalAsset: null, withdrawalAmount: "1", withdrawalBusy: false,
 };
 
 async function localApi(path, options = {}) {
@@ -399,7 +401,7 @@ async function waitForReceipt(hash, revision) {
     if (revision !== state.revision) throw new Error("Page state changed while confirming");
     const receipt = await rpc("eth_getTransactionReceipt", [hash]);
     if (receipt) {
-      if (receipt.status !== "0x1") throw new Error("Funding transaction reverted");
+      if (receipt.status !== "0x1") throw new Error("Transaction reverted");
       return receipt;
     }
     await new Promise((resolve) => window.setTimeout(resolve, 2_000));
@@ -464,6 +466,8 @@ async function fundPunkWallet() {
 
 async function reviewWrappedNative() {
   const output = query("[data-wrap-state]");
+  const transactionLink = query("[data-wrap-transaction]");
+  if (state.wrappedBusy) return;
   if (!state.owned || !state.activated || !state.account || !state.walletAccount) {
     output.textContent = "Activate this Punk Wallet and connect its current holder first.";
     return;
@@ -472,27 +476,70 @@ async function reviewWrappedNative() {
     output.textContent = "Review and accept the exact Punk Wallet, direction, amount, and WETH contract first.";
     return;
   }
-  try {
-    const plan = buildWrappedNativeTransaction({
-      direction: query("[data-wrap-direction]").value,
-      punkWallet: state.account,
-      currentOwner: state.walletAccount,
-      amount: query("[data-wrap-amount]").value.trim(),
-    });
-    const available = plan.direction === "WRAP" ? state.nativeBalance : state.wrappedBalance;
-    if (typeof available !== "bigint" || plan.amountWei > available) {
+  const revision = state.revision;
+  const tokenId = state.tokenId;
+  const account = state.account;
+  const direction = query("[data-wrap-direction]").value;
+  const amount = query("[data-wrap-amount]").value.trim();
+  const selection = Object.freeze({ tokenId, account, activated: true, owner: state.walletAccount });
+  const isCurrent = () => revision === state.revision && tokenId === state.tokenId
+    && account === state.account && direction === query("[data-wrap-direction]").value
+    && amount === query("[data-wrap-amount]").value.trim();
+  const prepare = async () => {
+    const gate = await fetchOwnerPolicyGate((...args) => fetch(...args));
+    const live = await readOwnerPolicyState(state.provider, gate, selection);
+    const plan = buildWrappedNativeTransaction({ direction, punkWallet: live.account,
+      currentOwner: live.owner, amount });
+    const wrappedRaw = await rpc("eth_call", [{ to: ROBINHOOD_WETH,
+      data: wrappedBalanceOfData(live.account) }, "latest"]);
+    const wrapped = decodeUint256(wrappedRaw);
+    const available = plan.direction === "WRAP" ? live.balanceWei : wrapped;
+    if (plan.amountWei > available) {
       throw new RangeError(`This Punk Wallet does not have enough ${plan.direction === "WRAP" ? "ETH" : "WETH"}`);
     }
-    if (demo) {
-      output.textContent = `${plan.direction === "WRAP" ? "Wrap" : "Unwrap"} review passed for ${query("[data-wrap-amount]").value} ${plan.direction === "WRAP" ? "ETH" : "WETH"}. Exact owner-only calldata was built; nothing was submitted.`;
+    await simulateWrappedNativeTransaction(state.provider, plan);
+    return plan;
+  };
+  state.wrappedBusy = true;
+  query("[data-wrap-review]").disabled = true;
+  try {
+    if (!state.wrappedPlan) {
+      output.textContent = "Rechecking the current holder, verified Punk Wallet, balance, and exact WETH call…";
+      const plan = demo ? buildWrappedNativeTransaction({ direction, punkWallet: account,
+        currentOwner: state.walletAccount, amount }) : await prepare();
+      if (!isCurrent()) throw new Error("Selected Punk or WETH action changed during review");
+      state.wrappedPlan = plan;
+      query("[data-wrap-review]").textContent = demo ? "Local Review Complete" : "Submit in MetaMask";
+      output.textContent = demo
+        ? `${direction === "WRAP" ? "Wrap" : "Unwrap"} review passed. Exact owner-only calldata was built; nothing was submitted.`
+        : `${direction === "WRAP" ? "Wrap" : "Unwrap"} simulation passed. Review once more, then submit in MetaMask.`;
       return;
     }
-    output.textContent = "Rechecking the current holder and simulating the exact owner-only call…";
-    await verifyCurrentOwner();
-    await rpc("eth_call", [plan.transaction, "latest"]);
-    output.textContent = `${plan.direction === "WRAP" ? "Wrap" : "Unwrap"} simulation passed. No transaction was submitted by this local build.`;
+    if (demo) return;
+    output.textContent = "Rechecking every binding before opening MetaMask…";
+    const submitted = await submitWrappedNativeTransaction(
+      state.provider, state.wrappedPlan, prepare, isCurrent,
+    );
+    transactionLink.href = `https://robinhoodchain.blockscout.com/tx/${submitted.hash}`;
+    transactionLink.hidden = false;
+    output.textContent = "Transaction submitted. Waiting for confirmation…";
+    const receipt = await waitForReceipt(submitted.hash, revision);
+    if (!receipt) {
+      output.textContent = "Transaction submitted; confirmation is taking longer than one minute. Follow it with the transaction link.";
+      return;
+    }
+    state.wrappedPlan = null;
+    query("[data-wrap-confirm]").checked = false;
+    query("[data-wrap-review]").textContent = "Review & Simulate";
+    await Promise.all([loadBalance(), loadWrappedBalance()]);
+    output.textContent = `${direction === "WRAP" ? "Wrap" : "Unwrap"} confirmed ✓ Balances refreshed.`;
   } catch (error) {
-    output.textContent = `${error.message}. Nothing was submitted.`;
+    state.wrappedPlan = null;
+    query("[data-wrap-review]").textContent = "Review & Simulate";
+    output.textContent = `${error?.message ?? "WETH action stopped safely"}.`;
+  } finally {
+    state.wrappedBusy = false;
+    query("[data-wrap-review]").disabled = !(state.owned && state.activated);
   }
 }
 
@@ -1077,6 +1124,13 @@ function bindActions() {
   query("[data-punk-fund-confirm]").addEventListener("change", renderFundingAction);
   query("[data-punk-fund-submit]").addEventListener("click", fundPunkWallet);
   query("[data-wrap-review]").addEventListener("click", reviewWrappedNative);
+  for (const control of queryAll("[data-wrap-direction], [data-wrap-amount], [data-wrap-confirm]")) {
+    control.addEventListener("input", () => {
+      state.wrappedPlan = null;
+      query("[data-wrap-review]").textContent = "Review & Simulate";
+      query("[data-wrap-transaction]").hidden = true;
+    });
+  }
   query("[data-withdrawal-confirm]").addEventListener("change", renderWithdrawal);
   query("[data-withdrawal-quantity]").addEventListener("input", (event) => {
     state.withdrawalAmount = event.target.value;
@@ -1105,21 +1159,78 @@ function initializeScheduleDefaults() {
   query("[data-schedule-end]").value ||= localDateTimeValue(end);
 }
 
-async function saveScoutingSchedule() {
-  if (!demo) {
-    setText("[data-schedule-state]", "The production schedule endpoint is intentionally disabled in this local-first branch. Open the local demo to exercise it.");
+function applyScoutingSchedule(schedule) {
+  if (!schedule) {
+    setText("[data-schedule-state]", "No window saved; this Punk uses the normal worker rotation.");
     return;
   }
+  query("[data-schedule-enabled]").checked = schedule.enabled === true;
+  query("[data-schedule-start]").value = localDateTimeValue(new Date(schedule.startAt));
+  query("[data-schedule-end]").value = localDateTimeValue(new Date(schedule.endAt));
+  setText("[data-schedule-state]", schedule.enabled
+    ? `Scheduled: ${new Date(schedule.startAt).toLocaleString()} through ${new Date(schedule.endAt).toLocaleString()}. Outside this UTC-bound window, the worker skips this Punk.`
+    : "Scheduled scouting is stopped for this Punk. Re-enable and save a future window to resume scheduled runs.");
+}
+
+async function loadScoutingSchedule() {
+  if (!state.tokenId || demo) return;
+  const response = await fetch(
+    `/api/broker/scouting-schedule?tokenId=${encodeURIComponent(state.tokenId)}`,
+    { headers: { accept: "application/json" }, cache: "no-store" },
+  );
+  const payload = await response.json().catch(() => null);
+  if (!response.ok || payload?.ok !== true) throw new Error("Scouting schedule is temporarily unavailable");
+  applyScoutingSchedule(payload.schedule);
+}
+
+async function saveScoutingSchedule() {
   try {
+    if (!state.owned || !state.provider || !state.walletAccount) {
+      throw new Error("Connect the current Punk holder on Robinhood Chain first");
+    }
     const start = new Date(query("[data-schedule-start]").value);
     const end = new Date(query("[data-schedule-end]").value);
     if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) throw new Error("Choose both dates");
-    const payload = await localApi("/api/local-v2/schedule", { body: { tokenId: state.tokenId,
+    const schedule = { schema: "GOGH_SCOUTING_SCHEDULE_V1", tokenId: state.tokenId,
       startAt: start.toISOString(), endAt: end.toISOString(), timezone: "UTC",
-      enabled: query("[data-schedule-enabled]").checked } });
-    setText("[data-schedule-state]", payload.schedule.enabled
-      ? `Saved: ${new Date(payload.schedule.startAt).toLocaleString()} through ${new Date(payload.schedule.endAt).toLocaleString()} (stored as UTC).`
-      : "Scouting schedule disabled.");
+      enabled: query("[data-schedule-enabled]").checked };
+    if (demo) {
+      const { schema: _schema, ...localSchedule } = schedule;
+      const payload = await localApi("/api/local-v2/schedule", { body: localSchedule });
+      applyScoutingSchedule(payload.schedule);
+      return;
+    }
+    const expectedAccount = state.walletAccount;
+    const expectedTokenId = state.tokenId;
+    setText("[data-schedule-state]", "Preparing a free owner signature for this exact UTC window…");
+    const preparedResponse = await fetch("/api/broker/scouting-schedule", {
+      method: "POST", headers: { accept: "application/json", "content-type": "application/json" },
+      body: JSON.stringify({ action: "prepare", walletAddress: expectedAccount, schedule }),
+    });
+    const prepared = await preparedResponse.json().catch(() => null);
+    if (!preparedResponse.ok || prepared?.ok !== true) {
+      throw new Error(prepared?.message ?? "The schedule could not be prepared");
+    }
+    const signature = await state.provider.request({ method: "personal_sign",
+      params: [prepared.message, expectedAccount] });
+    const [accounts, chainRaw] = await Promise.all([
+      state.provider.request({ method: "eth_accounts" }),
+      state.provider.request({ method: "eth_chainId" }),
+    ]);
+    if (!Array.isArray(accounts) || accounts[0]?.toLowerCase() !== expectedAccount
+      || Number.parseInt(chainRaw, 16) !== CHAIN_ID || state.tokenId !== expectedTokenId) {
+      throw new Error("Wallet account, network, or selected Punk changed before saving");
+    }
+    const completeResponse = await fetch("/api/broker/scouting-schedule", {
+      method: "POST", headers: { accept: "application/json", "content-type": "application/json" },
+      body: JSON.stringify({ action: "complete", challengeId: prepared.challengeId,
+        walletAddress: expectedAccount, signature }),
+    });
+    const completed = await completeResponse.json().catch(() => null);
+    if (!completeResponse.ok || completed?.ok !== true) {
+      throw new Error(completed?.message ?? "The schedule could not be saved");
+    }
+    applyScoutingSchedule(completed.schedule);
   } catch (error) {
     setText("[data-schedule-state]", `${error.message}. No schedule was saved.`);
   }
@@ -1142,6 +1253,8 @@ async function applyWallet(wallet) {
   state.nativeBalance = null;
   state.wrappedBalance = null;
   state.fundingBusy = false;
+  state.wrappedBusy = false;
+  state.wrappedPlan = null;
   state.automation = null;
   state.assets = [];
   state.withdrawalAsset = null;
@@ -1162,9 +1275,13 @@ async function applyWallet(wallet) {
     await Promise.all([loadOwnership(wallet), loadAutomation()]);
     if (revision !== state.revision) return;
     state.loading = false;
-    renderIdentity();
+    // Automation and live ownership are intentionally fetched in parallel. The automation
+    // response can finish before ownerOf, so its first render may not yet have enough authority
+    // evidence to call the agent active. Recompute after both reads settle to avoid leaving a
+    // genuinely active Punk mislabeled as PAUSED solely because of response ordering.
+    renderAutomation();
     if (!state.owned) return;
-    await Promise.all([loadBalance(), loadWrappedBalance()]).catch(() => {});
+    await Promise.all([loadBalance(), loadWrappedBalance(), loadScoutingSchedule()]).catch(() => {});
     if (query('[data-control-tab="assets"]')?.getAttribute("aria-selected") === "true") {
       await loadAssets().catch(() => {});
     }

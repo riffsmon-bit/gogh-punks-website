@@ -15,6 +15,7 @@ import { buildAssetDeposit, buildFixedOwnerWithdrawal, buildNativeDeposit,
   "../broker/src/control-center/asset-transfers.mjs";
 import { ROBINHOOD } from "../broker/src/config.mjs";
 import { buildWrappedNativeTransaction, decodeUint256, parseEthAmount,
+  simulateWrappedNativeTransaction, submitWrappedNativeTransaction,
   wrappedBalanceOfData } from "../site/wrapped-native.js";
 import { localWalletConfiguration, localWalletReferer } from
   "../scripts/lib/v2-local-wallet-config.mjs";
@@ -325,6 +326,33 @@ test("wrapped native actions permit only canonical one-for-one WETH deposit or w
   assert.equal(getterCalls, 0);
 });
 
+test("wrapped native submission re-simulates the exact reviewed transaction", async () => {
+  const plan = buildWrappedNativeTransaction({ direction: "WRAP", punkWallet: ACCOUNT,
+    currentOwner: OWNER, amount: "0.012" });
+  const requests = [];
+  const provider = { request: async ({ method, params }) => {
+    requests.push({ method, params });
+    if (method === "eth_call") return "0x";
+    if (method === "eth_estimateGas") return "0x5208";
+    if (method === "eth_sendTransaction") return `0x${"a".repeat(64)}`;
+    throw new Error(`unexpected ${method}`);
+  } };
+  assert.deepEqual(await simulateWrappedNativeTransaction(provider, plan), {
+    result: "0x", gas: "0x5208",
+  });
+  requests.length = 0;
+  const submitted = await submitWrappedNativeTransaction(provider, plan,
+    async () => buildWrappedNativeTransaction({ direction: "WRAP", punkWallet: ACCOUNT,
+      currentOwner: OWNER, amount: "0.012" }), () => true);
+  assert.equal(submitted.hash, `0x${"a".repeat(64)}`);
+  assert.deepEqual(requests.map(({ method }) => method),
+    ["eth_call", "eth_estimateGas", "eth_sendTransaction"]);
+  assert.deepEqual(requests.at(-1).params, [plan.transaction]);
+  await assert.rejects(submitWrappedNativeTransaction(provider, plan,
+    async () => buildWrappedNativeTransaction({ direction: "WRAP", punkWallet: ACCOUNT,
+      currentOwner: OWNER, amount: "0.013" }), () => true), /changed during review/);
+});
+
 test("local demo relays only the public Reown identifier for exact Control Center origins", async () => {
   assert.equal(localWalletReferer("http://127.0.0.1:8888/broker/punk/93?demo=1", 8888),
     "http://127.0.0.1:8888");
@@ -353,12 +381,14 @@ test("local demo relays only the public Reown identifier for exact Control Cente
 });
 
 test("Control Center is progressive, mobile, and keeps mint execution disabled", async () => {
-  const [html, browser, css, netlify, connector] = await Promise.all([
+  const [html, browser, css, netlify, connector, scheduleFunction, scheduleMigration] = await Promise.all([
     readFile(new URL("../site/broker/punk/index.html", import.meta.url), "utf8"),
     readFile(new URL("../site/punk-control-center.js", import.meta.url), "utf8"),
     readFile(new URL("../site/broker.css", import.meta.url), "utf8"),
     readFile(new URL("../netlify.toml", import.meta.url), "utf8"),
     readFile(new URL("../netlify/functions/broker-connector-opensea.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../netlify/functions/broker-scouting-schedule.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../netlify/database/migrations/20260829023000_create_scouting_schedules.sql", import.meta.url), "utf8"),
   ]);
   for (const label of ["Punk Control Center", "Overview", "Agent", "Mint", "Assets",
     "Activity", "Disconnect Wallet", "Paid Mint Settings", "Direct Your Punk to a Mint", "Add Assets",
@@ -390,6 +420,20 @@ test("Control Center is progressive, mobile, and keeps mint execution disabled",
   assert.match(browser, /fetchOwnerPolicyGate/);
   assert.match(browser, /Selected Punk changed during review/);
   assert.match(browser, /waitForReceipt/);
+  assert.match(browser, /submitWrappedNativeTransaction/);
+  assert.match(browser, /\/api\/broker\/scouting-schedule/);
+  assert.match(browser, /personal_sign/);
+  assert.match(html, /Save Scouting Window/);
+  assert.match(html, /data-wrap-transaction/);
+  assert.match(scheduleFunction, /requireLiveOwner/);
+  assert.match(scheduleFunction, /verifyWalletSignature/);
+  assert.match(scheduleFunction, /pg_advisory_xact_lock/);
+  assert.match(scheduleFunction, /aggregateBy: \["ip"\]/);
+  assert.match(scheduleMigration, /broker_scouting_schedules/);
+  assert.match(scheduleMigration, /broker_scouting_schedule_challenges/);
+  assert.match(browser,
+    /await Promise\.all\(\[loadOwnership\(wallet\), loadAutomation\(\)\]\);[\s\S]*?state\.loading = false;[\s\S]*?renderAutomation\(\);/,
+    "active state must be recomputed after both parallel authority reads settle");
   assert.doesNotMatch(browser, /eth_sendTransaction|wallet_sendCalls|sendRawTransaction/);
   const demoServer = await readFile(new URL("../scripts/run-v2-local-demo.mjs", import.meta.url), "utf8");
   assert.match(demoServer, /localWalletConfiguration/);

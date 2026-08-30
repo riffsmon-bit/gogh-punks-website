@@ -114,10 +114,14 @@ test("V3 automatic profile uses enrolled, saved, configured, or immediately requ
     },
   };
   const scheduled = await eligibleAutomationV3Profiles(database, null, ["1797"]);
-  assert.deepEqual(scheduled.map((row) => String(row.token_id)), ["93", "1797"]);
+  assert.deepEqual(scheduled.map((row) => String(row.token_id)), ["93"]);
   assert.equal(calls[0].values[3], 10_000);
+  assert.deepEqual(calls[0].values[4], ["1797"]);
   assert.match(calls[0].sql, /broker_automation_v3_enrollments/);
   assert.match(calls[0].sql, /latest_saved_punks/);
+  assert.match(calls[0].sql, /UNNEST\(\$5::numeric\[\]\)/);
+  assert.match(calls[0].sql, /broker_scouting_schedules/);
+  assert.match(calls[0].sql, /NOW\(\) >= schedule\.start_at/);
   assert.doesNotMatch(calls[0].sql, /m\.mode = 'AUTONOMOUS'/);
 
   const immediate = await eligibleAutomationV3Profiles(

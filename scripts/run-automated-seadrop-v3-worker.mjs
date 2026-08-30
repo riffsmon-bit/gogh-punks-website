@@ -354,19 +354,29 @@ export async function eligibleAutomationV3Profiles(
        WHERE e.chain_id = $1 AND e.collection_address = $2
       UNION
       SELECT token_id FROM latest_saved_punks
+      UNION
+      SELECT UNNEST($5::numeric[]) AS token_id
     )
-    SELECT token_id, NULL::text AS configured_by, NULL::jsonb AS economic_settings,
+    SELECT enrolled.token_id, NULL::text AS configured_by, NULL::jsonb AS economic_settings,
            NULL::jsonb AS risk_settings, NULL::jsonb AS artistic_preferences,
            TRUE AS automatic_profile
       FROM enrolled
-     WHERE ($3::numeric IS NULL OR token_id = $3::numeric)
-     ORDER BY token_id
+      LEFT JOIN broker_scouting_schedules schedule
+        ON schedule.chain_id = $1
+       AND schedule.collection_address = $2
+       AND schedule.token_id = enrolled.token_id
+     WHERE ($3::numeric IS NULL OR enrolled.token_id = $3::numeric)
+       AND (schedule.token_id IS NULL OR (schedule.enabled = TRUE
+         AND NOW() >= schedule.start_at AND NOW() < schedule.end_at))
+     ORDER BY enrolled.token_id
      LIMIT $4`, [4663, ROBINHOOD.canonicalCollection, requestedTokenId,
-    ELIGIBLE_PROFILE_LIMIT]);
+    ELIGIBLE_PROFILE_LIMIT, configuredTokenIds]);
   const rows = [...result.rows];
   const known = new Set(rows.map(({ token_id: tokenId }) => String(tokenId)));
-  const automaticTokenIds = requestedTokenId === null
-    ? configuredTokenIds : [...new Set([...configuredTokenIds, requestedTokenId])];
+  // An explicit owner-triggered scan is allowed immediately even when it falls
+  // outside a saved recurring window. Environment-configured recurring Punks
+  // are part of the SQL roster above so the persisted window cannot be bypassed.
+  const automaticTokenIds = requestedTokenId === null ? [] : [requestedTokenId];
   for (const tokenId of automaticTokenIds) {
     if ((requestedTokenId === null || requestedTokenId === tokenId) && !known.has(tokenId)) {
       rows.push(Object.freeze({

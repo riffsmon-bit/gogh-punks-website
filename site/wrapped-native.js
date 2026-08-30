@@ -91,3 +91,51 @@ export function buildWrappedNativeTransaction(rawInput) {
     }),
   });
 }
+
+function exactTransaction(left, right) {
+  return left?.from === right?.from && left?.to === right?.to
+    && left?.value === right?.value && left?.data === right?.data;
+}
+
+async function providerRequest(provider, method, params = []) {
+  if (!provider || typeof provider.request !== "function") {
+    throw new TypeError("Wallet provider is unavailable");
+  }
+  return provider.request({ method, params });
+}
+
+export async function simulateWrappedNativeTransaction(provider, plan) {
+  if (!plan || typeof plan !== "object" || !plan.transaction) {
+    throw new TypeError("Wrapped native plan is invalid");
+  }
+  const [result, gas] = await Promise.all([
+    providerRequest(provider, "eth_call", [plan.transaction, "latest"]),
+    providerRequest(provider, "eth_estimateGas", [plan.transaction]),
+  ]);
+  if (typeof result !== "string" || !/^0x[0-9a-fA-F]*$/.test(result)
+    || typeof gas !== "string" || !/^0x[0-9a-fA-F]+$/.test(gas) || BigInt(gas) === 0n) {
+    throw new Error("The exact WETH transaction did not simulate successfully");
+  }
+  return Object.freeze({ result, gas });
+}
+
+export async function submitWrappedNativeTransaction(provider, reviewedPlan, rebuild, isCurrent) {
+  if (typeof rebuild !== "function" || typeof isCurrent !== "function" || !isCurrent()) {
+    throw new Error("Page state changed before WETH submission");
+  }
+  const freshPlan = await rebuild();
+  if (!freshPlan || reviewedPlan.direction !== freshPlan.direction
+    || reviewedPlan.amountWei !== freshPlan.amountWei
+    || reviewedPlan.wrappedNative !== freshPlan.wrappedNative
+    || !exactTransaction(reviewedPlan.transaction, freshPlan.transaction)
+    || !isCurrent()) {
+    throw new Error("Punk Wallet, owner, amount, or WETH action changed during review");
+  }
+  await simulateWrappedNativeTransaction(provider, freshPlan);
+  if (!isCurrent()) throw new Error("Page state changed before WETH submission");
+  const hash = await providerRequest(provider, "eth_sendTransaction", [freshPlan.transaction]);
+  if (typeof hash !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(hash)) {
+    throw new Error("Wallet did not return a WETH transaction hash");
+  }
+  return Object.freeze({ hash, plan: freshPlan });
+}
