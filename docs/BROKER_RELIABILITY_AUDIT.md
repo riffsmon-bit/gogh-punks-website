@@ -57,3 +57,38 @@
   inventory, mint, withdrawal, and activity only in `/broker/punk/:tokenId`.
 - Keep privileged mutations on fresh live chain checks; no on-chain security gate is
   weakened by these UI/availability changes.
+
+## Supabase staged operational migration
+
+The reviewed target is additive. It does not replace Robinhood Chain authority or the
+current V3 executor:
+
+```text
+Robinhood Chain (owner, account, authorization, limits)
+                         |
+current Netlify worker --+--> Supabase shadow evidence
+                                  |
+                           per-Punk durable jobs
+                                  |
+                       canary worker after evidence
+```
+
+`20260830210000_create_gogh_broker_operational_shadow.sql` creates six RLS-enabled
+operational tables and one atomic `FOR UPDATE SKIP LOCKED` claim function. Each queue
+row belongs to one Punk, has its own lease/attempt count, and is completed or retried
+independently. Queue enqueue, claim, and completion additionally require:
+
+- `BROKER_SUPABASE_QUEUE_MODE=CANARY` or `ACTIVE`;
+- an exact worker-release match;
+- the explicit cutover acknowledgement.
+
+The current worker remains authoritative in `SHADOW`. Shadow persistence errors are
+logged but cannot alter a mint result, hide an owned Punk, or strand the legacy worker.
+Canonical ownership snapshots may be mirrored only after `balanceOf` and every returned
+`ownerOf` have reconciled at the same pinned block. Supabase is not read as ownership
+authority during the shadow phase.
+
+The linked Netlify project did not expose a Supabase PostgreSQL variable during the
+2026-08-30 audit, so this schema is intentionally not applied and the mode remains
+`DISABLED`. See `docs/SUPABASE_OPERATIONAL_MIGRATION.md` for the evidence gates and
+rollback procedure.

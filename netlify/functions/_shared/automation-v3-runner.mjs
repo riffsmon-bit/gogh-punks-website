@@ -7,6 +7,7 @@ import {
 import {
   recordAutomationV3PunkWorkerEvidence, recordAutomationV3WorkerHeartbeat,
 } from "./automation-v3-worker-state.mjs";
+import { shadowAutomationV3Run } from "./supabase-operational-store.mjs";
 
 const WORKER_LOCK_ID = 46_630_003;
 const WORKER_LEASE_MILLISECONDS = 90_000;
@@ -69,6 +70,19 @@ export async function runAutomationV3Once(options = {}) {
       } catch {
         console.error(JSON.stringify({ event: "AUTOMATION_V3_PUNK_EVIDENCE_FAILED" }));
       }
+      try {
+        await (options.shadow ?? shadowAutomationV3Run)(result, {
+          environment,
+          jobId: holder,
+          release: environment.BROKER_AUTOMATION_V3_WORKER_RELEASE,
+          startedAt,
+          completedAt,
+        });
+      } catch {
+        // Supabase starts as a non-authoritative shadow. A shadow write failure must be visible
+        // to operators, but it cannot change the reviewed worker result or strand a Punk.
+        console.error(JSON.stringify({ event: "AUTOMATION_V3_SUPABASE_SHADOW_FAILED" }));
+      }
       return Object.freeze(result);
     } catch (error) {
       const completedAt = new Date();
@@ -96,6 +110,17 @@ export async function runAutomationV3Once(options = {}) {
         });
       } catch {
         console.error(JSON.stringify({ event: "AUTOMATION_V3_PUNK_EVIDENCE_FAILED" }));
+      }
+      try {
+        await (options.shadow ?? shadowAutomationV3Run)(failedResult, {
+          environment,
+          jobId: holder,
+          release: environment.BROKER_AUTOMATION_V3_WORKER_RELEASE,
+          startedAt,
+          completedAt,
+        });
+      } catch {
+        console.error(JSON.stringify({ event: "AUTOMATION_V3_SUPABASE_SHADOW_FAILED" }));
       }
       throw error;
     }

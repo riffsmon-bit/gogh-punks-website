@@ -5,6 +5,7 @@ import automationManifest from "../../deployments/robinhood-automation-v3.json" 
 import { json } from "./_shared/http.mjs";
 import { nftDisplayMetadata, NFT_DISPLAY_METADATA_SELECT } from
   "./_shared/broker-display-metadata.mjs";
+import { shadowOwnershipProjection } from "./_shared/supabase-operational-store.mjs";
 
 // A holder may own any bounded subset of the canonical collection. Candidate reads are still
 // chunked below, so this collection-sized ceiling prevents a false "unavailable" result for a
@@ -810,15 +811,25 @@ export default async function handler(request) {
       }
     }
     if (liveOwnerSnapshot) {
-      try {
+      const writes = await Promise.allSettled([
         // A complete balanceOf reconciliation at one pinned block is safe to persist as an
         // acceleration index. The browser and every privileged action still recheck live ownerOf.
-        await refreshIndexedOwnerPunks(
-          owner, liveOwnerSnapshot.tokenIds, liveOwnerSnapshot.blockNumber,
-        );
-      } catch (error) {
+        refreshIndexedOwnerPunks(owner, liveOwnerSnapshot.tokenIds, liveOwnerSnapshot.blockNumber),
+        // Supabase receives the same already-canonical snapshot only as a shadow projection. It
+        // is never consulted as ownership authority and a shadow outage cannot hide a Punk.
+        shadowOwnershipProjection(owner, liveOwnerSnapshot.tokenIds, liveOwnerSnapshot.blockNumber, {
+          rpcSource,
+        }),
+      ]);
+      if (writes[0].status === "rejected") {
         console.error(JSON.stringify({
-          event: "BROKER_OWNER_PUNK_INDEX_REFRESH_UNAVAILABLE", type: error?.name,
+          event: "BROKER_OWNER_PUNK_INDEX_REFRESH_UNAVAILABLE", type: writes[0].reason?.name,
+        }));
+      }
+      if (writes[1].status === "rejected") {
+        console.error(JSON.stringify({
+          event: "BROKER_OWNER_PUNK_SUPABASE_SHADOW_UNAVAILABLE",
+          type: writes[1].reason?.name,
         }));
       }
     }
