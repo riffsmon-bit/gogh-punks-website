@@ -76,6 +76,20 @@ export function matrixEventMessage(event) {
   return "Worker state recorded.";
 }
 
+export function matrixWorkerEvidenceMessage(activity) {
+  const heartbeat = plainObject(activity)?.heartbeat;
+  const status = typeof heartbeat?.status === "string" && /^[A-Z_]{2,64}$/.test(heartbeat.status)
+    ? heartbeat.status : null;
+  const completedAt = typeof heartbeat?.completedAt === "string"
+    && Number.isFinite(Date.parse(heartbeat.completedAt)) ? heartbeat.completedAt : null;
+  if (!status || !completedAt) return null;
+  const tokenId = /^(?:0|[1-9][0-9]{0,3})$/.test(String(heartbeat.tokenId ?? ""))
+    ? `  [#${heartbeat.tokenId}]` : "";
+  const failure = typeof heartbeat.failureCode === "string"
+    && /^[A-Z0-9_]{3,64}$/.test(heartbeat.failureCode) ? ` · ${heartbeat.failureCode}` : "";
+  return `SYSTEM${tokenId}  WORKER_${status}${failure} · verified ${timeLabel(completedAt)}`;
+}
+
 export function mergeMatrixEvents(current, incoming, maximum = MAX_EVENTS) {
   const byId = new Map();
   for (const value of [...(current ?? []), ...(incoming ?? [])]) {
@@ -207,7 +221,8 @@ function setupAgentMatrix({ windowObject, documentObject, fetchFunction } = {}) 
       empty.className = "matrix-event-empty";
       empty.textContent = state.loading
         ? "SYSTEM  Loading persisted worker activity…"
-        : "SYSTEM  No recorded events match this view yet.";
+        : matrixWorkerEvidenceMessage(state.lastActivity)
+          ?? "SYSTEM  No recorded events match this view yet.";
       list.append(empty);
     }
     if (!state.paused) list.parentElement.scrollTop = list.parentElement.scrollHeight;

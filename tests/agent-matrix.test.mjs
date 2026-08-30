@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  filterMatrixEvents, matrixEventMessage, mergeMatrixEvents, normalizeMatrixEvent,
+  filterMatrixEvents, matrixEventMessage, matrixWorkerEvidenceMessage,
+  mergeMatrixEvents, normalizeMatrixEvent,
 } from "../site/agent-matrix.js";
 
 const mint = Object.freeze({
@@ -47,4 +48,18 @@ test("Matrix copy describes recorded outcomes without claiming fabricated activi
   assert.equal(matrixEventMessage(scan), "Searching supported mint sources.");
   assert.equal(matrixEventMessage(skipped),
     "Candidate skipped because transaction simulation failed.");
+});
+
+test("Matrix fallback reports only a validated real worker heartbeat", () => {
+  assert.match(matrixWorkerEvidenceMessage({ heartbeat: {
+    status: "FAILED", failureCode: "DISCOVERY_SCAN_FAILED", tokenId: null,
+    completedAt: "2026-08-30T19:07:03.445Z",
+  } }), /^SYSTEM  WORKER_FAILED · DISCOVERY_SCAN_FAILED · verified /);
+  assert.match(matrixWorkerEvidenceMessage({ heartbeat: {
+    status: "MINT_CONFIRMED", failureCode: null, tokenId: "93",
+    completedAt: "2026-08-30T19:07:03.445Z",
+  } }), /^SYSTEM  \[#93\]  WORKER_MINT_CONFIRMED · verified /);
+  assert.equal(matrixWorkerEvidenceMessage({ heartbeat: {
+    status: "SCANNING", completedAt: "not-a-time",
+  } }), null);
 });
