@@ -74,6 +74,10 @@ export async function runAutomationV3Once(options = {}) {
       const completedAt = new Date();
       const failedResult = {
         status: "FAILED", submitted: 0, failureCode: failureCode(error),
+        tokenId: error?.tokenId ?? null,
+        account: error?.account ?? null,
+        collection: error?.collection ?? null,
+        transactionHash: error?.transactionHash ?? null,
         ...(error?.diagnostics ? { diagnostics: error.diagnostics } : {}),
       };
       try {

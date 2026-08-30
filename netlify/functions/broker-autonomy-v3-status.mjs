@@ -3,7 +3,7 @@ import { requireVerifiedManifestAdoption } from
   "../../broker/src/recommendation/source-verification-adoption.mjs";
 import { json } from "./_shared/http.mjs";
 import {
-  AUTOMATION_V3_AGENT, readAutomationV3GlobalState, readAutomationV3PunkState,
+  AUTOMATION_V3_AGENT, readAutomationV3AgentDisplayState, readAutomationV3PunkState,
 } from "./_shared/autonomy-v3-live.mjs";
 import {
   getAutomationV3UsageStats, getAutomationV3WorkerHeartbeat, workerHeartbeatIsCurrent,
@@ -126,6 +126,14 @@ export function automationV3WorkerAvailability(
   });
 }
 
+export function automationV3WorkerConfigured(environment = process.env) {
+  const release = environment.BROKER_AUTOMATION_V3_WORKER_RELEASE?.trim() ?? "";
+  return environment.BROKER_AUTOMATION_V3_ENABLED === "true"
+    && /^[0-9a-f]{40}$/.test(release)
+    && (environment.BROKER_AUTOMATION_V3_AGENT_ADDRESS ?? "").toLowerCase()
+      === AUTOMATION_V3_AGENT;
+}
+
 export default async function handler(request) {
   if (request.method !== "GET") return json({ ok: false, code: "METHOD_NOT_ALLOWED" }, 405);
   const base = autonomyV3Status();
@@ -142,32 +150,34 @@ export default async function handler(request) {
           getAutomationV3WorkerHeartbeat().catch(() => null),
           getAutomationV3UsageStats().catch(() => null),
         ]).then(([heartbeat, usage]) => ({ heartbeat, usage }));
-      const [liveResult, evidenceResult, selectedPunkResult] = await Promise.allSettled([
-        readAutomationV3GlobalState(),
+      const [evidenceResult, selectedPunkResult, agentResult] = await Promise.allSettled([
         workerEvidence,
         tokenId === null ? null : readAutomationV3PunkState(tokenId),
+        readAutomationV3AgentDisplayState(),
       ]);
       const selectedPunk = selectedPunkResult.status === "fulfilled"
         ? selectedPunkResult.value : null;
       punk = selectedPunk;
-      if (liveResult.status !== "fulfilled") {
-        automation = Object.freeze({
-          ...base,
-          reason: "AUTOMATION_V3_LIVE_READ_UNAVAILABLE",
-          punk,
-        });
-        return json({ ok: true, automation }, 200, {
-          "cache-control": "private, no-store, max-age=0",
-          "netlify-cdn-cache-control": "public, s-maxage=15, stale-while-revalidate=15",
-        });
-      }
-      const live = liveResult.value;
       const evidence = evidenceResult.status === "fulfilled"
         ? evidenceResult.value : { heartbeat: null, usage: null, online: false };
       const { heartbeat, usage } = evidence;
-      const globallyReady = live.configured === true && live.worker.enabled === true;
+      const agent = agentResult.status === "fulfilled" ? agentResult.value : {
+        address: AUTOMATION_V3_AGENT, validUntil: null, balanceWei: null, codeFree: false,
+      };
+      // This public endpoint is advisory UI state. The recent persisted worker heartbeat proves
+      // that production is processing the reviewed release; re-reading the entire global contract
+      // graph on every browser refresh caused provider skew, false outages, and unnecessary RPC
+      // spend. Every setup/run mutation still performs its own dual-provider live gate.
+      const configuredWorker = automationV3WorkerConfigured(process.env);
+      // Deploy previews intentionally have no autonomous worker of their own. Their manual
+      // execution bridge and status evidence both come from production, so a current production
+      // heartbeat is the preview's readiness proof. Production still requires its exact env
+      // binding in addition to the matching heartbeat.
+      const globallyReady = preview ? evidence.online === true : configuredWorker;
+      const release = preview ? heartbeat?.release ?? ""
+        : process.env.BROKER_AUTOMATION_V3_WORKER_RELEASE?.trim() ?? "";
       const availability = automationV3WorkerAvailability(
-        globallyReady, heartbeat, live.worker.release, Date.now(),
+        globallyReady, heartbeat, release, Date.now(),
       );
       // Preview automation is intentionally not scheduled. Its manual run endpoint is bridged to
       // production, so the preview must display the production endpoint's already-validated
@@ -184,15 +194,11 @@ export default async function handler(request) {
         setupTransactionAvailable: globallyReady,
         automaticSubmission: ready,
         scheduledRetry: availability.status === "WORKER_DEGRADED",
-        reason: ready ? null : availability.reason ?? (live.configured
+        reason: ready ? null : availability.reason ?? (globallyReady
           ? "AUTOMATION_V3_WORKER_PENDING" : "AUTOMATION_V3_GUARDIAN_PENDING"),
-        agent: {
-          address: AUTOMATION_V3_AGENT,
-          validUntil: live.agent.validUntil,
-          balanceWei: live.agent.balanceWei,
-          codeFree: live.agent.codeFree,
-        },
-        live: { adapterRegistered: live.adapter.active, featureFlagsEnabled: live.configured, globalAgentApproved: live.agent.approved, workerEnabled: live.worker.enabled, workerOnline },
+        agent,
+        live: { adapterRegistered: null, featureFlagsEnabled: null,
+          globalAgentApproved: null, workerEnabled: globallyReady, workerOnline },
         heartbeat: heartbeat ? { ...heartbeat, online: workerOnline } : null,
         usage,
         punk,

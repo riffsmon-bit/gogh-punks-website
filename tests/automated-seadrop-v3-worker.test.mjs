@@ -17,10 +17,11 @@ import {
   scheduledAutomationV3ProfileBatch,
   selectActiveZeroPriceSeaDropCollections,
   selectReviewedStudioCollections,
+  workerFailureProfileTokenIds,
   workerStageError,
 } from "../scripts/run-automated-seadrop-v3-worker.mjs";
 import {
-  automationV3WorkerAvailability, autonomyV3Status,
+  automationV3WorkerAvailability, automationV3WorkerConfigured, autonomyV3Status,
 } from "../netlify/functions/broker-autonomy-v3-status.mjs";
 import { automationV3Activity } from
   "../netlify/functions/broker-autonomy-v3-activity.mjs";
@@ -149,6 +150,16 @@ test("V3 worker failures retain bounded stage diagnostics without leaking messag
   assert.throws(() => workerStageError("not bounded", new Error()), /invalid worker stage/);
 });
 
+test("a submitted transaction failure belongs only to the Punk that sent it", () => {
+  const diagnostics = { scheduledTokenIds: ["1788", "1793", "93"] };
+  assert.deepEqual(workerFailureProfileTokenIds(diagnostics, "1788"), ["1788"]);
+  assert.deepEqual(workerFailureProfileTokenIds(diagnostics), ["1788", "1793", "93"]);
+  assert.throws(
+    () => workerFailureProfileTokenIds(diagnostics, "94"),
+    /not in the scheduled worker batch/,
+  );
+});
+
 test("V3 public status distinguishes a safe automatic retry from an unstarted worker", () => {
   const release = "a".repeat(40);
   const failed = {
@@ -165,6 +176,24 @@ test("V3 public status distinguishes a safe automatic retry from an unstarted wo
     },
   );
   assert.equal(automationV3WorkerAvailability(true, null, release).status, "WORKER_STARTING");
+});
+
+test("V3 public status requires the exact production worker binding", () => {
+  const release = "a".repeat(40);
+  const configured = {
+    BROKER_AUTOMATION_V3_ENABLED: "true",
+    BROKER_AUTOMATION_V3_WORKER_RELEASE: release,
+    BROKER_AUTOMATION_V3_AGENT_ADDRESS:
+      "0x3bb2ebf6b3c4d7f5e5781cdf2091428f7750af7d",
+  };
+  assert.equal(automationV3WorkerConfigured(configured), true);
+  assert.equal(automationV3WorkerConfigured({ ...configured,
+    BROKER_AUTOMATION_V3_ENABLED: "false" }), false);
+  assert.equal(automationV3WorkerConfigured({ ...configured,
+    BROKER_AUTOMATION_V3_WORKER_RELEASE: "not-a-release" }), false);
+  assert.equal(automationV3WorkerConfigured({ ...configured,
+    BROKER_AUTOMATION_V3_AGENT_ADDRESS:
+      "0x0000000000000000000000000000000000000000" }), false);
 });
 
 test("lightweight browser activity uses recorded worker state without chain RPC", () => {

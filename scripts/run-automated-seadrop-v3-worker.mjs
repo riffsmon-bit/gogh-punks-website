@@ -870,6 +870,10 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   const budgetExpired = (reserveMs = 0) => clock() >= deadlineMs - reserveMs;
   let currentDiagnostics = null;
   let transactionSubmitted = false;
+  let submittedTokenId = null;
+  let submittedAccount = null;
+  let submittedCollection = null;
+  let submittedTransactionHash = null;
   const budgetResult = () => ({
     status: "NO_ELIGIBLE_TARGETS", submitted: 0,
     diagnostics: { ...(currentDiagnostics ?? {}), scanBudgetExhausted: true },
@@ -1192,6 +1196,10 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
         }),
       );
       transactionSubmitted = true;
+      submittedTokenId = tokenId;
+      submittedAccount = accountAddress.toLowerCase();
+      submittedCollection = collection;
+      submittedTransactionHash = hash;
       const receipt = await workerStage(
         "TRANSACTION_CONFIRMATION_UNCERTAIN",
         () => primary.waitForTransactionReceipt({
@@ -1202,6 +1210,10 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
       if (receipt.status !== "success") {
         const error = new Error("AUTONOMOUS_MINT_REVERTED");
         error.code = "AUTONOMOUS_MINT_REVERTED";
+        error.transactionHash = hash;
+        error.tokenId = tokenId;
+        error.account = accountAddress.toLowerCase();
+        error.collection = collection;
         throw error;
       }
       recordProfileOutcome(
@@ -1234,13 +1246,37 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
     if (currentDiagnostics && error && typeof error === "object") {
       const code = typeof error.code === "string" && /^[A-Z0-9_]{3,64}$/.test(error.code)
         ? error.code : "WORKER_RUN_FAILED";
-      for (const tokenId of currentDiagnostics.scheduledTokenIds ?? []) {
-        recordProfileOutcome(currentDiagnostics, tokenId, "ERROR", code);
+      // Once a transaction is submitted, any confirmation failure belongs only to that Punk.
+      // The other Punks were merely waiting in the fair batch and must remain queued instead of
+      // all being mislabeled as failed by one reverted transaction.
+      const affectedTokenIds = workerFailureProfileTokenIds(
+        currentDiagnostics, transactionSubmitted ? submittedTokenId : null,
+      );
+      for (const tokenId of affectedTokenIds) {
+        recordProfileOutcome(
+          currentDiagnostics, tokenId, "ERROR", code,
+          tokenId === submittedTokenId ? submittedAccount : null,
+        );
       }
       error.diagnostics = currentDiagnostics;
+      if (submittedTransactionHash !== null) error.transactionHash = submittedTransactionHash;
+      if (submittedTokenId !== null) error.tokenId = submittedTokenId;
+      if (submittedAccount !== null) error.account = submittedAccount;
+      if (submittedCollection !== null) error.collection = submittedCollection;
     }
     throw error;
   } finally {
     if (abortTimer) clearTimeout(abortTimer);
   }
+}
+
+export function workerFailureProfileTokenIds(diagnostics, submittedTokenId = null) {
+  const scheduled = Array.isArray(diagnostics?.scheduledTokenIds)
+    ? diagnostics.scheduledTokenIds.map(String) : [];
+  if (submittedTokenId === null) return scheduled;
+  const selected = String(submittedTokenId);
+  if (!scheduled.includes(selected)) {
+    throw new TypeError("submitted Punk was not in the scheduled worker batch");
+  }
+  return [selected];
 }
