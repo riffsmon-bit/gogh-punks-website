@@ -160,6 +160,10 @@ function agentCardActions(fixture, index = 0) {
 
 const ACTIVE_PUNK = Object.freeze({
   tokenId: "93", activated: true, account: PUNK_WALLET, automationConfigured: true,
+  agentSummary: Object.freeze({
+    status: "IDLE", reason: "NO_ELIGIBLE_TARGETS", enrolled: true,
+    lastActualScan: "2026-08-29T12:00:00.000Z",
+  }),
 });
 
 // The shape `readAutomationV3PunkState` publishes: the authorization expiry is nested, never flat.
@@ -273,7 +277,7 @@ test("agent cards report the authorization expiry the live reader actually publi
   const facts = agentCardFacts(fixture);
   assert.equal(facts["Mints today"], "1 / 3");
   assert.equal(facts["NFTs collected"], "Syncing");
-  assert.equal(facts["Last result"], "No eligible mint passed every safety check");
+  assert.equal(facts["Last result"], "No mint passed every check");
 });
 
 test("active-agent cards separate same-page monitoring, wallet assets, and safe restart", () => {

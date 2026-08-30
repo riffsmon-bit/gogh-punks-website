@@ -1,5 +1,6 @@
 const MAX_EVENTS = 100;
 const REFRESH_INTERVAL_MS = 15_000;
+const PREVIEW_REFRESH_INTERVAL_MS = 60_000;
 const STATE_LEVEL = Object.freeze({
   MINTED: "success", READY: "success", ERROR: "error", PAUSED: "warning",
   SKIPPED: "warning", IDLE: "info", QUEUED: "info", SCANNING: "info",
@@ -124,6 +125,7 @@ function setupAgentMatrix({ windowObject, documentObject, fetchFunction } = {}) 
   const active = root.querySelector("[data-matrix-active]");
   const scanning = root.querySelector("[data-matrix-scanning]");
   const minted = root.querySelector("[data-matrix-minted]");
+  const candidates = root.querySelector("[data-matrix-candidates]");
   const worker = root.querySelector("[data-matrix-worker]");
   const punkSelect = root.querySelector("[data-matrix-punk]");
   const pause = root.querySelector("[data-matrix-pause]");
@@ -131,7 +133,7 @@ function setupAgentMatrix({ windowObject, documentObject, fetchFunction } = {}) 
   const earlier = root.querySelector("[data-matrix-earlier]");
   const details = root.querySelector("[data-matrix-details]");
   const state = { events: [], filter: "all", punk: "", paused: false, unseen: 0,
-    loading: false, stopped: false, timer: null, historyComplete: false };
+    loading: false, stopped: false, timer: null, historyComplete: false, lastActivity: null };
 
   function updatePunks() {
     if (!punkSelect) return;
@@ -156,6 +158,8 @@ function setupAgentMatrix({ windowObject, documentObject, fetchFunction } = {}) 
     details.querySelector("[data-matrix-detail-message]").textContent = matrixEventMessage(event);
     details.querySelector("[data-matrix-detail-time]").textContent = new Date(event.occurredAt).toLocaleString();
     details.querySelector("[data-matrix-detail-source]").textContent = event.source;
+    details.querySelector("[data-matrix-detail-collection]").textContent =
+      event.collection ?? "Not recorded";
     const transaction = details.querySelector("[data-matrix-detail-transaction]");
     transaction.hidden = !event.transactionHash;
     if (event.transactionHash) transaction.href = `https://robinhoodchain.blockscout.com/tx/${event.transactionHash}`;
@@ -209,17 +213,19 @@ function setupAgentMatrix({ windowObject, documentObject, fetchFunction } = {}) 
     if (!state.paused) list.parentElement.scrollTop = list.parentElement.scrollHeight;
   }
 
-  function renderHeader(activity) {
+  function renderHeader(activity = state.lastActivity) {
+    if (activity) state.lastActivity = activity;
     const summaries = browserWindow.__GOGH_OWNER_PUNKS__?.punks ?? [];
     const agentSummaries = summaries.map((punk) => punk.agentSummary).filter(Boolean);
     const scanCount = agentSummaries.filter((summary) => summary.status === "SCANNING").length;
     const activeCount = agentSummaries.filter((summary) => summary.enrolled === true).length;
-    const today = new Date().toISOString().slice(0, 10);
-    const mintedToday = state.events.filter((event) => event.state === "MINTED"
-      && event.occurredAt.slice(0, 10) === today).length;
+    const recentMints = state.events.filter((event) => event.state === "MINTED").length;
+    const discovered = Number(activity?.heartbeat?.discoverySummary?.discovered ?? 0);
     active.textContent = String(activeCount);
     scanning.textContent = String(scanCount);
-    minted.textContent = String(mintedToday);
+    minted.textContent = String(recentMints);
+    if (candidates) candidates.textContent = Number.isSafeInteger(discovered) && discovered >= 0
+      ? String(discovered) : "0";
     worker.textContent = activity?.online === true ? "ONLINE" : activity?.online === false ? "DEGRADED" : "PENDING";
     liveDot.dataset.online = activity?.online === true ? "true" : "false";
   }
@@ -229,7 +235,7 @@ function setupAgentMatrix({ windowObject, documentObject, fetchFunction } = {}) 
     state.loading = true;
     stateText.textContent = "Syncing persisted activity…";
     try {
-      const response = await request("/api/broker/autonomy-v3-activity?limit=50", {
+      const response = await request("/api/broker/autonomy-v3-activity?limit=50&timeline=1", {
         headers: { accept: "application/json" }, cache: "no-store",
       });
       const payload = await response.json();
@@ -263,7 +269,7 @@ function setupAgentMatrix({ windowObject, documentObject, fetchFunction } = {}) 
     stateText.textContent = "Loading earlier persisted events…";
     try {
       const cursor = state.events.at(-1)?.occurredAt;
-      const response = await request(`/api/broker/autonomy-v3-activity?limit=50&before=${encodeURIComponent(cursor)}`, {
+      const response = await request(`/api/broker/autonomy-v3-activity?limit=50&timeline=1&before=${encodeURIComponent(cursor)}`, {
         headers: { accept: "application/json" }, cache: "no-store",
       });
       const payload = await response.json();
@@ -328,9 +334,13 @@ function setupAgentMatrix({ windowObject, documentObject, fetchFunction } = {}) 
     if (browserDocument.visibilityState === "visible") refresh();
   });
   updatePunks();
+  if (clock) clock.textContent = new Date().toLocaleTimeString([], { hour12: false });
   renderEvents();
   refresh();
-  state.timer = browserWindow.setInterval(refresh, REFRESH_INTERVAL_MS);
+  const isDeployPreview = /^(?:deploy-preview-[1-9][0-9]*--gogh-punks\.netlify\.app|deploy-preview-[1-9][0-9]*\.preview\.goghpunks\.xyz)$/
+    .test(browserWindow.location?.hostname ?? "");
+  state.timer = browserWindow.setInterval(refresh,
+    isDeployPreview ? PREVIEW_REFRESH_INTERVAL_MS : REFRESH_INTERVAL_MS);
   const clockTimer = browserWindow.setInterval(() => {
     if (clock) clock.textContent = new Date().toLocaleTimeString([], { hour12: false });
   }, 1_000);
