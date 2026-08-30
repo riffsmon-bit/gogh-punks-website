@@ -7,6 +7,8 @@ import {
   getProductionAutomationV3Activity,
   isDeployPreview,
 } from "../netlify/functions/_shared/automation-v3-production-bridge.mjs";
+import { requireAutomationV3RunOrigin } from
+  "../netlify/functions/broker-autonomy-v3-run.mjs";
 
 const release = "a".repeat(40);
 const heartbeat = Object.freeze({
@@ -58,6 +60,19 @@ test("only the exact Netlify deploy-preview context uses the production bridge",
   assert.equal(isDeployPreview(
     {}, "https://deploy-preview-13.preview.goghpunks.xyz.evil.example/api",
   ), false);
+});
+
+test("custom preview manual runs accept only their exact served browser origin", () => {
+  const url = "https://deploy-preview-13.preview.goghpunks.xyz/api/broker/autonomy-v3-run";
+  assert.doesNotThrow(() => requireAutomationV3RunOrigin(new Request(url, {
+    method: "POST", headers: { origin: "https://deploy-preview-13.preview.goghpunks.xyz" },
+  }), {}));
+  assert.throws(() => requireAutomationV3RunOrigin(new Request(url, {
+    method: "POST", headers: { origin: "https://deploy-preview-12.preview.goghpunks.xyz" },
+  }), {}), /origin was rejected/);
+  assert.throws(() => requireAutomationV3RunOrigin(new Request(url, {
+    method: "POST", headers: { origin: "https://attacker.example" },
+  }), {}), /origin was rejected/);
 });
 
 test("preview activity reads the fixed production endpoint and validates its evidence", async () => {
