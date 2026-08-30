@@ -123,14 +123,29 @@ test("owner agent summaries distinguish worker proof from configuration", async 
         next_scan_estimate: "2026-08-29T14:24:00Z", reason: "MINT_SUBMITTED",
         updated_at: "2026-08-29T12:09:30Z", global_status: "NO_ELIGIBLE_TARGETS",
         global_completed_at: "2026-08-29T12:09:30Z" },
+      { token_id: "4185", configured: true, enrolled: true, account_address: ACCOUNT_A,
+        worker_state: "MINTED", last_scheduled_scan: "2026-08-29T11:45:00Z",
+        last_actual_scan: "2026-08-29T11:45:05Z",
+        last_successful_mint: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        next_scan_estimate: "2026-08-29T11:50:00Z", reason: "MINT_CONFIRMED",
+        updated_at: "2026-08-29T11:45:05Z", global_status: "FAILED",
+        global_completed_at: "2026-08-29T12:09:45Z" },
+      { token_id: "4186", configured: true, enrolled: true, account_address: ACCOUNT_A,
+        worker_state: "ERROR", last_scheduled_scan: "2026-08-29T12:09:00Z",
+        last_actual_scan: "2026-08-29T12:09:45Z", last_successful_mint: null,
+        next_scan_estimate: "2026-08-29T14:24:00Z", reason: "DISCOVERY_SCAN_FAILED",
+        updated_at: "2026-08-29T12:09:45Z", global_status: "FAILED",
+        global_completed_at: "2026-08-29T12:09:45Z" },
     ] };
   }, now);
   assert.equal(summaries[0].status, "ACTIVE");
   assert.equal(summaries[0].lastActualScan, "2026-08-29T12:08:02.000Z");
   assert.equal(summaries[1].status, "NEEDS_ENROLLMENT");
   assert.equal(summaries[2].status, "NEEDS_ATTENTION");
-  assert.equal(summaries[3].status, "AWAITING_WORKER_EVIDENCE");
+  assert.equal(summaries[3].status, "WAITING_FOR_FIRST_SCAN");
   assert.equal(summaries[4].status, "MINTING");
+  assert.equal(summaries[5].status, "ACTIVE");
+  assert.equal(summaries[6].status, "RETRY_SCHEDULED");
   assert.match(captured.sql, /broker_punk_agent_heartbeats/);
   assert.match(captured.sql, /broker_automation_v3_worker_state/);
   assert.equal(captured.values[2], OWNER.toLowerCase());

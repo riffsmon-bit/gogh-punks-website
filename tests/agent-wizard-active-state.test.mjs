@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  agentCardPresentation, forwardOnlyWizardStep, setupAgentWizard, wizardStepIndex,
+  agentCardPresentation, agentRotationCountdown, forwardOnlyWizardStep, setupAgentWizard,
+  wizardStepIndex,
 } from "../site/agent-setup-wizard.js";
 import { automationSnapshotStats } from "../site/autonomous-minting.js";
 
@@ -330,6 +331,18 @@ test("indexed worker evidence distinguishes enrollment from actual processing", 
   assert.equal(agentCardPresentation({ tokenId: "97", agentSummary: {
     configured: true, enrolled: true, status: "MINTING", workerState: "CONFIRMING",
   } }).label, "Minting now");
+  assert.equal(agentCardPresentation({ tokenId: "98", agentSummary: {
+    configured: true, enrolled: true, status: "RETRY_SCHEDULED",
+    reason: "DISCOVERY_SCAN_FAILED",
+  } }).label, "Safe retry scheduled");
+});
+
+test("agent rotation countdown explains long fair turns without implying a failure", () => {
+  const now = Date.parse("2026-08-30T12:00:00Z");
+  assert.equal(agentRotationCountdown("2026-08-30T14:20:00Z", now), "~2h 20m");
+  assert.equal(agentRotationCountdown("2026-08-30T11:59:00Z", now),
+    "Due in fair rotation");
+  assert.equal(agentRotationCountdown(null, now), "Waiting for first assignment");
 });
 
 test("Restart Agent uses only the fixed Punk run endpoint and reports queue state", async () => {

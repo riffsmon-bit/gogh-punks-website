@@ -22,6 +22,7 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.match(html, /Continuous free-mint automation/);
   assert.match(html, /<details class="active-agent-console" data-active-agent-console>/);
   assert.match(html, /Your Active Agents/);
+  assert.match(html, /How rotation works:[\s\S]*every 5 minutes[\s\S]*up to 6 due Punks/);
   assert.match(html, /Live agent scan terminal/);
   assert.match(html, /data-v3-scan-terminal/);
   assert.match(html, /Activation and limit setup use the single guided wizard above/);
