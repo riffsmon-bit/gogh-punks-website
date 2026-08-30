@@ -9,7 +9,7 @@
     <link rel="icon" href="/assets/favicon.png" type="image/png" />
     <link rel="stylesheet" href="/broker.css" />
     <script src="/broker.js" defer></script>
-    <script src="/wallet.js?v=reown-2" type="module"></script>
+    <script src="/wallet.js?v=reown-3" type="module"></script>
     <script src="/owner-accounts.js" type="module"></script>
     <script src="/autonomous-minting.js" type="module"></script>
     <script src="/agent-setup-wizard.js" type="module"></script>
@@ -113,11 +113,11 @@
         <article class="wizard-screen" data-wizard-step="power" hidden>
           <p class="eyebrow">Step 5 of 5</p>
           <h3>Power Up Your Agent</h3>
-          <p>Hosted gas pays the Robinhood Chain network fee when the Art Broker collects an eligible free mint.</p>
+          <p>The shared hosted-gas pool pays the Robinhood Chain network fee when the Art Broker collects an eligible free mint. You do not have to fund it to activate your Punk; contributing is optional and helps support all hosted agents.</p>
           <div class="wallet-role-grid"><div><strong>Your wallet</strong><small>Owns the Gogh Punk</small></div><div><strong>Punk wallet</strong><small>Stores collected NFTs</small></div><div><strong>Hosted gas</strong><small>Pays autonomous transaction fees</small></div></div>
-          <div class="wizard-gas-status"><span>Hosted Gas</span><strong data-wizard-gas-status>Checking…</strong></div>
-          <label class="wizard-custom-field"><span>Hosted gas amount</span><select data-wizard-gas-amount><option value="500000000000000">Small · 0.0005 ETH</option><option value="1000000000000000">Medium · 0.001 ETH</option><option value="2000000000000000">Large · 0.002 ETH</option></select></label>
-          <button class="wizard-primary" type="button" data-wizard-fund>Fund Hosted Gas</button>
+          <div class="wizard-gas-status"><span>Shared Hosted Gas</span><strong data-wizard-gas-status>Checking…</strong></div>
+          <label class="wizard-custom-field"><span>Optional pool contribution</span><select data-wizard-gas-amount><option value="500000000000000">Small · 0.0005 ETH</option><option value="1000000000000000">Medium · 0.001 ETH</option><option value="2000000000000000">Large · 0.002 ETH</option></select></label>
+          <button class="wizard-secondary" type="button" data-wizard-fund>Contribute to Shared Gas Pool (Optional)</button>
           <button class="wizard-primary wizard-launch" type="button" data-wizard-send disabled>Send Agent</button>
           <p class="wizard-note">Send your Punk scouting for an eligible zero-price mint. The on-chain cap, expiry, reviewed runtime, and zero-price checks still apply.</p>
         </article>

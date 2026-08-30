@@ -358,7 +358,7 @@ function loadReownBundle(browserWindow, browserDocument) {
     const script = browserDocument.createElement("script");
     // Keep this version aligned with the HTML wallet module URL. Wallet session
     // fixes must not be stranded behind a stale mobile or desktop browser cache.
-    script.src = "/reown-wallet-app.js?v=reown-2";
+    script.src = "/reown-wallet-app.js?v=reown-3";
     script.async = true;
     script.dataset.reownAppkit = "true";
     script.addEventListener("load", resolve, { once: true });
@@ -615,11 +615,20 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
           render();
         }));
         unsubscribers.push(state.session.subscribeAccount((account) => {
+          const connectedNow = account?.isConnected === true;
           state.account = account?.isConnected ? normalizeWalletAddress(account.address) : null;
           if (!state.account) state.owner = null;
           state.pending = account?.status === "connecting" || account?.status === "reconnecting";
           setReturningSessionMarker(browserWindow, Boolean(state.account));
           render();
+          // AppKit normally dismisses itself after a successful connection. Some injected-wallet
+          // round trips leave its full-screen host mounted even though the account is connected;
+          // that invisible host intercepts every click on the page. Closing only on a connected
+          // account update preserves the intentional Account menu opened by an already-connected
+          // user while guaranteeing that a completed connection releases the page.
+          if (connectedNow && typeof state.session?.close === "function") {
+            void Promise.resolve(state.session.close()).catch(() => {});
+          }
         }));
         unsubscribers.push(state.session.subscribeNetwork((network) => {
           state.chainId = Number(network?.chainId) || null;
@@ -641,6 +650,9 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
           state.provider = state.session.getProvider?.() ?? null;
           setReturningSessionMarker(browserWindow, Boolean(state.account));
           render();
+          if (state.account && typeof state.session?.close === "function") {
+            void Promise.resolve(state.session.close()).catch(() => {});
+          }
         };
         const handleVisibility = () => {
           if (browserDocument.visibilityState === "visible") resume();
@@ -650,6 +662,9 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
         unsubscribers.push(() => browserWindow.removeEventListener("pageshow", resume));
         unsubscribers.push(() => browserDocument.removeEventListener?.(
           "visibilitychange", handleVisibility));
+        if (state.account && typeof state.session?.close === "function") {
+          await state.session.close();
+        }
         state.sessionStatus = "ready";
         state.pending = false;
         render();

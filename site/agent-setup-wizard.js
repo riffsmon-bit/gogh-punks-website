@@ -30,7 +30,8 @@ export function wizardResumeStep({ selectedPunk, automation, hostedGasReady = fa
   if (!selectedPunk) return "choose";
   if (!automation || automation.tokenId !== selectedPunk) return "wallet";
   if (!automation.active) return "limits";
-  if (!hostedGasReady) return "power";
+  // Hosted gas is a shared operational pool. A holder may contribute, but an otherwise-live
+  // Punk must never be sent back through setup or blocked because that holder did not fund it.
   return automation.agentLive ? "success" : "power";
 }
 
@@ -65,12 +66,13 @@ export function agentCardPresentation(punk, live = null) {
     NEEDS_AUTHORIZATION: "Needs authorization",
     PAUSED: "Paused",
     AUTOMATION_OFFLINE: "Automation offline",
+    AWAITING_WORKER_EVIDENCE: "Awaiting worker evidence",
     NEEDS_ATTENTION: "Needs attention",
     READY: "Ready to activate",
   });
   if (live?.active === true) {
     const status = live.agentLive === true ? "ACTIVE"
-      : summary?.status && labels[summary.status] ? summary.status : "AUTOMATION_OFFLINE";
+      : summary?.status && labels[summary.status] ? summary.status : "AWAITING_WORKER_EVIDENCE";
     return Object.freeze({
       status,
       label: live.agentLive === true
@@ -410,9 +412,9 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
     const automation = selectedAutomation();
     const active = automation?.active === true;
     const hostedGasReady = automation?.hostedGas?.ready === true;
-    gasStatus.textContent = hostedGasReady ? "Ready ✓" : "Funding needed";
-    fund.hidden = hostedGasReady;
-    send.disabled = !active || !hostedGasReady || !automation?.agentLive;
+    gasStatus.textContent = hostedGasReady ? "Shared pool ready ✓" : "Optional contribution";
+    fund.hidden = false;
+    send.disabled = !active || !automation?.agentLive;
     activate.disabled = !state.selectedPunk || active || retirement.checked !== true
       || Boolean(automation?.setupSubmission);
     activate.textContent = active ? "Agent already active" : "Activate Agent";

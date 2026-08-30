@@ -425,7 +425,14 @@ function agentSummaryStatus(row, nowMs = Date.now()) {
   const workerOnline = row.global_status !== "FAILED" && Number.isFinite(globalCompletedAt)
     && globalCompletedAt <= nowMs + 30_000 && globalCompletedAt >= nowMs - 12 * 60_000;
   if (!enrolled) return configured ? "NEEDS_ENROLLMENT" : "READY";
-  if (!workerOnline) return "AUTOMATION_OFFLINE";
+  // Missing/stale preview evidence is not proof that production automation is offline. Only a
+  // recent explicit FAILED heartbeat can support that claim; otherwise keep the transitional
+  // state honest until this deployment's per-Punk recorder has observed the agent.
+  const explicitRecentFailure = row.global_status === "FAILED"
+    && Number.isFinite(globalCompletedAt) && globalCompletedAt <= nowMs + 30_000
+    && globalCompletedAt >= nowMs - 12 * 60_000;
+  if (!workerOnline) return explicitRecentFailure
+    ? "AUTOMATION_OFFLINE" : "AWAITING_WORKER_EVIDENCE";
   if (row.worker_state == null) return "WAITING_FOR_FIRST_SCAN";
   const evidenceAt = row.updated_at == null ? Number.NaN : Date.parse(row.updated_at);
   const nextScanAt = row.next_scan_estimate == null

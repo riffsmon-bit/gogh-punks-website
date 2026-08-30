@@ -46,6 +46,7 @@ function reownFixture() {
   const session = {
     open: async () => { calls.push("open"); },
     openAccount: async () => { calls.push("account"); },
+    close: async () => { calls.push("close"); },
     disconnect: async () => { calls.push("disconnect"); },
     switchNetwork: async () => { calls.push("switch"); },
     getAccount: () => current.account,
@@ -125,6 +126,7 @@ test("Reown is the authoritative reconnecting wallet and provider session", asyn
 
   fixture.current.account = { address: OWNER, isConnected: true, status: "connected" };
   fixture.callbacks.account(fixture.current.account);
+  await new Promise((resolve) => setTimeout(resolve, 0));
   assert.equal(fixture.button.textContent, "0x1234…7890");
   assert.match(fixture.status.textContent, /Connected · 0x1234…7890 · Robinhood Chain/);
 
@@ -132,7 +134,7 @@ test("Reown is the authoritative reconnecting wallet and provider session", asyn
   fixture.callbacks.network({ chainId: 1 });
   assert.equal(fixture.switchButton.hidden, false);
   await fixture.switchButton.click();
-  assert.deepEqual(fixture.calls, ["open", "switch"]);
+  assert.deepEqual(fixture.calls, ["open", "close", "switch"]);
 
   fixture.current.provider = null;
   fixture.callbacks.provider(null);
@@ -171,7 +173,7 @@ test("a known prior Reown session restores immediately without opening a wallet 
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.equal(factoryCalls, 1);
   assert.equal(fixture.windowObject.__GOGH_WALLET_SNAPSHOT__.account, OWNER);
-  assert.deepEqual(fixture.calls, [], "restoration must not open a wallet selector");
+  assert.deepEqual(fixture.calls, ["close"], "restoration closes stale UI without opening a selector");
 });
 
 test("disconnect clears only wallet-scoped state and prevents stale Punk controls", async () => {
@@ -255,7 +257,7 @@ test("every wallet-enabled page restores the one Reown session and exposes disco
     "../site/discover/index.html",
   ].map((path) => readFile(new URL(path, import.meta.url), "utf8")));
   for (const page of pages) {
-    assert.match(page, /\/wallet\.js\?v=reown-2/);
+    assert.match(page, /\/wallet\.js\?v=reown-3/);
     assert.match(page, /data-wallet-connect/);
     assert.match(page, /data-wallet-disconnect/);
     assert.match(page, /Disconnect Wallet/);
@@ -285,12 +287,13 @@ test("mobile wizard and AppKit source bind the required production experience", 
   assert.match(client, /caipNetworkId: "eip155:4663"/);
   assert.match(client, /new EthersAdapter\(\)/);
   assert.match(client, /appKit\.getWalletProvider\(\)/);
+  assert.match(client, /close: \(\) => appKit\.close\(\)/);
   assert.doesNotMatch(client, /appKit\.getProviders\(\)/);
   assert.doesNotMatch(client, /projectId:\s*["'][0-9a-f]{32}/);
   assert.doesNotMatch(wallet, /setupReadOnlyWallet\(\{ windowObject: window/);
   assert.match(wallet, /First-time visitors load no AppKit code/);
-  assert.match(html, /\/wallet\.js\?v=reown-2/);
-  assert.match(wallet, /\/reown-wallet-app\.js\?v=reown-2/);
+  assert.match(html, /\/wallet\.js\?v=reown-3/);
+  assert.match(wallet, /\/reown-wallet-app\.js\?v=reown-3/);
   assert.match(packageJson, /@reown\/appkit/);
   assert.match(netlify, /wss:\/\/relay\.walletconnect\.com/);
   assert.match(netlify, /script-src 'self'; style-src 'self' 'unsafe-inline'/);

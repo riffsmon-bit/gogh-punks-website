@@ -317,6 +317,21 @@ test("indexed worker evidence distinguishes enrollment from actual processing", 
     configured: true, enrolled: true, status: "ACTIVE",
     lastActualScan: "2026-08-29T12:00:00.000Z",
   } }).label, "Active · worker verified");
+  assert.equal(agentCardPresentation({ tokenId: "96", agentSummary: {
+    configured: true, enrolled: true, status: "AWAITING_WORKER_EVIDENCE",
+  } }).label, "Awaiting worker evidence");
+});
+
+test("shared hosted gas is optional and never blocks an otherwise-live agent", () => {
+  const fixture = wizardFixture({
+    stored: { selectedPunk: "93", step: "power", dailyLimit: 3, durationDays: 7 },
+    punks: [ACTIVE_PUNK], automation: activeAutomation({ agentLive: true, hostedGas: null }),
+  });
+  setupAgentWizard(fixture);
+  assert.equal(fixture.step(), "success");
+  assert.equal(fixture.element("[data-wizard-send]").disabled, false);
+  assert.equal(fixture.element("[data-wizard-gas-status]").textContent, "Optional contribution");
+  assert.equal(fixture.element("[data-wizard-fund]").hidden, false);
 });
 
 test("snapshot statistics are chain evidence or null", () => {
