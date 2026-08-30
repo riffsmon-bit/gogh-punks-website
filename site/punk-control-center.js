@@ -598,6 +598,11 @@ function assetCard(asset) {
   const validImage = /^https:\/\/(?:i|raw2)\.seadn\.io\//.test(asset.imageUrl ?? "")
     || /^https:\/\/ipfs\.io\/ipfs\/(?:Qm[1-9A-HJ-NP-Za-km-z]{44}|b[a-z2-7]{20,})(?:\/[A-Za-z0-9._~%-]+)*$/.test(asset.imageUrl ?? "");
   image.src = validImage ? asset.imageUrl : "/assets/nft-placeholder.svg";
+  image.addEventListener("error", () => {
+    if (!image.src.endsWith("/assets/nft-placeholder.svg")) {
+      image.src = "/assets/nft-placeholder.svg";
+    }
+  }, { once: true });
   const title = document.createElement("h3");
   title.textContent = asset.name || `NFT #${asset.tokenId}`;
   const collection = document.createElement("p");
@@ -646,6 +651,11 @@ function renderWithdrawal() {
   panel.hidden = !asset;
   if (!asset) return;
   query("[data-withdrawal-image]").src = withdrawalImage(asset);
+  query("[data-withdrawal-image]").onerror = (event) => {
+    const image = event.currentTarget;
+    image.onerror = null;
+    image.src = "/assets/nft-placeholder.svg";
+  };
   query("[data-withdrawal-image]").alt = asset.name || `NFT #${asset.tokenId}`;
   setText("[data-withdrawal-name]", asset.name || `NFT #${asset.tokenId}`);
   setText("[data-withdrawal-collection]", asset.collectionName ?? "Collection name unavailable");

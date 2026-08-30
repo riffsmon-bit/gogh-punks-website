@@ -376,6 +376,8 @@ test("Control Center is progressive, mobile, and keeps mint execution disabled",
   assert.match(browser, /state\.withdrawalAsset === selectedAsset/);
   assert.match(browser, /state\.withdrawalAmount === selectedAmount/);
   assert.doesNotMatch(browser, /state\.withdrawalAsset === asset/);
+  assert.match(browser, /nft-placeholder\.svg/);
+  assert.match(css, /\.withdrawal-quantity\[hidden\]\s*\{\s*display:\s*none/);
   assert.match(html, /Withdraw to my wallet/);
   assert.match(html, /destination is always the wallet that currently owns this Gogh Punk/);
   assert.match(browser, /OPENSEA_COLLECTION_FLOOR|OpenSea collection floor/);

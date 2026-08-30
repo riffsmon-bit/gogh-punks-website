@@ -941,6 +941,7 @@ h3 { font-size: 1.45rem; }
 .control-withdrawal-preview img { width: 100%; aspect-ratio: 1; object-fit: cover; border: 1px solid var(--line); background: #071321; }
 .control-withdrawal-preview h2, .control-withdrawal-preview p { margin-top: 0; }
 .withdrawal-quantity { max-width: 280px; margin: 16px 0; }
+.withdrawal-quantity[hidden] { display: none; }
 .control-owner-assets { display: grid; grid-template-columns: repeat(2, minmax(0, 180px)); gap: 12px; margin: 16px 0 24px; }
 .control-owner-asset { display: grid; gap: 8px; min-width: 0; padding: 8px !important; text-align: left; text-transform: none !important; }
 .control-owner-asset img { width: 100%; aspect-ratio: 1; object-fit: cover; opacity: 0.72; }
