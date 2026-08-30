@@ -162,6 +162,17 @@ export function automationGateNeedsLegacyFallback(v3Gate, tokenId) {
   return selectAutomationGeneration(v3Gate, null, tokenId).version !== 3;
 }
 
+export function selectedAutomationPunk(gate, selection) {
+  const selectedTokenId = selection?.tokenId;
+  const candidate = gate?.punk;
+  return typeof selectedTokenId === "string" && selectedTokenId.length > 0
+    && candidate?.tokenId === selectedTokenId ? candidate : null;
+}
+
+export function ownerRosterHasNoPunks(roster) {
+  return Array.isArray(roster?.tokenIds) && roster.tokenIds.length === 0;
+}
+
 export function setupAutonomousMinting({ windowObject, documentObject, fetchFunction } = {}) {
   const browserWindow = windowObject ?? (typeof window === "undefined" ? null : window);
   const browserDocument = documentObject ?? (typeof document === "undefined" ? null : document);
@@ -211,11 +222,15 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
   const usageMintsDetail = panel.querySelector("[data-v3-usage-mints-detail]");
   const usagePunks = panel.querySelector("[data-v3-usage-punks]");
   const usageWallets = panel.querySelector("[data-v3-usage-wallets]");
+  const initialOwnerRoster = browserWindow.__GOGH_OWNER_PUNKS__;
   const state = {
     gate: null, v3Gate: null, version: 2, selection: null, funding: false, running: false,
     refreshing: false, setupSubmission: null,
     lastSyncedAt: null, lastRefreshFailedAt: null, loadSequence: 0,
     lastTransactionHash: null, lastActionError: null,
+    ownerPunksKnown: Array.isArray(initialOwnerRoster?.tokenIds),
+    ownerPunkCount: Array.isArray(initialOwnerRoster?.tokenIds)
+      ? initialOwnerRoster.tokenIds.length : null,
   };
 
   function heartbeatLabel(value) {
@@ -290,7 +305,45 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     }
   }
 
+  function renderNoOwnedPunks() {
+    status.textContent = "NO PUNKS FOUND";
+    status.classList.add("off");
+    punk.textContent = "No Punk selected";
+    account.textContent = "No Punk wallet available";
+    accountCopy.disabled = true;
+    accountOpenSea.hidden = true;
+    accountOpenSea.removeAttribute("href");
+    accountCopyState.textContent = "No wallet-owned Punks found.";
+    badge.textContent = "CONNECT A PUNK OWNER";
+    badge.classList.add("off");
+    worker.textContent = "NOT STARTED";
+    workerDetail.textContent = "Connect a wallet that owns a Gogh Punk to activate an agent.";
+    latestMint.hidden = true;
+    setup.disabled = true;
+    runNow.disabled = true;
+    runAll.disabled = true;
+    stop.disabled = true;
+    preset.disabled = true;
+    cap.disabled = true;
+    days.disabled = true;
+    retirementConfirm.disabled = true;
+    agentFundAmount.disabled = true;
+    agentFundConfirm.disabled = true;
+    agentFund.disabled = true;
+    progressSummary.textContent = "No wallet-owned Punks found. Choose a different wallet to begin.";
+    confirmationPlan.textContent = "Agent setup becomes available after a wallet-owned Punk is found.";
+    message.textContent = "No wallet-owned Punks found.";
+    browserWindow.__GOGH_AUTOMATION_SNAPSHOT__ = Object.freeze({
+      tokenId: null, version: state.version, account: null, active: false,
+      agentLive: false, running: false, capability: false, workerOnline: false,
+    });
+  }
+
   function render() {
+    if (state.ownerPunksKnown && state.ownerPunkCount === 0) {
+      renderNoOwnedPunks();
+      return;
+    }
     const publicUsage = state.v3Gate?.usage;
     usageMints.textContent = publicUsage?.confirmedMints ?? "—";
     usagePunks.textContent = publicUsage?.mintingPunks ?? "—";
@@ -310,8 +363,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
           : "V2 remains active until every V3 deployment, source, guardian, and worker gate passes.";
     }
     punk.textContent = state.selection?.tokenId ? `#${state.selection.tokenId}` : "Choose a Punk";
-    const selectedState = state.gate?.punk?.tokenId === state.selection?.tokenId
-      ? state.gate.punk : null;
+    const selectedState = selectedAutomationPunk(state.gate, state.selection);
     const active = selectedState?.active === true;
     const retirement = retirementActivationDisclosure(
       state.selection?.tokenId ?? null,
@@ -489,8 +541,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
   }
 
   async function copyPunkWalletAddress() {
-    const selectedState = state.gate?.punk?.tokenId === state.selection?.tokenId
-      ? state.gate.punk : null;
+    const selectedState = selectedAutomationPunk(state.gate, state.selection);
     const value = selectedState?.account;
     if (!/^0x[0-9a-fA-F]{40}$/.test(value ?? "")) return;
     try {
@@ -606,8 +657,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
       state.gate = selected.gate;
       state.lastSyncedAt = new Date();
       state.lastRefreshFailedAt = null;
-      const selectedState = state.gate?.punk?.tokenId === state.selection?.tokenId
-        ? state.gate.punk : null;
+      const selectedState = selectedAutomationPunk(state.gate, state.selection);
       if (selectedState?.active === true
         && Number.isInteger(selectedState.maxAcquisitionsPerDay)
         && selectedState.maxAcquisitionsPerDay >= 1
@@ -751,6 +801,18 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     render();
     void load();
   });
+  browserWindow.addEventListener("gogh:owner-punks", (event) => {
+    const tokenIds = event.detail?.tokenIds;
+    if (!Array.isArray(tokenIds)) return;
+    state.ownerPunksKnown = true;
+    state.ownerPunkCount = tokenIds.length;
+    if (tokenIds.length === 0) {
+      state.selection = null;
+      state.gate = null;
+      state.v3Gate = null;
+    }
+    render();
+  });
   setup.addEventListener("click", async () => {
     let startFirstScan = false;
     setup.disabled = true;
@@ -822,7 +884,8 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
       render();
     }
   });
-  render();
+  if (ownerRosterHasNoPunks(initialOwnerRoster)) renderNoOwnedPunks();
+  else render();
   browserWindow.setInterval?.(() => { void refreshActivity(); }, ACTIVITY_REFRESH_INTERVAL_MS);
   browserWindow.addEventListener?.("focus", () => { void refreshActivity(); });
   browserWindow.addEventListener?.("pageshow", () => { void refreshActivity(); });

@@ -8,6 +8,8 @@ import { privateKeyToAccount } from "viem/accounts";
 import manifest from "../deployments/robinhood-automation-v3.json" with { type: "json" };
 import coreManifest from "../deployments/robinhood.json" with { type: "json" };
 import { ROBINHOOD } from "../broker/src/config.mjs";
+import { resolveRobinhoodRpcPair } from
+  "../broker/src/infrastructure/robinhood-rpc-endpoints.mjs";
 import { attestAutomatedSeaDropV3CandidateLive } from
   "../broker/src/discovery/automated-seadrop-v3-live-screen.mjs";
 import { buildAutomatedSeaDropV3ExecutionBatch } from
@@ -76,12 +78,6 @@ const CHAIN = {
   nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
   rpcUrls: { default: { http: [ROBINHOOD.rpcUrl] } },
 };
-
-function httpsUrl(name, value) {
-  const url = new URL(value ?? "");
-  if (url.protocol !== "https:" || url.hash) throw new TypeError(`${name} must be HTTPS`);
-  return url.href;
-}
 
 function readClient(url, signal) {
   return createPublicClient({
@@ -894,8 +890,7 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
       throw error;
     }
   }
-  const primaryUrl = httpsUrl("ROBINHOOD_RPC_URL", environment.ROBINHOOD_RPC_URL ?? environment.RPC_URL);
-  const secondaryUrl = httpsUrl("ROBINHOOD_SECONDARY_RPC_URL", environment.ROBINHOOD_SECONDARY_RPC_URL);
+  const { primary: primaryUrl, secondary: secondaryUrl } = resolveRobinhoodRpcPair(environment);
   const primary = dependencies.primary ?? readClient(primaryUrl, abortSignal);
   const secondary = dependencies.secondary ?? readClient(secondaryUrl, abortSignal);
   const discovery = dependencies.discovery ?? discoveryClient(primaryUrl, abortSignal);

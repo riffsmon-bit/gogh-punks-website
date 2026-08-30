@@ -142,13 +142,29 @@ export default async function handler(request) {
           getAutomationV3WorkerHeartbeat().catch(() => null),
           getAutomationV3UsageStats().catch(() => null),
         ]).then(([heartbeat, usage]) => ({ heartbeat, usage }));
-      const [live, evidence, selectedPunk] = await Promise.all([
+      const [liveResult, evidenceResult, selectedPunkResult] = await Promise.allSettled([
         readAutomationV3GlobalState(),
         workerEvidence,
         tokenId === null ? null : readAutomationV3PunkState(tokenId),
       ]);
-      const { heartbeat, usage } = evidence;
+      const selectedPunk = selectedPunkResult.status === "fulfilled"
+        ? selectedPunkResult.value : null;
       punk = selectedPunk;
+      if (liveResult.status !== "fulfilled") {
+        automation = Object.freeze({
+          ...base,
+          reason: "AUTOMATION_V3_LIVE_READ_UNAVAILABLE",
+          punk,
+        });
+        return json({ ok: true, automation }, 200, {
+          "cache-control": "private, no-store, max-age=0",
+          "netlify-cdn-cache-control": "public, s-maxage=15, stale-while-revalidate=15",
+        });
+      }
+      const live = liveResult.value;
+      const evidence = evidenceResult.status === "fulfilled"
+        ? evidenceResult.value : { heartbeat: null, usage: null, online: false };
+      const { heartbeat, usage } = evidence;
       const globallyReady = live.configured === true && live.worker.enabled === true;
       const availability = automationV3WorkerAvailability(
         globallyReady, heartbeat, live.worker.release, Date.now(),

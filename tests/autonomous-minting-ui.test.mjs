@@ -7,7 +7,8 @@ import {
   automationSelectionChanged,
   buildAutomationGasFundingTransaction,
   createCoalescedRefresh, formatAutomationGasBalance, RETIREMENT_MINT_LIFETIMES,
-  retirementActivationDisclosure, selectAutomationGeneration,
+  ownerRosterHasNoPunks, retirementActivationDisclosure, selectAutomationGeneration,
+  selectedAutomationPunk,
 } from "../site/autonomous-minting.js";
 import { DRAFT_RARITY_MINT_LIMITS } from "../broker/src/retirement/deflationary-model.mjs";
 
@@ -157,6 +158,19 @@ test("activation disclosure binds the exact draft lifetimes and fails closed wit
   assert.equal(assigned.limit, 100);
   assert.equal(assigned.remaining, 83);
   assert.match(assigned.summary, /83 remaining/);
+});
+
+test("zero-Punk wallets never select an absent automation Punk", () => {
+  assert.equal(ownerRosterHasNoPunks({ tokenIds: [] }), true);
+  assert.equal(ownerRosterHasNoPunks({ tokenIds: ["93"] }), false);
+  assert.equal(ownerRosterHasNoPunks(null), false);
+  assert.equal(selectedAutomationPunk(null, null), null);
+  assert.equal(selectedAutomationPunk({}, null), null);
+  assert.equal(selectedAutomationPunk({ punk: null }, { tokenId: "93" }), null);
+  assert.equal(selectedAutomationPunk({ punk: { tokenId: "93" } }, null), null);
+  const punk = { tokenId: "93", active: true };
+  assert.equal(selectedAutomationPunk({ punk }, { tokenId: "93" }), punk);
+  assert.equal(selectedAutomationPunk({ punk }, { tokenId: "94" }), null);
 });
 
 test("live refreshes coalesce instead of invalidating a slower status response", async () => {
