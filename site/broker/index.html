@@ -251,9 +251,13 @@
               </aside>
             </details>
             <div class="layout-two owner-control-layout">
-              <article class="panel">
-                <div class="panel-header"><h3>Selected Punk agent controls</h3><span class="tag off" data-v2-badge>CHECKING</span></div>
-                <p class="locked-note">Activation and limit setup use the single guided wizard above. This panel is only for an already-authorized Punk’s immediate scan and emergency controls.</p>
+              <article class="panel agent-command-center">
+                <div class="panel-header"><h3>Live agent scan terminal</h3><span class="tag off" data-v2-badge>CHECKING</span></div>
+                <p class="locked-note">Activation and limit setup use the single guided wizard above. This indexed feed shows every configured Punk in your wallet without polling the chain for each card. “Scanning” and “minting” appear only when the worker records those real states.</p>
+                <div class="agent-scan-terminal" role="region" aria-label="Punk agent scan terminal">
+                  <div class="agent-scan-terminal-bar"><span>GOGH / WORKER</span><span data-v3-scan-terminal-summary>Loading agent roster…</span></div>
+                  <pre data-v3-scan-terminal aria-live="polite">SYSTEM  waiting for the indexed agent roster</pre>
+                </div>
                 <label class="mandate-field" hidden><span>Quick setup</span><select data-v2-preset disabled><option value="1:7">Conservative · 1 mint/day for 7 days</option><option value="5:14">Standard · 5 mints/day for 14 days</option><option value="10:30">Active · 10 mints/day for 30 days</option><option value="custom">Custom limits</option></select></label>
                 <label class="mandate-field" hidden><span>Hard daily maximum</span><input data-v2-cap disabled type="number" inputmode="numeric" min="1" max="10" step="1" value="1" /></label>
                 <label class="mandate-field" hidden><span>How long it may run (days)</span><input data-v2-days disabled type="number" inputmode="numeric" min="1" max="30" step="1" value="7" /></label>

@@ -7,7 +7,7 @@ import {
   automationSelectionChanged,
   buildAutomationGasFundingTransaction,
   createCoalescedRefresh, formatAutomationGasBalance, RETIREMENT_MINT_LIFETIMES,
-  ownerRosterHasNoPunks, retirementActivationDisclosure, selectAutomationGeneration,
+  automationTerminalSnapshot, ownerRosterHasNoPunks, retirementActivationDisclosure, selectAutomationGeneration,
   selectedAutomationPunk,
 } from "../site/autonomous-minting.js";
 import { DRAFT_RARITY_MINT_LIMITS } from "../broker/src/retirement/deflationary-model.mjs";
@@ -22,7 +22,8 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.match(html, /Continuous free-mint automation/);
   assert.match(html, /<details class="active-agent-console" data-active-agent-console>/);
   assert.match(html, /Your Active Agents/);
-  assert.match(html, /Selected Punk agent controls/);
+  assert.match(html, /Live agent scan terminal/);
+  assert.match(html, /data-v3-scan-terminal/);
   assert.match(html, /Activation and limit setup use the single guided wizard above/);
   assert.equal((html.match(/data-wallet-disconnect/g) ?? []).length, 1);
   assert.match(html, /Automatic safe profile/);
@@ -125,6 +126,25 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.match(browser, /eth_sendTransaction/);
   assert.match(browser, /automationPunkWalletOpenSeaUrl/);
   assert.match(browser, /Copied the selected Punk’s V\$\{state\.version\} NFT wallet—not the hosted gas payer/);
+});
+
+test("agent terminal separates enrollment from real scanning and minting without live fan-out", () => {
+  const snapshot = automationTerminalSnapshot([
+    { tokenId: "93", agentSummary: { configured: true, enrolled: true,
+      status: "AWAITING_WORKER_EVIDENCE" } },
+    { tokenId: "94", agentSummary: { configured: true, enrolled: true,
+      status: "SCANNING", reason: "NO_ACTIVE_CANDIDATES" } },
+    { tokenId: "96", agentSummary: { configured: true, enrolled: false,
+      status: "NEEDS_ENROLLMENT" } },
+  ], "94", true);
+  assert.deepEqual(snapshot.counts, {
+    agents: 3, enrolled: 2, scanning: 1, minting: 0, attention: 1,
+  });
+  assert.equal(snapshot.running, true);
+  assert.match(snapshot.lines[0], /worker online · 2\/3 enrolled · 1 scanning/);
+  assert.match(snapshot.lines[1], /#93\s+enrolled · awaiting fresh worker evidence/);
+  assert.match(snapshot.lines[2], /#94\s+scanning candidates now.*< selected/);
+  assert.match(snapshot.lines[3], /#96\s+needs enrollment repair/);
 });
 
 test("activation disclosure binds the exact draft lifetimes and fails closed without rarity evidence", () => {

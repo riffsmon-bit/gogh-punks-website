@@ -173,6 +173,55 @@ export function ownerRosterHasNoPunks(roster) {
   return Array.isArray(roster?.tokenIds) && roster.tokenIds.length === 0;
 }
 
+const TERMINAL_AGENT_STATES = Object.freeze({
+  ACTIVE: "active · last worker check verified",
+  SCANNING: "scanning candidates now",
+  MINTING: "mint transaction in progress",
+  QUEUED: "queued for the worker",
+  WAITING_FOR_FIRST_SCAN: "enrolled · waiting for first scan",
+  AWAITING_WORKER_EVIDENCE: "enrolled · awaiting fresh worker evidence",
+  NEEDS_ENROLLMENT: "needs enrollment repair",
+  NEEDS_AUTHORIZATION: "needs owner authorization",
+  PAUSED: "paused",
+  AUTOMATION_OFFLINE: "automation offline",
+  NEEDS_ATTENTION: "needs attention",
+  READY: "ready to activate",
+});
+
+// This is intentionally an indexed worker view, not a disguised fan-out of live RPC reads.
+// Privileged buttons still perform their existing live owner/authorization checks.
+export function automationTerminalSnapshot(punks, selectedTokenId = null, workerOnline = null) {
+  const agents = Array.isArray(punks) ? punks.filter((punk) => punk && typeof punk === "object"
+    && (punk.agentSummary || punk.automationConfigured === true || punk.automationCreated === true)) : [];
+  const counts = { agents: agents.length, enrolled: 0, scanning: 0, minting: 0, attention: 0 };
+  const lines = agents.map((punk) => {
+    const summary = punk.agentSummary ?? {};
+    const status = Object.hasOwn(TERMINAL_AGENT_STATES, summary.status)
+      ? summary.status : summary.enrolled === true ? "WAITING_FOR_FIRST_SCAN"
+        : summary.configured === true ? "NEEDS_ENROLLMENT" : "READY";
+    if (summary.enrolled === true) counts.enrolled += 1;
+    if (status === "SCANNING") counts.scanning += 1;
+    if (status === "MINTING") counts.minting += 1;
+    if (["NEEDS_ENROLLMENT", "NEEDS_AUTHORIZATION", "AUTOMATION_OFFLINE",
+      "NEEDS_ATTENTION"].includes(status)) counts.attention += 1;
+    const tokenId = typeof punk.tokenId === "string" && /^(?:0|[1-9][0-9]{0,3})$/.test(punk.tokenId)
+      ? punk.tokenId : "?";
+    const selected = tokenId === selectedTokenId ? "  < selected" : "";
+    const result = summary.reason ? ` · ${String(summary.reason).toLowerCase().replaceAll("_", " ")}` : "";
+    return `#${tokenId.padEnd(4)} ${TERMINAL_AGENT_STATES[status]}${result}${selected}`;
+  });
+  const worker = workerOnline === true ? "online" : workerOnline === false ? "degraded" : "pending evidence";
+  return Object.freeze({
+    counts: Object.freeze(counts),
+    running: counts.scanning > 0 || counts.minting > 0,
+    lines: Object.freeze([
+      `SYSTEM  worker ${worker} · ${counts.enrolled}/${counts.agents} enrolled · ${counts.scanning} scanning · ${counts.minting} minting`,
+      ...lines,
+      ...(lines.length ? [] : ["SYSTEM  no configured Punk agents found"]),
+    ]),
+  });
+}
+
 export function setupAutonomousMinting({ windowObject, documentObject, fetchFunction } = {}) {
   const browserWindow = windowObject ?? (typeof window === "undefined" ? null : window);
   const browserDocument = documentObject ?? (typeof document === "undefined" ? null : document);
@@ -203,6 +252,8 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
   const runNow = panel.querySelector("[data-v3-run-now]");
   const runAll = panel.querySelector("[data-v3-run-all]");
   const runState = panel.querySelector("[data-v3-run-state]");
+  const scanTerminal = panel.querySelector("[data-v3-scan-terminal]");
+  const scanTerminalSummary = panel.querySelector("[data-v3-scan-terminal-summary]");
   const stop = panel.querySelector("[data-v2-stop]");
   const preset = panel.querySelector("[data-v2-preset]");
   const cap = panel.querySelector("[data-v2-cap]");
@@ -231,7 +282,22 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     ownerPunksKnown: Array.isArray(initialOwnerRoster?.tokenIds),
     ownerPunkCount: Array.isArray(initialOwnerRoster?.tokenIds)
       ? initialOwnerRoster.tokenIds.length : null,
+    ownerPunks: Array.isArray(initialOwnerRoster?.punks) ? [...initialOwnerRoster.punks] : [],
   };
+
+  function renderScanTerminal() {
+    if (!scanTerminal) return;
+    const snapshot = automationTerminalSnapshot(
+      state.ownerPunks,
+      state.selection?.tokenId ?? null,
+      state.gate?.heartbeat?.online ?? state.v3Gate?.heartbeat?.online ?? null,
+    );
+    scanTerminal.textContent = snapshot.lines.join("\n");
+    scanTerminal.dataset.running = snapshot.running ? "true" : "false";
+    if (scanTerminalSummary) {
+      scanTerminalSummary.textContent = `${snapshot.counts.enrolled} enrolled · ${snapshot.counts.scanning} scanning · ${snapshot.counts.minting} minting`;
+    }
+  }
 
   function heartbeatLabel(value) {
     if (!value) return "No worker check recorded yet";
@@ -306,6 +372,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
   }
 
   function renderNoOwnedPunks() {
+    renderScanTerminal();
     status.textContent = "NO PUNKS FOUND";
     status.classList.add("off");
     punk.textContent = "No Punk selected";
@@ -344,6 +411,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
       renderNoOwnedPunks();
       return;
     }
+    renderScanTerminal();
     const publicUsage = state.v3Gate?.usage;
     usageMints.textContent = publicUsage?.confirmedMints ?? "—";
     usagePunks.textContent = publicUsage?.mintingPunks ?? "—";
@@ -806,6 +874,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     if (!Array.isArray(tokenIds)) return;
     state.ownerPunksKnown = true;
     state.ownerPunkCount = tokenIds.length;
+    state.ownerPunks = Array.isArray(event.detail?.punks) ? [...event.detail.punks] : [];
     if (tokenIds.length === 0) {
       state.selection = null;
       state.gate = null;

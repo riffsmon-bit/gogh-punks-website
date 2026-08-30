@@ -332,6 +332,7 @@ export function setupAgentWizard({ windowObject, documentObject, fetchFunction }
     ));
     if (agentHealth) {
       const counts = presentations.reduce((output, item, index) => {
+        if (activeWallets[index]?.agentSummary?.enrolled === true) output.enrolled += 1;
         if (["ACTIVE", "SCANNING", "MINTING"].includes(item.status)) output.active += 1;
         if (item.status === "SCANNING") output.scanning += 1;
         if (item.status === "MINTING") output.minting += 1;
@@ -340,10 +341,10 @@ export function setupAgentWizard({ windowObject, documentObject, fetchFunction }
         if (item.status === "AUTOMATION_OFFLINE") output.workerOnline = false;
         if (activeWallets[index]?.agentSummary?.lastActualScan) output.workerEvidence = true;
         return output;
-      }, { active: 0, scanning: 0, minting: 0, attention: 0,
+      }, { enrolled: 0, active: 0, scanning: 0, minting: 0, attention: 0,
         workerOnline: true, workerEvidence: false });
       const values = [
-        ["Agents", activeWallets.length], ["Active", counts.active],
+        ["Enrolled", counts.enrolled], ["Active now", counts.active],
         ["Scanning", counts.scanning], ["Minting", counts.minting],
         ["Needs attention", counts.attention],
         ["Worker", !activeWallets.length ? "—" : !counts.workerOnline ? "Degraded"
