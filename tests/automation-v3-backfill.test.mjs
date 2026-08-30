@@ -23,16 +23,19 @@ test("V3 enrollment backfill is dry-run first and enrolls only live active Punks
   });
   const dry = await backfillAutomationV3Enrollments(["3", "1", "2"], {
     nowSeconds: 1_000, readPunk: async (tokenId) => state(tokenId),
+    isEnrolled: async () => false,
     enroll: async (punk) => enrolled.push(punk.tokenId),
   });
   assert.equal(dry.mode, "DRY_RUN");
-  assert.deepEqual(dry.counts, { discovered: 3, eligible: 1, enrolled: 0, skipped: 2 });
+  assert.deepEqual(dry.counts, { discovered: 3, eligible: 1, enrolled: 0,
+    alreadyEnrolled: 0, missingEnrollment: 1, skipped: 2 });
   assert.deepEqual(enrolled, []);
   assert.equal(dry.authorizesAgent, false);
   assert.equal(dry.sendsTransaction, false);
 
   const applied = await backfillAutomationV3Enrollments(["1", "2", "3"], {
     apply: true, nowSeconds: 1_000, readPunk: async (tokenId) => state(tokenId),
+    isEnrolled: async () => false,
     enroll: async (punk) => enrolled.push(punk.tokenId),
   });
   assert.equal(applied.mode, "APPLY");
@@ -46,9 +49,26 @@ test("V3 enrollment backfill fails closed on malformed lists and live evidence",
   assert.throws(() => normalizeAutomationV3BackfillTokenIds(Array(201).fill("1")));
   const result = await backfillAutomationV3Enrollments(["1"], {
     readPunk: async () => ({ tokenId: "2", created: true, active: true }),
+    isEnrolled: async () => false,
     enroll: async () => assert.fail("invalid evidence must not enroll"),
   });
   assert.equal(result.results[0].reason, "LIVE_CHECK_FAILED");
+});
+
+test("V3 enrollment backfill reports exact already-enrolled account and owner evidence", async () => {
+  const punk = { tokenId: "93", created: true, active: true,
+    account: address("1"), owner: address("2"),
+    authorization: { active: true, effective: true, validUntil: "9999999999" } };
+  const enrolled = [];
+  const report = await backfillAutomationV3Enrollments(["93"], {
+    nowSeconds: 1_000, readPunk: async () => punk,
+    isEnrolled: async (value) => value === punk,
+    enroll: async () => enrolled.push("unexpected"),
+  });
+  assert.deepEqual(report.counts, { discovered: 1, eligible: 0, enrolled: 0,
+    alreadyEnrolled: 1, missingEnrollment: 0, skipped: 0 });
+  assert.equal(report.results[0].status, "ALREADY_ENROLLED");
+  assert.deepEqual(enrolled, []);
 });
 
 test("activation discovery accepts only the exact V3 facade event identity", () => {

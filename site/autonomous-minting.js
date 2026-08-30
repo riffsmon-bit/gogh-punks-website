@@ -660,7 +660,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
   }
 
   async function runAgentNow() {
-    if (state.running || state.version !== 3 || !state.selection?.tokenId) return;
+    if (state.running || state.version !== 3 || !state.selection?.tokenId) return null;
     state.running = true;
     render();
     runState.textContent = "Running the exact V3 target, policy, and simulation checks now…";
@@ -686,8 +686,10 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
               ? "Scan complete. No target passed every live safety and simulation check."
               : "Scan complete. No transaction was needed.";
       await load();
+      return outcome;
     } catch (error) {
       runState.textContent = error?.message ?? "The agent scan stopped safely.";
+      return null;
     } finally {
       state.running = false;
       render();
@@ -764,7 +766,16 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
       state.setupSubmission = null;
       render();
     }
-    if (startFirstScan) void runAgentNow();
+    if (startFirstScan) {
+      message.textContent = "Punk activated. Enrolling its worker and requesting the first scan…";
+      const outcome = await runAgentNow();
+      message.textContent = outcome
+        ? outcome.status === "RUN_IN_PROGRESS"
+          ? "Punk activated and enrolled. A worker is already running; this Punk is queued."
+          : "Punk activated, enrolled, and its first scan completed."
+        : "Punk activated, but worker enrollment or the first scan could not be confirmed. Retry Send Agent.";
+      render();
+    }
   });
   runNow.addEventListener("click", runAgentNow);
   runAll.addEventListener("click", runAllAgentsNow);

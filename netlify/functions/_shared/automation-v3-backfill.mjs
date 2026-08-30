@@ -1,4 +1,6 @@
-import { enrollAutomationV3Punk } from "./automation-v3-worker-state.mjs";
+import {
+  automationV3PunkEnrollment, enrollAutomationV3Punk,
+} from "./automation-v3-worker-state.mjs";
 import { readAutomationV3PunkState } from "./autonomy-v3-live.mjs";
 
 const MAX_BACKFILL_PUNKS = 200;
@@ -50,7 +52,9 @@ export async function backfillAutomationV3Enrollments(tokenIds, options = {}) {
   }
   const readPunk = options.readPunk ?? readAutomationV3PunkState;
   const enroll = options.enroll ?? enrollAutomationV3Punk;
-  if (typeof readPunk !== "function" || typeof enroll !== "function") {
+  const isEnrolled = options.isEnrolled ?? automationV3PunkEnrollment;
+  if (typeof readPunk !== "function" || typeof enroll !== "function"
+    || typeof isEnrolled !== "function") {
     throw new TypeError("Backfill dependencies are invalid");
   }
 
@@ -73,6 +77,12 @@ export async function backfillAutomationV3Enrollments(tokenIds, options = {}) {
           });
           continue;
         }
+        if (await isEnrolled(punk)) {
+          results[index] = Object.freeze({
+            tokenId: selected, status: "ALREADY_ENROLLED", reason: null,
+          });
+          continue;
+        }
         if (apply) await enroll(punk);
         results[index] = Object.freeze({
           tokenId: selected,
@@ -92,6 +102,9 @@ export async function backfillAutomationV3Enrollments(tokenIds, options = {}) {
     eligible: results.filter(({ status }) => status === "WOULD_ENROLL"
       || status === "ENROLLED").length,
     enrolled: results.filter(({ status }) => status === "ENROLLED").length,
+    alreadyEnrolled: results.filter(({ status }) => status === "ALREADY_ENROLLED").length,
+    missingEnrollment: results.filter(({ status }) => status === "WOULD_ENROLL"
+      || status === "ENROLLED").length,
     skipped: results.filter(({ status }) => status === "SKIPPED").length,
   });
   return Object.freeze({

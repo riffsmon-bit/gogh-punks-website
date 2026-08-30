@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { encodeFunctionData, encodeFunctionResult, parseAbi } from "viem";
 import {
-  configuredAutomationPunkIds,
+  automationPunkAgentSummaries, configuredAutomationPunkIds,
   createdAutomationV3PunkIds,
   enrolledAutomationPunkIds,
   indexedOwnerPunkIds,
@@ -89,6 +89,39 @@ test("enrolled V3 Punks remain bounded owner-scoped discovery hints", async () =
   assert.match(captured.sql, /LOWER\(owner_snapshot\)/);
   assert.equal(captured.values[2], OWNER.toLowerCase());
   assert.equal(captured.values[3], 201);
+});
+
+test("owner agent summaries distinguish worker proof from configuration", async () => {
+  let captured;
+  const now = Date.parse("2026-08-29T12:10:00Z");
+  const summaries = await automationPunkAgentSummaries(OWNER, async (sql, values) => {
+    captured = { sql, values };
+    return { rows: [
+      { token_id: "93", configured: true, enrolled: true, account_address: ACCOUNT_A,
+        worker_state: "SKIPPED", last_scheduled_scan: "2026-08-29T12:08:00Z",
+        last_actual_scan: "2026-08-29T12:08:02Z", last_successful_mint: null,
+        next_scan_estimate: "2026-08-29T14:23:00Z", reason: "NO_ELIGIBLE_TARGETS",
+        updated_at: "2026-08-29T12:08:02Z", global_status: "NO_ELIGIBLE_TARGETS",
+        global_completed_at: "2026-08-29T12:08:02Z" },
+      { token_id: "1616", configured: true, enrolled: false, account_address: null,
+        worker_state: null, last_scheduled_scan: null, last_actual_scan: null,
+        last_successful_mint: null, next_scan_estimate: null, reason: null, updated_at: null,
+        global_status: "NO_ELIGIBLE_TARGETS", global_completed_at: "2026-08-29T12:08:02Z" },
+      { token_id: "1797", configured: true, enrolled: true, account_address: ACCOUNT_B,
+        worker_state: "SKIPPED", last_scheduled_scan: "2026-08-29T08:00:00Z",
+        last_actual_scan: "2026-08-29T08:00:02Z", last_successful_mint: null,
+        next_scan_estimate: "2026-08-29T10:15:00Z", reason: "NO_ELIGIBLE_TARGETS",
+        updated_at: "2026-08-29T08:00:02Z", global_status: "NO_ELIGIBLE_TARGETS",
+        global_completed_at: "2026-08-29T12:08:02Z" },
+    ] };
+  }, now);
+  assert.equal(summaries[0].status, "ACTIVE");
+  assert.equal(summaries[0].lastActualScan, "2026-08-29T12:08:02.000Z");
+  assert.equal(summaries[1].status, "NEEDS_ENROLLMENT");
+  assert.equal(summaries[2].status, "NEEDS_ATTENTION");
+  assert.match(captured.sql, /broker_punk_agent_heartbeats/);
+  assert.match(captured.sql, /broker_automation_v3_worker_state/);
+  assert.equal(captured.values[2], OWNER.toLowerCase());
 });
 
 test("live owner completion avoids a full scan when indexed candidates reconcile balance", async () => {

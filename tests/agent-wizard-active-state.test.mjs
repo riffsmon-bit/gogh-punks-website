@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  forwardOnlyWizardStep, setupAgentWizard, wizardStepIndex,
+  agentCardPresentation, forwardOnlyWizardStep, setupAgentWizard, wizardStepIndex,
 } from "../site/agent-setup-wizard.js";
 import { automationSnapshotStats } from "../site/autonomous-minting.js";
 
@@ -100,6 +100,7 @@ function wizardFixture({ stored = null, punks = [], automation = null, wallet = 
   const listeners = new Map();
   const dispatched = [];
   const windowObject = {
+    location: { assigned: [], assign(value) { this.assigned.push(value); } },
     localStorage: {
       getItem: (key) => storage.get(key) ?? null,
       setItem: (key, value) => storage.set(key, String(value)),
@@ -278,9 +279,19 @@ test("active-agent cards link directly to each Punk wallet control center", () =
   });
   setupAgentWizard(fixture);
   assert.deepEqual(agentCardActions(fixture), [
-    { textContent: "Open Punk wallet", href: "/broker/punk/93" },
-    { textContent: "Watch agent", href: "/broker/?punk=93#automation-title" },
+    { textContent: "Watch agent", href: "/broker/punk/93#activity" },
+    { textContent: "Open wallet", href: "/broker/punk/93#assets" },
   ]);
+});
+
+test("wizard Watch Agent opens the Punk Control Center instead of a second setup panel", () => {
+  const fixture = wizardFixture({
+    stored: { selectedPunk: "93", step: "success", dailyLimit: 3, durationDays: 7 },
+    punks: [ACTIVE_PUNK], automation: activeAutomation(),
+  });
+  setupAgentWizard(fixture);
+  fixture.element("[data-wizard-watch]").click();
+  assert.deepEqual(fixture.windowObject.location.assigned, ["/broker/punk/93#activity"]);
 });
 
 test("agent cards never present a local draft limit as an on-chain cap", () => {
@@ -291,8 +302,21 @@ test("agent cards never present a local draft limit as an on-chain cap", () => {
   });
   setupAgentWizard(fixture);
   const facts = agentCardFacts(fixture);
-  assert.equal(facts.Today, "Select to check");
-  assert.equal(facts.Authorization, "Select to check");
+  assert.equal(facts.Today, "—");
+  assert.equal(facts.Authorization, "Needs setup");
+});
+
+test("indexed worker evidence distinguishes enrollment from actual processing", () => {
+  assert.equal(agentCardPresentation({ tokenId: "93", agentSummary: {
+    configured: true, enrolled: false, status: "NEEDS_ENROLLMENT",
+  } }).label, "Needs enrollment repair");
+  assert.equal(agentCardPresentation({ tokenId: "94", agentSummary: {
+    configured: true, enrolled: true, status: "WAITING_FOR_FIRST_SCAN",
+  } }).label, "Enrolled · waiting for first scan");
+  assert.equal(agentCardPresentation({ tokenId: "95", agentSummary: {
+    configured: true, enrolled: true, status: "ACTIVE",
+    lastActualScan: "2026-08-29T12:00:00.000Z",
+  } }).label, "Active · worker verified");
 });
 
 test("snapshot statistics are chain evidence or null", () => {

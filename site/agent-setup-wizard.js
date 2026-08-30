@@ -50,7 +50,71 @@ export function agentRosterPunks(punks) {
   return Object.freeze(punks.filter((punk) => punk && typeof punk === "object"
     && (Object.hasOwn(punk, "activated") && punk.activated === true
       || Object.hasOwn(punk, "automationConfigured") && punk.automationConfigured === true
-      || Object.hasOwn(punk, "automationCreated") && punk.automationCreated === true)));
+      || Object.hasOwn(punk, "automationCreated") && punk.automationCreated === true
+      || punk.agentSummary?.configured === true || punk.agentSummary?.enrolled === true)));
+}
+
+export function agentCardPresentation(punk, live = null) {
+  const summary = punk?.agentSummary ?? null;
+  const labels = Object.freeze({
+    ACTIVE: "Active · worker verified",
+    SCANNING: "Scanning now",
+    QUEUED: "Queued for worker",
+    WAITING_FOR_FIRST_SCAN: "Enrolled · waiting for first scan",
+    NEEDS_ENROLLMENT: "Needs enrollment repair",
+    NEEDS_AUTHORIZATION: "Needs authorization",
+    PAUSED: "Paused",
+    AUTOMATION_OFFLINE: "Automation offline",
+    NEEDS_ATTENTION: "Needs attention",
+    READY: "Ready to activate",
+  });
+  if (live?.active === true) {
+    const status = live.agentLive === true ? "ACTIVE"
+      : summary?.status && labels[summary.status] ? summary.status : "AUTOMATION_OFFLINE";
+    return Object.freeze({
+      status,
+      label: live.agentLive === true
+        ? "Active · live authority verified" : "Authorized · worker not verified",
+      authorization: "Active",
+      today: Number.isInteger(live.cap) && Number.isInteger(live.acquisitionsToday)
+        ? `${live.acquisitionsToday} / ${live.cap}` : "Live",
+      lastWorkerCheck: live.heartbeat?.completedAt ?? summary?.lastActualScan ?? null,
+    });
+  }
+  if (live && live.active !== true) {
+    return Object.freeze({ status: "NEEDS_AUTHORIZATION", label: labels.NEEDS_AUTHORIZATION,
+      authorization: "Needs setup", today: "—",
+      lastWorkerCheck: summary?.lastActualScan ?? null });
+  }
+  const status = labels[summary?.status] ? summary.status
+    : summary?.enrolled ? "WAITING_FOR_FIRST_SCAN"
+      : summary?.configured ? "NEEDS_ENROLLMENT"
+        : punk?.automationCreated ? "READY" : "READY";
+  const workerVerified = ["ACTIVE", "SCANNING"].includes(status);
+  return Object.freeze({
+    status,
+    label: labels[status],
+    authorization: workerVerified ? "Verified at last scan"
+      : status === "NEEDS_ENROLLMENT" ? "Configured; not enrolled"
+        : status === "QUEUED" || status === "WAITING_FOR_FIRST_SCAN"
+          ? "Enrollment recorded" : "Open agent to verify",
+    today: "Open agent for live usage",
+    lastWorkerCheck: summary?.lastActualScan ?? summary?.updatedAt ?? null,
+  });
+}
+
+function humanWorkerReason(reason) {
+  const messages = Object.freeze({
+    NO_ELIGIBLE_TARGETS: "No mint passed every check",
+    NO_ACTIVE_CANDIDATES: "No active mint candidates",
+    WAITING_FOR_WORKER_CAPACITY: "Waiting in the worker rotation",
+    MINT_CONFIRMED: "Mint confirmed",
+    ELIGIBLE_SIMULATION_PASSED: "Candidate simulation passed",
+    PROFILE_STATE_READ_FAILED: "Live state check failed safely",
+    PROVIDER_OWNER_DISAGREEMENT: "Ownership providers disagreed",
+    ACCOUNT_NOT_CREATED: "Punk wallet is not created",
+  });
+  return messages[reason] ?? (reason ? "Scan stopped safely" : "Waiting for first scan");
 }
 
 function readState(storage) {
@@ -107,6 +171,7 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
   const gasAmount = root.querySelector("[data-wizard-gas-amount]");
   const agentGrid = browserDocument.querySelector("[data-active-agent-grid]");
   const agentEmpty = browserDocument.querySelector("[data-active-agent-empty]");
+  const agentHealth = browserDocument.querySelector("[data-agent-health-summary]");
   const stored = readState(browserWindow.localStorage);
   const state = {
     wallet: browserWindow.__GOGH_WALLET_SNAPSHOT__ ?? null,
@@ -199,6 +264,11 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
     state.selectedPunk = tokenId;
     selectUnderlyingPunk();
     render();
+    const route = `/broker/punk/${encodeURIComponent(tokenId)}#activity`;
+    if (typeof browserWindow.location?.assign === "function") {
+      browserWindow.location.assign(route);
+      return;
+    }
     browserDocument.querySelector("[data-advanced-workspace]")?.setAttribute("open", "");
     browserDocument.querySelector("#automation-title")?.setAttribute("open", "");
     browserDocument.querySelector("#automation-title")?.scrollIntoView({ behavior: "smooth" });
@@ -213,6 +283,35 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
   function renderActiveAgents() {
     if (!agentGrid || !agentEmpty) return;
     const activeWallets = agentRosterPunks(state.punks);
+    const presentations = activeWallets.map((punk) => agentCardPresentation(
+      punk, state.automation?.tokenId === punk.tokenId ? state.automation : null,
+    ));
+    if (agentHealth) {
+      const counts = presentations.reduce((output, item, index) => {
+        if (["ACTIVE", "SCANNING"].includes(item.status)) output.active += 1;
+        if (item.status === "SCANNING") output.scanning += 1;
+        if (["NEEDS_ENROLLMENT", "NEEDS_AUTHORIZATION", "NEEDS_ATTENTION",
+          "AUTOMATION_OFFLINE"].includes(item.status)) output.attention += 1;
+        if (item.status === "AUTOMATION_OFFLINE") output.workerOnline = false;
+        if (activeWallets[index]?.agentSummary?.lastActualScan) output.workerEvidence = true;
+        return output;
+      }, { active: 0, scanning: 0, attention: 0, workerOnline: true, workerEvidence: false });
+      const values = [
+        ["Agents", activeWallets.length], ["Active", counts.active],
+        ["Scanning", counts.scanning], ["Needs attention", counts.attention],
+        ["Worker", !activeWallets.length ? "—" : !counts.workerOnline ? "Degraded"
+          : counts.workerEvidence ? "Online" : "Pending evidence"],
+      ];
+      agentHealth.replaceChildren(...values.map(([label, value]) => {
+        const item = browserDocument.createElement("span");
+        const strong = browserDocument.createElement("strong");
+        const small = browserDocument.createElement("small");
+        strong.textContent = String(value);
+        small.textContent = label;
+        item.append(strong, small);
+        return item;
+      }));
+    }
     agentGrid.replaceChildren();
     agentEmpty.hidden = activeWallets.length > 0;
     agentEmpty.textContent = state.wallet?.account
@@ -235,29 +334,22 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
       const body = browserDocument.createElement("div");
       const title = browserDocument.createElement("h3");
       title.textContent = `Punk #${punk.tokenId}`;
+      const presentation = agentCardPresentation(punk, live);
       const status = browserDocument.createElement("strong");
       status.className = "agent-card-state";
-      status.textContent = live?.agentLive ? "Active · scanning"
-        : live?.active ? "Authorized · worker unavailable"
-          : live ? "Wallet active · setup needed" : "Select to check live agent";
-      if (!live && punk.automationConfigured) {
-        status.textContent = "Configured · select to verify live";
-      } else if (!live && punk.automationCreated) {
-        status.textContent = "Punk wallet active · select to verify agent";
-      }
+      status.textContent = presentation.label;
+      status.dataset.agentState = presentation.status;
       const facts = browserDocument.createElement("dl");
       // Only an authorized agent has an on-chain cap and expiry to report. Anything else keeps
       // the placeholder rather than dressing a local default up as chain state.
-      const chainState = live?.active === true ? live : null;
       const entries = [
         ["Punk wallet", short(punk.account)],
-        ["Today", Number.isInteger(chainState?.cap)
-          && Number.isInteger(chainState?.acquisitionsToday)
-          ? `${chainState.acquisitionsToday} / ${chainState.cap}` : "Select to check"],
-        ["Authorization", chainState
-          ? formatExpiry(chainState.authorizationValidUntil) : "Select to check"],
-        ["Last worker check", live?.heartbeat?.completedAt
-          ? new Date(live.heartbeat.completedAt).toLocaleString() : "Select to check"],
+        ["Today", presentation.today],
+        ["Authorization", live?.active === true
+          ? formatExpiry(live.authorizationValidUntil) : presentation.authorization],
+        ["Last worker check", presentation.lastWorkerCheck
+          ? new Date(presentation.lastWorkerCheck).toLocaleString() : "Waiting for first scan"],
+        ["Last result", humanWorkerReason(punk.agentSummary?.reason)],
       ];
       for (const [term, description] of entries) {
         const dt = browserDocument.createElement("dt");
@@ -270,12 +362,12 @@ export function setupAgentWizard({ windowObject, documentObject } = {}) {
       const actions = browserDocument.createElement("div");
       actions.className = "active-agent-actions";
       const watch = browserDocument.createElement("a");
-      watch.href = `/broker/punk/${encodeURIComponent(punk.tokenId)}`;
-      watch.textContent = "Open Punk wallet";
-      const portfolio = browserDocument.createElement("a");
-      portfolio.href = `/broker/?punk=${encodeURIComponent(punk.tokenId)}#automation-title`;
-      portfolio.textContent = "Watch agent";
-      actions.append(watch, portfolio);
+      watch.href = `/broker/punk/${encodeURIComponent(punk.tokenId)}#activity`;
+      watch.textContent = "Watch agent";
+      const wallet = browserDocument.createElement("a");
+      wallet.href = `/broker/punk/${encodeURIComponent(punk.tokenId)}#assets`;
+      wallet.textContent = "Open wallet";
+      actions.append(watch, wallet);
       card.append(visual, body, actions);
       agentGrid.append(card);
     }

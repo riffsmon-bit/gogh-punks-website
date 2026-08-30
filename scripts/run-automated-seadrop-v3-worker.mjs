@@ -230,6 +230,9 @@ async function accountState(client, blockNumber, account, agent) {
 function rejectionDiagnostics(profiles, collections, candidates) {
   return {
     profiles: profiles.length,
+    scheduledTokenIds: profiles.map(({ token_id: tokenId }) => String(tokenId)),
+    processedTokenIds: [],
+    profileOutcomes: [],
     recentSeaDropCollections: collections.length,
     onchainZeroPriceCandidates: candidates.length,
     missingActivatedAccounts: 0,
@@ -238,6 +241,20 @@ function rejectionDiagnostics(profiles, collections, candidates) {
     providerStateDisagreements: 0,
     executionSimulationsPassed: 0,
   };
+}
+
+function recordProfileOutcome(diagnostics, tokenId, state, reason, account = null) {
+  if (!diagnostics || !/^(?:0|[1-9][0-9]{0,3})$/.test(String(tokenId))
+    || !new Set(["MINTED", "SKIPPED", "ERROR", "READY"]).has(state)
+    || !/^[A-Z0-9_]{3,64}$/.test(reason)
+    || (account !== null && !/^0x[0-9a-f]{40}$/.test(account))) return;
+  if (!diagnostics.processedTokenIds.includes(String(tokenId))) {
+    diagnostics.processedTokenIds.push(String(tokenId));
+  }
+  const index = diagnostics.profileOutcomes.findIndex((item) => item.tokenId === String(tokenId));
+  const outcome = Object.freeze({ tokenId: String(tokenId), state, reason, account });
+  if (index === -1) diagnostics.profileOutcomes.push(outcome);
+  else diagnostics.profileOutcomes[index] = outcome;
 }
 
 function recordExecutionSimulationRejection(diagnostics, error) {
@@ -898,11 +915,24 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
     : socialPool.slice(0, maximumSocialCandidates);
   const candidates = [...new Set([...exactPriorityCandidates, ...sociallySelected])]
     .slice(0, AUTOMATION_V3_CANDIDATE_BATCH_SIZE);
-  if (candidates.length === 0) return {
-    status: "NO_ANALYZED_ACTIVE_TARGETS", submitted: 0,
-    diagnostics: { profiles: profiles.length, recentSeaDropCollections: collections.length,
-      directedTargetCollections: directedCollections?.length ?? 0, onchainZeroPriceCandidates: 0 },
-  };
+  if (candidates.length === 0) {
+    const diagnostics = rejectionDiagnostics(profiles, collections, candidates);
+    diagnostics.totalEligibleProfiles = orderedProfiles.length;
+    diagnostics.scheduledProfileBatch = profiles.length;
+    diagnostics.analyzedCandidateBatch = 0;
+    diagnostics.directedTargetCollections = directedCollections?.length ?? 0;
+    diagnostics.priorityTargetCollections = priorityCollections.length;
+    diagnostics.operatorConfiguredPunks = configuredTokenIds.length;
+    diagnostics.socialRanking = socialRanking?.diagnostics ?? {
+      discovered: socialPool.length, withWebsite: 0, withX: 0, highPriority: 0,
+      sentToOnchainValidation: 0, maximumOnchainValidations: maximumSocialCandidates,
+    };
+    diagnostics.socialCandidates = socialRanking?.selected ?? [];
+    for (const { token_id: tokenId } of profiles) {
+      recordProfileOutcome(diagnostics, String(tokenId), "SKIPPED", "NO_ACTIVE_CANDIDATES");
+    }
+    return { status: "NO_ANALYZED_ACTIVE_TARGETS", submitted: 0, diagnostics };
+  }
   // Global policy/runtime evidence is expensive (eleven reads from each independent
   // provider). It remains mandatory before any account or transaction work, but an idle
   // scan with no candidate no longer spends RPC budget re-proving unchanged global state.
@@ -943,6 +973,7 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   for (const row of profiles) {
     if (budgetExpired()) return budgetResult();
     const tokenId = String(row.token_id);
+    if (!diagnostics.processedTokenIds.includes(tokenId)) diagnostics.processedTokenIds.push(tokenId);
     let accountAddress;
     let expectedOwner;
     let priorityState;
@@ -952,6 +983,7 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
       });
       if (((await primary.getCode({ address: accountAddress })) ?? "0x") === "0x") {
         diagnostics.missingActivatedAccounts += 1;
+        recordProfileOutcome(diagnostics, tokenId, "ERROR", "ACCOUNT_NOT_CREATED");
         continue;
       }
       const ownerRequest = {
@@ -963,6 +995,7 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
       ]);
       if (getAddress(primaryOwner) !== getAddress(secondaryOwner)) {
         diagnostics.providerStateDisagreements += 1;
+        recordProfileOutcome(diagnostics, tokenId, "ERROR", "PROVIDER_OWNER_DISAGREEMENT");
         continue;
       }
       expectedOwner = getAddress(primaryOwner).toLowerCase();
@@ -973,6 +1006,7 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
       // One stale or rate-limited Punk must not stop the remaining authorized
       // roster. No transaction is built until all of this Punk's reads pass.
       diagnostics.profileStateReadFailures += 1;
+      recordProfileOutcome(diagnostics, tokenId, "ERROR", "PROFILE_STATE_READ_FAILED");
       continue;
     }
     diagnostics.priorityStateReadFailures += priorityState.readFailures;
@@ -1083,6 +1117,10 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
       }
       diagnostics.executionSimulationsPassed += 1;
       if (dependencies.readOnly === true) {
+        recordProfileOutcome(
+          diagnostics, tokenId, "READY", "ELIGIBLE_SIMULATION_PASSED",
+          accountAddress.toLowerCase(),
+        );
         return {
           status: "READ_ONLY_ELIGIBLE",
           submitted: 0,
@@ -1116,8 +1154,16 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
         error.code = "AUTONOMOUS_MINT_REVERTED";
         throw error;
       }
-      return { status: "MINT_CONFIRMED", submitted: 1, tokenId, account: accountAddress.toLowerCase(), collection, transactionHash: hash };
+      recordProfileOutcome(
+        diagnostics, tokenId, "MINTED", "MINT_CONFIRMED", accountAddress.toLowerCase(),
+      );
+      return { status: "MINT_CONFIRMED", submitted: 1, tokenId,
+        account: accountAddress.toLowerCase(), collection, transactionHash: hash, diagnostics };
     }
+    recordProfileOutcome(
+      diagnostics, tokenId, "SKIPPED", "NO_ELIGIBLE_TARGETS",
+      typeof accountAddress === "string" ? accountAddress.toLowerCase() : null,
+    );
   }
   if (diagnostics.profileStateReadFailures === profiles.length) {
     const error = new Error("PROFILE_STATE_READ_FAILED");

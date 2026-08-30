@@ -650,6 +650,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
         activated: item.activated === true,
         automationConfigured: item.automationConfigured === true,
         automationCreated: item.automationCreated === true,
+        agentSummary: item.agentSummary ? Object.freeze({ ...item.agentSummary }) : null,
         artwork: item.artwork ? Object.freeze({ ...item.artwork }) : null,
         rarity: item.rarity ? Object.freeze({ ...item.rarity }) : null,
       }))),
@@ -780,6 +781,9 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       automationCreated: new Map(rows.map((item) => [
         String(item?.tokenId), item?.automationCreated === true,
       ])),
+      agentSummary: new Map(rows.map((item) => [
+        String(item?.tokenId), item?.agentSummary ?? null,
+      ])),
     });
   }
 
@@ -791,6 +795,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       rarity: maps.rarity.get(item.tokenId) ?? item.rarity ?? null,
       automationConfigured: maps.automation.get(item.tokenId) === true,
       automationCreated: maps.automationCreated.get(item.tokenId) === true,
+      agentSummary: maps.agentSummary.get(item.tokenId) ?? item.agentSummary ?? null,
     }));
   }
 

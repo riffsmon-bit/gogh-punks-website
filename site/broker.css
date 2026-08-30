@@ -210,9 +210,18 @@ button { font: inherit; }
 .wizard-success .wizard-review { text-align: left; }
 .wizard-success-mark { display: grid; width: 76px; height: 76px; margin: 0 auto 18px; place-items: center; border-radius: 50%; color: var(--ink); background: var(--teal); font-size: 2.5rem; }
 .active-agent-console { margin: 24px 0; padding: 26px; border: 1px solid var(--line); background: rgba(7, 22, 33, 0.72); }
-.active-agent-console > header { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 0.8fr); gap: 28px; align-items: end; }
-.active-agent-console h2 { margin: 0; font: clamp(2rem, 5vw, 3.2rem)/1 var(--display); }
-.active-agent-console > header > p { margin: 0; color: var(--muted); line-height: 1.6; }
+.active-agent-console > summary { display: flex; justify-content: space-between; gap: 18px; align-items: center; cursor: pointer; list-style: none; }
+.active-agent-console > summary::-webkit-details-marker { display: none; }
+.active-agent-console > summary::after { content: "+"; color: var(--sun); font: 1.6rem var(--display); }
+.active-agent-console[open] > summary::after { content: "−"; }
+.active-agent-console > summary strong { display: block; margin-top: 5px; font: clamp(2rem, 5vw, 3.2rem)/1 var(--display); }
+.active-agent-console > summary > span:last-child { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; }
+.active-agent-intro { max-width: 68ch; margin: 18px 0 0; color: var(--muted); line-height: 1.6; }
+.agent-health-summary { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-top: 20px; }
+.agent-health-summary > span { min-width: 0; padding: 12px; border: 1px solid var(--line); background: rgba(3, 7, 11, 0.5); }
+.agent-health-summary strong, .agent-health-summary small { display: block; }
+.agent-health-summary strong { color: var(--cream); font: 1.35rem var(--display); }
+.agent-health-summary small { margin-top: 4px; color: var(--muted); font-size: 0.62rem; letter-spacing: 0.08em; text-transform: uppercase; }
 .active-agent-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; margin-top: 22px; }
 .active-agent-card { display: grid; grid-template-columns: 74px 1fr; gap: 14px; padding: 14px; border: 1px solid var(--line); background: var(--panel); }
 .active-agent-card > img, .active-agent-card > .agent-card-placeholder { display: grid; width: 74px; aspect-ratio: 1; place-items: center; object-fit: cover; image-rendering: pixelated; background: var(--panel-high); color: var(--sun); font: 1.2rem var(--display); }
@@ -773,6 +782,10 @@ h3 { font-size: 1.45rem; }
   .automation-gas-card, .asset-recovery-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 620px) {
+  html, body { max-width: 100%; overflow-x: clip; }
+  .broker-main > *, .workflow-step, .collapsible-content, .panel,
+  .active-agent-console, .active-agent-grid, .active-agent-card,
+  .owner-workspace, .automation-grid { min-width: 0; max-width: 100%; }
   .broker-header { min-height: 64px; }
   .broker-brand span { display: none; }
   .wallet-state { max-width: 175px; font-size: 0.52rem; }
@@ -806,6 +819,7 @@ h3 { font-size: 1.45rem; }
   .broker-header { padding-inline: 14px; }
   .broker-header .wallet-control { max-width: 210px; }
   .broker-header .wallet-state { display: none; }
+  .broker-header .wallet-disconnect { display: none !important; }
   .broker-main { width: 100%; padding: 24px 12px 70px; }
   .broker-hero { padding-inline: 8px; }
   .broker-hero aside { display: none; }
@@ -826,11 +840,16 @@ h3 { font-size: 1.45rem; }
   .wizard-action-bar .wizard-primary { flex: 1; }
   .wizard-success-actions { display: grid; }
   .active-agent-console { padding: 20px 16px; }
-  .active-agent-console > header { grid-template-columns: 1fr; gap: 12px; }
-  .active-agent-grid { grid-template-columns: 1fr; }
+  .active-agent-console > summary { align-items: flex-start; }
+  .active-agent-console > summary > span:last-child { display: none; }
+  .agent-health-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .active-agent-grid { grid-template-columns: minmax(0, 1fr); }
+  .active-agent-card { grid-template-columns: 64px minmax(0, 1fr); }
+  .active-agent-card > img, .active-agent-card > .agent-card-placeholder { width: 64px; }
+  .active-agent-actions { grid-column: 1 / -1; }
   .advanced-workspace > summary { align-items: flex-start; flex-direction: column; }
   .advanced-workspace > .owner-workspace { padding-inline: 10px; }
-  .mobile-app-nav { position: fixed; z-index: 25; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(5, 1fr); padding-bottom: env(safe-area-inset-bottom); border-top: 1px solid var(--line); background: rgba(3, 7, 11, 0.98); }
+  .mobile-app-nav { position: fixed; z-index: 25; right: 0; bottom: 0; left: 0; width: 100%; max-width: 100vw; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding-bottom: env(safe-area-inset-bottom); border-top: 1px solid var(--line); background: rgba(3, 7, 11, 0.98); }
   .mobile-app-nav a, .mobile-app-nav button { display: grid; min-height: 56px; place-items: center; border: 0; color: var(--muted); background: transparent; font-size: 0.65rem; font-weight: 800; text-decoration: none; text-transform: uppercase; }
   .mobile-app-nav [aria-current="page"] { color: var(--sun); }
 }

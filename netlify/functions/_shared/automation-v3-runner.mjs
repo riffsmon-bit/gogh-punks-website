@@ -4,7 +4,9 @@ import {
   AUTOMATION_V3_WORKER_TIME_BUDGET_MS, runAutomatedSeaDropV3Worker,
 } from
   "../../../scripts/run-automated-seadrop-v3-worker.mjs";
-import { recordAutomationV3WorkerHeartbeat } from "./automation-v3-worker-state.mjs";
+import {
+  recordAutomationV3PunkWorkerEvidence, recordAutomationV3WorkerHeartbeat,
+} from "./automation-v3-worker-state.mjs";
 
 const WORKER_LOCK_ID = 46_630_003;
 const WORKER_LEASE_MILLISECONDS = 90_000;
@@ -49,15 +51,23 @@ export async function runAutomationV3Once(options = {}) {
         requestedTokenId: options.requestedTokenId ?? null,
         deadlineMs: startedAt.getTime() + AUTOMATION_V3_WORKER_TIME_BUDGET_MS,
       });
+      const completedAt = new Date();
       try {
         await record(result, {
           database,
           release: environment.BROKER_AUTOMATION_V3_WORKER_RELEASE,
           startedAt,
-          completedAt: new Date(),
+          completedAt,
         });
       } catch {
         console.error(JSON.stringify({ event: "AUTOMATION_V3_HEARTBEAT_FAILED" }));
+      }
+      try {
+        await (options.recordPunks ?? recordAutomationV3PunkWorkerEvidence)(result, {
+          database, jobId: holder, startedAt, completedAt,
+        });
+      } catch {
+        console.error(JSON.stringify({ event: "AUTOMATION_V3_PUNK_EVIDENCE_FAILED" }));
       }
       return Object.freeze(result);
     } catch (error) {

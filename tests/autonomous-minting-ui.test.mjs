@@ -19,6 +19,11 @@ test("automation panel selects the best fully ready generation and preserves the
     readFile(new URL("site/autonomous-minting.js", root), "utf8"),
   ]);
   assert.match(html, /Continuous free-mint automation/);
+  assert.match(html, /<details class="active-agent-console" data-active-agent-console open>/);
+  assert.match(html, /Your Active Agents/);
+  assert.match(html, /Selected Punk agent controls/);
+  assert.match(html, /Activation and limit setup use the single guided wizard above/);
+  assert.equal((html.match(/data-wallet-disconnect/g) ?? []).length, 1);
   assert.match(html, /Automatic safe profile/);
   assert.match(html, /exact reviewed OpenSea Studio runtime/i);
   assert.match(html, /data-v3-upgrade/);
@@ -103,7 +108,7 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.match(browser, /createCoalescedRefresh\(loadOnce\)/);
   assert.match(browser, /\/api\/broker\/autonomy-v3-run/);
   assert.match(browser, /Its first bounded scan is starting automatically/);
-  assert.match(browser, /if \(startFirstScan\) void runAgentNow\(\)/);
+  assert.match(browser, /if \(startFirstScan\)[\s\S]*await runAgentNow\(\)/);
   assert.match(browser, /JSON\.stringify\(\{ all: true \}\)/);
   assert.match(browser, /NO_ANALYZED_ACTIVE_TARGETS/);
   assert.match(browser, /visibilitychange/);

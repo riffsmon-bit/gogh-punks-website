@@ -180,6 +180,7 @@ test("lightweight browser activity uses recorded worker state without chain RPC"
   assert.equal(activity.online, true);
   assert.equal(activity.heartbeat.status, "NO_ELIGIBLE_TARGETS");
   assert.equal(activity.usage.confirmedMints, "17");
+  assert.equal(activity.punk, null);
 });
 
 test("scheduled V3 runs rotate fairly after the most recently successful Punk", async () => {

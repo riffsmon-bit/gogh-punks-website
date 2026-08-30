@@ -275,6 +275,22 @@ function heartbeatMessage(heartbeat) {
   return messages[heartbeat?.status] ?? "The hosted agent completed a bounded check.";
 }
 
+function punkWorkerMessage(event) {
+  const reasons = {
+    NO_ELIGIBLE_TARGETS: "Scan complete — no mint passed every contract and policy check.",
+    NO_ACTIVE_CANDIDATES: "Scan complete — no active mint candidate was available.",
+    WAITING_FOR_WORKER_CAPACITY: "This Punk is enrolled and waiting in the worker rotation.",
+    MINT_CONFIRMED: "Mint successful. The NFT was sent to this Punk Wallet.",
+    ELIGIBLE_SIMULATION_PASSED: "A candidate passed simulation without being submitted.",
+    PROFILE_STATE_READ_FAILED: "The live Punk state check failed safely.",
+    PROVIDER_OWNER_DISAGREEMENT: "Ownership providers disagreed, so the scan stopped safely.",
+    ACCOUNT_NOT_CREATED: "This Punk Wallet has not been created.",
+  };
+  return reasons[event?.reason] ?? (event?.state === "MINTED"
+    ? "Mint successful. The NFT was sent to this Punk Wallet."
+    : "The hosted agent completed a bounded scan for this Punk.");
+}
+
 function renderDiscoverySummary(summary) {
   const panel = query("[data-agent-discovery]");
   if (!panel) return;
@@ -527,6 +543,27 @@ async function loadActivity() {
       setText("[data-activity-state]", payload.activity?.length
         ? `Loaded ${payload.activity.length} local Punk #${state.tokenId} activity events.`
         : `No local activity has been recorded for Punk #${state.tokenId} yet.`);
+      metric("Activity", started);
+      return;
+    }
+    const punkActivity = payload.activity?.punk;
+    if (punkActivity?.events?.length) {
+      for (const event of [...punkActivity.events].reverse()) {
+        addActivity({ at: event.occurredAt, state: event.state,
+          message: punkWorkerMessage(event),
+          action: event.state === "MINTED" ? "OPEN_ASSETS" : null });
+      }
+      setText("[data-activity-state]",
+        `Loaded ${punkActivity.events.length} Punk #${state.tokenId} worker event${punkActivity.events.length === 1 ? "" : "s"}.`);
+      metric("Activity", started);
+      return;
+    }
+    if (punkActivity?.heartbeat) {
+      const event = punkActivity.heartbeat;
+      addActivity({ at: event.lastActualScan ?? event.updatedAt, state: event.state,
+        message: punkWorkerMessage(event),
+        action: event.state === "MINTED" ? "OPEN_ASSETS" : null });
+      setText("[data-activity-state]", `Latest Punk #${state.tokenId} worker state loaded.`);
       metric("Activity", started);
       return;
     }

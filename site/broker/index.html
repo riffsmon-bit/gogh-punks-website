@@ -131,14 +131,16 @@
         </article>
       </section>
 
-      <section class="active-agent-console" data-active-agent-console aria-labelledby="active-agent-console-title">
-        <header>
-          <div><p class="eyebrow">Returning collectors</p><h2 id="active-agent-console-title">Your Active Agents</h2></div>
-          <p>See every activated Punk wallet here. Open a Punk wallet for its live authorization, limits, activity, assets, and owner controls.</p>
-        </header>
+      <details class="active-agent-console" data-active-agent-console open>
+        <summary>
+          <span><small class="eyebrow">Returning collectors</small><strong id="active-agent-console-title">Your Active Agents</strong></span>
+          <span>Monitor agents</span>
+        </summary>
+        <p class="active-agent-intro">See every activated Punk wallet here. Open a Punk wallet for its live authorization, limits, activity, assets, and owner controls.</p>
+        <div class="agent-health-summary" data-agent-health-summary aria-live="polite"></div>
         <div class="active-agent-grid" data-active-agent-grid></div>
         <p class="active-agent-empty" data-active-agent-empty>Connect your wallet to see active Punk agents.</p>
-      </section>
+      </details>
 
       <aside class="safety-banner beta-test-banner" aria-label="Current automation scope">
         <strong>Automation checkpoint:</strong> The page shows the active automation generation, worker heartbeat,
@@ -148,7 +150,7 @@
 
       <nav class="workspace-jump-nav" aria-label="Art Broker setup steps">
         <a href="#owner-workspace-title"><span>1</span> Choose Punk</a>
-        <a href="#automation-title"><span>2</span> Start agent</a>
+        <a href="#active-agent-console-title"><span>2</span> Watch agents</a>
         <a href="#results-title"><span>3</span> View results</a>
       </nav>
 
@@ -246,11 +248,12 @@
             </details>
             <div class="layout-two owner-control-layout">
               <article class="panel">
-                <div class="panel-header"><h3>Start this Punk’s agent</h3><span class="tag off" data-v2-badge>CHECKING</span></div>
-                <label class="mandate-field"><span>Quick setup</span><select data-v2-preset disabled><option value="1:7">Conservative · 1 mint/day for 7 days</option><option value="5:14">Standard · 5 mints/day for 14 days</option><option value="10:30">Active · 10 mints/day for 30 days</option><option value="custom">Custom limits</option></select></label>
-                <label class="mandate-field"><span>Hard daily maximum</span><input data-v2-cap disabled type="number" inputmode="numeric" min="1" max="10" step="1" value="1" /></label>
-                <label class="mandate-field"><span>How long it may run (days)</span><input data-v2-days disabled type="number" inputmode="numeric" min="1" max="30" step="1" value="7" /></label>
-                <aside class="retirement-activation-warning" data-retirement-disclosure>
+                <div class="panel-header"><h3>Selected Punk agent controls</h3><span class="tag off" data-v2-badge>CHECKING</span></div>
+                <p class="locked-note">Activation and limit setup use the single guided wizard above. This panel is only for an already-authorized Punk’s immediate scan and emergency controls.</p>
+                <label class="mandate-field" hidden><span>Quick setup</span><select data-v2-preset disabled><option value="1:7">Conservative · 1 mint/day for 7 days</option><option value="5:14">Standard · 5 mints/day for 14 days</option><option value="10:30">Active · 10 mints/day for 30 days</option><option value="custom">Custom limits</option></select></label>
+                <label class="mandate-field" hidden><span>Hard daily maximum</span><input data-v2-cap disabled type="number" inputmode="numeric" min="1" max="10" step="1" value="1" /></label>
+                <label class="mandate-field" hidden><span>How long it may run (days)</span><input data-v2-days disabled type="number" inputmode="numeric" min="1" max="30" step="1" value="7" /></label>
+                <aside class="retirement-activation-warning" data-retirement-disclosure hidden>
                   <p class="eyebrow">Punk lifecycle warning</p>
                   <h4 data-retirement-title>Verified retirement tier pending</h4>
                   <p data-retirement-summary>Select a Punk to review its mint lifetime. No retirement countdown is active until a published rarity snapshot assigns that Punk an exact tier.</p>
@@ -275,8 +278,8 @@
                   </details>
                   <label class="canary-confirmation"><input type="checkbox" data-retirement-confirm /> <span data-retirement-confirm-label>I reviewed the lifecycle and understand that retirement becomes required to continue automation after the verified mint lifetime; the final burn remains a separate owner-confirmed action.</span></label>
                 </aside>
-                <p class="setup-confirmation-plan" data-v2-confirmation-plan>Setup confirmation count appears after you choose a Punk.</p>
-                <button class="action-button" type="button" data-v2-setup disabled>Set up and start agent</button>
+                <p class="setup-confirmation-plan" data-v2-confirmation-plan hidden>Setup confirmation count appears after you choose a Punk.</p>
+                <button class="action-button" type="button" data-v2-setup disabled hidden>Set up and start agent</button>
                 <button class="action-button secondary-action" type="button" data-v3-run-now disabled>Send selected agent now</button>
                 <button class="action-button secondary-action" type="button" data-v3-run-all disabled>Scan all my active Punks</button>
                 <p class="locked-note" data-v3-run-state>Sends the selected, already-authorized Punk into an immediate scan and enrolls it for scheduled scans. It grants no authority and still requires every live target, zero price, cap, runtime, and simulation check.</p>
@@ -350,6 +353,6 @@
       </section>
     </main>
     <footer class="broker-footer">© <span data-year>2026</span> Gogh Punks. Curatorial scores and Gallery Value are estimates—not financial advice, profit promises, or contract-safety guarantees.</footer>
-    <nav class="mobile-app-nav" aria-label="Mobile navigation"><a href="/">Home</a><a href="/broker/" aria-current="page">Broker</a><a href="/broker/#automation-title">Agents</a><a href="/broker/#nft-portfolio-title">Portfolio</a><button type="button" data-wallet-connect>Wallet</button><button type="button" data-wallet-disconnect hidden>Disconnect Wallet</button></nav>
+    <nav class="mobile-app-nav" aria-label="Mobile navigation"><a href="/">Home</a><a href="/broker/" aria-current="page">Broker</a><a href="/broker/#active-agent-console-title">Agents</a><a href="/broker/#nft-portfolio-title">Portfolio</a><button type="button" data-wallet-connect>Wallet</button></nav>
   </body>
 </html>
