@@ -71,7 +71,11 @@
             <select data-wizard-punks disabled>
               <option value="">Connect wallet to load your Punks</option>
             </select>
-            <small>Artwork loads after selection so wallets with many Punks become usable faster.</small>
+            <input data-wizard-punk-search type="search" inputmode="numeric" autocomplete="off"
+              placeholder="Search by Punk number" aria-label="Search your Gogh Punks" disabled />
+            <div class="wizard-punk-results" data-wizard-punk-results role="listbox"
+              aria-label="Wallet-owned Gogh Punks"></div>
+            <small data-wizard-punk-count>Connect your wallet to load your Punks.</small>
           </label>
           <p class="wizard-empty" data-wizard-empty hidden>No Gogh Punks were found in this wallet on Robinhood Chain.</p>
         </article>
@@ -255,7 +259,7 @@
                 <div class="panel-header"><h3>Live agent scan terminal</h3><span class="tag off" data-v2-badge>CHECKING</span></div>
                 <p class="locked-note">Activation and limit setup use the single guided wizard above. This indexed feed shows every configured Punk in your wallet without polling the chain for each card. “Scanning” and “minting” appear only when the worker records those real states.</p>
                 <div class="agent-scan-terminal" role="region" aria-label="Punk agent scan terminal">
-                  <div class="agent-scan-terminal-bar"><span>GOGH / WORKER</span><span data-v3-scan-terminal-summary>Loading agent roster…</span></div>
+                  <div class="agent-scan-terminal-bar"><span>GOGH / LIVE WORKER</span><span data-v3-scan-terminal-summary>Loading agent roster…</span></div>
                   <pre data-v3-scan-terminal aria-live="polite">SYSTEM  waiting for the indexed agent roster</pre>
                 </div>
                 <label class="mandate-field" hidden><span>Quick setup</span><select data-v2-preset disabled><option value="1:7">Conservative · 1 mint/day for 7 days</option><option value="5:14">Standard · 5 mints/day for 14 days</option><option value="10:30">Active · 10 mints/day for 30 days</option><option value="custom">Custom limits</option></select></label>

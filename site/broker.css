@@ -173,7 +173,15 @@ button { font: inherit; }
 .wizard-wallet-state { margin: 8px 0 20px; font-size: 0.78rem; }
 .wizard-punk-select { display: grid; gap: 8px; margin-top: 24px; }
 .wizard-punk-select > span { color: var(--sun); font-size: 0.75rem; font-weight: 850; letter-spacing: 0.08em; text-transform: uppercase; }
-.wizard-punk-select select { width: 100%; min-height: 54px; padding: 12px 14px; border: 1px solid var(--sun); color: var(--cream); background: var(--panel); font: inherit; }
+.wizard-punk-select > select { display: none; }
+.wizard-punk-select > input { width: 100%; min-height: 54px; padding: 12px 14px; border: 1px solid var(--sun); color: var(--cream); background: var(--panel); font: inherit; }
+.wizard-punk-results { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; max-height: 330px; padding: 2px; overflow: auto; overscroll-behavior: contain; }
+.wizard-punk-results button { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 9px; align-items: center; min-width: 0; min-height: 62px; padding: 8px; border: 1px solid var(--line); color: var(--cream); background: #071621; text-align: left; cursor: pointer; }
+.wizard-punk-results button:hover, .wizard-punk-results button:focus-visible, .wizard-punk-results button[aria-selected="true"] { border-color: var(--teal); outline: 0; }
+.wizard-punk-results img { grid-row: 1 / 3; width: 42px; aspect-ratio: 1; object-fit: cover; image-rendering: pixelated; }
+.wizard-punk-results span, .wizard-punk-results small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wizard-punk-results span { font-weight: 850; }
+.wizard-punk-results small { color: var(--teal); font-size: 0.62rem; text-transform: uppercase; }
 .wizard-punk-select small { color: var(--muted); line-height: 1.5; }
 .wizard-empty { padding: 24px; border: 1px dashed var(--line); text-align: center; }
 .wizard-punk-identity { display: grid; grid-template-columns: 150px 1fr; gap: 22px; align-items: center; margin: 24px 0; padding: 18px; border: 1px solid var(--line); background: var(--panel); }
@@ -266,7 +274,7 @@ button { font: inherit; }
 .agent-command-center { min-width: 0; }
 .agent-scan-terminal { margin: 18px 0; overflow: hidden; border: 1px solid rgba(82, 213, 207, 0.52); background: #02080b; box-shadow: inset 0 0 32px rgba(82, 213, 207, 0.04); }
 .agent-scan-terminal-bar { display: flex; justify-content: space-between; gap: 14px; padding: 9px 12px; border-bottom: 1px solid rgba(82, 213, 207, 0.28); color: var(--teal); background: #061218; font: 700 0.67rem/1.3 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; }
-.agent-scan-terminal pre { min-height: 112px; max-height: 310px; margin: 0; padding: 14px; overflow: auto; color: #9ce9c6; font: 0.76rem/1.7 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.agent-scan-terminal pre { min-height: 220px; max-height: 360px; margin: 0; padding: 14px; overflow: auto; color: #9ce9c6; font: 0.76rem/1.7 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; scrollbar-gutter: stable; }
 .agent-scan-terminal pre[data-running="true"]::after { content: " _"; color: var(--sun); animation: agent-terminal-caret 0.9s steps(1) infinite; }
 @keyframes agent-terminal-caret { 50% { opacity: 0; } }
 .advanced-workspace { margin: 44px 0; border: 1px solid var(--line); }
@@ -870,6 +878,7 @@ h3 { font-size: 1.45rem; }
   .wizard-punk-identity { grid-template-columns: 92px 1fr; gap: 14px; padding: 12px; }
   .wizard-punk-identity img { width: 92px; }
   .wizard-choice-row { grid-template-columns: repeat(2, 1fr); }
+  .wizard-punk-results { grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 300px; }
   .wizard-review, .wallet-role-grid { grid-template-columns: 1fr; }
   .wizard-action-bar { position: sticky; z-index: 8; bottom: calc(56px + env(safe-area-inset-bottom)); margin: 28px -16px calc(-88px - env(safe-area-inset-bottom)); padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: rgba(3, 7, 11, 0.97); }
   .wizard-action-bar .wizard-primary { flex: 1; }

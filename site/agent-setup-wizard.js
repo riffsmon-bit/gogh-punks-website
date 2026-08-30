@@ -159,6 +159,9 @@ export function setupAgentWizard({ windowObject, documentObject, fetchFunction }
   const screens = [...root.querySelectorAll("[data-wizard-step]")];
   const progress = [...root.querySelectorAll("[data-wizard-progress]")];
   const punkPicker = root.querySelector("[data-wizard-punks]");
+  const punkSearch = root.querySelector("[data-wizard-punk-search]");
+  const punkResults = root.querySelector("[data-wizard-punk-results]");
+  const punkCount = root.querySelector("[data-wizard-punk-count]");
   const empty = root.querySelector("[data-wizard-empty]");
   const selectedImages = [...root.querySelectorAll("[data-wizard-punk-image]")];
   const selectedLabels = [...root.querySelectorAll("[data-wizard-punk-label]")];
@@ -256,6 +259,45 @@ export function setupAgentWizard({ windowObject, documentObject, fetchFunction }
     if (state.punks.some(({ tokenId }) => tokenId === state.selectedPunk)) {
       punkPicker.value = state.selectedPunk;
     }
+    if (punkSearch) punkSearch.disabled = state.punks.length === 0;
+    if (punkResults) {
+      const query = String(punkSearch?.value ?? "").trim().replace(/^#/, "");
+      const matches = state.punks.filter(({ tokenId }) => !query || String(tokenId).includes(query));
+      const visible = matches.slice(0, 24);
+      punkResults.replaceChildren(...visible.map((punk) => {
+        const button = browserDocument.createElement("button");
+        button.type = "button";
+        button.dataset.tokenId = punk.tokenId;
+        button.setAttribute("role", "option");
+        button.setAttribute("aria-selected", punk.tokenId === state.selectedPunk ? "true" : "false");
+        const imageUrl = trustedImage(punk.artwork?.imageUrl);
+        if (imageUrl) {
+          const image = browserDocument.createElement("img");
+          image.src = imageUrl;
+          image.alt = "";
+          image.loading = "lazy";
+          button.append(image);
+        }
+        const label = browserDocument.createElement("span");
+        label.textContent = `Punk #${punk.tokenId}`;
+        const live = state.automation?.tokenId === punk.tokenId ? state.automation : null;
+        const detail = browserDocument.createElement("small");
+        detail.textContent = live?.agentLive ? "Agent live" : live?.active
+          ? "Authorized" : punk.activated ? "Wallet active" : "Ready to activate";
+        button.append(label, detail);
+        button.addEventListener("click", () => {
+          punkPicker.value = punk.tokenId;
+          punkPicker.dispatchEvent(new browserWindow.Event("change", { bubbles: true }));
+        });
+        return button;
+      }));
+      punkResults.hidden = visible.length === 0;
+      if (punkCount) punkCount.textContent = !state.punks.length
+        ? "No wallet-owned Punks found."
+        : query
+          ? `${matches.length} matching Punk${matches.length === 1 ? "" : "s"}.`
+          : `${state.punks.length} wallet-owned Punks loaded. Showing ${visible.length}; search by number to narrow the list.`;
+    }
     empty.hidden = state.punks.length > 0 || !state.wallet?.account;
   }
 
@@ -267,6 +309,7 @@ export function setupAgentWizard({ windowObject, documentObject, fetchFunction }
     showStep(alreadyActive() ? "power" : "wallet");
     render();
   });
+  punkSearch?.addEventListener("input", renderPunks);
 
   function openAgent(tokenId) {
     state.selectedPunk = tokenId;
@@ -343,12 +386,18 @@ export function setupAgentWizard({ windowObject, documentObject, fetchFunction }
         return output;
       }, { enrolled: 0, active: 0, scanning: 0, minting: 0, attention: 0,
         workerOnline: true, workerEvidence: false });
+      const globalHeartbeat = state.automation?.heartbeat ?? null;
+      const globalWorkerOnline = state.automation?.workerOnline === true
+        || globalHeartbeat?.online === true;
+      const latestWorkerResult = globalHeartbeat?.status === "MINT_CONFIRMED"
+        ? `Mint · Punk #${globalHeartbeat.tokenId ?? "?"}`
+        : globalHeartbeat?.status === "RUN_IN_PROGRESS" ? "Processing" : "Online";
       const values = [
-        ["Enrolled", counts.enrolled], ["Active now", counts.active],
+        ["Enrolled", counts.enrolled], ["Per-Punk verified", counts.workerEvidence ? counts.active : "—"],
         ["Scanning", counts.scanning], ["Minting", counts.minting],
         ["Needs attention", counts.attention],
-        ["Worker", !activeWallets.length ? "—" : !counts.workerOnline ? "Degraded"
-          : counts.workerEvidence ? "Online" : "Pending evidence"],
+        ["Production worker", !activeWallets.length ? "—" : globalWorkerOnline
+          ? latestWorkerResult : !counts.workerOnline ? "Degraded" : "Pending evidence"],
       ];
       agentHealth.replaceChildren(...values.map(([label, value]) => {
         const item = browserDocument.createElement("span");

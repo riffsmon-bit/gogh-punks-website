@@ -141,10 +141,35 @@ test("agent terminal separates enrollment from real scanning and minting without
     agents: 3, enrolled: 2, scanning: 1, minting: 0, attention: 1,
   });
   assert.equal(snapshot.running, true);
-  assert.match(snapshot.lines[0], /worker online · 2\/3 enrolled · 1 scanning/);
-  assert.match(snapshot.lines[1], /#93\s+enrolled · awaiting fresh worker evidence/);
-  assert.match(snapshot.lines[2], /#94\s+scanning candidates now.*< selected/);
-  assert.match(snapshot.lines[3], /#96\s+needs enrollment repair/);
+  assert.match(snapshot.lines[0], /worker ONLINE · 2\/3 locally indexed as enrolled/);
+  assert.match(snapshot.lines[1], /WORKER\s+waiting for the first production heartbeat/);
+  assert.match(snapshot.lines[3], /#93\s+enrolled · awaiting fresh worker evidence/);
+  assert.match(snapshot.lines[4], /#94\s+scanning candidates now.*< selected/);
+  assert.match(snapshot.lines[5], /#96\s+needs enrollment repair/);
+});
+
+test("agent terminal shows real production heartbeat and mint evidence separately from preview enrollment", () => {
+  const snapshot = automationTerminalSnapshot([
+    { tokenId: "93", agentSummary: { configured: true, enrolled: true,
+      status: "AWAITING_WORKER_EVIDENCE" } },
+  ], "93", true, {
+    heartbeat: { online: true, status: "MINT_CONFIRMED", tokenId: "1132",
+      completedAt: "2026-08-30T11:47:09.205Z",
+      transactionHash: `0x${"ab".repeat(32)}` },
+    usage: { confirmedMints: 1231, mintingPunks: 145,
+      latestConfirmedAt: "2026-08-30T11:47:09.205Z" },
+  });
+  assert.match(snapshot.lines.join("\n"), /WORKER\s+MINT_CONFIRMED · Punk #1132/);
+  assert.match(snapshot.lines.join("\n"), /MINT\s+Punk #1132 confirmed/);
+  assert.match(snapshot.lines.join("\n"), /1,231 confirmed mints · 145 Punk agents/);
+  assert.match(snapshot.lines.join("\n"), /preview enrollment index; per-Punk heartbeat/);
+});
+
+test("wizard exposes a bounded searchable Punk picker instead of a large native menu", async () => {
+  const brokerHtml = await readFile(new URL("site/broker/index.html", root), "utf8");
+  assert.match(brokerHtml, /data-wizard-punk-search/);
+  assert.match(brokerHtml, /data-wizard-punk-results/);
+  assert.match(brokerHtml, /GOGH \/ LIVE WORKER/);
 });
 
 test("activation disclosure binds the exact draft lifetimes and fails closed without rarity evidence", () => {

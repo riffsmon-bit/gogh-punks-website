@@ -190,7 +190,13 @@ const TERMINAL_AGENT_STATES = Object.freeze({
 
 // This is intentionally an indexed worker view, not a disguised fan-out of live RPC reads.
 // Privileged buttons still perform their existing live owner/authorization checks.
-export function automationTerminalSnapshot(punks, selectedTokenId = null, workerOnline = null) {
+function terminalTime(value) {
+  const date = new Date(value ?? "");
+  return Number.isNaN(date.getTime()) ? "--:--:--" : date.toLocaleTimeString([], { hour12: false });
+}
+
+export function automationTerminalSnapshot(punks, selectedTokenId = null, workerOnline = null,
+  evidence = {}) {
   const agents = Array.isArray(punks) ? punks.filter((punk) => punk && typeof punk === "object"
     && (punk.agentSummary || punk.automationConfigured === true || punk.automationCreated === true)) : [];
   const counts = { agents: agents.length, enrolled: 0, scanning: 0, minting: 0, attention: 0 };
@@ -210,12 +216,30 @@ export function automationTerminalSnapshot(punks, selectedTokenId = null, worker
     const result = summary.reason ? ` · ${String(summary.reason).toLowerCase().replaceAll("_", " ")}` : "";
     return `#${tokenId.padEnd(4)} ${TERMINAL_AGENT_STATES[status]}${result}${selected}`;
   });
-  const worker = workerOnline === true ? "online" : workerOnline === false ? "degraded" : "pending evidence";
+  const worker = workerOnline === true ? "ONLINE" : workerOnline === false ? "DEGRADED" : "PENDING EVIDENCE";
+  const heartbeat = evidence?.heartbeat && typeof evidence.heartbeat === "object"
+    ? evidence.heartbeat : null;
+  const usage = evidence?.usage && typeof evidence.usage === "object" ? evidence.usage : null;
+  const heartbeatLine = heartbeat
+    ? `${terminalTime(heartbeat.completedAt)}  WORKER  ${heartbeat.status ?? "CHECK COMPLETE"}${heartbeat.tokenId ? ` · Punk #${heartbeat.tokenId}` : ""}`
+    : "--:--:--  WORKER  waiting for the first production heartbeat";
+  const mintLine = heartbeat?.status === "MINT_CONFIRMED"
+    ? `${terminalTime(heartbeat.completedAt)}  MINT    Punk #${heartbeat.tokenId ?? "?"} confirmed${heartbeat.transactionHash ? ` · ${heartbeat.transactionHash.slice(0, 10)}…` : ""}`
+    : usage?.latestConfirmedAt
+      ? `${terminalTime(usage.latestConfirmedAt)}  MINT    latest confirmed autonomous collection`
+      : null;
+  const usageLine = Number.isInteger(usage?.confirmedMints)
+    ? `HISTORY   ${usage.confirmedMints.toLocaleString()} confirmed mints · ${usage.mintingPunks ?? "—"} Punk agents have collected`
+    : null;
   return Object.freeze({
     counts: Object.freeze(counts),
     running: counts.scanning > 0 || counts.minting > 0,
     lines: Object.freeze([
-      `SYSTEM  worker ${worker} · ${counts.enrolled}/${counts.agents} enrolled · ${counts.scanning} scanning · ${counts.minting} minting`,
+      `GOGH/PRODUCTION  worker ${worker} · ${counts.enrolled}/${counts.agents} locally indexed as enrolled`,
+      heartbeatLine,
+      ...(mintLine ? [mintLine] : []),
+      ...(usageLine ? [usageLine] : []),
+      "YOUR PUNKS  preview enrollment index; per-Punk heartbeat arrives after the worker release",
       ...lines,
       ...(lines.length ? [] : ["SYSTEM  no configured Punk agents found"]),
     ]),
@@ -291,11 +315,17 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
       state.ownerPunks,
       state.selection?.tokenId ?? null,
       state.gate?.heartbeat?.online ?? state.v3Gate?.heartbeat?.online ?? null,
+      { heartbeat: state.gate?.heartbeat ?? state.v3Gate?.heartbeat ?? null,
+        usage: state.v3Gate?.usage ?? null },
     );
     scanTerminal.textContent = snapshot.lines.join("\n");
-    scanTerminal.dataset.running = snapshot.running ? "true" : "false";
+    scanTerminal.dataset.running = snapshot.running || state.gate?.heartbeat?.online === true
+      ? "true" : "false";
     if (scanTerminalSummary) {
-      scanTerminalSummary.textContent = `${snapshot.counts.enrolled} enrolled · ${snapshot.counts.scanning} scanning · ${snapshot.counts.minting} minting`;
+      const productionState = state.gate?.heartbeat?.online === true
+        ? "production online" : state.gate?.heartbeat?.online === false
+          ? "production degraded" : "production evidence pending";
+      scanTerminalSummary.textContent = `${productionState} · ${snapshot.counts.enrolled} enrolled · ${snapshot.counts.scanning} per-Punk scanning · ${snapshot.counts.minting} minting`;
     }
   }
 
