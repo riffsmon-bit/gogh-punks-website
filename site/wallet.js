@@ -663,15 +663,26 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
         state.chainId = Number(state.session.getNetwork?.().chainId) || null;
         setReturningSessionMarker(browserWindow, Boolean(state.account));
         unsubscribers.push(state.session.subscribeProvider((provider) => {
-          state.provider = provider ?? null;
+          // AppKit can briefly withdraw the provider while a WalletConnect/injected session is
+          // reconnecting between pages. Keep the last working provider until an authoritative
+          // account-disconnected event arrives; otherwise every live Punk read fails at once and
+          // the rest of the page appears to disconnect with it.
+          if (provider) state.provider = provider;
           render();
         }));
         unsubscribers.push(state.session.subscribeAccount((account) => {
           const connectedNow = account?.isConnected === true;
-          state.account = account?.isConnected ? normalizeWalletAddress(account.address) : null;
-          if (!state.account) state.owner = null;
           const accountPending = account?.status === "connecting"
             || account?.status === "reconnecting";
+          const nextAccount = connectedNow ? normalizeWalletAddress(account.address) : null;
+          if (nextAccount) {
+            state.account = nextAccount;
+          } else if (!accountPending) {
+            // A settled account event is authoritative. Temporary reconnect frames are not.
+            state.account = null;
+            state.owner = null;
+            state.provider = null;
+          }
           if (accountPending) beginPending();
           else finishPending();
           setReturningSessionMarker(browserWindow, Boolean(state.account));
@@ -700,9 +711,23 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
         const resume = () => {
           if (!state.session || destroyed) return;
           const account = state.session.getAccount?.();
-          state.account = account?.isConnected ? normalizeWalletAddress(account.address) : null;
-          state.chainId = Number(state.session.getNetwork?.().chainId) || null;
-          state.provider = state.session.getProvider?.() ?? null;
+          const nextAccount = account?.isConnected
+            ? normalizeWalletAddress(account.address) : null;
+          const settledDisconnected = account?.isConnected === false
+            && account?.status === "disconnected";
+          const nextChainId = Number(state.session.getNetwork?.().chainId) || null;
+          const nextProvider = state.session.getProvider?.() ?? null;
+          // pageshow/visibility snapshots are advisory: wallet SDKs often return an incomplete
+          // snapshot while waking. Only copy fields that are actually present and let the
+          // subscription's settled disconnect event clear them when a user truly disconnects.
+          if (nextAccount) state.account = nextAccount;
+          else if (settledDisconnected) {
+            state.account = null;
+            state.owner = null;
+            state.provider = null;
+          }
+          if (nextChainId !== null) state.chainId = nextChainId;
+          if (nextProvider) state.provider = nextProvider;
           setReturningSessionMarker(browserWindow, Boolean(state.account));
           render();
           if (state.account && typeof state.session?.close === "function") {

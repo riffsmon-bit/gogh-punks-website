@@ -140,7 +140,8 @@ test("Reown is the authoritative reconnecting wallet and provider session", asyn
 
   fixture.current.provider = null;
   fixture.callbacks.provider(null);
-  assert.equal(fixture.windowObject.__GOGH_WALLET_PROVIDER__, null);
+  assert.equal(fixture.windowObject.__GOGH_WALLET_PROVIDER__, PROVIDER,
+    "a connected account keeps its last working provider through a transient provider gap");
   fixture.current.error = "WalletConnect session expired";
   fixture.callbacks.state({});
   assert.match(fixture.status.textContent, /session expired/i);
@@ -148,6 +149,8 @@ test("Reown is the authoritative reconnecting wallet and provider session", asyn
   fixture.current.account = { address: undefined, isConnected: false, status: "disconnected" };
   fixture.callbacks.account(fixture.current.account);
   assert.equal(fixture.button.textContent, "Connect wallet");
+  assert.equal(fixture.windowObject.__GOGH_WALLET_PROVIDER__, null,
+    "a settled disconnect still clears the provider");
 
   fixture.current.provider = PROVIDER;
   fixture.current.chainId = 4663;
@@ -198,6 +201,33 @@ test("a stale Reown reconnect cannot leave the page permanently connecting", asy
   assert.match(fixture.status.textContent, /restoration timed out/i);
   assert.equal(fixture.storage.has("gogh.wallet.reown.returning.v1"), false);
   assert.ok(fixture.calls.includes("close"));
+});
+
+test("a transient Reown reconnect preserves the connected account and Disconnect control", async () => {
+  const fixture = reownFixture();
+  fixture.current.account = { address: OWNER, isConnected: true, status: "connected" };
+  const controller = await setupReownWallet({
+    windowObject: fixture.windowObject,
+    documentObject: fixture.documentObject,
+    sessionFactory: () => fixture.session,
+  });
+  await controller.ensureSession();
+  assert.equal(fixture.windowObject.__GOGH_WALLET_SNAPSHOT__.account, OWNER);
+  assert.equal(fixture.disconnectButton.hidden, false);
+
+  fixture.current.account = { address: undefined, isConnected: false, status: "reconnecting" };
+  fixture.callbacks.account(fixture.current.account);
+  fixture.callbacks.provider(null);
+  assert.equal(fixture.windowObject.__GOGH_WALLET_SNAPSHOT__.account, OWNER,
+    "a reconnect frame must not erase the last settled account");
+  assert.equal(fixture.windowObject.__GOGH_WALLET_PROVIDER__, PROVIDER,
+    "a temporary missing provider must not invalidate the whole page");
+  assert.equal(fixture.disconnectButton.hidden, false);
+
+  fixture.windowListeners.get("pageshow")();
+  assert.equal(fixture.windowObject.__GOGH_WALLET_SNAPSHOT__.account, OWNER,
+    "an incomplete pageshow snapshot must remain advisory");
+  controller.destroy();
 });
 
 test("a wallet modal that does not settle times out and can be retried", async () => {

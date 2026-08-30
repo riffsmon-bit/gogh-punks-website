@@ -168,7 +168,7 @@ export function walletDiscoveryIntent(wallet, chainId = CHAIN_ID) {
   if (!wallet || typeof wallet !== "object") return "settled";
   const account = normalizedAddress(wallet.account);
   if (account && wallet.chainId === chainId) return "ready";
-  if (TRANSIENT_WALLET_STATES.has(wallet.status)) return "transient";
+  if (wallet.restoring === true || TRANSIENT_WALLET_STATES.has(wallet.status)) return "transient";
   // An account with no network yet is mid-restore. A real wrong-network snapshot reports the
   // chain it is actually on.
   if (account && (wallet.chainId === null || wallet.chainId === undefined)) return "transient";
@@ -960,6 +960,21 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       // above so a first-time holder cannot disappear from the product.
     } catch {
       if (current !== revision) return;
+      // A later RPC/provider hiccup must never erase a roster that this page already verified.
+      // Keep the last good display and retry naturally on the next settled wallet/visibility
+      // event. Privileged actions still perform their own fresh live owner/account checks.
+      if (currentAccounts.length > 0) {
+        const activatedCount = currentAccounts.filter(({ activated }) => activated).length;
+        setCounts(currentAccounts.length, activatedCount, "Live refresh delayed",
+          "Punks loaded · live refresh retrying");
+        renderPunkPicker(picker, currentAccounts, picker?.value ?? "");
+        renderPunkPicker(mandatePicker, currentAccounts, mandatePicker?.value ?? "");
+        renderPunkPicker(workspacePicker, currentAccounts, workspacePicker?.value ?? "");
+        renderSelectedPunkPreview(selectedPreview, currentAccounts,
+          workspacePicker?.value || mandatePicker?.value || picker?.value || "");
+        if (container) renderOwnerAccounts(container, currentAccounts);
+        return;
+      }
       setCounts(null, null, "Live check unavailable");
       setSelected();
       renderPunkPicker(picker, []);
