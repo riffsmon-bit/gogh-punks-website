@@ -179,6 +179,8 @@ function automationFor(livePunkState, overrides = {}) {
     account: livePunkState.account,
     active: livePunkState.active === true,
     agentLive: false,
+    version: 3,
+    running: false,
     setupSubmission: null,
     lastActionError: null,
     lastTransactionHash: null,
@@ -361,8 +363,26 @@ test("shared hosted gas is optional and never blocks an otherwise-live agent", (
   setupAgentWizard(fixture);
   assert.equal(fixture.step(), "success");
   assert.equal(fixture.element("[data-wizard-send]").disabled, false);
-  assert.equal(fixture.element("[data-wizard-gas-status]").textContent, "Optional contribution");
+  assert.equal(fixture.element("[data-wizard-gas-status]").textContent,
+    "No payment required to launch");
   assert.equal(fixture.element("[data-wizard-fund]").hidden, false);
+});
+
+test("an authorized Punk can request worker recovery without funding or a healthy heartbeat", () => {
+  const fixture = wizardFixture({
+    stored: { selectedPunk: "93", step: "power", dailyLimit: 3, durationDays: 7 },
+    punks: [ACTIVE_PUNK], automation: activeAutomation({ agentLive: false, hostedGas: {
+      address: "0x1111111111111111111111111111111111111111", balanceWei: "1", ready: true,
+    } }),
+  });
+  setupAgentWizard(fixture);
+  const send = fixture.element("[data-wizard-send]");
+  assert.equal(send.disabled, false);
+  send.click();
+  assert.equal(fixture.element("[data-v3-run-now]").clicks, 1);
+  assert.equal(fixture.step(), "power", "requesting a run is not itself proof of success");
+  assert.equal(fixture.element("[data-wizard-gas-status]").textContent,
+    "Ready — no payment required ✓");
 });
 
 test("snapshot statistics are chain evidence or null", () => {

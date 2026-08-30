@@ -59,6 +59,8 @@ function reownFixture() {
     subscribeState(callback) { callbacks.state = callback; return () => {}; },
   };
   const windowObject = {
+    setTimeout,
+    clearTimeout,
     localStorage: {
       get length() { return storage.size; },
       key: (index) => [...storage.keys()][index] ?? null,
@@ -176,6 +178,43 @@ test("a known prior Reown session restores immediately without opening a wallet 
   assert.deepEqual(fixture.calls, ["close"], "restoration closes stale UI without opening a selector");
 });
 
+test("a stale Reown reconnect cannot leave the page permanently connecting", async () => {
+  const fixture = reownFixture();
+  fixture.storage.set("gogh.wallet.reown.returning.v1", "1");
+  let queuedCallback;
+  fixture.windowObject.queueMicrotask = (callback) => { queuedCallback = callback; };
+  await setupReownWallet({
+    windowObject: fixture.windowObject,
+    documentObject: fixture.documentObject,
+    sessionFactory: () => fixture.session,
+    connectionTimeoutMs: 5,
+  });
+  await queuedCallback();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  fixture.callbacks.account({ address: undefined, isConnected: false, status: "reconnecting" });
+  assert.equal(fixture.button.textContent, "Connecting…");
+  await new Promise((resolve) => setTimeout(resolve, 15));
+  assert.equal(fixture.button.textContent, "Connect wallet");
+  assert.match(fixture.status.textContent, /restoration timed out/i);
+  assert.equal(fixture.storage.has("gogh.wallet.reown.returning.v1"), false);
+  assert.ok(fixture.calls.includes("close"));
+});
+
+test("a wallet modal that does not settle times out and can be retried", async () => {
+  const fixture = reownFixture();
+  fixture.session.open = () => new Promise(() => {});
+  await setupReownWallet({
+    windowObject: fixture.windowObject,
+    documentObject: fixture.documentObject,
+    sessionFactory: () => fixture.session,
+    connectionTimeoutMs: 5,
+  });
+  await fixture.button.click();
+  assert.equal(fixture.button.textContent, "Connect wallet");
+  assert.match(fixture.status.textContent, /did not respond in time/i);
+  assert.ok(fixture.calls.includes("close"));
+});
+
 test("disconnect clears only wallet-scoped state and prevents stale Punk controls", async () => {
   const fixture = reownFixture();
   fixture.current.account = { address: OWNER, isConnected: true, status: "connected" };
@@ -257,7 +296,7 @@ test("every wallet-enabled page restores the one Reown session and exposes disco
     "../site/discover/index.html",
   ].map((path) => readFile(new URL(path, import.meta.url), "utf8")));
   for (const page of pages) {
-    assert.match(page, /\/wallet\.js\?v=reown-3/);
+    assert.match(page, /\/wallet\.js\?v=reown-4/);
     assert.match(page, /data-wallet-connect/);
     assert.match(page, /data-wallet-disconnect/);
     assert.match(page, /Disconnect Wallet/);
@@ -274,7 +313,7 @@ test("mobile wizard and AppKit source bind the required production experience", 
     readFile(new URL("../netlify.toml", import.meta.url), "utf8"),
   ]);
   for (const copy of ["Choose Your Punk", "Your Punk Gets Its Own Wallet", "Set the Rules",
-    "Activate Your Art Broker", "Power Up Your Agent", "Send Agent", "Activate Another Punk",
+    "Activate Your Art Broker", "Launch Your Agent", "Send Agent", "Activate Another Punk",
     "Your Active Agents"]) {
     assert.match(html, new RegExp(copy));
   }
@@ -292,8 +331,8 @@ test("mobile wizard and AppKit source bind the required production experience", 
   assert.doesNotMatch(client, /projectId:\s*["'][0-9a-f]{32}/);
   assert.doesNotMatch(wallet, /setupReadOnlyWallet\(\{ windowObject: window/);
   assert.match(wallet, /First-time visitors load no AppKit code/);
-  assert.match(html, /\/wallet\.js\?v=reown-3/);
-  assert.match(wallet, /\/reown-wallet-app\.js\?v=reown-3/);
+  assert.match(html, /\/wallet\.js\?v=reown-4/);
+  assert.match(wallet, /\/reown-wallet-app\.js\?v=reown-4/);
   assert.match(packageJson, /@reown\/appkit/);
   assert.match(netlify, /wss:\/\/relay\.walletconnect\.com/);
   assert.match(netlify, /script-src 'self'; style-src 'self' 'unsafe-inline'/);

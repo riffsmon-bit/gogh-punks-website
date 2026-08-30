@@ -383,7 +383,10 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
     const ready = state.gate?.setupTransactionAvailable === true && Boolean(state.selection);
     setup.disabled = !ready || Boolean(state.setupSubmission)
       || (!active && retirementConfirm.checked !== true);
-    runNow.disabled = !agentLive || state.version !== 3 || state.running;
+    // The safe run endpoint performs its own fresh ownership, authorization, enrollment, policy,
+    // and worker-lock checks. An authorized Punk needs this control most when its prior heartbeat
+    // is stale, so heartbeat health must not disable the recovery request in the browser.
+    runNow.disabled = !active || state.version !== 3 || state.running;
     runNow.textContent = state.running ? "Agent scan running…" : "Send selected agent now";
     runAll.disabled = state.version !== 3 || state.gate?.capability !== true || state.running;
     runAll.textContent = state.running ? "Agent scan running…" : "Scan all my active Punks";
@@ -454,6 +457,7 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
       account: punkWallet,
       active,
       agentLive,
+      running: state.running,
       capability: state.gate?.capability === true,
       workerOnline: state.gate?.heartbeat?.online === true,
       ...automationSnapshotStats(selectedState),

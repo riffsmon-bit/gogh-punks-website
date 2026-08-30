@@ -358,7 +358,7 @@ function loadReownBundle(browserWindow, browserDocument) {
     const script = browserDocument.createElement("script");
     // Keep this version aligned with the HTML wallet module URL. Wallet session
     // fixes must not be stranded behind a stale mobile or desktop browser cache.
-    script.src = "/reown-wallet-app.js?v=reown-3";
+    script.src = "/reown-wallet-app.js?v=reown-4";
     script.async = true;
     script.dataset.reownAppkit = "true";
     script.addEventListener("load", resolve, { once: true });
@@ -371,6 +371,7 @@ function loadReownBundle(browserWindow, browserDocument) {
 }
 
 const REOWN_RETURNING_SESSION_KEY = "gogh.wallet.reown.returning.v1";
+const REOWN_CONNECTION_TIMEOUT_MS = 12_000;
 const WALLET_SCOPED_STORAGE_KEYS = Object.freeze([
   REOWN_RETURNING_SESSION_KEY,
   "gogh.artBroker.setup.v1",
@@ -419,7 +420,7 @@ function setReturningSessionMarker(browserWindow, connected) {
 }
 
 export async function setupReownWallet({ windowObject, documentObject, fetchFunction,
-  sessionFactory } = {}) {
+  sessionFactory, connectionTimeoutMs = REOWN_CONNECTION_TIMEOUT_MS } = {}) {
   const browserWindow = windowObject ?? (typeof window === "undefined" ? null : window);
   const browserDocument = documentObject ?? (typeof document === "undefined" ? null : document);
   if (!browserWindow || !browserDocument) return null;
@@ -437,7 +438,56 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
   };
   const unsubscribers = [];
   let initializationPromise = null;
+  let pendingTimer = null;
   let destroyed = false;
+
+  function clearPendingTimer() {
+    if (pendingTimer !== null) browserWindow.clearTimeout?.(pendingTimer);
+    pendingTimer = null;
+  }
+
+  function finishPending() {
+    clearPendingTimer();
+    state.pending = false;
+  }
+
+  function beginPending() {
+    clearPendingTimer();
+    state.pending = true;
+    pendingTimer = browserWindow.setTimeout?.(() => {
+      pendingTimer = null;
+      if (!state.pending || destroyed) return;
+      state.pending = false;
+      if (!state.account) {
+        // A stale AppKit reconnect can otherwise leave every page permanently
+        // displaying CONNECTING. Stop retrying it automatically; a later genuine
+        // account event will restore the marker and connected state normally.
+        setReturningSessionMarker(browserWindow, false);
+        state.networkError = "Wallet restoration timed out. Tap Connect Wallet to try again.";
+      }
+      void Promise.resolve(state.session?.close?.()).catch(() => {});
+      render();
+    }, Math.max(1, Number(connectionTimeoutMs) || REOWN_CONNECTION_TIMEOUT_MS)) ?? null;
+  }
+
+  async function waitForWalletAction(action) {
+    let timer = null;
+    try {
+      await Promise.race([
+        Promise.resolve().then(action),
+        new Promise((resolve, reject) => {
+          timer = browserWindow.setTimeout?.(() => {
+            const error = new Error("Wallet connection timed out.");
+            error.code = "APKT004";
+            reject(error);
+          }, Math.max(1, Number(connectionTimeoutMs) || REOWN_CONNECTION_TIMEOUT_MS));
+          if (timer === undefined) resolve();
+        }),
+      ]);
+    } finally {
+      if (timer !== null && timer !== undefined) browserWindow.clearTimeout?.(timer);
+    }
+  }
 
   function render() {
     const available = state.sessionStatus !== "unavailable";
@@ -504,27 +554,29 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
 
   async function connect() {
     if (state.pending) return;
-    state.pending = true;
+    beginPending();
     state.networkError = null;
     render();
     try {
       await ensureSession();
       if (!state.session) return;
-      state.pending = true;
+      beginPending();
       render();
-      await (state.account && typeof state.session.openAccount === "function"
-        ? state.session.openAccount() : state.session.open());
+      await waitForWalletAction(() => (state.account
+        && typeof state.session.openAccount === "function"
+        ? state.session.openAccount() : state.session.open()));
     } catch (error) {
       state.networkError = walletErrorMessage(error, "connect");
+      void Promise.resolve(state.session?.close?.()).catch(() => {});
     } finally {
-      state.pending = false;
+      finishPending();
       render();
     }
   }
 
   async function disconnect() {
     if (!state.session || !state.account || state.pending) return;
-    state.pending = true;
+    beginPending();
     state.networkError = null;
     render();
     try {
@@ -548,7 +600,7 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
     } catch (error) {
       state.networkError = walletErrorMessage(error, "disconnect");
     } finally {
-      state.pending = false;
+      finishPending();
       render();
     }
   }
@@ -618,7 +670,10 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
           const connectedNow = account?.isConnected === true;
           state.account = account?.isConnected ? normalizeWalletAddress(account.address) : null;
           if (!state.account) state.owner = null;
-          state.pending = account?.status === "connecting" || account?.status === "reconnecting";
+          const accountPending = account?.status === "connecting"
+            || account?.status === "reconnecting";
+          if (accountPending) beginPending();
+          else finishPending();
           setReturningSessionMarker(browserWindow, Boolean(state.account));
           render();
           // AppKit normally dismisses itself after a successful connection. Some injected-wallet
@@ -666,7 +721,7 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
           await state.session.close();
         }
         state.sessionStatus = "ready";
-        state.pending = false;
+        finishPending();
         render();
         return state.session;
       } catch {
@@ -677,7 +732,7 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
         state.session = null;
         state.provider = null;
         state.sessionStatus = "unavailable";
-        state.pending = false;
+        finishPending();
         state.networkError = "Wallet connection is temporarily unavailable. Please refresh and try again.";
         render();
         return null;
@@ -701,6 +756,7 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
     get provider() { return state.provider; },
     destroy() {
       destroyed = true;
+      clearPendingTimer();
       for (const button of buttons) button.removeEventListener("click", connect);
       for (const button of switchButtons) button.removeEventListener("click", switchNetwork);
       for (const button of disconnectButtons) button.removeEventListener("click", disconnect);

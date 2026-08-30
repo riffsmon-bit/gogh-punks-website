@@ -474,9 +474,11 @@ export function setupAgentWizard({ windowObject, documentObject, fetchFunction }
     const automation = selectedAutomation();
     const active = automation?.active === true;
     const hostedGasReady = automation?.hostedGas?.ready === true;
-    gasStatus.textContent = hostedGasReady ? "Shared pool ready ✓" : "Optional contribution";
+    gasStatus.textContent = hostedGasReady
+      ? "Ready — no payment required ✓" : "No payment required to launch";
     fund.hidden = false;
-    send.disabled = !active || !automation?.agentLive;
+    send.disabled = !active || automation?.version !== 3 || automation?.running === true;
+    send.textContent = automation?.running === true ? "Sending agent…" : "Send Agent";
     activate.disabled = !state.selectedPunk || active || retirement.checked !== true
       || Boolean(automation?.setupSubmission);
     activate.textContent = active ? "Agent already active" : "Activate Agent";
@@ -576,7 +578,6 @@ export function setupAgentWizard({ windowObject, documentObject, fetchFunction }
   });
   send.addEventListener("click", () => {
     browserDocument.querySelector("[data-v3-run-now]")?.click();
-    showStep("success");
     render();
   });
   root.querySelector("[data-wizard-watch]")?.addEventListener("click", () => {
