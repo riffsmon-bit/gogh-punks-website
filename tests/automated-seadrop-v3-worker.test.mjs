@@ -197,10 +197,13 @@ test("scheduled V3 runs rotate fairly after the most recently successful Punk", 
     rotateAutomationV3Profiles(profiles, "1797").map(({ token_id }) => token_id),
     ["93", "94", "1728", "1797"],
   );
-  const database = { query: async () => ({ rows: [{ punk_token_id: "1728" }] }) };
+  const database = { query: async (_sql, values) => {
+    assert.deepEqual(values, [["93", "94", "1728", "1797"]]);
+    return { rows: ["1728", "93", "1797", "94"].map((punk_token_id) => ({ punk_token_id })) };
+  } };
   assert.deepEqual(
     (await fairlyOrderedAutomationV3Profiles(database, profiles)).map(({ token_id }) => token_id),
-    ["1797", "93", "94", "1728"],
+    ["1728", "93", "1797", "94"],
   );
   const directlyRequested = await fairlyOrderedAutomationV3Profiles(
     { query: async () => { throw new Error("must not query cursor"); } },
@@ -236,6 +239,11 @@ test("scheduled V3 passes rotate through a bounded roster without starving later
   assert.deepEqual(
     scheduledAutomationV3ProfileBatch(profiles, "14", 600_000).map(({ token_id }) => token_id),
     profiles.map(({ token_id }) => token_id),
+  );
+  assert.deepEqual(
+    scheduledAutomationV3ProfileBatch(profiles, null, 600_000, 6, true)
+      .map(({ token_id }) => token_id),
+    ["0", "1", "2", "3", "4", "5"],
   );
   assert.throws(() => scheduledAutomationV3ProfileBatch(profiles, null, -1));
 });
@@ -346,6 +354,21 @@ test("V3 candidate prefilter tolerates partial read failure but not total outage
     assert.equal(error.code, "DISCOVERY_RPC_UNAVAILABLE");
     return true;
   });
+
+  let fallbackDropReads = 0;
+  assert.deepEqual(await activeZeroPriceSeaDropCollections({
+    getBlockNumber: async () => { throw new TypeError("primary unavailable"); },
+    readContract: async () => { throw new TypeError("primary unavailable"); },
+    getCode: async () => { throw new TypeError("primary unavailable"); },
+  }, {
+    getBlockNumber: async () => 1_020n,
+    getBlock: async () => ({ timestamp: 1_000n }),
+    readContract: async () => { fallbackDropReads += 1; return freeDrop; },
+    getCode: async () => clone,
+  }, ["0x1111111111111111111111111111111111111111"]), [
+    "0x1111111111111111111111111111111111111111",
+  ]);
+  assert.equal(fallbackDropReads, 1);
 });
 
 test("V3 worker source binds both runtime families and no paid or approval path", async () => {

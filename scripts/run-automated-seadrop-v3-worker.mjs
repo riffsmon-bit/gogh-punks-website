@@ -415,13 +415,25 @@ export async function fairlyOrderedAutomationV3Profiles(
 ) {
   if (requestedTokenId !== null) return rotateAutomationV3Profiles(profiles);
   try {
+    const tokenIds = profiles.map(({ token_id: tokenId }) => String(tokenId));
     const result = await pool.query(`
-      SELECT punk_token_id
-        FROM broker_automation_v3_worker_runs
-       WHERE status = 'MINT_CONFIRMED' AND punk_token_id IS NOT NULL
-       ORDER BY completed_at DESC, run_id DESC
-       LIMIT 1`);
-    return rotateAutomationV3Profiles(profiles, result.rows?.[0]?.punk_token_id ?? null);
+      SELECT requested.punk_token_id,
+             heartbeat.last_scheduled_scan,
+             heartbeat.last_actual_scan
+        FROM UNNEST($1::numeric[]) WITH ORDINALITY
+          AS requested(punk_token_id, roster_position)
+        LEFT JOIN broker_punk_agent_heartbeats heartbeat
+          ON heartbeat.chain_id = 4663
+         AND heartbeat.punk_token_id = requested.punk_token_id
+       ORDER BY heartbeat.last_scheduled_scan ASC NULLS FIRST,
+                heartbeat.last_actual_scan ASC NULLS FIRST,
+                requested.roster_position ASC`, [tokenIds]);
+    const byTokenId = new Map(profiles.map((profile) => [String(profile.token_id), profile]));
+    const ordered = (result.rows ?? []).map(({ punk_token_id: tokenId }) => (
+      byTokenId.get(String(tokenId))
+    )).filter(Boolean);
+    if (ordered.length !== profiles.length) throw new TypeError("incomplete Punk fairness roster");
+    return ordered;
   } catch (error) {
     report(JSON.stringify({
       event: "AUTOMATION_V3_FAIRNESS_CURSOR_UNAVAILABLE",
@@ -433,16 +445,19 @@ export async function fairlyOrderedAutomationV3Profiles(
 
 export function scheduledAutomationV3ProfileBatch(
   profiles, requestedTokenId = null, nowMs = Date.now(), batchSize = AUTOMATION_V3_PROFILE_BATCH_SIZE,
+  oldestDueFirst = false,
 ) {
   if (!Array.isArray(profiles) || profiles.length > ELIGIBLE_PROFILE_LIMIT
     || profiles.some((row) => !row || !/^(?:0|[1-9][0-9]{0,3})$/.test(String(row.token_id)))
     || (requestedTokenId !== null
       && !/^(?:0|[1-9][0-9]{0,3})$/.test(String(requestedTokenId)))
     || !Number.isSafeInteger(nowMs) || nowMs < 0
-    || !Number.isSafeInteger(batchSize) || batchSize < 1 || batchSize > CONFIGURED_PUNK_LIMIT) {
+    || !Number.isSafeInteger(batchSize) || batchSize < 1 || batchSize > CONFIGURED_PUNK_LIMIT
+    || typeof oldestDueFirst !== "boolean") {
     throw new TypeError("invalid V3 scheduled profile batch");
   }
   if (requestedTokenId !== null || profiles.length <= batchSize) return [...profiles];
+  if (oldestDueFirst) return [...profiles.slice(0, batchSize)];
   const batchCount = Math.ceil(profiles.length / batchSize);
   const fiveMinuteWindow = Math.floor(nowMs / 300_000);
   const offset = (fiveMinuteWindow % batchCount) * batchSize;
@@ -734,9 +749,20 @@ export async function activeZeroPriceSeaDropCollections(
   client, runtimeClient, collections, confirmations = 20n,
 ) {
   if (collections.length === 0) return [];
-  const head = await client.getBlockNumber();
-  const blockNumber = head - confirmations;
-  const block = await client.getBlock({ blockNumber });
+  let blockNumber;
+  let block;
+  try {
+    const head = await client.getBlockNumber();
+    blockNumber = head - confirmations;
+    block = await client.getBlock({ blockNumber });
+  } catch {
+    // This is only the bounded candidate prefilter. Final execution still requires the existing
+    // independent-provider agreement, runtime, policy, price, recipient, and simulation gates.
+    // A single discovery provider outage must not stop every enrolled Punk before those gates.
+    const head = await runtimeClient.getBlockNumber();
+    blockNumber = head - confirmations;
+    block = await runtimeClient.getBlock({ blockNumber });
+  }
   const results = [];
   for (let offset = 0; offset < collections.length; offset += DISCOVERY_BATCH_SIZE) {
     const batch = collections.slice(offset, offset + DISCOVERY_BATCH_SIZE);
@@ -747,8 +773,16 @@ export async function activeZeroPriceSeaDropCollections(
           functionName: "getPublicDrop", args: [collection], blockNumber,
         });
         return { status: "success", result };
-      } catch (error) {
-        return { status: "failure", error };
+      } catch (firstError) {
+        try {
+          const result = await runtimeClient.readContract({
+            address: getAddress(SEA_DROP), abi: PUBLIC_DROP_ABI,
+            functionName: "getPublicDrop", args: [collection], blockNumber,
+          });
+          return { status: "success", result };
+        } catch (error) {
+          return { status: "failure", error: error ?? firstError };
+        }
       }
     })));
     await discoveryDelay();
@@ -768,8 +802,12 @@ export async function activeZeroPriceSeaDropCollections(
       try {
         return (await runtimeClient.getCode({ address: collection, blockNumber })) ?? "0x";
       } catch {
-        codeReadFailures += 1;
-        return "0x";
+        try {
+          return (await client.getCode({ address: collection, blockNumber })) ?? "0x";
+        } catch {
+          codeReadFailures += 1;
+          return "0x";
+        }
       }
     })));
     await discoveryDelay();
@@ -875,9 +913,13 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
     ),
   );
   const profiles = scheduledAutomationV3ProfileBatch(
-    orderedProfiles, requestedTokenId, startedAtMs,
+    orderedProfiles, requestedTokenId, startedAtMs, AUTOMATION_V3_PROFILE_BATCH_SIZE, true,
   );
   if (profiles.length === 0) return { status: "NO_AUTONOMOUS_MANDATES", submitted: 0 };
+  currentDiagnostics = rejectionDiagnostics(profiles, [], []);
+  currentDiagnostics.totalEligibleProfiles = orderedProfiles.length;
+  currentDiagnostics.scheduledProfileBatch = profiles.length;
+  currentDiagnostics.operatorConfiguredPunks = configuredTokenIds.length;
   if (budgetExpired()) return budgetResult();
   // A reviewed operator may temporarily constrain discovery to a small exact set.
   // This does not bypass any runtime, public-drop, dual-provider, policy, or simulation
@@ -893,6 +935,9 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   if (budgetExpired()) return budgetResult();
   const collections = directedCollections
     ?? mergePrioritySeaDropCollections(priorityCollections, discoveredCollections);
+  currentDiagnostics.recentSeaDropCollections = collections.length;
+  currentDiagnostics.directedTargetCollections = directedCollections?.length ?? 0;
+  currentDiagnostics.priorityTargetCollections = priorityCollections.length;
   // Use the archive provider for the indexed public-drop reads, then move the much
   // smaller active set to the canonical endpoint for runtime classification. This
   // avoids exhausting either provider's per-second allowance. Every selected target
@@ -1190,6 +1235,14 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   } catch (error) {
     if (!transactionSubmitted && (budgetExpired() || error?.name === "AbortError")) {
       return budgetResult();
+    }
+    if (currentDiagnostics && error && typeof error === "object") {
+      const code = typeof error.code === "string" && /^[A-Z0-9_]{3,64}$/.test(error.code)
+        ? error.code : "WORKER_RUN_FAILED";
+      for (const tokenId of currentDiagnostics.scheduledTokenIds ?? []) {
+        recordProfileOutcome(currentDiagnostics, tokenId, "ERROR", code);
+      }
+      error.diagnostics = currentDiagnostics;
     }
     throw error;
   } finally {

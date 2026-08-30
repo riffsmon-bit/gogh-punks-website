@@ -71,17 +71,27 @@ export async function runAutomationV3Once(options = {}) {
       }
       return Object.freeze(result);
     } catch (error) {
+      const completedAt = new Date();
+      const failedResult = {
+        status: "FAILED", submitted: 0, failureCode: failureCode(error),
+        ...(error?.diagnostics ? { diagnostics: error.diagnostics } : {}),
+      };
       try {
-        await record({
-          status: "FAILED", submitted: 0, failureCode: failureCode(error),
-        }, {
+        await record(failedResult, {
           database,
           release: environment.BROKER_AUTOMATION_V3_WORKER_RELEASE,
           startedAt,
-          completedAt: new Date(),
+          completedAt,
         });
       } catch {
         console.error(JSON.stringify({ event: "AUTOMATION_V3_HEARTBEAT_FAILED" }));
+      }
+      try {
+        await (options.recordPunks ?? recordAutomationV3PunkWorkerEvidence)(failedResult, {
+          database, jobId: holder, startedAt, completedAt,
+        });
+      } catch {
+        console.error(JSON.stringify({ event: "AUTOMATION_V3_PUNK_EVIDENCE_FAILED" }));
       }
       throw error;
     }

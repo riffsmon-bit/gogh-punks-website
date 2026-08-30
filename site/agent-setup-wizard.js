@@ -1,3 +1,5 @@
+import { confirmedMintHash, showConfirmedMintToast } from "./agent-live-ui.js";
+
 const STORAGE_KEY = "gogh.artBroker.setup.v1";
 const STEP_ORDER = Object.freeze([
   "choose", "wallet", "limits", "activate", "power", "success",
@@ -186,6 +188,7 @@ export function setupAgentWizard({ windowObject, documentObject, fetchFunction }
     dailyLimit: stored?.dailyLimit ?? 3,
     durationDays: stored?.durationDays ?? 7,
     restarting: new Set(),
+    observedMintHashes: new Map(),
   };
 
   function selected() {
@@ -379,10 +382,19 @@ export function setupAgentWizard({ windowObject, documentObject, fetchFunction }
       const title = browserDocument.createElement("h3");
       title.textContent = `Punk #${punk.tokenId}`;
       const presentation = agentCardPresentation(punk, live);
+      card.dataset.agentState = presentation.status;
       const status = browserDocument.createElement("strong");
       status.className = "agent-card-state";
       status.textContent = presentation.label;
       status.dataset.agentState = presentation.status;
+      const mintHash = confirmedMintHash(punk.agentSummary);
+      if (!state.observedMintHashes.has(punk.tokenId)) {
+        state.observedMintHashes.set(punk.tokenId, mintHash);
+      } else if (mintHash && state.observedMintHashes.get(punk.tokenId) !== mintHash) {
+        state.observedMintHashes.set(punk.tokenId, mintHash);
+        showConfirmedMintToast({ documentObject: browserDocument,
+          tokenId: punk.tokenId, transactionHash: mintHash });
+      }
       const facts = browserDocument.createElement("dl");
       // Only an authorized agent has an on-chain cap and expiry to report. Anything else keeps
       // the placeholder rather than dressing a local default up as chain state.

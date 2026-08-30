@@ -9,6 +9,9 @@ import {
   preflightNftWithdrawal, submitNftWithdrawal, validateWithdrawableNftAssets,
   waitForNftWithdrawalReceipt,
 } from "./nft-withdrawal.js";
+import {
+  agentVisualState, confirmedMintHash, showConfirmedMintToast,
+} from "./agent-live-ui.js";
 
 const CHAIN_ID = 4663;
 const OWNER_OF_SELECTOR = "0x6352211e";
@@ -42,6 +45,8 @@ const state = {
   punkCollection: null, nativeBalance: null, wrappedBalance: null,
   owned: false, activated: false, agentStatus: null, automation: null, assets: [],
   activity: [], timings: {}, revision: 0,
+  punkHeartbeat: null, observedMintHash: null, mintBaselineReady: false,
+  activityLoading: false,
   directedReviewId: null, directedIntentId: null, directedSourceUrl: null,
   fundingBusy: false, wrappedBusy: false, wrappedPlan: null,
   withdrawalAsset: null, withdrawalAmount: "1", withdrawalBusy: false,
@@ -239,10 +244,12 @@ function renderAutomation() {
   state.account = [punk?.account, punk?.wallet, punk?.nftWallet]
     .find((value) => ADDRESS.test(value ?? ""))?.toLowerCase() ?? state.account;
   state.activated = punk?.created === true;
-  const heartbeat = automation?.heartbeat;
+  const globalHeartbeat = automation?.heartbeat;
+  const heartbeat = state.punkHeartbeat ?? (globalHeartbeat?.tokenId === state.tokenId
+    ? globalHeartbeat : null);
   const active = automation?.capability === true && punk?.active === true
     && state.owned && state.activated;
-  const label = active ? heartbeat?.status === "MINT_CONFIRMED" ? "MINTED" : "SCANNING"
+  const label = active ? agentVisualState(heartbeat, true)
     : state.activated ? "PAUSED" : "INACTIVE";
   state.agentStatus = label;
   setText("[data-agent-status]", label);
@@ -569,12 +576,14 @@ function addActivity(entry) {
 }
 
 async function loadActivity() {
+  if (state.activityLoading) return;
   const started = performance.now();
   const button = query("[data-activity-refresh]");
   if (!state.owned) {
     setText("[data-activity-state]", "Connect the current holder on Robinhood Chain to load Punk-specific activity.");
     return;
   }
+  state.activityLoading = true;
   if (button) button.disabled = true;
   setText("[data-activity-state]", `Checking Punk #${state.tokenId}'s latest worker event…`);
   try {
@@ -594,6 +603,20 @@ async function loadActivity() {
       return;
     }
     const punkActivity = payload.activity?.punk;
+    if (punkActivity?.heartbeat) {
+      state.punkHeartbeat = punkActivity.heartbeat;
+      const latestMintHash = confirmedMintHash(punkActivity.heartbeat);
+      if (!state.mintBaselineReady) {
+        state.observedMintHash = latestMintHash;
+        state.mintBaselineReady = true;
+      } else if (latestMintHash && latestMintHash !== state.observedMintHash) {
+        state.observedMintHash = latestMintHash;
+        showConfirmedMintToast({ documentObject: document, tokenId: state.tokenId,
+          transactionHash: latestMintHash });
+        void loadAssets().catch(() => {});
+      }
+      renderAutomation();
+    }
     if (punkActivity?.events?.length) {
       for (const event of [...punkActivity.events].reverse()) {
         addActivity({ at: event.occurredAt, state: event.state,
@@ -631,6 +654,7 @@ async function loadActivity() {
     setText("[data-activity-state]", `${error.message} Try again in a moment.`);
     throw error;
   } finally {
+    state.activityLoading = false;
     if (button) button.disabled = false;
   }
 }
@@ -1357,4 +1381,14 @@ else {
   window.addEventListener("gogh:wallet-state", (event) => applyWallet(event.detail));
   window.addEventListener("gogh:wallet-disconnected", () => applyWallet(null));
   applyWallet(window.__GOGH_WALLET_SNAPSHOT__ ?? null);
+  window.setInterval(() => {
+    if (document.visibilityState === "visible" && state.owned) {
+      void loadActivity().catch(() => {});
+    }
+  }, 20_000);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && state.owned) {
+      void loadActivity().catch(() => {});
+    }
+  });
 }

@@ -103,6 +103,37 @@ test("worker runner fails closed when another run holds the lock", async () => {
   assert.equal(called, false);
 });
 
+test("worker runner records scoped Punk evidence when a global stage fails", async () => {
+  const client = {
+    query: async (sql, values) => sql.includes("INSERT INTO broker_automation_v3_worker_leases")
+      ? { rows: [{ holder: values[1] }] } : { rows: [] },
+    release() {},
+  };
+  const punkRecords = [];
+  const error = Object.assign(new Error("provider detail must not be recorded"), {
+    code: "CANDIDATE_PREFILTER_FAILED",
+    diagnostics: {
+      scheduledTokenIds: ["93", "94"], processedTokenIds: ["93", "94"],
+      profileOutcomes: [
+        { tokenId: "93", state: "ERROR", reason: "CANDIDATE_PREFILTER_FAILED", account: null },
+        { tokenId: "94", state: "ERROR", reason: "CANDIDATE_PREFILTER_FAILED", account: null },
+      ],
+      totalEligibleProfiles: 138, scheduledProfileBatch: 2,
+    },
+  });
+  await assert.rejects(() => runAutomationV3Once({
+    environment: { BROKER_AUTOMATION_V3_WORKER_RELEASE: "a".repeat(40) },
+    database: { connect: async () => client },
+    worker: async () => { throw error; },
+    record: async () => {},
+    recordPunks: async (...values) => { punkRecords.push(values); },
+  }), /provider detail/);
+  assert.equal(punkRecords.length, 1);
+  assert.equal(punkRecords[0][0].status, "FAILED");
+  assert.equal(punkRecords[0][0].failureCode, "CANDIDATE_PREFILTER_FAILED");
+  assert.deepEqual(punkRecords[0][0].diagnostics.scheduledTokenIds, ["93", "94"]);
+});
+
 test("scheduled runner retains a four-minute lease to deduplicate repeated delivery", async () => {
   const queries = [];
   const client = {

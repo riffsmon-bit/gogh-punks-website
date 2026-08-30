@@ -234,6 +234,30 @@ button { font: inherit; }
 .active-agent-actions button, .active-agent-actions a { flex: 1; min-height: 42px; padding: 10px; border: 1px solid var(--line); color: var(--cream); background: transparent; cursor: pointer; font-size: 0.7rem; font-weight: 850; letter-spacing: 0.06em; text-align: center; text-decoration: none; text-transform: uppercase; }
 .active-agent-actions button:hover, .active-agent-actions a:hover { border-color: var(--teal); color: var(--teal); }
 .active-agent-card [data-agent-state="MINTING"] { color: var(--sun); }
+.active-agent-card[data-agent-state="SCANNING"],
+.active-agent-card[data-agent-state="MINTING"] { position: relative; overflow: hidden; }
+.active-agent-card[data-agent-state="SCANNING"]::after,
+.active-agent-card[data-agent-state="MINTING"]::after { content: ""; position: absolute; inset: 0;
+  pointer-events: none; border: 1px solid transparent; background: linear-gradient(105deg,
+    transparent 20%, rgba(82, 213, 207, 0.12) 45%, transparent 70%); transform: translateX(-110%);
+  animation: agent-scan-sweep 2.4s ease-in-out infinite; }
+.active-agent-card[data-agent-state="MINTING"]::after { background: linear-gradient(105deg,
+  transparent 20%, rgba(255, 204, 51, 0.18) 45%, transparent 70%); animation-duration: 1.35s; }
+.agent-mint-toast { position: fixed; z-index: 140; right: 20px; bottom: 20px; display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 32px; gap: 12px; width: min(420px, calc(100vw - 40px));
+  padding: 16px; border: 1px solid var(--teal); background: #071621; box-shadow: 0 18px 70px #000c; }
+.agent-mint-toast-mark { display: grid; width: 42px; height: 42px; place-items: center;
+  border-radius: 50%; color: var(--ink); background: var(--teal); font-weight: 900; }
+.agent-mint-toast strong, .agent-mint-toast span, .agent-mint-toast a { display: block; }
+.agent-mint-toast span { margin: 5px 0 8px; color: var(--muted); font-size: 0.82rem; }
+.agent-mint-toast a { color: var(--aqua); font-size: 0.75rem; }
+.agent-mint-toast button { align-self: start; padding: 0; border: 0; color: var(--muted);
+  background: transparent; font-size: 1.5rem; cursor: pointer; }
+@keyframes agent-scan-sweep { to { transform: translateX(110%); } }
+@media (prefers-reduced-motion: reduce) {
+  .active-agent-card[data-agent-state="SCANNING"]::after,
+  .active-agent-card[data-agent-state="MINTING"]::after { animation: none; }
+}
 .active-agent-empty { margin: 22px 0 0; padding: 20px; border: 1px dashed var(--line); color: var(--muted); text-align: center; }
 .advanced-workspace { margin: 44px 0; border: 1px solid var(--line); }
 .advanced-workspace > summary { display: flex; justify-content: space-between; gap: 16px; padding: 22px; cursor: pointer; }

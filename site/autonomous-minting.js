@@ -634,14 +634,23 @@ export function setupAutonomousMinting({ windowObject, documentObject, fetchFunc
       return;
     }
     try {
-      const response = await request(`/api/broker/autonomy-v3-activity?refresh=${Date.now()}`, {
+      const response = await request(`/api/broker/autonomy-v3-activity?tokenId=${encodeURIComponent(state.selection.tokenId)}&refresh=${Date.now()}`, {
         headers: { accept: "application/json" }, cache: "no-store",
       });
       const payload = await response.json();
       const activity = payload?.activity;
       if (!response.ok || payload?.ok !== true || typeof activity !== "object") return;
       const priorCompletedAt = state.gate?.heartbeat?.completedAt ?? null;
-      const heartbeat = activity.heartbeat
+      const punkHeartbeat = activity.punk?.heartbeat ?? null;
+      const heartbeat = punkHeartbeat ? {
+        state: punkHeartbeat.state,
+        status: punkHeartbeat.state,
+        tokenId: state.selection.tokenId,
+        completedAt: punkHeartbeat.lastActualScan ?? punkHeartbeat.updatedAt,
+        transactionHash: punkHeartbeat.lastSuccessfulMint,
+        failureCode: punkHeartbeat.reason,
+        online: activity.online === true,
+      } : activity.heartbeat
         ? { ...activity.heartbeat, online: activity.online === true } : null;
       state.gate = { ...state.gate, heartbeat };
       if (state.v3Gate) state.v3Gate = { ...state.v3Gate, heartbeat, usage: activity.usage };
