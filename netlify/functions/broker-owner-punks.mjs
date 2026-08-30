@@ -420,30 +420,27 @@ export async function enrolledAutomationPunkIds(owner, query = (...args) => (
 function agentSummaryStatus(row, nowMs = Date.now()) {
   const configured = row.configured === true;
   const enrolled = row.enrolled === true;
-  const globalCompletedAt = row.global_completed_at == null
-    ? Number.NaN : Date.parse(row.global_completed_at);
-  const workerOnline = row.global_status !== "FAILED" && Number.isFinite(globalCompletedAt)
-    && globalCompletedAt <= nowMs + 30_000 && globalCompletedAt >= nowMs - 12 * 60_000;
   if (!enrolled) return configured ? "NEEDS_ENROLLMENT" : "READY";
-  // Missing/stale preview evidence is not proof that production automation is offline. Only a
-  // recent explicit FAILED heartbeat can support that claim; otherwise keep the transitional
-  // state honest until this deployment's per-Punk recorder has observed the agent.
-  const explicitRecentFailure = row.global_status === "FAILED"
-    && Number.isFinite(globalCompletedAt) && globalCompletedAt <= nowMs + 30_000
-    && globalCompletedAt >= nowMs - 12 * 60_000;
-  if (!workerOnline) return explicitRecentFailure
-    ? "AUTOMATION_OFFLINE" : "AWAITING_WORKER_EVIDENCE";
   if (row.worker_state == null) return "WAITING_FOR_FIRST_SCAN";
   const evidenceAt = row.updated_at == null ? Number.NaN : Date.parse(row.updated_at);
-  const nextScanAt = row.next_scan_estimate == null
-    ? Number.NaN : Date.parse(row.next_scan_estimate);
+  // next_scan_estimate is advisory. A manual run can calculate it from a one-Punk request even
+  // though the scheduled worker subsequently rotates through the full production roster. An
+  // overdue estimate therefore cannot prove that this Punk needs owner attention. Use durable
+  // per-Punk worker evidence for the card and reserve global failures for the worker-health tile.
   if (!Number.isFinite(evidenceAt) || evidenceAt > nowMs + 30_000
-    || evidenceAt < nowMs - 3 * 60 * 60_000
-    || (Number.isFinite(nextScanAt) && nextScanAt < nowMs - 15 * 60_000)) {
+    || evidenceAt < nowMs - 3 * 60 * 60_000) {
     return "NEEDS_ATTENTION";
   }
   if (row.worker_state === "PAUSED") return "PAUSED";
-  if (row.worker_state === "ERROR") return "NEEDS_ATTENTION";
+  if (row.worker_state === "ERROR") {
+    // These failures happen before an executable transaction exists. Enrollment remains intact,
+    // so the scheduled fair rotation retries the Punk without new authority or an owner click.
+    // Contract/account defects stay owner-visible rather than entering a blind retry loop.
+    return new Set([
+      "DISCOVERY_SCAN_FAILED", "PROFILE_STATE_READ_FAILED", "CANDIDATE_STATE_READ_FAILED",
+      "PROVIDER_OWNER_DISAGREEMENT", "WORKER_RUN_FAILED",
+    ]).has(row.reason) ? "RETRY_SCHEDULED" : "NEEDS_ATTENTION";
+  }
   if (["SUBMITTING", "CONFIRMING"].includes(row.worker_state)) return "MINTING";
   if (["SCANNING", "CANDIDATE_FOUND", "VERIFYING_CONTRACT", "CHECKING_PRICE",
     "CHECKING_ELIGIBILITY", "CHECKING_LIMITS", "SIMULATING", "READY"].includes(

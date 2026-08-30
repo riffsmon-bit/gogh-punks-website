@@ -229,6 +229,8 @@ button { font: inherit; }
 .active-agent-console > summary strong { display: block; margin-top: 5px; font: clamp(2rem, 5vw, 3.2rem)/1 var(--display); }
 .active-agent-console > summary > span:last-child { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; }
 .active-agent-intro { max-width: 68ch; margin: 18px 0 0; color: var(--muted); line-height: 1.6; }
+.agent-rotation-note { max-width: 82ch; margin: 14px 0 0; padding: 12px 14px; border-left: 3px solid var(--teal); background: rgba(40, 190, 184, 0.07); color: var(--muted); font-size: 0.84rem; line-height: 1.55; }
+.agent-rotation-note strong { color: var(--teal); }
 .agent-health-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(125px, 1fr)); gap: 8px; margin-top: 20px; }
 .agent-health-summary > span { min-width: 0; padding: 12px; border: 1px solid var(--line); background: rgba(3, 7, 11, 0.5); }
 .agent-health-summary strong, .agent-health-summary small { display: block; }

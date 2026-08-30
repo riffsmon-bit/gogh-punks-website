@@ -70,6 +70,7 @@ export function agentCardPresentation(punk, live = null) {
     PAUSED: "Paused",
     AUTOMATION_OFFLINE: "Automation offline",
     AWAITING_WORKER_EVIDENCE: "Awaiting worker evidence",
+    RETRY_SCHEDULED: "Safe retry scheduled",
     NEEDS_ATTENTION: "Needs attention",
     READY: "Ready to activate",
   });
@@ -102,10 +103,24 @@ export function agentCardPresentation(punk, live = null) {
     authorization: workerVerified ? "Verified at last scan"
       : status === "NEEDS_ENROLLMENT" ? "Configured; not enrolled"
         : status === "QUEUED" || status === "WAITING_FOR_FIRST_SCAN"
+          || status === "RETRY_SCHEDULED"
           ? "Enrollment recorded" : "Open agent to verify",
     today: "Open agent for live usage",
     lastWorkerCheck: summary?.lastActualScan ?? summary?.updatedAt ?? null,
   });
+}
+
+export function agentRotationCountdown(value, nowMs = Date.now()) {
+  const target = Date.parse(value ?? "");
+  if (!Number.isFinite(target) || !Number.isSafeInteger(nowMs) || nowMs < 0) {
+    return "Waiting for first assignment";
+  }
+  const remaining = target - nowMs;
+  if (remaining <= 0) return "Due in fair rotation";
+  const minutes = Math.max(1, Math.ceil(remaining / 60_000));
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return hours > 0 ? `~${hours}h ${rest}m` : `~${minutes}m`;
 }
 
 function humanWorkerReason(reason) {
@@ -455,6 +470,7 @@ export function setupAgentWizard({ windowObject, documentObject, fetchFunction }
           ? formatExpiry(live.authorizationValidUntil) : presentation.authorization],
         ["Last worker check", presentation.lastWorkerCheck
           ? new Date(presentation.lastWorkerCheck).toLocaleString() : "Waiting for first scan"],
+        ["Next worker turn", agentRotationCountdown(punk.agentSummary?.nextScanEstimate)],
         ["Last result", humanWorkerReason(punk.agentSummary?.reason)],
       ];
       for (const [term, description] of entries) {
@@ -462,6 +478,12 @@ export function setupAgentWizard({ windowObject, documentObject, fetchFunction }
         const dd = browserDocument.createElement("dd");
         dt.textContent = term;
         dd.textContent = description;
+        if (term === "Next worker turn") {
+          dd.dataset.agentNextScan = punk.agentSummary?.nextScanEstimate ?? "";
+          dd.title = punk.agentSummary?.nextScanEstimate
+            ? `Advisory estimate: ${new Date(punk.agentSummary.nextScanEstimate).toLocaleString()}`
+            : "A turn will be assigned by the fair production rotation.";
+        }
         facts.append(dt, dd);
       }
       body.append(title, status, facts);
@@ -486,6 +508,15 @@ export function setupAgentWizard({ windowObject, documentObject, fetchFunction }
       agentGrid.append(card);
     }
   }
+
+  function updateRotationTimers() {
+    if (browserDocument.visibilityState === "hidden") return;
+    browserDocument.querySelectorAll?.("[data-agent-next-scan]").forEach((item) => {
+      item.textContent = agentRotationCountdown(item.dataset.agentNextScan);
+    });
+  }
+
+  browserWindow.setInterval?.(updateRotationTimers, 30_000);
 
   function render() {
     if (!state.wallet?.account) {
