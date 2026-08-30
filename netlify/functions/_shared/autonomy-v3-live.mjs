@@ -159,24 +159,33 @@ function normalizeGlobal(values, nowSeconds) {
   return normalized;
 }
 
-async function readGlobal(clientValue) {
+async function commonReadBlock(clients) {
+  const heads = await Promise.all(clients.map((clientValue) => clientValue.getBlockNumber()));
+  const commonHead = heads.reduce((lowest, value) => value < lowest ? value : lowest);
+  // The two independent providers can expose different tips for several seconds. Reading the
+  // same recent confirmed block prevents ordinary head skew (especially the agent gas balance
+  // changing after a mint) from being misclassified as a provider disagreement.
+  return commonHead > 2n ? commonHead - 2n : commonHead;
+}
+
+async function readGlobal(clientValue, blockNumber) {
   const adapter = getAddress(automationManifest.contracts.AutomatedSeaDropStudioFreeMintAdapter.address);
   const policy = getAddress(automationManifest.contracts.BrokerPolicyModuleV3.address);
   const registry = getAddress(automationManifest.contracts.GoghPunkAccountRegistryV3.address);
   const agentRegistry = getAddress(coreManifest.contracts.ArtAgentRegistry.address);
   const [adapterRecord, adapterPaused, flags, policyPaused, agentRecord, agentPaused,
     adapterCode, policyCode, registryCode, agentCode, agentBalance] = await Promise.all([
-    clientValue.readContract({ address: getAddress(coreManifest.contracts.ArtAdapterRegistry.address), abi: ADAPTER_ABI, functionName: "adapterRecord", args: [adapter] }),
-    clientValue.readContract({ address: getAddress(coreManifest.contracts.ArtAdapterRegistry.address), abi: ADAPTER_ABI, functionName: "globallyPaused" }),
-    clientValue.readContract({ address: policy, abi: POLICY_ABI, functionName: "featureFlags" }),
-    clientValue.readContract({ address: policy, abi: POLICY_ABI, functionName: "globallyPaused" }),
-    clientValue.readContract({ address: agentRegistry, abi: AGENT_ABI, functionName: "globalAgent", args: [getAddress(AUTOMATION_V3_AGENT)] }),
-    clientValue.readContract({ address: agentRegistry, abi: AGENT_ABI, functionName: "globallyPaused" }),
-    clientValue.getCode({ address: adapter }),
-    clientValue.getCode({ address: policy }),
-    clientValue.getCode({ address: registry }),
-    clientValue.getCode({ address: getAddress(AUTOMATION_V3_AGENT) }).then((value) => value ?? "0x"),
-    clientValue.getBalance({ address: getAddress(AUTOMATION_V3_AGENT) }),
+    clientValue.readContract({ address: getAddress(coreManifest.contracts.ArtAdapterRegistry.address), abi: ADAPTER_ABI, functionName: "adapterRecord", args: [adapter], blockNumber }),
+    clientValue.readContract({ address: getAddress(coreManifest.contracts.ArtAdapterRegistry.address), abi: ADAPTER_ABI, functionName: "globallyPaused", blockNumber }),
+    clientValue.readContract({ address: policy, abi: POLICY_ABI, functionName: "featureFlags", blockNumber }),
+    clientValue.readContract({ address: policy, abi: POLICY_ABI, functionName: "globallyPaused", blockNumber }),
+    clientValue.readContract({ address: agentRegistry, abi: AGENT_ABI, functionName: "globalAgent", args: [getAddress(AUTOMATION_V3_AGENT)], blockNumber }),
+    clientValue.readContract({ address: agentRegistry, abi: AGENT_ABI, functionName: "globallyPaused", blockNumber }),
+    clientValue.getCode({ address: adapter, blockNumber }),
+    clientValue.getCode({ address: policy, blockNumber }),
+    clientValue.getCode({ address: registry, blockNumber }),
+    clientValue.getCode({ address: getAddress(AUTOMATION_V3_AGENT), blockNumber }).then((value) => value ?? "0x"),
+    clientValue.getBalance({ address: getAddress(AUTOMATION_V3_AGENT), blockNumber }),
   ]);
   if (![adapterCode, policyCode, registryCode].every((value) => typeof value === "string" && value !== "0x")) {
     throw new TypeError("V3 runtime code is unavailable");
@@ -189,7 +198,10 @@ export async function readAutomationV3GlobalState(environment = process.env, opt
   const { primary: primaryUrl, secondary: secondaryUrl } = resolveRobinhoodRpcPair(environment);
   const clients = options.clients ?? [client(primaryUrl), client(secondaryUrl)];
   const nowSeconds = options.nowSeconds ?? Math.floor(Date.now() / 1_000);
-  const [primary, secondary] = await Promise.all(clients.map(readGlobal));
+  const blockNumber = options.blockNumber ?? await commonReadBlock(clients);
+  const [primary, secondary] = await Promise.all(
+    clients.map((clientValue) => readGlobal(clientValue, blockNumber)),
+  );
   const first = normalizeGlobal(primary, nowSeconds);
   const second = normalizeGlobal(secondary, nowSeconds);
   if (JSON.stringify(first) !== JSON.stringify(second)) throw new TypeError("V3 providers disagree");
@@ -200,28 +212,47 @@ export async function readAutomationV3GlobalState(environment = process.env, opt
   return Object.freeze({ ...first, worker: { enabled: workerEnabled, release: workerRelease || null } });
 }
 
-async function readPunk(clientValue, tokenId, nowSeconds) {
+export async function readAutomationV3AgentDisplayState(
+  environment = process.env,
+  options = {},
+) {
+  const { primary: primaryUrl } = resolveRobinhoodRpcPair(environment);
+  const primary = options.client ?? client(primaryUrl);
+  const agent = getAddress(AUTOMATION_V3_AGENT);
+  const [code, balance] = await Promise.all([
+    primary.getCode({ address: agent }).then((value) => value ?? "0x"),
+    primary.getBalance({ address: agent }),
+  ]);
+  return Object.freeze({
+    address: AUTOMATION_V3_AGENT,
+    validUntil: null,
+    balanceWei: BigInt(balance).toString(),
+    codeFree: code === "0x",
+  });
+}
+
+async function readPunk(clientValue, tokenId, nowSeconds, blockNumber) {
   const registry = getAddress(automationManifest.contracts.GoghPunkAccountRegistryV3.address);
   const policyModule = getAddress(automationManifest.contracts.BrokerPolicyModuleV3.address);
   const agentRegistry = getAddress(coreManifest.contracts.ArtAgentRegistry.address);
   const adapter = getAddress(automationManifest.contracts.AutomatedSeaDropStudioFreeMintAdapter.address);
   const account = await clientValue.readContract({
-    address: registry, abi: REGISTRY_ABI, functionName: "account", args: [tokenId],
+    address: registry, abi: REGISTRY_ABI, functionName: "account", args: [tokenId], blockNumber,
   });
-  const code = (await clientValue.getCode({ address: account })) ?? "0x";
+  const code = (await clientValue.getCode({ address: account, blockNumber })) ?? "0x";
   if (code === "0x") return { tokenId: tokenId.toString(), account: account.toLowerCase(), created: false, active: false };
   const policyRead = (functionName, args = []) => clientValue.readContract({
-    address: policyModule, abi: ACCOUNT_POLICY_ABI, functionName, args,
+    address: policyModule, abi: ACCOUNT_POLICY_ABI, functionName, args, blockNumber,
   });
   const [owner, module, nonce, policy, usage, controls, authorization, authorized,
     adapterAllowed, venueAllowed, selectorAllowed, currency, venueMaximum] = await Promise.all([
-    clientValue.readContract({ address: account, abi: ACCOUNT_ABI, functionName: "owner" }),
-    clientValue.readContract({ address: account, abi: ACCOUNT_ABI, functionName: "policyModule" }),
-    clientValue.readContract({ address: account, abi: ACCOUNT_ABI, functionName: "acquisitionNonce" }),
+    clientValue.readContract({ address: account, abi: ACCOUNT_ABI, functionName: "owner", blockNumber }),
+    clientValue.readContract({ address: account, abi: ACCOUNT_ABI, functionName: "policyModule", blockNumber }),
+    clientValue.readContract({ address: account, abi: ACCOUNT_ABI, functionName: "acquisitionNonce", blockNumber }),
     policyRead("policy", [account]), policyRead("acquisitionUsage", [account]),
     policyRead("mintControls", [account]),
-    clientValue.readContract({ address: agentRegistry, abi: ACCOUNT_AGENT_ABI, functionName: "accountAuthorization", args: [account, getAddress(AUTOMATION_V3_AGENT)] }),
-    clientValue.readContract({ address: agentRegistry, abi: ACCOUNT_AGENT_ABI, functionName: "isAuthorized", args: [account, getAddress(AUTOMATION_V3_AGENT)] }),
+    clientValue.readContract({ address: agentRegistry, abi: ACCOUNT_AGENT_ABI, functionName: "accountAuthorization", args: [account, getAddress(AUTOMATION_V3_AGENT)], blockNumber }),
+    clientValue.readContract({ address: agentRegistry, abi: ACCOUNT_AGENT_ABI, functionName: "isAuthorized", args: [account, getAddress(AUTOMATION_V3_AGENT)], blockNumber }),
     policyRead("approvedAdapters", [account, adapter]),
     policyRead("approvedMintContracts", [account, getAddress(SEA_DROP)]),
     policyRead("approvedSelectors", [account, SEA_DROP_MINT_PUBLIC_SELECTOR]),
@@ -287,7 +318,10 @@ export async function readAutomationV3PunkState(tokenIdValue, environment = proc
   const { primary: primaryUrl, secondary: secondaryUrl } = resolveRobinhoodRpcPair(environment);
   const clients = options.clients ?? [client(primaryUrl), client(secondaryUrl)];
   const nowSeconds = options.nowSeconds ?? Math.floor(Date.now() / 1_000);
-  const states = await Promise.all(clients.map((rpc) => readPunk(rpc, BigInt(tokenIdValue), nowSeconds)));
+  const blockNumber = options.blockNumber ?? await commonReadBlock(clients);
+  const states = await Promise.all(clients.map((rpc) => (
+    readPunk(rpc, BigInt(tokenIdValue), nowSeconds, blockNumber)
+  )));
   if (JSON.stringify(states[0]) !== JSON.stringify(states[1])) throw new TypeError("V3 Punk providers disagree");
   return Object.freeze(states[0]);
 }

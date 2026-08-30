@@ -244,8 +244,11 @@ export async function recordAutomationV3PunkWorkerEvidence(result, options = {})
       account: null,
     });
     const lastActualScan = outcome.state === "QUEUED" ? null : completedAt;
-    const transactionHash = outcome.state === "MINTED" ? result.transactionHash : null;
-    const collection = outcome.state === "MINTED" && result.collection != null
+    const successfulMintHash = outcome.state === "MINTED" ? result.transactionHash : null;
+    const activityTransactionHash = new Set(["MINTED", "ERROR"]).has(outcome.state)
+      && selectedTokenId === String(result.tokenId) ? result.transactionHash : null;
+    const collection = new Set(["MINTED", "ERROR"]).has(outcome.state)
+      && selectedTokenId === String(result.tokenId) && result.collection != null
       ? address(result.collection, "Mint collection") : null;
     const eventId = createHash("sha256")
       .update(`${jobId}:${selectedTokenId}:${outcome.state}`, "utf8").digest("hex");
@@ -272,15 +275,15 @@ export async function recordAutomationV3PunkWorkerEvidence(result, options = {})
          INSERT INTO broker_punk_agent_activity
            (chain_id, punk_token_id, event_id, job_id, state, reason,
             collection_address, transaction_hash, occurred_at)
-         SELECT 4663, $1::numeric, $10, $3, $2, $8, $11, $6, $9::timestamptz
+         SELECT 4663, $1::numeric, $10, $3, $2, $8, $11, $13, $9::timestamptz
           WHERE $12::boolean
          ON CONFLICT DO NOTHING
          RETURNING event_id
        )
        SELECT heartbeat.* FROM heartbeat`,
       [selectedTokenId, outcome.state, jobId, startedAt, lastActualScan,
-        transactionHash, nextScanEstimate, outcome.reason, completedAt,
-        eventId, collection, outcome.state !== "QUEUED"],
+        successfulMintHash, nextScanEstimate, outcome.reason, completedAt,
+        eventId, collection, outcome.state !== "QUEUED", activityTransactionHash],
     );
     if (query.rows?.[0]) rows.push(punkWorkerEvidenceFromRow(query.rows[0]));
   }

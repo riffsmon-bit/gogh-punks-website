@@ -102,6 +102,38 @@ test("V3 worker records one bounded evidence row for every scheduled Punk", asyn
   assert.match(calls[0].values[9], /^[0-9a-f]{64}$/);
 });
 
+test("a reverted mint records its transaction only as failed activity", async () => {
+  const calls = [];
+  const database = { async query(sql, values) {
+    calls.push({ sql, values });
+    return { rows: [{
+      punk_token_id: values[0], state: values[1], current_job_id: values[2],
+      last_scheduled_scan: values[3], last_actual_scan: values[4],
+      last_successful_mint: values[5], next_scan_estimate: values[6],
+      reason: values[7], updated_at: values[8],
+    }] };
+  } };
+  await recordAutomationV3PunkWorkerEvidence({
+    status: "FAILED", submitted: 0, failureCode: "AUTONOMOUS_MINT_REVERTED",
+    tokenId: "1788", account: ACCOUNT, collection: COLLECTION,
+    transactionHash: TRANSACTION,
+    diagnostics: {
+      totalEligibleProfiles: 2, scheduledProfileBatch: 2,
+      scheduledTokenIds: ["1788", "1793"],
+      profileOutcomes: [{ tokenId: "1788", account: ACCOUNT,
+        state: "ERROR", reason: "AUTONOMOUS_MINT_REVERTED" }],
+    },
+  }, {
+    database, jobId: "12345678-1234-1234-1234-123456789abc",
+    startedAt: "2026-08-30T12:00:00Z", completedAt: "2026-08-30T12:00:02Z",
+  });
+  assert.equal(calls[0].values[5], null, "a reverted tx is not a successful mint");
+  assert.equal(calls[0].values[12], TRANSACTION, "failed activity retains its tx hash");
+  assert.equal(calls[0].values[10], COLLECTION);
+  assert.equal(calls[1].values[12], null, "the queued Punk did not submit the failed tx");
+  assert.equal(calls[1].values[11], false);
+});
+
 test("Punk activity reads one exact indexed timeline without chain RPC", async () => {
   const calls = [];
   const database = { async query(sql, values) {
