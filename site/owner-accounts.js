@@ -2,6 +2,7 @@ const CHAIN_ID = 4663;
 const STORAGE_KEY = "gogh:activated-punk-ids:v1";
 const ACTIVATION_TOPIC = "0xbcba1c8ca6488532aba261811803bc402fd692b825e2a41dd2e555ec87989cc3";
 const OWNER_OF = "0x6352211e";
+const BALANCE_OF = "0x70a08231";
 const ACCOUNT = "0x2dd7c658";
 const IS_ACCOUNT_CREATED = "0x6170c368";
 const MAX_SUPPLY = "0xd5abeb01";
@@ -63,6 +64,31 @@ export function encodeOwnerOfMulticall(collection, tokenIds) {
   } catch {
     throw new TypeError("Owner multicall input is invalid");
   }
+}
+
+export function encodePunkBalanceOf(collection, owner) {
+  const target = normalizedAddress(collection);
+  const account = normalizedAddress(owner);
+  if (!target || !account) throw new TypeError("Punk balance input is invalid");
+  return Object.freeze({
+    to: target,
+    data: `${BALANCE_OF}${account.slice(2).padStart(64, "0")}`,
+  });
+}
+
+export async function readBrowserOwnerPunkBalance(provider, collection, owner) {
+  if (!provider?.request) throw new TypeError("Punk balance is unavailable");
+  const call = encodePunkBalanceOf(collection, owner);
+  const response = await provider.request({
+    method: "eth_call",
+    params: [call, "latest"],
+  });
+  if (typeof response !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(response)) {
+    throw new TypeError("Punk balance response is invalid");
+  }
+  const balance = BigInt(response);
+  if (balance > 200n) throw new RangeError("Wallet owns more Punks than the UI can display");
+  return Number(balance);
 }
 
 function decodeWordMulticall(value, tokenIds) {
@@ -632,6 +658,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
   const mandatePicker = browserDocument?.querySelector?.("[data-mandate-punk-picker]");
   const workspacePicker = browserDocument?.querySelector?.("[data-workspace-punk-picker]");
   const selectedPreview = browserDocument?.querySelector?.("[data-workspace-punk-preview]");
+  const refreshButton = browserDocument?.querySelector?.("[data-refresh-owner-punks]");
   if (!browserWindow || (!container && !picker && !mandatePicker && !workspacePicker)) return null;
   const request = fetchFunction ?? browserWindow.fetch.bind(browserWindow);
   let revision = 0;
@@ -876,6 +903,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
   }
 
   async function refresh(event) {
+    const forceReconcile = event?.forceReconcile === true;
     const wallet = event?.detail ?? browserWindow.__GOGH_WALLET_SNAPSHOT__ ?? null;
     const intent = walletDiscoveryIntent(wallet);
     // Bumping the revision cancels whatever scan is in flight, so a transient frame must return
@@ -918,6 +946,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
         ? candidatesPayload.candidateTokenIds : [];
       const remembered = knownTokenIds(browserWindow.localStorage);
       let candidates = [...new Set([...remembered, ...indexed])];
+      if (forceReconcile) candidates = [];
       let rosterPayload = candidatesPayload;
       let reconciledInitially = false;
       let accounts = [];
@@ -925,8 +954,37 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
         // The indexed/enrolled IDs are hints only. Three Multicall reads verify ownership,
         // deterministic account address, and deployment state for the whole bounded set before
         // anything is shown. This is the normal mobile path and avoids scanning all 5,017 tokens.
-        accounts = await findBrowserOwnedPunks(browserWindow.__GOGH_WALLET_PROVIDER__,
-          gatePayload.activationGate, wallet.account, candidates);
+        const [verifiedAccounts, liveBalance] = await Promise.all([
+          findBrowserOwnedPunks(browserWindow.__GOGH_WALLET_PROVIDER__,
+            gatePayload.activationGate, wallet.account, candidates),
+          readBrowserOwnerPunkBalance(browserWindow.__GOGH_WALLET_PROVIDER__,
+            gatePayload.activationGate.bindings.punkCollection, wallet.account),
+        ]);
+        accounts = verifiedAccounts;
+        if (accounts.length !== liveBalance) {
+          // A non-empty index can still omit a newly transferred Punk. balanceOf is the cheap
+          // completeness assertion: only a mismatch pays for the bounded server reconciliation.
+          const reconcileResponse = await request(
+            `/api/broker/owner-punks?owner=${encodeURIComponent(wallet.account)}&view=reconcile`,
+            { headers: { accept: "application/json" }, cache: "no-store" },
+          );
+          const reconcilePayload = await reconcileResponse.json();
+          if (!reconcileResponse.ok || reconcilePayload?.ok !== true
+            || reconcilePayload.complete !== true
+            || Number(reconcilePayload.balanceOf) !== liveBalance
+            || !Array.isArray(reconcilePayload.candidateTokenIds)) {
+            throw new TypeError("Live Punk roster reconciliation is incomplete");
+          }
+          rosterPayload = reconcilePayload;
+          reconciledInitially = true;
+          candidates = [...new Set(reconcilePayload.candidateTokenIds.map(String))]
+            .sort((left, right) => Number(left) - Number(right));
+          accounts = await findBrowserOwnedPunks(browserWindow.__GOGH_WALLET_PROVIDER__,
+            gatePayload.activationGate, wallet.account, candidates);
+          if (accounts.length !== liveBalance) {
+            throw new TypeError("Browser ownership verification did not match live balance");
+          }
+        }
       } else {
         // A first-time holder can be absent from both the persistent index and local memory. Do
         // the bounded full-collection completion on the server, where it is 26 parallelized
@@ -939,6 +997,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
         );
         const reconcilePayload = await reconcileResponse.json();
         if (!reconcileResponse.ok || reconcilePayload?.ok !== true
+          || reconcilePayload.complete !== true
           || !Array.isArray(reconcilePayload.candidateTokenIds)) {
           throw new TypeError("Live Punk roster reconciliation is unavailable");
         }
@@ -953,11 +1012,8 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       publishVerifiedAccounts(accounts, rosterPayload, wallet, current, {
         reconciled: reconciledInitially,
       });
-      // A non-empty persistent ownership index is rendered after one bounded browser
-      // Multicall verification. Do not launch the 5,017-token server reconciliation on every
-      // navigation: the incremental Transfer index updates the roster, while privileged actions
-      // still recheck ownerOf live. A completely empty index retains the one-time completion path
-      // above so a first-time holder cannot disappear from the product.
+      // The persistent index is rendered after bounded browser verification and one balanceOf
+      // completeness assertion. The 5,017-token repair runs only when the count proves stale.
     } catch {
       if (current !== revision) return;
       // A later RPC/provider hiccup must never erase a roster that this page already verified.
@@ -1036,6 +1092,19 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
     selectPunk(mandatePicker.value);
   });
   workspacePicker?.addEventListener("change", () => selectPunk(workspacePicker.value));
+  refreshButton?.addEventListener("click", async () => {
+    refreshButton.disabled = true;
+    refreshButton.textContent = "Syncing latest ownership…";
+    try {
+      await refresh({
+        detail: browserWindow.__GOGH_WALLET_SNAPSHOT__ ?? null,
+        forceReconcile: true,
+      });
+    } finally {
+      refreshButton.disabled = false;
+      refreshButton.textContent = "Refresh My Punks";
+    }
+  });
   browserWindow.addEventListener("gogh:select-punk-request", (event) => {
     const requested = event.detail?.tokenId;
     if (typeof requested === "string"

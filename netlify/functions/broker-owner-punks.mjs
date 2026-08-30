@@ -176,7 +176,7 @@ export async function liveOwnerPunkSnapshot(owner, candidateTokenIds = [], {
     throw new RangeError("live owner Punk balance is outside the UI bound");
   }
   if (balance === 0n) {
-    return Object.freeze({ tokenIds: Object.freeze([]), blockNumber });
+    return Object.freeze({ tokenIds: Object.freeze([]), blockNumber, balance });
   }
 
   const boundedCandidates = [...new Set(candidateTokenIds)];
@@ -189,6 +189,7 @@ export async function liveOwnerPunkSnapshot(owner, candidateTokenIds = [], {
         verifiedCandidates.sort((left, right) => Number(left) - Number(right)),
       ),
       blockNumber,
+      balance,
     });
   }
 
@@ -216,7 +217,7 @@ export async function liveOwnerPunkSnapshot(owner, candidateTokenIds = [], {
   if (BigInt(output.length) !== balance || new Set(output).size !== output.length) {
     throw new TypeError("live owner discovery did not reconcile the wallet balance");
   }
-  return Object.freeze({ tokenIds: Object.freeze(output), blockNumber });
+  return Object.freeze({ tokenIds: Object.freeze(output), blockNumber, balance });
 }
 
 export async function liveOwnerPunkIds(owner, candidateTokenIds = [], options = {}) {
@@ -730,6 +731,9 @@ export default async function handler(request) {
           artwork: artworkAvailable,
         }),
         reconciliationRecommended: candidateTokenIds.length === 0,
+        complete: false,
+        balanceOf: null,
+        source: "indexed-hints",
         evidence: "INDEXED_DISCOVERY_HINTS_ONLY_EACH_SELECTION_REQUIRES_LIVE_WALLET_OWNER_CHECK",
         activationAuthorized: false,
         autonomyAuthorized: false,
@@ -848,6 +852,12 @@ export default async function handler(request) {
       view,
       candidateTokenIds,
       candidatePunks,
+      balanceOf: liveOwnerSnapshot ? Number(liveOwnerSnapshot.balance) : null,
+      complete: liveOwnerAvailable,
+      indexedBlock: liveOwnerSnapshot ? Number(liveOwnerSnapshot.blockNumber) : null,
+      headBlock: liveOwnerSnapshot ? Number(liveOwnerSnapshot.blockNumber) : null,
+      source: liveOwnerAvailable ? "index+live-balance-reconcile" : "discovery-hints",
+      updatedAt: new Date().toISOString(),
       candidateSources: Object.freeze({
         indexed: indexedResult.status === "fulfilled",
         openSea: openSeaAvailable,

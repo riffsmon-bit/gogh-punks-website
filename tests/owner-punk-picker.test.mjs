@@ -22,10 +22,12 @@ import {
   decodeOwnerOfMulticall,
   decodeOnchainPunkDecoration,
   discoverWalletOwnedPunkIds,
+  encodePunkBalanceOf,
   encodeOwnerOfMulticall,
   findBrowserOwnedPunks,
   hydrateOnchainPunkDecorations,
   priorityArtworkAccounts,
+  readBrowserOwnerPunkBalance,
   mergeWalletAndActivatedPunks,
   requestedBrokerPunk,
   selectedPunkGalleryPath,
@@ -168,6 +170,42 @@ test("live owner completion avoids a full scan when indexed candidates reconcile
   assert.deepEqual(calls, [["93", "94"]]);
 });
 
+test("a complete 128-Punk indexed roster is neither truncated nor rescanned", async () => {
+  const tokenIds = Array.from({ length: 128 }, (_, index) => String(index + 1));
+  const calls = [];
+  const snapshot = await liveOwnerPunkSnapshot(OWNER, tokenIds, {
+    client: {
+      getBlockNumber: async () => 321n,
+      readContract: async () => 128n,
+      multicall: async ({ contracts, blockNumber }) => {
+        assert.equal(blockNumber, 321n);
+        calls.push(contracts.length);
+        return contracts.map(() => ({ status: "success", result: OWNER }));
+      },
+    },
+  });
+  assert.equal(snapshot.tokenIds.length, 128);
+  assert.deepEqual(snapshot.tokenIds, tokenIds);
+  assert.equal(snapshot.balance, 128n);
+  assert.deepEqual(calls, [128], "the complete indexed roster needs one bounded verification");
+});
+
+test("a confirmed zero-Punk wallet returns a complete empty roster without ownerOf reads", async () => {
+  let multicallCount = 0;
+  const snapshot = await liveOwnerPunkSnapshot(OWNER, [], {
+    client: {
+      getBlockNumber: async () => 654n,
+      readContract: async () => 0n,
+      multicall: async () => {
+        multicallCount += 1;
+        return [];
+      },
+    },
+  });
+  assert.deepEqual(snapshot, { tokenIds: [], blockNumber: 654n, balance: 0n });
+  assert.equal(multicallCount, 0);
+});
+
 test("live owner completion scans server-side only when hints omit an owned Punk", async () => {
   const calls = [];
   const owned = new Set(["93", "1616"]);
@@ -190,6 +228,21 @@ test("live owner completion scans server-side only when hints omit an owned Punk
   assert.equal(calls.length, 27, "one hint check plus 26 bounded scan chunks");
 });
 
+test("a five-Punk wallet repairs one Punk omitted from a nonempty index", async () => {
+  const expected = ["93", "94", "95", "96", "97"];
+  const owned = new Set(expected);
+  const result = await liveOwnerPunkIds(OWNER, expected.slice(0, 4), {
+    client: {
+      getBlockNumber: async () => 457n,
+      readContract: async () => 5n,
+      multicall: async ({ contracts }) => contracts.map(({ args }) => owned.has(String(args[0]))
+        ? { status: "success", result: OWNER }
+        : { status: "failure", error: new Error("not owned") }),
+    },
+  });
+  assert.deepEqual(result, expected);
+});
+
 test("live owner snapshot pins balance and every owner read to one block", async () => {
   const reads = [];
   const snapshot = await liveOwnerPunkSnapshot(OWNER, ["93"], {
@@ -205,8 +258,28 @@ test("live owner snapshot pins balance and every owner read to one block", async
       },
     },
   });
-  assert.deepEqual(snapshot, { tokenIds: ["93"], blockNumber: 789n });
+  assert.deepEqual(snapshot, { tokenIds: ["93"], blockNumber: 789n, balance: 1n });
   assert.deepEqual(reads, [789n, 789n]);
+});
+
+test("browser balanceOf is one bounded completeness assertion", async () => {
+  const calls = [];
+  assert.deepEqual(encodePunkBalanceOf(COLLECTION, OWNER), {
+    to: COLLECTION,
+    data: `0x70a08231${OWNER.slice(2).padStart(64, "0")}`,
+  });
+  const balance = await readBrowserOwnerPunkBalance({
+    request: async (request) => {
+      calls.push(request);
+      return `0x${128n.toString(16).padStart(64, "0")}`;
+    },
+  }, COLLECTION, OWNER);
+  assert.equal(balance, 128);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].method, "eth_call");
+  await assert.rejects(readBrowserOwnerPunkBalance({
+    request: async () => `0x${201n.toString(16).padStart(64, "0")}`,
+  }, COLLECTION, OWNER), /more Punks/);
 });
 
 test("complete live owner snapshots atomically refresh indexed ownership hints", async () => {
@@ -530,7 +603,8 @@ test("broker picker selects only a live-verified wallet-owned Punk", async () =>
   assert.match(accounts, /view=indexed/);
   assert.match(accounts, /view=reconcile/);
   assert.match(accounts, /Live ownership verified from indexed roster/);
-  assert.match(accounts, /Do not launch the 5,017-token server reconciliation on every/);
+  assert.match(accounts, /balanceOf is the cheap/);
+  assert.match(accounts, /accounts\.length !== liveBalance/);
   assert.match(accounts, /renderSelectedPunkPreview/);
   assert.match(accounts, /priorityArtworkAccounts/);
   assert.match(accounts, /gogh:punk-selected/);
