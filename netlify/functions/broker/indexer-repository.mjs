@@ -3,6 +3,9 @@ import { ROBINHOOD } from "../../../broker/src/config.mjs";
 import { projectBrokerAccountLog } from "../../../broker/src/indexer/account-event-projection.mjs";
 import { projectScoutLog } from "../../../broker/src/indexer/opportunity-projection.mjs";
 import {
+  projectPunkOwnershipTransfer,
+} from "../../../broker/src/indexer/punk-ownership-projection.mjs";
+import {
   materializeBrokerAcquisition,
   materializePendingAccountAcquisitions,
 } from "./acquisition-materialization.mjs";
@@ -117,6 +120,33 @@ export class PostgresIndexerRepository {
           ],
         );
         inserted += result.rowCount;
+
+        const ownership = projectPunkOwnershipTransfer({ chainId, stream, record });
+        if (ownership) {
+          await client.query(
+            `INSERT INTO broker_punks
+              (chain_id, collection_address, token_id, owner_snapshot,
+               owner_snapshot_block, indexed_through_block, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $5, NOW())
+             ON CONFLICT (chain_id, collection_address, token_id) DO UPDATE
+               SET owner_snapshot = EXCLUDED.owner_snapshot,
+                   owner_snapshot_block = EXCLUDED.owner_snapshot_block,
+                   indexed_through_block = GREATEST(
+                     COALESCE(broker_punks.indexed_through_block, EXCLUDED.indexed_through_block),
+                     EXCLUDED.indexed_through_block
+                   ),
+                   updated_at = NOW()
+             WHERE broker_punks.owner_snapshot_block IS NULL
+                OR broker_punks.owner_snapshot_block <= EXCLUDED.owner_snapshot_block`,
+            [
+              chainId,
+              ownership.collection,
+              ownership.tokenId,
+              ownership.owner,
+              ownership.blockNumber,
+            ],
+          );
+        }
 
         const projection = projectScoutLog({ chainId, stream, record, observedAt });
         if (projection) {

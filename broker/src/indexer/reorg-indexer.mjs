@@ -72,7 +72,12 @@ export class ReorgAwareIndexer {
           return header.timestamp;
         })(),
         id: `${stream}:${logId(this.chainId, log)}`,
-      }));
+      })).sort((left, right) => {
+        const blockOrder = BigInt(left.blockNumber) - BigInt(right.blockNumber);
+        if (blockOrder !== 0n) return blockOrder < 0n ? -1 : 1;
+        const logOrder = BigInt(left.logIndex) - BigInt(right.logIndex);
+        return logOrder === 0n ? 0 : logOrder < 0n ? -1 : 1;
+      });
       const streamDefinition = typeof this.source.streamDefinition === "function"
         ? this.source.streamDefinition(stream)
         : null;

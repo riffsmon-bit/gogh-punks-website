@@ -64,6 +64,7 @@ function punkProvider() {
       if (method !== "eth_call") throw new Error(`unexpected ${method}`);
       const data = call?.data ?? "";
       if (data.startsWith("0xd5abeb01")) return "0x";
+      if (data.startsWith("0x70a08231")) return `0x${word(1)}`;
       if (call?.to === "0xca11bde05977b3631167028862be2a173976ca11") {
         const field = multicallIndex % 3;
         multicallIndex += 1;
