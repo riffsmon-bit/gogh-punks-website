@@ -51,7 +51,7 @@ const state = {
   punkHeartbeat: null, observedMintHash: null, mintBaselineReady: false,
   activityLoading: false,
   directedReviewId: null, directedIntentId: null, directedSourceUrl: null,
-  fundingBusy: false, wrappedBusy: false, wrappedPlan: null,
+  fundingBusy: false, withdrawalFundsBusy: false, wrappedBusy: false, wrappedPlan: null,
   activationBusy: false, activationMessage: null,
   agentActionBusy: false,
   withdrawalAsset: null, withdrawalAmount: "1", withdrawalBusy: false,
@@ -99,7 +99,7 @@ function setText(selector, value) {
 function setActionAvailability(enabled) {
   for (const selector of ["[data-directed-check]", "[data-paid-save]", "[data-add-native]",
     "[data-load-assets]", "[data-deposit-review]", "[data-activity-refresh]",
-    "[data-wrap-review]", "[data-schedule-save]"]) {
+    "[data-wrap-review]", "[data-schedule-save]", "[data-find-nft]"]) {
     const element = query(selector);
     if (element) element.disabled = !enabled;
   }
@@ -107,7 +107,15 @@ function setActionAvailability(enabled) {
   const confirmation = query("[data-punk-fund-confirm]");
   if (amount) amount.disabled = !enabled || state.fundingBusy;
   if (confirmation) confirmation.disabled = !enabled || state.fundingBusy;
-  renderFundingAction();
+  const withdrawalAmount = query("[data-punk-withdraw-amount]");
+  const withdrawalConfirmation = query("[data-punk-withdraw-confirm]");
+  const withdrawalShortcut = query("[data-withdraw-native]");
+  const exactNftUrl = query("[data-find-nft-url]");
+  if (withdrawalAmount) withdrawalAmount.disabled = !enabled || state.withdrawalFundsBusy;
+  if (withdrawalConfirmation) withdrawalConfirmation.disabled = !enabled || state.withdrawalFundsBusy;
+  if (withdrawalShortcut) withdrawalShortcut.disabled = !enabled || state.withdrawalFundsBusy;
+  if (exactNftUrl) exactNftUrl.disabled = !enabled;
+  renderFundingActions();
   renderActivation();
   renderAgentActions();
 }
@@ -170,13 +178,23 @@ function renderAgentActions() {
   if (edit) edit.disabled = busy || !canConfigure;
 }
 
-function renderFundingAction() {
-  const button = query("[data-punk-fund-submit]");
-  const confirmation = query("[data-punk-fund-confirm]");
-  if (!button) return;
-  button.disabled = !state.owned || !state.activated || state.fundingBusy
-    || confirmation?.checked !== true;
-  button.textContent = state.fundingBusy ? "CHECKING & SIMULATING…" : "FUND PUNK WALLET IN METAMASK";
+function renderFundingActions() {
+  const deposit = query("[data-punk-fund-submit]");
+  const depositConfirmation = query("[data-punk-fund-confirm]");
+  if (deposit) {
+    deposit.disabled = !state.owned || !state.activated || state.fundingBusy
+      || depositConfirmation?.checked !== true;
+    deposit.textContent = state.fundingBusy
+      ? "CHECKING & SIMULATING…" : "FUND PUNK WALLET IN METAMASK";
+  }
+  const withdrawal = query("[data-punk-withdraw-submit]");
+  const withdrawalConfirmation = query("[data-punk-withdraw-confirm]");
+  if (withdrawal) {
+    withdrawal.disabled = !state.owned || !state.activated || state.withdrawalFundsBusy
+      || withdrawalConfirmation?.checked !== true;
+    withdrawal.textContent = state.withdrawalFundsBusy
+      ? "CHECKING & SIMULATING…" : "VERIFY & WITHDRAW IN METAMASK";
+  }
 }
 
 function controlPresentation() {
@@ -252,6 +270,8 @@ function renderIdentity() {
   setText("[data-directed-punk]", state.tokenId ? `#${state.tokenId}` : "—");
   setText("[data-control-account]", presentation.account);
   setText("[data-punk-fund-account]", presentation.account);
+  setText("[data-punk-withdraw-owner]", state.walletAccount
+    ? formatAddress(state.walletAccount) : "Connect wallet to load");
   setText("[data-control-live-state]", presentation.detail);
   const routeAlert = query("[data-control-route-alert]");
   if (routeAlert) routeAlert.hidden = Boolean(state.tokenId);
@@ -687,19 +707,24 @@ async function stopArtBroker(action = "Pause") {
   }
 }
 
-async function fundPunkWallet() {
-  const output = query("[data-punk-fund-state]");
-  const transactionLink = query("[data-punk-fund-transaction]");
-  if (state.fundingBusy) return;
+async function movePunkWalletFunds(direction) {
+  const withdrawing = direction === "withdraw";
+  const prefix = withdrawing ? "punk-withdraw" : "punk-fund";
+  const output = query(`[data-${prefix}-state]`);
+  const transactionLink = query(`[data-${prefix}-transaction]`);
+  const busyKey = withdrawing ? "withdrawalFundsBusy" : "fundingBusy";
+  if (state[busyKey]) return;
   if (demo) {
-    output.textContent = "Local demo: the exact owner-to-Punk deposit can be reviewed, but no wallet request is submitted.";
+    output.textContent = withdrawing
+      ? "Local demo: the exact Punk-to-current-owner recovery can be reviewed, but no wallet request is submitted."
+      : "Local demo: the exact owner-to-Punk deposit can be reviewed, but no wallet request is submitted.";
     return;
   }
   if (!state.owned || !state.activated || !state.account || !state.walletAccount) {
     output.textContent = "Connect the current holder and select an activated Punk first.";
     return;
   }
-  if (!query("[data-punk-fund-confirm]").checked) {
+  if (!query(`[data-${prefix}-confirm]`).checked) {
     output.textContent = "Review the selected Punk Wallet, amount, and direction first.";
     return;
   }
@@ -709,14 +734,16 @@ async function fundPunkWallet() {
   const selection = Object.freeze({
     tokenId, account, activated: true, owner: state.walletAccount,
   });
-  state.fundingBusy = true;
-  renderFundingAction();
+  state[busyKey] = true;
+  renderFundingActions();
   transactionLink.hidden = true;
   try {
-    output.textContent = "Checking live ownership, Punk Wallet code, policy, and exact deposit simulation…";
+    output.textContent = withdrawing
+      ? "Checking live ownership, Punk Wallet code, balance, fixed destination, and exact recovery simulation…"
+      : "Checking live ownership, Punk Wallet code, policy, and exact deposit simulation…";
     const gate = await fetchOwnerPolicyGate((...args) => fetch(...args));
-    const prepared = await prepareOwnerFunds(state.provider, gate, selection, "deposit",
-      query("[data-punk-fund-amount]").value.trim());
+    const prepared = await prepareOwnerFunds(state.provider, gate, selection, direction,
+      query(`[data-${prefix}-amount]`).value.trim());
     if (revision !== state.revision || account !== state.account || tokenId !== state.tokenId) {
       throw new Error("Selected Punk changed during review");
     }
@@ -732,14 +759,25 @@ async function fundPunkWallet() {
       return;
     }
     await loadBalance();
-    output.textContent = `Confirmed. Punk #${tokenId}'s wallet balance has been refreshed.`;
-    query("[data-punk-fund-confirm]").checked = false;
+    output.textContent = withdrawing
+      ? `Confirmed. Native ETH returned to the current owner of Punk #${tokenId}.`
+      : `Confirmed. Punk #${tokenId}'s wallet balance has been refreshed.`;
+    query(`[data-${prefix}-confirm]`).checked = false;
   } catch (error) {
-    output.textContent = `${error?.message ?? "Funding was not submitted"}.`;
+    output.textContent = `${error?.message
+      ?? (withdrawing ? "Withdrawal was not submitted" : "Funding was not submitted")}.`;
   } finally {
-    state.fundingBusy = false;
-    renderFundingAction();
+    state[busyKey] = false;
+    renderFundingActions();
   }
+}
+
+async function fundPunkWallet() {
+  return movePunkWalletFunds("deposit");
+}
+
+async function withdrawPunkWalletFunds() {
+  return movePunkWalletFunds("withdraw");
 }
 
 async function reviewWrappedNative() {
@@ -1099,7 +1137,20 @@ async function withdrawSelectedAsset() {
   }
 }
 
-async function loadAssets() {
+function exactOpenSeaAsset(value) {
+  let url;
+  try { url = new URL(String(value ?? "").trim()); } catch {
+    throw new Error("Paste a valid OpenSea item link");
+  }
+  const match = url.pathname.match(/^\/item\/robinhood\/(0x[0-9a-fA-F]{40})\/(0|[1-9][0-9]*)\/?$/);
+  if (url.protocol !== "https:" || url.hostname !== "opensea.io" || url.port
+    || url.username || url.password || url.hash || !match) {
+    throw new Error("Use an exact Robinhood Chain OpenSea item link");
+  }
+  return Object.freeze({ collection: match[1].toLowerCase(), tokenId: BigInt(match[2]).toString() });
+}
+
+async function loadAssets(exactAsset = null) {
   if (!state.owned) throw new Error("Connect the current Punk holder first");
   const started = performance.now();
   const grid = query("[data-asset-grid]");
@@ -1131,7 +1182,12 @@ async function loadAssets() {
       metric("NFT inventory", started);
       return;
     }
-    const response = await fetch(`/api/broker/nft-withdrawal-assets?tokenId=${encodeURIComponent(state.tokenId)}`, {
+    const params = new URLSearchParams({ tokenId: state.tokenId });
+    if (exactAsset) {
+      params.set("collection", exactAsset.collection);
+      params.set("assetTokenId", exactAsset.tokenId);
+    }
+    const response = await fetch(`/api/broker/nft-withdrawal-assets?${params}`, {
       headers: { accept: "application/json" }, cache: "no-store",
     });
     const payload = await response.json().catch(() => null);
@@ -1153,6 +1209,22 @@ async function loadAssets() {
     metric("NFT inventory", started);
   } finally {
     grid.removeAttribute("aria-busy");
+  }
+}
+
+async function findExactNft() {
+  const output = query("[data-find-nft-state]");
+  try {
+    const exact = exactOpenSeaAsset(query("[data-find-nft-url]").value);
+    output.textContent = "Checking exact ERC-721 ownership on Robinhood Chain…";
+    await loadAssets(exact);
+    const found = state.assets.some((asset) => asset.standard === "ERC721"
+      && asset.collection === exact.collection && asset.tokenId === exact.tokenId);
+    output.textContent = found
+      ? `Verified. NFT #${exact.tokenId} is now available in the withdrawal list below.`
+      : "This NFT was not confirmed in the selected Punk Wallet. Nothing was added.";
+  } catch (error) {
+    output.textContent = error?.message ?? "The exact NFT could not be verified.";
   }
 }
 
@@ -1192,9 +1264,9 @@ function renderPaidPolicy(policy) {
   query("[data-paid-daily]").value = policy.daily ?? "0.025";
   query("[data-paid-per]").value = policy.per ?? "0.01";
   query("[data-paid-count]").value = policy.count ?? "3";
-  setText("[data-agent-paid]", policy.enabled ? "ON · LOCAL SIMULATION" : "OFF");
-  setText("[data-agent-spend-limit]", `${policy.daily ?? "0.025"} ETH/day · simulated`);
-  setText("[data-agent-per-limit]", `${policy.per ?? "0.01"} ETH · simulated`);
+  setText("[data-agent-paid]", policy.enabled ? "STAGED · BROADCAST LOCKED" : "OFF");
+  setText("[data-agent-spend-limit]", `${policy.daily ?? "0.025"} ETH/day · staged`);
+  setText("[data-agent-per-limit]", `${policy.per ?? "0.01"} ETH · staged`);
   setText("[data-summary-spent]", `0 / ${policy.daily ?? "0.025"} ETH`);
 }
 
@@ -1219,7 +1291,7 @@ async function savePaidPolicy() {
     localStorage.setItem(localPolicyKey(), JSON.stringify(policy));
     renderPaidPolicy(policy);
     setText("[data-paid-state]", enabled
-      ? "Saved in this local test session. Production paid execution remains disabled."
+      ? "Saved on this device for review. Production paid execution remains disabled."
       : "Paid mints are OFF. No production permission was changed.");
   } catch (error) {
     setText("[data-paid-state]", `${error.message}. No setting was saved.`);
@@ -1390,6 +1462,7 @@ function bindActions() {
   query("[data-load-assets]").addEventListener("click", () => loadAssets().catch((error) => {
     query("[data-asset-grid]").textContent = error.message;
   }));
+  query("[data-find-nft]").addEventListener("click", findExactNft);
   query("[data-control-activate]").addEventListener("click", activateArtBroker);
   query("[data-paid-save]").addEventListener("click", () => savePaidPolicy());
   query("[data-schedule-save]").addEventListener("click", () => saveScoutingSchedule());
@@ -1405,8 +1478,11 @@ function bindActions() {
       : "Activate this Punk Wallet before reviewing a deposit.");
   });
   query("[data-add-native]").addEventListener("click", () => query("[data-punk-fund-amount]").focus());
-  query("[data-punk-fund-confirm]").addEventListener("change", renderFundingAction);
+  query("[data-withdraw-native]").addEventListener("click", () => query("[data-punk-withdraw-amount]").focus());
+  query("[data-punk-fund-confirm]").addEventListener("change", renderFundingActions);
   query("[data-punk-fund-submit]").addEventListener("click", fundPunkWallet);
+  query("[data-punk-withdraw-confirm]").addEventListener("change", renderFundingActions);
+  query("[data-punk-withdraw-submit]").addEventListener("click", withdrawPunkWalletFunds);
   query("[data-wrap-review]").addEventListener("click", reviewWrappedNative);
   for (const control of queryAll("[data-wrap-direction], [data-wrap-amount], [data-wrap-confirm]")) {
     control.addEventListener("input", () => {
@@ -1537,6 +1613,7 @@ async function applyWallet(wallet) {
   state.nativeBalance = null;
   state.wrappedBalance = null;
   state.fundingBusy = false;
+  state.withdrawalFundsBusy = false;
   state.activationBusy = false;
   state.agentActionBusy = false;
   state.activationMessage = null;

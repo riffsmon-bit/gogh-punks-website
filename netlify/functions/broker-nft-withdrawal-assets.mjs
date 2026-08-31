@@ -125,7 +125,7 @@ export async function buildWithdrawableNftAssets(
   { environment = process.env, database, gateBuilder = buildNftWithdrawalGate,
     getReceipt, getOwner, getCollectionName, getTokenUri,
     enrichItems = enrichOpenSeaPortfolio, readTokenDisplay = readOnchainNftDisplay,
-    openSeaSource } = {},
+    openSeaSource, exactAsset = null } = {},
 ) {
   const normalizedTokenId = tokenId(selectedTokenId);
   const gate = await gateBuilder(normalizedTokenId);
@@ -224,6 +224,35 @@ export async function buildWithdrawableNftAssets(
     }
   }
   let items = [...unique.values()].slice(0, 64);
+  // A marketplace account index may lag or omit an otherwise live-owned NFT. Allow the
+  // holder to supply one exact ERC-721 identity, then prove ownerOf against the selected
+  // Punk Wallet before exposing it to the existing withdrawal preflight. This is a
+  // bounded recovery lookup, not a user-controlled transaction path.
+  if (exactAsset && items.length < 64) {
+    try {
+      const collection = address(exactAsset.collection, "exact NFT collection");
+      const identifier = BigInt(exactAsset.tokenId).toString();
+      if (!/^(?:0|[1-9][0-9]*)$/.test(identifier)) throw new TypeError();
+      const identity = `${collection}:${identifier}`;
+      const currentOwner = address(await ownerReader(collection, identifier), "NFT owner");
+      if (currentOwner === account && !items.some((item) => (
+        `${item.collection}:${item.tokenId}` === identity
+      ))) {
+        let collectionName = null;
+        try { collectionName = displayCollectionName(await collectionNameReader(collection)); }
+        catch { /* Display metadata is advisory. */ }
+        items.push(Object.freeze({
+          standard: "ERC721", collection, tokenId: identifier, amount: "1",
+          transactionHash: null, acquiredAt: null, provenance: "RECEIVED",
+          ownershipStatus: "LIVE_CHECK_REQUIRED",
+          openSeaUrl: `https://opensea.io/item/robinhood/${collection}/${identifier}`,
+          collectionName, name: null, imageUrl: null, collectionSlug: null, floorPrice: null,
+        }));
+      }
+    } catch {
+      // The exact identity is included only when live ownerOf proves the Punk Wallet owns it.
+    }
+  }
   // The marketplace account index broadens display beyond broker mint history so manually
   // deposited and externally received NFTs can be selected. It remains advisory: every
   // withdrawal performs a fresh standard-specific owner/balance check before simulation.
@@ -334,12 +363,20 @@ export default async function handler(request) {
   const params = new URL(request.url).searchParams;
   const selectedTokenId = params.get("tokenId");
   const selectedTokenIds = params.get("tokenIds");
+  const exactCollection = params.get("collection");
+  const exactTokenId = params.get("assetTokenId");
   try {
     if ((selectedTokenId === null) === (selectedTokenIds === null)) {
       throw new TypeError("Choose exactly one NFT asset query");
     }
+    if ((exactCollection === null) !== (exactTokenId === null) || (selectedTokenIds !== null
+      && exactCollection !== null)) throw new TypeError("Exact NFT lookup is invalid");
+    const exactAsset = exactCollection === null ? null : Object.freeze({
+      collection: address(exactCollection, "exact NFT collection"),
+      tokenId: BigInt(exactTokenId).toString(),
+    });
     const body = selectedTokenIds === null
-      ? { ok: true, assets: await buildWithdrawableNftAssets(selectedTokenId) }
+      ? { ok: true, assets: await buildWithdrawableNftAssets(selectedTokenId, { exactAsset }) }
       : { ok: true, portfolio: await buildWithdrawableNftPortfolio(tokenIds(selectedTokenIds)) };
     return json(body, 200, {
       "cache-control": "no-store, max-age=0",

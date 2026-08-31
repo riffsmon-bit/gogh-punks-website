@@ -397,10 +397,10 @@ test("Control Center is progressive, mobile, and keeps mint execution disabled",
     assert.match(html, new RegExp(label));
   }
   assert.match(netlify, /from = "\/broker\/punk\/\*"/);
-  assert.match(browser, /LOCAL SIMULATION/);
+  assert.match(browser, /STAGED · BROADCAST LOCKED/);
   assert.match(browser, /\/api\/broker\/connector\/opensea/);
   assert.match(html, /Prepare Bounded Review/);
-  assert.match(browser, /nft-withdrawal-assets\?tokenId=/);
+  assert.match(browser, /nft-withdrawal-assets\?\$\{params\}/);
   assert.match(browser, /preflightNftWithdrawal/);
   assert.match(browser, /submitNftWithdrawal/);
   assert.match(browser, /state\.withdrawalAsset === selectedAsset/);
