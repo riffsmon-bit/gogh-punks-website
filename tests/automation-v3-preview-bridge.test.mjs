@@ -125,6 +125,32 @@ test("preview activity forwards one exact Punk selection", async () => {
   assert.equal(result.punk.heartbeat.tokenId, "93");
 });
 
+test("preview activity preserves validated legacy production evidence during rollout", async () => {
+  const result = await getProductionAutomationV3Activity(async () => jsonResponse({
+    ok: true,
+    activity: {
+      checkedAt: "2026-08-28T13:53:00.000Z",
+      online: true,
+      heartbeat,
+      usage,
+      punk: { heartbeat: {
+        tokenId: "93", state: "MINTED", jobId: "12345678",
+        lastScheduledScan: "2026-08-28T13:52:50.000Z",
+        lastActualScan: "2026-08-28T13:52:57.000Z",
+        lastSuccessfulMint: `0x${"1".repeat(64)}`,
+        nextScanEstimate: "2026-08-28T16:07:50.000Z", reason: "MINT_CONFIRMED",
+        updatedAt: "2026-08-28T13:52:57.000Z",
+      }, events: [] },
+    },
+  }), "93");
+
+  assert.equal(result.configured, true);
+  assert.equal(result.executionReady, true);
+  assert.equal(result.platformHealth.status, "HEALTHY");
+  assert.equal(result.platformHealth.lastSuccessfulAt, heartbeat.completedAt);
+  assert.equal(result.punk.heartbeat.state, "MINTED");
+});
+
 test("preview activity fails closed on malformed production evidence", async () => {
   await assert.rejects(
     getProductionAutomationV3Activity(async () => jsonResponse({
@@ -152,6 +178,19 @@ test("preview activity fails closed on malformed production evidence", async () 
         executionReady: true,
         platformHealth: { status: "HEALTHY", reason: null,
           lastSuccessfulAt: "2026-08-28T13:52:57.000Z", consecutiveFailures: 0 },
+        heartbeat,
+        usage,
+      },
+    })),
+    /state is invalid/,
+  );
+  await assert.rejects(
+    getProductionAutomationV3Activity(async () => jsonResponse({
+      ok: true,
+      activity: {
+        checkedAt: "2026-08-28T13:53:00.000Z",
+        configured: true,
+        online: true,
         heartbeat,
         usage,
       },

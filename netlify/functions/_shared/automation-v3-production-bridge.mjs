@@ -72,11 +72,33 @@ export async function getProductionAutomationV3Activity(fetchFunction = fetch, t
     /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
     "production activity time",
   );
-  if (!Number.isFinite(Date.parse(checkedAt)) || typeof activity.configured !== "boolean"
-    || typeof activity.online !== "boolean" || typeof activity.executionReady !== "boolean") {
+  if (!Number.isFinite(Date.parse(checkedAt)) || typeof activity.online !== "boolean") {
     throw new TypeError("Production activity state is invalid");
   }
-  const platform = plain(activity.platformHealth, "production platform health");
+  const heartbeat = activity.heartbeat == null
+    ? null : workerHeartbeatFromRow(activity.heartbeat);
+  const hasCurrentHealthShape = typeof activity.configured === "boolean"
+    && typeof activity.executionReady === "boolean" && activity.platformHealth != null;
+  const hasLegacyHealthShape = activity.configured === undefined
+    && activity.executionReady === undefined && activity.platformHealth === undefined;
+  if (!hasCurrentHealthShape && !hasLegacyHealthShape) {
+    throw new TypeError("Production activity state is invalid");
+  }
+  // During a production rollout, a newer preview can briefly read the preceding production
+  // activity schema. That legacy schema's `online` bit was already derived from the exact
+  // configured release and a current validated heartbeat. Preserve that evidence for preview
+  // display instead of turning real Punk activity into a 503. A partially upgraded/malformed
+  // response is still rejected above, and the production run endpoint revalidates execution.
+  const configured = hasCurrentHealthShape ? activity.configured : activity.online;
+  const executionReady = hasCurrentHealthShape ? activity.executionReady : activity.online;
+  const platform = hasCurrentHealthShape
+    ? plain(activity.platformHealth, "production platform health")
+    : {
+      status: activity.online ? "HEALTHY" : "OUTAGE",
+      reason: activity.online ? null : "LEGACY_PRODUCTION_OFFLINE",
+      lastSuccessfulAt: heartbeat?.completedAt ?? null,
+      consecutiveFailures: 0,
+    };
   const platformStatus = bounded(platform.status, /^[A-Z_]{3,32}$/, "platform status");
   const platformReason = platform.reason == null ? null
     : bounded(platform.reason, /^[A-Z0-9_]{3,64}$/, "platform reason");
@@ -91,16 +113,16 @@ export async function getProductionAutomationV3Activity(fetchFunction = fetch, t
   const punk = activity.punk == null ? null : plain(activity.punk, "Punk activity");
   return Object.freeze({
     checkedAt,
-    configured: activity.configured,
+    configured,
     online: activity.online,
-    executionReady: activity.executionReady,
+    executionReady,
     platformHealth: Object.freeze({
       status: platformStatus,
       reason: platformReason,
       lastSuccessfulAt: platform.lastSuccessfulAt,
       consecutiveFailures: platform.consecutiveFailures,
     }),
-    heartbeat: activity.heartbeat == null ? null : workerHeartbeatFromRow(activity.heartbeat),
+    heartbeat,
     usage: activity.usage == null ? null : workerUsageFromRow(activity.usage),
     punk: punk === null ? null : Object.freeze({
       heartbeat: punk.heartbeat == null
