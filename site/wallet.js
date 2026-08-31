@@ -667,9 +667,9 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
       owner: state.owner,
     });
     for (const button of buttons) {
-      button.textContent = state.sessionStatus === "initializing"
+      button.textContent = state.sessionStatus === "initializing" && !state.account
         ? "Preparing wallet…" : presentation.buttonLabel;
-      button.disabled = state.sessionStatus === "initializing";
+      button.disabled = state.sessionStatus === "initializing" && !state.account;
       button.setAttribute("aria-disabled", String(button.disabled));
       button.dataset.walletStatus = presentation.state;
       button.title = state.account ?? presentation.buttonLabel;
@@ -828,18 +828,31 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
         }
         if (destroyed) return null;
         state.session = factory(configuration ?? {});
+        // Desktop injected wallets can already know the authorized account while
+        // AppKit is still restoring its adapter. Start that silent read in parallel
+        // so cross-page navigation does not display a four-second disconnected gap.
+        const injectedRestore = returningSessionMarker(browserWindow)
+          ? restoreAuthorizedInjectedSession() : null;
         // createAppKit() returns before its asynchronous adapter restoration finishes.
         // A prompt post-ready snapshot fixes the desktop injected-wallet race, but AppKit's
         // readiness promise can remain pending when an injected extension is slow or stale.
         // Never let that third-party promise disable Connect Wallet indefinitely: after this
         // bounded wait, subscriptions and the existing restoration probes continue recovery.
         await waitForSessionReady(state.session);
+        if (injectedRestore) await injectedRestore;
         if (destroyed) return null;
-        state.provider = state.session.getProvider();
+        const sessionProvider = state.session.getProvider?.() ?? null;
         const accountState = state.session.getAccount?.();
-        state.account = accountState?.isConnected
+        const restoredAccount = accountState?.isConnected
           ? normalizeWalletAddress(accountState.address) : null;
-        state.chainId = Number(state.session.getNetwork?.().chainId) || null;
+        if (restoredAccount) {
+          state.account = restoredAccount;
+          state.provider = sessionProvider ?? state.provider;
+        } else if (!(injectedRecoveryProvider && state.account)) {
+          state.account = null;
+          state.provider = sessionProvider;
+        }
+        state.chainId = Number(state.session.getNetwork?.().chainId) || state.chainId;
         if (!state.account && returningSessionMarker(browserWindow)) {
           await restoreAuthorizedInjectedSession();
         }

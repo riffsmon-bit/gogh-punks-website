@@ -271,7 +271,11 @@ test("an already-authorized desktop MetaMask account restores when AppKit stays 
     sessionReadyTimeoutMs: 5,
     restoreProbeDelaysMs: [],
   });
-  await queuedCallback();
+  queuedCallback();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(fixture.windowObject.__GOGH_WALLET_SNAPSHOT__.account, OWNER,
+    "authorized injected state should render before AppKit's readiness timeout");
+  assert.equal(fixture.button.textContent, "0x1234…7890");
   await controller.ensureSession();
 
   assert.equal(fixture.windowObject.__GOGH_WALLET_SNAPSHOT__.account, OWNER);
