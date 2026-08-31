@@ -243,6 +243,88 @@ test("a late AppKit ready result restores desktop after its bounded preparation 
   controller.destroy();
 });
 
+test("an already-authorized desktop MetaMask account restores when AppKit stays disconnected", async () => {
+  const fixture = reownFixture();
+  fixture.storage.set("gogh.wallet.reown.returning.v1", "1");
+  let queuedCallback;
+  const injectedListeners = new Map();
+  const requestedMethods = [];
+  const injectedProvider = {
+    isMetaMask: true,
+    async request({ method }) {
+      requestedMethods.push(method);
+      if (method === "eth_accounts") return [OWNER];
+      if (method === "eth_chainId") return "0x1237";
+      throw new Error(`unexpected method ${method}`);
+    },
+    on(name, listener) { injectedListeners.set(name, listener); },
+    removeListener(name) { injectedListeners.delete(name); },
+  };
+  fixture.windowObject.ethereum = injectedProvider;
+  fixture.windowObject.queueMicrotask = (callback) => { queuedCallback = callback; };
+  fixture.session.ready = () => new Promise(() => {});
+
+  const controller = await setupReownWallet({
+    windowObject: fixture.windowObject,
+    documentObject: fixture.documentObject,
+    sessionFactory: () => fixture.session,
+    sessionReadyTimeoutMs: 5,
+    restoreProbeDelaysMs: [],
+  });
+  await queuedCallback();
+  await controller.ensureSession();
+
+  assert.equal(fixture.windowObject.__GOGH_WALLET_SNAPSHOT__.account, OWNER);
+  assert.equal(fixture.windowObject.__GOGH_WALLET_SNAPSHOT__.chainId, 4663);
+  assert.equal(fixture.windowObject.__GOGH_WALLET_PROVIDER__, injectedProvider);
+  assert.deepEqual(requestedMethods, ["eth_accounts", "eth_chainId"]);
+  assert.equal(requestedMethods.includes("eth_requestAccounts"), false,
+    "cross-page restoration must never prompt for a new account grant");
+
+  fixture.callbacks.account({ address: undefined, isConnected: false, status: "disconnected" });
+  assert.equal(fixture.windowObject.__GOGH_WALLET_SNAPSHOT__.account, OWNER,
+    "AppKit's stale disconnected frame must not erase the authorized injected session");
+
+  const accountsChanged = injectedListeners.get("accountsChanged");
+  accountsChanged?.([]);
+  assert.equal(fixture.windowObject.__GOGH_WALLET_SNAPSHOT__.account, null,
+    "the injected provider's own account event remains authoritative");
+  controller.destroy();
+});
+
+test("explicit disconnect ends injected desktop recovery until the user reconnects", async () => {
+  const fixture = reownFixture();
+  fixture.storage.set("gogh.wallet.reown.returning.v1", "1");
+  let queuedCallback;
+  const injectedListeners = new Map();
+  fixture.windowObject.ethereum = {
+    isMetaMask: true,
+    async request({ method }) {
+      if (method === "eth_accounts") return [OWNER];
+      if (method === "eth_chainId") return "0x1237";
+      return null;
+    },
+    on(name, listener) { injectedListeners.set(name, listener); },
+    removeListener(name) { injectedListeners.delete(name); },
+  };
+  fixture.windowObject.queueMicrotask = (callback) => { queuedCallback = callback; };
+  fixture.session.ready = () => new Promise(() => {});
+  const controller = await setupReownWallet({
+    windowObject: fixture.windowObject,
+    documentObject: fixture.documentObject,
+    sessionFactory: () => fixture.session,
+    sessionReadyTimeoutMs: 5,
+    restoreProbeDelaysMs: [],
+  });
+  await queuedCallback();
+  await controller.ensureSession();
+  await fixture.disconnectButton.click();
+  injectedListeners.get("accountsChanged")?.([OWNER]);
+  assert.equal(fixture.windowObject.__GOGH_WALLET_SNAPSHOT__.account, null);
+  assert.equal(fixture.storage.has("gogh.wallet.reown.returning.v1"), false);
+  controller.destroy();
+});
+
 test("a stale Reown reconnect stops visibly connecting without forgetting the cross-page session", async () => {
   const fixture = reownFixture();
   fixture.storage.set("gogh.wallet.reown.returning.v1", "1");
@@ -390,7 +472,7 @@ test("every wallet-enabled page restores the one Reown session and exposes disco
     "../site/discover/index.html",
   ].map((path) => readFile(new URL(path, import.meta.url), "utf8")));
   for (const page of pages) {
-    assert.match(page, /\/wallet\.js\?v=reown-9/);
+    assert.match(page, /\/wallet\.js\?v=reown-10/);
     assert.match(page, /data-wallet-connect/);
     assert.match(page, /data-wallet-disconnect/);
     assert.match(page, /Disconnect(?: Wallet)?/);
@@ -426,8 +508,8 @@ test("mobile Punk launcher and activation flow bind the required production expe
   assert.doesNotMatch(client, /projectId:\s*["'][0-9a-f]{32}/);
   assert.doesNotMatch(wallet, /setupReadOnlyWallet\(\{ windowObject: window/);
   assert.match(wallet, /First-time visitors load no AppKit code/);
-  assert.match(html, /\/wallet\.js\?v=reown-9/);
-  assert.match(wallet, /\/reown-wallet-app\.js\?v=reown-9/);
+  assert.match(html, /\/wallet\.js\?v=reown-10/);
+  assert.match(wallet, /\/reown-wallet-app\.js\?v=reown-10/);
   assert.match(packageJson, /@reown\/appkit/);
   assert.match(netlify, /wss:\/\/relay\.walletconnect\.com/);
   assert.match(netlify, /script-src 'self'; style-src 'self' 'unsafe-inline'/);

@@ -358,7 +358,7 @@ function loadReownBundle(browserWindow, browserDocument) {
     const script = browserDocument.createElement("script");
     // Keep this version aligned with the HTML wallet module URL. Wallet session
     // fixes must not be stranded behind a stale mobile or desktop browser cache.
-    script.src = "/reown-wallet-app.js?v=reown-9";
+    script.src = "/reown-wallet-app.js?v=reown-10";
     script.async = true;
     script.dataset.reownAppkit = "true";
     script.addEventListener("load", resolve, { once: true });
@@ -445,6 +445,8 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
   let initializationPromise = null;
   let pendingTimer = null;
   const restoreProbeTimers = new Set();
+  let injectedRecoveryProvider = null;
+  let injectedRecoverySubscribed = false;
   let destroyed = false;
 
   function clearRestoreProbes() {
@@ -473,6 +475,91 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
     return true;
   }
 
+  function desktopInjectedProvider() {
+    const injected = browserWindow.ethereum;
+    if (!injected) return null;
+    const providers = Array.isArray(injected.providers) ? injected.providers : [];
+    const preferred = providers.find((provider) => provider?.isMetaMask === true) ?? injected;
+    return typeof preferred?.request === "function" ? preferred : null;
+  }
+
+  function subscribeInjectedRecovery(provider) {
+    if (injectedRecoverySubscribed || typeof provider?.on !== "function") return;
+    injectedRecoverySubscribed = true;
+    const handleAccounts = (accounts) => {
+      if (destroyed || provider !== injectedRecoveryProvider) return;
+      const nextAccount = firstValidAccount(accounts);
+      if (nextAccount) {
+        state.account = nextAccount;
+        state.provider = provider;
+        state.networkError = null;
+        setReturningSessionMarker(browserWindow, true);
+      } else {
+        state.account = null;
+        state.owner = null;
+        state.provider = null;
+        injectedRecoveryProvider = null;
+      }
+      render();
+    };
+    const handleChain = (chainId) => {
+      if (destroyed || provider !== injectedRecoveryProvider) return;
+      state.chainId = parseWalletChainId(chainId);
+      state.networkError = null;
+      render();
+    };
+    const handleDisconnect = () => {
+      if (destroyed || provider !== injectedRecoveryProvider) return;
+      state.account = null;
+      state.owner = null;
+      state.provider = null;
+      injectedRecoveryProvider = null;
+      render();
+    };
+    provider.on("accountsChanged", handleAccounts);
+    provider.on("chainChanged", handleChain);
+    provider.on("disconnect", handleDisconnect);
+    unsubscribers.push(() => {
+      provider.removeListener?.("accountsChanged", handleAccounts);
+      provider.removeListener?.("chainChanged", handleChain);
+      provider.removeListener?.("disconnect", handleDisconnect);
+    });
+  }
+
+  async function restoreAuthorizedInjectedSession() {
+    if (destroyed || state.account || !returningSessionMarker(browserWindow)) {
+      return Boolean(state.account);
+    }
+    const provider = desktopInjectedProvider();
+    if (!provider) return false;
+    try {
+      // This is deliberately silent: eth_accounts can only return accounts the
+      // holder has already authorized for this origin. It never opens MetaMask,
+      // requests a signature, or creates a transaction.
+      const accounts = await provider.request({ method: "eth_accounts" });
+      const nextAccount = firstValidAccount(accounts);
+      if (!nextAccount || destroyed || state.account) return Boolean(state.account);
+      const rawChainId = await provider.request({ method: "eth_chainId" });
+      if (destroyed || state.account) return Boolean(state.account);
+      state.account = nextAccount;
+      state.chainId = parseWalletChainId(rawChainId);
+      state.provider = provider;
+      injectedRecoveryProvider = provider;
+      state.networkError = null;
+      setReturningSessionMarker(browserWindow, true);
+      subscribeInjectedRecovery(provider);
+      clearRestoreProbes();
+      finishPending();
+      render();
+      if (typeof state.session?.close === "function") {
+        void Promise.resolve(state.session.close()).catch(() => {});
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   function scheduleRestoreProbes() {
     clearRestoreProbes();
     if (state.account || !state.session || !returningSessionMarker(browserWindow)) return;
@@ -481,7 +568,7 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
       const delay = Math.max(1, Number(rawDelay) || 0);
       const timer = browserWindow.setTimeout?.(() => {
         restoreProbeTimers.delete(timer);
-        restoreFromSessionSnapshot();
+        if (!restoreFromSessionSnapshot()) void restoreAuthorizedInjectedSession();
       }, delay);
       if (timer !== undefined && timer !== null) restoreProbeTimers.add(timer);
     }
@@ -547,7 +634,7 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
     // manually reconnects on every destination page.
     void readiness.then(() => {
       if (!readinessTimedOut || destroyed || session !== state.session) return;
-      restoreFromSessionSnapshot();
+      if (!restoreFromSessionSnapshot()) void restoreAuthorizedInjectedSession();
     }, () => {});
     try {
       const result = await Promise.race([
@@ -667,6 +754,7 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
       state.chainId = null;
       state.owner = null;
       state.provider = null;
+      injectedRecoveryProvider = null;
       clearWalletScopedState(browserWindow);
       const events = [
         ["gogh:owner-punks", { punks: Object.freeze([]) }],
@@ -752,6 +840,9 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
         state.account = accountState?.isConnected
           ? normalizeWalletAddress(accountState.address) : null;
         state.chainId = Number(state.session.getNetwork?.().chainId) || null;
+        if (!state.account && returningSessionMarker(browserWindow)) {
+          await restoreAuthorizedInjectedSession();
+        }
         if (state.account) setReturningSessionMarker(browserWindow, true);
         unsubscribers.push(state.session.subscribeProvider((provider) => {
           // AppKit can briefly withdraw the provider while a WalletConnect/injected session is
@@ -768,8 +859,9 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
           const nextAccount = connectedNow ? normalizeWalletAddress(account.address) : null;
           if (nextAccount) {
             state.account = nextAccount;
+            injectedRecoveryProvider = null;
             clearRestoreProbes();
-          } else if (!accountPending) {
+          } else if (!accountPending && !(injectedRecoveryProvider && state.account)) {
             // A settled account event is authoritative. Temporary reconnect frames are not.
             state.account = null;
             state.owner = null;
@@ -817,7 +909,7 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
           // snapshot while waking. Only copy fields that are actually present and let the
           // subscription's settled disconnect event clear them when a user truly disconnects.
           if (nextAccount) state.account = nextAccount;
-          else if (settledDisconnected) {
+          else if (settledDisconnected && !(injectedRecoveryProvider && state.account)) {
             state.account = null;
             state.owner = null;
             state.provider = null;
@@ -828,6 +920,9 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
           render();
           if (state.account && typeof state.session?.close === "function") {
             void Promise.resolve(state.session.close()).catch(() => {});
+          }
+          if (!state.account && returningSessionMarker(browserWindow)) {
+            void restoreAuthorizedInjectedSession();
           }
         };
         const handleVisibility = () => {
