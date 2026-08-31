@@ -151,6 +151,8 @@ test("Reown is the authoritative reconnecting wallet and provider session", asyn
   assert.equal(fixture.button.textContent, "Connect wallet");
   assert.equal(fixture.windowObject.__GOGH_WALLET_PROVIDER__, null,
     "a settled disconnect still clears the provider");
+  assert.equal(fixture.storage.get("gogh.wallet.reown.returning.v1"), "1",
+    "an SDK disconnect frame must not erase cross-page restoration intent");
 
   fixture.current.provider = PROVIDER;
   fixture.current.chainId = 4663;
@@ -181,7 +183,7 @@ test("a known prior Reown session restores immediately without opening a wallet 
   assert.deepEqual(fixture.calls, ["close"], "restoration closes stale UI without opening a selector");
 });
 
-test("a stale Reown reconnect cannot leave the page permanently connecting", async () => {
+test("a stale Reown reconnect stops visibly connecting without forgetting the cross-page session", async () => {
   const fixture = reownFixture();
   fixture.storage.set("gogh.wallet.reown.returning.v1", "1");
   let queuedCallback;
@@ -199,7 +201,8 @@ test("a stale Reown reconnect cannot leave the page permanently connecting", asy
   await new Promise((resolve) => setTimeout(resolve, 15));
   assert.equal(fixture.button.textContent, "Connect wallet");
   assert.match(fixture.status.textContent, /restoration timed out/i);
-  assert.equal(fixture.storage.has("gogh.wallet.reown.returning.v1"), false);
+  assert.equal(fixture.storage.get("gogh.wallet.reown.returning.v1"), "1",
+    "a page timeout must not turn a still-restorable wallet into a first-time visit");
   assert.ok(fixture.calls.includes("close"));
 });
 
@@ -326,7 +329,7 @@ test("every wallet-enabled page restores the one Reown session and exposes disco
     "../site/discover/index.html",
   ].map((path) => readFile(new URL(path, import.meta.url), "utf8")));
   for (const page of pages) {
-    assert.match(page, /\/wallet\.js\?v=reown-4/);
+    assert.match(page, /\/wallet\.js\?v=reown-5/);
     assert.match(page, /data-wallet-connect/);
     assert.match(page, /data-wallet-disconnect/);
     assert.match(page, /Disconnect(?: Wallet)?/);
@@ -361,8 +364,8 @@ test("mobile Punk launcher and activation flow bind the required production expe
   assert.doesNotMatch(client, /projectId:\s*["'][0-9a-f]{32}/);
   assert.doesNotMatch(wallet, /setupReadOnlyWallet\(\{ windowObject: window/);
   assert.match(wallet, /First-time visitors load no AppKit code/);
-  assert.match(html, /\/wallet\.js\?v=reown-4/);
-  assert.match(wallet, /\/reown-wallet-app\.js\?v=reown-4/);
+  assert.match(html, /\/wallet\.js\?v=reown-5/);
+  assert.match(wallet, /\/reown-wallet-app\.js\?v=reown-5/);
   assert.match(packageJson, /@reown\/appkit/);
   assert.match(netlify, /wss:\/\/relay\.walletconnect\.com/);
   assert.match(netlify, /script-src 'self'; style-src 'self' 'unsafe-inline'/);

@@ -358,7 +358,7 @@ function loadReownBundle(browserWindow, browserDocument) {
     const script = browserDocument.createElement("script");
     // Keep this version aligned with the HTML wallet module URL. Wallet session
     // fixes must not be stranded behind a stale mobile or desktop browser cache.
-    script.src = "/reown-wallet-app.js?v=reown-4";
+    script.src = "/reown-wallet-app.js?v=reown-5";
     script.async = true;
     script.dataset.reownAppkit = "true";
     script.addEventListener("load", resolve, { once: true });
@@ -459,10 +459,11 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
       if (!state.pending || destroyed) return;
       state.pending = false;
       if (!state.account) {
-        // A stale AppKit reconnect can otherwise leave every page permanently
-        // displaying CONNECTING. Stop retrying it automatically; a later genuine
-        // account event will restore the marker and connected state normally.
-        setReturningSessionMarker(browserWindow, false);
+        // Stop the visible reconnect attempt, but retain the user's returning-session
+        // intent. AppKit and injected wallets can take longer than this page-level
+        // timeout while navigating between documents. Clearing the marker here made
+        // the next Punk page look disconnected even though the wallet session still
+        // existed. Only the explicit Disconnect action clears the durable marker.
         state.networkError = "Wallet restoration timed out. Tap Connect Wallet to try again.";
       }
       void Promise.resolve(state.session?.close?.()).catch(() => {});
@@ -661,7 +662,7 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
         state.account = accountState?.isConnected
           ? normalizeWalletAddress(accountState.address) : null;
         state.chainId = Number(state.session.getNetwork?.().chainId) || null;
-        setReturningSessionMarker(browserWindow, Boolean(state.account));
+        if (state.account) setReturningSessionMarker(browserWindow, true);
         unsubscribers.push(state.session.subscribeProvider((provider) => {
           // AppKit can briefly withdraw the provider while a WalletConnect/injected session is
           // reconnecting between pages. Keep the last working provider until an authoritative
@@ -685,7 +686,11 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
           }
           if (accountPending) beginPending();
           else finishPending();
-          setReturningSessionMarker(browserWindow, Boolean(state.account));
+          // A disconnected-looking AppKit frame is not sufficient evidence that the
+          // holder intentionally ended the cross-page session. The explicit site
+          // Disconnect action is the sole marker-clearing path; a genuine account
+          // event only needs to refresh the positive marker.
+          if (state.account) setReturningSessionMarker(browserWindow, true);
           render();
           // AppKit normally dismisses itself after a successful connection. Some injected-wallet
           // round trips leave its full-screen host mounted even though the account is connected;
@@ -728,7 +733,7 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
           }
           if (nextChainId !== null) state.chainId = nextChainId;
           if (nextProvider) state.provider = nextProvider;
-          setReturningSessionMarker(browserWindow, Boolean(state.account));
+          if (state.account) setReturningSessionMarker(browserWindow, true);
           render();
           if (state.account && typeof state.session?.close === "function") {
             void Promise.resolve(state.session.close()).catch(() => {});
