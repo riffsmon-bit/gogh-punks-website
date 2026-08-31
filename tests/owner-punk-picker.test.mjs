@@ -155,6 +155,10 @@ test("owner agent summaries distinguish worker proof from configuration", async 
     [[2, 15], ...Array.from({ length: 6 }, () => [0, 0])],
   );
   assert.match(captured.sql, /broker_acquisitions/);
+  assert.match(captured.sql, /broker_automation_v3_worker_runs/);
+  assert.match(captured.sql, /run\.status = 'MINT_CONFIRMED'/);
+  assert.match(captured.sql, /deduplicated_acquisitions/);
+  assert.match(captured.sql, /GROUP BY token_id, transaction_hash/);
   assert.match(captured.sql, /mints_today/);
   assert.match(captured.sql, /broker_punk_agent_heartbeats/);
   assert.match(captured.sql, /broker_automation_v3_worker_state/);

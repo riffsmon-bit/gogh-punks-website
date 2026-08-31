@@ -480,18 +480,34 @@ export async function automationPunkAgentSummaries(owner, query = (...args) => (
        SELECT token_id, BOOL_OR(configured) AS configured, BOOL_OR(enrolled) AS enrolled,
               MAX(account_address) AS account_address
          FROM roster GROUP BY token_id
-     ), acquisition_stats AS (
+     ), confirmed_mint_events AS (
        SELECT acquisition.punk_token_id AS token_id,
+              acquisition.transaction_hash,
+              acquisition.acquired_at
+         FROM broker_acquisitions AS acquisition
+         JOIN combined ON combined.token_id = acquisition.punk_token_id
+        WHERE acquisition.chain_id = $1
+          AND acquisition.punk_collection_address = $2
+       UNION ALL
+       SELECT run.punk_token_id AS token_id,
+              run.transaction_hash,
+              run.completed_at AS acquired_at
+         FROM broker_automation_v3_worker_runs AS run
+         JOIN combined ON combined.token_id = run.punk_token_id
+        WHERE run.status = 'MINT_CONFIRMED'
+     ), deduplicated_acquisitions AS (
+       SELECT token_id, transaction_hash, MIN(acquired_at) AS acquired_at
+         FROM confirmed_mint_events
+        GROUP BY token_id, transaction_hash
+     ), acquisition_stats AS (
+       SELECT acquisition.token_id,
               COUNT(*)::integer AS lifetime_mints,
               COUNT(*) FILTER (
                 WHERE acquisition.acquired_at >=
                   (date_trunc('day', CURRENT_TIMESTAMP AT TIME ZONE 'UTC') AT TIME ZONE 'UTC')
               )::integer AS mints_today
-         FROM broker_acquisitions AS acquisition
-         JOIN combined ON combined.token_id = acquisition.punk_token_id
-        WHERE acquisition.chain_id = $1
-          AND acquisition.punk_collection_address = $2
-        GROUP BY acquisition.punk_token_id
+         FROM deduplicated_acquisitions AS acquisition
+        GROUP BY acquisition.token_id
      )
      SELECT combined.token_id::text, combined.configured, combined.enrolled,
             combined.account_address, heartbeat.state AS worker_state,
