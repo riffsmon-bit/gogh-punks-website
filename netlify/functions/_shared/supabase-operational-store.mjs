@@ -54,6 +54,12 @@ function optionalHash(value) {
   return value.toLowerCase();
 }
 
+function positiveWei(value, name) {
+  const normalized = String(value ?? "");
+  if (!/^[1-9][0-9]{0,77}$/.test(normalized)) throw new TypeError(`${name} is invalid`);
+  return normalized;
+}
+
 function uuid(value, name) {
   if (typeof value !== "string"
     || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)) {
@@ -98,6 +104,14 @@ export function supabaseOperationalConfiguration(environment = process.env) {
     configured,
     shadowWrites: configured && operationalMode !== "DISABLED",
     drivesExecution: driving,
+  });
+}
+
+export function prepaidPunkAgentGasConfiguration(environment = process.env) {
+  const operational = supabaseOperationalConfiguration(environment);
+  return Object.freeze({
+    configured: operational.shadowWrites,
+    agentAddress: environment.BROKER_AUTOMATION_V3_AGENT_ADDRESS?.trim().toLowerCase() ?? null,
   });
 }
 
@@ -278,6 +292,67 @@ export async function shadowOwnershipProjection(owner, tokenIds, blockNumber, op
       rpcSource, verifiedAt],
   );
   return Object.freeze({ written: true, tokenCount: unique.length, blockNumber });
+}
+
+export async function getPrepaidPunkAgentGasBalance(selectedTokenId, options = {}) {
+  const environment = options.environment ?? process.env;
+  const configuration = supabaseOperationalConfiguration(environment);
+  if (!configuration.shadowWrites) {
+    return Object.freeze({ available: false, reason: "OPERATIONAL_STORE_UNAVAILABLE" });
+  }
+  const normalizedTokenId = tokenId(selectedTokenId);
+  const database = operationalPool(environment, options.database);
+  const result = await database.query(
+    `SELECT credited_wei::text AS credited_wei, spent_wei::text AS spent_wei,
+            (credited_wei - spent_wei)::text AS available_wei, updated_at
+       FROM gogh_broker_punk_agent_gas_accounts
+      WHERE chain_id = 4663 AND collection_address = $1
+        AND punk_token_id = $2::numeric`,
+    [COLLECTION, normalizedTokenId],
+  );
+  const row = result.rows?.[0];
+  return Object.freeze({
+    available: true,
+    creditedWei: row?.credited_wei ?? "0",
+    spentWei: row?.spent_wei ?? "0",
+    availableWei: row?.available_wei ?? "0",
+    updatedAt: row?.updated_at == null ? null : iso(row.updated_at, "gas balance update"),
+  });
+}
+
+export async function recordPrepaidPunkAgentGasCredit(evidence, options = {}) {
+  const environment = options.environment ?? process.env;
+  const configuration = supabaseOperationalConfiguration(environment);
+  if (!configuration.shadowWrites) {
+    throw new TypeError("Per-Punk agent gas accounting is unavailable");
+  }
+  const selectedTokenId = tokenId(evidence?.tokenId);
+  const transactionHash = optionalHash(evidence?.transactionHash);
+  if (!transactionHash) throw new TypeError("agent gas transaction hash is required");
+  const owner = address(evidence?.owner, "Punk owner");
+  const agent = address(evidence?.agent, "hosted agent");
+  const amountWei = positiveWei(evidence?.amountWei, "agent gas amount");
+  const blockNumber = positiveWei(evidence?.blockNumber, "agent gas block number");
+  const confirmedAt = iso(evidence?.confirmedAt, "agent gas confirmation time");
+  const releaseCommit = release(options.release ?? environment.BROKER_AUTOMATION_V3_WORKER_RELEASE);
+  const database = operationalPool(environment, options.database);
+  const result = await database.query(
+    `SELECT credited, available_wei::text AS available_wei, job_id
+       FROM gogh_broker_credit_punk_agent_gas(
+         $1, $2::numeric, $3, $4, $5::numeric, $6::bigint, $7::timestamptz, $8
+       )`,
+    [transactionHash, selectedTokenId, owner, agent, amountWei, blockNumber,
+      confirmedAt, releaseCommit],
+  );
+  const row = result.rows?.[0];
+  if (!row || typeof row.available_wei !== "string") {
+    throw new TypeError("Per-Punk agent gas credit was not recorded");
+  }
+  return Object.freeze({
+    credited: row.credited === true,
+    availableWei: row.available_wei,
+    jobId: row.job_id ?? null,
+  });
 }
 
 export async function claimSupabasePunkJobs(workerId, options = {}) {

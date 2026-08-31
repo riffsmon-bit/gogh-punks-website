@@ -65,14 +65,42 @@
           <div class="panel-header"><div><p class="eyebrow">Art Broker activation</p><h2 data-control-activation-title>Connect the current holder</h2></div><span class="tag">ON-CHAIN</span></div>
           <p data-control-activation-copy>Your Punk stays in your main wallet. Connect its current holder to review activation.</p>
           <div class="control-form-grid"><label class="control-field"><span>Daily free-mint limit (1–10)</span><input type="number" inputmode="numeric" min="1" max="10" step="1" value="3" data-control-activation-cap /></label><label class="control-field"><span>Authorization duration in days (1–30)</span><input type="number" inputmode="numeric" min="1" max="30" step="1" value="7" data-control-activation-days /></label></div>
-          <div class="control-button-stack"><button type="button" data-control-activate disabled>Activate Art Broker</button><button type="button" data-owner-paid-run data-owner-paid-active-only disabled hidden>Run Now — I Pay Gas</button></div>
-          <p class="control-note">Your limit controls the total free mints allowed per UTC day. Run Now is one exact free-mint attempt and your wallet pays only that transaction's network gas.</p>
+          <aside class="activation-gas-disclosure" aria-label="Activation and agent gas guidance">
+            <div>
+              <strong>Activation gas</strong>
+              <p>MetaMask shows the exact Robinhood Chain network fee before you approve activation. No gas deposit is required to join the normal hosted rotation.</p>
+            </div>
+            <div>
+              <strong>Optional prepaid starter reserves</strong>
+              <dl>
+                <div><dt>1 mint/day</dt><dd>0.0005 ETH</dd></div>
+                <div><dt>3 mints/day</dt><dd>0.0015 ETH</dd></div>
+                <div><dt>5 mints/day</dt><dd>0.0025 ETH</dd></div>
+                <div><dt>10 mints/day</dt><dd>0.005 ETH</dd></div>
+              </dl>
+              <p>These are optional planning reserves for this Punk's priority agent gas—not activation fees, mint prices, or guaranteed mint counts. Actual network gas and mint availability vary; unused credited value remains assigned to this Punk.</p>
+            </div>
+          </aside>
+          <div class="control-button-stack"><button type="button" data-control-activate disabled>Activate Art Broker</button><button type="button" data-prepaid-agent-gas-open data-prepaid-active-only disabled hidden>Prepay This Agent &amp; Run Now</button></div>
+          <p class="control-note" data-prepaid-active-only hidden>Your prepaid gas is credited only to this Punk and requests its scan immediately.</p>
+          <p class="control-note">Your limit controls the total free mints allowed per UTC day. Activation does not require a gas deposit; prepay is the optional fast lane.</p>
           <p class="control-note" data-control-activation-state aria-live="polite">Live ownership and setup readiness will be checked first.</p>
         </article>
         <div class="control-grid two-column">
-          <article class="control-card"><p class="eyebrow">Live status</p><h2 data-overview-status>Connect wallet</h2><p data-overview-detail>Live ownership and account state will be verified after connection.</p><div class="control-button-stack"><button type="button" data-owner-paid-run data-owner-paid-active-only disabled hidden>Run Now — I Pay Gas</button><a class="control-primary-link" href="/broker/">Choose another Punk</a></div><p class="control-note" data-overview-run-note hidden>Skip the hosted rotation for one exact eligible free mint. Your connected wallet pays network gas; the NFT goes to this Punk Wallet.</p></article>
+          <article class="control-card"><p class="eyebrow">Live status</p><h2 data-overview-status>Connect wallet</h2><p data-overview-detail>Live ownership and account state will be verified after connection.</p><div class="control-button-stack"><button type="button" data-prepaid-agent-gas-open data-prepaid-active-only disabled hidden>Prepay This Agent &amp; Run Now</button><a class="control-primary-link" href="/broker/">Choose another Punk</a></div><p class="control-note" data-overview-run-note hidden>Prepay skips the ordinary rotation by requesting this Punk immediately. Unused credit stays assigned to this Punk.</p></article>
           <article class="control-card"><p class="eyebrow">How control works</p><h2>The Punk holder controls this wallet.</h2><p>Your Gogh Punk stays in your main wallet. Its separate Punk Wallet holds collected assets. A transfer of the controlling Punk pauses paid authority until the new holder explicitly reauthorizes it.</p></article>
         </div>
+        <article class="control-card prepaid-agent-gas" data-prepaid-agent-gas-card hidden>
+          <div class="panel-header"><div><p class="eyebrow">This Punk's Agent Gas</p><h2>Prepay Gas &amp; Run Immediately</h2></div><span class="tag">PUNK-SPECIFIC CREDIT</span></div>
+          <p>This deposit funds the hosted signer for Punk #<span data-prepaid-agent-token>—</span>. After confirmation, this Punk is placed in the priority queue and an immediate scan is requested. If no eligible mint is available, its unused credit remains assigned to this Punk.</p>
+          <dl class="control-facts"><div><dt>Available prepaid credit</dt><dd data-prepaid-agent-balance>—</dd></div><div><dt>On-chain recipient</dt><dd data-prepaid-agent-recipient>—</dd></div></dl>
+          <div class="funding-recommendation"><strong>Recommended first run: 0.0005 ETH</strong><span>This is gas credit, not mint payment. Actual mint availability and gas cost vary.</span><button type="button" data-prepaid-agent-recommended disabled>Use 0.0005 ETH</button></div>
+          <label class="control-field"><span>Prepay amount in ETH</span><input data-prepaid-agent-amount inputmode="decimal" autocomplete="off" value="0.0005" disabled /></label>
+          <label class="control-toggle"><input type="checkbox" data-prepaid-agent-confirm disabled /><span>I understand this funds Punk #<span data-prepaid-agent-confirm-token>—</span>'s hosted agent gas credit, not its NFT wallet or mint price.</span></label>
+          <button type="button" data-prepaid-agent-submit disabled>Prepay Gas &amp; Run Punk Now</button>
+          <p class="control-note" data-prepaid-agent-state aria-live="polite">Connect the current holder of an activated Punk.</p>
+          <a class="inline-link" data-prepaid-agent-transaction href="#" target="_blank" rel="noopener noreferrer" hidden>View gas deposit transaction ↗</a>
+        </article>
         <article class="control-card control-safety"><p class="eyebrow">Safety boundary</p><ul><li>Main-wallet funds are never an autonomous spending source.</li><li>Autonomous selling, arbitrary calldata, and general token approvals remain blocked.</li><li>Live ownership is rechecked before every privileged action.</li></ul></article>
       </section>
 
@@ -93,7 +121,7 @@
 
       <section id="control-panel-mint" class="control-panel" role="tabpanel" aria-labelledby="control-tab-mint" data-control-panel="mint" hidden>
         <div class="control-grid two-column">
-          <article class="control-card"><p class="eyebrow">Scout mode</p><h2>Send Agent Scouting</h2><p>Search only the marketplaces and runtimes supported by the reviewed adapter set.</p><div class="control-button-stack"><button type="button" data-scout-simulate disabled>Scout for Mints</button><button type="button" data-owner-paid-run disabled>Run Now — I Pay Gas</button></div><p class="control-note">Run Now prepares one exact free mint, simulates it, then asks your connected wallet to pay only its network gas. The NFT still goes directly to this Punk Wallet.</p><p class="control-note" data-scout-result>Connect the current holder to load Scout controls.</p></article>
+          <article class="control-card"><p class="eyebrow">Scout mode</p><h2>Send Agent Scouting</h2><p>Search only the marketplaces and runtimes supported by the reviewed adapter set.</p><div class="control-button-stack"><button type="button" data-scout-simulate disabled>Join Normal Rotation</button><button type="button" data-prepaid-agent-gas-open disabled>Prepay This Agent &amp; Run Now</button></div><p class="control-note">Prepay opens MetaMask immediately for a fixed native transfer to the hosted signer, credits only this Punk, then requests its priority scan. Every mint safety check still applies.</p><p class="control-note" data-scout-result>Connect the current holder to load Scout controls.</p></article>
           <article class="control-card"><p class="eyebrow">Directed mode</p><h2>Direct Your Punk to a Mint</h2><label class="control-field"><span>Paste an OpenSea mint link</span><input type="url" inputmode="url" data-directed-url placeholder="https://opensea.io/collection/..." /></label><button type="button" data-directed-check disabled>Check Mint</button><p class="control-note" data-directed-state>Entering a URL never authorizes spending.</p></article>
         </div>
         <article class="control-card directed-review" data-directed-review hidden>
@@ -116,8 +144,8 @@
         <div class="control-grid three-column"><article class="control-card"><p class="eyebrow">Native Token</p><h2 data-assets-native>—</h2><div class="control-actions"><button type="button" data-add-native disabled>Add Funds</button><button type="button" data-withdraw-native disabled>Withdraw</button></div></article><article class="control-card"><p class="eyebrow">Tokens</p><h2 data-assets-token-count>—</h2><p>Recognized balances appear here. Unknown tokens never imply value or safety.</p></article><article class="control-card"><p class="eyebrow">NFTs</p><h2 data-assets-nft-count>—</h2><button type="button" data-load-assets disabled>Load NFT Inventory</button></article></div>
         <article class="control-card punk-wallet-funding">
           <div class="panel-header"><div><p class="eyebrow">Punk Wallet Funds</p><h2>Add Funds to This Punk</h2></div><span class="tag">CURRENT HOLDER</span></div>
-          <p>These funds go directly from your connected wallet into the selected Punk Wallet. They belong to the Punk Wallet and may later pay the exact price of an owner-authorized paid mint. Hosted-agent gas is separate and your main wallet is never an autonomous spending source.</p>
-          <div class="funding-recommendation"><strong>Recommended starter balance: 0.005 ETH</strong><span>This is optional and intended for future owner-authorized paid mints. It is not required for free scouting or Run Now.</span><button type="button" data-punk-fund-recommended disabled>Use 0.005 ETH</button></div>
+          <p>These funds go directly from your connected wallet into the selected Punk Wallet. They belong to the Punk Wallet and may later pay the exact price of an owner-authorized paid mint. This is separate from this Punk's prepaid agent-gas credit, and your main wallet is never an autonomous spending source.</p>
+          <div class="funding-recommendation"><strong>Recommended starter balance: 0.005 ETH</strong><span>This is optional paid-mint principal. It is not used for free scouting or the Punk-specific agent-gas fast lane.</span><button type="button" data-punk-fund-recommended disabled>Use 0.005 ETH</button></div>
           <div class="control-form-grid"><label class="control-field"><span>Amount in ETH</span><input data-punk-fund-amount inputmode="decimal" autocomplete="off" placeholder="0.01" disabled /></label><div class="control-field"><span>Destination</span><strong data-punk-fund-account>Connect wallet to load</strong></div></div>
           <label class="control-toggle"><input type="checkbox" data-punk-fund-confirm disabled /><span>I reviewed the selected Punk Wallet and amount. This sends native ETH into that Punk Wallet.</span></label>
           <button type="button" data-punk-fund-submit disabled>Fund Punk Wallet in MetaMask</button>

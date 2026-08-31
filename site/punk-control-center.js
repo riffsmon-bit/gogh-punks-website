@@ -19,6 +19,10 @@ import {
 import {
   preflightOwnerPaidFreeMint, requestOwnerPaidFreeMint, submitOwnerPaidFreeMint,
 } from "./owner-paid-free-mint.js";
+import {
+  confirmPrepaidAgentGas, fetchPrepaidAgentGasStatus, preflightPrepaidAgentGas,
+  submitPrepaidAgentGas,
+} from "./prepaid-agent-gas.js";
 
 const CHAIN_ID = 4663;
 const OWNER_OF_SELECTOR = "0x6352211e";
@@ -57,7 +61,8 @@ const state = {
   directedReviewId: null, directedIntentId: null, directedSourceUrl: null,
   fundingBusy: false, withdrawalFundsBusy: false, wrappedBusy: false, wrappedPlan: null,
   activationBusy: false, activationMessage: null,
-  agentActionBusy: false, ownerPaidBusy: false,
+  agentActionBusy: false, ownerPaidBusy: false, prepaidAgentGasBusy: false,
+  prepaidAgentGas: null,
   withdrawalAsset: null, withdrawalAmount: "1", withdrawalBusy: false,
 };
 
@@ -98,6 +103,16 @@ function renderDebug() {
 function setText(selector, value) {
   const element = query(selector);
   if (element) element.textContent = value;
+}
+
+function setOwnerPaidMessage(value) {
+  for (const element of queryAll("[data-owner-paid-status]")) {
+    element.textContent = value;
+  }
+}
+
+function setPrepaidAgentGasMessage(value) {
+  setText("[data-prepaid-agent-state]", value);
 }
 
 function setActionAvailability(enabled) {
@@ -167,7 +182,8 @@ function renderAgentActions() {
   const authorizationActive = state.automation?.punk?.active === true
     && state.owned && state.activated;
   const canConfigure = state.owned && state.automation?.setupTransactionAvailable === true;
-  const busy = state.agentActionBusy || state.activationBusy || state.ownerPaidBusy;
+  const busy = state.agentActionBusy || state.activationBusy || state.ownerPaidBusy
+    || state.prepaidAgentGasBusy;
   const send = query("[data-agent-send]");
   const scout = query("[data-scout-simulate]");
   const ownerPaidButtons = queryAll("[data-owner-paid-run]");
@@ -182,12 +198,52 @@ function renderAgentActions() {
     ownerPaid.hidden = ownerPaid.hasAttribute("data-owner-paid-active-only") && !authorizationActive;
     ownerPaid.textContent = state.ownerPaidBusy ? "CHECKING SAFE FREE MINT…" : "RUN NOW — I PAY GAS";
   }
+  for (const element of queryAll("[data-owner-paid-active-only]")) {
+    element.hidden = !authorizationActive;
+  }
   const overviewRunNote = query("[data-overview-run-note]");
   if (overviewRunNote) overviewRunNote.hidden = !authorizationActive;
   if (pause) pause.disabled = busy || !authorizationActive;
   if (revoke) revoke.disabled = busy || !authorizationActive;
   if (resume) resume.disabled = busy || !canConfigure || authorizationActive;
   if (edit) edit.disabled = busy || !canConfigure;
+  renderPrepaidAgentGas();
+}
+
+function renderPrepaidAgentGas() {
+  const authorizationActive = state.automation?.punk?.active === true
+    && state.owned && state.activated;
+  const status = state.prepaidAgentGas;
+  const card = query("[data-prepaid-agent-gas-card]");
+  if (card) card.hidden = !authorizationActive;
+  for (const element of queryAll("[data-prepaid-active-only]")) {
+    element.hidden = !authorizationActive;
+  }
+  for (const button of queryAll("[data-prepaid-agent-gas-open]")) {
+    button.disabled = state.prepaidAgentGasBusy || !authorizationActive;
+    button.textContent = state.prepaidAgentGasBusy
+      ? "PREPARING THIS AGENT…" : "PREPAY THIS AGENT & RUN NOW";
+  }
+  for (const element of queryAll("[data-prepaid-agent-token], [data-prepaid-agent-confirm-token]")) {
+    element.textContent = state.tokenId ?? "—";
+  }
+  setText("[data-prepaid-agent-balance]", status?.availableWei != null
+    ? formatNative(status.availableWei) : "Not loaded");
+  setText("[data-prepaid-agent-recipient]", status?.agent
+    ? formatAddress(status.agent) : "Fixed hosted signer not loaded");
+  const amount = query("[data-prepaid-agent-amount]");
+  const confirmation = query("[data-prepaid-agent-confirm]");
+  const recommended = query("[data-prepaid-agent-recommended]");
+  const submit = query("[data-prepaid-agent-submit]");
+  const controlsEnabled = authorizationActive && Boolean(status) && !state.prepaidAgentGasBusy;
+  if (amount) amount.disabled = !controlsEnabled;
+  if (confirmation) confirmation.disabled = !controlsEnabled;
+  if (recommended) recommended.disabled = !controlsEnabled;
+  if (submit) {
+    submit.disabled = !controlsEnabled || confirmation?.checked !== true;
+    submit.textContent = state.prepaidAgentGasBusy
+      ? "CONFIRMING PREPAID GAS…" : "PREPAY GAS & RUN PUNK NOW";
+  }
 }
 
 function renderFundingActions() {
@@ -229,7 +285,7 @@ function controlPresentation() {
   };
   if (state.walletChainId !== CHAIN_ID) return {
     status: "🟡 SWITCH NETWORK", heading: "Wrong network",
-    detail: "Wallet connected. Switch to Robinhood Chain to verify this Punk.",
+    detail: "Wallet connected. Switch to Robinhood Chain to activate or transact. If this wallet provider does not support Robinhood Chain, ownership remains viewable from All Gogh Punks in server-verified read-only mode, but controls must stay locked.",
     account: "Switch to Robinhood Chain",
   };
   if (state.loading) return {
@@ -501,6 +557,29 @@ async function loadAutomation() {
   metric("Agent state", started);
 }
 
+async function loadPrepaidAgentGas() {
+  if (!state.tokenId || !state.walletAccount || !state.owned
+    || state.automation?.punk?.active !== true) {
+    state.prepaidAgentGas = null;
+    renderPrepaidAgentGas();
+    return;
+  }
+  try {
+    state.prepaidAgentGas = await fetchPrepaidAgentGasStatus(
+      (...args) => fetch(...args), state.tokenId, state.walletAccount,
+    );
+    setPrepaidAgentGasMessage(
+      `Punk #${state.tokenId} has ${formatNative(state.prepaidAgentGas.availableWei)} of prepaid agent gas. Prepaying requests its scan immediately.`,
+    );
+  } catch (error) {
+    state.prepaidAgentGas = null;
+    setPrepaidAgentGasMessage(
+      `${error?.message ?? "Per-Punk prepaid agent gas is unavailable"}. No transaction has been requested.`,
+    );
+  }
+  renderPrepaidAgentGas();
+}
+
 async function loadBalance() {
   if (!state.account) return;
   const started = performance.now();
@@ -544,6 +623,81 @@ async function waitForReceipt(hash, revision) {
     await new Promise((resolve) => window.setTimeout(resolve, 2_000));
   }
   return null;
+}
+
+async function prepayAgentGasAndRun() {
+  if (state.prepaidAgentGasBusy) return;
+  if (demo) {
+    setPrepaidAgentGasMessage(
+      "Local demo: the exact Punk-specific gas prepayment would open the wallet and request this Punk's scan immediately. Nothing was submitted.",
+    );
+    return;
+  }
+  if (!state.owned || !state.activated || !state.provider || !state.walletAccount
+    || !state.tokenId || state.automation?.punk?.active !== true) {
+    setPrepaidAgentGasMessage(
+      "Connect the current holder of an activated Punk on Robinhood Chain before prepaying its agent.",
+    );
+    return;
+  }
+  const revision = state.revision;
+  const selectedTokenId = state.tokenId;
+  const selectedOwner = state.walletAccount;
+  state.prepaidAgentGasBusy = true;
+  renderAgentActions();
+  setPrepaidAgentGasMessage("Verifying this Punk and its fixed hosted-agent recipient…");
+  try {
+    await verifyCurrentOwner();
+    const status = await fetchPrepaidAgentGasStatus(
+      (...args) => fetch(...args), selectedTokenId, selectedOwner,
+    );
+    if (revision !== state.revision || state.tokenId !== selectedTokenId
+      || state.walletAccount !== selectedOwner) {
+      throw new Error("The selected wallet or Punk changed before funding");
+    }
+    state.prepaidAgentGas = status;
+    const plan = await preflightPrepaidAgentGas(
+      state.provider, status, selectedTokenId, query("[data-prepaid-agent-amount]").value,
+    );
+    setPrepaidAgentGasMessage(
+      `Waiting for your wallet to prepay ${formatNative(plan.amountWei)} for Punk #${selectedTokenId}'s agent…`,
+    );
+    const transactionHash = await submitPrepaidAgentGas(state.provider, plan);
+    const transactionLink = query("[data-prepaid-agent-transaction]");
+    if (transactionLink) {
+      transactionLink.href = `https://robinhoodchain.blockscout.com/tx/${transactionHash}`;
+      transactionLink.hidden = false;
+    }
+    setPrepaidAgentGasMessage("Gas prepayment submitted. Waiting for confirmation…");
+    const receipt = await waitForReceipt(transactionHash, revision);
+    if (!receipt) throw new Error("Confirmation is taking longer than expected");
+    setPrepaidAgentGasMessage(
+      "Gas confirmed. Crediting this Punk and requesting its priority scan now…",
+    );
+    const confirmed = await confirmPrepaidAgentGas(
+      (...args) => fetch(...args), plan, transactionHash,
+    );
+    if (revision !== state.revision || state.tokenId !== selectedTokenId) return;
+    state.prepaidAgentGas = confirmed.credit ?? state.prepaidAgentGas;
+    const run = confirmed.run ?? {};
+    const message = run.transactionHash
+      ? `Punk #${selectedTokenId} used its priority run and submitted a mint. Confirmation is visible in Activity.`
+      : run.status === "RUN_IN_PROGRESS" || run.status === "QUEUED"
+        ? `Punk #${selectedTokenId}'s gas is credited and its priority run is queued. The credit stays with this Punk until used.`
+        : `Punk #${selectedTokenId}'s immediate scan completed without an eligible mint. Its unused gas credit remains assigned to this Punk.`;
+    setPrepaidAgentGasMessage(message);
+    query("[data-prepaid-agent-confirm]").checked = false;
+    await Promise.all([
+      loadPrepaidAgentGas(), loadAutomation(), loadActivity().catch(() => {}),
+    ]);
+  } catch (error) {
+    setPrepaidAgentGasMessage(
+      `${error?.message ?? "Per-Punk gas prepayment stopped safely"}. No authority or mint limits were changed.`,
+    );
+  } finally {
+    state.prepaidAgentGasBusy = false;
+    renderAgentActions();
+  }
 }
 
 async function activateArtBroker() {
@@ -668,15 +822,14 @@ async function runSelectedAgent() {
 }
 
 async function runOwnerPaidAgent() {
-  const output = query("[data-scout-result]");
   if (state.ownerPaidBusy) return;
   if (demo) {
-    output.textContent = "Local demo: an exact owner-paid free-mint transaction would be prepared and simulated; nothing was submitted.";
+    setOwnerPaidMessage("Local demo: an exact owner-paid free-mint transaction would be prepared and simulated; nothing was submitted.");
     return;
   }
   if (!state.owned || !state.activated || !state.provider || !state.walletAccount
     || !state.account || !state.tokenId || state.automation?.punk?.active !== true) {
-    output.textContent = "Connect the current holder of an activated Punk before running an immediate mint.";
+    setOwnerPaidMessage("Connect the current holder of an activated Punk on Robinhood Chain before running an immediate mint.");
     return;
   }
   const revision = state.revision;
@@ -687,34 +840,34 @@ async function runOwnerPaidAgent() {
     && state.walletAccount === owner && state.account === account && state.owned === true;
   state.ownerPaidBusy = true;
   renderAgentActions();
-  output.textContent = "Searching for one eligible free mint. MetaMask opens only if every check and simulation passes…";
+  setOwnerPaidMessage("Searching for one eligible free mint. MetaMask opens only if every check and simulation passes…");
   try {
     await verifyCurrentOwner();
     const run = await requestOwnerPaidFreeMint((...args) => fetch(...args), tokenId);
     if (!isCurrent()) throw new Error("The selected wallet or Punk changed during the safety review");
     if (run?.ready !== true || !run.execution) {
-      output.textContent = "Scan complete. No eligible free mint passed every safety check, so MetaMask was not opened.";
+      setOwnerPaidMessage("Scan complete. No eligible free mint is available right now, so there is no transaction for MetaMask to open.");
       return;
     }
-    output.textContent = "Eligible free mint found. Rechecking the exact Punk Wallet call and network gas in your wallet…";
+    setOwnerPaidMessage("Eligible free mint found. Rechecking the exact Punk Wallet call and network gas in your wallet…");
     const transaction = await preflightOwnerPaidFreeMint(state.provider, run.execution, {
       tokenId, owner, account,
     });
     if (!isCurrent()) throw new Error("The selected wallet or Punk changed before submission");
-    output.textContent = "Waiting for MetaMask. You pay network gas only; mint price is fixed at 0 ETH.";
+    setOwnerPaidMessage("Waiting for MetaMask. You pay network gas only; mint price is fixed at 0 ETH.");
     const hash = await submitOwnerPaidFreeMint(state.provider, transaction);
-    output.textContent = "Transaction submitted. Waiting for confirmation…";
+    setOwnerPaidMessage("Transaction submitted. Waiting for confirmation…");
     const receipt = await waitForReceipt(hash, revision);
     if (!receipt) {
-      output.textContent = `Submitted ${hash.slice(0, 10)}…; confirmation is taking longer than one minute.`;
+      setOwnerPaidMessage(`Submitted ${hash.slice(0, 10)}…; confirmation is taking longer than one minute.`);
       return;
     }
-    output.textContent = `Mint confirmed for Punk #${tokenId}. Its NFT inventory is refreshing now.`;
+    setOwnerPaidMessage(`Mint confirmed for Punk #${tokenId}. Its NFT inventory is refreshing now.`);
     await Promise.all([
       loadAutomation(), loadActivity().catch(() => {}), loadAssets().catch(() => {}),
     ]);
   } catch (error) {
-    output.textContent = `${error?.message ?? "The immediate mint stopped safely"}. No unchecked transaction was submitted.`;
+    setOwnerPaidMessage(`${error?.message ?? "The immediate mint stopped safely"}. No unchecked transaction was submitted.`);
   } finally {
     state.ownerPaidBusy = false;
     renderAgentActions();
@@ -1539,6 +1692,22 @@ function bindActions() {
     state.directedIntentId ? revalidateDirectedMintIntent() : simulateDirectedMint()
   ));
   query("[data-scout-simulate]").addEventListener("click", () => runSelectedAgent());
+  for (const button of queryAll("[data-prepaid-agent-gas-open]")) {
+    button.addEventListener("click", () => {
+      query("[data-prepaid-agent-gas-card]")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      query("[data-prepaid-agent-amount]")?.focus({ preventScroll: true });
+    });
+  }
+  query("[data-prepaid-agent-recommended]").addEventListener("click", () => {
+    query("[data-prepaid-agent-amount]").value = "0.0005";
+    query("[data-prepaid-agent-confirm]").checked = false;
+    setPrepaidAgentGasMessage(
+      "Recommended first-run gas selected. Review the fixed hosted signer and confirm this Punk-specific credit.",
+    );
+    renderPrepaidAgentGas();
+  });
+  query("[data-prepaid-agent-confirm]").addEventListener("change", renderPrepaidAgentGas);
+  query("[data-prepaid-agent-submit]").addEventListener("click", prepayAgentGasAndRun);
   for (const button of queryAll("[data-owner-paid-run]")) {
     button.addEventListener("click", () => runOwnerPaidAgent());
   }
@@ -1693,6 +1862,8 @@ async function applyWallet(wallet) {
   state.withdrawalFundsBusy = false;
   state.activationBusy = false;
   state.agentActionBusy = false;
+  state.prepaidAgentGasBusy = false;
+  state.prepaidAgentGas = null;
   state.activationMessage = null;
   state.wrappedBusy = false;
   state.wrappedPlan = null;
@@ -1722,7 +1893,9 @@ async function applyWallet(wallet) {
     // genuinely active Punk mislabeled as PAUSED solely because of response ordering.
     renderAutomation();
     if (!state.owned) return;
-    await Promise.all([loadBalance(), loadWrappedBalance(), loadScoutingSchedule()]).catch(() => {});
+    await Promise.all([
+      loadBalance(), loadWrappedBalance(), loadScoutingSchedule(), loadPrepaidAgentGas(),
+    ]).catch(() => {});
     if (query('[data-control-tab="assets"]')?.getAttribute("aria-selected") === "true") {
       await loadAssets().catch(() => {});
     }
