@@ -415,9 +415,11 @@ test("Control Center is progressive, mobile, and keeps mint execution disabled",
   assert.match(browser, /Website and X links affect discovery priority only|sent into live contract safety checks/);
   assert.match(browser, /View NFT \/ Withdraw/);
   assert.match(browser, /eth_call/);
-  assert.match(browser, /prepareOwnerFunds/);
-  assert.match(browser, /submitOwnerAction/);
-  assert.match(browser, /fetchOwnerPolicyGate/);
+  assert.match(browser, /preflightPunkWalletFunds/);
+  assert.match(browser, /submitPunkWalletFunds/);
+  assert.match(browser, /fetchPunkWalletFundsGate/);
+  assert.doesNotMatch(browser, /prepareOwnerFunds/);
+  assert.doesNotMatch(browser, /submitOwnerAction/);
   assert.match(browser, /Selected Punk changed during review/);
   assert.match(browser, /waitForReceipt/);
   assert.match(browser, /submitWrappedNativeTransaction/);

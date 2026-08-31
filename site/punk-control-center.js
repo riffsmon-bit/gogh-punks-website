@@ -2,9 +2,10 @@ import {
   buildWrappedNativeTransaction, decodeUint256, ROBINHOOD_WETH,
   simulateWrappedNativeTransaction, submitWrappedNativeTransaction, wrappedBalanceOfData,
 } from "./wrapped-native.js";
+import { fetchOwnerPolicyGate, readOwnerPolicyState } from "./owner-policy-controls.js";
 import {
-  fetchOwnerPolicyGate, prepareOwnerFunds, readOwnerPolicyState, submitOwnerAction,
-} from "./owner-policy-controls.js";
+  fetchPunkWalletFundsGate, preflightPunkWalletFunds, submitPunkWalletFunds,
+} from "./punk-wallet-funds.js";
 import {
   preflightNftWithdrawal, submitNftWithdrawal, validateWithdrawableNftAssets,
   waitForNftWithdrawalReceipt,
@@ -731,25 +732,25 @@ async function movePunkWalletFunds(direction) {
   const revision = state.revision;
   const tokenId = state.tokenId;
   const account = state.account;
-  const selection = Object.freeze({
-    tokenId, account, activated: true, owner: state.walletAccount,
-  });
   state[busyKey] = true;
   renderFundingActions();
   transactionLink.hidden = true;
   try {
     output.textContent = withdrawing
       ? "Checking live ownership, Punk Wallet code, balance, fixed destination, and exact recovery simulation…"
-      : "Checking live ownership, Punk Wallet code, policy, and exact deposit simulation…";
-    const gate = await fetchOwnerPolicyGate((...args) => fetch(...args));
-    const prepared = await prepareOwnerFunds(state.provider, gate, selection, direction,
+      : "Checking live ownership, verified V3 Punk Wallet code, and exact deposit simulation…";
+    const gate = await fetchPunkWalletFundsGate((...args) => fetch(...args), tokenId);
+    const prepared = await preflightPunkWalletFunds(state.provider, gate, tokenId, direction,
       query(`[data-${prefix}-amount]`).value.trim());
     if (revision !== state.revision || account !== state.account || tokenId !== state.tokenId) {
       throw new Error("Selected Punk changed during review");
     }
     output.textContent = "Waiting for MetaMask…";
-    const submitted = await submitOwnerAction(state.provider, prepared, gate, selection,
-      () => revision === state.revision && account === state.account && tokenId === state.tokenId);
+    const submitted = await submitPunkWalletFunds(state.provider, prepared, {
+      loadGate: (freshTokenId) => fetchPunkWalletFundsGate((...args) => fetch(...args), freshTokenId),
+      isCurrent: () => revision === state.revision && account === state.account
+        && tokenId === state.tokenId,
+    });
     transactionLink.href = `https://robinhoodchain.blockscout.com/tx/${submitted.hash}`;
     transactionLink.hidden = false;
     output.textContent = "Transaction submitted. Waiting for confirmation…";
