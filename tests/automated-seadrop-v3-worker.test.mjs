@@ -234,7 +234,10 @@ test("scheduled V3 runs rotate fairly after the most recently successful Punk", 
     ["93", "94", "1728", "1797"],
   );
   const database = { query: async (_sql, values) => {
-    assert.deepEqual(values, [["93", "94", "1728", "1797"]]);
+    assert.deepEqual(values, [
+      ["93", "94", "1728", "1797"],
+      ["punk:93", "punk:94", "punk:1728", "punk:1797"],
+    ]);
     return { rows: ["1728", "93", "1797", "94"].map((punk_token_id) => ({ punk_token_id })) };
   } };
   assert.deepEqual(
@@ -246,6 +249,29 @@ test("scheduled V3 runs rotate fairly after the most recently successful Punk", 
     [{ token_id: "1728" }], "1728",
   );
   assert.equal(directlyRequested[0].token_id, "1728");
+});
+
+test("scheduled V3 fairness gives each owner a turn before a large holder gets another", async () => {
+  const largeOwner = "0x1111111111111111111111111111111111111111";
+  const smallOwner = "0x2222222222222222222222222222222222222222";
+  const profiles = ["93", "94", "95", "96", "3693"].map((token_id) => ({
+    token_id,
+    configured_by: token_id === "3693" ? smallOwner : largeOwner,
+  }));
+  const database = { query: async (sql, values) => {
+    assert.match(sql, /ROW_NUMBER\(\) OVER/);
+    assert.match(sql, /PARTITION BY requested\.owner_key/);
+    assert.deepEqual(values[1], [largeOwner, largeOwner, largeOwner, largeOwner, smallOwner]);
+    // PostgreSQL returns one round per owner before the second Punk belonging
+    // to the same owner. Preserve that order exactly in the worker batch.
+    return { rows: ["3693", "93", "94", "95", "96"].map((punk_token_id) => ({
+      punk_token_id,
+    })) };
+  } };
+  assert.deepEqual(
+    (await fairlyOrderedAutomationV3Profiles(database, profiles)).map(({ token_id }) => token_id),
+    ["3693", "93", "94", "95", "96"],
+  );
 });
 
 test("scheduled V3 fairness cursor failure keeps the bounded roster available", async () => {

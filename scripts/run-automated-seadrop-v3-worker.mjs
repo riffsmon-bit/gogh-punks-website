@@ -340,7 +340,7 @@ export async function eligibleAutomationV3Profiles(
   }
   const result = await pool.query(`
     WITH latest_saved_punks AS (
-      SELECT DISTINCT ON (m.token_id) m.token_id
+      SELECT DISTINCT ON (m.token_id) m.token_id, m.configured_by
         FROM broker_art_mandates m
        WHERE m.chain_id = $1 AND m.collection_address = $2
        ORDER BY m.token_id, m.version DESC
@@ -353,10 +353,18 @@ export async function eligibleAutomationV3Profiles(
       UNION
       SELECT UNNEST($5::numeric[]) AS token_id
     )
-    SELECT enrolled.token_id, NULL::text AS configured_by, NULL::jsonb AS economic_settings,
+    SELECT enrolled.token_id,
+           COALESCE(enrollment.owner_snapshot, latest_saved_punks.configured_by) AS configured_by,
+           NULL::jsonb AS economic_settings,
            NULL::jsonb AS risk_settings, NULL::jsonb AS artistic_preferences,
            TRUE AS automatic_profile
       FROM enrolled
+      LEFT JOIN broker_automation_v3_enrollments enrollment
+        ON enrollment.chain_id = $1
+       AND enrollment.collection_address = $2
+       AND enrollment.token_id = enrolled.token_id
+      LEFT JOIN latest_saved_punks
+        ON latest_saved_punks.token_id = enrolled.token_id
       LEFT JOIN broker_scouting_schedules schedule
         ON schedule.chain_id = $1
        AND schedule.collection_address = $2
@@ -412,18 +420,44 @@ export async function fairlyOrderedAutomationV3Profiles(
   if (requestedTokenId !== null) return rotateAutomationV3Profiles(profiles);
   try {
     const tokenIds = profiles.map(({ token_id: tokenId }) => String(tokenId));
+    // Owner snapshots are advisory scheduling keys only. Every selected Punk
+    // still passes the existing live owner, authorization, policy, price, and
+    // simulation gates before execution. Unknown owners receive a unique key
+    // so incomplete metadata cannot make unrelated Punks share a queue lane.
+    const ownerKeys = profiles.map((profile) => {
+      const value = String(profile.configured_by ?? "").toLowerCase();
+      return /^0x[0-9a-f]{40}$/.test(value) ? value : `punk:${profile.token_id}`;
+    });
     const result = await pool.query(`
-      SELECT requested.punk_token_id,
-             heartbeat.last_scheduled_scan,
-             heartbeat.last_actual_scan
-        FROM UNNEST($1::numeric[]) WITH ORDINALITY
-          AS requested(punk_token_id, roster_position)
+      WITH requested AS (
+        SELECT *
+          FROM UNNEST($1::numeric[], $2::text[]) WITH ORDINALITY
+            AS input(punk_token_id, owner_key, roster_position)
+      ), evidence AS (
+        SELECT requested.punk_token_id, requested.owner_key,
+               requested.roster_position, heartbeat.last_scheduled_scan,
+               heartbeat.last_actual_scan,
+               MAX(heartbeat.last_scheduled_scan) OVER (
+                 PARTITION BY requested.owner_key
+               ) AS owner_last_scheduled_scan,
+               ROW_NUMBER() OVER (
+                 PARTITION BY requested.owner_key
+                 ORDER BY heartbeat.last_scheduled_scan ASC NULLS FIRST,
+                          heartbeat.last_actual_scan ASC NULLS FIRST,
+                          requested.roster_position ASC
+               ) AS owner_round
+          FROM requested
         LEFT JOIN broker_punk_agent_heartbeats heartbeat
           ON heartbeat.chain_id = 4663
          AND heartbeat.punk_token_id = requested.punk_token_id
-       ORDER BY heartbeat.last_scheduled_scan ASC NULLS FIRST,
-                heartbeat.last_actual_scan ASC NULLS FIRST,
-                requested.roster_position ASC`, [tokenIds]);
+      )
+      SELECT punk_token_id
+        FROM evidence
+       ORDER BY owner_round ASC,
+                owner_last_scheduled_scan ASC NULLS FIRST,
+                last_scheduled_scan ASC NULLS FIRST,
+                last_actual_scan ASC NULLS FIRST,
+                roster_position ASC`, [tokenIds, ownerKeys]);
     const byTokenId = new Map(profiles.map((profile) => [String(profile.token_id), profile]));
     const ordered = (result.rows ?? []).map(({ punk_token_id: tokenId }) => (
       byTokenId.get(String(tokenId))
