@@ -464,6 +464,12 @@ test("Control Center fails clearly across route, wallet, network, and worker sta
   assert.match(html, /aria-controls="control-panel-overview"/);
   assert.match(html, /id="control-panel-activity"[^>]+aria-labelledby="control-tab-activity"/);
   assert.match(html, /data-agent-send disabled/);
+  assert.equal((html.match(/data-owner-paid-run/g) ?? []).length, 3,
+    "the same exact owner-paid action must be available in activation, overview, and Mint");
+  assert.match(html, /Daily free-mint limit \(1–10\)/);
+  assert.match(html, /Authorization duration in days \(1–30\)/);
+  assert.match(browser, /for \(const button of queryAll\("\[data-owner-paid-run\]"\)\)/);
+  assert.doesNotMatch(browser, /query\("\[data-owner-paid-run\]"\)\.addEventListener/);
   assert.match(html, /data-directed-check disabled/);
   assert.match(html, /data-activity-state aria-live="polite"/);
   assert.match(browser, /state\.walletChainId !== CHAIN_ID/);

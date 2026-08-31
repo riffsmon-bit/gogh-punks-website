@@ -149,7 +149,7 @@ function renderActivation() {
   setText("[data-control-activation-title]", title);
   setText("[data-control-activation-copy]", copy);
   setText("[data-control-activation-state]", state.activationMessage
-    ?? (authorizationActive ? "Confirmed on-chain. No owner action is required."
+    ?? (authorizationActive ? "Confirmed on-chain. Wait for the fair rotation or run one eligible free mint immediately."
       : setupAvailable ? "Ready. The site will label every required wallet transaction before it opens."
         : "The live setup service is not ready. Your Punk and assets remain safe."));
   button.hidden = false;
@@ -170,17 +170,20 @@ function renderAgentActions() {
   const busy = state.agentActionBusy || state.activationBusy || state.ownerPaidBusy;
   const send = query("[data-agent-send]");
   const scout = query("[data-scout-simulate]");
-  const ownerPaid = query("[data-owner-paid-run]");
+  const ownerPaidButtons = queryAll("[data-owner-paid-run]");
   const pause = query("[data-agent-pause]");
   const resume = query("[data-agent-resume]");
   const edit = query("[data-agent-edit]");
   const revoke = query("[data-agent-revoke]");
   if (send) send.disabled = busy || !authorizationActive;
   if (scout) scout.disabled = busy || !authorizationActive;
-  if (ownerPaid) {
+  for (const ownerPaid of ownerPaidButtons) {
     ownerPaid.disabled = busy || !authorizationActive;
+    ownerPaid.hidden = ownerPaid.hasAttribute("data-owner-paid-active-only") && !authorizationActive;
     ownerPaid.textContent = state.ownerPaidBusy ? "CHECKING SAFE FREE MINT…" : "RUN NOW — I PAY GAS";
   }
+  const overviewRunNote = query("[data-overview-run-note]");
+  if (overviewRunNote) overviewRunNote.hidden = !authorizationActive;
   if (pause) pause.disabled = busy || !authorizationActive;
   if (revoke) revoke.disabled = busy || !authorizationActive;
   if (resume) resume.disabled = busy || !canConfigure || authorizationActive;
@@ -1536,7 +1539,9 @@ function bindActions() {
     state.directedIntentId ? revalidateDirectedMintIntent() : simulateDirectedMint()
   ));
   query("[data-scout-simulate]").addEventListener("click", () => runSelectedAgent());
-  query("[data-owner-paid-run]").addEventListener("click", () => runOwnerPaidAgent());
+  for (const button of queryAll("[data-owner-paid-run]")) {
+    button.addEventListener("click", () => runOwnerPaidAgent());
+  }
   query("[data-deposit-review]").addEventListener("click", () => {
     const type = query("[data-deposit-type]").value;
     setText("[data-deposit-state]", state.account
