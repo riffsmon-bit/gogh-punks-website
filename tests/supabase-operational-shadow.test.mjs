@@ -5,6 +5,8 @@ import {
   claimSupabasePunkJobs,
   completeSupabasePunkJob,
   enqueueSupabasePunkJobs,
+  getPrepaidPunkAgentGasBalance,
+  recordPrepaidPunkAgentGasCredit,
   shadowAutomationV3Run,
   shadowOwnershipProjection,
   supabaseOperationalConfiguration,
@@ -206,4 +208,46 @@ test("Supabase migration provides RLS and atomic skip-locked per-Punk claims", a
   assert.match(sql, /ENABLE ROW LEVEL SECURITY/g);
   assert.match(sql, /REVOKE ALL ON FUNCTION/);
   assert.doesNotMatch(sql, /private_key|service_role_key/i);
+});
+
+test("Punk-specific prepaid gas migration reserves credit and prioritizes only its Punk", async () => {
+  const sql = await readFile(new URL(
+    "../supabase/migrations/20260831220000_add_punk_agent_gas_credits.sql",
+    import.meta.url,
+  ), "utf8");
+  assert.match(sql, /gogh_broker_punk_agent_gas_accounts/);
+  assert.match(sql, /gogh_broker_punk_agent_gas_deposits/);
+  assert.match(sql, /gogh_broker_credit_punk_agent_gas/);
+  assert.match(sql, /priority DESC, available_at, created_at, punk_token_id/);
+  assert.match(sql, /ON CONFLICT \(transaction_hash\) DO NOTHING/);
+  assert.match(sql, /ENABLE ROW LEVEL SECURITY/);
+  assert.match(sql, /REVOKE ALL ON FUNCTION gogh_broker_credit_punk_agent_gas/);
+});
+
+test("prepaid gas store reads and credits exactly one selected Punk", async () => {
+  const database = recordingDatabase();
+  database.query = async (sql, values = []) => {
+    database.calls.push({ sql, values });
+    if (sql.includes("gogh_broker_credit_punk_agent_gas")) {
+      return { rows: [{ credited: true, available_wei: "500000000000000",
+        job_id: "12345678-1234-1234-1234-123456789abc" }] };
+    }
+    return { rows: [{ credited_wei: "500000000000000", spent_wei: "0",
+      available_wei: "500000000000000", updated_at: "2026-08-31T12:00:00.000Z" }] };
+  };
+  const selectedEnvironment = environment("SHADOW", {
+    BROKER_AUTOMATION_V3_AGENT_ADDRESS: "0x" + "3".repeat(40),
+  });
+  const credit = await recordPrepaidPunkAgentGasCredit({
+    tokenId: "93", owner: "0x" + "1".repeat(40), agent: "0x" + "3".repeat(40),
+    amountWei: "500000000000000", transactionHash: "0x" + "a".repeat(64),
+    blockNumber: "51000000", confirmedAt: "2026-08-31T12:00:00.000Z",
+  }, { environment: selectedEnvironment, database });
+  assert.equal(credit.availableWei, "500000000000000");
+  assert.equal(database.calls[0].values[1], "93");
+  const balance = await getPrepaidPunkAgentGasBalance("93", {
+    environment: selectedEnvironment, database,
+  });
+  assert.equal(balance.availableWei, "500000000000000");
+  assert.equal(database.calls[1].values[1], "93");
 });

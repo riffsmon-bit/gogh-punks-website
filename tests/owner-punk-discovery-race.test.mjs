@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { encodeFunctionResult, parseAbi } from "viem";
 
-import { setupOwnerAccounts, walletDiscoveryIntent } from "../site/owner-accounts.js";
+import {
+  setupOwnerAccounts,
+  validatedServerOwnedPunkIds,
+  walletDiscoveryIntent,
+} from "../site/owner-accounts.js";
 
 const OWNER = "0x645cf432e829f9def6eb8e3974d3aee4580cbcdd";
 const COLLECTION = "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6";
@@ -78,7 +82,7 @@ function punkProvider() {
   };
 }
 
-function ownerFixture() {
+function ownerFixture({ provider = punkProvider(), ownerPayload = null } = {}) {
   const elements = new Map();
   const put = (selector, element) => {
     elements.set(selector, [...(elements.get(selector) ?? []), element]);
@@ -107,7 +111,7 @@ function ownerFixture() {
       for (const listener of listeners.get(event.type) ?? []) listener(event);
     },
     setTimeout: (fn) => { timers.push(fn); return timers.length; },
-    __GOGH_WALLET_PROVIDER__: punkProvider(),
+    __GOGH_WALLET_PROVIDER__: provider,
   };
 
   // Both API calls stay pending until the test releases them, which is what holds a scan in
@@ -124,7 +128,7 @@ function ownerFixture() {
         bindings: { chainId: 4663, punkCollection: COLLECTION, accountRegistry: REGISTRY },
       },
     },
-    "/api/broker/owner-punks": {
+    "/api/broker/owner-punks": ownerPayload ?? {
       ok: true, candidateTokenIds: [TOKEN_ID],
       candidatePunks: [{ tokenId: TOKEN_ID, artwork: null, rarity: null, automationConfigured: true }],
     },
@@ -163,8 +167,104 @@ test("a wallet frame is classified by whether it can be acted on", () => {
     restoring: true }), "transient");
   // Settled states that really should clear the roster.
   assert.equal(walletDiscoveryIntent({ account: null, chainId: null, status: "disconnected" }), "settled");
-  assert.equal(walletDiscoveryIntent({ account: OWNER, chainId: 1, status: "wrong-network" }), "settled");
+  assert.equal(walletDiscoveryIntent({ account: OWNER, chainId: 1, status: "wrong-network" }), "read-only");
   assert.equal(walletDiscoveryIntent(null), "settled");
+});
+
+function completeServerRoster(tokenId = "3111") {
+  return {
+    ok: true,
+    chainId: 4663,
+    collection: COLLECTION,
+    owner: OWNER,
+    complete: true,
+    reconciliationState: "VERIFIED",
+    balanceOf: 1,
+    candidateTokenIds: [tokenId],
+    candidatePunks: [{ tokenId, automationCreated: true, artwork: null }],
+  };
+}
+
+test("complete server reconciliation keeps a Smart Wallet Punk visible after eth_call fails", async () => {
+  const calls = [];
+  const fixture = ownerFixture({
+    provider: { request: async (call) => {
+      calls.push(call);
+      throw new Error("unsupported chain");
+    } },
+    ownerPayload: completeServerRoster(),
+  });
+  setupOwnerAccounts(fixture);
+  fixture.setSnapshot(CONNECTED);
+  fixture.walletState(CONNECTED);
+  fixture.releaseApis();
+  for (let tick = 0; tick < 16; tick += 1) await settle();
+
+  const published = fixture.announced.at(-1);
+  assert.deepEqual([...published.tokenIds], ["3111"]);
+  assert.equal(published.punks[0].ownershipMode, "SERVER_VERIFIED_READ_ONLY");
+  assert.equal(published.punks[0].transactionAuthorized, false);
+  assert.equal(fixture.element("[data-ownership-state]").textContent,
+    "SERVER VERIFIED · READ ONLY");
+  assert.ok(calls.every(({ method }) => method === "eth_call"),
+    "fallback must never invoke a transaction method");
+});
+
+test("unsupported connected network renders a complete server roster without touching provider", async () => {
+  const calls = [];
+  const fixture = ownerFixture({
+    provider: { request: async (call) => { calls.push(call); throw new Error("must not run"); } },
+    ownerPayload: completeServerRoster(),
+  });
+  setupOwnerAccounts(fixture);
+  const wrongNetwork = { ...CONNECTED, chainId: 1, status: "wrong-network" };
+  fixture.setSnapshot(wrongNetwork);
+  fixture.walletState(wrongNetwork);
+  fixture.releaseApis();
+  for (let tick = 0; tick < 12; tick += 1) await settle();
+
+  assert.deepEqual([...fixture.announced.at(-1).tokenIds], ["3111"]);
+  assert.equal(fixture.announced.at(-1).punks[0].transactionAuthorized, false);
+  assert.equal(calls.length, 0);
+});
+
+test("unsupported connected network makes no ownership claim from incomplete server evidence", async () => {
+  const calls = [];
+  const fixture = ownerFixture({
+    provider: { request: async (call) => { calls.push(call); throw new Error("must not run"); } },
+    ownerPayload: { ...completeServerRoster(), complete: false, reconciliationState: "RPC_UNAVAILABLE" },
+  });
+  setupOwnerAccounts(fixture);
+  const wrongNetwork = { ...CONNECTED, chainId: 1, status: "wrong-network" };
+  fixture.setSnapshot(wrongNetwork);
+  fixture.walletState(wrongNetwork);
+  fixture.releaseApis();
+  for (let tick = 0; tick < 12; tick += 1) await settle();
+
+  assert.deepEqual([...fixture.announced.at(-1).tokenIds], []);
+  assert.equal(fixture.element("[data-ownership-state]").textContent, "RPC UNAVAILABLE");
+  assert.equal(fixture.element("[data-owner-accounts]").children.length, 0);
+  assert.equal(calls.length, 0);
+});
+
+test("server ownership evidence rejects incomplete and mismatched claims", () => {
+  const valid = completeServerRoster();
+  assert.deepEqual([...validatedServerOwnedPunkIds(valid, {
+    owner: OWNER, collection: COLLECTION,
+  })], ["3111"]);
+  for (const changed of [
+    { complete: false },
+    { reconciliationState: "RPC_UNAVAILABLE" },
+    { owner: REGISTRY },
+    { chainId: 1 },
+    { collection: REGISTRY },
+    { balanceOf: 2 },
+    { candidateTokenIds: ["3111", "3111"] },
+  ]) {
+    assert.throws(() => validatedServerOwnedPunkIds({ ...valid, ...changed }, {
+      owner: OWNER, collection: COLLECTION,
+    }), /evidence|roster/);
+  }
 });
 
 test("a reconnect frame never cancels the scan already running for that owner", async () => {

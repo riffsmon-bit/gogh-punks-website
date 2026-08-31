@@ -10,10 +10,14 @@ import coreManifest from "../deployments/robinhood.json" with { type: "json" };
 import { ROBINHOOD } from "../broker/src/config.mjs";
 import { resolveRobinhoodRpcPair } from
   "../broker/src/infrastructure/robinhood-rpc-endpoints.mjs";
-import { attestAutomatedSeaDropV3CandidateLive } from
+import {
+  attestAutomatedSeaDropV3CandidateLive, attestOwnerPaidSeaDropV3CandidateLive,
+} from
   "../broker/src/discovery/automated-seadrop-v3-live-screen.mjs";
 import { buildAutomatedSeaDropV3ExecutionBatch } from
   "../broker/src/recommendation/automated-seadrop-v3-execution-batch.mjs";
+import { buildOwnerPaidSeaDropV3Execution } from
+  "../broker/src/recommendation/owner-paid-seadrop-v3-execution.mjs";
 import {
   CLONE_COLLECTION_RUNTIME_CODE_HASH, CLONE_IMPLEMENTATION,
   CLONE_IMPLEMENTATION_CODE_HASH, NATIVE_CURRENCY, SEA_DROP, SEA_DROP_CODE_HASH,
@@ -332,11 +336,15 @@ export function configuredAutomationV3PunkIds(environment = {}) {
 }
 
 export async function eligibleAutomationV3Profiles(
-  pool, requestedTokenId = null, configuredTokenIds = [],
+  pool, requestedTokenId = null, configuredTokenIds = [], agentAddress = null,
 ) {
   if (requestedTokenId !== null
     && (typeof requestedTokenId !== "string" || !/^(?:0|[1-9][0-9]{0,3})$/.test(requestedTokenId))) {
     throw new TypeError("invalid requested Punk token ID");
+  }
+  if (agentAddress !== null
+    && (typeof agentAddress !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(agentAddress))) {
+    throw new TypeError("invalid automation V3 agent address");
   }
   const result = await pool.query(`
     WITH latest_saved_punks AS (
@@ -355,6 +363,9 @@ export async function eligibleAutomationV3Profiles(
     )
     SELECT enrolled.token_id,
            COALESCE(enrollment.owner_snapshot, latest_saved_punks.configured_by) AS configured_by,
+           COALESCE(enrollment.agent_address,
+             '0x3bb2ebf6b3c4d7f5e5781cdf2091428f7750af7d') AS agent_address,
+           COALESCE(enrollment.agent_lane, 1) AS agent_lane,
            NULL::jsonb AS economic_settings,
            NULL::jsonb AS risk_settings, NULL::jsonb AS artistic_preferences,
            TRUE AS automatic_profile
@@ -370,11 +381,13 @@ export async function eligibleAutomationV3Profiles(
        AND schedule.collection_address = $2
        AND schedule.token_id = enrolled.token_id
      WHERE ($3::numeric IS NULL OR enrolled.token_id = $3::numeric)
+       AND ($6::text IS NULL OR COALESCE(enrollment.agent_address,
+         '0x3bb2ebf6b3c4d7f5e5781cdf2091428f7750af7d') = LOWER($6::text))
        AND (schedule.token_id IS NULL OR (schedule.enabled = TRUE
          AND NOW() >= schedule.start_at AND NOW() < schedule.end_at))
      ORDER BY enrolled.token_id
      LIMIT $4`, [4663, ROBINHOOD.canonicalCollection, requestedTokenId,
-    ELIGIBLE_PROFILE_LIMIT, configuredTokenIds]);
+     ELIGIBLE_PROFILE_LIMIT, configuredTokenIds, agentAddress]);
   const rows = [...result.rows];
   const known = new Set(rows.map(({ token_id: tokenId }) => String(tokenId)));
   // An explicit owner-triggered scan is allowed immediately even when it falls
@@ -386,6 +399,8 @@ export async function eligibleAutomationV3Profiles(
       rows.push(Object.freeze({
         token_id: tokenId,
         configured_by: null,
+        agent_address: agentAddress,
+        agent_lane: null,
         economic_settings: null,
         risk_settings: null,
         artistic_preferences: null,
@@ -414,6 +429,16 @@ export function rotateAutomationV3Profiles(profiles, lastMintedTokenId = null) {
   return [...ordered.slice(offset), ...ordered.slice(0, offset)];
 }
 
+export function rarityPriorityBoostSeconds(rank) {
+  if (!Number.isSafeInteger(rank) || rank < 1 || rank > 5_016) return 0;
+  if (rank <= 51) return 1_200;
+  if (rank <= 251) return 600;
+  if (rank <= 753) return 300;
+  if (rank <= 1_756) return 120;
+  if (rank <= 3_010) return 60;
+  return 0;
+}
+
 export async function fairlyOrderedAutomationV3Profiles(
   pool, profiles, requestedTokenId = null, report = console.error,
 ) {
@@ -433,29 +458,45 @@ export async function fairlyOrderedAutomationV3Profiles(
         SELECT *
           FROM UNNEST($1::numeric[], $2::text[]) WITH ORDINALITY
             AS input(punk_token_id, owner_key, roster_position)
-      ), evidence AS (
+      ), evidence_base AS (
         SELECT requested.punk_token_id, requested.owner_key,
                requested.roster_position, heartbeat.last_scheduled_scan,
                heartbeat.last_actual_scan,
-               MAX(heartbeat.last_scheduled_scan) OVER (
-                 PARTITION BY requested.owner_key
-               ) AS owner_last_scheduled_scan,
-               ROW_NUMBER() OVER (
-                 PARTITION BY requested.owner_key
-                 ORDER BY heartbeat.last_scheduled_scan ASC NULLS FIRST,
-                          heartbeat.last_actual_scan ASC NULLS FIRST,
-                          requested.roster_position ASC
-               ) AS owner_round
+               rarity.rarity_rank,
+               heartbeat.last_scheduled_scan - MAKE_INTERVAL(secs => CASE
+                 WHEN rarity.rarity_rank <= 51 THEN 1200
+                 WHEN rarity.rarity_rank <= 251 THEN 600
+                 WHEN rarity.rarity_rank <= 753 THEN 300
+                 WHEN rarity.rarity_rank <= 1756 THEN 120
+                 WHEN rarity.rarity_rank <= 3010 THEN 60
+                 ELSE 0
+               END) AS effective_last_scheduled_scan
           FROM requested
         LEFT JOIN broker_punk_agent_heartbeats heartbeat
           ON heartbeat.chain_id = 4663
          AND heartbeat.punk_token_id = requested.punk_token_id
+        LEFT JOIN broker_punk_rarity_cache rarity
+          ON rarity.chain_id = 4663
+         AND rarity.collection_address = '${ROBINHOOD.canonicalCollection}'
+         AND rarity.punk_token_id = requested.punk_token_id
+      ), evidence AS (
+        SELECT evidence_base.*,
+               MAX(effective_last_scheduled_scan) OVER (
+                 PARTITION BY owner_key
+               ) AS owner_last_scheduled_scan,
+               ROW_NUMBER() OVER (
+                 PARTITION BY owner_key
+                 ORDER BY effective_last_scheduled_scan ASC NULLS FIRST,
+                          last_actual_scan ASC NULLS FIRST,
+                          roster_position ASC
+               ) AS owner_round
+          FROM evidence_base
       )
       SELECT punk_token_id
         FROM evidence
        ORDER BY owner_round ASC,
                 owner_last_scheduled_scan ASC NULLS FIRST,
-                last_scheduled_scan ASC NULLS FIRST,
+                effective_last_scheduled_scan ASC NULLS FIRST,
                 last_actual_scan ASC NULLS FIRST,
                 roster_position ASC`, [tokenIds, ownerKeys]);
     const byTokenId = new Map(profiles.map((profile) => [String(profile.token_id), profile]));
@@ -886,7 +927,13 @@ function liveState(profile, state, screen, maxFeePerGasWei) {
 }
 
 export async function runAutomatedSeaDropV3Worker(environment = process.env, dependencies = {}) {
-  if (environment.BROKER_AUTOMATION_V3_ENABLED !== "true") return { status: "DISABLED", submitted: 0 };
+  const ownerPaidPlan = dependencies.ownerPaidPlan === true;
+  // Owner-paid planning is a read-only, user-initiated safety review. It does not
+  // start the hosted scheduler and may remain available in a preview where the
+  // autonomous worker is intentionally disabled.
+  if (environment.BROKER_AUTOMATION_V3_ENABLED !== "true" && !ownerPaidPlan) {
+    return { status: "DISABLED", submitted: 0 };
+  }
   const clock = dependencies.now ?? Date.now;
   if (typeof clock !== "function") throw new TypeError("invalid V3 worker clock");
   const startedAtMs = clock();
@@ -913,16 +960,22 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
     diagnostics: { ...(currentDiagnostics ?? {}), scanBudgetExhausted: true },
   });
   try {
+  if (ownerPaidPlan && dependencies.requestedTokenId == null) {
+    throw new TypeError("owner-paid execution requires one exact requested Punk");
+  }
+  const configuredAgentAddress = getAddress(
+    environment.BROKER_AUTOMATION_V3_AGENT_ADDRESS ?? AUTOMATION_V3_AGENT,
+  ).toLowerCase();
   const key = environment.BROKER_AUTOMATION_V3_AGENT_PRIVATE_KEY;
   let signingAccount = null;
-  if (dependencies.readOnly !== true) {
+  if (dependencies.readOnly !== true && !ownerPaidPlan) {
     if (typeof key !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(key)) {
       const error = new TypeError("AGENT_SIGNER_UNAVAILABLE");
       error.code = "AGENT_SIGNER_UNAVAILABLE";
       throw error;
     }
     signingAccount = privateKeyToAccount(key);
-    if (signingAccount.address.toLowerCase() !== AUTOMATION_V3_AGENT) {
+    if (signingAccount.address.toLowerCase() !== configuredAgentAddress) {
       const error = new TypeError("AGENT_SIGNER_ADDRESS_MISMATCH");
       error.code = "AGENT_SIGNER_ADDRESS_MISMATCH";
       throw error;
@@ -937,7 +990,9 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   const configuredTokenIds = configuredAutomationV3PunkIds(environment);
   const eligibleProfiles = await workerStage(
     "PROFILE_DATABASE_READ_FAILED",
-    () => eligibleAutomationV3Profiles(database, requestedTokenId, configuredTokenIds),
+      () => eligibleAutomationV3Profiles(
+        database, requestedTokenId, configuredTokenIds, configuredAgentAddress,
+      ),
   );
   const orderedProfiles = await workerStage(
     "PROFILE_ORDER_READ_FAILED",
@@ -1057,7 +1112,7 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   diagnostics.candidateStateReadAttempts = 0;
   const registry = getAddress(manifest.contracts.GoghPunkAccountRegistryV3.address);
   const policyModule = getAddress(manifest.contracts.BrokerPolicyModuleV3.address);
-  const agent = getAddress(AUTOMATION_V3_AGENT);
+  const agent = getAddress(configuredAgentAddress);
   for (const row of profiles) {
     if (budgetExpired()) return budgetResult();
     const tokenId = String(row.token_id);
@@ -1135,7 +1190,9 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
       };
       let screen;
       try {
-        screen = await attestAutomatedSeaDropV3CandidateLive(candidate, scope,
+        const attest = ownerPaidPlan
+          ? attestOwnerPaidSeaDropV3CandidateLive : attestAutomatedSeaDropV3CandidateLive;
+        screen = await attest(candidate, scope,
           { primaryUrl, secondaryUrl }, { confirmations: 20, maximumEvidenceAgeSeconds: 30 },
           { primary: readFacade(primary, primaryUrl), secondary: readFacade(secondary, secondaryUrl) });
       } catch (error) {
@@ -1186,24 +1243,51 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
           cloneCollectionRuntimeCodeHash: CLONE_COLLECTION_RUNTIME_CODE_HASH,
           studioCollectionRuntimeCodeHash: STUDIO_COLLECTION_RUNTIME_CODE_HASH },
         limits: { maxMintsPerUtcDay: cap, maxMintsPerRun: 1, maxGasPerMint: 700000,
-          maxGasWeiPerRun: first.balance.toString(), minAgentReserveWei: "10000000000000", intentTtlSeconds: 120,
+          maxGasWeiPerRun: ownerPaidPlan ? (700000n * maxFee).toString() : first.balance.toString(),
+          minAgentReserveWei: "10000000000000", intentTtlSeconds: 120,
           maxEvidenceAgeSeconds: 30,
           maxContractRiskScore: 100,
           minimumTasteMatch: 0,
           stopOnFailure: true },
       };
       let tx;
+      let ownerExecution = null;
       try {
-        const batch = buildAutomatedSeaDropV3ExecutionBatch(
-          profile, liveState(profile, first, screen, maxFee), { nowSeconds },
-        );
-        [tx] = batch.transactions;
-        await primary.call({ account: agent, to: getAddress(tx.to), data: tx.data, value: 0n });
+        if (ownerPaidPlan) {
+          ownerExecution = buildOwnerPaidSeaDropV3Execution(
+            profile, liveState(profile, first, screen, maxFee), { nowSeconds },
+          );
+          tx = ownerExecution.transaction;
+          await primary.call({
+            account: getAddress(expectedOwner), to: getAddress(tx.to), data: tx.data, value: 0n,
+          });
+        } else {
+          const batch = buildAutomatedSeaDropV3ExecutionBatch(
+            profile, liveState(profile, first, screen, maxFee), { nowSeconds },
+          );
+          [tx] = batch.transactions;
+          await primary.call({ account: agent, to: getAddress(tx.to), data: tx.data, value: 0n });
+        }
       } catch (error) {
         recordExecutionSimulationRejection(diagnostics, error);
         continue;
       }
       diagnostics.executionSimulationsPassed += 1;
+      if (ownerPaidPlan) {
+        recordProfileOutcome(
+          diagnostics, tokenId, "READY", "OWNER_TRANSACTION_READY",
+          accountAddress.toLowerCase(),
+        );
+        return {
+          status: "OWNER_TRANSACTION_READY",
+          submitted: 0,
+          tokenId,
+          account: accountAddress.toLowerCase(),
+          collection,
+          execution: ownerExecution,
+          diagnostics,
+        };
+      }
       if (dependencies.readOnly === true) {
         recordProfileOutcome(
           diagnostics, tokenId, "READY", "ELIGIBLE_SIMULATION_PASSED",

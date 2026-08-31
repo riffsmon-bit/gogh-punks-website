@@ -1,4 +1,5 @@
 const CHAIN_ID = 4663;
+const CANONICAL_COLLECTION = "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6";
 const STORAGE_KEY = "gogh:activated-punk-ids:v1";
 const ACTIVATION_TOPIC = "0xbcba1c8ca6488532aba261811803bc402fd692b825e2a41dd2e555ec87989cc3";
 const OWNER_OF = "0x6352211e";
@@ -218,7 +219,44 @@ export function walletDiscoveryIntent(wallet, chainId = CHAIN_ID) {
   // An account with no network yet is mid-restore. A real wrong-network snapshot reports the
   // chain it is actually on.
   if (account && (wallet.chainId === null || wallet.chainId === undefined)) return "transient";
+  // Some contract-account wallets can expose the correct owner address but cannot add or switch
+  // to Robinhood Chain. That is still enough to request a first-party, canonical read-only roster;
+  // it is never enough to authorize a transaction.
+  if (account) return "read-only";
   return "settled";
+}
+
+export function validatedServerOwnedPunkIds(payload, {
+  owner,
+  chainId = CHAIN_ID,
+  collection = CANONICAL_COLLECTION,
+} = {}) {
+  const expectedOwner = normalizedAddress(owner);
+  const expectedCollection = normalizedAddress(collection);
+  const responseOwner = normalizedAddress(payload?.owner);
+  const responseCollection = normalizedAddress(payload?.collection);
+  const responseChainId = Number(payload?.chainId);
+  const balance = Number(payload?.balanceOf);
+  const state = payload?.reconciliationState;
+  if (payload?.ok !== true || payload?.complete !== true || !expectedOwner
+    || !expectedCollection || responseOwner !== expectedOwner
+    || responseCollection !== expectedCollection || responseChainId !== chainId
+    || !Number.isSafeInteger(balance) || balance < 0 || balance > MAX_OWNED_PUNKS
+    || !["VERIFIED", "ZERO_BALANCE_CONFIRMED"].includes(state)
+    || !Array.isArray(payload?.candidateTokenIds)) {
+    throw new TypeError("Server ownership evidence is incomplete or mismatched");
+  }
+  const tokenIds = payload.candidateTokenIds.map(String);
+  if (tokenIds.some((tokenId) => !/^(0|[1-9]\d{0,3})$/.test(tokenId)
+      || Number(tokenId) > MAX_OWNED_PUNKS - 1)) {
+    throw new TypeError("Server ownership token evidence is invalid");
+  }
+  const unique = [...new Set(tokenIds)].sort((left, right) => Number(left) - Number(right));
+  if (unique.length !== tokenIds.length || unique.length !== balance
+    || (state === "ZERO_BALANCE_CONFIRMED") !== (balance === 0)) {
+    throw new TypeError("Server ownership balance evidence does not match the roster");
+  }
+  return Object.freeze(unique);
 }
 
 function knownTokenIds(storage) {
@@ -443,13 +481,57 @@ export function selectedPunkGalleryPath(tokenId) {
   return `/punk/${encodeURIComponent(value)}`;
 }
 
-export function renderOwnerAccounts(container, accounts) {
+const SEARCHING_AGENT_STATES = new Set([
+  "SCANNING", "CANDIDATE_FOUND", "RANKING", "VERIFYING", "VERIFYING_CONTRACT",
+  "CHECKING_PRICE", "CHECKING_ELIGIBILITY", "CHECKING_LIMITS", "SIMULATING",
+]);
+const MINTING_AGENT_STATES = new Set(["MINTING", "SUBMITTING", "CONFIRMING"]);
+const ATTENTION_AGENT_STATES = new Set([
+  "PUNK_ERROR", "NEEDS_ATTENTION", "NEEDS_ENROLLMENT", "NEEDS_AUTHORIZATION",
+  "EXPIRED", "REVOKED", "OWNER_CHANGED",
+]);
+const OWNER_ROSTER_FILTERS = new Set([
+  "all", "activated", "searching", "minting", "attention", "ready",
+]);
+
+export function ownerPunkIsActivated(item) {
+  return item?.activated === true || item?.automationCreated === true
+    || item?.automationConfigured === true || item?.agentSummary?.enrolled === true;
+}
+
+export function ownerPunkMatchesRosterFilter(item, filter = "all") {
+  if (!OWNER_ROSTER_FILTERS.has(filter)) throw new TypeError("Unknown Punk roster filter");
+  const status = String(item?.agentSummary?.status ?? "").toUpperCase();
+  if (filter === "all") return true;
+  if (filter === "activated") return ownerPunkIsActivated(item);
+  if (filter === "searching") return SEARCHING_AGENT_STATES.has(status);
+  if (filter === "minting") return MINTING_AGENT_STATES.has(status);
+  if (filter === "attention") return ATTENTION_AGENT_STATES.has(status);
+  return !ownerPunkIsActivated(item);
+}
+
+export function ownerRosterFilterCounts(accounts = []) {
+  if (!Array.isArray(accounts)) throw new TypeError("Punk accounts must be an array");
+  return Object.freeze(Object.fromEntries([...OWNER_ROSTER_FILTERS].map((filter) => [
+    filter, accounts.filter((item) => ownerPunkMatchesRosterFilter(item, filter)).length,
+  ])));
+}
+
+export function renderOwnerAccounts(container, accounts, filter = "all") {
   const documentObject = container.ownerDocument ?? globalThis.document;
   container.replaceChildren();
   if (!accounts.length) {
     const empty = documentObject.createElement("p");
     empty.className = "empty-state";
     empty.textContent = "This wallet does not currently own a Gogh Punk on Robinhood Chain.";
+    container.append(empty);
+    return;
+  }
+  const visibleAccounts = accounts.filter((item) => ownerPunkMatchesRosterFilter(item, filter));
+  if (!visibleAccounts.length) {
+    const empty = documentObject.createElement("p");
+    empty.className = "empty-state";
+    empty.textContent = "No Punks currently match this filter.";
     container.append(empty);
     return;
   }
@@ -462,7 +544,7 @@ export function renderOwnerAccounts(container, accounts) {
     PAUSED: ["PAUSED", "Open this Punk to review its controls."],
     PUNK_ERROR: ["NEEDS YOUR ATTENTION", "This Punk has a Punk-specific issue to review."],
   });
-  for (const item of accounts) {
+  for (const item of visibleAccounts) {
     const card = documentObject.createElement("article");
     card.className = "punk-launcher-card";
     const imageUrl = trustedArtworkUrl(item.artwork?.imageUrl);
@@ -482,10 +564,11 @@ export function renderOwnerAccounts(container, accounts) {
     const title = documentObject.createElement("h3");
     title.textContent = `Gogh Punk #${item.tokenId}`;
     const status = item.agentSummary?.status ?? null;
-    const activated = item.agentSummary?.enrolled === true
-      || item.automationCreated === true || item.automationConfigured === true;
-    const [statusLabel, detail] = labels[status]
-      ?? (activated
+    const activated = ownerPunkIsActivated(item);
+    const [statusLabel, detail] = item.serverVerifiedReadOnly === true
+      ? ["SERVER VERIFIED · READ ONLY",
+        "This wallet cannot perform Robinhood actions. Ownership remains visible; controls stay locked."]
+      : labels[status] ?? (activated
         ? ["READY", "Open this Punk to verify its live authorization."]
         : ["NOT ACTIVATED", "Open this Punk to activate its Art Broker."]);
     const badge = documentObject.createElement("strong");
@@ -544,6 +627,8 @@ export async function findBrowserOwnedPunks(provider, gate, owner, tokenIds = []
       account,
       owner: normalizedOwner,
       activated,
+      transactionAuthorized: true,
+      serverVerifiedReadOnly: false,
       status: activated ? "ACTIVATED_ONCHAIN" : "READY_TO_ACTIVATE",
     })];
   });
@@ -661,6 +746,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
   const selectedPreview = browserDocument?.querySelector?.("[data-workspace-punk-preview]");
   const refreshButton = browserDocument?.querySelector?.("[data-refresh-owner-punks]");
   const mintDashboard = browserDocument?.querySelector?.("[data-owner-mint-dashboard]");
+  const rosterFilters = [...(browserDocument?.querySelectorAll?.("[data-owner-roster-filter]") ?? [])];
   if (!browserWindow || (!container && !picker && !mandatePicker && !workspacePicker)) return null;
   const request = fetchFunction ?? browserWindow.fetch.bind(browserWindow);
   let revision = 0;
@@ -669,6 +755,20 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
   let requestedTokenId = requestedBrokerPunk(browserWindow.location?.href);
   let recheckTimer = null;
   let summaryRefreshRunning = false;
+  let activeRosterFilter = "all";
+
+  function renderRoster(accounts = currentAccounts) {
+    if (!container) return;
+    const counts = ownerRosterFilterCounts(accounts);
+    browserDocument.querySelectorAll?.("[data-owner-filter-count]").forEach((target) => {
+      const key = target.dataset.ownerFilterCount;
+      target.textContent = String(counts[key] ?? 0);
+    });
+    for (const button of rosterFilters) {
+      button.setAttribute("aria-pressed", String(button.dataset.ownerRosterFilter === activeRosterFilter));
+    }
+    renderOwnerAccounts(container, accounts, activeRosterFilter);
+  }
 
   function renderMintDashboard(accounts) {
     if (!mintDashboard) return;
@@ -703,6 +803,9 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
         tokenId: item.tokenId,
         account: item.account ?? null,
         activated: item.activated === true,
+        transactionAuthorized: item.transactionAuthorized === true,
+        ownershipMode: item.serverVerifiedReadOnly === true
+          ? "SERVER_VERIFIED_READ_ONLY" : "WALLET_PROVIDER_VERIFIED",
         automationConfigured: item.automationConfigured === true,
         automationCreated: item.automationCreated === true,
         agentSummary: item.agentSummary ? Object.freeze({ ...item.agentSummary }) : null,
@@ -789,7 +892,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       }));
       return;
     }
-    if (!trustedArtworkUrl(item.artwork?.imageUrl)) {
+    if (item.transactionAuthorized === true && !trustedArtworkUrl(item.artwork?.imageUrl)) {
       const selectionRevision = revision;
       void hydrateOnchainPunkDecorations(
         browserWindow.__GOGH_WALLET_PROVIDER__,
@@ -812,6 +915,9 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       account: item.account,
       activated: item.activated === true,
       owner: wallet?.account?.toLowerCase?.() ?? item.owner,
+      transactionAuthorized: item.transactionAuthorized === true,
+      ownershipMode: item.serverVerifiedReadOnly === true
+        ? "SERVER_VERIFIED_READ_ONLY" : "WALLET_PROVIDER_VERIFIED",
       retirement: item.rarity ? Object.freeze({
         rarityEvidence: item.rarity.source,
         rarityRank: item.rarity.rank ?? null,
@@ -866,24 +972,67 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
     }));
   }
 
-  function publishVerifiedAccounts(accounts, payload, wallet, current, { reconciled = false } = {}) {
+  async function publishServerVerifiedReadOnlyRoster(wallet, current, payload = null) {
+    let evidence = payload;
+    if (!evidence) {
+      const response = await request(
+        `/api/broker/owner-punks?owner=${encodeURIComponent(wallet.account)}&view=reconcile`,
+        { headers: { accept: "application/json" }, cache: "no-store" },
+      );
+      evidence = await response.json();
+      if (!response.ok) throw new TypeError("Server ownership verification is unavailable");
+    }
+    const tokenIds = validatedServerOwnedPunkIds(evidence, {
+      owner: wallet.account,
+      chainId: CHAIN_ID,
+      collection: CANONICAL_COLLECTION,
+    });
+    const maps = candidateDecorationMaps(evidence);
+    const accounts = tokenIds.map((tokenId) => Object.freeze({
+      tokenId,
+      account: null,
+      owner: wallet.account.toLowerCase(),
+      activated: false,
+      status: "SERVER_VERIFIED_READ_ONLY",
+      serverVerifiedReadOnly: true,
+      transactionAuthorized: false,
+      artwork: maps.artwork.get(tokenId) ?? null,
+      rarity: maps.rarity.get(tokenId) ?? null,
+      automationConfigured: maps.automation.get(tokenId) === true,
+      automationCreated: maps.automationCreated.get(tokenId) === true,
+      agentSummary: maps.agentSummary.get(tokenId) ?? null,
+    }));
+    currentCollection = CANONICAL_COLLECTION;
+    publishVerifiedAccounts(accounts, evidence, wallet, current, {
+      reconciled: true,
+      readOnly: true,
+    });
+    return accounts;
+  }
+
+  function publishVerifiedAccounts(accounts, payload, wallet, current, {
+    reconciled = false,
+    readOnly = false,
+  } = {}) {
     if (current !== revision) return;
     const decoratedAccounts = decorateVerifiedAccounts(accounts, payload);
     for (const item of decoratedAccounts) {
       if (item.activated) rememberActivatedPunk(browserWindow.localStorage, item.tokenId);
     }
-    const activatedCount = decoratedAccounts.filter(({ activated }) => activated).length;
+    const activatedCount = decoratedAccounts.filter(ownerPunkIsActivated).length;
     const readyCount = decoratedAccounts.length - activatedCount;
     const detail = readyCount > 0
       ? `${readyCount} more owned ${readyCount === 1 ? "Punk" : "Punks"} ready to activate`
       : "Live ownership verified";
-    setCounts(decoratedAccounts.length, activatedCount, detail, reconciled
-      ? "Live ownership reconciled"
-      : "Live ownership verified from indexed roster");
+    setCounts(decoratedAccounts.length, activatedCount, detail, readOnly
+      ? "Server-verified ownership · read only"
+      : reconciled ? "Live ownership reconciled" : "Live ownership verified from indexed roster");
     setOwnershipState(decoratedAccounts.length === 0
-      ? "ZERO BALANCE CONFIRMED" : "VERIFIED",
-    reconciled ? "Canonical ownership reconciled and verified."
-      : "Canonical balance and indexed ownership agree.");
+      ? "ZERO BALANCE CONFIRMED" : readOnly ? "SERVER VERIFIED · READ ONLY" : "VERIFIED",
+    readOnly
+      ? "Robinhood ownership was verified by the Gogh server. Wallet actions stay locked until this provider supports Robinhood Chain."
+      : reconciled ? "Canonical ownership reconciled and verified."
+        : "Canonical balance and indexed ownership agree.");
     renderPunkPicker(picker, decoratedAccounts);
     const routeSelection = requestedTokenId
       && decoratedAccounts.some(({ tokenId }) => tokenId === requestedTokenId)
@@ -899,8 +1048,9 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
     renderMintDashboard(currentAccounts);
     announceOwnerPunks(decoratedAccounts, wallet.account);
     renderSelectedPunkPreview(selectedPreview, decoratedAccounts, selectedTokenId);
-    if (container) renderOwnerAccounts(container, decoratedAccounts);
+    renderRoster(decoratedAccounts);
     if (selectedTokenId) selectPunk(selectedTokenId);
+    if (readOnly) return;
     const artworkTargets = priorityArtworkAccounts(decoratedAccounts, selectedTokenId);
     void hydrateOnchainPunkDecorations(
       browserWindow.__GOGH_WALLET_PROVIDER__,
@@ -912,7 +1062,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       currentAccounts = currentAccounts.map((item) => decoratedByToken.get(item.tokenId) ?? item);
       announceOwnerPunks(currentAccounts, wallet.account);
       renderSelectedPunkPreview(selectedPreview, currentAccounts, selectedTokenId);
-      if (container) renderOwnerAccounts(container, currentAccounts);
+      renderRoster(currentAccounts);
     }).catch(() => {
       // Artwork is optional and never delays or changes live ownership evidence.
     });
@@ -957,7 +1107,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       return;
     }
     const current = ++revision;
-    if (intent !== "ready") {
+    if (!new Set(["ready", "read-only"]).has(intent)) {
       scheduleSettleRecheck();
       setCounts(null, null, "Connect owner wallet");
       setSelected();
@@ -972,10 +1122,25 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       setContainerHtml('<p class="empty-state">Connect the wallet that owns your Gogh Punks.</p>');
       return;
     }
+    if (intent === "read-only") {
+      setOwnershipState("VERIFYING", "Verifying Robinhood ownership through the Gogh server…");
+      setContainerHtml('<p class="empty-state loading">Checking canonical ownership in read-only mode…</p>');
+      try {
+        await publishServerVerifiedReadOnlyRoster(wallet, current);
+      } catch {
+        if (current !== revision) return;
+        setCounts(null, null, "Server verification unavailable");
+        setOwnershipState("RPC UNAVAILABLE",
+          "Ownership could not be completely reconciled. No ownership claim was made.");
+        setContainerHtml('<p class="empty-state">Robinhood ownership could not be verified safely. Wallet actions remain locked.</p>');
+      }
+      return;
+    }
     setOwnershipState(forceReconcile ? "RECONCILING" : "VERIFYING",
       forceReconcile ? "Repairing and verifying the complete ownership roster…"
         : "Checking canonical balance and indexed candidates…");
     setContainerHtml('<p class="empty-state loading">Loading indexed candidates and checking each live owner…</p>');
+    let completeServerEvidence = null;
     try {
       const [gateResponse, candidatesResponse] = await Promise.all([
         request("/api/broker/account-activation-status", {
@@ -1025,6 +1190,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
             || !Array.isArray(reconcilePayload.candidateTokenIds)) {
             throw new TypeError("Live Punk roster reconciliation is incomplete");
           }
+          completeServerEvidence = reconcilePayload;
           rosterPayload = reconcilePayload;
           reconciledInitially = true;
           candidates = [...new Set(reconcilePayload.candidateTokenIds.map(String))]
@@ -1052,6 +1218,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
           || !Array.isArray(reconcilePayload.candidateTokenIds)) {
           throw new TypeError("Live Punk roster reconciliation is unavailable");
         }
+        completeServerEvidence = reconcilePayload;
         rosterPayload = reconcilePayload;
         reconciledInitially = true;
         candidates = [...new Set(reconcilePayload.candidateTokenIds.map(String))]
@@ -1067,6 +1234,15 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       // completeness assertion. The 5,017-token repair runs only when the count proves stale.
     } catch {
       if (current !== revision) return;
+      // A contract-account wallet can expose the correct NFT-owning address while its provider
+      // cannot service Robinhood Chain. Only a complete first-party reconciliation may preserve
+      // that roster, and the resulting objects explicitly carry no transaction authority.
+      try {
+        await publishServerVerifiedReadOnlyRoster(wallet, current, completeServerEvidence);
+        return;
+      } catch {
+        // Continue to the existing last-known-good / unavailable handling below.
+      }
       // A later RPC/provider hiccup must never erase a roster that this page already verified.
       // Keep the last good display and retry naturally on the next settled wallet/visibility
       // event. Privileged actions still perform their own fresh live owner/account checks.
@@ -1079,7 +1255,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
         renderPunkPicker(workspacePicker, currentAccounts, workspacePicker?.value ?? "");
         renderSelectedPunkPreview(selectedPreview, currentAccounts,
           workspacePicker?.value || mandatePicker?.value || picker?.value || "");
-        if (container) renderOwnerAccounts(container, currentAccounts);
+        renderRoster(currentAccounts);
         setOwnershipState("INDEX STALE", "Previously verified Punks remain visible; live refresh retrying.");
         return;
       }
@@ -1125,7 +1301,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       announceOwnerPunks(currentAccounts, wallet.account);
       renderSelectedPunkPreview(selectedPreview, currentAccounts,
         workspacePicker?.value || mandatePicker?.value || picker?.value || "");
-      if (container) renderOwnerAccounts(container, currentAccounts);
+      renderRoster(currentAccounts);
     } catch {
       // This refresh is a database-only display optimization. Existing roster evidence remains
       // visible and privileged actions continue to perform their independent live checks.
@@ -1146,6 +1322,14 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
     selectPunk(mandatePicker.value);
   });
   workspacePicker?.addEventListener("change", () => selectPunk(workspacePicker.value));
+  for (const button of rosterFilters) {
+    button.addEventListener("click", () => {
+      const requestedFilter = button.dataset.ownerRosterFilter;
+      if (!OWNER_ROSTER_FILTERS.has(requestedFilter)) return;
+      activeRosterFilter = requestedFilter;
+      renderRoster();
+    });
+  }
   refreshButton?.addEventListener("click", async () => {
     refreshButton.disabled = true;
     refreshButton.textContent = "Syncing latest ownership…";

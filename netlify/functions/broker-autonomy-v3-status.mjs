@@ -9,6 +9,7 @@ import {
   getAutomationV3UsageStats, getAutomationV3WorkerHeartbeat, workerHeartbeatIsCurrent,
   workerPlatformHealth,
 } from "./_shared/automation-v3-worker-state.mjs";
+import { resolveAutomationV3PunkAgent } from "./_shared/automation-v3-punk-agent.mjs";
 import {
   getProductionAutomationV3Activity, isDeployPreview,
 } from "./_shared/automation-v3-production-bridge.mjs";
@@ -158,10 +159,15 @@ export default async function handler(request) {
           getAutomationV3WorkerHeartbeat().catch(() => null),
           getAutomationV3UsageStats().catch(() => null),
         ]).then(([heartbeat, usage]) => ({ heartbeat, usage }));
+      const resolvedPunk = tokenId === null ? null
+        : await resolveAutomationV3PunkAgent(tokenId).catch(() => null);
+      const selectedAgent = resolvedPunk?.lane?.address ?? AUTOMATION_V3_AGENT;
       const [evidenceResult, selectedPunkResult, agentResult] = await Promise.allSettled([
         workerEvidence,
-        tokenId === null ? null : readAutomationV3PunkState(tokenId),
-        readAutomationV3AgentDisplayState(),
+        tokenId === null ? null : resolvedPunk?.punk ?? readAutomationV3PunkState(
+          tokenId, process.env, { agentAddress: selectedAgent },
+        ),
+        readAutomationV3AgentDisplayState(process.env, { agentAddress: selectedAgent }),
       ]);
       const selectedPunk = selectedPunkResult.status === "fulfilled"
         ? selectedPunkResult.value : null;

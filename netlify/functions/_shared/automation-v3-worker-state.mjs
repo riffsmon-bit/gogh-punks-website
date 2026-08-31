@@ -1,5 +1,6 @@
 import { getDatabase } from "@netlify/database";
 import { createHash } from "node:crypto";
+import { LEGACY_AUTOMATION_V3_AGENT } from "./automation-v3-agent-pool.mjs";
 
 const STATUSES = new Set([
   "NO_AUTONOMOUS_MANDATES",
@@ -130,18 +131,30 @@ export async function enrollAutomationV3Punk(punk, options = {}) {
   const selectedTokenId = tokenId(punk.tokenId);
   const account = address(punk.account, "Punk account");
   const owner = address(punk.owner, "Punk owner");
+  const agent = address(
+    options.agentAddress ?? punk.authorization?.agent ?? LEGACY_AUTOMATION_V3_AGENT,
+    "Punk automation agent",
+  );
+  const lane = Number(options.agentLane ?? 1);
+  if (!Number.isInteger(lane) || lane < 1 || lane > 6) {
+    throw new TypeError("Punk automation lane is invalid");
+  }
   const database = options.database ?? getDatabase().pool;
   await database.query(
     `INSERT INTO broker_automation_v3_enrollments
-      (chain_id, collection_address, token_id, account_address, owner_snapshot)
-     VALUES (4663, $1, $2::numeric, $3, $4)
+      (chain_id, collection_address, token_id, account_address, owner_snapshot,
+       agent_address, agent_lane)
+     VALUES (4663, $1, $2::numeric, $3, $4, $5, $6)
      ON CONFLICT (chain_id, collection_address, token_id) DO UPDATE SET
        account_address = EXCLUDED.account_address,
        owner_snapshot = EXCLUDED.owner_snapshot,
+       agent_address = EXCLUDED.agent_address,
+       agent_lane = EXCLUDED.agent_lane,
        last_requested_at = NOW()`,
-    ["0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6", selectedTokenId, account, owner],
+    ["0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6", selectedTokenId, account, owner,
+      agent, lane],
   );
-  return Object.freeze({ tokenId: selectedTokenId, account, owner });
+  return Object.freeze({ tokenId: selectedTokenId, account, owner, agent, lane });
 }
 
 export async function automationV3PunkEnrollment(punk, options = {}) {
@@ -153,7 +166,7 @@ export async function automationV3PunkEnrollment(punk, options = {}) {
   const owner = address(punk.owner, "Punk owner");
   const database = options.database ?? getDatabase().pool;
   const result = await database.query(
-    `SELECT account_address, owner_snapshot
+    `SELECT account_address, owner_snapshot, agent_address, agent_lane
        FROM broker_automation_v3_enrollments
       WHERE chain_id = 4663 AND collection_address = $1 AND token_id = $2::numeric
       LIMIT 1`,
@@ -162,7 +175,33 @@ export async function automationV3PunkEnrollment(punk, options = {}) {
   const row = result.rows?.[0];
   if (!row) return false;
   return address(row.account_address, "Stored Punk account") === account
-    && address(row.owner_snapshot, "Stored Punk owner") === owner;
+    && address(row.owner_snapshot, "Stored Punk owner") === owner
+    && (punk.authorization?.agent == null
+      || address(row.agent_address, "Stored Punk agent")
+        === address(punk.authorization.agent, "Punk automation agent"));
+}
+
+export async function automationV3PunkAgentAssignment(tokenIdValue, options = {}) {
+  const selectedTokenId = tokenId(tokenIdValue);
+  const database = options.database ?? getDatabase().pool;
+  const result = await database.query(
+    `SELECT agent_address, agent_lane
+       FROM broker_automation_v3_enrollments
+      WHERE chain_id = 4663 AND collection_address = $1 AND token_id = $2::numeric
+      LIMIT 1`,
+    ["0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6", selectedTokenId],
+  );
+  const row = result.rows?.[0];
+  if (!row) return null;
+  const lane = Number(row.agent_lane);
+  if (!Number.isInteger(lane) || lane < 1 || lane > 6) {
+    throw new TypeError("Stored Punk automation lane is invalid");
+  }
+  return Object.freeze({
+    tokenId: selectedTokenId,
+    agent: address(row.agent_address, "Stored Punk agent"),
+    lane,
+  });
 }
 
 const PUNK_WORKER_STATES = new Set(["QUEUED", "MINTED", "SKIPPED", "ERROR", "READY"]);

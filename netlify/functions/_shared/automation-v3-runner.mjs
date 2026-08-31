@@ -8,8 +8,8 @@ import {
   recordAutomationV3PunkWorkerEvidence, recordAutomationV3WorkerHeartbeat,
 } from "./automation-v3-worker-state.mjs";
 import { shadowAutomationV3Run } from "./supabase-operational-store.mjs";
+import { automationV3LaneLockId } from "./automation-v3-agent-pool.mjs";
 
-const WORKER_LOCK_ID = 46_630_003;
 const WORKER_LEASE_MILLISECONDS = 90_000;
 export const SCHEDULED_WORKER_LEASE_MILLISECONDS = 240_000;
 
@@ -24,6 +24,9 @@ export async function runAutomationV3Once(options = {}) {
   const worker = options.worker ?? runAutomatedSeaDropV3Worker;
   const record = options.record ?? recordAutomationV3WorkerHeartbeat;
   const leaseMilliseconds = options.leaseMilliseconds ?? WORKER_LEASE_MILLISECONDS;
+  const laneId = Number(options.laneId
+    ?? environment.BROKER_AUTOMATION_V3_ACTIVE_LANE ?? 1);
+  const workerLockId = automationV3LaneLockId(laneId);
   const retainLease = options.retainLease === true;
   const client = await database.connect();
   const holder = randomUUID();
@@ -40,7 +43,7 @@ export async function runAutomationV3Once(options = {}) {
              lease_until = EXCLUDED.lease_until
        WHERE broker_automation_v3_worker_leases.lease_until <= NOW()
        RETURNING holder`,
-      [WORKER_LOCK_ID, holder, environment.BROKER_AUTOMATION_V3_WORKER_RELEASE,
+      [workerLockId, holder, environment.BROKER_AUTOMATION_V3_WORKER_RELEASE,
         leaseMilliseconds],
     );
     locked = lock.rows[0]?.holder === holder;
@@ -129,7 +132,7 @@ export async function runAutomationV3Once(options = {}) {
       try {
         await client.query(
           "DELETE FROM broker_automation_v3_worker_leases WHERE lock_id = $1 AND holder = $2",
-          [WORKER_LOCK_ID, holder],
+          [workerLockId, holder],
         );
       } catch {
         // The lease expires independently, so a cleanup failure cannot strand

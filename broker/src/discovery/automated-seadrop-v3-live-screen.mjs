@@ -5,6 +5,8 @@ import { getAddress, isAddress } from "viem";
 import { canonicalJson, parseCanonicalJson } from "../scout/canonical-json.mjs";
 import { AUTOMATED_ACCOUNT_EXECUTION_ABI } from
   "../recommendation/automated-seadrop-v3-execution-batch.mjs";
+import { OWNER_PAID_ACCOUNT_EXECUTION_ABI } from
+  "../recommendation/owner-paid-seadrop-v3-execution.mjs";
 import {
   NATIVE_CURRENCY,
   SEA_DROP,
@@ -279,7 +281,7 @@ function deepFreeze(value) {
   return value;
 }
 
-async function collectObservation(client, candidate, scope, block, checkedAt) {
+async function collectObservation(client, candidate, scope, block, checkedAt, executionMode) {
   const collection = candidate.collection.toLowerCase();
   let reads;
   try {
@@ -334,12 +336,13 @@ async function collectObservation(client, candidate, scope, block, checkedAt) {
     reasoningHash: candidate.reasoningHash,
     adapterCodeHash: scope.adapterCodeHash,
   };
+  const ownerPaid = executionMode === "OWNER_PAID";
   const simulationRequest = {
     address: scope.account,
-    account: scope.agent,
-    abi: AUTOMATED_ACCOUNT_EXECUTION_ABI,
-    functionName: "executeAutonomousAcquisition",
-    args: [intent, "0x"],
+    account: ownerPaid ? scope.expectedOwner : scope.agent,
+    abi: ownerPaid ? OWNER_PAID_ACCOUNT_EXECUTION_ABI : AUTOMATED_ACCOUNT_EXECUTION_ABI,
+    functionName: ownerPaid ? "executeApprovedAcquisition" : "executeAutonomousAcquisition",
+    args: ownerPaid ? [intent, "0x", "0x"] : [intent, "0x"],
     blockNumber: block.number,
   };
   try {
@@ -393,12 +396,13 @@ async function collectObservation(client, candidate, scope, block, checkedAt) {
   };
 }
 
-export async function attestAutomatedSeaDropV3CandidateLive(
+async function attestSeaDropV3CandidateLive(
   candidateInput,
   scopeInput,
   endpointInput,
   optionsInput,
   clientsInput,
+  executionMode,
 ) {
   const candidate = normalizeCandidate(candidateInput);
   const scope = normalizeScope(scopeInput);
@@ -453,8 +457,8 @@ export async function attestAutomatedSeaDropV3CandidateLive(
   }
   const checkedAt = new Date(startedAtSeconds * 1_000).toISOString();
   const [primaryObservation, secondaryObservation] = await Promise.all([
-    collectObservation(primary.client, candidate, scope, primaryBlock, checkedAt),
-    collectObservation(secondary.client, candidate, scope, secondaryBlock, checkedAt),
+    collectObservation(primary.client, candidate, scope, primaryBlock, checkedAt, executionMode),
+    collectObservation(secondary.client, candidate, scope, secondaryBlock, checkedAt, executionMode),
   ]);
   const screen = screenAutomatedSeaDropV3Candidate(
     candidate, primaryObservation, secondaryObservation,
@@ -512,4 +516,20 @@ export async function attestAutomatedSeaDropV3CandidateLive(
     },
   };
   return deepFreeze({ ...evidence, evidenceHash: sha256(evidence) });
+}
+
+export async function attestAutomatedSeaDropV3CandidateLive(
+  candidateInput, scopeInput, endpointInput, optionsInput, clientsInput,
+) {
+  return attestSeaDropV3CandidateLive(
+    candidateInput, scopeInput, endpointInput, optionsInput, clientsInput, "AGENT",
+  );
+}
+
+export async function attestOwnerPaidSeaDropV3CandidateLive(
+  candidateInput, scopeInput, endpointInput, optionsInput, clientsInput,
+) {
+  return attestSeaDropV3CandidateLive(
+    candidateInput, scopeInput, endpointInput, optionsInput, clientsInput, "OWNER_PAID",
+  );
 }

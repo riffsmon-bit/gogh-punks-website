@@ -1,7 +1,11 @@
 import { readFile } from "node:fs/promises";
 import pg from "pg";
 
-const MIGRATION = "20260830210000_create_gogh_broker_operational_shadow";
+const MIGRATIONS = Object.freeze([
+  "20260830210000_create_gogh_broker_operational_shadow",
+  "20260831220000_add_punk_agent_gas_credits",
+  "20260831233000_add_punk_priority_sessions",
+]);
 const APPLY = process.argv.includes("--apply");
 
 function connectionString(environment = process.env) {
@@ -37,25 +41,30 @@ try {
   );
   const already = await client.query(
     `SELECT to_regclass('public.gogh_broker_punk_jobs') IS NOT NULL AS jobs,
-            to_regclass('public.gogh_broker_punk_state') IS NOT NULL AS states`,
+            to_regclass('public.gogh_broker_punk_state') IS NOT NULL AS states,
+            to_regclass('public.gogh_broker_punk_agent_gas_accounts') IS NOT NULL AS gas_accounts,
+            to_regclass('public.gogh_broker_punk_agent_gas_deposits') IS NOT NULL AS gas_deposits,
+            to_regclass('public.gogh_broker_punk_priority_sessions') IS NOT NULL AS priority_sessions`,
   );
   console.log(JSON.stringify({
-    migration: MIGRATION,
+    migrations: MIGRATIONS,
     mode: APPLY ? "APPLY" : "DRY_RUN",
     connected: identity.rows.length === 1,
     databaseNamePresent: Boolean(identity.rows[0]?.database),
     databaseRolePresent: Boolean(identity.rows[0]?.role),
     tablesPresent: already.rows[0]?.jobs === true && already.rows[0]?.states === true,
+    prepaidGasTablesPresent: already.rows[0]?.gas_accounts === true
+      && already.rows[0]?.gas_deposits === true,
+    prioritySessionTablePresent: already.rows[0]?.priority_sessions === true,
   }));
   if (APPLY) {
-    const sql = await readFile(new URL(
-      "../supabase/migrations/20260830210000_create_gogh_broker_operational_shadow.sql",
-      import.meta.url,
-    ), "utf8");
+    const statements = await Promise.all(MIGRATIONS.map((migration) => readFile(new URL(
+      `../supabase/migrations/${migration}.sql`, import.meta.url,
+    ), "utf8")));
     await client.query("BEGIN");
     try {
       await client.query("SELECT pg_advisory_xact_lock(4663210000)");
-      await client.query(sql);
+      for (const sql of statements) await client.query(sql);
       await client.query("COMMIT");
     } catch (error) {
       await client.query("ROLLBACK");
@@ -68,13 +77,14 @@ try {
           AND table_name = ANY($1::text[])`,
       [["gogh_broker_punk_state", "gogh_broker_punk_jobs", "gogh_broker_worker_runs",
         "gogh_broker_agent_activity", "gogh_broker_ownership_projection",
-        "gogh_broker_diagnostics"]],
+        "gogh_broker_diagnostics", "gogh_broker_punk_agent_gas_accounts",
+        "gogh_broker_punk_agent_gas_deposits", "gogh_broker_punk_priority_sessions"]],
     );
     console.log(JSON.stringify({
-      migration: MIGRATION,
+      migrations: MIGRATIONS,
       applied: true,
       verifiedTableCount: Number(verified.rows[0]?.table_count ?? 0),
-      expectedTableCount: 6,
+      expectedTableCount: 9,
     }));
   }
 } finally {

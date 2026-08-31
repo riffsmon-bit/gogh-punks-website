@@ -8,8 +8,12 @@ import { resolveRobinhoodRpcPair } from
 import {
   NATIVE_CURRENCY, SEA_DROP_MINT_PUBLIC_SELECTOR,
 } from "../../../broker/src/recommendation/automated-seadrop-v3-run-plan.mjs";
+import {
+  assignedAutomationV3AgentLane, configuredAutomationV3AgentLanes,
+  LEGACY_AUTOMATION_V3_AGENT,
+} from "./automation-v3-agent-pool.mjs";
 
-export const AUTOMATION_V3_AGENT = "0x3bb2ebf6b3c4d7f5e5781cdf2091428f7750af7d";
+export const AUTOMATION_V3_AGENT = LEGACY_AUTOMATION_V3_AGENT;
 export const SEA_DROP = "0x00005ea00ac477b1030ce78506496e8c2de24bf5";
 
 const ZERO_SALT = `0x${"00".repeat(32)}`;
@@ -93,7 +97,7 @@ function tuple(value, key, index) {
   return selected;
 }
 
-function normalizeGlobal(values, nowSeconds) {
+function normalizeGlobal(values, nowSeconds, agentAddress = AUTOMATION_V3_AGENT) {
   const [adapterRecord, adapterPaused, flags, policyPaused, agentRecord, agentPaused,
     adapterCode, policyCode, registryCode, agentCode, agentBalance] = values;
   const normalized = {
@@ -117,7 +121,7 @@ function normalizeGlobal(values, nowSeconds) {
       globallyPaused: policyPaused,
     },
     agent: {
-      address: AUTOMATION_V3_AGENT,
+      address: agentAddress,
       approved: tuple(agentRecord, "approved", 0),
       validAfter: BigInt(tuple(agentRecord, "validAfter", 1)).toString(),
       validUntil: BigInt(tuple(agentRecord, "validUntil", 2)).toString(),
@@ -168,7 +172,7 @@ async function commonReadBlock(clients) {
   return commonHead > 2n ? commonHead - 2n : commonHead;
 }
 
-async function readGlobal(clientValue, blockNumber) {
+async function readGlobal(clientValue, blockNumber, agentAddress = AUTOMATION_V3_AGENT) {
   const adapter = getAddress(automationManifest.contracts.AutomatedSeaDropStudioFreeMintAdapter.address);
   const policy = getAddress(automationManifest.contracts.BrokerPolicyModuleV3.address);
   const registry = getAddress(automationManifest.contracts.GoghPunkAccountRegistryV3.address);
@@ -179,13 +183,13 @@ async function readGlobal(clientValue, blockNumber) {
     clientValue.readContract({ address: getAddress(coreManifest.contracts.ArtAdapterRegistry.address), abi: ADAPTER_ABI, functionName: "globallyPaused", blockNumber }),
     clientValue.readContract({ address: policy, abi: POLICY_ABI, functionName: "featureFlags", blockNumber }),
     clientValue.readContract({ address: policy, abi: POLICY_ABI, functionName: "globallyPaused", blockNumber }),
-    clientValue.readContract({ address: agentRegistry, abi: AGENT_ABI, functionName: "globalAgent", args: [getAddress(AUTOMATION_V3_AGENT)], blockNumber }),
+    clientValue.readContract({ address: agentRegistry, abi: AGENT_ABI, functionName: "globalAgent", args: [getAddress(agentAddress)], blockNumber }),
     clientValue.readContract({ address: agentRegistry, abi: AGENT_ABI, functionName: "globallyPaused", blockNumber }),
     clientValue.getCode({ address: adapter, blockNumber }),
     clientValue.getCode({ address: policy, blockNumber }),
     clientValue.getCode({ address: registry, blockNumber }),
-    clientValue.getCode({ address: getAddress(AUTOMATION_V3_AGENT), blockNumber }).then((value) => value ?? "0x"),
-    clientValue.getBalance({ address: getAddress(AUTOMATION_V3_AGENT), blockNumber }),
+    clientValue.getCode({ address: getAddress(agentAddress), blockNumber }).then((value) => value ?? "0x"),
+    clientValue.getBalance({ address: getAddress(agentAddress), blockNumber }),
   ]);
   if (![adapterCode, policyCode, registryCode].every((value) => typeof value === "string" && value !== "0x")) {
     throw new TypeError("V3 runtime code is unavailable");
@@ -198,17 +202,26 @@ export async function readAutomationV3GlobalState(environment = process.env, opt
   const { primary: primaryUrl, secondary: secondaryUrl } = resolveRobinhoodRpcPair(environment);
   const clients = options.clients ?? [client(primaryUrl), client(secondaryUrl)];
   const nowSeconds = options.nowSeconds ?? Math.floor(Date.now() / 1_000);
+  const agentAddress = getAddress(
+    options.agentAddress ?? environment.BROKER_AUTOMATION_V3_AGENT_ADDRESS
+      ?? AUTOMATION_V3_AGENT,
+  ).toLowerCase();
   const blockNumber = options.blockNumber ?? await commonReadBlock(clients);
   const [primary, secondary] = await Promise.all(
-    clients.map((clientValue) => readGlobal(clientValue, blockNumber)),
+    clients.map((clientValue) => readGlobal(clientValue, blockNumber, agentAddress)),
   );
-  const first = normalizeGlobal(primary, nowSeconds);
-  const second = normalizeGlobal(secondary, nowSeconds);
+  const first = normalizeGlobal(primary, nowSeconds, agentAddress);
+  const second = normalizeGlobal(secondary, nowSeconds, agentAddress);
   if (JSON.stringify(first) !== JSON.stringify(second)) throw new TypeError("V3 providers disagree");
   const workerRelease = environment.BROKER_AUTOMATION_V3_WORKER_RELEASE?.trim() ?? "";
-  const workerEnabled = environment.BROKER_AUTOMATION_V3_ENABLED === "true"
-    && /^[0-9a-f]{40}$/.test(workerRelease)
-    && (environment.BROKER_AUTOMATION_V3_AGENT_ADDRESS ?? "").toLowerCase() === AUTOMATION_V3_AGENT;
+  let configuredAgents = [];
+  try {
+    configuredAgents = configuredAutomationV3AgentLanes(environment).map(({ address }) => address);
+  } catch {
+    configuredAgents = [];
+  }
+  const workerEnabled = /^[0-9a-f]{40}$/.test(workerRelease)
+    && configuredAgents.includes(agentAddress);
   return Object.freeze({ ...first, worker: { enabled: workerEnabled, release: workerRelease || null } });
 }
 
@@ -218,20 +231,23 @@ export async function readAutomationV3AgentDisplayState(
 ) {
   const { primary: primaryUrl } = resolveRobinhoodRpcPair(environment);
   const primary = options.client ?? client(primaryUrl);
-  const agent = getAddress(AUTOMATION_V3_AGENT);
+  const agent = getAddress(options.agentAddress
+    ?? environment.BROKER_AUTOMATION_V3_AGENT_ADDRESS ?? AUTOMATION_V3_AGENT);
   const [code, balance] = await Promise.all([
     primary.getCode({ address: agent }).then((value) => value ?? "0x"),
     primary.getBalance({ address: agent }),
   ]);
   return Object.freeze({
-    address: AUTOMATION_V3_AGENT,
+    address: agent.toLowerCase(),
     validUntil: null,
     balanceWei: BigInt(balance).toString(),
     codeFree: code === "0x",
   });
 }
 
-async function readPunk(clientValue, tokenId, nowSeconds, blockNumber) {
+async function readPunk(
+  clientValue, tokenId, nowSeconds, blockNumber, agentAddress = AUTOMATION_V3_AGENT,
+) {
   const registry = getAddress(automationManifest.contracts.GoghPunkAccountRegistryV3.address);
   const policyModule = getAddress(automationManifest.contracts.BrokerPolicyModuleV3.address);
   const agentRegistry = getAddress(coreManifest.contracts.ArtAgentRegistry.address);
@@ -251,8 +267,8 @@ async function readPunk(clientValue, tokenId, nowSeconds, blockNumber) {
     clientValue.readContract({ address: account, abi: ACCOUNT_ABI, functionName: "acquisitionNonce", blockNumber }),
     policyRead("policy", [account]), policyRead("acquisitionUsage", [account]),
     policyRead("mintControls", [account]),
-    clientValue.readContract({ address: agentRegistry, abi: ACCOUNT_AGENT_ABI, functionName: "accountAuthorization", args: [account, getAddress(AUTOMATION_V3_AGENT)], blockNumber }),
-    clientValue.readContract({ address: agentRegistry, abi: ACCOUNT_AGENT_ABI, functionName: "isAuthorized", args: [account, getAddress(AUTOMATION_V3_AGENT)], blockNumber }),
+    clientValue.readContract({ address: agentRegistry, abi: ACCOUNT_AGENT_ABI, functionName: "accountAuthorization", args: [account, getAddress(agentAddress)], blockNumber }),
+    clientValue.readContract({ address: agentRegistry, abi: ACCOUNT_AGENT_ABI, functionName: "isAuthorized", args: [account, getAddress(agentAddress)], blockNumber }),
     policyRead("approvedAdapters", [account, adapter]),
     policyRead("approvedMintContracts", [account, getAddress(SEA_DROP)]),
     policyRead("approvedSelectors", [account, SEA_DROP_MINT_PUBLIC_SELECTOR]),
@@ -275,6 +291,7 @@ async function readPunk(clientValue, tokenId, nowSeconds, blockNumber) {
       autonomousPaidMints: tuple(controls, "autonomousPaidMints", 2),
     },
     authorization: {
+      agent: getAddress(agentAddress).toLowerCase(),
       active: tuple(authorization, "active", 0),
       authorizingOwner: getAddress(tuple(authorization, "authorizingOwner", 1)).toLowerCase(),
       validUntil: BigInt(tuple(authorization, "validUntil", 2)).toString(),
@@ -318,9 +335,13 @@ export async function readAutomationV3PunkState(tokenIdValue, environment = proc
   const { primary: primaryUrl, secondary: secondaryUrl } = resolveRobinhoodRpcPair(environment);
   const clients = options.clients ?? [client(primaryUrl), client(secondaryUrl)];
   const nowSeconds = options.nowSeconds ?? Math.floor(Date.now() / 1_000);
+  const agentAddress = getAddress(
+    options.agentAddress ?? environment.BROKER_AUTOMATION_V3_AGENT_ADDRESS
+      ?? AUTOMATION_V3_AGENT,
+  ).toLowerCase();
   const blockNumber = options.blockNumber ?? await commonReadBlock(clients);
   const states = await Promise.all(clients.map((rpc) => (
-    readPunk(rpc, BigInt(tokenIdValue), nowSeconds, blockNumber)
+    readPunk(rpc, BigInt(tokenIdValue), nowSeconds, blockNumber, agentAddress)
   )));
   if (JSON.stringify(states[0]) !== JSON.stringify(states[1])) throw new TypeError("V3 Punk providers disagree");
   return Object.freeze(states[0]);
@@ -392,7 +413,17 @@ export async function buildLiveOwnerSetupInput(tokenIdValue, limits, environment
   }
   const { primary: primaryUrl, secondary: secondaryUrl } = resolveRobinhoodRpcPair(environment);
   const clients = [client(primaryUrl), client(secondaryUrl)];
-  const global = await readAutomationV3GlobalState(environment, { clients });
+  let lane = assignedAutomationV3AgentLane(tokenIdValue, environment);
+  const existingLegacy = await readAutomationV3PunkState(tokenIdValue, environment, {
+    clients, agentAddress: AUTOMATION_V3_AGENT,
+  });
+  if (existingLegacy.active === true) {
+    lane = configuredAutomationV3AgentLanes(environment)
+      .find(({ address }) => address === AUTOMATION_V3_AGENT) ?? lane;
+  }
+  const global = await readAutomationV3GlobalState(environment, {
+    clients, agentAddress: lane.address,
+  });
   if (!global.configured || !global.worker.enabled) throw new TypeError("V3 worker is not ready");
   const tokenId = BigInt(tokenIdValue);
   const registry = getAddress(automationManifest.contracts.GoghPunkAccountRegistryV3.address);
@@ -413,7 +444,8 @@ export async function buildLiveOwnerSetupInput(tokenIdValue, limits, environment
       accountRegistry: registry,
       policyModule: automationManifest.contracts.BrokerPolicyModuleV3.address,
       agentRegistry: coreManifest.contracts.ArtAgentRegistry.address,
-      agent: AUTOMATION_V3_AGENT,
+      agent: lane.address,
+      agentLane: lane.laneId,
     },
     limits: { maxMintsPerUtcDay: cap, authorizationDays: days },
     globalAgent: { approved: true, validAfter: global.agent.validAfter, validUntil: global.agent.validUntil },

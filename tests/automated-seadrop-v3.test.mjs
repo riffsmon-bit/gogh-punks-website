@@ -26,6 +26,10 @@ import {
   AUTOMATED_OWNER_SETUP_INPUT_SCHEMA,
   buildAutomatedSeaDropV3OwnerSetup,
 } from "../broker/src/recommendation/automated-seadrop-v3-owner-setup.mjs";
+import {
+  OWNER_PAID_EXECUTION_SCHEMA,
+  buildOwnerPaidSeaDropV3Execution,
+} from "../broker/src/recommendation/owner-paid-seadrop-v3-execution.mjs";
 
 const now = 1_800_000_000;
 const iso = (seconds) => new Date(seconds * 1000).toISOString();
@@ -233,6 +237,25 @@ test("V3 planner and execution batch preserve the exact standard-runtime evidenc
   assert.equal(batch.transactions[0].value, "0");
   assert.match(batch.transactions[0].dataKeccak256, /^0x[0-9a-f]{64}$/);
   assert.equal(batch.safety.paidMintsAllowed, false);
+});
+
+test("V3 owner-paid execution is one exact free-mint account call without approvals", () => {
+  const configured = profile();
+  configured.limits.minAgentReserveWei = "999999999999999999999999";
+  configured.limits.maxGasWeiPerRun = "700000000000000";
+  const live = liveState();
+  live.agentBalanceWei = "0";
+  const execution = buildOwnerPaidSeaDropV3Execution(configured, live, { nowSeconds: now });
+  assert.equal(execution.schema, OWNER_PAID_EXECUTION_SCHEMA);
+  assert.equal(execution.transaction.from, configured.punk.expectedOwner);
+  assert.equal(execution.transaction.to, configured.punk.account);
+  assert.equal(execution.transaction.value, "0");
+  assert.match(execution.transaction.data, /^0x4402cb61[0-9a-f]+$/);
+  assert.equal(execution.safety.recipient, configured.punk.account);
+  assert.equal(execution.safety.mintPriceWei, "0");
+  assert.equal(execution.safety.approvalsAllowed, false);
+  assert.equal(execution.safety.arbitraryCalldataAllowed, false);
+  assert.equal(execution.safety.submissionPerformed, false);
 });
 
 test("V3 rejects unreviewed runtime hashes and wrong runtime lengths", () => {
