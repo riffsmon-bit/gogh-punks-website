@@ -930,6 +930,15 @@ h3 { font-size: 1.45rem; }
 .ownership-verification strong { color: var(--aqua); font-size: 0.72rem; letter-spacing: 0.1em; }
 .ownership-verification span { min-width: 0; color: var(--muted); font-size: 0.82rem; line-height: 1.45; }
 .ownership-verification span:last-child { color: var(--cream); text-align: right; }
+.owner-roster-disclosure { min-width: 0; border: 1px solid rgba(255, 204, 51, 0.28); background: rgba(3, 12, 20, 0.38); }
+.owner-roster-disclosure > summary { display: flex; min-height: 54px; align-items: center; justify-content: space-between; gap: 18px; padding: 14px 16px; color: var(--cream); cursor: pointer; font-size: 0.74rem; font-weight: 850; letter-spacing: 0.1em; list-style: none; text-transform: uppercase; }
+.owner-roster-disclosure > summary::-webkit-details-marker { display: none; }
+.owner-roster-disclosure > summary:hover,
+.owner-roster-disclosure > summary:focus-visible { color: var(--aqua); }
+.owner-roster-disclosure-action::after { content: "Expand +"; color: var(--aqua); }
+.owner-roster-disclosure[open] .owner-roster-disclosure-action::after { content: "Collapse \2212"; }
+.owner-roster-disclosure[open] > summary { border-bottom: 1px solid rgba(255, 204, 51, 0.2); }
+.owner-roster-disclosure .punk-launcher-grid { padding: 14px; }
 .punk-launcher-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 .punk-launcher-card { display: grid; grid-template-columns: 104px minmax(0, 1fr); min-width: 0; overflow: hidden; border: 1px solid var(--line); background: #071321; }
 .punk-launcher-art { width: 104px; height: 100%; min-height: 166px; object-fit: cover; image-rendering: pixelated; background: #030b11; }

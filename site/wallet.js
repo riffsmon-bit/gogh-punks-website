@@ -358,7 +358,7 @@ function loadReownBundle(browserWindow, browserDocument) {
     const script = browserDocument.createElement("script");
     // Keep this version aligned with the HTML wallet module URL. Wallet session
     // fixes must not be stranded behind a stale mobile or desktop browser cache.
-    script.src = "/reown-wallet-app.js?v=reown-8";
+    script.src = "/reown-wallet-app.js?v=reown-9";
     script.async = true;
     script.dataset.reownAppkit = "true";
     script.addEventListener("load", resolve, { once: true });
@@ -539,13 +539,26 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
   async function waitForSessionReady(session) {
     if (typeof session?.ready !== "function") return true;
     let timer = null;
+    let readinessTimedOut = false;
+    const readiness = Promise.resolve().then(() => session.ready());
+    // AppKit can finish restoring an injected desktop wallet after our bounded
+    // initialization wait has expired. Keep observing that same readiness promise:
+    // otherwise the successful late snapshot is lost until the user refreshes or
+    // manually reconnects on every destination page.
+    void readiness.then(() => {
+      if (!readinessTimedOut || destroyed || session !== state.session) return;
+      restoreFromSessionSnapshot();
+    }, () => {});
     try {
       const result = await Promise.race([
-        Promise.resolve().then(() => session.ready()).then(
+        readiness.then(
           () => ({ ready: true }),
           (error) => ({ error })),
         new Promise((resolve) => {
-          timer = browserWindow.setTimeout?.(() => resolve({ timedOut: true }),
+          timer = browserWindow.setTimeout?.(() => {
+            readinessTimedOut = true;
+            resolve({ timedOut: true });
+          },
             Math.max(1, Number(sessionReadyTimeoutMs) || REOWN_SESSION_READY_TIMEOUT_MS));
           if (timer === undefined) resolve({ timedOut: true });
         }),

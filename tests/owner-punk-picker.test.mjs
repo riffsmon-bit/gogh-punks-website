@@ -638,6 +638,8 @@ test("broker launcher renders only the canonical live-verified owner roster", as
   assert.match(html, /data-owned-punk-count/);
   assert.match(html, /data-ownership-state/);
   assert.match(html, /data-owner-accounts/);
+  assert.match(html, /<details class="owner-roster-disclosure" open>/);
+  assert.match(html, /Your verified Punk roster/);
   assert.match(html, /data-owner-mint-dashboard/);
   assert.match(html, /What your Punks have collected/);
   assert.match(html, /Refresh My Punks/);

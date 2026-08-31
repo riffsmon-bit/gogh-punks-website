@@ -8,7 +8,7 @@
     <title>Art Broker · Gogh Punks</title>
     <link rel="icon" href="/assets/favicon.png" type="image/png" />
     <link rel="stylesheet" href="/broker.css" />
-    <script src="/wallet.js?v=reown-8" type="module"></script>
+    <script src="/wallet.js?v=reown-9" type="module"></script>
     <script src="/owner-accounts.js" type="module"></script>
   </head>
   <body class="broker-launcher-page">
@@ -50,9 +50,15 @@
           <span><b data-owned-punk-count>—</b> verified</span>
         </div>
 
-        <div class="owner-account-grid punk-launcher-grid" data-owner-accounts>
-          <p class="empty-state">Connect the wallet that owns your Gogh Punks.</p>
-        </div>
+        <details class="owner-roster-disclosure" open>
+          <summary>
+            <span>Your verified Punk roster</span>
+            <span class="owner-roster-disclosure-action" aria-hidden="true"></span>
+          </summary>
+          <div class="owner-account-grid punk-launcher-grid" data-owner-accounts>
+            <p class="empty-state">Connect the wallet that owns your Gogh Punks.</p>
+          </div>
+        </details>
 
         <details class="launcher-explainer">
           <summary>How does an Art Broker work?</summary>
