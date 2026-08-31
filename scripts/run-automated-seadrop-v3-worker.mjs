@@ -336,11 +336,15 @@ export function configuredAutomationV3PunkIds(environment = {}) {
 }
 
 export async function eligibleAutomationV3Profiles(
-  pool, requestedTokenId = null, configuredTokenIds = [],
+  pool, requestedTokenId = null, configuredTokenIds = [], agentAddress = null,
 ) {
   if (requestedTokenId !== null
     && (typeof requestedTokenId !== "string" || !/^(?:0|[1-9][0-9]{0,3})$/.test(requestedTokenId))) {
     throw new TypeError("invalid requested Punk token ID");
+  }
+  if (agentAddress !== null
+    && (typeof agentAddress !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(agentAddress))) {
+    throw new TypeError("invalid automation V3 agent address");
   }
   const result = await pool.query(`
     WITH latest_saved_punks AS (
@@ -359,6 +363,9 @@ export async function eligibleAutomationV3Profiles(
     )
     SELECT enrolled.token_id,
            COALESCE(enrollment.owner_snapshot, latest_saved_punks.configured_by) AS configured_by,
+           COALESCE(enrollment.agent_address,
+             '0x3bb2ebf6b3c4d7f5e5781cdf2091428f7750af7d') AS agent_address,
+           COALESCE(enrollment.agent_lane, 1) AS agent_lane,
            NULL::jsonb AS economic_settings,
            NULL::jsonb AS risk_settings, NULL::jsonb AS artistic_preferences,
            TRUE AS automatic_profile
@@ -374,11 +381,13 @@ export async function eligibleAutomationV3Profiles(
        AND schedule.collection_address = $2
        AND schedule.token_id = enrolled.token_id
      WHERE ($3::numeric IS NULL OR enrolled.token_id = $3::numeric)
+       AND ($6::text IS NULL OR COALESCE(enrollment.agent_address,
+         '0x3bb2ebf6b3c4d7f5e5781cdf2091428f7750af7d') = LOWER($6::text))
        AND (schedule.token_id IS NULL OR (schedule.enabled = TRUE
          AND NOW() >= schedule.start_at AND NOW() < schedule.end_at))
      ORDER BY enrolled.token_id
      LIMIT $4`, [4663, ROBINHOOD.canonicalCollection, requestedTokenId,
-    ELIGIBLE_PROFILE_LIMIT, configuredTokenIds]);
+     ELIGIBLE_PROFILE_LIMIT, configuredTokenIds, agentAddress]);
   const rows = [...result.rows];
   const known = new Set(rows.map(({ token_id: tokenId }) => String(tokenId)));
   // An explicit owner-triggered scan is allowed immediately even when it falls
@@ -390,6 +399,8 @@ export async function eligibleAutomationV3Profiles(
       rows.push(Object.freeze({
         token_id: tokenId,
         configured_by: null,
+        agent_address: agentAddress,
+        agent_lane: null,
         economic_settings: null,
         risk_settings: null,
         artistic_preferences: null,
@@ -952,6 +963,9 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   if (ownerPaidPlan && dependencies.requestedTokenId == null) {
     throw new TypeError("owner-paid execution requires one exact requested Punk");
   }
+  const configuredAgentAddress = getAddress(
+    environment.BROKER_AUTOMATION_V3_AGENT_ADDRESS ?? AUTOMATION_V3_AGENT,
+  ).toLowerCase();
   const key = environment.BROKER_AUTOMATION_V3_AGENT_PRIVATE_KEY;
   let signingAccount = null;
   if (dependencies.readOnly !== true && !ownerPaidPlan) {
@@ -961,7 +975,7 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
       throw error;
     }
     signingAccount = privateKeyToAccount(key);
-    if (signingAccount.address.toLowerCase() !== AUTOMATION_V3_AGENT) {
+    if (signingAccount.address.toLowerCase() !== configuredAgentAddress) {
       const error = new TypeError("AGENT_SIGNER_ADDRESS_MISMATCH");
       error.code = "AGENT_SIGNER_ADDRESS_MISMATCH";
       throw error;
@@ -976,7 +990,9 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   const configuredTokenIds = configuredAutomationV3PunkIds(environment);
   const eligibleProfiles = await workerStage(
     "PROFILE_DATABASE_READ_FAILED",
-    () => eligibleAutomationV3Profiles(database, requestedTokenId, configuredTokenIds),
+      () => eligibleAutomationV3Profiles(
+        database, requestedTokenId, configuredTokenIds, configuredAgentAddress,
+      ),
   );
   const orderedProfiles = await workerStage(
     "PROFILE_ORDER_READ_FAILED",
@@ -1096,7 +1112,7 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   diagnostics.candidateStateReadAttempts = 0;
   const registry = getAddress(manifest.contracts.GoghPunkAccountRegistryV3.address);
   const policyModule = getAddress(manifest.contracts.BrokerPolicyModuleV3.address);
-  const agent = getAddress(AUTOMATION_V3_AGENT);
+  const agent = getAddress(configuredAgentAddress);
   for (const row of profiles) {
     if (budgetExpired()) return budgetResult();
     const tokenId = String(row.token_id);

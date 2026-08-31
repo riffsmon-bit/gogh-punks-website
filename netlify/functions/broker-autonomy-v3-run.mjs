@@ -1,6 +1,9 @@
-import { readAutomationV3PunkState } from "./_shared/autonomy-v3-live.mjs";
 import { runAutomationV3Once } from "./_shared/automation-v3-runner.mjs";
 import { enrollAutomationV3Punk } from "./_shared/automation-v3-worker-state.mjs";
+import {
+  automationV3LaneEnvironment,
+} from "./_shared/automation-v3-agent-pool.mjs";
+import { resolveAutomationV3PunkAgent } from "./_shared/automation-v3-punk-agent.mjs";
 import {
   forwardProductionAutomationV3Run, isDeployPreview,
 } from "./_shared/automation-v3-production-bridge.mjs";
@@ -43,10 +46,18 @@ export function requireAutomationV3RunOrigin(request, environment = process.env)
 
 export async function runSelectedAutomationV3(body, dependencies = {}) {
   const tokenId = exactBody(body);
-  const readPunk = dependencies.readPunk ?? readAutomationV3PunkState;
   const runOnce = dependencies.runOnce ?? runAutomationV3Once;
   const enroll = dependencies.enroll ?? enrollAutomationV3Punk;
-  const punk = await readPunk(tokenId);
+  let lane = null;
+  let punk;
+  if (dependencies.readPunk) {
+    punk = await dependencies.readPunk(tokenId);
+    lane = { laneId: 1, address: punk?.authorization?.agent };
+  } else {
+    ({ lane, punk } = await resolveAutomationV3PunkAgent(tokenId, process.env, {
+      assignment: dependencies.assignment,
+    }));
+  }
   if (punk?.tokenId !== tokenId || punk?.created !== true || punk?.active !== true) {
     throw new PublicError(
       409,
@@ -54,8 +65,13 @@ export async function runSelectedAutomationV3(body, dependencies = {}) {
       `Punk #${tokenId} is not currently authorized for autonomous V3 mints.`,
     );
   }
-  await enroll(punk);
-  const result = await runOnce({ requestedTokenId: tokenId });
+  await enroll(punk, { agentAddress: lane.address, agentLane: lane.laneId });
+  const runOptions = { requestedTokenId: tokenId };
+  if (!dependencies.runOnce) {
+    runOptions.environment = automationV3LaneEnvironment(process.env, lane.laneId);
+    runOptions.laneId = lane.laneId;
+  }
+  const result = await runOnce(runOptions);
   return Object.freeze({
     tokenId,
     status: result.status,

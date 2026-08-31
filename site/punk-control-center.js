@@ -232,18 +232,31 @@ function renderPrepaidAgentGas() {
   setText("[data-prepaid-agent-recipient]", status?.agent
     ? formatAddress(status.agent) : "Fixed hosted signer not loaded");
   const amount = query("[data-prepaid-agent-amount]");
+  const mints = query("[data-prepaid-agent-mints]");
+  const days = query("[data-prepaid-agent-days]");
   const confirmation = query("[data-prepaid-agent-confirm]");
   const recommended = query("[data-prepaid-agent-recommended]");
   const submit = query("[data-prepaid-agent-submit]");
   const controlsEnabled = authorizationActive && Boolean(status) && !state.prepaidAgentGasBusy;
   if (amount) amount.disabled = !controlsEnabled;
+  if (mints) mints.disabled = !controlsEnabled;
+  if (days) days.disabled = !controlsEnabled;
   if (confirmation) confirmation.disabled = !controlsEnabled;
   if (recommended) recommended.disabled = !controlsEnabled;
   if (submit) {
     submit.disabled = !controlsEnabled || confirmation?.checked !== true;
     submit.textContent = state.prepaidAgentGasBusy
-      ? "CONFIRMING PREPAID GAS…" : "PREPAY GAS & RUN PUNK NOW";
+      ? "STARTING PRIORITY AGENT…" : "FUND & START PRIORITY AGENT";
   }
+  const selectedMints = Number(mints?.value ?? 1);
+  const recommendedWei = status?.recommendedWeiByMintLimit?.[String(selectedMints)]
+    ?? status?.recommendedWei;
+  setText("[data-prepaid-agent-recommendation]", recommendedWei
+    ? `Recommended reserve: ${formatNative(recommendedWei)}` : "Recommended reserve unavailable");
+  const session = status?.session;
+  setText("[data-prepaid-agent-session]", session
+    ? `${session.state} · ${session.completedMints}/${session.requestedMints} mints · until ${new Date(session.expiresAt).toLocaleString()}`
+    : "Not started");
 }
 
 function renderFundingActions() {
@@ -569,7 +582,9 @@ async function loadPrepaidAgentGas() {
       (...args) => fetch(...args), state.tokenId, state.walletAccount,
     );
     setPrepaidAgentGasMessage(
-      `Punk #${state.tokenId} has ${formatNative(state.prepaidAgentGas.availableWei)} of prepaid agent gas. Prepaying requests its scan immediately.`,
+      state.prepaidAgentGas.session
+        ? `Punk #${state.tokenId}'s priority session is ${state.prepaidAgentGas.session.state.toLowerCase()}: ${state.prepaidAgentGas.session.completedMints} of ${state.prepaidAgentGas.session.requestedMints} successful mints.`
+        : `Punk #${state.tokenId} has ${formatNative(state.prepaidAgentGas.availableWei)} of priority agent gas credit.`,
     );
   } catch (error) {
     state.prepaidAgentGas = null;
@@ -656,11 +671,16 @@ async function prepayAgentGasAndRun() {
       throw new Error("The selected wallet or Punk changed before funding");
     }
     state.prepaidAgentGas = status;
+    const configuration = {
+      amountText: query("[data-prepaid-agent-amount]").value,
+      mintLimit: Number(query("[data-prepaid-agent-mints]").value),
+      durationDays: Number(query("[data-prepaid-agent-days]").value),
+    };
     const plan = await preflightPrepaidAgentGas(
-      state.provider, status, selectedTokenId, query("[data-prepaid-agent-amount]").value,
+      state.provider, status, selectedTokenId, configuration,
     );
     setPrepaidAgentGasMessage(
-      `Waiting for your wallet to prepay ${formatNative(plan.amountWei)} for Punk #${selectedTokenId}'s agent…`,
+      `Waiting for your wallet to fund Punk #${selectedTokenId}'s ${plan.mintLimit}-mint, ${plan.durationDays}-day priority session with ${formatNative(plan.amountWei)}…`,
     );
     const transactionHash = await submitPrepaidAgentGas(state.provider, plan);
     const transactionLink = query("[data-prepaid-agent-transaction]");
@@ -672,19 +692,23 @@ async function prepayAgentGasAndRun() {
     const receipt = await waitForReceipt(transactionHash, revision);
     if (!receipt) throw new Error("Confirmation is taking longer than expected");
     setPrepaidAgentGasMessage(
-      "Gas confirmed. Crediting this Punk and requesting its priority scan now…",
+      "Gas confirmed. Starting this Punk's durable priority session and requesting its first scan…",
     );
     const confirmed = await confirmPrepaidAgentGas(
       (...args) => fetch(...args), plan, transactionHash,
     );
     if (revision !== state.revision || state.tokenId !== selectedTokenId) return;
-    state.prepaidAgentGas = confirmed.credit ?? state.prepaidAgentGas;
+    state.prepaidAgentGas = confirmed.credit ? {
+      ...state.prepaidAgentGas,
+      availableWei: confirmed.credit.availableWei,
+      session: confirmed.credit.session ?? state.prepaidAgentGas?.session,
+    } : state.prepaidAgentGas;
     const run = confirmed.run ?? {};
     const message = run.transactionHash
       ? `Punk #${selectedTokenId} used its priority run and submitted a mint. Confirmation is visible in Activity.`
       : run.status === "RUN_IN_PROGRESS" || run.status === "QUEUED"
-        ? `Punk #${selectedTokenId}'s gas is credited and its priority run is queued. The credit stays with this Punk until used.`
-        : `Punk #${selectedTokenId}'s immediate scan completed without an eligible mint. Its unused gas credit remains assigned to this Punk.`;
+        ? `Punk #${selectedTokenId}'s priority session is active and queued in the dedicated fast lane.`
+        : `Punk #${selectedTokenId}'s first priority scan completed without an eligible mint. Its session remains active until its mint target or duration is reached.`;
     setPrepaidAgentGasMessage(message);
     query("[data-prepaid-agent-confirm]").checked = false;
     await Promise.all([
@@ -1699,11 +1723,25 @@ function bindActions() {
     });
   }
   query("[data-prepaid-agent-recommended]").addEventListener("click", () => {
-    query("[data-prepaid-agent-amount]").value = "0.0005";
+    const mints = query("[data-prepaid-agent-mints]").value;
+    const recommendedWei = state.prepaidAgentGas?.recommendedWeiByMintLimit?.[mints];
+    query("[data-prepaid-agent-amount]").value = recommendedWei
+      ? (Number(recommendedWei) / 1e18).toString() : "0.0005";
     query("[data-prepaid-agent-confirm]").checked = false;
     setPrepaidAgentGasMessage(
-      "Recommended first-run gas selected. Review the fixed hosted signer and confirm this Punk-specific credit.",
+      "Recommended priority reserve selected. Review the session target, duration, and fixed signer before confirming.",
     );
+    renderPrepaidAgentGas();
+  });
+  query("[data-prepaid-agent-mints]").addEventListener("change", () => {
+    query("[data-prepaid-agent-confirm]").checked = false;
+    const mints = query("[data-prepaid-agent-mints]").value;
+    const recommendedWei = state.prepaidAgentGas?.recommendedWeiByMintLimit?.[mints];
+    if (recommendedWei) query("[data-prepaid-agent-amount]").value = (Number(recommendedWei) / 1e18).toString();
+    renderPrepaidAgentGas();
+  });
+  query("[data-prepaid-agent-days]").addEventListener("change", () => {
+    query("[data-prepaid-agent-confirm]").checked = false;
     renderPrepaidAgentGas();
   });
   query("[data-prepaid-agent-confirm]").addEventListener("change", renderPrepaidAgentGas);

@@ -4,6 +4,7 @@ import pg from "pg";
 const MIGRATIONS = Object.freeze([
   "20260830210000_create_gogh_broker_operational_shadow",
   "20260831220000_add_punk_agent_gas_credits",
+  "20260831233000_add_punk_priority_sessions",
 ]);
 const APPLY = process.argv.includes("--apply");
 
@@ -42,7 +43,8 @@ try {
     `SELECT to_regclass('public.gogh_broker_punk_jobs') IS NOT NULL AS jobs,
             to_regclass('public.gogh_broker_punk_state') IS NOT NULL AS states,
             to_regclass('public.gogh_broker_punk_agent_gas_accounts') IS NOT NULL AS gas_accounts,
-            to_regclass('public.gogh_broker_punk_agent_gas_deposits') IS NOT NULL AS gas_deposits`,
+            to_regclass('public.gogh_broker_punk_agent_gas_deposits') IS NOT NULL AS gas_deposits,
+            to_regclass('public.gogh_broker_punk_priority_sessions') IS NOT NULL AS priority_sessions`,
   );
   console.log(JSON.stringify({
     migrations: MIGRATIONS,
@@ -53,6 +55,7 @@ try {
     tablesPresent: already.rows[0]?.jobs === true && already.rows[0]?.states === true,
     prepaidGasTablesPresent: already.rows[0]?.gas_accounts === true
       && already.rows[0]?.gas_deposits === true,
+    prioritySessionTablePresent: already.rows[0]?.priority_sessions === true,
   }));
   if (APPLY) {
     const statements = await Promise.all(MIGRATIONS.map((migration) => readFile(new URL(
@@ -75,13 +78,13 @@ try {
       [["gogh_broker_punk_state", "gogh_broker_punk_jobs", "gogh_broker_worker_runs",
         "gogh_broker_agent_activity", "gogh_broker_ownership_projection",
         "gogh_broker_diagnostics", "gogh_broker_punk_agent_gas_accounts",
-        "gogh_broker_punk_agent_gas_deposits"]],
+        "gogh_broker_punk_agent_gas_deposits", "gogh_broker_punk_priority_sessions"]],
     );
     console.log(JSON.stringify({
       migrations: MIGRATIONS,
       applied: true,
       verifiedTableCount: Number(verified.rows[0]?.table_count ?? 0),
-      expectedTableCount: 8,
+      expectedTableCount: 9,
     }));
   }
 } finally {

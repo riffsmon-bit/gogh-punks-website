@@ -3,9 +3,8 @@ import { createPublicClient, getAddress, http } from "viem";
 import { resolveRobinhoodRpcPair } from
   "../../broker/src/infrastructure/robinhood-rpc-endpoints.mjs";
 import { json, PublicError, readJson } from "./_shared/http.mjs";
-import {
-  AUTOMATION_V3_AGENT, readAutomationV3PunkState,
-} from "./_shared/autonomy-v3-live.mjs";
+import { AUTOMATION_V3_AGENT } from "./_shared/autonomy-v3-live.mjs";
+import { resolveAutomationV3PunkAgent } from "./_shared/automation-v3-punk-agent.mjs";
 import {
   requireAutomationV3RunOrigin, runSelectedAutomationV3,
 } from "./broker-autonomy-v3-run.mjs";
@@ -14,12 +13,26 @@ import {
 } from "./_shared/automation-v3-production-bridge.mjs";
 import {
   getPrepaidPunkAgentGasBalance, prepaidPunkAgentGasConfiguration,
-  recordPrepaidPunkAgentGasCredit,
+  recordPunkPrioritySessionAttempt, startPunkPrioritySession,
 } from "./_shared/supabase-operational-store.mjs";
 
 const MINIMUM_WEI = 100_000_000_000_000n; // 0.0001 ETH
 const MAXIMUM_WEI = 50_000_000_000_000_000n; // 0.05 ETH
 const RECOMMENDED_WEI = "500000000000000"; // 0.0005 ETH
+const MINT_LIMITS = new Set([1, 3, 5, 10]);
+const DURATION_DAYS = new Set([1, 3, 7, 30]);
+
+function boundedChoice(value, allowed, name) {
+  const selected = Number(value);
+  if (!Number.isSafeInteger(selected) || !allowed.has(selected)) {
+    throw new PublicError(400, "INVALID_REQUEST", `${name} is invalid.`);
+  }
+  return selected;
+}
+
+function recommendedWei(mintLimit) {
+  return (BigInt(RECOMMENDED_WEI) * BigInt(mintLimit)).toString();
+}
 
 function tokenId(value) {
   const normalized = String(value ?? "");
@@ -56,8 +69,7 @@ function amount(value) {
 
 function ensureConfiguration(environment) {
   const configuration = prepaidPunkAgentGasConfiguration(environment);
-  if (!configuration.configured
-    || configuration.agentAddress !== AUTOMATION_V3_AGENT) {
+  if (!configuration.configured) {
     throw new PublicError(
       503,
       "PREPAID_GAS_UNAVAILABLE",
@@ -76,6 +88,18 @@ async function activePunk(selectedTokenId, expectedOwner, readPunk) {
     throw new PublicError(409, "OWNER_CHANGED", "Control of this Punk changed. Refresh before funding.");
   }
   return punk;
+}
+
+async function activePunkLane(selectedTokenId, expectedOwner, dependencies, environment) {
+  if (dependencies.readPunk) {
+    const punk = await activePunk(selectedTokenId, expectedOwner, dependencies.readPunk);
+    return Object.freeze({ punk, lane: { laneId: 1, address: AUTOMATION_V3_AGENT } });
+  }
+  const resolved = await resolveAutomationV3PunkAgent(selectedTokenId, environment, {
+    database: dependencies.database,
+  });
+  const punk = await activePunk(selectedTokenId, expectedOwner, async () => resolved.punk);
+  return Object.freeze({ punk, lane: resolved.lane });
 }
 
 function client(rpcUrl) {
@@ -101,17 +125,29 @@ function normalizeEvidence(transaction, receipt) {
 
 async function readTransactionEvidence(transactionHash, environment) {
   const { primary, secondary } = resolveRobinhoodRpcPair(environment);
-  const evidence = await Promise.all([primary, secondary].map(async (rpcUrl) => {
-    const rpc = client(rpcUrl);
-    const [transaction, receipt] = await Promise.all([
-      rpc.getTransaction({ hash: transactionHash }),
-      rpc.getTransactionReceipt({ hash: transactionHash }),
-    ]);
-    return normalizeEvidence(transaction, receipt);
-  }));
+  let settled;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    settled = await Promise.allSettled([primary, secondary].map(async (rpcUrl) => {
+      const rpc = client(rpcUrl);
+      const [transaction, receipt] = await Promise.all([
+        rpc.getTransaction({ hash: transactionHash }),
+        rpc.getTransactionReceipt({ hash: transactionHash }),
+      ]);
+      return normalizeEvidence(transaction, receipt);
+    }));
+    if (settled.every((result) => result.status === "fulfilled")) break;
+    if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 1_000));
+  }
+  const evidence = settled
+    .filter((result) => result.status === "fulfilled")
+    .map((result) => result.value);
+  if (evidence.length !== 2) {
+    throw new PublicError(409, "TRANSACTION_PENDING",
+      "The deposit is confirmed in your wallet, but both Robinhood RPC providers have not indexed it yet. Retrying will not request another payment.");
+  }
   if (JSON.stringify(evidence[0]) !== JSON.stringify(evidence[1])) {
-    throw new PublicError(503, "RPC_DISAGREEMENT",
-      "Robinhood RPC providers have not agreed on this funding transaction yet. Try again shortly.");
+    throw new PublicError(409, "RPC_DISAGREEMENT",
+      "Robinhood RPC providers have not agreed on this deposit yet. Retrying will not request another payment.");
   }
   return evidence[0];
 }
@@ -121,8 +157,7 @@ export async function prepaidAgentGasStatus(selectedTokenId, expectedOwner, depe
   ensureConfiguration(environment);
   const normalizedTokenId = tokenId(selectedTokenId);
   const owner = address(expectedOwner, "Punk owner");
-  const readPunk = dependencies.readPunk ?? ((id) => readAutomationV3PunkState(id, environment));
-  await activePunk(normalizedTokenId, owner, readPunk);
+  const { lane } = await activePunkLane(normalizedTokenId, owner, dependencies, environment);
   const balance = await (dependencies.getBalance ?? getPrepaidPunkAgentGasBalance)(
     normalizedTokenId, { environment, database: dependencies.database },
   );
@@ -132,18 +167,26 @@ export async function prepaidAgentGasStatus(selectedTokenId, expectedOwner, depe
   return Object.freeze({
     tokenId: normalizedTokenId,
     owner,
-    agent: AUTOMATION_V3_AGENT,
+    agent: lane.address,
+    agentLane: lane.laneId,
     recommendedWei: RECOMMENDED_WEI,
+    recommendedWeiByMintLimit: Object.freeze(Object.fromEntries(
+      [...MINT_LIMITS].map((limit) => [String(limit), recommendedWei(limit)]),
+    )),
+    mintLimitOptions: Object.freeze([...MINT_LIMITS]),
+    durationDayOptions: Object.freeze([...DURATION_DAYS]),
     minimumWei: MINIMUM_WEI.toString(),
     maximumWei: MAXIMUM_WEI.toString(),
     availableWei: balance.availableWei,
     updatedAt: balance.updatedAt,
+    session: balance.session ?? null,
   });
 }
 
 export async function confirmPrepaidAgentGas(body, dependencies = {}) {
   if (!body || typeof body !== "object" || Array.isArray(body)
-    || Object.keys(body).sort().join(",") !== "amountWei,owner,tokenId,transactionHash") {
+    || Object.keys(body).sort().join(",")
+      !== "amountWei,durationDays,mintLimit,owner,tokenId,transactionHash") {
     throw new PublicError(400, "INVALID_REQUEST", "The prepaid gas confirmation is invalid.");
   }
   const environment = dependencies.environment ?? process.env;
@@ -151,39 +194,54 @@ export async function confirmPrepaidAgentGas(body, dependencies = {}) {
   const selectedTokenId = tokenId(body.tokenId);
   const owner = address(body.owner, "Punk owner");
   const amountWei = amount(body.amountWei);
+  const mintLimit = boundedChoice(body.mintLimit, MINT_LIMITS, "Mint limit");
+  const durationDays = boundedChoice(body.durationDays, DURATION_DAYS, "Session duration");
+  if (amountWei < BigInt(recommendedWei(mintLimit))) {
+    throw new PublicError(400, "INSUFFICIENT_PRIORITY_RESERVE",
+      `Choose at least the recommended gas reserve for ${mintLimit} mints.`);
+  }
   const transactionHash = hash(body.transactionHash);
-  const readPunk = dependencies.readPunk ?? ((id) => readAutomationV3PunkState(id, environment));
-  await activePunk(selectedTokenId, owner, readPunk);
+  const { lane } = await activePunkLane(selectedTokenId, owner, dependencies, environment);
   const evidence = await (dependencies.readTransaction ?? readTransactionEvidence)(
     transactionHash, environment,
   );
-  if (evidence.from !== owner || evidence.to !== AUTOMATION_V3_AGENT
+  if (evidence.from !== owner || evidence.to !== lane.address
     || evidence.value !== amountWei.toString() || evidence.input !== "0x") {
     throw new PublicError(409, "FUNDING_MISMATCH",
       "The confirmed transaction does not exactly fund this Punk's fixed hosted agent.");
   }
   // Ownership is checked again after receipt verification so a transfer during confirmation
   // cannot credit or queue an agent for the previous holder.
-  await activePunk(selectedTokenId, owner, readPunk);
-  const credit = await (dependencies.recordCredit ?? recordPrepaidPunkAgentGasCredit)({
+  await activePunkLane(selectedTokenId, owner, dependencies, environment);
+  const credit = await (dependencies.recordCredit ?? startPunkPrioritySession)({
     tokenId: selectedTokenId,
     owner,
-    agent: AUTOMATION_V3_AGENT,
+    agent: lane.address,
     amountWei: amountWei.toString(),
     transactionHash,
     blockNumber: evidence.blockNumber,
     confirmedAt: new Date().toISOString(),
+    mintLimit,
+    durationDays,
   }, { environment, database: dependencies.database });
   let run;
   try {
     run = await (dependencies.runNow ?? runSelectedAutomationV3)({ tokenId: selectedTokenId }, {
-      readPunk,
+      ...(dependencies.readPunk ? { readPunk: dependencies.readPunk } : {}),
       ...(dependencies.runOnce ? { runOnce: dependencies.runOnce } : {}),
       ...(dependencies.enroll ? { enroll: dependencies.enroll } : {}),
     });
   } catch {
     run = Object.freeze({ tokenId: selectedTokenId, status: "QUEUED", submitted: 0,
       collection: null, transactionHash: null });
+  }
+  try {
+    await (dependencies.recordAttempt ?? recordPunkPrioritySessionAttempt)(
+      credit.session.id, run, { environment, database: dependencies.database },
+    );
+  } catch {
+    console.error(JSON.stringify({ event: "PUNK_PRIORITY_SESSION_ATTEMPT_WRITE_FAILED",
+      tokenId: selectedTokenId }));
   }
   return Object.freeze({ tokenId: selectedTokenId, credit, run });
 }

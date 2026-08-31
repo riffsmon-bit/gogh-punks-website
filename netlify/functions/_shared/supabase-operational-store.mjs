@@ -60,6 +60,22 @@ function positiveWei(value, name) {
   return normalized;
 }
 
+function priorityMintLimit(value) {
+  const normalized = Number(value);
+  if (!new Set([1, 3, 5, 10]).has(normalized)) {
+    throw new TypeError("priority-session mint limit is invalid");
+  }
+  return normalized;
+}
+
+function priorityDurationDays(value) {
+  const normalized = Number(value);
+  if (!new Set([1, 3, 7, 30]).has(normalized)) {
+    throw new TypeError("priority-session duration is invalid");
+  }
+  return normalized;
+}
+
 function uuid(value, name) {
   if (typeof value !== "string"
     || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)) {
@@ -303,11 +319,29 @@ export async function getPrepaidPunkAgentGasBalance(selectedTokenId, options = {
   const normalizedTokenId = tokenId(selectedTokenId);
   const database = operationalPool(environment, options.database);
   const result = await database.query(
-    `SELECT credited_wei::text AS credited_wei, spent_wei::text AS spent_wei,
-            (credited_wei - spent_wei)::text AS available_wei, updated_at
-       FROM gogh_broker_punk_agent_gas_accounts
-      WHERE chain_id = 4663 AND collection_address = $1
-        AND punk_token_id = $2::numeric`,
+    `SELECT account.credited_wei::text AS credited_wei,
+            account.spent_wei::text AS spent_wei,
+            (account.credited_wei - account.spent_wei)::text AS available_wei,
+            account.updated_at,
+            session.session_id::text AS session_id,
+            session.state AS session_state,
+            session.requested_mints,
+            session.completed_mints,
+            session.duration_days,
+            session.starts_at,
+            session.expires_at,
+            session.last_attempt_at,
+            session.last_result
+       FROM gogh_broker_punk_agent_gas_accounts AS account
+       LEFT JOIN LATERAL (
+         SELECT * FROM gogh_broker_punk_priority_sessions
+          WHERE chain_id = account.chain_id
+            AND collection_address = account.collection_address
+            AND punk_token_id = account.punk_token_id
+          ORDER BY created_at DESC LIMIT 1
+       ) AS session ON TRUE
+      WHERE account.chain_id = 4663 AND account.collection_address = $1
+        AND account.punk_token_id = $2::numeric`,
     [COLLECTION, normalizedTokenId],
   );
   const row = result.rows?.[0];
@@ -317,6 +351,18 @@ export async function getPrepaidPunkAgentGasBalance(selectedTokenId, options = {
     spentWei: row?.spent_wei ?? "0",
     availableWei: row?.available_wei ?? "0",
     updatedAt: row?.updated_at == null ? null : iso(row.updated_at, "gas balance update"),
+    session: row?.session_id == null ? null : Object.freeze({
+      id: row.session_id,
+      state: row.session_state,
+      requestedMints: Number(row.requested_mints),
+      completedMints: Number(row.completed_mints),
+      durationDays: Number(row.duration_days),
+      startsAt: iso(row.starts_at, "priority-session start"),
+      expiresAt: iso(row.expires_at, "priority-session expiry"),
+      lastAttemptAt: row.last_attempt_at == null ? null
+        : iso(row.last_attempt_at, "priority-session attempt"),
+      lastResult: row.last_result ?? null,
+    }),
   });
 }
 
@@ -334,7 +380,13 @@ export async function recordPrepaidPunkAgentGasCredit(evidence, options = {}) {
   const amountWei = positiveWei(evidence?.amountWei, "agent gas amount");
   const blockNumber = positiveWei(evidence?.blockNumber, "agent gas block number");
   const confirmedAt = iso(evidence?.confirmedAt, "agent gas confirmation time");
-  const releaseCommit = release(options.release ?? environment.BROKER_AUTOMATION_V3_WORKER_RELEASE);
+  // Deploy previews deliberately do not carry every production-worker variable.  The
+  // credit is still an auditable write made by a concrete site release, so use the
+  // immutable Netlify commit when the worker release is not present.  This value is
+  // provenance only; it does not authorize the preview to drive the production queue.
+  const releaseCommit = release(options.release
+    ?? environment.BROKER_AUTOMATION_V3_WORKER_RELEASE
+    ?? environment.COMMIT_REF);
   const database = operationalPool(environment, options.database);
   const result = await database.query(
     `SELECT credited, available_wei::text AS available_wei, job_id
@@ -353,6 +405,138 @@ export async function recordPrepaidPunkAgentGasCredit(evidence, options = {}) {
     availableWei: row.available_wei,
     jobId: row.job_id ?? null,
   });
+}
+
+export async function startPunkPrioritySession(evidence, options = {}) {
+  const environment = options.environment ?? process.env;
+  const configuration = supabaseOperationalConfiguration(environment);
+  if (!configuration.shadowWrites) {
+    throw new TypeError("Punk priority-session accounting is unavailable");
+  }
+  const selectedTokenId = tokenId(evidence?.tokenId);
+  const transactionHash = optionalHash(evidence?.transactionHash);
+  if (!transactionHash) throw new TypeError("priority-session transaction hash is required");
+  const owner = address(evidence?.owner, "Punk owner");
+  const agent = address(evidence?.agent, "hosted agent");
+  const amountWei = positiveWei(evidence?.amountWei, "priority-session gas amount");
+  const blockNumber = positiveWei(evidence?.blockNumber, "priority-session block number");
+  const confirmedAt = iso(evidence?.confirmedAt, "priority-session confirmation time");
+  const mintLimit = priorityMintLimit(evidence?.mintLimit);
+  const durationDays = priorityDurationDays(evidence?.durationDays);
+  const releaseCommit = release(options.release
+    ?? environment.BROKER_AUTOMATION_V3_WORKER_RELEASE
+    ?? environment.COMMIT_REF);
+  const database = operationalPool(environment, options.database);
+  const result = await database.query(
+    `SELECT credited, available_wei::text AS available_wei,
+            session_id::text AS session_id, session_state, completed_mints,
+            expires_at, job_id::text AS job_id
+       FROM gogh_broker_start_punk_priority_session(
+         $1, $2::numeric, $3, $4, $5::numeric, $6::bigint, $7::timestamptz,
+         $8, $9::smallint, $10::smallint
+       )`,
+    [transactionHash, selectedTokenId, owner, agent, amountWei, blockNumber,
+      confirmedAt, releaseCommit, mintLimit, durationDays],
+  );
+  const row = result.rows?.[0];
+  if (!row || typeof row.available_wei !== "string" || typeof row.session_id !== "string") {
+    throw new TypeError("Punk priority session was not recorded");
+  }
+  return Object.freeze({
+    credited: row.credited === true,
+    availableWei: row.available_wei,
+    session: Object.freeze({
+      id: row.session_id,
+      state: row.session_state,
+      requestedMints: mintLimit,
+      completedMints: Number(row.completed_mints),
+      durationDays,
+      expiresAt: iso(row.expires_at, "priority-session expiry"),
+    }),
+    jobId: row.job_id ?? null,
+  });
+}
+
+export async function nextPunkPrioritySession(options = {}) {
+  const environment = options.environment ?? process.env;
+  const configuration = supabaseOperationalConfiguration(environment);
+  if (!configuration.shadowWrites) return null;
+  const database = operationalPool(environment, options.database);
+  const result = await database.query(
+    `WITH expired AS (
+       UPDATE gogh_broker_punk_priority_sessions
+          SET state = 'EXPIRED', updated_at = NOW()
+        WHERE state = 'ACTIVE' AND expires_at <= NOW()
+        RETURNING session_id
+     )
+     SELECT session.session_id::text AS session_id,
+            session.punk_token_id::text AS punk_token_id,
+            session.owner_snapshot, deposit.agent_address,
+            session.requested_mints, session.completed_mints, session.duration_days,
+            session.starts_at, session.expires_at
+       FROM gogh_broker_punk_priority_sessions AS session
+       JOIN gogh_broker_punk_agent_gas_deposits AS deposit
+         ON deposit.transaction_hash = session.deposit_transaction_hash
+      WHERE session.state = 'ACTIVE' AND session.expires_at > NOW()
+        AND session.completed_mints < session.requested_mints
+      ORDER BY session.last_attempt_at ASC NULLS FIRST, session.created_at,
+               session.punk_token_id
+      LIMIT 1`,
+  );
+  const row = result.rows?.[0];
+  if (!row) return null;
+  return Object.freeze({
+    id: row.session_id,
+    tokenId: tokenId(row.punk_token_id),
+    owner: address(row.owner_snapshot, "priority-session owner"),
+    agent: address(row.agent_address, "priority-session agent"),
+    requestedMints: priorityMintLimit(row.requested_mints),
+    completedMints: Number(row.completed_mints),
+    durationDays: priorityDurationDays(row.duration_days),
+    startsAt: iso(row.starts_at, "priority-session start"),
+    expiresAt: iso(row.expires_at, "priority-session expiry"),
+  });
+}
+
+export async function recordPunkPrioritySessionAttempt(sessionId, outcome, options = {}) {
+  const environment = options.environment ?? process.env;
+  const configuration = supabaseOperationalConfiguration(environment);
+  if (!configuration.shadowWrites) return Object.freeze({ recorded: false, reason: "DISABLED" });
+  const selectedSession = uuid(sessionId, "priority-session ID");
+  const status = resultCode(outcome?.status, "UNKNOWN_RESULT");
+  const minted = status === "MINT_CONFIRMED" && Number(outcome?.submitted ?? 0) === 1;
+  const terminalState = status === "OWNER_CHANGED" ? "OWNER_CHANGED"
+    : new Set(["PUNK_AUTOMATION_INACTIVE", "PUNK_NOT_AUTHORIZED", "AUTHORIZATION_EXPIRED"])
+      .has(status) ? "CANCELLED" : null;
+  const transactionHash = optionalHash(outcome?.transactionHash);
+  if (minted && !transactionHash) throw new TypeError("confirmed priority mint needs a transaction hash");
+  const database = operationalPool(environment, options.database);
+  const result = await database.query(
+    `UPDATE gogh_broker_punk_priority_sessions
+        SET completed_mints = completed_mints + CASE WHEN $2 THEN 1 ELSE 0 END,
+            state = CASE
+              WHEN $5::text IS NOT NULL THEN $5::text
+              WHEN completed_mints + CASE WHEN $2 THEN 1 ELSE 0 END >= requested_mints
+                THEN 'COMPLETE'
+              WHEN expires_at <= NOW() THEN 'EXPIRED'
+              ELSE state END,
+            last_attempt_at = NOW(), last_result = $3,
+            last_transaction_hash = COALESCE($4, last_transaction_hash),
+            updated_at = NOW()
+      WHERE session_id = $1::uuid AND state = 'ACTIVE'
+      RETURNING punk_token_id::text AS punk_token_id, state,
+                requested_mints, completed_mints, expires_at`,
+    [selectedSession, minted, status, transactionHash, terminalState],
+  );
+  const row = result.rows?.[0];
+  return row ? Object.freeze({
+    recorded: true,
+    tokenId: tokenId(row.punk_token_id),
+    state: row.state,
+    requestedMints: Number(row.requested_mints),
+    completedMints: Number(row.completed_mints),
+    expiresAt: iso(row.expires_at, "priority-session expiry"),
+  }) : Object.freeze({ recorded: false, reason: "SESSION_NOT_ACTIVE" });
 }
 
 export async function claimSupabasePunkJobs(workerId, options = {}) {
