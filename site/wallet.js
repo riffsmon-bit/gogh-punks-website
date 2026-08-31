@@ -358,7 +358,7 @@ function loadReownBundle(browserWindow, browserDocument) {
     const script = browserDocument.createElement("script");
     // Keep this version aligned with the HTML wallet module URL. Wallet session
     // fixes must not be stranded behind a stale mobile or desktop browser cache.
-    script.src = "/reown-wallet-app.js?v=reown-5";
+    script.src = "/reown-wallet-app.js?v=reown-6";
     script.async = true;
     script.dataset.reownAppkit = "true";
     script.addEventListener("load", resolve, { once: true });
@@ -372,6 +372,8 @@ function loadReownBundle(browserWindow, browserDocument) {
 
 const REOWN_RETURNING_SESSION_KEY = "gogh.wallet.reown.returning.v1";
 const REOWN_CONNECTION_TIMEOUT_MS = 12_000;
+const REOWN_RESTORE_PROBE_DELAYS_MS = Object.freeze([100, 250, 500, 1_000, 2_000, 4_000,
+  8_000]);
 const WALLET_SCOPED_STORAGE_KEYS = Object.freeze([
   REOWN_RETURNING_SESSION_KEY,
   "gogh.artBroker.setup.v1",
@@ -420,7 +422,8 @@ function setReturningSessionMarker(browserWindow, connected) {
 }
 
 export async function setupReownWallet({ windowObject, documentObject, fetchFunction,
-  sessionFactory, connectionTimeoutMs = REOWN_CONNECTION_TIMEOUT_MS } = {}) {
+  sessionFactory, connectionTimeoutMs = REOWN_CONNECTION_TIMEOUT_MS,
+  restoreProbeDelaysMs = REOWN_RESTORE_PROBE_DELAYS_MS } = {}) {
   const browserWindow = windowObject ?? (typeof window === "undefined" ? null : window);
   const browserDocument = documentObject ?? (typeof document === "undefined" ? null : document);
   if (!browserWindow || !browserDocument) return null;
@@ -439,7 +442,48 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
   const unsubscribers = [];
   let initializationPromise = null;
   let pendingTimer = null;
+  const restoreProbeTimers = new Set();
   let destroyed = false;
+
+  function clearRestoreProbes() {
+    for (const timer of restoreProbeTimers) browserWindow.clearTimeout?.(timer);
+    restoreProbeTimers.clear();
+  }
+
+  function restoreFromSessionSnapshot() {
+    if (destroyed || !state.session || state.account
+      || !returningSessionMarker(browserWindow)) return Boolean(state.account);
+    const account = state.session.getAccount?.();
+    const nextAccount = account?.isConnected
+      ? normalizeWalletAddress(account.address) : null;
+    if (!nextAccount) return false;
+    state.account = nextAccount;
+    state.chainId = Number(state.session.getNetwork?.().chainId) || state.chainId;
+    state.provider = state.session.getProvider?.() ?? state.provider;
+    state.networkError = null;
+    setReturningSessionMarker(browserWindow, true);
+    clearRestoreProbes();
+    finishPending();
+    render();
+    if (typeof state.session.close === "function") {
+      void Promise.resolve(state.session.close()).catch(() => {});
+    }
+    return true;
+  }
+
+  function scheduleRestoreProbes() {
+    clearRestoreProbes();
+    if (state.account || !state.session || !returningSessionMarker(browserWindow)) return;
+    const delays = Array.isArray(restoreProbeDelaysMs) ? restoreProbeDelaysMs : [];
+    for (const rawDelay of delays) {
+      const delay = Math.max(1, Number(rawDelay) || 0);
+      const timer = browserWindow.setTimeout?.(() => {
+        restoreProbeTimers.delete(timer);
+        restoreFromSessionSnapshot();
+      }, delay);
+      if (timer !== undefined && timer !== null) restoreProbeTimers.add(timer);
+    }
+  }
 
   function clearPendingTimer() {
     if (pendingTimer !== null) browserWindow.clearTimeout?.(pendingTimer);
@@ -581,6 +625,7 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
     state.networkError = null;
     render();
     try {
+      clearRestoreProbes();
       await state.session.disconnect();
       state.account = null;
       state.chainId = null;
@@ -678,6 +723,7 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
           const nextAccount = connectedNow ? normalizeWalletAddress(account.address) : null;
           if (nextAccount) {
             state.account = nextAccount;
+            clearRestoreProbes();
           } else if (!accountPending) {
             // A settled account event is authoritative. Temporary reconnect frames are not.
             state.account = null;
@@ -753,6 +799,7 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
         state.sessionStatus = "ready";
         finishPending();
         render();
+        if (!state.account && returningSessionMarker(browserWindow)) scheduleRestoreProbes();
         return state.session;
       } catch {
         // Session initialization is atomic. AppKit mounts its modal as part of
@@ -787,6 +834,7 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
     destroy() {
       destroyed = true;
       clearPendingTimer();
+      clearRestoreProbes();
       for (const button of buttons) button.removeEventListener("click", connect);
       for (const button of switchButtons) button.removeEventListener("click", switchNetwork);
       for (const button of disconnectButtons) button.removeEventListener("click", disconnect);

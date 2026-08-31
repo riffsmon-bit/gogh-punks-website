@@ -183,6 +183,31 @@ test("a known prior Reown session restores immediately without opening a wallet 
   assert.deepEqual(fixture.calls, ["close"], "restoration closes stale UI without opening a selector");
 });
 
+test("desktop restoration recovers from an AppKit account event missed during initialization", async () => {
+  const fixture = reownFixture();
+  fixture.storage.set("gogh.wallet.reown.returning.v1", "1");
+  let queuedCallback;
+  fixture.windowObject.queueMicrotask = (callback) => { queuedCallback = callback; };
+  await setupReownWallet({
+    windowObject: fixture.windowObject,
+    documentObject: fixture.documentObject,
+    sessionFactory: () => fixture.session,
+    restoreProbeDelaysMs: [5],
+  });
+  await queuedCallback();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(fixture.windowObject.__GOGH_WALLET_SNAPSHOT__.account, null);
+
+  // Desktop AppKit can finish restoring its injected provider without replaying the
+  // account event after this page subscribes. The bounded local probe must observe
+  // the SDK snapshot without opening a selector or making a chain request.
+  fixture.current.account = { address: OWNER, isConnected: true, status: "connected" };
+  await new Promise((resolve) => setTimeout(resolve, 15));
+  assert.equal(fixture.windowObject.__GOGH_WALLET_SNAPSHOT__.account, OWNER);
+  assert.equal(fixture.windowObject.__GOGH_WALLET_PROVIDER__, PROVIDER);
+  assert.deepEqual(fixture.calls, ["close"]);
+});
+
 test("a stale Reown reconnect stops visibly connecting without forgetting the cross-page session", async () => {
   const fixture = reownFixture();
   fixture.storage.set("gogh.wallet.reown.returning.v1", "1");
@@ -193,6 +218,7 @@ test("a stale Reown reconnect stops visibly connecting without forgetting the cr
     documentObject: fixture.documentObject,
     sessionFactory: () => fixture.session,
     connectionTimeoutMs: 5,
+    restoreProbeDelaysMs: [],
   });
   await queuedCallback();
   await new Promise((resolve) => setTimeout(resolve, 0));
@@ -329,7 +355,7 @@ test("every wallet-enabled page restores the one Reown session and exposes disco
     "../site/discover/index.html",
   ].map((path) => readFile(new URL(path, import.meta.url), "utf8")));
   for (const page of pages) {
-    assert.match(page, /\/wallet\.js\?v=reown-5/);
+    assert.match(page, /\/wallet\.js\?v=reown-6/);
     assert.match(page, /data-wallet-connect/);
     assert.match(page, /data-wallet-disconnect/);
     assert.match(page, /Disconnect(?: Wallet)?/);
@@ -364,8 +390,8 @@ test("mobile Punk launcher and activation flow bind the required production expe
   assert.doesNotMatch(client, /projectId:\s*["'][0-9a-f]{32}/);
   assert.doesNotMatch(wallet, /setupReadOnlyWallet\(\{ windowObject: window/);
   assert.match(wallet, /First-time visitors load no AppKit code/);
-  assert.match(html, /\/wallet\.js\?v=reown-5/);
-  assert.match(wallet, /\/reown-wallet-app\.js\?v=reown-5/);
+  assert.match(html, /\/wallet\.js\?v=reown-6/);
+  assert.match(wallet, /\/reown-wallet-app\.js\?v=reown-6/);
   assert.match(packageJson, /@reown\/appkit/);
   assert.match(netlify, /wss:\/\/relay\.walletconnect\.com/);
   assert.match(netlify, /script-src 'self'; style-src 'self' 'unsafe-inline'/);
