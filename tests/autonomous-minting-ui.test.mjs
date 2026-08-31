@@ -15,35 +15,24 @@ import { DRAFT_RARITY_MINT_LIMITS } from "../broker/src/retirement/deflationary-
 const root = new URL("../", import.meta.url);
 
 test("automation panel selects the best fully ready generation and preserves the bounded setup", async () => {
-  const [html, browser] = await Promise.all([
+  const [launcher, html, browser, activation, control] = await Promise.all([
     readFile(new URL("site/broker/index.html", root), "utf8"),
+    readFile(new URL("site/broker/punk/index.html", root), "utf8"),
     readFile(new URL("site/autonomous-minting.js", root), "utf8"),
+    readFile(new URL("site/owner-agent-activation.js", root), "utf8"),
+    readFile(new URL("site/punk-control-center.js", root), "utf8"),
   ]);
-  assert.match(html, /Continuous free-mint automation/);
-  assert.match(html, /<details class="active-agent-console" data-active-agent-console>/);
-  assert.match(html, /Your Active Agents/);
-  assert.match(html, /How rotation works:[\s\S]*every 5 minutes[\s\S]*up to 6 due Punks/);
-  assert.match(html, /Live agent scan terminal/);
-  assert.match(html, /data-v3-scan-terminal/);
-  assert.match(html, /Activation and limit setup use the single guided wizard above/);
+  assert.match(launcher, /Turn your Gogh Punk into an autonomous art collector/);
+  assert.match(launcher, /data-owner-accounts/);
+  assert.match(launcher, /data-ownership-state/);
+  assert.doesNotMatch(launcher, /autonomous-minting\.js|data-v3-scan-terminal|data-nft-withdrawal/);
+  assert.match(html, /Punk Control Center/);
+  assert.match(html, /data-control-activate disabled/);
+  assert.match(html, /data-control-panel="agent"/);
+  assert.match(html, /data-control-panel="activity"/);
+  assert.match(html, /Gogh \/ Punk Terminal/);
   assert.equal((html.match(/data-wallet-disconnect/g) ?? []).length, 1);
-  assert.match(html, /Automatic safe profile/);
-  assert.match(html, /exact reviewed OpenSea Studio runtime/i);
-  assert.match(html, /data-v3-upgrade/);
   assert.doesNotMatch(html, /Legacy V1|data-owner-policy-controls|data-account-activation/);
-  assert.doesNotMatch(html, /account-activation\.js|owner-policy-controls\.js/);
-  assert.match(html, /data-v2-setup disabled/);
-  assert.match(html, /Set up and start agent/);
-  assert.match(html, /data-v2-progress/);
-  assert.match(html, /Choose Punk[\s\S]*Set limits[\s\S]*Confirm setup[\s\S]*Agent live/);
-  assert.match(html, /Conservative · 1 mint\/day for 7 days/);
-  assert.match(html, /Standard · 5 mints\/day for 14 days/);
-  assert.match(html, /Active · 10 mints\/day for 30 days/);
-  assert.match(html, /data-v2-confirmation-plan/);
-  assert.match(html, /data-retirement-confirm/);
-  assert.match(html, /How the proposed 1,420-supply retirement model works/);
-  assert.match(html, /agent never burns a Punk automatically/i);
-  assert.match(browser, /retirementConfirm\.checked !== true/);
   assert.equal(automationSelectionChanged({ tokenId: "93" }, { tokenId: "93", activated: true }), false);
   assert.equal(automationSelectionChanged({ tokenId: "93" }, { tokenId: "94" }), true);
   assert.equal(automationSelectionChanged({ tokenId: "93" }, null), true);
@@ -51,39 +40,22 @@ test("automation panel selects the best fully ready generation and preserves the
     capability: true, setupTransactionAvailable: true,
   }, "93"), false);
   assert.equal(automationGateNeedsLegacyFallback(null, "93"), true);
-  assert.match(html, /data-v2-stop disabled/);
-  assert.match(html, /data-v2-cap disabled/);
-  assert.match(html, /data-v2-days disabled/);
-  assert.match(html, /One ERC-721 per transaction/i);
-  assert.match(html, /paid mints/i);
-  assert.match(html, /data-v2-worker/);
-  assert.match(html, /data-v3-usage-mints/);
-  assert.match(html, /data-v3-usage-punks/);
-  assert.match(html, /data-v3-usage-wallets/);
-  assert.match(html, /Punks are not people/);
-  assert.match(html, /data-v2-refresh/);
-  assert.match(html, /data-v3-run-now disabled/);
-  assert.match(html, /data-v3-run-all disabled/);
-  assert.match(html, /Send selected agent now/);
-  assert.match(html, /data-v2-refreshed/);
-  assert.match(html, /fixed zero-price safety profile|fixed safety profile/i);
-  assert.match(html, /Art Mandate preferences are not required/);
-  assert.doesNotMatch(html, /data-mandate-form/);
-  assert.doesNotMatch(html, /mandate-editor\.js/);
-  assert.match(html, /Fund the hosted automation agent/);
-  assert.match(html, /does not pay hosted-worker gas/i);
-  assert.match(html, /data-v3-account-copy disabled/);
-  assert.match(html, /Copy NFT-wallet address/);
-  assert.match(html, /data-v3-account-opensea/);
-  assert.match(html, /View verified NFT gallery/);
-  assert.match(html, /OpenSea \(may update slowly\)/);
-  assert.match(html, /data-v2-agent-full/);
-  assert.match(html, /data-v2-agent-balance-large/);
-  assert.match(html, /data-v2-agent-fund disabled/);
-  assert.match(html, /not recoverable through Punk withdrawal controls/i);
-  assert.match(html, /verified worker heartbeat/i);
-  assert.match(html, /Automation checkpoint:/);
-  assert.match(html, /Art-taste settings do not gate mints/i);
+  assert.match(html, /Free mints/i);
+  assert.match(html, /Paid mints/i);
+  assert.match(html, /data-agent-pause disabled/);
+  assert.match(html, /data-agent-send disabled/);
+  assert.match(html, /data-agent-timeline role="log"/);
+  assert.match(html, /data-activity-refresh disabled/);
+  assert.match(html, /data-load-assets disabled/);
+  assert.match(html, /Collected NFTs/);
+  assert.match(activation, /autonomy-v3-owner-setup/);
+  assert.match(activation, /eth_call/);
+  assert.match(activation, /eth_sendTransaction/);
+  assert.match(control, /Create Punk Wallet/);
+  assert.match(control, /Set Free-Mint Limits/);
+  assert.match(control, /Authorize Art Broker/);
+  assert.match(control, /Transaction \$\{progress\.index\} of \$\{progress\.total\}/);
+  assert.doesNotMatch(activation, /personal_sign|eth_signTypedData|wallet_addEthereumChain/i);
   assert.match(browser, /eth_sendTransaction/);
   assert.doesNotMatch(browser, /personal_sign|eth_signTypedData|wallet_addEthereumChain/i);
   assert.match(browser, /autonomy-v\$\{state\.version\}-owner-setup/i);
@@ -105,7 +77,7 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.match(browser, /durable history is not erased by a later failed scan/);
   assert.match(browser, /lightweight activity check every 15 seconds/);
   assert.match(browser, /\/api\/broker\/autonomy-v3-activity/);
-  assert.match(html, /data-v3-latest-mint/);
+  assert.match(html, /data-agent-timeline role="log"/);
   assert.match(browser, /Latest autonomous mint/);
   assert.match(browser, /robinhoodchain\.blockscout\.com\/tx/);
   assert.match(browser, /createCoalescedRefresh\(loadOnce\)/);
@@ -167,10 +139,15 @@ test("agent terminal shows real production heartbeat and mint evidence separatel
 });
 
 test("wizard exposes a bounded searchable Punk picker instead of a large native menu", async () => {
-  const brokerHtml = await readFile(new URL("site/broker/index.html", root), "utf8");
-  assert.match(brokerHtml, /data-wizard-punk-search/);
-  assert.match(brokerHtml, /data-wizard-punk-results/);
-  assert.match(brokerHtml, /GOGH \/ LIVE WORKER/);
+  const [brokerHtml, launcher] = await Promise.all([
+    readFile(new URL("site/broker/punk/index.html", root), "utf8"),
+    readFile(new URL("site/broker/index.html", root), "utf8"),
+  ]);
+  assert.match(brokerHtml, /data-control-activate/);
+  assert.match(brokerHtml, /data-control-activation-cap/);
+  assert.match(brokerHtml, /data-control-activation-days/);
+  assert.match(launcher, /data-owner-accounts/);
+  assert.doesNotMatch(launcher, /data-wizard-punk-search|GOGH \/ LIVE WORKER/);
 });
 
 test("activation disclosure binds the exact draft lifetimes and fails closed without rarity evidence", () => {

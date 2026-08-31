@@ -29,6 +29,7 @@ import {
   priorityArtworkAccounts,
   readBrowserOwnerPunkBalance,
   mergeWalletAndActivatedPunks,
+  ownerMintDashboard,
   requestedBrokerPunk,
   selectedPunkGalleryPath,
 } from "../site/owner-accounts.js";
@@ -90,7 +91,7 @@ test("enrolled V3 Punks remain bounded owner-scoped discovery hints", async () =
   assert.match(captured.sql, /broker_automation_v3_enrollments/);
   assert.match(captured.sql, /LOWER\(owner_snapshot\)/);
   assert.equal(captured.values[2], OWNER.toLowerCase());
-  assert.equal(captured.values[3], 201);
+  assert.equal(captured.values[3], 5_018);
 });
 
 test("owner agent summaries distinguish worker proof from configuration", async () => {
@@ -103,6 +104,7 @@ test("owner agent summaries distinguish worker proof from configuration", async 
         worker_state: "SKIPPED", last_scheduled_scan: "2026-08-29T12:08:00Z",
         last_actual_scan: "2026-08-29T12:08:02Z", last_successful_mint: null,
         next_scan_estimate: "2026-08-29T14:23:00Z", reason: "NO_ELIGIBLE_TARGETS",
+        mints_today: 2, lifetime_mints: 15,
         updated_at: "2026-08-29T12:08:02Z", global_status: "NO_ELIGIBLE_TARGETS",
         global_completed_at: "2026-08-29T12:08:02Z" },
       { token_id: "1616", configured: true, enrolled: false, account_address: null,
@@ -143,14 +145,33 @@ test("owner agent summaries distinguish worker proof from configuration", async 
   assert.equal(summaries[0].status, "ACTIVE");
   assert.equal(summaries[0].lastActualScan, "2026-08-29T12:08:02.000Z");
   assert.equal(summaries[1].status, "NEEDS_ENROLLMENT");
-  assert.equal(summaries[2].status, "NEEDS_ATTENTION");
+  assert.equal(summaries[2].status, "WAITING_FOR_WORKER");
   assert.equal(summaries[3].status, "WAITING_FOR_FIRST_SCAN");
   assert.equal(summaries[4].status, "MINTING");
   assert.equal(summaries[5].status, "ACTIVE");
-  assert.equal(summaries[6].status, "RETRY_SCHEDULED");
+  assert.equal(summaries[6].status, "WAITING_FOR_WORKER");
+  assert.deepEqual(
+    summaries.map(({ mintsToday, lifetimeMints }) => [mintsToday, lifetimeMints]),
+    [[2, 15], ...Array.from({ length: 6 }, () => [0, 0])],
+  );
+  assert.match(captured.sql, /broker_acquisitions/);
+  assert.match(captured.sql, /mints_today/);
   assert.match(captured.sql, /broker_punk_agent_heartbeats/);
   assert.match(captured.sql, /broker_automation_v3_worker_state/);
   assert.equal(captured.values[2], OWNER.toLowerCase());
+});
+
+test("wallet-wide mint dashboard aggregates only the verified Punk roster", () => {
+  assert.deepEqual(ownerMintDashboard([
+    { tokenId: "93", activated: true,
+      agentSummary: { enrolled: true, mintsToday: 2, lifetimeMints: 15 } },
+    { tokenId: "94", automationConfigured: true,
+      agentSummary: { enrolled: false, mintsToday: 1, lifetimeMints: 4 } },
+    { tokenId: "95", activated: false, agentSummary: null },
+  ]), { brokers: 2, mintsToday: 3, lifetimeMints: 19, collectors: 2 });
+  assert.deepEqual(ownerMintDashboard([
+    { activated: true, agentSummary: { mintsToday: -1, lifetimeMints: "invalid" } },
+  ]), { brokers: 1, mintsToday: 0, lifetimeMints: 0, collectors: 0 });
 });
 
 test("live owner completion avoids a full scan when indexed candidates reconcile balance", async () => {
@@ -188,6 +209,23 @@ test("a complete 128-Punk indexed roster is neither truncated nor rescanned", as
   assert.deepEqual(snapshot.tokenIds, tokenIds);
   assert.equal(snapshot.balance, 128n);
   assert.deepEqual(calls, [128], "the complete indexed roster needs one bounded verification");
+});
+
+test("large holders are bounded by the canonical collection rather than a 200-Punk UI cap", async () => {
+  const tokenIds = Array.from({ length: 201 }, (_, index) => String(index));
+  const snapshot = await liveOwnerPunkSnapshot(OWNER, tokenIds, {
+    client: {
+      getBlockNumber: async () => 654n,
+      readContract: async () => 201n,
+      multicall: async ({ contracts }) => contracts.map(() => ({
+        status: "success",
+        result: OWNER,
+      })),
+    },
+  });
+  assert.equal(snapshot.tokenIds.length, 201);
+  assert.deepEqual(snapshot.tokenIds, tokenIds);
+  assert.equal(snapshot.balance, 201n);
 });
 
 test("a confirmed zero-Punk wallet returns a complete empty roster without ownerOf reads", async () => {
@@ -277,9 +315,12 @@ test("browser balanceOf is one bounded completeness assertion", async () => {
   assert.equal(balance, 128);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].method, "eth_call");
-  await assert.rejects(readBrowserOwnerPunkBalance({
+  assert.equal(await readBrowserOwnerPunkBalance({
     request: async () => `0x${201n.toString(16).padStart(64, "0")}`,
-  }, COLLECTION, OWNER), /more Punks/);
+  }, COLLECTION, OWNER), 201);
+  await assert.rejects(readBrowserOwnerPunkBalance({
+    request: async () => `0x${5_018n.toString(16).padStart(64, "0")}`,
+  }, COLLECTION, OWNER), /canonical collection bound/);
 });
 
 test("complete live owner snapshots atomically refresh indexed ownership hints", async () => {
@@ -354,7 +395,7 @@ test("indexed owner picker candidates are bounded, ordered, and explicitly non-a
   assert.deepEqual(result, ["12", "1639"]);
   assert.match(captured.sql, /LOWER\(owner_snapshot\)/);
   assert.equal(captured.values[2], OWNER.toLowerCase());
-  assert.equal(captured.values[3], 201);
+  assert.equal(captured.values[3], 5_018);
 });
 
 test("owner Punk picker carries only sanitized cached artwork decoration", async () => {
@@ -583,7 +624,7 @@ test("wallet scan ABI-matches Multicall3 and discovers every owned token in the 
     "0xca11bde05977b3631167028862be2a173976ca11");
 });
 
-test("broker picker selects only a live-verified wallet-owned Punk", async () => {
+test("broker launcher renders only the canonical live-verified owner roster", async () => {
   const [html, accounts, endpoint] = await Promise.all([
     readFile(new URL("../site/broker/index.html", import.meta.url), "utf8"),
     readFile(new URL("../site/owner-accounts.js", import.meta.url), "utf8"),
@@ -591,21 +632,24 @@ test("broker picker selects only a live-verified wallet-owned Punk", async () =>
   ]);
   assert.doesNotMatch(html, /data-owned-punk-picker|data-account-activation/);
   assert.doesNotMatch(html, /data-mandate-punk-picker/);
-  assert.match(html, /data-workspace-punk-picker/);
-  assert.match(html, /data-workspace-punk-preview/);
-  assert.match(html, /<select data-wizard-punks disabled>/);
-  assert.match(html, /data-punk-gallery-primary/);
+  assert.doesNotMatch(html, /data-workspace-punk-picker|data-workspace-punk-preview/);
+  assert.doesNotMatch(html, /data-wizard-punks|data-punk-gallery-primary/);
   assert.doesNotMatch(html, /data-activation-token/);
   assert.match(html, /data-owned-punk-count/);
-  assert.match(html, /data-selected-punk-display/);
+  assert.match(html, /data-ownership-state/);
+  assert.match(html, /data-owner-accounts/);
+  assert.match(html, /<details class="owner-roster-disclosure" open>/);
+  assert.match(html, /Your verified Punk roster/);
+  assert.match(html, /data-owner-mint-dashboard/);
+  assert.match(html, /What your Punks have collected/);
+  assert.match(html, /Refresh My Punks/);
   assert.doesNotMatch(html, /Scout Punk<\/span><strong data-scout-token-display/);
   assert.match(accounts, /findBrowserOwnedPunks/);
   assert.match(accounts, /view=indexed/);
   assert.match(accounts, /view=reconcile/);
-  assert.match(accounts, /Live ownership verified from indexed roster/);
+  assert.match(accounts, /Canonical balance and indexed ownership agree/);
   assert.match(accounts, /balanceOf is the cheap/);
   assert.match(accounts, /accounts\.length !== liveBalance/);
-  assert.match(accounts, /renderSelectedPunkPreview/);
   assert.match(accounts, /priorityArtworkAccounts/);
   assert.match(accounts, /gogh:punk-selected/);
   assert.match(accounts, /gogh:owner-punks/);
@@ -616,10 +660,9 @@ test("broker picker selects only a live-verified wallet-owned Punk", async () =>
   assert.match(endpoint, /called only after an owner connects/);
   assert.match(endpoint, /unrelated marketplace API/);
   assert.match(accounts, /discoverWalletOwnedPunkIds/);
-  assert.match(accounts, /Copy V1 wallet address/);
-  assert.match(accounts, /Legacy V1 Punk wallet/);
-  assert.match(accounts, /https:\/\/opensea\.io\/\$\{item\.account\}/);
-  assert.match(accounts, /data-selected-gallery-link/);
+  assert.match(accounts, /Open Art Broker/);
+  assert.match(accounts, /Activate Art Broker/);
+  assert.match(accounts, /\/broker\/punk\/\$\{encodeURIComponent\(item\.tokenId\)\}/);
   assert.doesNotMatch(accounts, /new Set\(\["1639", "1797"/);
   assert.doesNotMatch(html, /href="\/punk\/1797"/);
   assert.doesNotMatch(html, /OWNER ONLY/);

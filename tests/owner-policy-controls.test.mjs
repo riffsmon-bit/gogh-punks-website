@@ -225,17 +225,17 @@ test("submission repeats the full preflight and sends exactly one immutable tran
 
 test("broker page hides legacy V1 controls while retaining the current automation workflow", async () => {
   const [html, source] = await Promise.all([
-    readFile(new URL("../site/broker/index.html", import.meta.url), "utf8"),
+    readFile(new URL("../site/broker/punk/index.html", import.meta.url), "utf8"),
     readFile(new URL("../site/owner-policy-controls.js", import.meta.url), "utf8"),
   ]);
-  assert.match(html, /data-workspace-punk-picker/);
+  assert.match(html, /data-punk-control-center/);
   assert.doesNotMatch(html, /data-account-activation|data-owner-policy-controls/);
   assert.doesNotMatch(html, /Legacy V1 Punk wallet controls/);
-  assert.match(html, /data-autonomous-minting open/);
-  assert.match(html, /data-v2-cap/);
-  assert.match(html, /data-v2-stop/);
-  assert.match(html, /data-nft-withdrawal/);
-  assert.match(html, /Set up and start agent/);
+  assert.match(html, /data-control-activate/);
+  assert.match(html, /data-control-activation-cap/);
+  assert.match(html, /data-agent-pause/);
+  assert.match(html, /data-control-withdrawal/);
+  assert.match(html, /Activate Art Broker/);
   assert.doesNotMatch(html, /name="owner-workflow"/);
   assert.equal((source.match(/"eth_sendTransaction"/g) ?? []).length, 1);
   assert.doesNotMatch(source, /privateKey|mnemonic|arbitrary calldata/i);

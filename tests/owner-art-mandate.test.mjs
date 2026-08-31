@@ -272,11 +272,11 @@ test("mandate owner verification pins Robinhood before accepting the selected Pu
 });
 
 test("broker UI hides Art Mandate controls and uses the fixed on-chain safety profile", async () => {
-  const html = await readFile(new URL("../site/broker/index.html", import.meta.url), "utf8");
-  assert.match(html, /fixed zero-price safety profile|fixed safety profile/);
-  assert.match(html, /Art Mandate preferences are not required/);
-  assert.match(html, /Only live on-chain permissions can start or stop/);
-  assert.match(html, /data-selected-gallery-link/);
+  const html = await readFile(new URL("../site/broker/punk/index.html", import.meta.url), "utf8");
+  assert.match(html, /Free mints/i);
+  assert.match(html, /Paid mints/i);
+  assert.match(html, /Live ownership is rechecked before every privileged action/i);
+  assert.match(html, /data-agent-send/);
   assert.doesNotMatch(html, /\/punk\/1797#external-free-mint-title/);
   assert.doesNotMatch(html, /data-mandate-punk-picker/);
   assert.doesNotMatch(html, /data-mandate-form/);

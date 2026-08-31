@@ -171,11 +171,18 @@ test("V3 public status distinguishes a safe automatic retry from an unstarted wo
     automationV3WorkerAvailability(true, failed, release, Date.parse(failed.completedAt)),
     {
       online: false,
-      status: "WORKER_DEGRADED",
-      reason: "AUTOMATION_V3_WORKER_RETRYING",
+      executionReady: false,
+      status: "WORKER_RECOVERING",
+      reason: "WORKER_RETRYING",
+      platformHealth: {
+        status: "RECOVERING",
+        reason: "WORKER_RETRYING",
+        lastSuccessfulAt: null,
+        consecutiveFailures: 1,
+      },
     },
   );
-  assert.equal(automationV3WorkerAvailability(true, null, release).status, "WORKER_STARTING");
+  assert.equal(automationV3WorkerAvailability(true, null, release).status, "WORKER_OUTAGE");
 });
 
 test("V3 public status requires the exact production worker binding", () => {

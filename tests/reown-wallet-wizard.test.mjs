@@ -47,6 +47,7 @@ function reownFixture() {
     open: async () => { calls.push("open"); },
     openAccount: async () => { calls.push("account"); },
     close: async () => { calls.push("close"); },
+    ready: async () => {},
     disconnect: async () => { calls.push("disconnect"); },
     switchNetwork: async () => { calls.push("switch"); },
     getAccount: () => current.account,
@@ -151,6 +152,8 @@ test("Reown is the authoritative reconnecting wallet and provider session", asyn
   assert.equal(fixture.button.textContent, "Connect wallet");
   assert.equal(fixture.windowObject.__GOGH_WALLET_PROVIDER__, null,
     "a settled disconnect still clears the provider");
+  assert.equal(fixture.storage.get("gogh.wallet.reown.returning.v1"), "1",
+    "an SDK disconnect frame must not erase cross-page restoration intent");
 
   fixture.current.provider = PROVIDER;
   fixture.current.chainId = 4663;
@@ -181,7 +184,152 @@ test("a known prior Reown session restores immediately without opening a wallet 
   assert.deepEqual(fixture.calls, ["close"], "restoration closes stale UI without opening a selector");
 });
 
-test("a stale Reown reconnect cannot leave the page permanently connecting", async () => {
+test("desktop restoration waits for AppKit before reading its restored account", async () => {
+  const fixture = reownFixture();
+  fixture.storage.set("gogh.wallet.reown.returning.v1", "1");
+  let queuedCallback;
+  let finishReady;
+  fixture.session.ready = () => new Promise((resolve) => { finishReady = resolve; });
+  fixture.windowObject.queueMicrotask = (callback) => { queuedCallback = callback; };
+  const controller = await setupReownWallet({
+    windowObject: fixture.windowObject,
+    documentObject: fixture.documentObject,
+    sessionFactory: () => fixture.session,
+    restoreProbeDelaysMs: [],
+  });
+  await queuedCallback();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(fixture.windowObject.__GOGH_WALLET_SNAPSHOT__.account, null);
+
+  // Desktop AppKit can restore its injected provider before this page subscribes to
+  // account events. The post-ready snapshot must therefore be authoritative.
+  fixture.current.account = { address: OWNER, isConnected: true, status: "connected" };
+  finishReady();
+  await controller.ensureSession();
+  assert.equal(fixture.windowObject.__GOGH_WALLET_SNAPSHOT__.account, OWNER);
+  assert.equal(fixture.windowObject.__GOGH_WALLET_PROVIDER__, PROVIDER);
+  assert.deepEqual(fixture.calls, ["close"]);
+  controller.destroy();
+});
+
+test("a late AppKit ready result restores desktop after its bounded preparation wait", async () => {
+  const fixture = reownFixture();
+  fixture.storage.set("gogh.wallet.reown.returning.v1", "1");
+  let queuedCallback;
+  let finishReady;
+  fixture.session.ready = () => new Promise((resolve) => { finishReady = resolve; });
+  fixture.windowObject.queueMicrotask = (callback) => { queuedCallback = callback; };
+  const controller = await setupReownWallet({
+    windowObject: fixture.windowObject,
+    documentObject: fixture.documentObject,
+    sessionFactory: () => fixture.session,
+    sessionReadyTimeoutMs: 5,
+    restoreProbeDelaysMs: [],
+  });
+  queuedCallback();
+  await new Promise((resolve) => setTimeout(resolve, 15));
+  await controller.ensureSession();
+
+  assert.equal(fixture.button.textContent, "Connect wallet");
+  assert.equal(fixture.button.disabled, false);
+  assert.equal(fixture.windowObject.__GOGH_WALLET_SNAPSHOT__.restoring, false);
+
+  fixture.current.account = { address: OWNER, isConnected: true, status: "connected" };
+  finishReady();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(fixture.windowObject.__GOGH_WALLET_SNAPSHOT__.account, OWNER,
+    "late AppKit readiness must restore without a refresh, click, or account event");
+  assert.equal(fixture.windowObject.__GOGH_WALLET_PROVIDER__, PROVIDER);
+  controller.destroy();
+});
+
+test("an already-authorized desktop MetaMask account restores when AppKit stays disconnected", async () => {
+  const fixture = reownFixture();
+  fixture.storage.set("gogh.wallet.reown.returning.v1", "1");
+  let queuedCallback;
+  const injectedListeners = new Map();
+  const requestedMethods = [];
+  const injectedProvider = {
+    isMetaMask: true,
+    async request({ method }) {
+      requestedMethods.push(method);
+      if (method === "eth_accounts") return [OWNER];
+      if (method === "eth_chainId") return "0x1237";
+      throw new Error(`unexpected method ${method}`);
+    },
+    on(name, listener) { injectedListeners.set(name, listener); },
+    removeListener(name) { injectedListeners.delete(name); },
+  };
+  fixture.windowObject.ethereum = injectedProvider;
+  fixture.windowObject.queueMicrotask = (callback) => { queuedCallback = callback; };
+  fixture.session.ready = () => new Promise(() => {});
+
+  const controller = await setupReownWallet({
+    windowObject: fixture.windowObject,
+    documentObject: fixture.documentObject,
+    sessionFactory: () => fixture.session,
+    sessionReadyTimeoutMs: 5,
+    restoreProbeDelaysMs: [],
+  });
+  queuedCallback();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(fixture.windowObject.__GOGH_WALLET_SNAPSHOT__.account, OWNER,
+    "authorized injected state should render before AppKit's readiness timeout");
+  assert.equal(fixture.button.textContent, "0x1234…7890");
+  await controller.ensureSession();
+
+  assert.equal(fixture.windowObject.__GOGH_WALLET_SNAPSHOT__.account, OWNER);
+  assert.equal(fixture.windowObject.__GOGH_WALLET_SNAPSHOT__.chainId, 4663);
+  assert.equal(fixture.windowObject.__GOGH_WALLET_PROVIDER__, injectedProvider);
+  assert.deepEqual(requestedMethods, ["eth_accounts", "eth_chainId"]);
+  assert.equal(requestedMethods.includes("eth_requestAccounts"), false,
+    "cross-page restoration must never prompt for a new account grant");
+
+  fixture.callbacks.account({ address: undefined, isConnected: false, status: "disconnected" });
+  assert.equal(fixture.windowObject.__GOGH_WALLET_SNAPSHOT__.account, OWNER,
+    "AppKit's stale disconnected frame must not erase the authorized injected session");
+
+  const accountsChanged = injectedListeners.get("accountsChanged");
+  accountsChanged?.([]);
+  assert.equal(fixture.windowObject.__GOGH_WALLET_SNAPSHOT__.account, null,
+    "the injected provider's own account event remains authoritative");
+  controller.destroy();
+});
+
+test("explicit disconnect ends injected desktop recovery until the user reconnects", async () => {
+  const fixture = reownFixture();
+  fixture.storage.set("gogh.wallet.reown.returning.v1", "1");
+  let queuedCallback;
+  const injectedListeners = new Map();
+  fixture.windowObject.ethereum = {
+    isMetaMask: true,
+    async request({ method }) {
+      if (method === "eth_accounts") return [OWNER];
+      if (method === "eth_chainId") return "0x1237";
+      return null;
+    },
+    on(name, listener) { injectedListeners.set(name, listener); },
+    removeListener(name) { injectedListeners.delete(name); },
+  };
+  fixture.windowObject.queueMicrotask = (callback) => { queuedCallback = callback; };
+  fixture.session.ready = () => new Promise(() => {});
+  const controller = await setupReownWallet({
+    windowObject: fixture.windowObject,
+    documentObject: fixture.documentObject,
+    sessionFactory: () => fixture.session,
+    sessionReadyTimeoutMs: 5,
+    restoreProbeDelaysMs: [],
+  });
+  await queuedCallback();
+  await controller.ensureSession();
+  await fixture.disconnectButton.click();
+  injectedListeners.get("accountsChanged")?.([OWNER]);
+  assert.equal(fixture.windowObject.__GOGH_WALLET_SNAPSHOT__.account, null);
+  assert.equal(fixture.storage.has("gogh.wallet.reown.returning.v1"), false);
+  controller.destroy();
+});
+
+test("a stale Reown reconnect stops visibly connecting without forgetting the cross-page session", async () => {
   const fixture = reownFixture();
   fixture.storage.set("gogh.wallet.reown.returning.v1", "1");
   let queuedCallback;
@@ -191,6 +339,7 @@ test("a stale Reown reconnect cannot leave the page permanently connecting", asy
     documentObject: fixture.documentObject,
     sessionFactory: () => fixture.session,
     connectionTimeoutMs: 5,
+    restoreProbeDelaysMs: [],
   });
   await queuedCallback();
   await new Promise((resolve) => setTimeout(resolve, 0));
@@ -199,7 +348,8 @@ test("a stale Reown reconnect cannot leave the page permanently connecting", asy
   await new Promise((resolve) => setTimeout(resolve, 15));
   assert.equal(fixture.button.textContent, "Connect wallet");
   assert.match(fixture.status.textContent, /restoration timed out/i);
-  assert.equal(fixture.storage.has("gogh.wallet.reown.returning.v1"), false);
+  assert.equal(fixture.storage.get("gogh.wallet.reown.returning.v1"), "1",
+    "a page timeout must not turn a still-restorable wallet into a first-time visit");
   assert.ok(fixture.calls.includes("close"));
 });
 
@@ -326,43 +476,44 @@ test("every wallet-enabled page restores the one Reown session and exposes disco
     "../site/discover/index.html",
   ].map((path) => readFile(new URL(path, import.meta.url), "utf8")));
   for (const page of pages) {
-    assert.match(page, /\/wallet\.js\?v=reown-4/);
+    assert.match(page, /\/wallet\.js\?v=reown-10/);
     assert.match(page, /data-wallet-connect/);
     assert.match(page, /data-wallet-disconnect/);
-    assert.match(page, /Disconnect Wallet/);
+    assert.match(page, /Disconnect(?: Wallet)?/);
   }
 });
 
-test("mobile wizard and AppKit source bind the required production experience", async () => {
-  const [html, css, client, wallet, packageJson, netlify] = await Promise.all([
+test("mobile Punk launcher and activation flow bind the required production experience", async () => {
+  const [launcher, html, css, client, wallet, packageJson, netlify] = await Promise.all([
     readFile(new URL("../site/broker/index.html", import.meta.url), "utf8"),
+    readFile(new URL("../site/broker/punk/index.html", import.meta.url), "utf8"),
     readFile(new URL("../site/broker.css", import.meta.url), "utf8"),
     readFile(new URL("../client/reown-wallet-app.js", import.meta.url), "utf8"),
     readFile(new URL("../site/wallet.js", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
     readFile(new URL("../netlify.toml", import.meta.url), "utf8"),
   ]);
-  for (const copy of ["Choose Your Punk", "Your Punk Gets Its Own Wallet", "Set the Rules",
-    "Activate Your Art Broker", "Launch Your Agent", "Send Agent", "Activate Another Punk",
-    "Your Active Agents"]) {
+  for (const copy of ["Punk Control Center", "Activate Art Broker", "Daily mint limit",
+    "Authorization duration", "Activate Art Broker", "Agent", "NFTs", "Activity"]) {
     assert.match(html, new RegExp(copy));
   }
-  assert.match(html, /data-wizard-step="choose"/);
-  assert.match(html, /data-wizard-step="success"/);
-  assert.match(html, /Custom daily limit \(1–10\)/);
-  assert.match(html, /Custom run time \(1–30 days\)/);
+  assert.match(launcher, /Turn your Gogh Punk into an autonomous art collector/);
+  assert.match(launcher, /data-owner-accounts/);
+  assert.match(html, /data-control-activation-cap/);
+  assert.match(html, /data-control-activation-days/);
   assert.match(css, /env\(safe-area-inset-bottom\)/);
   assert.match(css, /@media \(max-width: 620px\)/);
   assert.match(client, /caipNetworkId: "eip155:4663"/);
   assert.match(client, /new EthersAdapter\(\)/);
+  assert.match(client, /ready: \(\) => appKit\.ready\(\)/);
   assert.match(client, /appKit\.getWalletProvider\(\)/);
   assert.match(client, /close: \(\) => appKit\.close\(\)/);
   assert.doesNotMatch(client, /appKit\.getProviders\(\)/);
   assert.doesNotMatch(client, /projectId:\s*["'][0-9a-f]{32}/);
   assert.doesNotMatch(wallet, /setupReadOnlyWallet\(\{ windowObject: window/);
   assert.match(wallet, /First-time visitors load no AppKit code/);
-  assert.match(html, /\/wallet\.js\?v=reown-4/);
-  assert.match(wallet, /\/reown-wallet-app\.js\?v=reown-4/);
+  assert.match(html, /\/wallet\.js\?v=reown-10/);
+  assert.match(wallet, /\/reown-wallet-app\.js\?v=reown-10/);
   assert.match(packageJson, /@reown\/appkit/);
   assert.match(netlify, /wss:\/\/relay\.walletconnect\.com/);
   assert.match(netlify, /script-src 'self'; style-src 'self' 'unsafe-inline'/);

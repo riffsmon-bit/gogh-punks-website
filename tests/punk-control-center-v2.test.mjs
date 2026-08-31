@@ -397,10 +397,10 @@ test("Control Center is progressive, mobile, and keeps mint execution disabled",
     assert.match(html, new RegExp(label));
   }
   assert.match(netlify, /from = "\/broker\/punk\/\*"/);
-  assert.match(browser, /LOCAL SIMULATION/);
+  assert.match(browser, /STAGED · BROADCAST LOCKED/);
   assert.match(browser, /\/api\/broker\/connector\/opensea/);
   assert.match(html, /Prepare Bounded Review/);
-  assert.match(browser, /nft-withdrawal-assets\?tokenId=/);
+  assert.match(browser, /nft-withdrawal-assets\?\$\{params\}/);
   assert.match(browser, /preflightNftWithdrawal/);
   assert.match(browser, /submitNftWithdrawal/);
   assert.match(browser, /state\.withdrawalAsset === selectedAsset/);
@@ -415,12 +415,20 @@ test("Control Center is progressive, mobile, and keeps mint execution disabled",
   assert.match(browser, /Website and X links affect discovery priority only|sent into live contract safety checks/);
   assert.match(browser, /View NFT \/ Withdraw/);
   assert.match(browser, /eth_call/);
-  assert.match(browser, /prepareOwnerFunds/);
-  assert.match(browser, /submitOwnerAction/);
-  assert.match(browser, /fetchOwnerPolicyGate/);
+  assert.match(browser, /preflightPunkWalletFunds/);
+  assert.match(browser, /submitPunkWalletFunds/);
+  assert.match(browser, /fetchPunkWalletFundsGate/);
+  assert.doesNotMatch(browser, /prepareOwnerFunds/);
+  assert.doesNotMatch(browser, /submitOwnerAction/);
   assert.match(browser, /Selected Punk changed during review/);
   assert.match(browser, /waitForReceipt/);
   assert.match(browser, /submitWrappedNativeTransaction/);
+  assert.match(browser, /submitOwnerStopTransactions/);
+  assert.match(browser, /\/api\/broker\/autonomy-v3-run/);
+  assert.match(browser, /UPDATE FREE-MINT LIMITS/);
+  assert.match(browser, /Sending Punk #\$\{state\.tokenId\} into the fair worker queue/);
+  assert.match(browser, /Autonomous minting is disabled and agent permission is revoked/);
+  assert.doesNotMatch(browser, /This local build prepared the action/);
   assert.match(browser, /\/api\/broker\/scouting-schedule/);
   assert.match(browser, /personal_sign/);
   assert.match(html, /Save Scouting Window/);

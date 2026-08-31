@@ -7,6 +7,7 @@ import {
 } from "./_shared/autonomy-v3-live.mjs";
 import {
   getAutomationV3UsageStats, getAutomationV3WorkerHeartbeat, workerHeartbeatIsCurrent,
+  workerPlatformHealth,
 } from "./_shared/automation-v3-worker-state.mjs";
 import {
   getProductionAutomationV3Activity, isDeployPreview,
@@ -113,16 +114,23 @@ export function autonomyV3Status(manifest = automationManifest) {
 export function automationV3WorkerAvailability(
   globallyReady, heartbeat, release, nowMs = Date.now(),
 ) {
-  const online = globallyReady === true
+  const executionReady = globallyReady === true
     && workerHeartbeatIsCurrent(heartbeat, release, nowMs);
-  const failed = globallyReady === true && heartbeat?.release === release
-    && heartbeat?.status === "FAILED";
+  const platform = globallyReady === true
+    ? workerPlatformHealth(heartbeat, release, nowMs)
+    : Object.freeze({ status: "OUTAGE", reason: "WORKER_NOT_CONFIGURED",
+      lastSuccessfulAt: null, consecutiveFailures: 0 });
+  const publicStatus = platform.status === "HEALTHY" ? "READY"
+    : platform.status === "RECOVERING" ? "WORKER_RECOVERING"
+      : platform.status === "DELAYED" ? "WORKER_DELAYED"
+        : platform.status === "DEGRADED" ? "WORKER_DEGRADED"
+          : globallyReady ? "WORKER_OUTAGE" : "DEPLOYED_CONFIGURATION_PENDING";
   return Object.freeze({
-    online,
-    status: online ? "READY" : failed ? "WORKER_DEGRADED"
-      : globallyReady ? "WORKER_STARTING" : "DEPLOYED_CONFIGURATION_PENDING",
-    reason: online ? null : failed ? "AUTOMATION_V3_WORKER_RETRYING"
-      : globallyReady ? "AUTOMATION_V3_HEARTBEAT_PENDING" : null,
+    online: platform.status === "HEALTHY",
+    executionReady,
+    status: publicStatus,
+    reason: platform.reason,
+    platformHealth: platform,
   });
 }
 
@@ -173,17 +181,24 @@ export default async function handler(request) {
       // execution bridge and status evidence both come from production, so a current production
       // heartbeat is the preview's readiness proof. Production still requires its exact env
       // binding in addition to the matching heartbeat.
-      const globallyReady = preview ? evidence.online === true : configuredWorker;
+      const globallyReady = preview ? evidence.configured === true : configuredWorker;
       const release = preview ? heartbeat?.release ?? ""
         : process.env.BROKER_AUTOMATION_V3_WORKER_RELEASE?.trim() ?? "";
-      const availability = automationV3WorkerAvailability(
-        globallyReady, heartbeat, release, Date.now(),
-      );
+      const availability = preview ? Object.freeze({
+        online: evidence.online === true,
+        executionReady: evidence.executionReady === true,
+        status: evidence.executionReady === true ? "READY"
+          : `WORKER_${evidence.platformHealth?.status ?? "OUTAGE"}`,
+        reason: evidence.platformHealth?.reason ?? "WORKER_EVIDENCE_MISSING",
+        platformHealth: evidence.platformHealth ?? null,
+      }) : automationV3WorkerAvailability(globallyReady, heartbeat, release, Date.now());
       // Preview automation is intentionally not scheduled. Its manual run endpoint is bridged to
       // production, so the preview must display the production endpoint's already-validated
       // heartbeat rather than comparing that heartbeat with the preview commit SHA.
       const workerOnline = preview ? evidence.online === true : availability.online;
-      const ready = globallyReady && workerOnline;
+      const executionReady = preview ? evidence.executionReady === true
+        : availability.executionReady;
+      const ready = globallyReady && executionReady;
       automation = Object.freeze({
         ...base,
         status: ready ? "READY" : availability.status,
@@ -193,13 +208,15 @@ export default async function handler(request) {
         // bounded on-chain authorization that the worker will use after recovery.
         setupTransactionAvailable: globallyReady,
         automaticSubmission: ready,
-        scheduledRetry: availability.status === "WORKER_DEGRADED",
+        scheduledRetry: new Set(["WORKER_RECOVERING", "WORKER_DELAYED", "WORKER_DEGRADED"])
+          .has(availability.status),
         reason: ready ? null : availability.reason ?? (globallyReady
           ? "AUTOMATION_V3_WORKER_PENDING" : "AUTOMATION_V3_GUARDIAN_PENDING"),
         agent,
         live: { adapterRegistered: null, featureFlagsEnabled: null,
           globalAgentApproved: null, workerEnabled: globallyReady, workerOnline },
         heartbeat: heartbeat ? { ...heartbeat, online: workerOnline } : null,
+        platformHealth: availability.platformHealth,
         usage,
         punk,
       });

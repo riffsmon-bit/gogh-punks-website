@@ -1,7 +1,7 @@
 import { json } from "./_shared/http.mjs";
 import {
   getAutomationV3PunkWorkerActivity, getAutomationV3UsageStats,
-  getAutomationV3WorkerHeartbeat, workerHeartbeatIsCurrent,
+  getAutomationV3WorkerHeartbeat, workerHeartbeatIsCurrent, workerPlatformHealth,
 } from "./_shared/automation-v3-worker-state.mjs";
 import {
   getProductionAutomationV3Activity, isDeployPreview,
@@ -12,9 +12,15 @@ export function automationV3Activity(heartbeat, usage, environment = process.env
   const release = environment.BROKER_AUTOMATION_V3_WORKER_RELEASE?.trim() ?? "";
   const enabled = environment.BROKER_AUTOMATION_V3_ENABLED === "true"
     && /^[0-9a-f]{40}$/.test(release);
+  const platformHealth = enabled ? workerPlatformHealth(heartbeat, release, nowMs)
+    : Object.freeze({ status: "OUTAGE", reason: "WORKER_NOT_CONFIGURED",
+      lastSuccessfulAt: null, consecutiveFailures: 0 });
   return Object.freeze({
     checkedAt: new Date(nowMs).toISOString(),
-    online: enabled && workerHeartbeatIsCurrent(heartbeat, release, nowMs),
+    configured: enabled,
+    online: enabled && platformHealth.status === "HEALTHY",
+    executionReady: enabled && workerHeartbeatIsCurrent(heartbeat, release, nowMs),
+    platformHealth,
     heartbeat: heartbeat ? Object.freeze({ ...heartbeat }) : null,
     usage: usage ? Object.freeze({ ...usage }) : null,
     punk: punk ? Object.freeze({
@@ -47,7 +53,10 @@ export default async function handler(request) {
     // the preview commit SHA would make every healthy production heartbeat look stale.
     const activity = preview ? Object.freeze({
       checkedAt: evidence.checkedAt,
+      configured: evidence.configured === true,
       online: evidence.online,
+      executionReady: evidence.executionReady === true,
+      platformHealth: evidence.platformHealth ?? null,
       heartbeat,
       usage,
       punk,

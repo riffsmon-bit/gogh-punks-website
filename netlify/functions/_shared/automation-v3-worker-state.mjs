@@ -392,7 +392,48 @@ export function workerHeartbeatFromRow(row) {
     || (heartbeat.failureCode !== null && !/^[A-Z0-9_]{1,128}$/.test(heartbeat.failureCode))) {
     throw new TypeError("worker heartbeat is invalid");
   }
-  return Object.freeze(heartbeat);
+  const lastSuccessfulCompletedAt = optionalIso(
+    rowValue(row, "last_successful_completed_at", "lastSuccessfulCompletedAt"),
+    "lastSuccessfulCompletedAt",
+  ) ?? (heartbeat.status === "FAILED" ? null : heartbeat.completedAt);
+  const lastSuccessfulStartedAt = optionalIso(
+    rowValue(row, "last_successful_started_at", "lastSuccessfulStartedAt"),
+    "lastSuccessfulStartedAt",
+  ) ?? (lastSuccessfulCompletedAt ? heartbeat.startedAt : null);
+  const lastSuccessfulRelease = optional(
+    rowValue(row, "last_successful_release_commit", "lastSuccessfulRelease"),
+    /^[0-9a-f]{40}$/,
+    "lastSuccessfulRelease",
+  ) ?? (lastSuccessfulCompletedAt ? heartbeat.release : null);
+  const lastSuccessfulStatus = rowValue(row, "last_successful_status", "lastSuccessfulStatus")
+    ?? (lastSuccessfulCompletedAt ? heartbeat.status : null);
+  if (lastSuccessfulStatus !== null && (lastSuccessfulStatus === "FAILED"
+    || !STATUSES.has(lastSuccessfulStatus))) {
+    throw new TypeError("last successful worker status is invalid");
+  }
+  const rawFailureCount = rowValue(row, "consecutive_failure_count", "consecutiveFailures");
+  const consecutiveFailures = rawFailureCount == null
+    ? (heartbeat.status === "FAILED" ? 1 : 0)
+    : Number(rawFailureCount);
+  if (!Number.isSafeInteger(consecutiveFailures) || consecutiveFailures < 0) {
+    throw new TypeError("worker consecutive failure count is invalid");
+  }
+  const lastFailureReason = rowValue(row, "last_failure_reason", "lastFailureReason") == null
+    ? heartbeat.failureCode : String(rowValue(row, "last_failure_reason", "lastFailureReason"));
+  if (lastFailureReason !== null && !/^[A-Z0-9_]{1,128}$/.test(lastFailureReason)) {
+    throw new TypeError("last worker failure reason is invalid");
+  }
+  return Object.freeze({
+    ...heartbeat,
+    lastSuccessfulRun: lastSuccessfulCompletedAt ? Object.freeze({
+      release: lastSuccessfulRelease,
+      startedAt: lastSuccessfulStartedAt,
+      completedAt: lastSuccessfulCompletedAt,
+      status: lastSuccessfulStatus,
+    }) : null,
+    consecutiveFailures,
+    lastFailureReason,
+  });
 }
 
 export function workerHeartbeatIsCurrent(heartbeat, release, nowMs = Date.now()) {
@@ -401,6 +442,48 @@ export function workerHeartbeatIsCurrent(heartbeat, release, nowMs = Date.now())
   const completed = Date.parse(heartbeat.completedAt);
   return Number.isFinite(completed) && completed <= nowMs + 30_000
     && completed >= nowMs - 12 * 60_000;
+}
+
+export function workerPlatformHealth(heartbeat, release, nowMs = Date.now()) {
+  if (!Number.isSafeInteger(nowMs) || nowMs < 0) throw new TypeError("worker health time is invalid");
+  if (!heartbeat) return Object.freeze({ status: "OUTAGE", reason: "WORKER_EVIDENCE_MISSING",
+    lastSuccessfulAt: null, consecutiveFailures: 0 });
+  const latestCompleted = Date.parse(heartbeat.completedAt);
+  const success = heartbeat.lastSuccessfulRun
+    ?? (heartbeat.status === "FAILED" ? null : {
+      release: heartbeat.release, completedAt: heartbeat.completedAt,
+    });
+  const successfulCompleted = Date.parse(success?.completedAt ?? "");
+  const successfulAge = Number.isFinite(successfulCompleted) ? nowMs - successfulCompleted : Infinity;
+  const latestAge = Number.isFinite(latestCompleted) ? nowMs - latestCompleted : Infinity;
+  const consecutiveFailures = Number.isSafeInteger(heartbeat.consecutiveFailures)
+    ? heartbeat.consecutiveFailures : (heartbeat.status === "FAILED" ? 1 : 0);
+  const releaseMatches = heartbeat.release === release;
+  const successMatches = success?.release === release;
+  const result = (status, reason) => Object.freeze({ status, reason,
+    lastSuccessfulAt: success?.completedAt ?? null, consecutiveFailures });
+  if (!releaseMatches || (success && !successMatches)) {
+    return latestAge <= 12 * 60_000
+      ? result("RECOVERING", "WORKER_RELEASE_CHANGED")
+      : result("OUTAGE", "WORKER_RELEASE_EVIDENCE_MISSING");
+  }
+  if (heartbeat.status !== "FAILED" && latestAge <= 12 * 60_000) {
+    return result("HEALTHY", null);
+  }
+  if (heartbeat.status === "FAILED" && latestAge <= 12 * 60_000
+    && consecutiveFailures <= 1) {
+    return result("RECOVERING", "WORKER_RETRYING");
+  }
+  if (successfulAge <= 20 * 60_000 && consecutiveFailures <= 1) {
+    return result("RECOVERING", "WORKER_RETRYING");
+  }
+  if (successfulAge <= 30 * 60_000 && consecutiveFailures <= 2) {
+    return result("DELAYED", "WORKER_HEARTBEAT_DELAYED");
+  }
+  if (successfulAge <= 60 * 60_000 || consecutiveFailures < 3) {
+    return result("DEGRADED", "WORKER_MULTIPLE_FAILURES");
+  }
+  return result("OUTAGE", "WORKER_SUCCESS_EVIDENCE_STALE");
 }
 
 export async function recordAutomationV3WorkerHeartbeat(result, options = {}) {
@@ -443,8 +526,16 @@ export async function recordAutomationV3WorkerHeartbeat(result, options = {}) {
      INSERT INTO broker_automation_v3_worker_state
       (singleton_id, release_commit, started_at, completed_at, status, submitted,
        punk_token_id, account_address, collection_address, transaction_hash, failure_code,
-       discovery_summary)
-     VALUES (1, $1, $2, $3, $4, $5, $6::numeric, $7, $8, $9, $10, $11::jsonb)
+       discovery_summary, last_successful_release_commit, last_successful_started_at,
+       last_successful_completed_at, last_successful_status, consecutive_failure_count,
+       last_failure_reason)
+     VALUES (1, $1, $2, $3, $4, $5, $6::numeric, $7, $8, $9, $10, $11::jsonb,
+       CASE WHEN $4 <> 'FAILED' THEN $1 ELSE NULL END,
+       CASE WHEN $4 <> 'FAILED' THEN $2 ELSE NULL END,
+       CASE WHEN $4 <> 'FAILED' THEN $3 ELSE NULL END,
+       CASE WHEN $4 <> 'FAILED' THEN $4 ELSE NULL END,
+       CASE WHEN $4 = 'FAILED' THEN 1 ELSE 0 END,
+       CASE WHEN $4 = 'FAILED' THEN $10 ELSE NULL END)
      ON CONFLICT (singleton_id) DO UPDATE SET
        release_commit = EXCLUDED.release_commit,
        started_at = EXCLUDED.started_at,
@@ -456,7 +547,23 @@ export async function recordAutomationV3WorkerHeartbeat(result, options = {}) {
        collection_address = EXCLUDED.collection_address,
        transaction_hash = EXCLUDED.transaction_hash,
        failure_code = EXCLUDED.failure_code,
-       discovery_summary = EXCLUDED.discovery_summary
+       discovery_summary = EXCLUDED.discovery_summary,
+       last_successful_release_commit = CASE WHEN EXCLUDED.status <> 'FAILED'
+         THEN EXCLUDED.release_commit
+         ELSE broker_automation_v3_worker_state.last_successful_release_commit END,
+       last_successful_started_at = CASE WHEN EXCLUDED.status <> 'FAILED'
+         THEN EXCLUDED.started_at
+         ELSE broker_automation_v3_worker_state.last_successful_started_at END,
+       last_successful_completed_at = CASE WHEN EXCLUDED.status <> 'FAILED'
+         THEN EXCLUDED.completed_at
+         ELSE broker_automation_v3_worker_state.last_successful_completed_at END,
+       last_successful_status = CASE WHEN EXCLUDED.status <> 'FAILED'
+         THEN EXCLUDED.status
+         ELSE broker_automation_v3_worker_state.last_successful_status END,
+       consecutive_failure_count = CASE WHEN EXCLUDED.status = 'FAILED'
+         THEN broker_automation_v3_worker_state.consecutive_failure_count + 1 ELSE 0 END,
+       last_failure_reason = CASE WHEN EXCLUDED.status = 'FAILED'
+         THEN EXCLUDED.failure_code ELSE NULL END
      WHERE broker_automation_v3_worker_state.completed_at <= EXCLUDED.completed_at
      RETURNING *`,
     [release, startedAt, completedAt, status, submitted, tokenId, account, collection,

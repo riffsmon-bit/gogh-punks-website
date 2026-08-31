@@ -358,7 +358,7 @@ function loadReownBundle(browserWindow, browserDocument) {
     const script = browserDocument.createElement("script");
     // Keep this version aligned with the HTML wallet module URL. Wallet session
     // fixes must not be stranded behind a stale mobile or desktop browser cache.
-    script.src = "/reown-wallet-app.js?v=reown-4";
+    script.src = "/reown-wallet-app.js?v=reown-10";
     script.async = true;
     script.dataset.reownAppkit = "true";
     script.addEventListener("load", resolve, { once: true });
@@ -372,6 +372,9 @@ function loadReownBundle(browserWindow, browserDocument) {
 
 const REOWN_RETURNING_SESSION_KEY = "gogh.wallet.reown.returning.v1";
 const REOWN_CONNECTION_TIMEOUT_MS = 12_000;
+const REOWN_SESSION_READY_TIMEOUT_MS = 4_000;
+const REOWN_RESTORE_PROBE_DELAYS_MS = Object.freeze([100, 250, 500, 1_000, 2_000, 4_000,
+  8_000]);
 const WALLET_SCOPED_STORAGE_KEYS = Object.freeze([
   REOWN_RETURNING_SESSION_KEY,
   "gogh.artBroker.setup.v1",
@@ -420,7 +423,9 @@ function setReturningSessionMarker(browserWindow, connected) {
 }
 
 export async function setupReownWallet({ windowObject, documentObject, fetchFunction,
-  sessionFactory, connectionTimeoutMs = REOWN_CONNECTION_TIMEOUT_MS } = {}) {
+  sessionFactory, connectionTimeoutMs = REOWN_CONNECTION_TIMEOUT_MS,
+  sessionReadyTimeoutMs = REOWN_SESSION_READY_TIMEOUT_MS,
+  restoreProbeDelaysMs = REOWN_RESTORE_PROBE_DELAYS_MS } = {}) {
   const browserWindow = windowObject ?? (typeof window === "undefined" ? null : window);
   const browserDocument = documentObject ?? (typeof document === "undefined" ? null : document);
   if (!browserWindow || !browserDocument) return null;
@@ -439,7 +444,135 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
   const unsubscribers = [];
   let initializationPromise = null;
   let pendingTimer = null;
+  const restoreProbeTimers = new Set();
+  let injectedRecoveryProvider = null;
+  let injectedRecoverySubscribed = false;
   let destroyed = false;
+
+  function clearRestoreProbes() {
+    for (const timer of restoreProbeTimers) browserWindow.clearTimeout?.(timer);
+    restoreProbeTimers.clear();
+  }
+
+  function restoreFromSessionSnapshot() {
+    if (destroyed || !state.session || state.account
+      || !returningSessionMarker(browserWindow)) return Boolean(state.account);
+    const account = state.session.getAccount?.();
+    const nextAccount = account?.isConnected
+      ? normalizeWalletAddress(account.address) : null;
+    if (!nextAccount) return false;
+    state.account = nextAccount;
+    state.chainId = Number(state.session.getNetwork?.().chainId) || state.chainId;
+    state.provider = state.session.getProvider?.() ?? state.provider;
+    state.networkError = null;
+    setReturningSessionMarker(browserWindow, true);
+    clearRestoreProbes();
+    finishPending();
+    render();
+    if (typeof state.session.close === "function") {
+      void Promise.resolve(state.session.close()).catch(() => {});
+    }
+    return true;
+  }
+
+  function desktopInjectedProvider() {
+    const injected = browserWindow.ethereum;
+    if (!injected) return null;
+    const providers = Array.isArray(injected.providers) ? injected.providers : [];
+    const preferred = providers.find((provider) => provider?.isMetaMask === true) ?? injected;
+    return typeof preferred?.request === "function" ? preferred : null;
+  }
+
+  function subscribeInjectedRecovery(provider) {
+    if (injectedRecoverySubscribed || typeof provider?.on !== "function") return;
+    injectedRecoverySubscribed = true;
+    const handleAccounts = (accounts) => {
+      if (destroyed || provider !== injectedRecoveryProvider) return;
+      const nextAccount = firstValidAccount(accounts);
+      if (nextAccount) {
+        state.account = nextAccount;
+        state.provider = provider;
+        state.networkError = null;
+        setReturningSessionMarker(browserWindow, true);
+      } else {
+        state.account = null;
+        state.owner = null;
+        state.provider = null;
+        injectedRecoveryProvider = null;
+      }
+      render();
+    };
+    const handleChain = (chainId) => {
+      if (destroyed || provider !== injectedRecoveryProvider) return;
+      state.chainId = parseWalletChainId(chainId);
+      state.networkError = null;
+      render();
+    };
+    const handleDisconnect = () => {
+      if (destroyed || provider !== injectedRecoveryProvider) return;
+      state.account = null;
+      state.owner = null;
+      state.provider = null;
+      injectedRecoveryProvider = null;
+      render();
+    };
+    provider.on("accountsChanged", handleAccounts);
+    provider.on("chainChanged", handleChain);
+    provider.on("disconnect", handleDisconnect);
+    unsubscribers.push(() => {
+      provider.removeListener?.("accountsChanged", handleAccounts);
+      provider.removeListener?.("chainChanged", handleChain);
+      provider.removeListener?.("disconnect", handleDisconnect);
+    });
+  }
+
+  async function restoreAuthorizedInjectedSession() {
+    if (destroyed || state.account || !returningSessionMarker(browserWindow)) {
+      return Boolean(state.account);
+    }
+    const provider = desktopInjectedProvider();
+    if (!provider) return false;
+    try {
+      // This is deliberately silent: eth_accounts can only return accounts the
+      // holder has already authorized for this origin. It never opens MetaMask,
+      // requests a signature, or creates a transaction.
+      const accounts = await provider.request({ method: "eth_accounts" });
+      const nextAccount = firstValidAccount(accounts);
+      if (!nextAccount || destroyed || state.account) return Boolean(state.account);
+      const rawChainId = await provider.request({ method: "eth_chainId" });
+      if (destroyed || state.account) return Boolean(state.account);
+      state.account = nextAccount;
+      state.chainId = parseWalletChainId(rawChainId);
+      state.provider = provider;
+      injectedRecoveryProvider = provider;
+      state.networkError = null;
+      setReturningSessionMarker(browserWindow, true);
+      subscribeInjectedRecovery(provider);
+      clearRestoreProbes();
+      finishPending();
+      render();
+      if (typeof state.session?.close === "function") {
+        void Promise.resolve(state.session.close()).catch(() => {});
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function scheduleRestoreProbes() {
+    clearRestoreProbes();
+    if (state.account || !state.session || !returningSessionMarker(browserWindow)) return;
+    const delays = Array.isArray(restoreProbeDelaysMs) ? restoreProbeDelaysMs : [];
+    for (const rawDelay of delays) {
+      const delay = Math.max(1, Number(rawDelay) || 0);
+      const timer = browserWindow.setTimeout?.(() => {
+        restoreProbeTimers.delete(timer);
+        if (!restoreFromSessionSnapshot()) void restoreAuthorizedInjectedSession();
+      }, delay);
+      if (timer !== undefined && timer !== null) restoreProbeTimers.add(timer);
+    }
+  }
 
   function clearPendingTimer() {
     if (pendingTimer !== null) browserWindow.clearTimeout?.(pendingTimer);
@@ -459,10 +592,11 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
       if (!state.pending || destroyed) return;
       state.pending = false;
       if (!state.account) {
-        // A stale AppKit reconnect can otherwise leave every page permanently
-        // displaying CONNECTING. Stop retrying it automatically; a later genuine
-        // account event will restore the marker and connected state normally.
-        setReturningSessionMarker(browserWindow, false);
+        // Stop the visible reconnect attempt, but retain the user's returning-session
+        // intent. AppKit and injected wallets can take longer than this page-level
+        // timeout while navigating between documents. Clearing the marker here made
+        // the next Punk page look disconnected even though the wallet session still
+        // existed. Only the explicit Disconnect action clears the durable marker.
         state.networkError = "Wallet restoration timed out. Tap Connect Wallet to try again.";
       }
       void Promise.resolve(state.session?.close?.()).catch(() => {});
@@ -489,6 +623,40 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
     }
   }
 
+  async function waitForSessionReady(session) {
+    if (typeof session?.ready !== "function") return true;
+    let timer = null;
+    let readinessTimedOut = false;
+    const readiness = Promise.resolve().then(() => session.ready());
+    // AppKit can finish restoring an injected desktop wallet after our bounded
+    // initialization wait has expired. Keep observing that same readiness promise:
+    // otherwise the successful late snapshot is lost until the user refreshes or
+    // manually reconnects on every destination page.
+    void readiness.then(() => {
+      if (!readinessTimedOut || destroyed || session !== state.session) return;
+      if (!restoreFromSessionSnapshot()) void restoreAuthorizedInjectedSession();
+    }, () => {});
+    try {
+      const result = await Promise.race([
+        readiness.then(
+          () => ({ ready: true }),
+          (error) => ({ error })),
+        new Promise((resolve) => {
+          timer = browserWindow.setTimeout?.(() => {
+            readinessTimedOut = true;
+            resolve({ timedOut: true });
+          },
+            Math.max(1, Number(sessionReadyTimeoutMs) || REOWN_SESSION_READY_TIMEOUT_MS));
+          if (timer === undefined) resolve({ timedOut: true });
+        }),
+      ]);
+      if (result?.error) throw result.error;
+      return result?.ready === true;
+    } finally {
+      if (timer !== null && timer !== undefined) browserWindow.clearTimeout?.(timer);
+    }
+  }
+
   function render() {
     const available = state.sessionStatus !== "unavailable";
     const presentation = walletPresentation({
@@ -499,9 +667,9 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
       owner: state.owner,
     });
     for (const button of buttons) {
-      button.textContent = state.sessionStatus === "initializing"
+      button.textContent = state.sessionStatus === "initializing" && !state.account
         ? "Preparing wallet…" : presentation.buttonLabel;
-      button.disabled = state.sessionStatus === "initializing";
+      button.disabled = state.sessionStatus === "initializing" && !state.account;
       button.setAttribute("aria-disabled", String(button.disabled));
       button.dataset.walletStatus = presentation.state;
       button.title = state.account ?? presentation.buttonLabel;
@@ -580,11 +748,13 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
     state.networkError = null;
     render();
     try {
+      clearRestoreProbes();
       await state.session.disconnect();
       state.account = null;
       state.chainId = null;
       state.owner = null;
       state.provider = null;
+      injectedRecoveryProvider = null;
       clearWalletScopedState(browserWindow);
       const events = [
         ["gogh:owner-punks", { punks: Object.freeze([]) }],
@@ -630,8 +800,10 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
   render();
 
   async function ensureSession() {
-    if (state.session) return state.session;
     if (initializationPromise) return initializationPromise;
+    // A session object exists before AppKit has finished restoring its adapters.
+    // Always join that in-flight initialization before treating it as usable.
+    if (state.session) return state.session;
     state.sessionStatus = "initializing";
     state.networkError = null;
     render();
@@ -656,12 +828,35 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
         }
         if (destroyed) return null;
         state.session = factory(configuration ?? {});
-        state.provider = state.session.getProvider();
+        // Desktop injected wallets can already know the authorized account while
+        // AppKit is still restoring its adapter. Start that silent read in parallel
+        // so cross-page navigation does not display a four-second disconnected gap.
+        const injectedRestore = returningSessionMarker(browserWindow)
+          ? restoreAuthorizedInjectedSession() : null;
+        // createAppKit() returns before its asynchronous adapter restoration finishes.
+        // A prompt post-ready snapshot fixes the desktop injected-wallet race, but AppKit's
+        // readiness promise can remain pending when an injected extension is slow or stale.
+        // Never let that third-party promise disable Connect Wallet indefinitely: after this
+        // bounded wait, subscriptions and the existing restoration probes continue recovery.
+        await waitForSessionReady(state.session);
+        if (injectedRestore) await injectedRestore;
+        if (destroyed) return null;
+        const sessionProvider = state.session.getProvider?.() ?? null;
         const accountState = state.session.getAccount?.();
-        state.account = accountState?.isConnected
+        const restoredAccount = accountState?.isConnected
           ? normalizeWalletAddress(accountState.address) : null;
-        state.chainId = Number(state.session.getNetwork?.().chainId) || null;
-        setReturningSessionMarker(browserWindow, Boolean(state.account));
+        if (restoredAccount) {
+          state.account = restoredAccount;
+          state.provider = sessionProvider ?? state.provider;
+        } else if (!(injectedRecoveryProvider && state.account)) {
+          state.account = null;
+          state.provider = sessionProvider;
+        }
+        state.chainId = Number(state.session.getNetwork?.().chainId) || state.chainId;
+        if (!state.account && returningSessionMarker(browserWindow)) {
+          await restoreAuthorizedInjectedSession();
+        }
+        if (state.account) setReturningSessionMarker(browserWindow, true);
         unsubscribers.push(state.session.subscribeProvider((provider) => {
           // AppKit can briefly withdraw the provider while a WalletConnect/injected session is
           // reconnecting between pages. Keep the last working provider until an authoritative
@@ -677,7 +872,9 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
           const nextAccount = connectedNow ? normalizeWalletAddress(account.address) : null;
           if (nextAccount) {
             state.account = nextAccount;
-          } else if (!accountPending) {
+            injectedRecoveryProvider = null;
+            clearRestoreProbes();
+          } else if (!accountPending && !(injectedRecoveryProvider && state.account)) {
             // A settled account event is authoritative. Temporary reconnect frames are not.
             state.account = null;
             state.owner = null;
@@ -685,7 +882,11 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
           }
           if (accountPending) beginPending();
           else finishPending();
-          setReturningSessionMarker(browserWindow, Boolean(state.account));
+          // A disconnected-looking AppKit frame is not sufficient evidence that the
+          // holder intentionally ended the cross-page session. The explicit site
+          // Disconnect action is the sole marker-clearing path; a genuine account
+          // event only needs to refresh the positive marker.
+          if (state.account) setReturningSessionMarker(browserWindow, true);
           render();
           // AppKit normally dismisses itself after a successful connection. Some injected-wallet
           // round trips leave its full-screen host mounted even though the account is connected;
@@ -721,17 +922,20 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
           // snapshot while waking. Only copy fields that are actually present and let the
           // subscription's settled disconnect event clear them when a user truly disconnects.
           if (nextAccount) state.account = nextAccount;
-          else if (settledDisconnected) {
+          else if (settledDisconnected && !(injectedRecoveryProvider && state.account)) {
             state.account = null;
             state.owner = null;
             state.provider = null;
           }
           if (nextChainId !== null) state.chainId = nextChainId;
           if (nextProvider) state.provider = nextProvider;
-          setReturningSessionMarker(browserWindow, Boolean(state.account));
+          if (state.account) setReturningSessionMarker(browserWindow, true);
           render();
           if (state.account && typeof state.session?.close === "function") {
             void Promise.resolve(state.session.close()).catch(() => {});
+          }
+          if (!state.account && returningSessionMarker(browserWindow)) {
+            void restoreAuthorizedInjectedSession();
           }
         };
         const handleVisibility = () => {
@@ -748,6 +952,7 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
         state.sessionStatus = "ready";
         finishPending();
         render();
+        if (!state.account && returningSessionMarker(browserWindow)) scheduleRestoreProbes();
         return state.session;
       } catch {
         // Session initialization is atomic. AppKit mounts its modal as part of
@@ -782,6 +987,7 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
     destroy() {
       destroyed = true;
       clearPendingTimer();
+      clearRestoreProbes();
       for (const button of buttons) button.removeEventListener("click", connect);
       for (const button of switchButtons) button.removeEventListener("click", switchNetwork);
       for (const button of disconnectButtons) button.removeEventListener("click", disconnect);

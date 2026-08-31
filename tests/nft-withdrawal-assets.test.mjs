@@ -140,6 +140,28 @@ test("includes manually received indexed ERC-721 and ERC-1155 assets for live wi
   assert.equal(item.acquiredAt, null);
 });
 
+test("adds one exact live-owned ERC-721 when the marketplace account index omits it", async () => {
+  const missingCollection = "0x505a22ffed8d37ebe580ffd98d2cdb0021189146";
+  const assets = await buildWithdrawableNftAssets("93", {
+    database: { query: async () => ({ rows: [] }) },
+    gateBuilder: async () => gate(),
+    getReceipt: async () => null,
+    getOwner: async (collection, id) => {
+      assert.equal(collection, missingCollection);
+      assert.equal(id, "882");
+      return ACCOUNT;
+    },
+    getCollectionName: async () => "CCFF00",
+    exactAsset: { collection: missingCollection, tokenId: "882" },
+  });
+  const [item] = validateWithdrawableNftAssets(assets, "93");
+  assert.equal(item.collection, missingCollection);
+  assert.equal(item.tokenId, "882");
+  assert.equal(item.collectionName, "CCFF00");
+  assert.equal(item.provenance, "RECEIVED");
+  assert.equal(item.ownershipStatus, "LIVE_CHECK_REQUIRED");
+});
+
 test("falls back to exact on-chain tokenURI display when marketplace indexing lags", async () => {
   let tokenUriReads = 0;
   const assets = await buildWithdrawableNftAssets("93", {
@@ -210,17 +232,23 @@ test("one portfolio request groups confirmed NFTs across the holder's Punk agent
 });
 
 test("site exposes a selectable NFT list while retaining a live-checked manual fallback", async () => {
-  const html = await readFile(new URL("../site/broker/index.html", import.meta.url), "utf8");
+  const html = await readFile(new URL("../site/broker/punk/index.html", import.meta.url), "utf8");
   const browser = await readFile(new URL("../site/nft-withdrawal.js", import.meta.url), "utf8");
+  const controlCenter = await readFile(
+    new URL("../site/punk-control-center.js", import.meta.url), "utf8",
+  );
   const endpoint = await readFile(
     new URL("../netlify/functions/broker-nft-withdrawal-assets.mjs", import.meta.url), "utf8",
   );
-  assert.match(html, /data-nft-owned-asset/);
-  assert.match(html, /data-nft-owned-cards/);
-  assert.match(html, /My Punk-agent NFT portfolio/);
-  assert.match(html, /href="\/broker\/#nft-portfolio-title"/);
-  assert.match(html, /Manual contract and token entry/);
-  assert.match(browser, /nft-withdrawal-assets\?tokenId=/);
+  assert.match(html, /data-asset-grid/);
+  assert.match(html, /data-control-withdrawal/);
+  assert.match(html, /Collected NFTs/);
+  assert.match(html, /Withdraw to my wallet/i);
+  assert.match(html, /Can’t Find an NFT/);
+  assert.match(html, /data-find-nft-url/);
+  assert.match(html, /data-withdrawal-submit/);
+  assert.match(controlCenter, /nft-withdrawal-assets\?\$\{params\}/);
+  assert.match(controlCenter, /assetTokenId/);
   assert.match(browser, /nft-withdrawal-assets\?tokenIds=/);
   assert.match(browser, /gogh:select-punk-request/);
   assert.match(browser, /waitForNftWithdrawalReceipt/);

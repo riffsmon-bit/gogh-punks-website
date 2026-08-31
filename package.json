@@ -19,6 +19,8 @@
     "broker:autonomy:v3-worker": "node --env-file-if-exists=.env scripts/run-automated-seadrop-v3-worker.mjs",
     "broker:autonomy:v3-backfill:dry-run": "node --env-file-if-exists=.env scripts/backfill-automation-v3-enrollments.mjs --dry-run",
     "broker:autonomy:v3-backfill:apply": "node --env-file-if-exists=.env scripts/backfill-automation-v3-enrollments.mjs --apply",
+    "broker:supabase:migration:check": "node --env-file-if-exists=.env scripts/apply-supabase-operational-migration.mjs",
+    "broker:supabase:migration:apply": "node --env-file-if-exists=.env scripts/apply-supabase-operational-migration.mjs --apply",
     "broker:autonomy:v3-deployment-manifest-proposal": "node --env-file-if-exists=.env scripts/build-automated-seadrop-v3-deployment-manifest.mjs",
     "check": "npm run site:check && npm run contracts:check",
     "code:check": "node scripts/code-check.mjs",
@@ -63,6 +65,7 @@
     "@reown/appkit": "^1.8.23",
     "@reown/appkit-adapter-ethers": "^1.8.23",
     "ethers": "^6.17.0",
+    "pg": "^8.23.0",
     "viem": "^2.55.11"
   },
   "devDependencies": {
