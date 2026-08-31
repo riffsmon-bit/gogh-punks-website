@@ -358,7 +358,7 @@ function loadReownBundle(browserWindow, browserDocument) {
     const script = browserDocument.createElement("script");
     // Keep this version aligned with the HTML wallet module URL. Wallet session
     // fixes must not be stranded behind a stale mobile or desktop browser cache.
-    script.src = "/reown-wallet-app.js?v=reown-7";
+    script.src = "/reown-wallet-app.js?v=reown-8";
     script.async = true;
     script.dataset.reownAppkit = "true";
     script.addEventListener("load", resolve, { once: true });
@@ -372,6 +372,7 @@ function loadReownBundle(browserWindow, browserDocument) {
 
 const REOWN_RETURNING_SESSION_KEY = "gogh.wallet.reown.returning.v1";
 const REOWN_CONNECTION_TIMEOUT_MS = 12_000;
+const REOWN_SESSION_READY_TIMEOUT_MS = 4_000;
 const REOWN_RESTORE_PROBE_DELAYS_MS = Object.freeze([100, 250, 500, 1_000, 2_000, 4_000,
   8_000]);
 const WALLET_SCOPED_STORAGE_KEYS = Object.freeze([
@@ -423,6 +424,7 @@ function setReturningSessionMarker(browserWindow, connected) {
 
 export async function setupReownWallet({ windowObject, documentObject, fetchFunction,
   sessionFactory, connectionTimeoutMs = REOWN_CONNECTION_TIMEOUT_MS,
+  sessionReadyTimeoutMs = REOWN_SESSION_READY_TIMEOUT_MS,
   restoreProbeDelaysMs = REOWN_RESTORE_PROBE_DELAYS_MS } = {}) {
   const browserWindow = windowObject ?? (typeof window === "undefined" ? null : window);
   const browserDocument = documentObject ?? (typeof document === "undefined" ? null : document);
@@ -529,6 +531,27 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
           if (timer === undefined) resolve();
         }),
       ]);
+    } finally {
+      if (timer !== null && timer !== undefined) browserWindow.clearTimeout?.(timer);
+    }
+  }
+
+  async function waitForSessionReady(session) {
+    if (typeof session?.ready !== "function") return true;
+    let timer = null;
+    try {
+      const result = await Promise.race([
+        Promise.resolve().then(() => session.ready()).then(
+          () => ({ ready: true }),
+          (error) => ({ error })),
+        new Promise((resolve) => {
+          timer = browserWindow.setTimeout?.(() => resolve({ timedOut: true }),
+            Math.max(1, Number(sessionReadyTimeoutMs) || REOWN_SESSION_READY_TIMEOUT_MS));
+          if (timer === undefined) resolve({ timedOut: true });
+        }),
+      ]);
+      if (result?.error) throw result.error;
+      return result?.ready === true;
     } finally {
       if (timer !== null && timer !== undefined) browserWindow.clearTimeout?.(timer);
     }
@@ -705,10 +728,11 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
         if (destroyed) return null;
         state.session = factory(configuration ?? {});
         // createAppKit() returns before its asynchronous adapter restoration finishes.
-        // Reading getAccount() before ready() caused desktop injected-wallet sessions to
-        // look disconnected forever when their account event fired during initialization.
-        // Mobile commonly replayed that event, which hid the race there.
-        if (typeof state.session.ready === "function") await state.session.ready();
+        // A prompt post-ready snapshot fixes the desktop injected-wallet race, but AppKit's
+        // readiness promise can remain pending when an injected extension is slow or stale.
+        // Never let that third-party promise disable Connect Wallet indefinitely: after this
+        // bounded wait, subscriptions and the existing restoration probes continue recovery.
+        await waitForSessionReady(state.session);
         if (destroyed) return null;
         state.provider = state.session.getProvider();
         const accountState = state.session.getAccount?.();
