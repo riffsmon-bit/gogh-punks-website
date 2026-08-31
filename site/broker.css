@@ -948,6 +948,16 @@ h3 { font-size: 1.45rem; }
 .launcher-explainer summary { padding: 20px 2px; color: var(--cream); cursor: pointer; font-weight: 800; }
 .launcher-explainer > div { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding-bottom: 4px; }
 .launcher-explainer p { margin: 0; padding: 16px; border: 1px solid rgba(255, 204, 51, 0.24); color: var(--muted); line-height: 1.55; }
+.owner-mint-dashboard { padding: clamp(22px, 4vw, 40px); border: 1px solid var(--line); background: linear-gradient(135deg, rgba(7, 19, 33, 0.94), rgba(54, 200, 182, 0.055)); }
+.owner-mint-dashboard[hidden] { display: none; }
+.owner-mint-dashboard > header { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(280px, 1.1fr); gap: 32px; align-items: end; }
+.owner-mint-dashboard h2 { margin: 5px 0 0; font-size: clamp(2.25rem, 4vw, 4rem); line-height: 0.98; }
+.owner-mint-dashboard > header > p { margin: 0; color: var(--muted); line-height: 1.6; }
+.owner-mint-dashboard-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 24px; }
+.owner-mint-dashboard-grid article { min-width: 0; padding: 20px; border: 1px solid rgba(255, 204, 51, 0.28); background: rgba(3, 12, 20, 0.68); }
+.owner-mint-dashboard-grid strong { display: block; color: var(--cream); font-family: var(--display); font-size: clamp(2rem, 4vw, 3.35rem); font-weight: 400; line-height: 1; }
+.owner-mint-dashboard-grid span { display: block; margin-top: 8px; color: var(--aqua); font-size: 0.68rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
+.owner-mint-dashboard-note { margin: 18px 0 0; color: var(--muted); font-size: 0.8rem; }
 
 @media (max-width: 1050px) {
   .punk-launcher-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -967,6 +977,8 @@ h3 { font-size: 1.45rem; }
   .punk-launcher-card { grid-template-columns: 92px minmax(0, 1fr); }
   .punk-launcher-art { width: 92px; min-height: 156px; }
   .launcher-explainer > div { grid-template-columns: 1fr; }
+  .owner-mint-dashboard > header { grid-template-columns: 1fr; gap: 12px; }
+  .owner-mint-dashboard-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .broker-launcher-page .mobile-app-nav { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 

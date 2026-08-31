@@ -480,14 +480,29 @@ export async function automationPunkAgentSummaries(owner, query = (...args) => (
        SELECT token_id, BOOL_OR(configured) AS configured, BOOL_OR(enrolled) AS enrolled,
               MAX(account_address) AS account_address
          FROM roster GROUP BY token_id
+     ), acquisition_stats AS (
+       SELECT acquisition.punk_token_id AS token_id,
+              COUNT(*)::integer AS lifetime_mints,
+              COUNT(*) FILTER (
+                WHERE acquisition.acquired_at >=
+                  (date_trunc('day', CURRENT_TIMESTAMP AT TIME ZONE 'UTC') AT TIME ZONE 'UTC')
+              )::integer AS mints_today
+         FROM broker_acquisitions AS acquisition
+         JOIN combined ON combined.token_id = acquisition.punk_token_id
+        WHERE acquisition.chain_id = $1
+          AND acquisition.punk_collection_address = $2
+        GROUP BY acquisition.punk_token_id
      )
      SELECT combined.token_id::text, combined.configured, combined.enrolled,
             combined.account_address, heartbeat.state AS worker_state,
             heartbeat.last_scheduled_scan, heartbeat.last_actual_scan,
             heartbeat.last_successful_mint, heartbeat.next_scan_estimate,
             heartbeat.reason, heartbeat.updated_at,
+            COALESCE(acquisition_stats.mints_today, 0) AS mints_today,
+            COALESCE(acquisition_stats.lifetime_mints, 0) AS lifetime_mints,
             global.status AS global_status, global.completed_at AS global_completed_at
        FROM combined
+       LEFT JOIN acquisition_stats ON acquisition_stats.token_id = combined.token_id
        LEFT JOIN broker_punk_agent_heartbeats AS heartbeat
          ON heartbeat.chain_id = $1 AND heartbeat.punk_token_id = combined.token_id
        LEFT JOIN broker_automation_v3_worker_state AS global ON global.singleton_id = 1
@@ -511,6 +526,13 @@ export async function automationPunkAgentSummaries(owner, query = (...args) => (
     if (reason !== null && !/^[A-Z0-9_]{3,64}$/.test(reason)) {
       throw new TypeError("agent summary reason is invalid");
     }
+    const count = (value) => {
+      const parsed = Number(value ?? 0);
+      if (!Number.isSafeInteger(parsed) || parsed < 0) {
+        throw new TypeError("agent summary mint count is invalid");
+      }
+      return parsed;
+    };
     return Object.freeze({
       tokenId: selectedTokenId,
       configured: row.configured === true,
@@ -526,6 +548,8 @@ export async function automationPunkAgentSummaries(owner, query = (...args) => (
       nextScanEstimate: timestamp(row.next_scan_estimate),
       reason,
       updatedAt: timestamp(row.updated_at),
+      mintsToday: count(row.mints_today),
+      lifetimeMints: count(row.lifetime_mints),
     });
   }));
 }

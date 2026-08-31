@@ -358,7 +358,7 @@ function loadReownBundle(browserWindow, browserDocument) {
     const script = browserDocument.createElement("script");
     // Keep this version aligned with the HTML wallet module URL. Wallet session
     // fixes must not be stranded behind a stale mobile or desktop browser cache.
-    script.src = "/reown-wallet-app.js?v=reown-6";
+    script.src = "/reown-wallet-app.js?v=reown-7";
     script.async = true;
     script.dataset.reownAppkit = "true";
     script.addEventListener("load", resolve, { once: true });
@@ -676,8 +676,10 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
   render();
 
   async function ensureSession() {
-    if (state.session) return state.session;
     if (initializationPromise) return initializationPromise;
+    // A session object exists before AppKit has finished restoring its adapters.
+    // Always join that in-flight initialization before treating it as usable.
+    if (state.session) return state.session;
     state.sessionStatus = "initializing";
     state.networkError = null;
     render();
@@ -702,6 +704,12 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
         }
         if (destroyed) return null;
         state.session = factory(configuration ?? {});
+        // createAppKit() returns before its asynchronous adapter restoration finishes.
+        // Reading getAccount() before ready() caused desktop injected-wallet sessions to
+        // look disconnected forever when their account event fired during initialization.
+        // Mobile commonly replayed that event, which hid the race there.
+        if (typeof state.session.ready === "function") await state.session.ready();
+        if (destroyed) return null;
         state.provider = state.session.getProvider();
         const accountState = state.session.getAccount?.();
         state.account = accountState?.isConnected

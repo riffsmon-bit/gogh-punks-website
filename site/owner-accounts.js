@@ -94,6 +94,23 @@ export async function readBrowserOwnerPunkBalance(provider, collection, owner) {
   return Number(balance);
 }
 
+export function ownerMintDashboard(accounts = []) {
+  if (!Array.isArray(accounts)) throw new TypeError("Punk accounts must be an array");
+  const safeCount = (value) => Number.isSafeInteger(Number(value)) && Number(value) >= 0
+    ? Number(value) : 0;
+  const summaries = accounts.map((item) => item?.agentSummary ?? null);
+  return Object.freeze({
+    brokers: accounts.filter((item) => item?.activated === true
+      || item?.automationCreated === true || item?.automationConfigured === true
+      || item?.agentSummary?.enrolled === true).length,
+    mintsToday: summaries.reduce((total, summary) => total + safeCount(summary?.mintsToday), 0),
+    lifetimeMints: summaries.reduce(
+      (total, summary) => total + safeCount(summary?.lifetimeMints), 0,
+    ),
+    collectors: summaries.filter((summary) => safeCount(summary?.lifetimeMints) > 0).length,
+  });
+}
+
 function decodeWordMulticall(value, tokenIds) {
   if (!Array.isArray(tokenIds) || tokenIds.length < 1 || tokenIds.length > 250
     || tokenIds.some((tokenId) => !/^(0|[1-9]\d{0,3})$/.test(String(tokenId)))
@@ -643,6 +660,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
   const workspacePicker = browserDocument?.querySelector?.("[data-workspace-punk-picker]");
   const selectedPreview = browserDocument?.querySelector?.("[data-workspace-punk-preview]");
   const refreshButton = browserDocument?.querySelector?.("[data-refresh-owner-punks]");
+  const mintDashboard = browserDocument?.querySelector?.("[data-owner-mint-dashboard]");
   if (!browserWindow || (!container && !picker && !mandatePicker && !workspacePicker)) return null;
   const request = fetchFunction ?? browserWindow.fetch.bind(browserWindow);
   let revision = 0;
@@ -652,7 +670,32 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
   let recheckTimer = null;
   let summaryRefreshRunning = false;
 
+  function renderMintDashboard(accounts) {
+    if (!mintDashboard) return;
+    if (!Array.isArray(accounts) || accounts.length === 0) {
+      mintDashboard.hidden = true;
+      return;
+    }
+    const summary = ownerMintDashboard(accounts);
+    const values = [
+      ["[data-owner-summary-brokers]", summary.brokers],
+      ["[data-owner-summary-today]", summary.mintsToday],
+      ["[data-owner-summary-lifetime]", summary.lifetimeMints],
+      ["[data-owner-summary-collectors]", summary.collectors],
+    ];
+    for (const [selector, value] of values) {
+      const target = mintDashboard.querySelector(selector);
+      if (target) target.textContent = String(value);
+    }
+    const note = mintDashboard.querySelector("[data-owner-summary-note]");
+    if (note) note.textContent = summary.brokers > 0
+      ? "Confirmed indexed acquisitions; individual Punk wallets remain the home for assets and withdrawals."
+      : "No Art Broker has been activated in this wallet yet.";
+    mintDashboard.hidden = false;
+  }
+
   function announceOwnerPunks(accounts, owner = null) {
+    renderMintDashboard(accounts);
     const detail = Object.freeze({
       owner: typeof owner === "string" ? owner.toLowerCase() : null,
       tokenIds: Object.freeze(accounts.map(({ tokenId }) => tokenId)),
@@ -853,6 +896,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
     renderPunkPicker(mandatePicker, decoratedAccounts, selectedTokenId);
     renderPunkPicker(workspacePicker, decoratedAccounts, selectedTokenId);
     currentAccounts = decoratedAccounts;
+    renderMintDashboard(currentAccounts);
     announceOwnerPunks(decoratedAccounts, wallet.account);
     renderSelectedPunkPreview(selectedPreview, decoratedAccounts, selectedTokenId);
     if (container) renderOwnerAccounts(container, decoratedAccounts);
@@ -1077,6 +1121,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       )));
       if (before === after) return;
       currentAccounts = refreshed;
+      renderMintDashboard(currentAccounts);
       announceOwnerPunks(currentAccounts, wallet.account);
       renderSelectedPunkPreview(selectedPreview, currentAccounts,
         workspacePicker?.value || mandatePicker?.value || picker?.value || "");

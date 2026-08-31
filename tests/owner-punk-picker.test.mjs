@@ -29,6 +29,7 @@ import {
   priorityArtworkAccounts,
   readBrowserOwnerPunkBalance,
   mergeWalletAndActivatedPunks,
+  ownerMintDashboard,
   requestedBrokerPunk,
   selectedPunkGalleryPath,
 } from "../site/owner-accounts.js";
@@ -103,6 +104,7 @@ test("owner agent summaries distinguish worker proof from configuration", async 
         worker_state: "SKIPPED", last_scheduled_scan: "2026-08-29T12:08:00Z",
         last_actual_scan: "2026-08-29T12:08:02Z", last_successful_mint: null,
         next_scan_estimate: "2026-08-29T14:23:00Z", reason: "NO_ELIGIBLE_TARGETS",
+        mints_today: 2, lifetime_mints: 15,
         updated_at: "2026-08-29T12:08:02Z", global_status: "NO_ELIGIBLE_TARGETS",
         global_completed_at: "2026-08-29T12:08:02Z" },
       { token_id: "1616", configured: true, enrolled: false, account_address: null,
@@ -148,9 +150,28 @@ test("owner agent summaries distinguish worker proof from configuration", async 
   assert.equal(summaries[4].status, "MINTING");
   assert.equal(summaries[5].status, "ACTIVE");
   assert.equal(summaries[6].status, "WAITING_FOR_WORKER");
+  assert.deepEqual(
+    summaries.map(({ mintsToday, lifetimeMints }) => [mintsToday, lifetimeMints]),
+    [[2, 15], ...Array.from({ length: 6 }, () => [0, 0])],
+  );
+  assert.match(captured.sql, /broker_acquisitions/);
+  assert.match(captured.sql, /mints_today/);
   assert.match(captured.sql, /broker_punk_agent_heartbeats/);
   assert.match(captured.sql, /broker_automation_v3_worker_state/);
   assert.equal(captured.values[2], OWNER.toLowerCase());
+});
+
+test("wallet-wide mint dashboard aggregates only the verified Punk roster", () => {
+  assert.deepEqual(ownerMintDashboard([
+    { tokenId: "93", activated: true,
+      agentSummary: { enrolled: true, mintsToday: 2, lifetimeMints: 15 } },
+    { tokenId: "94", automationConfigured: true,
+      agentSummary: { enrolled: false, mintsToday: 1, lifetimeMints: 4 } },
+    { tokenId: "95", activated: false, agentSummary: null },
+  ]), { brokers: 2, mintsToday: 3, lifetimeMints: 19, collectors: 2 });
+  assert.deepEqual(ownerMintDashboard([
+    { activated: true, agentSummary: { mintsToday: -1, lifetimeMints: "invalid" } },
+  ]), { brokers: 1, mintsToday: 0, lifetimeMints: 0, collectors: 0 });
 });
 
 test("live owner completion avoids a full scan when indexed candidates reconcile balance", async () => {
@@ -617,6 +638,8 @@ test("broker launcher renders only the canonical live-verified owner roster", as
   assert.match(html, /data-owned-punk-count/);
   assert.match(html, /data-ownership-state/);
   assert.match(html, /data-owner-accounts/);
+  assert.match(html, /data-owner-mint-dashboard/);
+  assert.match(html, /What your Punks have collected/);
   assert.match(html, /Refresh My Punks/);
   assert.doesNotMatch(html, /Scout Punk<\/span><strong data-scout-token-display/);
   assert.match(accounts, /findBrowserOwnedPunks/);

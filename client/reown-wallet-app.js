@@ -59,6 +59,7 @@ export function createReownWalletSession(configuration = {}) {
   return Object.freeze({
     appKit,
     network: ROBINHOOD,
+    ready: () => appKit.ready(),
     open: () => appKit.open(),
     openAccount: () => appKit.open({ view: "Account" }),
     openNetwork: () => appKit.open({ view: "Networks" }),

@@ -8,7 +8,7 @@
     <title>Art Broker · Gogh Punks</title>
     <link rel="icon" href="/assets/favicon.png" type="image/png" />
     <link rel="stylesheet" href="/broker.css" />
-    <script src="/wallet.js?v=reown-6" type="module"></script>
+    <script src="/wallet.js?v=reown-7" type="module"></script>
     <script src="/owner-accounts.js" type="module"></script>
   </head>
   <body class="broker-launcher-page">
@@ -62,6 +62,24 @@
             <p><strong>The hosted agent</strong> scouts only within the limits you authorize. Autonomous execution remains bounded: paid mints, selling, arbitrary calls, and main-wallet spending remain blocked.</p>
           </div>
         </details>
+      </section>
+
+      <section class="owner-mint-dashboard" data-owner-mint-dashboard hidden
+        aria-labelledby="owner-mint-dashboard-title">
+        <header>
+          <div>
+            <p class="eyebrow">Your Art Broker network</p>
+            <h2 id="owner-mint-dashboard-title">What your Punks have collected</h2>
+          </div>
+          <p>Confirmed Art Broker acquisitions across the Punks currently verified in this wallet. Withdrawing an NFT does not erase its mint history.</p>
+        </header>
+        <div class="owner-mint-dashboard-grid">
+          <article><strong data-owner-summary-brokers>0</strong><span>Art Brokers</span></article>
+          <article><strong data-owner-summary-today>0</strong><span>Mints today (UTC)</span></article>
+          <article><strong data-owner-summary-lifetime>0</strong><span>Lifetime mints</span></article>
+          <article><strong data-owner-summary-collectors>0</strong><span>Punks that collected</span></article>
+        </div>
+        <p class="owner-mint-dashboard-note" data-owner-summary-note>Loaded with your verified Punk roster—no additional blockchain scan.</p>
       </section>
     </main>
 
