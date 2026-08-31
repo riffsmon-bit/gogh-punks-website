@@ -938,6 +938,11 @@ h3 { font-size: 1.45rem; }
 .owner-roster-disclosure-action::after { content: "Expand +"; color: var(--aqua); }
 .owner-roster-disclosure[open] .owner-roster-disclosure-action::after { content: "Collapse \2212"; }
 .owner-roster-disclosure[open] > summary { border-bottom: 1px solid rgba(255, 204, 51, 0.2); }
+.owner-roster-filters { display: flex; gap: 8px; overflow-x: auto; padding: 12px 14px 0; scrollbar-width: thin; }
+.owner-roster-filters button { flex: 0 0 auto; min-height: 40px; padding: 9px 12px; border: 1px solid rgba(255, 204, 51, 0.28); color: var(--muted); background: rgba(3, 12, 20, 0.68); font: inherit; font-size: 0.67rem; font-weight: 850; letter-spacing: 0.06em; text-transform: uppercase; }
+.owner-roster-filters button:hover, .owner-roster-filters button:focus-visible { border-color: var(--aqua); color: var(--cream); }
+.owner-roster-filters button[aria-pressed="true"] { border-color: var(--aqua); color: #03100f; background: var(--aqua); }
+.owner-roster-filters span { display: inline-grid; min-width: 1.6em; min-height: 1.6em; margin-left: 5px; place-items: center; border-radius: 999px; color: currentColor; background: rgba(255, 255, 255, 0.12); font-size: 0.62rem; }
 .owner-roster-disclosure .punk-launcher-grid { padding: 14px; }
 .punk-launcher-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 .punk-launcher-card { display: grid; grid-template-columns: 104px minmax(0, 1fr); min-width: 0; overflow: hidden; border: 1px solid var(--line); background: #071321; }
@@ -982,6 +987,7 @@ h3 { font-size: 1.45rem; }
   .ownership-launcher-header .status-refresh-button { width: 100%; min-height: 48px; }
   .ownership-verification { grid-template-columns: 1fr auto; }
   .ownership-verification span:nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
+  .owner-roster-filters { margin-right: -14px; padding-right: 14px; }
   .punk-launcher-grid { grid-template-columns: 1fr; }
   .punk-launcher-card { grid-template-columns: 92px minmax(0, 1fr); }
   .punk-launcher-art { width: 92px; min-height: 156px; }
@@ -1042,6 +1048,10 @@ h3 { font-size: 1.45rem; }
 .control-facts dd { margin: 0; color: var(--cream); text-align: right; }
 .control-button-stack { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .control-button-stack .danger { border-color: #ff8172; color: #ff8172; }
+.funding-recommendation { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 18px; align-items: center; margin: 18px 0; padding: 16px; border: 1px solid var(--aqua); background: rgba(62, 205, 194, 0.06); }
+.funding-recommendation strong { color: var(--cream); }
+.funding-recommendation span { color: var(--muted); line-height: 1.5; }
+.funding-recommendation button { grid-column: 2; grid-row: 1 / span 2; min-width: 150px; }
 .control-note { min-height: 26px; margin-top: 16px; color: var(--aqua) !important; }
 .panel-header { display: flex; justify-content: space-between; gap: 20px; align-items: start; }
 .control-form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: 18px 0; }
@@ -1132,6 +1142,8 @@ h3 { font-size: 1.45rem; }
   .control-card button { width: 100%; min-height: 52px; }
   .panel-header { display: grid; }
   .control-button-stack { grid-template-columns: 1fr; }
+  .funding-recommendation { grid-template-columns: 1fr; }
+  .funding-recommendation button { grid-column: 1; grid-row: auto; width: 100%; }
   .agent-timeline article { grid-template-columns: 1fr; gap: 4px; }
   .agent-timeline article > button { grid-column: 1; width: 100%; }
   .agent-candidate-grid { grid-template-columns: 1fr; }

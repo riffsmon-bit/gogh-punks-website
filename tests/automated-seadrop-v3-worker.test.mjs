@@ -12,6 +12,7 @@ import {
   fairlyOrderedAutomationV3Profiles,
   mergePrioritySeaDropCollections,
   recentSeaDropCollections,
+  rarityPriorityBoostSeconds,
   rotateAutomationV3Profiles,
   runAutomatedSeaDropV3Worker,
   scheduledAutomationV3ProfileBatch,
@@ -31,6 +32,36 @@ test("V3 worker remains disabled by default and uses the confirmed intent horizo
     status: "DISABLED", submitted: 0,
   });
   assert.deepEqual(confirmedIntentWindow(1_000), { createdAt: 970, expiresAt: 1_090 });
+});
+
+test("hosted rotation applies a bounded rarity head start without bypassing owner fairness", async () => {
+  assert.deepEqual([
+    rarityPriorityBoostSeconds(1),
+    rarityPriorityBoostSeconds(51),
+    rarityPriorityBoostSeconds(52),
+    rarityPriorityBoostSeconds(252),
+    rarityPriorityBoostSeconds(754),
+    rarityPriorityBoostSeconds(1_757),
+    rarityPriorityBoostSeconds(3_011),
+    rarityPriorityBoostSeconds(null),
+  ], [1_200, 1_200, 600, 300, 120, 60, 0, 0]);
+
+  let query;
+  const profiles = [
+    { token_id: "93", configured_by: "0x1111111111111111111111111111111111111111" },
+    { token_id: "94", configured_by: "0x2222222222222222222222222222222222222222" },
+  ];
+  const ordered = await fairlyOrderedAutomationV3Profiles({
+    query: async (sql, values) => {
+      query = { sql, values };
+      return { rows: [{ punk_token_id: "94" }, { punk_token_id: "93" }] };
+    },
+  }, profiles);
+  assert.deepEqual(ordered.map(({ token_id }) => token_id), ["94", "93"]);
+  assert.match(query.sql, /broker_punk_rarity_cache/);
+  assert.match(query.sql, /effective_last_scheduled_scan/);
+  assert.match(query.sql, /PARTITION BY owner_key/);
+  assert.match(query.sql, /NULLS FIRST/);
 });
 
 test("V3 prefilter keeps exact reviewed clone bytecode and rejects drift", () => {
@@ -260,7 +291,7 @@ test("scheduled V3 fairness gives each owner a turn before a large holder gets a
   }));
   const database = { query: async (sql, values) => {
     assert.match(sql, /ROW_NUMBER\(\) OVER/);
-    assert.match(sql, /PARTITION BY requested\.owner_key/);
+    assert.match(sql, /PARTITION BY owner_key/);
     assert.deepEqual(values[1], [largeOwner, largeOwner, largeOwner, largeOwner, smallOwner]);
     // PostgreSQL returns one round per owner before the second Punk belonging
     // to the same owner. Preserve that order exactly in the worker batch.

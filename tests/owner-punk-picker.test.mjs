@@ -4,6 +4,7 @@ import test from "node:test";
 import { encodeFunctionData, encodeFunctionResult, parseAbi } from "viem";
 import {
   automationPunkAgentSummaries, configuredAutomationPunkIds,
+  cacheOpenSeaPunkRarities,
   createdAutomationV3PunkIds,
   enrolledAutomationPunkIds,
   indexedOwnerPunkIds,
@@ -30,6 +31,9 @@ import {
   readBrowserOwnerPunkBalance,
   mergeWalletAndActivatedPunks,
   ownerMintDashboard,
+  ownerPunkIsActivated,
+  ownerPunkMatchesRosterFilter,
+  ownerRosterFilterCounts,
   requestedBrokerPunk,
   selectedPunkGalleryPath,
 } from "../site/owner-accounts.js";
@@ -176,6 +180,46 @@ test("wallet-wide mint dashboard aggregates only the verified Punk roster", () =
   assert.deepEqual(ownerMintDashboard([
     { activated: true, agentSummary: { mintsToday: -1, lifetimeMints: "invalid" } },
   ]), { brokers: 1, mintsToday: 0, lifetimeMints: 0, collectors: 0 });
+});
+
+test("Broker roster filters use indexed agent summaries without new chain reads", () => {
+  const accounts = [
+    { tokenId: "93", activated: true, agentSummary: { enrolled: true, status: "ACTIVE" } },
+    { tokenId: "94", automationCreated: true,
+      agentSummary: { enrolled: true, status: "SCANNING" } },
+    { tokenId: "95", automationConfigured: true,
+      agentSummary: { enrolled: true, status: "MINTING" } },
+    { tokenId: "96", automationConfigured: true,
+      agentSummary: { enrolled: false, status: "NEEDS_ENROLLMENT" } },
+    { tokenId: "97", activated: false, agentSummary: null },
+  ];
+  assert.equal(ownerPunkIsActivated(accounts[0]), true);
+  assert.equal(ownerPunkIsActivated(accounts[4]), false);
+  assert.equal(ownerPunkMatchesRosterFilter(accounts[1], "searching"), true);
+  assert.equal(ownerPunkMatchesRosterFilter(accounts[2], "minting"), true);
+  assert.equal(ownerPunkMatchesRosterFilter(accounts[3], "attention"), true);
+  assert.equal(ownerPunkMatchesRosterFilter(accounts[4], "ready"), true);
+  assert.deepEqual(ownerRosterFilterCounts(accounts), {
+    all: 5, activated: 4, searching: 1, minting: 1, attention: 1, ready: 1,
+  });
+  assert.throws(() => ownerPunkMatchesRosterFilter(accounts[0], "unknown"), /Unknown/);
+});
+
+test("OpenSea rarity is cached only as a bounded scheduling hint", async () => {
+  let query;
+  const written = await cacheOpenSeaPunkRarities([
+    { tokenId: "93", rarity: { rank: 17, proposedTier: "MYTHIC",
+      source: "OPENSEA_OPENRARITY_CURRENT" } },
+    { tokenId: "94", rarity: null },
+  ], {
+    query: async (sql, values) => { query = { sql, values }; return { rows: [] }; },
+  });
+  assert.equal(written, 1);
+  assert.match(query.sql, /broker_punk_rarity_cache/);
+  assert.match(query.sql, /ON CONFLICT/);
+  assert.deepEqual(query.values[1], ["93"]);
+  assert.deepEqual(query.values[2], [17]);
+  assert.deepEqual(query.values[3], ["MYTHIC"]);
 });
 
 test("live owner completion avoids a full scan when indexed candidates reconcile balance", async () => {
@@ -578,6 +622,8 @@ test("wallet rechecks ownership and labels activated versus activatable Punks", 
     { tokenId: "7", activated: true },
     { tokenId: "8", activated: false },
   ]);
+  assert.ok(result.every(({ transactionAuthorized }) => transactionAuthorized === true),
+    "the existing Robinhood-capable provider path remains actionable");
   assert.equal(calls.length, 3);
 });
 
@@ -660,6 +706,7 @@ test("broker launcher renders only the canonical live-verified owner roster", as
   assert.match(accounts, /gogh:select-punk-request/);
   assert.match(endpoint, /DISCOVERY_CANDIDATES_ONLY_EACH_SELECTION_REQUIRES_LIVE_WALLET_OWNER_CHECK/);
   assert.match(endpoint, /liveMulticall: true/);
+  assert.match(endpoint, /private, no-store/);
   assert.match(endpoint, /openSea: openSeaAvailable/);
   assert.match(endpoint, /called only after an owner connects/);
   assert.match(endpoint, /unrelated marketplace API/);

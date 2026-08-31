@@ -92,7 +92,7 @@
 
       <section id="control-panel-mint" class="control-panel" role="tabpanel" aria-labelledby="control-tab-mint" data-control-panel="mint" hidden>
         <div class="control-grid two-column">
-          <article class="control-card"><p class="eyebrow">Scout mode</p><h2>Send Agent Scouting</h2><p>Search only the marketplaces and runtimes supported by the reviewed adapter set.</p><button type="button" data-scout-simulate disabled>Scout for Mints</button><p class="control-note" data-scout-result>Connect the current holder to load Scout controls.</p></article>
+          <article class="control-card"><p class="eyebrow">Scout mode</p><h2>Send Agent Scouting</h2><p>Search only the marketplaces and runtimes supported by the reviewed adapter set.</p><div class="control-button-stack"><button type="button" data-scout-simulate disabled>Scout for Mints</button><button type="button" data-owner-paid-run disabled>Run Now — I Pay Gas</button></div><p class="control-note">Run Now prepares one exact free mint, simulates it, then asks your connected wallet to pay only its network gas. The NFT still goes directly to this Punk Wallet.</p><p class="control-note" data-scout-result>Connect the current holder to load Scout controls.</p></article>
           <article class="control-card"><p class="eyebrow">Directed mode</p><h2>Direct Your Punk to a Mint</h2><label class="control-field"><span>Paste an OpenSea mint link</span><input type="url" inputmode="url" data-directed-url placeholder="https://opensea.io/collection/..." /></label><button type="button" data-directed-check disabled>Check Mint</button><p class="control-note" data-directed-state>Entering a URL never authorizes spending.</p></article>
         </div>
         <article class="control-card directed-review" data-directed-review hidden>
@@ -116,6 +116,7 @@
         <article class="control-card punk-wallet-funding">
           <div class="panel-header"><div><p class="eyebrow">Punk Wallet Funds</p><h2>Add Funds to This Punk</h2></div><span class="tag">CURRENT HOLDER</span></div>
           <p>These funds go directly from your connected wallet into the selected Punk Wallet. They belong to the Punk Wallet and may later pay the exact price of an owner-authorized paid mint. Hosted-agent gas is separate and your main wallet is never an autonomous spending source.</p>
+          <div class="funding-recommendation"><strong>Recommended starter balance: 0.005 ETH</strong><span>This is optional and intended for future owner-authorized paid mints. It is not required for free scouting or Run Now.</span><button type="button" data-punk-fund-recommended disabled>Use 0.005 ETH</button></div>
           <div class="control-form-grid"><label class="control-field"><span>Amount in ETH</span><input data-punk-fund-amount inputmode="decimal" autocomplete="off" placeholder="0.01" disabled /></label><div class="control-field"><span>Destination</span><strong data-punk-fund-account>Connect wallet to load</strong></div></div>
           <label class="control-toggle"><input type="checkbox" data-punk-fund-confirm disabled /><span>I reviewed the selected Punk Wallet and amount. This sends native ETH into that Punk Wallet.</span></label>
           <button type="button" data-punk-fund-submit disabled>Fund Punk Wallet in MetaMask</button>

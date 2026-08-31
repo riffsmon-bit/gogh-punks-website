@@ -388,7 +388,13 @@ function normalizeLiveState(input, profile, nowSeconds) {
 
 export function buildAutomatedSeaDropV3RunPlan(profileInput, liveStateInput, options = {}) {
   const normalizedOptions = snapshot(options, "options");
-  exactKeys(normalizedOptions, ["nowSeconds"], "options");
+  const optionKeys = Object.hasOwn(normalizedOptions, "gasPayer")
+    ? ["gasPayer", "nowSeconds"] : ["nowSeconds"];
+  exactKeys(normalizedOptions, optionKeys, "options");
+  const gasPayer = normalizedOptions.gasPayer ?? "AGENT";
+  if (!new Set(["AGENT", "OWNER"]).has(gasPayer)) {
+    fail("INVALID_VALUE", "options.gasPayer must be AGENT or OWNER");
+  }
   const nowSeconds = integer(
     normalizedOptions.nowSeconds, 1, Number.MAX_SAFE_INTEGER, "options.nowSeconds",
   );
@@ -399,9 +405,14 @@ export function buildAutomatedSeaDropV3RunPlan(profileInput, liveStateInput, opt
 
   const reserve = BigInt(profile.limits.minAgentReserveWei);
   const available = live.agentBalanceWei > reserve ? live.agentBalanceWei - reserve : 0n;
-  const gasBudget = available < BigInt(profile.limits.maxGasWeiPerRun)
-    ? available : BigInt(profile.limits.maxGasWeiPerRun);
-  if (gasBudget === 0n) fail("INSUFFICIENT_GAS", "agent gas balance cannot preserve its reserve");
+  const gasBudget = gasPayer === "OWNER" ? BigInt(profile.limits.maxGasWeiPerRun)
+    : available < BigInt(profile.limits.maxGasWeiPerRun)
+      ? available : BigInt(profile.limits.maxGasWeiPerRun);
+  if (gasBudget === 0n) fail(
+    "INSUFFICIENT_GAS",
+    gasPayer === "OWNER" ? "the owner-paid gas limit is zero"
+      : "agent gas balance cannot preserve its reserve",
+  );
 
   // Phase 1 is an exact zero-price execution lane. Taste and off-chain risk scores
   // remain recorded for the journal, but never override the live clone/runtime,

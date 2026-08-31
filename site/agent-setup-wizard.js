@@ -502,6 +502,9 @@ export function setupAgentWizard({ windowObject, documentObject, fetchFunction }
       const restart = browserDocument.createElement("button");
       restart.type = "button";
       restart.textContent = "Restart agent";
+      restart.disabled = punk.serverVerifiedReadOnly === true
+        || punk.ownershipMode === "SERVER_VERIFIED_READ_ONLY";
+      if (restart.disabled) restart.title = "Robinhood wallet access is required to change this agent.";
       restart.addEventListener("click", () => restartAgent(punk.tokenId, restart, status));
       actions.append(watch, wallet, restart);
       card.append(visual, body, actions);
@@ -554,17 +557,23 @@ export function setupAgentWizard({ windowObject, documentObject, fetchFunction }
     if (customDays) customDays.value = String(state.durationDays);
     const automation = selectedAutomation();
     const active = automation?.active === true;
+    const readOnly = punk?.serverVerifiedReadOnly === true
+      || punk?.ownershipMode === "SERVER_VERIFIED_READ_ONLY";
     const hostedGasReady = automation?.hostedGas?.ready === true;
     gasStatus.textContent = hostedGasReady
       ? "Ready — no payment required ✓" : "No payment required to launch";
     fund.hidden = false;
-    send.disabled = !active || automation?.version !== 3 || automation?.running === true;
+    fund.disabled = readOnly;
+    send.disabled = readOnly || !active || automation?.version !== 3
+      || automation?.running === true;
     send.textContent = automation?.running === true ? "Sending agent…" : "Send Agent";
-    activate.disabled = !state.selectedPunk || active || retirement.checked !== true
+    activate.disabled = readOnly || !state.selectedPunk || active || retirement.checked !== true
       || Boolean(automation?.setupSubmission);
     activate.textContent = active ? "Agent already active" : "Activate Agent";
-    retirement.disabled = active;
-    if (automation?.setupSubmission) {
+    retirement.disabled = active || readOnly;
+    if (readOnly) {
+      stateText.textContent = "Ownership is server-verified in read-only mode. Use a wallet provider that supports Robinhood Chain to activate or change this Punk.";
+    } else if (automation?.setupSubmission) {
       stateText.textContent = automation.lastTransactionHash
         ? `Confirming setup ${automation.setupSubmission.index} of ${automation.setupSubmission.total}…`
         : "Waiting for wallet…";
@@ -582,6 +591,12 @@ export function setupAgentWizard({ windowObject, documentObject, fetchFunction }
     transactionLink.hidden = !/^0x[0-9a-fA-F]{64}$/.test(hash ?? "");
     if (!transactionLink.hidden) transactionLink.href = `https://robinhoodchain.blockscout.com/tx/${hash}`;
     writeState(browserWindow.localStorage, state);
+  }
+
+  function selectedIsReadOnly() {
+    const punk = selected();
+    return punk?.serverVerifiedReadOnly === true
+      || punk?.ownershipMode === "SERVER_VERIFIED_READ_ONLY";
   }
 
   root.querySelectorAll("[data-wizard-next]").forEach((button) => {
@@ -624,7 +639,7 @@ export function setupAgentWizard({ windowObject, documentObject, fetchFunction }
     // The advanced panel disables its own retirement disclosure for an active Punk, and this
     // handler force-checks that box. Without this guard a stale button re-runs the whole
     // owner-setup batch against an agent that is already authorized.
-    if (!state.selectedPunk || alreadyActive()) {
+    if (!state.selectedPunk || selectedIsReadOnly() || alreadyActive()) {
       showStep(state.selectedPunk ? "power" : "choose");
       render();
       return;
@@ -645,6 +660,7 @@ export function setupAgentWizard({ windowObject, documentObject, fetchFunction }
     render();
   });
   fund.addEventListener("click", () => {
+    if (selectedIsReadOnly()) return;
     const confirm = browserDocument.querySelector("[data-v2-agent-fund-confirm]");
     const amount = browserDocument.querySelector("[data-v2-agent-fund-amount]");
     if (amount && gasAmount) {
@@ -658,6 +674,7 @@ export function setupAgentWizard({ windowObject, documentObject, fetchFunction }
     browserDocument.querySelector("[data-v2-agent-fund]")?.click();
   });
   send.addEventListener("click", () => {
+    if (selectedIsReadOnly()) return;
     browserDocument.querySelector("[data-v3-run-now]")?.click();
     render();
   });

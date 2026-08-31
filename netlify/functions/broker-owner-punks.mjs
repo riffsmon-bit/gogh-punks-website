@@ -94,6 +94,40 @@ function openSeaDecoration(nft, tokenId) {
   });
 }
 
+export async function cacheOpenSeaPunkRarities(punks, pool = getDatabase().pool) {
+  if (!Array.isArray(punks) || punks.length > MAX_CANDIDATES || !pool?.query) {
+    throw new TypeError("OpenSea Punk rarity cache input is invalid");
+  }
+  const ranked = punks.filter(({ tokenId, rarity }) => (
+    punkTokenId(String(tokenId)) === String(tokenId)
+    && Number.isSafeInteger(rarity?.rank)
+    && proposedRetirementTierForOpenSeaRank(rarity.rank) === rarity.proposedTier
+    && rarity.source === "OPENSEA_OPENRARITY_CURRENT"
+  ));
+  if (ranked.length === 0) return 0;
+  await pool.query(`
+    INSERT INTO broker_punk_rarity_cache (
+      chain_id, collection_address, punk_token_id, rarity_rank,
+      rarity_tier, source, observed_at, updated_at
+    )
+    SELECT 4663, $1, input.punk_token_id, input.rarity_rank,
+           input.rarity_tier, 'OPENSEA_OPENRARITY_CURRENT', NOW(), NOW()
+      FROM UNNEST($2::numeric[], $3::integer[], $4::text[])
+        AS input(punk_token_id, rarity_rank, rarity_tier)
+    ON CONFLICT (chain_id, collection_address, punk_token_id)
+    DO UPDATE SET rarity_rank = EXCLUDED.rarity_rank,
+                  rarity_tier = EXCLUDED.rarity_tier,
+                  source = EXCLUDED.source,
+                  observed_at = EXCLUDED.observed_at,
+                  updated_at = NOW()`, [
+    ROBINHOOD.canonicalCollection,
+    ranked.map(({ tokenId }) => tokenId),
+    ranked.map(({ rarity }) => rarity.rank),
+    ranked.map(({ rarity }) => rarity.proposedTier),
+  ]);
+  return ranked.length;
+}
+
 function address(value) {
   return typeof value === "string" && /^0x[0-9a-fA-F]{40}$/.test(value)
     ? value.toLowerCase() : null;
@@ -796,9 +830,13 @@ export default async function handler(request) {
         evidence: "INDEXED_DISCOVERY_HINTS_ONLY_EACH_SELECTION_REQUIRES_LIVE_WALLET_OWNER_CHECK",
         activationAuthorized: false,
         autonomyAuthorized: false,
-      }, 200, { "cache-control": "private, max-age=15, stale-while-revalidate=45" });
+      // Owner rosters are inexpensive indexed DB reads and are wallet-specific. Do not let a
+      // CDN/browser advisory response outlive a successful reconciliation that just removed
+      // transferred-away token IDs.
+      }, 200, { "cache-control": "private, no-store" });
     }
     let openSeaPunks = [];
+    let rarityCacheWrite = Promise.resolve();
     let openSeaAvailable = false;
     if (process.env.OPENSEA_API_KEY) {
       try {
@@ -810,6 +848,13 @@ export default async function handler(request) {
           timeoutMs: 2_500,
         });
         openSeaAvailable = true;
+        // Reuse rarity already returned by this owner-initiated OpenSea lookup.
+        // The hosted scheduler never calls OpenSea; it reads this advisory cache.
+        rarityCacheWrite = cacheOpenSeaPunkRarities(openSeaPunks).catch((error) => {
+          console.error(JSON.stringify({
+            event: "BROKER_PUNK_RARITY_CACHE_UNAVAILABLE", type: error?.name,
+          }));
+        });
         candidateTokenIds = [...new Set([
           ...candidateTokenIds,
           ...openSeaPunks.map(({ tokenId }) => tokenId),
@@ -909,6 +954,7 @@ export default async function handler(request) {
         event: "BROKER_OWNER_PUNK_ARTWORK_UNAVAILABLE", type: error?.name,
       }));
     }
+    await rarityCacheWrite;
     const candidatePunks = mergeOwnerPunkDecorations(
       candidateTokenIds,
       cachedPunks,

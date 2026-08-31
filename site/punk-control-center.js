@@ -16,6 +16,9 @@ import {
 import {
   requestOwnerSetupArtifact, submitOwnerSetupTransactions, submitOwnerStopTransactions,
 } from "./owner-agent-activation.js";
+import {
+  preflightOwnerPaidFreeMint, requestOwnerPaidFreeMint, submitOwnerPaidFreeMint,
+} from "./owner-paid-free-mint.js";
 
 const CHAIN_ID = 4663;
 const OWNER_OF_SELECTOR = "0x6352211e";
@@ -54,7 +57,7 @@ const state = {
   directedReviewId: null, directedIntentId: null, directedSourceUrl: null,
   fundingBusy: false, withdrawalFundsBusy: false, wrappedBusy: false, wrappedPlan: null,
   activationBusy: false, activationMessage: null,
-  agentActionBusy: false,
+  agentActionBusy: false, ownerPaidBusy: false,
   withdrawalAsset: null, withdrawalAmount: "1", withdrawalBusy: false,
 };
 
@@ -164,15 +167,20 @@ function renderAgentActions() {
   const authorizationActive = state.automation?.punk?.active === true
     && state.owned && state.activated;
   const canConfigure = state.owned && state.automation?.setupTransactionAvailable === true;
-  const busy = state.agentActionBusy || state.activationBusy;
+  const busy = state.agentActionBusy || state.activationBusy || state.ownerPaidBusy;
   const send = query("[data-agent-send]");
   const scout = query("[data-scout-simulate]");
+  const ownerPaid = query("[data-owner-paid-run]");
   const pause = query("[data-agent-pause]");
   const resume = query("[data-agent-resume]");
   const edit = query("[data-agent-edit]");
   const revoke = query("[data-agent-revoke]");
   if (send) send.disabled = busy || !authorizationActive;
   if (scout) scout.disabled = busy || !authorizationActive;
+  if (ownerPaid) {
+    ownerPaid.disabled = busy || !authorizationActive;
+    ownerPaid.textContent = state.ownerPaidBusy ? "CHECKING SAFE FREE MINT…" : "RUN NOW — I PAY GAS";
+  }
   if (pause) pause.disabled = busy || !authorizationActive;
   if (revoke) revoke.disabled = busy || !authorizationActive;
   if (resume) resume.disabled = busy || !canConfigure || authorizationActive;
@@ -180,6 +188,8 @@ function renderAgentActions() {
 }
 
 function renderFundingActions() {
+  const recommended = query("[data-punk-fund-recommended]");
+  if (recommended) recommended.disabled = !state.owned || !state.activated || state.fundingBusy;
   const deposit = query("[data-punk-fund-submit]");
   const depositConfirmation = query("[data-punk-fund-confirm]");
   if (deposit) {
@@ -650,6 +660,60 @@ async function runSelectedAgent() {
     scoutOutput.textContent = message;
   } finally {
     state.agentActionBusy = false;
+    renderAgentActions();
+  }
+}
+
+async function runOwnerPaidAgent() {
+  const output = query("[data-scout-result]");
+  if (state.ownerPaidBusy) return;
+  if (demo) {
+    output.textContent = "Local demo: an exact owner-paid free-mint transaction would be prepared and simulated; nothing was submitted.";
+    return;
+  }
+  if (!state.owned || !state.activated || !state.provider || !state.walletAccount
+    || !state.account || !state.tokenId || state.automation?.punk?.active !== true) {
+    output.textContent = "Connect the current holder of an activated Punk before running an immediate mint.";
+    return;
+  }
+  const revision = state.revision;
+  const tokenId = state.tokenId;
+  const owner = state.walletAccount;
+  const account = state.account;
+  const isCurrent = () => revision === state.revision && state.tokenId === tokenId
+    && state.walletAccount === owner && state.account === account && state.owned === true;
+  state.ownerPaidBusy = true;
+  renderAgentActions();
+  output.textContent = "Searching for one eligible free mint. MetaMask opens only if every check and simulation passes…";
+  try {
+    await verifyCurrentOwner();
+    const run = await requestOwnerPaidFreeMint((...args) => fetch(...args), tokenId);
+    if (!isCurrent()) throw new Error("The selected wallet or Punk changed during the safety review");
+    if (run?.ready !== true || !run.execution) {
+      output.textContent = "Scan complete. No eligible free mint passed every safety check, so MetaMask was not opened.";
+      return;
+    }
+    output.textContent = "Eligible free mint found. Rechecking the exact Punk Wallet call and network gas in your wallet…";
+    const transaction = await preflightOwnerPaidFreeMint(state.provider, run.execution, {
+      tokenId, owner, account,
+    });
+    if (!isCurrent()) throw new Error("The selected wallet or Punk changed before submission");
+    output.textContent = "Waiting for MetaMask. You pay network gas only; mint price is fixed at 0 ETH.";
+    const hash = await submitOwnerPaidFreeMint(state.provider, transaction);
+    output.textContent = "Transaction submitted. Waiting for confirmation…";
+    const receipt = await waitForReceipt(hash, revision);
+    if (!receipt) {
+      output.textContent = `Submitted ${hash.slice(0, 10)}…; confirmation is taking longer than one minute.`;
+      return;
+    }
+    output.textContent = `Mint confirmed for Punk #${tokenId}. Its NFT inventory is refreshing now.`;
+    await Promise.all([
+      loadAutomation(), loadActivity().catch(() => {}), loadAssets().catch(() => {}),
+    ]);
+  } catch (error) {
+    output.textContent = `${error?.message ?? "The immediate mint stopped safely"}. No unchecked transaction was submitted.`;
+  } finally {
+    state.ownerPaidBusy = false;
     renderAgentActions();
   }
 }
@@ -1472,6 +1536,7 @@ function bindActions() {
     state.directedIntentId ? revalidateDirectedMintIntent() : simulateDirectedMint()
   ));
   query("[data-scout-simulate]").addEventListener("click", () => runSelectedAgent());
+  query("[data-owner-paid-run]").addEventListener("click", () => runOwnerPaidAgent());
   query("[data-deposit-review]").addEventListener("click", () => {
     const type = query("[data-deposit-type]").value;
     setText("[data-deposit-state]", state.account
@@ -1479,6 +1544,12 @@ function bindActions() {
       : "Activate this Punk Wallet before reviewing a deposit.");
   });
   query("[data-add-native]").addEventListener("click", () => query("[data-punk-fund-amount]").focus());
+  query("[data-punk-fund-recommended]").addEventListener("click", () => {
+    query("[data-punk-fund-amount]").value = "0.005";
+    query("[data-punk-fund-confirm]").checked = false;
+    setText("[data-punk-fund-state]", "Recommended starter amount selected. Review the exact Punk Wallet destination, then confirm.");
+    renderFundingActions();
+  });
   query("[data-withdraw-native]").addEventListener("click", () => query("[data-punk-withdraw-amount]").focus());
   query("[data-punk-fund-confirm]").addEventListener("change", renderFundingActions);
   query("[data-punk-fund-submit]").addEventListener("click", fundPunkWallet);

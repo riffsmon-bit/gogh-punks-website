@@ -10,10 +10,14 @@ import coreManifest from "../deployments/robinhood.json" with { type: "json" };
 import { ROBINHOOD } from "../broker/src/config.mjs";
 import { resolveRobinhoodRpcPair } from
   "../broker/src/infrastructure/robinhood-rpc-endpoints.mjs";
-import { attestAutomatedSeaDropV3CandidateLive } from
+import {
+  attestAutomatedSeaDropV3CandidateLive, attestOwnerPaidSeaDropV3CandidateLive,
+} from
   "../broker/src/discovery/automated-seadrop-v3-live-screen.mjs";
 import { buildAutomatedSeaDropV3ExecutionBatch } from
   "../broker/src/recommendation/automated-seadrop-v3-execution-batch.mjs";
+import { buildOwnerPaidSeaDropV3Execution } from
+  "../broker/src/recommendation/owner-paid-seadrop-v3-execution.mjs";
 import {
   CLONE_COLLECTION_RUNTIME_CODE_HASH, CLONE_IMPLEMENTATION,
   CLONE_IMPLEMENTATION_CODE_HASH, NATIVE_CURRENCY, SEA_DROP, SEA_DROP_CODE_HASH,
@@ -414,6 +418,16 @@ export function rotateAutomationV3Profiles(profiles, lastMintedTokenId = null) {
   return [...ordered.slice(offset), ...ordered.slice(0, offset)];
 }
 
+export function rarityPriorityBoostSeconds(rank) {
+  if (!Number.isSafeInteger(rank) || rank < 1 || rank > 5_016) return 0;
+  if (rank <= 51) return 1_200;
+  if (rank <= 251) return 600;
+  if (rank <= 753) return 300;
+  if (rank <= 1_756) return 120;
+  if (rank <= 3_010) return 60;
+  return 0;
+}
+
 export async function fairlyOrderedAutomationV3Profiles(
   pool, profiles, requestedTokenId = null, report = console.error,
 ) {
@@ -433,29 +447,45 @@ export async function fairlyOrderedAutomationV3Profiles(
         SELECT *
           FROM UNNEST($1::numeric[], $2::text[]) WITH ORDINALITY
             AS input(punk_token_id, owner_key, roster_position)
-      ), evidence AS (
+      ), evidence_base AS (
         SELECT requested.punk_token_id, requested.owner_key,
                requested.roster_position, heartbeat.last_scheduled_scan,
                heartbeat.last_actual_scan,
-               MAX(heartbeat.last_scheduled_scan) OVER (
-                 PARTITION BY requested.owner_key
-               ) AS owner_last_scheduled_scan,
-               ROW_NUMBER() OVER (
-                 PARTITION BY requested.owner_key
-                 ORDER BY heartbeat.last_scheduled_scan ASC NULLS FIRST,
-                          heartbeat.last_actual_scan ASC NULLS FIRST,
-                          requested.roster_position ASC
-               ) AS owner_round
+               rarity.rarity_rank,
+               heartbeat.last_scheduled_scan - MAKE_INTERVAL(secs => CASE
+                 WHEN rarity.rarity_rank <= 51 THEN 1200
+                 WHEN rarity.rarity_rank <= 251 THEN 600
+                 WHEN rarity.rarity_rank <= 753 THEN 300
+                 WHEN rarity.rarity_rank <= 1756 THEN 120
+                 WHEN rarity.rarity_rank <= 3010 THEN 60
+                 ELSE 0
+               END) AS effective_last_scheduled_scan
           FROM requested
         LEFT JOIN broker_punk_agent_heartbeats heartbeat
           ON heartbeat.chain_id = 4663
          AND heartbeat.punk_token_id = requested.punk_token_id
+        LEFT JOIN broker_punk_rarity_cache rarity
+          ON rarity.chain_id = 4663
+         AND rarity.collection_address = '${ROBINHOOD.canonicalCollection}'
+         AND rarity.punk_token_id = requested.punk_token_id
+      ), evidence AS (
+        SELECT evidence_base.*,
+               MAX(effective_last_scheduled_scan) OVER (
+                 PARTITION BY owner_key
+               ) AS owner_last_scheduled_scan,
+               ROW_NUMBER() OVER (
+                 PARTITION BY owner_key
+                 ORDER BY effective_last_scheduled_scan ASC NULLS FIRST,
+                          last_actual_scan ASC NULLS FIRST,
+                          roster_position ASC
+               ) AS owner_round
+          FROM evidence_base
       )
       SELECT punk_token_id
         FROM evidence
        ORDER BY owner_round ASC,
                 owner_last_scheduled_scan ASC NULLS FIRST,
-                last_scheduled_scan ASC NULLS FIRST,
+                effective_last_scheduled_scan ASC NULLS FIRST,
                 last_actual_scan ASC NULLS FIRST,
                 roster_position ASC`, [tokenIds, ownerKeys]);
     const byTokenId = new Map(profiles.map((profile) => [String(profile.token_id), profile]));
@@ -886,7 +916,13 @@ function liveState(profile, state, screen, maxFeePerGasWei) {
 }
 
 export async function runAutomatedSeaDropV3Worker(environment = process.env, dependencies = {}) {
-  if (environment.BROKER_AUTOMATION_V3_ENABLED !== "true") return { status: "DISABLED", submitted: 0 };
+  const ownerPaidPlan = dependencies.ownerPaidPlan === true;
+  // Owner-paid planning is a read-only, user-initiated safety review. It does not
+  // start the hosted scheduler and may remain available in a preview where the
+  // autonomous worker is intentionally disabled.
+  if (environment.BROKER_AUTOMATION_V3_ENABLED !== "true" && !ownerPaidPlan) {
+    return { status: "DISABLED", submitted: 0 };
+  }
   const clock = dependencies.now ?? Date.now;
   if (typeof clock !== "function") throw new TypeError("invalid V3 worker clock");
   const startedAtMs = clock();
@@ -913,9 +949,12 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
     diagnostics: { ...(currentDiagnostics ?? {}), scanBudgetExhausted: true },
   });
   try {
+  if (ownerPaidPlan && dependencies.requestedTokenId == null) {
+    throw new TypeError("owner-paid execution requires one exact requested Punk");
+  }
   const key = environment.BROKER_AUTOMATION_V3_AGENT_PRIVATE_KEY;
   let signingAccount = null;
-  if (dependencies.readOnly !== true) {
+  if (dependencies.readOnly !== true && !ownerPaidPlan) {
     if (typeof key !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(key)) {
       const error = new TypeError("AGENT_SIGNER_UNAVAILABLE");
       error.code = "AGENT_SIGNER_UNAVAILABLE";
@@ -1135,7 +1174,9 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
       };
       let screen;
       try {
-        screen = await attestAutomatedSeaDropV3CandidateLive(candidate, scope,
+        const attest = ownerPaidPlan
+          ? attestOwnerPaidSeaDropV3CandidateLive : attestAutomatedSeaDropV3CandidateLive;
+        screen = await attest(candidate, scope,
           { primaryUrl, secondaryUrl }, { confirmations: 20, maximumEvidenceAgeSeconds: 30 },
           { primary: readFacade(primary, primaryUrl), secondary: readFacade(secondary, secondaryUrl) });
       } catch (error) {
@@ -1186,24 +1227,51 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
           cloneCollectionRuntimeCodeHash: CLONE_COLLECTION_RUNTIME_CODE_HASH,
           studioCollectionRuntimeCodeHash: STUDIO_COLLECTION_RUNTIME_CODE_HASH },
         limits: { maxMintsPerUtcDay: cap, maxMintsPerRun: 1, maxGasPerMint: 700000,
-          maxGasWeiPerRun: first.balance.toString(), minAgentReserveWei: "10000000000000", intentTtlSeconds: 120,
+          maxGasWeiPerRun: ownerPaidPlan ? (700000n * maxFee).toString() : first.balance.toString(),
+          minAgentReserveWei: "10000000000000", intentTtlSeconds: 120,
           maxEvidenceAgeSeconds: 30,
           maxContractRiskScore: 100,
           minimumTasteMatch: 0,
           stopOnFailure: true },
       };
       let tx;
+      let ownerExecution = null;
       try {
-        const batch = buildAutomatedSeaDropV3ExecutionBatch(
-          profile, liveState(profile, first, screen, maxFee), { nowSeconds },
-        );
-        [tx] = batch.transactions;
-        await primary.call({ account: agent, to: getAddress(tx.to), data: tx.data, value: 0n });
+        if (ownerPaidPlan) {
+          ownerExecution = buildOwnerPaidSeaDropV3Execution(
+            profile, liveState(profile, first, screen, maxFee), { nowSeconds },
+          );
+          tx = ownerExecution.transaction;
+          await primary.call({
+            account: getAddress(expectedOwner), to: getAddress(tx.to), data: tx.data, value: 0n,
+          });
+        } else {
+          const batch = buildAutomatedSeaDropV3ExecutionBatch(
+            profile, liveState(profile, first, screen, maxFee), { nowSeconds },
+          );
+          [tx] = batch.transactions;
+          await primary.call({ account: agent, to: getAddress(tx.to), data: tx.data, value: 0n });
+        }
       } catch (error) {
         recordExecutionSimulationRejection(diagnostics, error);
         continue;
       }
       diagnostics.executionSimulationsPassed += 1;
+      if (ownerPaidPlan) {
+        recordProfileOutcome(
+          diagnostics, tokenId, "READY", "OWNER_TRANSACTION_READY",
+          accountAddress.toLowerCase(),
+        );
+        return {
+          status: "OWNER_TRANSACTION_READY",
+          submitted: 0,
+          tokenId,
+          account: accountAddress.toLowerCase(),
+          collection,
+          execution: ownerExecution,
+          diagnostics,
+        };
+      }
       if (dependencies.readOnly === true) {
         recordProfileOutcome(
           diagnostics, tokenId, "READY", "ELIGIBLE_SIMULATION_PASSED",
