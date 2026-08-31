@@ -421,6 +421,12 @@ test("Control Center is progressive, mobile, and keeps mint execution disabled",
   assert.match(browser, /Selected Punk changed during review/);
   assert.match(browser, /waitForReceipt/);
   assert.match(browser, /submitWrappedNativeTransaction/);
+  assert.match(browser, /submitOwnerStopTransactions/);
+  assert.match(browser, /\/api\/broker\/autonomy-v3-run/);
+  assert.match(browser, /UPDATE FREE-MINT LIMITS/);
+  assert.match(browser, /Sending Punk #\$\{state\.tokenId\} into the fair worker queue/);
+  assert.match(browser, /Autonomous minting is disabled and agent permission is revoked/);
+  assert.doesNotMatch(browser, /This local build prepared the action/);
   assert.match(browser, /\/api\/broker\/scouting-schedule/);
   assert.match(browser, /personal_sign/);
   assert.match(html, /Save Scouting Window/);

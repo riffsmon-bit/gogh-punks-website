@@ -13,7 +13,7 @@ import {
   agentVisualState, confirmedMintHash, showConfirmedMintToast,
 } from "./agent-live-ui.js";
 import {
-  requestOwnerSetupArtifact, submitOwnerSetupTransactions,
+  requestOwnerSetupArtifact, submitOwnerSetupTransactions, submitOwnerStopTransactions,
 } from "./owner-agent-activation.js";
 
 const CHAIN_ID = 4663;
@@ -53,6 +53,7 @@ const state = {
   directedReviewId: null, directedIntentId: null, directedSourceUrl: null,
   fundingBusy: false, wrappedBusy: false, wrappedPlan: null,
   activationBusy: false, activationMessage: null,
+  agentActionBusy: false,
   withdrawalAsset: null, withdrawalAmount: "1", withdrawalBusy: false,
 };
 
@@ -96,9 +97,7 @@ function setText(selector, value) {
 }
 
 function setActionAvailability(enabled) {
-  for (const selector of ["[data-agent-send]", "[data-agent-pause]", "[data-agent-resume]",
-    "[data-agent-edit]", "[data-agent-revoke]", "[data-scout-simulate]",
-    "[data-directed-check]", "[data-paid-save]", "[data-add-native]",
+  for (const selector of ["[data-directed-check]", "[data-paid-save]", "[data-add-native]",
     "[data-load-assets]", "[data-deposit-review]", "[data-activity-refresh]",
     "[data-wrap-review]", "[data-schedule-save]"]) {
     const element = query(selector);
@@ -110,12 +109,16 @@ function setActionAvailability(enabled) {
   if (confirmation) confirmation.disabled = !enabled || state.fundingBusy;
   renderFundingAction();
   renderActivation();
+  renderAgentActions();
 }
 
 function setupPurpose(value) {
   return ({ ACTIVATE_V3_PUNK_ACCOUNT: "Create Punk Wallet",
     CONFIGURE_ZERO_SPEND_AUTONOMOUS_POLICY: "Set Free-Mint Limits",
-    AUTHORIZE_PUBLISHED_AGENT: "Authorize Art Broker" })[value]
+    AUTHORIZE_PUBLISHED_AGENT: "Authorize Art Broker",
+    DISABLE_AUTOMATED_SEADROP_POLICY: "Disable Autonomous Minting",
+    DISABLE_AND_PAUSE_POLICY: "Disable Autonomous Minting",
+    REVOKE_PUBLISHED_AGENT: "Revoke Art Broker Permission" })[value]
     ?? "Confirm Art Broker Setup";
 }
 
@@ -137,14 +140,34 @@ function renderActivation() {
     ?? (authorizationActive ? "Confirmed on-chain. No owner action is required."
       : setupAvailable ? "Ready. The site will label every required wallet transaction before it opens."
         : "The live setup service is not ready. Your Punk and assets remain safe."));
-  button.hidden = authorizationActive;
-  button.disabled = state.activationBusy || !state.owned || !setupAvailable || authorizationActive;
+  button.hidden = false;
+  button.disabled = state.activationBusy || state.agentActionBusy || !state.owned || !setupAvailable;
   button.textContent = state.activationBusy ? "ACTIVATION IN PROGRESS…"
-    : state.activated ? "REACTIVATE ART BROKER" : "ACTIVATE ART BROKER";
+    : authorizationActive ? "UPDATE FREE-MINT LIMITS"
+      : state.activated ? "REACTIVATE ART BROKER" : "ACTIVATE ART BROKER";
   for (const selector of ["[data-control-activation-cap]", "[data-control-activation-days]"]) {
     const element = query(selector);
-    if (element) element.disabled = state.activationBusy || !state.owned || authorizationActive;
+    if (element) element.disabled = state.activationBusy || state.agentActionBusy || !state.owned;
   }
+}
+
+function renderAgentActions() {
+  const authorizationActive = state.automation?.punk?.active === true
+    && state.owned && state.activated;
+  const canConfigure = state.owned && state.automation?.setupTransactionAvailable === true;
+  const busy = state.agentActionBusy || state.activationBusy;
+  const send = query("[data-agent-send]");
+  const scout = query("[data-scout-simulate]");
+  const pause = query("[data-agent-pause]");
+  const resume = query("[data-agent-resume]");
+  const edit = query("[data-agent-edit]");
+  const revoke = query("[data-agent-revoke]");
+  if (send) send.disabled = busy || !authorizationActive;
+  if (scout) scout.disabled = busy || !authorizationActive;
+  if (pause) pause.disabled = busy || !authorizationActive;
+  if (revoke) revoke.disabled = busy || !authorizationActive;
+  if (resume) resume.disabled = busy || !canConfigure || authorizationActive;
+  if (edit) edit.disabled = busy || !canConfigure;
 }
 
 function renderFundingAction() {
@@ -325,6 +348,10 @@ function renderAutomation() {
     ? `${punk.maxAcquisitionsPerDay} NFTs/day` : "Not configured");
   setText("[data-agent-expiry]", punk?.authorization?.validUntil
     ? new Date(Number(punk.authorization.validUntil) * 1000).toLocaleString() : "Not active");
+  const capControl = query("[data-control-activation-cap]");
+  if (!state.activationBusy && capControl && Number(punk?.maxAcquisitionsPerDay) > 0) {
+    capControl.value = String(punk.maxAcquisitionsPerDay);
+  }
   setText("[data-summary-mints]", punk
     ? `${punk.acquisitionsToday ?? 0} / ${punk.maxAcquisitionsPerDay ?? 0}` : "—");
   if (heartbeat?.completedAt) {
@@ -341,6 +368,7 @@ function renderAutomation() {
     renderDiscoverySummary(heartbeat.discoverySummary);
   }
   renderIdentity();
+  renderAgentActions();
 }
 
 function heartbeatMessage(heartbeat) {
@@ -528,7 +556,7 @@ async function activateArtBroker() {
       },
     });
     if (!isCurrent()) throw new Error("The selected wallet or Punk changed after activation");
-    state.activationMessage = "On-chain activation confirmed. Enrolling the agent and requesting its first scan…";
+    state.activationMessage = "On-chain settings confirmed. Enrolling the agent and requesting its next scan…";
     renderActivation();
     const response = await fetch("/api/broker/autonomy-v3-run", {
       method: "POST", headers: { accept: "application/json", "content-type": "application/json" },
@@ -548,6 +576,114 @@ async function activateArtBroker() {
   } finally {
     state.activationBusy = false;
     renderActivation();
+  }
+}
+
+async function runSelectedAgent() {
+  const output = query("[data-agent-action-note]");
+  const scoutOutput = query("[data-scout-result]");
+  if (state.agentActionBusy) return;
+  if (demo) {
+    const payload = await localApi("/api/local-v2/scout", {
+      body: { tokenId: state.tokenId },
+    });
+    const message = payload
+      ? "Local scout completed: no eligible fixture was selected. No transaction was needed."
+      : "Local scout completed without a transaction.";
+    output.textContent = message;
+    scoutOutput.textContent = message;
+    await loadActivity();
+    return;
+  }
+  if (!state.owned || !state.tokenId || state.automation?.punk?.active !== true) {
+    const message = "This Punk must be live-owned and authorized before it can scout.";
+    output.textContent = message;
+    scoutOutput.textContent = message;
+    return;
+  }
+  state.agentActionBusy = true;
+  renderAgentActions();
+  output.textContent = `Sending Punk #${state.tokenId} into the fair worker queue…`;
+  scoutOutput.textContent = `Sending Punk #${state.tokenId} into the fair worker queue…`;
+  try {
+    const response = await fetch("/api/broker/autonomy-v3-run", {
+      method: "POST", headers: { accept: "application/json", "content-type": "application/json" },
+      body: JSON.stringify({ tokenId: state.tokenId }), cache: "no-store",
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok || payload?.ok !== true) {
+      throw new Error(payload?.message ?? "The worker could not accept this Punk");
+    }
+    const status = payload.run?.status;
+    const message = status === "RUN_IN_PROGRESS"
+      ? `Punk #${state.tokenId} is enrolled. A worker scan is already running; it will receive a fair turn.`
+      : payload.run?.transactionHash
+        ? `Mint submitted for Punk #${state.tokenId}. Live activity will track confirmation.`
+        : `Punk #${state.tokenId} was enrolled and its bounded scan completed safely.`;
+    output.textContent = message;
+    scoutOutput.textContent = message;
+    await Promise.all([loadAutomation(), loadActivity().catch(() => {})]);
+  } catch (error) {
+    const message = `${error?.message ?? "The scan stopped safely"}. The Punk's authorization was not changed.`;
+    output.textContent = message;
+    scoutOutput.textContent = message;
+  } finally {
+    state.agentActionBusy = false;
+    renderAgentActions();
+  }
+}
+
+function editAgentLimits() {
+  query('[data-control-tab="overview"]')?.click();
+  query("[data-control-activation-card]")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  state.activationMessage = "Choose a new daily free-mint cap and authorization duration, then update the reviewed on-chain limits.";
+  renderActivation();
+}
+
+async function stopArtBroker(action = "Pause") {
+  if (state.agentActionBusy) return;
+  if (demo) {
+    setText("[data-agent-action-note]", `Local demo: ${action.toLowerCase()} was reviewed, but no wallet transaction was submitted.`);
+    return;
+  }
+  if (!state.owned || !state.provider || !state.walletAccount || !state.tokenId
+    || state.automation?.punk?.active !== true) {
+    setText("[data-agent-action-note]", "Connect the current holder of an authorized Punk first.");
+    return;
+  }
+  const revision = state.revision;
+  const tokenId = state.tokenId;
+  const owner = state.walletAccount;
+  const isCurrent = () => revision === state.revision && state.tokenId === tokenId
+    && state.walletAccount === owner && state.owned === true;
+  const selection = Object.freeze({ tokenId, owner,
+    cap: String(state.automation?.punk?.maxAcquisitionsPerDay ?? 1),
+    days: query("[data-control-activation-days]")?.value ?? "7" });
+  state.agentActionBusy = true;
+  renderAgentActions();
+  setText("[data-agent-action-note]", `${action} requested. Preparing exact disable-and-revoke transactions…`);
+  try {
+    await verifyCurrentOwner();
+    const artifact = await requestOwnerSetupArtifact((...args) => fetch(...args), selection);
+    await submitOwnerStopTransactions(state.provider, artifact, selection, {
+      isCurrent,
+      onProgress(progress) {
+        const purpose = setupPurpose(progress.transaction.purpose);
+        const message = progress.phase === "wallet"
+          ? `Transaction ${progress.index} of ${progress.total} — ${purpose}. Waiting for your wallet…`
+          : progress.phase === "confirming"
+            ? `Transaction ${progress.index} of ${progress.total} submitted — confirming ${purpose}…`
+            : `Transaction ${progress.index} of ${progress.total} confirmed ✓ — ${purpose}`;
+        setText("[data-agent-action-note]", message);
+      },
+    });
+    setText("[data-agent-action-note]", `${action} confirmed ✓ Autonomous minting is disabled and agent permission is revoked. Resume requires fresh owner authorization.`);
+    await loadAutomation();
+  } catch (error) {
+    setText("[data-agent-action-note]", `${error?.message ?? `${action} stopped safely`}. No further transaction was submitted.`);
+  } finally {
+    state.agentActionBusy = false;
+    renderAgentActions();
   }
 }
 
@@ -1261,19 +1397,7 @@ function bindActions() {
   query("[data-directed-simulate]").addEventListener("click", () => (
     state.directedIntentId ? revalidateDirectedMintIntent() : simulateDirectedMint()
   ));
-  query("[data-scout-simulate]").addEventListener("click", async () => {
-    try {
-      const payload = demo ? await localApi("/api/local-v2/scout", {
-        body: { tokenId: state.tokenId },
-      }) : null;
-      setText("[data-scout-result]", payload
-        ? "Local scout completed: no eligible fixture was selected. No transaction was needed."
-        : "Scout review prepared. This local build did not submit a job or transaction.");
-      if (demo) await loadActivity();
-    } catch (error) {
-      setText("[data-scout-result]", `${error.message}. No transaction was submitted.`);
-    }
-  });
+  query("[data-scout-simulate]").addEventListener("click", () => runSelectedAgent());
   query("[data-deposit-review]").addEventListener("click", () => {
     const type = query("[data-deposit-type]").value;
     setText("[data-deposit-state]", state.account
@@ -1300,11 +1424,11 @@ function bindActions() {
   query("[data-withdrawal-submit]").addEventListener("click", withdrawSelectedAsset);
   query("[data-withdrawal-cancel]").addEventListener("click", cancelWithdrawal);
   query("[data-activity-refresh]").addEventListener("click", () => loadActivity().catch(() => {}));
-  for (const button of queryAll("[data-agent-send], [data-agent-pause], [data-agent-resume], [data-agent-edit], [data-agent-revoke]")) {
-    button.addEventListener("click", () => {
-      setText("[data-agent-action-note]", "This local build prepared the action but did not request a signature or submit a transaction. Use the existing production owner flow only after separate review.");
-    });
-  }
+  query("[data-agent-send]").addEventListener("click", () => runSelectedAgent());
+  query("[data-agent-pause]").addEventListener("click", () => stopArtBroker("Pause"));
+  query("[data-agent-resume]").addEventListener("click", () => activateArtBroker());
+  query("[data-agent-edit]").addEventListener("click", editAgentLimits);
+  query("[data-agent-revoke]").addEventListener("click", () => stopArtBroker("Revoke"));
 }
 
 function localDateTimeValue(date) {
@@ -1414,6 +1538,7 @@ async function applyWallet(wallet) {
   state.wrappedBalance = null;
   state.fundingBusy = false;
   state.activationBusy = false;
+  state.agentActionBusy = false;
   state.activationMessage = null;
   state.wrappedBusy = false;
   state.wrappedPlan = null;

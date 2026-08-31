@@ -17,18 +17,26 @@ export function validateOwnerSetupArtifact(artifact, expected) {
     || !Array.isArray(transactions) || transactions.length < 1 || transactions.length > 3) {
     throw new TypeError("The reviewed activation plan did not match this Punk and owner");
   }
-  for (const transaction of transactions) {
-    if (!transaction || lowerAddress(transaction.from) !== owner
-      || !lowerAddress(transaction.to) || !DATA.test(String(transaction.data ?? "").toLowerCase())
-      || !["0", "0x0"].includes(String(transaction.value ?? "0"))) {
-      throw new TypeError("The reviewed activation transaction was invalid");
+  const validateTransactions = (values, label, minimum, maximum) => {
+    if (!Array.isArray(values) || values.length < minimum || values.length > maximum) {
+      throw new TypeError(`The reviewed ${label} transaction plan was invalid`);
     }
-  }
-  return Object.freeze({ ...artifact, setupTransactions: Object.freeze(
-    transactions.map((transaction) => Object.freeze({ ...transaction,
+    for (const transaction of values) {
+      if (!transaction || lowerAddress(transaction.from) !== owner
+        || !lowerAddress(transaction.to) || !DATA.test(String(transaction.data ?? "").toLowerCase())
+        || !["0", "0x0"].includes(String(transaction.value ?? "0"))) {
+        throw new TypeError(`The reviewed ${label} transaction was invalid`);
+      }
+    }
+    return Object.freeze(values.map((transaction) => Object.freeze({ ...transaction,
       from: transaction.from.toLowerCase(), to: transaction.to.toLowerCase(),
-      data: transaction.data.toLowerCase() })),
-  ) });
+      data: transaction.data.toLowerCase() })));
+  };
+  const setupTransactions = validateTransactions(transactions, "activation", 1, 3);
+  const stopTransactions = artifact.stopTransactions === undefined
+    ? undefined : validateTransactions(artifact.stopTransactions, "stop", 1, 2);
+  return Object.freeze({ ...artifact, setupTransactions,
+    ...(stopTransactions ? { stopTransactions } : {}) });
 }
 
 export async function requestOwnerSetupArtifact(fetchFunction, selection) {
@@ -61,6 +69,10 @@ export async function waitForOwnerSetupReceipt(provider, hash, isCurrent, option
 
 export async function submitOwnerSetupTransactions(provider, artifact, expected, options = {}) {
   const plan = validateOwnerSetupArtifact(artifact, expected);
+  return submitReviewedTransactions(provider, plan.setupTransactions, expected, options, "activation");
+}
+
+async function submitReviewedTransactions(provider, transactions, expected, options, label) {
   const originalChain = await provider.request({ method: "eth_chainId", params: [] });
   if (Number.parseInt(originalChain, 16) !== 4663) {
     throw new Error("Switch your wallet to Robinhood Chain");
@@ -72,8 +84,8 @@ export async function submitOwnerSetupTransactions(provider, artifact, expected,
   const isCurrent = options.isCurrent ?? (() => true);
   const waitForReceipt = options.waitForReceipt ?? waitForOwnerSetupReceipt;
   const hashes = [];
-  for (let index = 0; index < plan.setupTransactions.length; index += 1) {
-    const transaction = plan.setupTransactions[index];
+  for (let index = 0; index < transactions.length; index += 1) {
+    const transaction = transactions[index];
     const [freshChain, freshAccounts] = await Promise.all([
       provider.request({ method: "eth_chainId", params: [] }),
       provider.request({ method: "eth_accounts", params: [] }),
@@ -83,17 +95,23 @@ export async function submitOwnerSetupTransactions(provider, artifact, expected,
       throw new Error("The selected wallet, network, or Punk changed during activation");
     }
     options.onProgress?.({ phase: "wallet", index: index + 1,
-      total: plan.setupTransactions.length, transaction });
+      total: transactions.length, transaction, label });
     const request = Object.freeze({ from: transaction.from, to: transaction.to,
       value: "0x0", data: transaction.data });
     await provider.request({ method: "eth_call", params: [request, "latest"] });
     const hash = await provider.request({ method: "eth_sendTransaction", params: [request] });
     hashes.push(hash);
     options.onProgress?.({ phase: "confirming", index: index + 1,
-      total: plan.setupTransactions.length, transaction, hash });
+      total: transactions.length, transaction, hash, label });
     await waitForReceipt(provider, hash, isCurrent);
     options.onProgress?.({ phase: "confirmed", index: index + 1,
-      total: plan.setupTransactions.length, transaction, hash });
+      total: transactions.length, transaction, hash, label });
   }
   return Object.freeze({ hashes: Object.freeze(hashes) });
+}
+
+export async function submitOwnerStopTransactions(provider, artifact, expected, options = {}) {
+  const plan = validateOwnerSetupArtifact(artifact, expected);
+  if (!plan.stopTransactions) throw new TypeError("The reviewed stop transaction plan was missing");
+  return submitReviewedTransactions(provider, plan.stopTransactions, expected, options, "stop");
 }
