@@ -53,7 +53,7 @@ function routeTokenId() {
 const state = {
   tokenId: routeTokenId(), owner: null, walletAccount: null, walletChainId: null,
   account: null, provider: null, walletRestoring: false, loading: false, error: null,
-  punkCollection: null, nativeBalance: null, wrappedBalance: null,
+  punkCollection: null, nativeBalance: null, wrappedBalance: null, rarity: null,
   owned: false, activated: false, agentStatus: null, automation: null, assets: [],
   activity: [], timings: {}, revision: 0,
   punkHeartbeat: null, observedMintHash: null, mintBaselineReady: false,
@@ -103,6 +103,29 @@ function renderDebug() {
 function setText(selector, value) {
   const element = query(selector);
   if (element) element.textContent = value;
+}
+
+function rarityPrioritySummary(rarity) {
+  const rank = Number(rarity?.rank);
+  if (!Number.isSafeInteger(rank) || rank < 1) {
+    return Object.freeze({ short: "Standard rotation",
+      detail: "No current OpenRarity scheduling head start. Owner-fair ordering still applies." });
+  }
+  const seconds = rank <= 51 ? 1_200 : rank <= 251 ? 600 : rank <= 753 ? 300
+    : rank <= 1_756 ? 120 : rank <= 3_010 ? 60 : 0;
+  const tier = typeof rarity?.proposedTier === "string"
+    ? `${rarity.proposedTier.toLowerCase()} preview · ` : "";
+  const headStart = seconds > 0 ? `${seconds / 60}-minute head start` : "standard rotation";
+  return Object.freeze({
+    short: `OpenRarity #${rank.toLocaleString()} · ${headStart}`,
+    detail: `${tier}Rarity changes hosted queue priority only. It never guarantees a mint or bypasses ownership, price, policy, or simulation checks.`,
+  });
+}
+
+function renderRarityPriority() {
+  const summary = rarityPrioritySummary(state.rarity);
+  setText("[data-agent-rarity-priority]", summary.short);
+  setText("[data-overview-rarity]", `${summary.short}. ${summary.detail}`);
 }
 
 function setOwnerPaidMessage(value) {
@@ -455,6 +478,8 @@ async function loadOwnership(wallet) {
   state.owner = owner;
   state.owned = owner === wallet.account.toLowerCase();
   const decoration = payload.candidatePunks?.find((item) => String(item?.tokenId) === state.tokenId);
+  state.rarity = decoration?.rarity ?? null;
+  renderRarityPriority();
   const image = decoration?.artwork?.imageUrl;
   if (/^https:\/\/(?:i|raw2)\.seadn\.io\//.test(image ?? "")) {
     query("[data-control-punk-image]").src = image;
@@ -2032,6 +2057,8 @@ async function applyWallet(wallet) {
   state.punkCollection = null;
   state.nativeBalance = null;
   state.wrappedBalance = null;
+  state.rarity = null;
+  renderRarityPriority();
   state.fundingBusy = false;
   state.withdrawalFundsBusy = false;
   state.activationBusy = false;

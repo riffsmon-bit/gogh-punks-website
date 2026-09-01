@@ -412,6 +412,11 @@ test("Control Center is progressive, mobile, and keeps mint execution disabled",
   assert.match(html, /destination is always the wallet that currently owns this Gogh Punk/);
   assert.match(browser, /OPENSEA_COLLECTION_FLOOR|OpenSea collection floor/);
   assert.match(html, /What your Punk considered/);
+  assert.match(html, /data-agent-rarity-priority/);
+  assert.match(html, /data-overview-rarity/);
+  assert.match(html, /How rarity affects the hosted rotation/);
+  assert.match(browser, /OpenRarity #\$\{rank\.toLocaleString\(\)\} · \$\{headStart\}/);
+  assert.match(browser, /Rarity changes hosted queue priority only/);
   assert.match(browser, /Website and X links affect discovery priority only|sent into live contract safety checks/);
   assert.match(browser, /View NFT \/ Withdraw/);
   assert.match(browser, /eth_call/);

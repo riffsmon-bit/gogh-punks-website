@@ -30,26 +30,42 @@ export function automationV3AgentLane(environment = process.env, laneValue = 1) 
   const address = configuredAddress
     ? normalizedAddress(configuredAddress, `Automation V3 lane ${laneId} address`) : null;
   const poolEnabled = environment.BROKER_AUTOMATION_V3_AGENT_POOL_ENABLED === "true";
-  const enabled = laneId === 1
+  const requestedEnabled = laneId === 1
     ? environment.BROKER_AUTOMATION_V3_ENABLED === "true"
-    : poolEnabled && environment[`BROKER_AUTOMATION_V3_AGENT_LANE_${laneId}_ENABLED`] === "true"
-      && address !== null;
+    : poolEnabled && environment[`BROKER_AUTOMATION_V3_AGENT_LANE_${laneId}_ENABLED`] === "true";
+  if (requestedEnabled && address === null) {
+    throw new TypeError(`Automation V3 lane ${laneId} address is required`);
+  }
+  const privateKey = environment[keyName] ?? null;
   return Object.freeze({
     laneId,
     address,
     keyName,
-    privateKey: environment[keyName] ?? null,
-    enabled,
+    privateKey,
+    signerConfigured: typeof privateKey === "string" && /^0x[0-9a-fA-F]{64}$/.test(privateKey),
+    enabled: requestedEnabled,
     priority: laneId === AUTOMATION_V3_AGENT_LANE_COUNT,
   });
 }
 
-export function configuredAutomationV3AgentLanes(environment = process.env) {
+export function regularAutomationV3AgentLanes(environment = process.env, options = {}) {
+  const lanes = configuredAutomationV3AgentLanes(environment, options)
+    .filter((lane) => lane.priority !== true);
+  if (lanes.length === 0) {
+    throw new TypeError("No regular automation V3 signer lane is enabled");
+  }
+  return Object.freeze(lanes);
+}
+
+export function configuredAutomationV3AgentLanes(environment = process.env, options = {}) {
   const lanes = [];
   const addresses = new Set();
   for (let laneId = 1; laneId <= AUTOMATION_V3_AGENT_LANE_COUNT; laneId += 1) {
     const lane = automationV3AgentLane(environment, laneId);
     if (!lane.enabled || !lane.address) continue;
+    if (options.requirePrivateKeys === true && lane.signerConfigured !== true) {
+      throw new TypeError(`Automation V3 lane ${laneId} private key is invalid`);
+    }
     if (addresses.has(lane.address)) {
       throw new TypeError("Every enabled automation lane must use a distinct signer");
     }
@@ -73,20 +89,22 @@ export function publicAutomationV3AgentLanes(environment = process.env) {
     })));
 }
 
-export function assignedAutomationV3AgentLane(tokenIdValue, environment = process.env) {
+export function assignedAutomationV3AgentLane(
+  tokenIdValue, environment = process.env, options = {},
+) {
   const tokenId = String(tokenIdValue);
   if (!/^(?:0|[1-9][0-9]{0,3})$/.test(tokenId)) {
     throw new TypeError("Choose a valid Gogh Punk ID");
   }
-  const regular = configuredAutomationV3AgentLanes(environment)
-    .filter((lane) => lane.priority !== true);
-  const lanes = regular.length > 0 ? regular : configuredAutomationV3AgentLanes(environment);
+  const lanes = regularAutomationV3AgentLanes(environment, options);
   return lanes[Number(BigInt(tokenId) % BigInt(lanes.length))];
 }
 
 export function automationV3LaneEnvironment(environment = process.env, laneValue = 1) {
-  const lane = automationV3AgentLane(environment, laneValue);
-  if (!lane.enabled || !lane.address) throw new TypeError("Automation V3 lane is not enabled");
+  const selectedLaneId = laneNumber(laneValue);
+  const lane = configuredAutomationV3AgentLanes(environment, { requirePrivateKeys: true })
+    .find(({ laneId }) => laneId === selectedLaneId);
+  if (!lane) throw new TypeError("Automation V3 lane is not enabled");
   return Object.freeze({
     ...environment,
     BROKER_AUTOMATION_V3_AGENT_ADDRESS: lane.address,

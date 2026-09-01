@@ -22,6 +22,7 @@ const ENVIRONMENT = Object.freeze({
   BROKER_AUTOMATION_V3_ENABLED: "true",
   BROKER_AUTOMATION_V3_AGENT_ADDRESS:
     "0x3bb2ebf6b3c4d7f5e5781cdf2091428f7750af7d",
+  BROKER_AUTOMATION_V3_AGENT_PRIVATE_KEY: `0x${"a".repeat(64)}`,
 });
 
 test("priority worker performs no chain work when no Punk priority session is due", async () => {

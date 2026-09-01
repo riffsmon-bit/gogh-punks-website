@@ -22,7 +22,20 @@ const ENVIRONMENT = {
   BROKER_AUTOMATION_V3_WORKER_RELEASE: RELEASE,
   BROKER_AUTOMATION_V3_ENABLED: "true",
   BROKER_AUTOMATION_V3_AGENT_ADDRESS: AUTOMATION_V3_AGENT,
+  BROKER_AUTOMATION_V3_AGENT_PRIVATE_KEY: `0x${"a".repeat(64)}`,
 };
+
+function poolEnvironment() {
+  const result = { ...ENVIRONMENT, BROKER_AUTOMATION_V3_AGENT_POOL_ENABLED: "true" };
+  for (let lane = 2; lane <= 6; lane += 1) {
+    result[`BROKER_AUTOMATION_V3_AGENT_LANE_${lane}_ADDRESS`] =
+      `0x${String(lane).repeat(40)}`;
+    result[`BROKER_AUTOMATION_V3_AGENT_LANE_${lane}_PRIVATE_KEY`] =
+      `0x${String(lane).repeat(64)}`;
+    result[`BROKER_AUTOMATION_V3_AGENT_LANE_${lane}_ENABLED`] = "true";
+  }
+  return result;
+}
 
 function status() {
   return {
@@ -117,6 +130,21 @@ test("server status exposes only an active Punk's fixed agent and isolated credi
   assert.equal("privateKey" in result.publicAgentLanes[0], false);
 });
 
+test("production prepayment cannot fund an enabled lane pool with a missing signer", async () => {
+  const environment = poolEnvironment();
+  environment.CONTEXT = "production";
+  delete environment.BROKER_AUTOMATION_V3_AGENT_LANE_5_PRIVATE_KEY;
+  await assert.rejects(
+    () => prepaidAgentGasStatus("93", OWNER, {
+      environment,
+      readPunk: async () => activePunk(),
+      lane: { laneId: 1, address: AUTOMATION_V3_AGENT },
+      getBalance: async () => { throw new Error("balance must not be read"); },
+    }),
+    /lane 5 private key is invalid/,
+  );
+});
+
 test("confirmed exact deposit credits only its Punk and requests that Punk immediately", async () => {
   let credited;
   let requested;
@@ -145,6 +173,22 @@ test("confirmed exact deposit credits only its Punk and requests that Punk immed
   assert.deepEqual(requested, { tokenId: "93" });
   assert.equal(result.credit.availableWei, AMOUNT);
   assert.equal(result.run.status, "NO_ELIGIBLE_TARGETS");
+});
+
+test("prepaid gas targets the Punk's persisted lane and exposes every public lane", async () => {
+  const environment = poolEnvironment();
+  const lane = { laneId: 4, address: environment.BROKER_AUTOMATION_V3_AGENT_LANE_4_ADDRESS };
+  const result = await prepaidAgentGasStatus("93", OWNER, {
+    environment,
+    resolvePunk: async () => ({ punk: activePunk(), lane, assigned: true }),
+    getBalance: async () => ({ available: true, creditedWei: "0", spentWei: "0",
+      availableWei: "0", updatedAt: null }),
+  });
+  assert.equal(result.agentLane, 4);
+  assert.equal(result.agent, lane.address);
+  assert.equal(result.publicAgentLanes.length, 6);
+  assert.equal(result.publicAgentLanes[5].priority, true);
+  assert.equal(result.publicAgentLanes.some((item) => "privateKey" in item), false);
 });
 
 test("mismatched funding evidence cannot create credit or run an agent", async () => {

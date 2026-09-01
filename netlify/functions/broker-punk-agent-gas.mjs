@@ -16,7 +16,7 @@ import {
   recordPunkPrioritySessionAttempt, startPunkPrioritySession,
 } from "./_shared/supabase-operational-store.mjs";
 import {
-  publicAutomationV3AgentLanes,
+  automationV3LaneEnvironment, publicAutomationV3AgentLanes,
 } from "./_shared/automation-v3-agent-pool.mjs";
 
 const MINIMUM_WEI = 100_000_000_000_000n; // 0.0001 ETH
@@ -103,14 +103,29 @@ async function activePunk(selectedTokenId, expectedOwner, readPunk) {
 }
 
 async function activePunkLane(selectedTokenId, expectedOwner, dependencies, environment) {
+  if (dependencies.resolvePunk) {
+    const resolved = await dependencies.resolvePunk(selectedTokenId, environment);
+    const punk = await activePunk(selectedTokenId, expectedOwner, async () => resolved.punk);
+    if (environment.CONTEXT === "production") {
+      automationV3LaneEnvironment(environment, resolved.lane.laneId);
+    }
+    return Object.freeze({ punk, lane: resolved.lane });
+  }
   if (dependencies.readPunk) {
     const punk = await activePunk(selectedTokenId, expectedOwner, dependencies.readPunk);
-    return Object.freeze({ punk, lane: { laneId: 1, address: AUTOMATION_V3_AGENT } });
+    const lane = dependencies.lane ?? { laneId: 1, address: AUTOMATION_V3_AGENT };
+    if (environment.CONTEXT === "production") {
+      automationV3LaneEnvironment(environment, lane.laneId);
+    }
+    return Object.freeze({ punk, lane });
   }
   const resolved = await resolveAutomationV3PunkAgent(selectedTokenId, environment, {
     database: dependencies.database,
   });
   const punk = await activePunk(selectedTokenId, expectedOwner, async () => resolved.punk);
+  if (environment.CONTEXT === "production") {
+    automationV3LaneEnvironment(environment, resolved.lane.laneId);
+  }
   return Object.freeze({ punk, lane: resolved.lane });
 }
 
