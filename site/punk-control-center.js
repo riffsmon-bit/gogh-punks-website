@@ -60,7 +60,7 @@ const state = {
   activityLoading: false,
   directedReviewId: null, directedIntentId: null, directedSourceUrl: null,
   fundingBusy: false, withdrawalFundsBusy: false, wrappedBusy: false, wrappedPlan: null,
-  activationBusy: false, activationMessage: null,
+  activationBusy: false, activationMessage: null, activationDraftDirty: false,
   agentActionBusy: false, ownerPaidBusy: false, prepaidAgentGasBusy: false,
   prepaidAgentGas: null,
   withdrawalAsset: null, withdrawalAmount: "1", withdrawalBusy: false,
@@ -182,6 +182,7 @@ function renderAgentActions() {
   const authorizationActive = state.automation?.punk?.active === true
     && state.owned && state.activated;
   const canConfigure = state.owned && state.automation?.setupTransactionAvailable === true;
+  const canOpenEditor = state.owned;
   const busy = state.agentActionBusy || state.activationBusy || state.ownerPaidBusy
     || state.prepaidAgentGasBusy;
   const send = query("[data-agent-send]");
@@ -206,7 +207,10 @@ function renderAgentActions() {
   if (pause) pause.disabled = busy || !authorizationActive;
   if (revoke) revoke.disabled = busy || !authorizationActive;
   if (resume) resume.disabled = busy || !canConfigure || authorizationActive;
-  if (edit) edit.disabled = busy || !canConfigure;
+  // Opening and editing a local draft creates no authority and submits no transaction. Keep the
+  // editor available to the current holder during a transient setup-service delay; the exact
+  // on-chain submission remains gated by canConfigure in renderActivation/activateArtBroker.
+  if (edit) edit.disabled = busy || !canOpenEditor;
   renderPrepaidAgentGas();
 }
 
@@ -452,7 +456,8 @@ function renderAutomation() {
   setText("[data-agent-expiry]", punk?.authorization?.validUntil
     ? new Date(Number(punk.authorization.validUntil) * 1000).toLocaleString() : "Not active");
   const capControl = query("[data-control-activation-cap]");
-  if (!state.activationBusy && capControl && Number(punk?.maxAcquisitionsPerDay) > 0) {
+  if (!state.activationBusy && !state.activationDraftDirty && capControl
+    && Number(punk?.maxAcquisitionsPerDay) > 0) {
     capControl.value = String(punk.maxAcquisitionsPerDay);
   }
   setText("[data-summary-mints]", punk
@@ -782,6 +787,9 @@ async function activateArtBroker() {
         ? "Art Broker active ✓ Enrolled and waiting in the fair worker rotation."
         : "Art Broker active ✓ Enrolled and first scan requested.";
     }
+    // The confirmed chain state is authoritative again after a successful update. Future status
+    // refreshes may hydrate the form until the holder starts a new draft.
+    state.activationDraftDirty = false;
     await loadAutomation();
   } catch (error) {
     state.activationMessage = `${error?.message ?? "Activation stopped safely"}. No further transaction was submitted.`;
@@ -901,7 +909,9 @@ async function runOwnerPaidAgent() {
 function editAgentLimits() {
   query('[data-control-tab="overview"]')?.click();
   query("[data-control-activation-card]")?.scrollIntoView({ behavior: "smooth", block: "center" });
-  state.activationMessage = "Choose a new daily free-mint cap and authorization duration, then update the reviewed on-chain limits.";
+  state.activationMessage = state.automation?.setupTransactionAvailable === true
+    ? "Choose a new daily free-mint cap and authorization duration, then update the reviewed on-chain limits."
+    : "You can edit these values now. Submission will unlock after the live setup service recovers; your existing authorization remains unchanged.";
   renderActivation();
 }
 
@@ -1789,6 +1799,13 @@ function bindActions() {
   query("[data-agent-resume]").addEventListener("click", () => activateArtBroker());
   query("[data-agent-edit]").addEventListener("click", editAgentLimits);
   query("[data-agent-revoke]").addEventListener("click", () => stopArtBroker("Revoke"));
+  for (const control of queryAll("[data-control-activation-cap], [data-control-activation-days]")) {
+    control.addEventListener("input", () => {
+      state.activationDraftDirty = true;
+      state.activationMessage = "Unsaved changes. Review the daily limit and duration, then submit the exact on-chain update.";
+      renderActivation();
+    });
+  }
 }
 
 function localDateTimeValue(date) {
@@ -1899,6 +1916,7 @@ async function applyWallet(wallet) {
   state.fundingBusy = false;
   state.withdrawalFundsBusy = false;
   state.activationBusy = false;
+  state.activationDraftDirty = false;
   state.agentActionBusy = false;
   state.prepaidAgentGasBusy = false;
   state.prepaidAgentGas = null;
