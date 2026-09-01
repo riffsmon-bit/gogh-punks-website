@@ -426,6 +426,13 @@ test("Control Center is progressive, mobile, and keeps mint execution disabled",
   assert.match(browser, /submitOwnerStopTransactions/);
   assert.match(browser, /\/api\/broker\/autonomy-v3-run/);
   assert.match(browser, /UPDATE FREE-MINT LIMITS/);
+  assert.match(browser, /activationDraftDirty/,
+    "live status refreshes must preserve an owner's unsaved limit draft");
+  assert.match(browser,
+    /!state\.activationBusy && !state\.activationDraftDirty && capControl/,
+    "on-chain limits hydrate the form only until the owner starts editing");
+  assert.match(browser, /if \(edit\) edit\.disabled = busy \|\| !canOpenEditor/,
+    "the local limit editor remains available during transient setup-service delays");
   assert.match(browser, /Sending Punk #\$\{state\.tokenId\} into the fair worker queue/);
   assert.match(browser, /Autonomous minting is disabled and agent permission is revoked/);
   assert.doesNotMatch(browser, /This local build prepared the action/);
