@@ -401,6 +401,26 @@ export async function readAutomationV3RecoveryState(
   return states[0];
 }
 
+export function assembleLiveOwnerSetupInput({
+  tokenId, checkedAt, owner, account, accountCreated, registry, lane, global,
+}, limits) {
+  return {
+    schema: "GOGH_AUTOMATED_SEADROP_V3_OWNER_SETUP_INPUT_V1", version: 1, chainId: 4663,
+    checkedAt,
+    punk: { tokenId, collection: ROBINHOOD.canonicalCollection, expectedOwner: owner,
+      account, accountCreated },
+    infrastructure: {
+      accountRegistry: registry,
+      policyModule: automationManifest.contracts.BrokerPolicyModuleV3.address,
+      agentRegistry: coreManifest.contracts.ArtAgentRegistry.address,
+      agent: lane.address,
+    },
+    limits,
+    globalAgent: { approved: true, validAfter: global.agent.validAfter,
+      validUntil: global.agent.validUntil },
+  };
+}
+
 export async function buildLiveOwnerSetupInput(tokenIdValue, limits, environment = process.env) {
   if (typeof tokenIdValue !== "string" || !/^(0|[1-9][0-9]{0,3})$/.test(tokenIdValue)) {
     throw new TypeError("Choose a valid Gogh Punk ID");
@@ -436,18 +456,8 @@ export async function buildLiveOwnerSetupInput(tokenIdValue, limits, environment
     return { owner: getAddress(owner).toLowerCase(), account: getAddress(account).toLowerCase(), accountCreated: code !== "0x" };
   }));
   if (JSON.stringify(reads[0]) !== JSON.stringify(reads[1])) throw new TypeError("V3 owner/account providers disagree");
-  return {
-    schema: "GOGH_AUTOMATED_SEADROP_V3_OWNER_SETUP_INPUT_V1", version: 1, chainId: 4663,
-    checkedAt: new Date().toISOString(),
-    punk: { tokenId: tokenIdValue, collection: ROBINHOOD.canonicalCollection, expectedOwner: reads[0].owner, account: reads[0].account, accountCreated: reads[0].accountCreated },
-    infrastructure: {
-      accountRegistry: registry,
-      policyModule: automationManifest.contracts.BrokerPolicyModuleV3.address,
-      agentRegistry: coreManifest.contracts.ArtAgentRegistry.address,
-      agent: lane.address,
-      agentLane: lane.laneId,
-    },
-    limits: { maxMintsPerUtcDay: cap, authorizationDays: days },
-    globalAgent: { approved: true, validAfter: global.agent.validAfter, validUntil: global.agent.validUntil },
-  };
+  return assembleLiveOwnerSetupInput({ tokenId: tokenIdValue,
+    checkedAt: new Date().toISOString(), owner: reads[0].owner, account: reads[0].account,
+    accountCreated: reads[0].accountCreated, registry, lane, global },
+  { maxMintsPerUtcDay: cap, authorizationDays: days });
 }
