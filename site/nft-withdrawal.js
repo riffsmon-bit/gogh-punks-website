@@ -471,7 +471,7 @@ async function fetchAssets(fetchFunction, selectedTokenId) {
   return validateWithdrawableNftAssets(payload.assets, selectedTokenId);
 }
 
-async function fetchPortfolio(fetchFunction, selectedTokenIds) {
+export async function fetchWithdrawableNftPortfolio(fetchFunction, selectedTokenIds) {
   const response = await fetchFunction(
     `/api/broker/nft-withdrawal-assets?tokenIds=${encodeURIComponent(selectedTokenIds.join(","))}`,
     { headers: { accept: "application/json" }, cache: "no-store" },
@@ -719,7 +719,7 @@ export function setupNftWithdrawal({ windowObject, documentObject, fetchFunction
     state.loadingAssets = true;
     assetDetail.textContent = "Checking confirmed mint history and current NFT ownership across your Punks…";
     try {
-      const assets = await fetchPortfolio(fetcher, portfolioTokenIds);
+      const assets = await fetchWithdrawableNftPortfolio(fetcher, portfolioTokenIds);
       if (portfolioRevision !== state.portfolioRevision) return;
       state.assets = assets;
       populateAssets();

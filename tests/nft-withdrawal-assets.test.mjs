@@ -256,3 +256,14 @@ test("site exposes a selectable NFT list while retaining a live-checked manual f
   assert.match(endpoint, /status = 'MINT_CONFIRMED'/);
   assert.doesNotMatch(endpoint, /eth_send|sendTransaction|privateKey|mnemonic/);
 });
+
+test("Broker Collected NFTs view is an on-demand NFT gallery", async () => {
+  const html = await readFile(new URL("../site/broker/index.html", import.meta.url), "utf8");
+  const browser = await readFile(new URL("../site/owner-accounts.js", import.meta.url), "utf8");
+  assert.match(html, /Collected NFTs/);
+  assert.match(html, /data-owner-collected-gallery/);
+  assert.match(html, /data-owner-collected-grid/);
+  assert.match(browser, /fetchWithdrawableNftPortfolio\(request, tokenIds\)/);
+  assert.match(browser, /provenance === "ART_BROKER"/);
+  assert.match(browser, /Open \/ Withdraw/);
+});

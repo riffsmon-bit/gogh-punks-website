@@ -945,6 +945,23 @@ h3 { font-size: 1.45rem; }
 .owner-roster-filters span { display: inline-grid; min-width: 1.6em; min-height: 1.6em; margin-left: 5px; place-items: center; border-radius: 999px; color: currentColor; background: rgba(255, 255, 255, 0.12); font-size: 0.62rem; }
 .owner-roster-filter-result { margin: 10px 14px 0; color: var(--aqua); font-size: 0.78rem; letter-spacing: 0.02em; }
 .owner-roster-disclosure .punk-launcher-grid { padding: 14px; }
+.owner-collected-gallery { padding: 14px; }
+.owner-collected-gallery[hidden] { display: none; }
+.owner-collected-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.owner-collected-grid > .empty-state, .owner-collected-error { grid-column: 1 / -1; }
+.owner-collected-card { display: flex; min-width: 0; flex-direction: column; overflow: hidden; border: 1px solid var(--line); background: #071321; }
+.owner-collected-art { width: 100%; aspect-ratio: 1; object-fit: cover; background: #030b11; }
+.owner-collected-art.placeholder { display: grid; place-items: center; color: var(--sun); font-family: var(--display); font-size: 1.4rem; }
+.owner-collected-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; padding: 16px; }
+.owner-collected-source { color: var(--aqua); font-size: 0.66rem; font-weight: 850; letter-spacing: 0.09em; text-transform: uppercase; }
+.owner-collected-copy h3 { margin: 9px 0 6px; overflow-wrap: anywhere; font-size: clamp(1.25rem, 2vw, 1.65rem); line-height: 1.05; }
+.owner-collected-copy p { margin: 0 0 16px; color: var(--muted); font-size: 0.8rem; line-height: 1.45; }
+.owner-collected-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: auto; }
+.owner-collected-actions a, .owner-collected-error button { min-height: 42px; padding: 10px; border: 1px solid var(--line); color: var(--cream); background: transparent; font: inherit; font-size: 0.65rem; font-weight: 850; letter-spacing: 0.06em; text-align: center; text-decoration: none; text-transform: uppercase; }
+.owner-collected-actions a:hover, .owner-collected-actions a:focus-visible,
+.owner-collected-error button:hover, .owner-collected-error button:focus-visible { border-color: var(--aqua); color: var(--aqua); }
+.owner-collected-error { padding: 22px; border: 1px solid rgba(255, 129, 114, 0.45); }
+.owner-collected-error p { margin: 0 0 14px; color: var(--muted); }
 .punk-launcher-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 .punk-launcher-card { display: grid; grid-template-columns: 104px minmax(0, 1fr); min-width: 0; overflow: hidden; border: 1px solid var(--line); background: #071321; }
 .punk-launcher-art { width: 104px; height: 100%; min-height: 166px; object-fit: cover; image-rendering: pixelated; background: #030b11; }
@@ -976,6 +993,7 @@ h3 { font-size: 1.45rem; }
 
 @media (max-width: 1050px) {
   .punk-launcher-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .owner-collected-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 620px) {
@@ -990,6 +1008,8 @@ h3 { font-size: 1.45rem; }
   .ownership-verification span:nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
   .owner-roster-filters { margin-right: -14px; padding-right: 14px; }
   .punk-launcher-grid { grid-template-columns: 1fr; }
+  .owner-collected-grid { grid-template-columns: 1fr; }
+  .owner-collected-actions { grid-template-columns: 1fr; }
   .punk-launcher-card { grid-template-columns: 92px minmax(0, 1fr); }
   .punk-launcher-art { width: 92px; min-height: 156px; }
   .launcher-explainer > div { grid-template-columns: 1fr; }

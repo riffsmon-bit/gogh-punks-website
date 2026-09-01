@@ -34,6 +34,7 @@ import {
   ownerPunkIsActivated,
   ownerPunkMatchesRosterFilter,
   ownerRosterFilterCounts,
+  artBrokerCollectedNfts,
   requestedBrokerPunk,
   selectedPunkGalleryPath,
 } from "../site/owner-accounts.js";
@@ -207,6 +208,22 @@ test("Broker roster filters use indexed agent summaries without new chain reads"
     all: 6, activated: 5, searching: 1, collected: 2, attention: 1, ready: 1,
   });
   assert.throws(() => ownerPunkMatchesRosterFilter(accounts[0], "unknown"), /Unknown/);
+});
+
+test("Collected NFT gallery includes actual live-held Art Broker mints, not Punk cards", () => {
+  const items = [
+    { punkTokenId: "94", tokenId: "7", provenance: "RECEIVED",
+      ownershipStatus: "LIVE_CHECK_REQUIRED", acquiredAt: null },
+    { punkTokenId: "93", tokenId: "11", provenance: "ART_BROKER",
+      ownershipStatus: "LIVE_VERIFIED", acquiredAt: "2026-08-31T10:00:00.000Z" },
+    { punkTokenId: "94", tokenId: "12", provenance: "ART_BROKER",
+      ownershipStatus: "LIVE_VERIFIED", acquiredAt: "2026-08-31T11:00:00.000Z" },
+  ];
+  const collected = artBrokerCollectedNfts(items);
+  assert.deepEqual(collected.map(({ punkTokenId, tokenId }) => [punkTokenId, tokenId]), [
+    ["94", "12"], ["93", "11"],
+  ]);
+  assert.throws(() => artBrokerCollectedNfts(null), /array/);
 });
 
 test("OpenSea rarity is cached only as a bounded scheduling hint", async () => {
