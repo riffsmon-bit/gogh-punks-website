@@ -83,6 +83,60 @@ test("SeaDrop discovery advances from its checkpoint instead of rescanning 80,00
   assert.equal(calls[1].parameters.at(-1), "10000");
 });
 
+test("incremental discovery uses one bounded secondary read only after primary RPC failure", async () => {
+  const reports = [];
+  let primaryHeads = 0;
+  let primaryLogs = 0;
+  let fallbackHeads = 0;
+  let fallbackLogs = 0;
+  const primary = {
+    async getBlockNumber() { primaryHeads += 1; throw new Error("primary unavailable"); },
+    async getLogs() { primaryLogs += 1; throw new Error("primary unavailable"); },
+  };
+  const fallback = {
+    async getBlockNumber() { fallbackHeads += 1; return 10_020n; },
+    async getLogs() { fallbackLogs += 1; return []; },
+  };
+  let databaseCalls = 0;
+  const database = {
+    async query() {
+      databaseCalls += 1;
+      if (databaseCalls === 1) return { rows: [{ indexed_through_block: "9000" }] };
+      return { rows: [] };
+    },
+  };
+  assert.deepEqual(await incrementalSeaDropCollections(primary, database, 20n, {
+    fallbackClient: fallback,
+    pause: async () => {},
+    report: (value) => reports.push(value),
+  }), []);
+  assert.equal(primaryHeads, 1);
+  assert.equal(fallbackHeads, 1);
+  assert.equal(primaryLogs, 1);
+  assert.equal(fallbackLogs, 1);
+  assert.equal(reports.length, 2);
+  assert.match(reports[0], /"method":"HEAD"/);
+  assert.match(reports[1], /"method":"LOGS"/);
+});
+
+test("incremental discovery does not hide index failures behind an RPC retry", async () => {
+  let fallbackCalls = 0;
+  await assert.rejects(() => incrementalSeaDropCollections({
+    async getBlockNumber() { return 10_020n; },
+  }, {
+    async query() { throw new Error("database unavailable"); },
+  }, 20n, {
+    fallbackClient: {
+      async getBlockNumber() { fallbackCalls += 1; return 10_020n; },
+      async getLogs() { fallbackCalls += 1; return []; },
+    },
+  }), (error) => {
+    assert.equal(error.code, "DISCOVERY_INDEX_READ_FAILED");
+    return true;
+  });
+  assert.equal(fallbackCalls, 0);
+});
+
 test("incident controls keep chain-wide portfolio scans opt-in and defer global live reads", async () => {
   const [mintIndexer, worker, ownerUi, statusUi, statusRoute] = await Promise.all([
     readFile(new URL("../netlify/functions/broker-mint-indexer.mjs", import.meta.url), "utf8"),
