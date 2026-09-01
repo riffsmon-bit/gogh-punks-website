@@ -1,4 +1,8 @@
 import automationManifest from "../../deployments/robinhood-automation-v3.json" with { type: "json" };
+import coreManifest from "../../deployments/robinhood.json" with { type: "json" };
+import { buildAutomatedSeaDropV3OwnerSetup } from
+  "../../broker/src/recommendation/automated-seadrop-v3-owner-setup.mjs";
+import { ROBINHOOD } from "../../broker/src/config.mjs";
 import { requireVerifiedManifestAdoption } from
   "../../broker/src/recommendation/source-verification-adoption.mjs";
 import { json } from "./_shared/http.mjs";
@@ -143,6 +147,35 @@ export function automationV3WorkerConfigured(environment = process.env) {
       === AUTOMATION_V3_AGENT;
 }
 
+export function ownerSetupArtifactBuilderAvailable(nowMs = Date.now()) {
+  const nowSeconds = Math.floor(nowMs / 1_000);
+  try {
+    buildAutomatedSeaDropV3OwnerSetup({
+      schema: "GOGH_AUTOMATED_SEADROP_V3_OWNER_SETUP_INPUT_V1", version: 1,
+      chainId: 4663, checkedAt: new Date(nowSeconds * 1_000).toISOString(),
+      punk: { tokenId: "0", collection: ROBINHOOD.canonicalCollection,
+        expectedOwner: "0x1111111111111111111111111111111111111111",
+        account: "0x2222222222222222222222222222222222222222", accountCreated: true },
+      infrastructure: {
+        accountRegistry: automationManifest.contracts.GoghPunkAccountRegistryV3.address,
+        policyModule: automationManifest.contracts.BrokerPolicyModuleV3.address,
+        agentRegistry: coreManifest.contracts.ArtAgentRegistry.address,
+        agent: "0x3333333333333333333333333333333333333333",
+      },
+      limits: { maxMintsPerUtcDay: 1, authorizationDays: 7 },
+      globalAgent: { approved: true, validAfter: String(nowSeconds - 1),
+        validUntil: String(nowSeconds + 31 * 86_400) },
+    }, { nowSeconds });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function ownerSetupTransactionAvailable(globallyReady, setupBuilderReady) {
+  return globallyReady === true && setupBuilderReady === true;
+}
+
 export default async function handler(request) {
   if (request.method !== "GET") return json({ ok: false, code: "METHOD_NOT_ALLOWED" }, 405);
   const base = autonomyV3Status();
@@ -205,6 +238,7 @@ export default async function handler(request) {
       const executionReady = preview ? evidence.executionReady === true
         : availability.executionReady;
       const ready = globallyReady && executionReady;
+      const setupBuilderReady = ownerSetupArtifactBuilderAvailable();
       automation = Object.freeze({
         ...base,
         status: ready ? "READY" : availability.status,
@@ -212,11 +246,15 @@ export default async function handler(request) {
         // Owner setup is a separate live-checked transaction builder. A transient hosted-worker
         // outage must pause submissions, but must not prevent an owner from creating/updating the
         // bounded on-chain authorization that the worker will use after recovery.
-        setupTransactionAvailable: globallyReady,
+        setupTransactionAvailable: ownerSetupTransactionAvailable(
+          globallyReady,
+          setupBuilderReady,
+        ),
         automaticSubmission: ready,
         scheduledRetry: new Set(["WORKER_RECOVERING", "WORKER_DELAYED", "WORKER_DEGRADED"])
           .has(availability.status),
-        reason: ready ? null : availability.reason ?? (globallyReady
+        reason: !setupBuilderReady ? "OWNER_SETUP_ARTIFACT_UNAVAILABLE"
+          : ready ? null : availability.reason ?? (globallyReady
           ? "AUTOMATION_V3_WORKER_PENDING" : "AUTOMATION_V3_GUARDIAN_PENDING"),
         agent,
         live: { adapterRegistered: null, featureFlagsEnabled: null,
