@@ -57,6 +57,10 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.match(control, /Set Free-Mint Limits/);
   assert.match(control, /Authorize Art Broker/);
   assert.match(control, /Transaction \$\{progress\.index\} of \$\{progress\.total\}/);
+  assert.match(control, /saveSignedScoutingSchedule/);
+  assert.match(control, /GOGH_SCOUTING_SCHEDULE_V1/);
+  assert.match(control, /personal_sign/);
+  assert.match(control, /Art Broker activation is confirmed on-chain, but its worker rotation was not enabled/);
   assert.doesNotMatch(activation, /personal_sign|eth_signTypedData|wallet_addEthereumChain/i);
   assert.match(browser, /eth_sendTransaction/);
   assert.doesNotMatch(browser, /personal_sign|eth_signTypedData|wallet_addEthereumChain/i);
