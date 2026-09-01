@@ -46,6 +46,8 @@ test("Punk-specific gas preflight sends one exact native transfer to the fixed h
     calls.push({ method, params });
     if (method === "eth_chainId") return "0x1237";
     if (method === "eth_accounts") return [OWNER];
+    if (method === "eth_getBalance") return "0xde0b6b3a7640000";
+    if (method === "eth_gasPrice") return "0x3b9aca00";
     if (method === "eth_call") return "0x";
     if (method === "eth_estimateGas") return "0x5208";
     if (method === "eth_sendTransaction") return HASH;
@@ -58,8 +60,28 @@ test("Punk-specific gas preflight sends one exact native transfer to the fixed h
   });
   assert.equal(await submitPrepaidAgentGas(provider, plan), HASH);
   assert.deepEqual(calls.map(({ method }) => method), [
-    "eth_chainId", "eth_accounts", "eth_call", "eth_estimateGas", "eth_sendTransaction",
+    "eth_chainId", "eth_accounts", "eth_getBalance", "eth_gasPrice",
+    "eth_call", "eth_estimateGas", "eth_sendTransaction",
   ]);
+});
+
+test("priority preflight explains that the connected owner wallet—not the Punk wallet—needs funds", async () => {
+  let sent = false;
+  const provider = { request: async ({ method }) => {
+    if (method === "eth_chainId") return "0x1237";
+    if (method === "eth_accounts") return [OWNER];
+    if (method === "eth_getBalance") return `0x${48941081714000n.toString(16)}`;
+    if (method === "eth_gasPrice") return "0x3b9aca00";
+    if (method === "eth_sendTransaction") sent = true;
+    throw new Error(`unexpected ${method}`);
+  } };
+  await assert.rejects(
+    () => preflightPrepaidAgentGas(provider, status(), "93", SESSION),
+    (error) => error.code === "INSUFFICIENT_PAYER_BALANCE"
+      && /Connected owner wallet has 0\.00004894 ETH/.test(error.message)
+      && /not the Punk NFT Wallet/.test(error.message),
+  );
+  assert.equal(sent, false);
 });
 
 test("Punk-specific gas preflight fails before submission on owner or network drift", async () => {

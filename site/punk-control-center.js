@@ -243,6 +243,10 @@ function renderPrepaidAgentGas() {
     ? formatNative(status.actualGasSpentTodayWei ?? "0") : "Not yet metered");
   setText("[data-prepaid-agent-recipient]", status?.agent
     ? formatAddress(status.agent) : "Fixed hosted signer not loaded");
+  setText("[data-prepaid-agent-payer]", state.walletAccount
+    ? formatAddress(state.walletAccount) : "Connect owner wallet");
+  setText("[data-prepaid-agent-payer-balance]", status?.payerBalanceWei != null
+    ? formatNative(status.payerBalanceWei) : "Not loaded");
   const recipientLink = query("[data-prepaid-agent-recipient-link]");
   if (recipientLink) {
     recipientLink.href = status?.agent
@@ -701,13 +705,18 @@ async function loadPrepaidAgentGas() {
     return;
   }
   try {
-    state.prepaidAgentGas = await fetchPrepaidAgentGasStatus(
+    const [status, payerBalance] = await Promise.all([
+      fetchPrepaidAgentGasStatus(
       (...args) => fetch(...args), state.tokenId, state.walletAccount,
-    );
+      ),
+      rpc("eth_getBalance", [state.walletAccount, "latest"]).catch(() => null),
+    ]);
+    state.prepaidAgentGas = { ...status, payerBalanceWei:
+      payerBalance == null ? null : BigInt(payerBalance).toString() };
     setPrepaidAgentGasMessage(
       state.prepaidAgentGas.session
         ? `Punk #${state.tokenId}'s priority session is ${state.prepaidAgentGas.session.state.toLowerCase()}: ${state.prepaidAgentGas.session.completedMints} of ${state.prepaidAgentGas.session.requestedMints} successful mints.`
-        : `Punk #${state.tokenId} has ${formatNative(state.prepaidAgentGas.availableWei)} of priority agent gas credit.`,
+        : `Punk #${state.tokenId} has ${formatNative(state.prepaidAgentGas.availableWei)} of priority agent gas credit. New deposits are paid by the connected owner wallet${state.prepaidAgentGas.payerBalanceWei == null ? "." : `, which currently has ${formatNative(state.prepaidAgentGas.payerBalanceWei)}.`}`,
     );
   } catch (error) {
     state.prepaidAgentGas = null;
@@ -803,7 +812,7 @@ async function prepayAgentGasAndRun() {
       state.provider, status, selectedTokenId, configuration,
     );
     setPrepaidAgentGasMessage(
-      `Waiting for your wallet to fund Punk #${selectedTokenId}'s ${plan.mintLimit}-mint, ${plan.durationDays}-day priority session with ${formatNative(plan.amountWei)}…`,
+      `Waiting for the connected owner wallet to fund Punk #${selectedTokenId}'s ${plan.mintLimit}-mint, ${plan.durationDays}-day priority session with ${formatNative(plan.amountWei)} plus an estimated ${formatNative(plan.estimatedGasWei)} network fee…`,
     );
     const transactionHash = await submitPrepaidAgentGas(state.provider, plan);
     const transactionLink = query("[data-prepaid-agent-transaction]");

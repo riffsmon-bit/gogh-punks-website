@@ -1,4 +1,5 @@
 const CHAIN_ID = 4663n;
+const NATIVE_TRANSFER_GAS = 21_000n;
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 const DECIMAL = /^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,18})?$/;
 
@@ -35,6 +36,20 @@ function parseHex(value, name) {
     fail("RPC_MALFORMED", `${name} is malformed`);
   }
   return BigInt(value);
+}
+
+function formatEther(wei) {
+  const whole = wei / 10n ** 18n;
+  const fraction = (wei % 10n ** 18n).toString().padStart(18, "0")
+    .slice(0, 8).replace(/0+$/, "");
+  return `${whole}${fraction ? `.${fraction}` : ""} ETH`;
+}
+
+function insufficientPayerBalance(balanceWei, requiredWei) {
+  fail(
+    "INSUFFICIENT_PAYER_BALANCE",
+    `Connected owner wallet has ${formatEther(balanceWei)}, but this priority deposit needs at least ${formatEther(requiredWei)} including the current network fee. Add ETH to the connected owner wallet—not the Punk NFT Wallet`,
+  );
 }
 
 function boundedChoice(value, allowed, name) {
@@ -90,19 +105,44 @@ export async function preflightPrepaidAgentGas(provider, status, selectedTokenId
   const transaction = Object.freeze({
     from: owner, to: agent, value: `0x${amountWei.toString(16)}`, data: "0x",
   });
+  const [balanceValue, gasPriceValue] = await Promise.all([
+    rpc(provider, "eth_getBalance", [owner, "latest"]), rpc(provider, "eth_gasPrice"),
+  ]);
+  const payerBalanceWei = parseHex(balanceValue, "connected owner wallet balance");
+  const gasPriceWei = parseHex(gasPriceValue, "gas price");
+  const baselineRequiredWei = amountWei + NATIVE_TRANSFER_GAS * gasPriceWei;
+  if (payerBalanceWei < baselineRequiredWei) {
+    insufficientPayerBalance(payerBalanceWei, baselineRequiredWei);
+  }
   const [simulation, gas] = await Promise.all([
     rpc(provider, "eth_call", [transaction, "latest"]),
     rpc(provider, "eth_estimateGas", [transaction]),
   ]);
-  if (simulation !== "0x" || parseHex(gas, "gas estimate") === 0n) {
+  const estimatedGas = parseHex(gas, "gas estimate");
+  if (simulation !== "0x" || estimatedGas === 0n) {
     fail("SIMULATION_FAILED", "the exact prepaid gas transfer did not simulate successfully");
   }
+  const minimumRequiredWei = amountWei + estimatedGas * gasPriceWei;
+  if (payerBalanceWei < minimumRequiredWei) {
+    insufficientPayerBalance(payerBalanceWei, minimumRequiredWei);
+  }
   return Object.freeze({ tokenId: String(selectedTokenId), owner, agent,
-    amountWei: amountWei.toString(), mintLimit, durationDays, transaction });
+    amountWei: amountWei.toString(), mintLimit, durationDays, transaction,
+    payerBalanceWei: payerBalanceWei.toString(), estimatedGasWei:
+      (estimatedGas * gasPriceWei).toString(), minimumRequiredWei: minimumRequiredWei.toString() });
 }
 
 export async function submitPrepaidAgentGas(provider, plan) {
-  const hash = await rpc(provider, "eth_sendTransaction", [plan.transaction]);
+  let hash;
+  try {
+    hash = await rpc(provider, "eth_sendTransaction", [plan.transaction]);
+  } catch (error) {
+    if (/insufficient funds|exceeds the balance/i.test(String(error?.message ?? error))) {
+      fail("INSUFFICIENT_PAYER_BALANCE",
+        "The connected owner wallet no longer has enough ETH for the priority deposit plus its network fee. Add ETH to the connected owner wallet—not the Punk NFT Wallet");
+    }
+    throw error;
+  }
   if (typeof hash !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(hash)) {
     fail("SUBMISSION_UNCONFIRMED", "wallet did not return a transaction hash");
   }

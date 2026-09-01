@@ -482,6 +482,10 @@ test("Control Center fails clearly across route, wallet, network, and worker sta
   assert.match(html, /5 mints\/day[\s\S]*0\.0025 ETH/);
   assert.match(html, /10 mints\/day[\s\S]*0\.005 ETH/);
   assert.match(html, /not activation fees, mint prices, or guaranteed mint counts/);
+  assert.match(html, /connected owner wallet pays the reserve plus its displayed transfer fee/i);
+  assert.match(html, /ETH already inside the Punk NFT Wallet cannot pay hosted-worker gas/);
+  assert.match(html, /data-prepaid-agent-payer-balance/);
+  assert.match(browser, /INSUFFICIENT_PAYER_BALANCE|payerBalanceWei/);
   assert.match(html, /Daily free-mint limit \(1–10\)/);
   assert.match(html, /Authorization duration in days \(1–30\)/);
   assert.match(browser, /for \(const button of queryAll\("\[data-prepaid-agent-gas-open\]"\)\)/);
