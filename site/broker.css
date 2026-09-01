@@ -943,6 +943,7 @@ h3 { font-size: 1.45rem; }
 .owner-roster-filters button:hover, .owner-roster-filters button:focus-visible { border-color: var(--aqua); color: var(--cream); }
 .owner-roster-filters button[aria-pressed="true"] { border-color: var(--aqua); color: #03100f; background: var(--aqua); }
 .owner-roster-filters span { display: inline-grid; min-width: 1.6em; min-height: 1.6em; margin-left: 5px; place-items: center; border-radius: 999px; color: currentColor; background: rgba(255, 255, 255, 0.12); font-size: 0.62rem; }
+.owner-roster-filter-result { margin: 10px 14px 0; color: var(--aqua); font-size: 0.78rem; letter-spacing: 0.02em; }
 .owner-roster-disclosure .punk-launcher-grid { padding: 14px; }
 .punk-launcher-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 .punk-launcher-card { display: grid; grid-template-columns: 104px minmax(0, 1fr); min-width: 0; overflow: hidden; border: 1px solid var(--line); background: #071321; }

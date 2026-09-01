@@ -118,6 +118,7 @@
           <div class="control-form-grid"><label class="control-field"><span>Start (your device time)</span><input type="datetime-local" data-schedule-start /></label><label class="control-field"><span>End (your device time)</span><input type="datetime-local" data-schedule-end /></label></div>
           <button type="button" data-schedule-save disabled>Save Scouting Window</button>
           <p class="control-note" data-schedule-state>No window saved; this Punk uses the normal worker rotation. Local times are converted to exact UTC timestamps before validation.</p>
+          <details class="control-debug"><summary>How rarity affects the hosted rotation</summary><p>OpenSea/OpenRarity rank supplies a bounded scheduling head start: ranks 1–51 receive 20 minutes; 52–251 receive 10; 252–753 receive 5; 754–1,756 receive 2; 1,757–3,010 receive 1; lower or unknown ranks receive none. Owner-fair ordering still prevents one large holder from taking every turn. Rarity never guarantees a mint or bypasses any live safety check.</p></details>
         </article>
       </section>
 

@@ -189,18 +189,22 @@ test("Broker roster filters use indexed agent summaries without new chain reads"
       agentSummary: { enrolled: true, status: "SCANNING" } },
     { tokenId: "95", automationConfigured: true,
       agentSummary: { enrolled: true, status: "MINTING", lifetimeMints: 4 } },
+    { tokenId: "98", automationConfigured: true,
+      agentSummary: { enrolled: true, status: "ACTIVE", lifetimeMints: 0,
+        lastSuccessfulMint: `0x${"ab".repeat(32)}` } },
     { tokenId: "96", automationConfigured: true,
       agentSummary: { enrolled: false, status: "NEEDS_ENROLLMENT" } },
     { tokenId: "97", activated: false, agentSummary: null },
   ];
   assert.equal(ownerPunkIsActivated(accounts[0]), true);
-  assert.equal(ownerPunkIsActivated(accounts[4]), false);
+  assert.equal(ownerPunkIsActivated(accounts[5]), false);
   assert.equal(ownerPunkMatchesRosterFilter(accounts[1], "searching"), true);
   assert.equal(ownerPunkMatchesRosterFilter(accounts[2], "collected"), true);
-  assert.equal(ownerPunkMatchesRosterFilter(accounts[3], "attention"), true);
-  assert.equal(ownerPunkMatchesRosterFilter(accounts[4], "ready"), true);
+  assert.equal(ownerPunkMatchesRosterFilter(accounts[3], "collected"), true);
+  assert.equal(ownerPunkMatchesRosterFilter(accounts[4], "attention"), true);
+  assert.equal(ownerPunkMatchesRosterFilter(accounts[5], "ready"), true);
   assert.deepEqual(ownerRosterFilterCounts(accounts), {
-    all: 5, activated: 4, searching: 1, collected: 1, attention: 1, ready: 1,
+    all: 6, activated: 5, searching: 1, collected: 2, attention: 1, ready: 1,
   });
   assert.throws(() => ownerPunkMatchesRosterFilter(accounts[0], "unknown"), /Unknown/);
 });

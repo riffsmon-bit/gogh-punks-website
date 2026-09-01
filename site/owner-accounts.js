@@ -108,7 +108,8 @@ export function ownerMintDashboard(accounts = []) {
     lifetimeMints: summaries.reduce(
       (total, summary) => total + safeCount(summary?.lifetimeMints), 0,
     ),
-    collectors: summaries.filter((summary) => safeCount(summary?.lifetimeMints) > 0).length,
+    collectors: summaries.filter((summary) => safeCount(summary?.lifetimeMints) > 0
+      || /^0x[0-9a-f]{64}$/i.test(String(summary?.lastSuccessfulMint ?? ""))).length,
   });
 }
 
@@ -492,6 +493,14 @@ const ATTENTION_AGENT_STATES = new Set([
 const OWNER_ROSTER_FILTERS = new Set([
   "all", "activated", "searching", "collected", "attention", "ready",
 ]);
+const OWNER_ROSTER_FILTER_LABELS = Object.freeze({
+  all: "all verified Punks",
+  activated: "activated Punks",
+  searching: "Punks searching now",
+  collected: "Punks with confirmed collections",
+  attention: "Punks needing attention",
+  ready: "Punks not yet activated",
+});
 
 export function ownerPunkIsActivated(item) {
   return item?.activated === true || item?.automationCreated === true
@@ -506,7 +515,8 @@ export function ownerPunkMatchesRosterFilter(item, filter = "all") {
   if (filter === "searching") return SEARCHING_AGENT_STATES.has(status);
   if (filter === "collected") {
     const lifetimeMints = Number(item?.agentSummary?.lifetimeMints ?? 0);
-    return Number.isFinite(lifetimeMints) && lifetimeMints > 0;
+    return (Number.isFinite(lifetimeMints) && lifetimeMints > 0)
+      || /^0x[0-9a-f]{64}$/i.test(String(item?.agentSummary?.lastSuccessfulMint ?? ""));
   }
   if (filter === "attention") return ATTENTION_AGENT_STATES.has(status);
   return !ownerPunkIsActivated(item);
@@ -577,7 +587,12 @@ export function renderOwnerAccounts(container, accounts, filter = "all") {
     badge.className = `punk-launcher-status status-${String(status ?? "inactive").toLowerCase()}`;
     badge.textContent = statusLabel;
     const description = documentObject.createElement("p");
-    description.textContent = detail;
+    const lifetimeMints = Number(item?.agentSummary?.lifetimeMints ?? 0);
+    description.textContent = filter === "collected"
+      ? (Number.isSafeInteger(lifetimeMints) && lifetimeMints > 0
+        ? `${lifetimeMints} confirmed Art Broker mint${lifetimeMints === 1 ? "" : "s"}.`
+        : "Confirmed Art Broker mint recorded; aggregate history is syncing.")
+      : detail;
     const open = documentObject.createElement("a");
     open.className = "punk-launcher-open";
     open.href = `/broker/punk/${encodeURIComponent(item.tokenId)}`;
@@ -748,6 +763,7 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
   const selectedPreview = browserDocument?.querySelector?.("[data-workspace-punk-preview]");
   const refreshButton = browserDocument?.querySelector?.("[data-refresh-owner-punks]");
   const mintDashboard = browserDocument?.querySelector?.("[data-owner-mint-dashboard]");
+  const rosterFilterResult = browserDocument?.querySelector?.("[data-owner-roster-filter-result]");
   const rosterFilters = [...(browserDocument?.querySelectorAll?.("[data-owner-roster-filter]") ?? [])];
   if (!browserWindow || (!container && !picker && !mandatePicker && !workspacePicker)) return null;
   const request = fetchFunction ?? browserWindow.fetch.bind(browserWindow);
@@ -768,6 +784,12 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
     });
     for (const button of rosterFilters) {
       button.setAttribute("aria-pressed", String(button.dataset.ownerRosterFilter === activeRosterFilter));
+    }
+    if (rosterFilterResult) {
+      const visibleCount = counts[activeRosterFilter] ?? 0;
+      rosterFilterResult.textContent = activeRosterFilter === "all"
+        ? `Showing all ${accounts.length} verified Punks.`
+        : `Showing ${visibleCount} of ${accounts.length} verified Punks · ${OWNER_ROSTER_FILTER_LABELS[activeRosterFilter]}.`;
     }
     renderOwnerAccounts(container, accounts, activeRosterFilter);
   }
