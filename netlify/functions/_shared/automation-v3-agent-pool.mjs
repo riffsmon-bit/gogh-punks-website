@@ -60,6 +60,19 @@ export function configuredAutomationV3AgentLanes(environment = process.env) {
   return Object.freeze(lanes);
 }
 
+// Safe for public status surfaces. Signer key names and private key material are
+// deliberately omitted; the explorer links let holders independently inspect
+// the native-gas lane that processed their Punk.
+export function publicAutomationV3AgentLanes(environment = process.env) {
+  return Object.freeze(configuredAutomationV3AgentLanes(environment).map((lane) =>
+    Object.freeze({
+      laneId: lane.laneId,
+      address: lane.address,
+      priority: lane.priority === true,
+      explorerUrl: `https://robinhoodchain.blockscout.com/address/${lane.address}`,
+    })));
+}
+
 export function assignedAutomationV3AgentLane(tokenIdValue, environment = process.env) {
   const tokenId = String(tokenIdValue);
   if (!/^(?:0|[1-9][0-9]{0,3})$/.test(tokenId)) {

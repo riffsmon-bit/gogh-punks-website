@@ -48,7 +48,7 @@
         <article><span>NFTs Held</span><strong data-summary-nfts>—</strong><small>Loaded on demand</small></article>
         <article><span>Tokens Held</span><strong data-summary-tokens>—</strong><small>Recognized balances</small></article>
         <article><span>Mints Today</span><strong data-summary-mints>—</strong><small>UTC day</small></article>
-        <article><span>Spent Today</span><strong data-summary-spent>—</strong><small>Local paid-mode ledger</small></article>
+        <article><span>Priority Gas Used Today</span><strong data-summary-spent>—</strong><small>Receipt-backed UTC usage</small></article>
         <article><span>Lifetime Mints</span><strong data-summary-lifetime>—</strong><small>Punk-specific history only</small></article>
       </section>
 
@@ -78,7 +78,7 @@
                 <div><dt>5 mints/day</dt><dd>0.0025 ETH</dd></div>
                 <div><dt>10 mints/day</dt><dd>0.005 ETH</dd></div>
               </dl>
-              <p>These are optional planning reserves for this Punk's priority agent gas—not activation fees, mint prices, or guaranteed mint counts. Actual network gas and mint availability vary; unused credited value remains assigned to this Punk.</p>
+              <p>These are conservative planning reserves for this Punk's priority agent gas—not activation fees, mint prices, or guaranteed mint counts. Recent confirmed mints used about 0.000074 ETH median gas and 0.000156 ETH at the observed p95. Actual gas varies; unused credit stays accounted to this Punk for holder-claimed settlement after the session.</p>
             </div>
           </aside>
           <div class="control-button-stack"><button type="button" data-control-activate disabled>Activate Art Broker</button><button type="button" data-prepaid-agent-gas-open data-prepaid-active-only disabled hidden>Prepay This Agent &amp; Run Now</button></div>
@@ -93,9 +93,10 @@
         <article class="control-card prepaid-agent-gas" data-prepaid-agent-gas-card hidden>
           <div class="panel-header"><div><p class="eyebrow">This Punk's Priority Agent</p><h2>Prepay Gas &amp; Start a Priority Session</h2></div><span class="tag">DEDICATED FAST LANE</span></div>
           <p>This creates a bounded priority session for Punk #<span data-prepaid-agent-token>—</span>. Its agent is checked by a separate scheduler every minute and does not wait for the normal owner rotation. The deposit goes to the reviewed transaction signer because a Punk contract wallet cannot originate a transaction or pay network gas itself.</p>
-          <dl class="control-facts"><div><dt>Available Punk-specific credit</dt><dd data-prepaid-agent-balance>—</dd></div><div><dt>Reviewed gas signer</dt><dd data-prepaid-agent-recipient>—</dd></div><div><dt>Priority session</dt><dd data-prepaid-agent-session>Not started</dd></div></dl>
+          <dl class="control-facts"><div><dt>Total credited</dt><dd data-prepaid-agent-credited>—</dd></div><div><dt>Actual network gas today</dt><dd data-prepaid-agent-spent-today>—</dd></div><div><dt>Actual network gas total</dt><dd data-prepaid-agent-spent>—</dd></div><div><dt>Available Punk-specific credit</dt><dd data-prepaid-agent-balance>—</dd></div><div><dt>Reviewed gas signer</dt><dd><a data-prepaid-agent-recipient-link href="#" target="_blank" rel="noopener noreferrer"><span data-prepaid-agent-recipient>—</span> ↗</a></dd></div><div><dt>Priority session</dt><dd data-prepaid-agent-session>Not started</dd></div><div><dt>Unused-credit settlement</dt><dd data-prepaid-agent-refund>Available after session settlement</dd></div></dl>
+          <details class="control-debug prepaid-lane-proof"><summary>Hosted lane addresses &amp; proof of work</summary><p>These public signer addresses pay transaction gas. They contain no keys or private credentials.</p><div data-prepaid-agent-lanes></div></details>
           <div class="control-form-grid"><label class="control-field"><span>Successful mints requested</span><select data-prepaid-agent-mints disabled><option value="1">1 mint</option><option value="3">3 mints</option><option value="5">5 mints</option><option value="10">10 mints</option></select></label><label class="control-field"><span>Priority duration</span><select data-prepaid-agent-days disabled><option value="1">1 day</option><option value="3">3 days</option><option value="7" selected>7 days</option><option value="30">30 days</option></select></label></div>
-          <div class="funding-recommendation"><strong data-prepaid-agent-recommendation>Recommended reserve: 0.0005 ETH</strong><span>This pays gas only; it is not a mint price and does not guarantee that an eligible mint exists.</span><button type="button" data-prepaid-agent-recommended disabled>Use Recommended Reserve</button></div>
+          <div class="funding-recommendation"><strong data-prepaid-agent-recommendation>Recommended reserve: 0.0005 ETH</strong><span data-prepaid-agent-benchmark>This pays gas only; it is not a mint price and does not guarantee that an eligible mint exists.</span><button type="button" data-prepaid-agent-recommended disabled>Use Recommended Reserve</button></div>
           <label class="control-field"><span>Prepay amount in ETH</span><input data-prepaid-agent-amount inputmode="decimal" autocomplete="off" value="0.0005" disabled /></label>
           <label class="control-toggle"><input type="checkbox" data-prepaid-agent-confirm disabled /><span>I understand this funds Punk #<span data-prepaid-agent-confirm-token>—</span>'s priority agent gas credit, not its NFT wallet or a mint price. A scan can complete without minting.</span></label>
           <button type="button" data-prepaid-agent-submit disabled>Fund &amp; Start Priority Agent</button>
@@ -197,7 +198,15 @@
       <section id="control-panel-activity" class="control-panel" role="tabpanel" aria-labelledby="control-tab-activity" data-control-panel="activity" hidden>
         <div class="control-grid three-column agent-heartbeat-summary"><article class="control-card"><p class="eyebrow">Last scan</p><h2 data-agent-last-scan>—</h2></article><article class="control-card"><p class="eyebrow">Result</p><h2 data-agent-last-result>Waiting</h2></article><article class="control-card"><p class="eyebrow">Next scheduled scan</p><h2 data-agent-next-scan>—</h2></article></div>
         <article class="control-card agent-discovery-summary" data-agent-discovery hidden><div class="panel-header"><div><p class="eyebrow">Latest Search</p><h2>What your Punk considered</h2></div><span class="tag" data-agent-discovery-tier>Advisory ranking</span></div><p data-agent-discovery-copy></p><div class="agent-candidate-grid" data-agent-candidate-grid></div><p class="control-note">Website and X links affect discovery priority only. Every selected candidate must still pass the independent runtime, price, authorization, policy, and simulation checks.</p></article>
-        <article class="control-card punk-agent-terminal"><div class="panel-header"><div><p class="eyebrow">Gogh / Punk Terminal</p><h2>Punk #<span data-terminal-punk>—</span></h2></div><div class="terminal-health"><span aria-hidden="true"></span><strong data-terminal-status>WAITING</strong><button type="button" data-activity-refresh disabled>Refresh</button></div></div><p class="control-note" data-activity-state aria-live="polite">Open Activity to load this Punk's latest worker event.</p><div class="agent-timeline" data-agent-timeline role="log" aria-live="polite" aria-relevant="additions"><p class="empty-state">No Punk-specific activity loaded yet.</p></div></article>
+        <article class="control-card punk-agent-terminal">
+          <div class="terminal-command-bar" aria-label="Live Punk worker monitor"><span>GOGH CODEX / AGENT.LOG</span><span data-terminal-clock>--:--:--</span></div>
+          <div class="panel-header"><div><p class="eyebrow">Punk-specific persisted activity</p><h2>Punk #<span data-terminal-punk>—</span></h2></div><div class="terminal-health"><span aria-hidden="true"></span><strong data-terminal-status>WAITING</strong><button type="button" data-activity-refresh disabled>Sync now</button></div></div>
+          <p class="control-note" data-activity-state aria-live="polite">Open Activity to connect to this Punk's persisted worker stream.</p>
+          <div class="terminal-system-line" aria-live="polite"><code>MONITOR</code><span data-terminal-sync>standby · refreshes every 5s while visible</span></div>
+          <div class="agent-timeline" data-agent-timeline role="log" aria-live="polite" aria-relevant="additions"><p class="empty-state">No Punk-specific activity loaded yet.</p></div>
+          <div class="terminal-prompt" aria-hidden="true"><span>gogh@punk-<b data-terminal-prompt-punk>—</b></span><span>:~$ tail -f agent.log</span><i></i></div>
+          <p class="terminal-truth-note">Every event above comes from persisted worker evidence. The clock, cursor, and scanline are display effects only.</p>
+        </article>
         <details class="control-debug" data-debug-panel><summary>Development performance</summary><dl data-debug-metrics></dl><p>Debug data contains timings and health labels only—never keys, signatures, or credentials.</p></details>
       </section>
     </main>

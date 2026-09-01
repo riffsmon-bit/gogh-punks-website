@@ -45,7 +45,8 @@ test("priority worker sends exactly the due Punk through the reviewed worker pip
       runOptions = options;
       return { tokenId: "93", status: "MINT_CONFIRMED", submitted: 1,
         collection: "0x2222222222222222222222222222222222222222",
-        transactionHash: `0x${"a".repeat(64)}` };
+        transactionHash: `0x${"a".repeat(64)}`, gasUsed: "150000",
+        effectiveGasPriceWei: "500000000", transactionGasCostWei: "75000000000000" };
     },
     recordAttempt: async (id, outcome) => {
       recorded = { id, outcome };
@@ -56,6 +57,7 @@ test("priority worker sends exactly the due Punk through the reviewed worker pip
   assert.equal(runOptions.retainLease, false);
   assert.equal(recorded.id, SESSION.id);
   assert.equal(recorded.outcome.status, "MINT_CONFIRMED");
+  assert.equal(recorded.outcome.transactionGasCostWei, "75000000000000");
   assert.equal(result.prioritySession.completedMints, 1);
 });
 

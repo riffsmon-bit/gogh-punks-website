@@ -485,13 +485,12 @@ const SEARCHING_AGENT_STATES = new Set([
   "SCANNING", "CANDIDATE_FOUND", "RANKING", "VERIFYING", "VERIFYING_CONTRACT",
   "CHECKING_PRICE", "CHECKING_ELIGIBILITY", "CHECKING_LIMITS", "SIMULATING",
 ]);
-const MINTING_AGENT_STATES = new Set(["MINTING", "SUBMITTING", "CONFIRMING"]);
 const ATTENTION_AGENT_STATES = new Set([
   "PUNK_ERROR", "NEEDS_ATTENTION", "NEEDS_ENROLLMENT", "NEEDS_AUTHORIZATION",
   "EXPIRED", "REVOKED", "OWNER_CHANGED",
 ]);
 const OWNER_ROSTER_FILTERS = new Set([
-  "all", "activated", "searching", "minting", "attention", "ready",
+  "all", "activated", "searching", "collected", "attention", "ready",
 ]);
 
 export function ownerPunkIsActivated(item) {
@@ -505,7 +504,10 @@ export function ownerPunkMatchesRosterFilter(item, filter = "all") {
   if (filter === "all") return true;
   if (filter === "activated") return ownerPunkIsActivated(item);
   if (filter === "searching") return SEARCHING_AGENT_STATES.has(status);
-  if (filter === "minting") return MINTING_AGENT_STATES.has(status);
+  if (filter === "collected") {
+    const lifetimeMints = Number(item?.agentSummary?.lifetimeMints ?? 0);
+    return Number.isFinite(lifetimeMints) && lifetimeMints > 0;
+  }
   if (filter === "attention") return ATTENTION_AGENT_STATES.has(status);
   return !ownerPunkIsActivated(item);
 }

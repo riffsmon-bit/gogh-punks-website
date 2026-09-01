@@ -345,10 +345,61 @@ export async function getPrepaidPunkAgentGasBalance(selectedTokenId, options = {
     [COLLECTION, normalizedTokenId],
   );
   const row = result.rows?.[0];
+  let spentTodayWei = null;
+  let actualGasSpentWei = null;
+  let actualGasSpentTodayWei = null;
+  let benchmarkSampleSize = 0;
+  let benchmarkMedianWei = null;
+  let benchmarkP95Wei = null;
+  let meteringAvailable = false;
+  try {
+    const usage = await database.query(
+      `SELECT COALESCE(SUM(charged_wei) FILTER (
+                WHERE punk_token_id = $2::numeric
+                  AND occurred_at >= date_trunc('day', NOW() AT TIME ZONE 'UTC')
+                    AT TIME ZONE 'UTC'
+              ), 0)::text AS spent_today_wei,
+              COALESCE(SUM(actual_cost_wei) FILTER (
+                WHERE punk_token_id = $2::numeric
+              ), 0)::text AS actual_gas_spent_wei,
+              COALESCE(SUM(actual_cost_wei) FILTER (
+                WHERE punk_token_id = $2::numeric
+                  AND occurred_at >= date_trunc('day', NOW() AT TIME ZONE 'UTC')
+                    AT TIME ZONE 'UTC'
+              ), 0)::text AS actual_gas_spent_today_wei,
+              COUNT(*) FILTER (WHERE outcome = 'MINT_CONFIRMED')::integer
+                AS benchmark_sample_size,
+              (percentile_disc(0.5) WITHIN GROUP (ORDER BY actual_cost_wei)
+                FILTER (WHERE outcome = 'MINT_CONFIRMED'))::text AS benchmark_median_wei,
+              (percentile_disc(0.95) WITHIN GROUP (ORDER BY actual_cost_wei)
+                FILTER (WHERE outcome = 'MINT_CONFIRMED'))::text AS benchmark_p95_wei
+         FROM gogh_broker_punk_agent_gas_usage
+        WHERE chain_id = 4663 AND collection_address = $1`,
+      [COLLECTION, normalizedTokenId],
+    );
+    spentTodayWei = usage.rows?.[0]?.spent_today_wei ?? "0";
+    actualGasSpentWei = usage.rows?.[0]?.actual_gas_spent_wei ?? "0";
+    actualGasSpentTodayWei = usage.rows?.[0]?.actual_gas_spent_today_wei ?? "0";
+    benchmarkSampleSize = Number(usage.rows?.[0]?.benchmark_sample_size ?? 0);
+    benchmarkMedianWei = usage.rows?.[0]?.benchmark_median_wei ?? null;
+    benchmarkP95Wei = usage.rows?.[0]?.benchmark_p95_wei ?? null;
+    meteringAvailable = true;
+  } catch (error) {
+    // Additive rollout: old releases keep serving balances until the receipt-metering
+    // migration is applied. Other database failures still fail closed.
+    if (error?.code !== "42P01") throw error;
+  }
   return Object.freeze({
     available: true,
     creditedWei: row?.credited_wei ?? "0",
     spentWei: row?.spent_wei ?? "0",
+    spentTodayWei,
+    actualGasSpentWei,
+    actualGasSpentTodayWei,
+    benchmarkSampleSize,
+    benchmarkMedianWei,
+    benchmarkP95Wei,
+    meteringAvailable,
     availableWei: row?.available_wei ?? "0",
     updatedAt: row?.updated_at == null ? null : iso(row.updated_at, "gas balance update"),
     session: row?.session_id == null ? null : Object.freeze({
@@ -511,12 +562,42 @@ export async function recordPunkPrioritySessionAttempt(sessionId, outcome, optio
   const transactionHash = optionalHash(outcome?.transactionHash);
   if (minted && !transactionHash) throw new TypeError("confirmed priority mint needs a transaction hash");
   const database = operationalPool(environment, options.database);
-  const result = await database.query(
+  const gasUsed = outcome?.gasUsed == null ? null : positiveWei(outcome.gasUsed, "receipt gas used");
+  const effectiveGasPriceWei = outcome?.effectiveGasPriceWei == null ? null
+    : positiveWei(outcome.effectiveGasPriceWei, "receipt gas price");
+  const transactionGasCostWei = outcome?.transactionGasCostWei == null ? null
+    : positiveWei(outcome.transactionGasCostWei, "receipt gas cost");
+  if ([gasUsed, effectiveGasPriceWei, transactionGasCostWei].filter(Boolean).length
+      !== (gasUsed == null ? 0 : 3)
+    || (gasUsed != null && BigInt(gasUsed) * BigInt(effectiveGasPriceWei)
+      !== BigInt(transactionGasCostWei))) {
+    throw new TypeError("receipt gas evidence is incomplete or inconsistent");
+  }
+  let result;
+  try {
+    result = await database.query(
+      `SELECT punk_token_id::text AS punk_token_id, session_state AS state,
+              requested_mints, completed_mints, expires_at,
+              credited_wei::text AS credited_wei, spent_wei::text AS spent_wei,
+              available_wei::text AS available_wei, usage_recorded
+         FROM gogh_broker_record_punk_priority_attempt(
+           $1::uuid, $2, $3, $4, $5::numeric, $6::numeric, $7::numeric, $8
+         )`,
+      [selectedSession, status, minted, transactionHash, gasUsed,
+        effectiveGasPriceWei, transactionGasCostWei, terminalState],
+    );
+  } catch (error) {
+    if (error?.code !== "42883") throw error;
+    // Safe rolling-deploy fallback before the additive migration reaches the DB.
+    result = await database.query(
     `UPDATE gogh_broker_punk_priority_sessions
-        SET completed_mints = completed_mints + CASE WHEN $2 THEN 1 ELSE 0 END,
+        SET completed_mints = completed_mints + CASE
+              WHEN $2 AND last_transaction_hash IS DISTINCT FROM $4 THEN 1 ELSE 0 END,
             state = CASE
               WHEN $5::text IS NOT NULL THEN $5::text
-              WHEN completed_mints + CASE WHEN $2 THEN 1 ELSE 0 END >= requested_mints
+              WHEN completed_mints + CASE
+                WHEN $2 AND last_transaction_hash IS DISTINCT FROM $4 THEN 1 ELSE 0 END
+                >= requested_mints
                 THEN 'COMPLETE'
               WHEN expires_at <= NOW() THEN 'EXPIRED'
               ELSE state END,
@@ -527,7 +608,8 @@ export async function recordPunkPrioritySessionAttempt(sessionId, outcome, optio
       RETURNING punk_token_id::text AS punk_token_id, state,
                 requested_mints, completed_mints, expires_at`,
     [selectedSession, minted, status, transactionHash, terminalState],
-  );
+    );
+  }
   const row = result.rows?.[0];
   return row ? Object.freeze({
     recorded: true,
@@ -536,6 +618,10 @@ export async function recordPunkPrioritySessionAttempt(sessionId, outcome, optio
     requestedMints: Number(row.requested_mints),
     completedMints: Number(row.completed_mints),
     expiresAt: iso(row.expires_at, "priority-session expiry"),
+    creditedWei: row.credited_wei ?? null,
+    spentWei: row.spent_wei ?? null,
+    availableWei: row.available_wei ?? null,
+    usageRecorded: row.usage_recorded === true,
   }) : Object.freeze({ recorded: false, reason: "SESSION_NOT_ACTIVE" });
 }
 

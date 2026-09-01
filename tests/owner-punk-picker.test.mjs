@@ -188,7 +188,7 @@ test("Broker roster filters use indexed agent summaries without new chain reads"
     { tokenId: "94", automationCreated: true,
       agentSummary: { enrolled: true, status: "SCANNING" } },
     { tokenId: "95", automationConfigured: true,
-      agentSummary: { enrolled: true, status: "MINTING" } },
+      agentSummary: { enrolled: true, status: "MINTING", lifetimeMints: 4 } },
     { tokenId: "96", automationConfigured: true,
       agentSummary: { enrolled: false, status: "NEEDS_ENROLLMENT" } },
     { tokenId: "97", activated: false, agentSummary: null },
@@ -196,11 +196,11 @@ test("Broker roster filters use indexed agent summaries without new chain reads"
   assert.equal(ownerPunkIsActivated(accounts[0]), true);
   assert.equal(ownerPunkIsActivated(accounts[4]), false);
   assert.equal(ownerPunkMatchesRosterFilter(accounts[1], "searching"), true);
-  assert.equal(ownerPunkMatchesRosterFilter(accounts[2], "minting"), true);
+  assert.equal(ownerPunkMatchesRosterFilter(accounts[2], "collected"), true);
   assert.equal(ownerPunkMatchesRosterFilter(accounts[3], "attention"), true);
   assert.equal(ownerPunkMatchesRosterFilter(accounts[4], "ready"), true);
   assert.deepEqual(ownerRosterFilterCounts(accounts), {
-    all: 5, activated: 4, searching: 1, minting: 1, attention: 1, ready: 1,
+    all: 5, activated: 4, searching: 1, collected: 1, attention: 1, ready: 1,
   });
   assert.throws(() => ownerPunkMatchesRosterFilter(accounts[0], "unknown"), /Unknown/);
 });

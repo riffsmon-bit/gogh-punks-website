@@ -20,6 +20,7 @@ const ENVIRONMENT = {
   BROKER_SUPABASE_QUEUE_MODE: "SHADOW",
   SUPABASE_DATABASE_URL: "postgresql://server-only:secret@db.example.invalid/postgres",
   BROKER_AUTOMATION_V3_WORKER_RELEASE: RELEASE,
+  BROKER_AUTOMATION_V3_ENABLED: "true",
   BROKER_AUTOMATION_V3_AGENT_ADDRESS: AUTOMATION_V3_AGENT,
 };
 
@@ -80,11 +81,18 @@ test("server status exposes only an active Punk's fixed agent and isolated credi
   const result = await prepaidAgentGasStatus("93", OWNER, {
     environment: ENVIRONMENT,
     readPunk: async () => activePunk(),
-    getBalance: async () => ({ available: true, availableWei: AMOUNT, updatedAt: null }),
+    getBalance: async () => ({ available: true, creditedWei: AMOUNT, spentWei: "0",
+      spentTodayWei: "0", actualGasSpentWei: "74075738814000",
+      actualGasSpentTodayWei: "74075738814000", meteringAvailable: true,
+      availableWei: AMOUNT, updatedAt: null }),
   });
   assert.equal(result.tokenId, "93");
   assert.equal(result.agent, AUTOMATION_V3_AGENT);
   assert.equal(result.availableWei, AMOUNT);
+  assert.equal(result.actualGasSpentTodayWei, "74075738814000");
+  assert.equal(result.publicAgentLanes.length, 1);
+  assert.equal(result.publicAgentLanes[0].address, AUTOMATION_V3_AGENT);
+  assert.equal("privateKey" in result.publicAgentLanes[0], false);
 });
 
 test("confirmed exact deposit credits only its Punk and requests that Punk immediately", async () => {
