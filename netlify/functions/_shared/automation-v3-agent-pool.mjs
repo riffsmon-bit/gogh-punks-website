@@ -83,5 +83,8 @@ export function automationV3LaneEnvironment(environment = process.env, laneValue
 }
 
 export function automationV3LaneLockId(laneValue) {
-  return 46_630_000 + laneNumber(laneValue);
+  // Preserve the reviewed production worker's original lock ID for lane 1.
+  // Additional lanes occupy the following IDs after the lease-table constraint
+  // is expanded by the corresponding database migration.
+  return 46_630_002 + laneNumber(laneValue);
 }

@@ -5,6 +5,7 @@ import {
   assignedAutomationV3AgentLane,
   automationV3AgentLane,
   automationV3LaneEnvironment,
+  automationV3LaneLockId,
   configuredAutomationV3AgentLanes,
   LEGACY_AUTOMATION_V3_AGENT,
 } from "../netlify/functions/_shared/automation-v3-agent-pool.mjs";
@@ -67,4 +68,11 @@ test("new lanes remain disabled unless the pool and lane are explicitly enabled"
   const base = environment();
   delete base.BROKER_AUTOMATION_V3_AGENT_POOL_ENABLED;
   assert.deepEqual(configuredAutomationV3AgentLanes(base).map(({ laneId }) => laneId), [1]);
+});
+
+test("worker lane leases preserve the production lock and remain isolated", () => {
+  assert.deepEqual(
+    Array.from({ length: 6 }, (_, index) => automationV3LaneLockId(index + 1)),
+    [46_630_003, 46_630_004, 46_630_005, 46_630_006, 46_630_007, 46_630_008],
+  );
 });
