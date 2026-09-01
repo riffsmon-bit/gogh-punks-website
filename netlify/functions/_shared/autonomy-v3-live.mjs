@@ -10,8 +10,10 @@ import {
 } from "../../../broker/src/recommendation/automated-seadrop-v3-run-plan.mjs";
 import {
   assignedAutomationV3AgentLane, configuredAutomationV3AgentLanes,
+  regularAutomationV3AgentLanes,
   LEGACY_AUTOMATION_V3_AGENT,
 } from "./automation-v3-agent-pool.mjs";
+import { automationV3PunkAgentAssignment } from "./automation-v3-worker-state.mjs";
 
 export const AUTOMATION_V3_AGENT = LEGACY_AUTOMATION_V3_AGENT;
 export const SEA_DROP = "0x00005ea00ac477b1030ce78506496e8c2de24bf5";
@@ -421,7 +423,47 @@ export function assembleLiveOwnerSetupInput({
   };
 }
 
-export async function buildLiveOwnerSetupInput(tokenIdValue, limits, environment = process.env) {
+export async function selectAutomationV3OwnerSetupLane(
+  tokenIdValue, environment = process.env, options = {},
+) {
+  const requirePrivateKeys = options.requirePrivateKeys
+    ?? environment.CONTEXT === "production";
+  const lanes = regularAutomationV3AgentLanes(environment, { requirePrivateKeys });
+  const assignment = await (options.assignment ?? automationV3PunkAgentAssignment)(
+    tokenIdValue, { database: options.database },
+  );
+  if (assignment) {
+    const lane = lanes.find((candidate) => candidate.laneId === assignment.lane
+      && candidate.address === assignment.agent);
+    if (!lane) {
+      const error = new TypeError(
+        `Punk #${tokenIdValue} is assigned to an unavailable automation lane`,
+      );
+      error.code = "PUNK_AGENT_LANE_UNAVAILABLE";
+      throw error;
+    }
+    return Object.freeze({ lane, assigned: true });
+  }
+  const preferred = assignedAutomationV3AgentLane(tokenIdValue, environment, {
+    requirePrivateKeys,
+  });
+  const readPunk = options.readPunk ?? ((selectedTokenId, agentAddress) => (
+    readAutomationV3PunkState(selectedTokenId, environment, {
+      ...(options.clients ? { clients: options.clients } : {}), agentAddress,
+    })
+  ));
+  const candidates = [preferred, ...lanes].filter((candidate, index, values) =>
+    values.findIndex(({ address }) => address === candidate.address) === index);
+  for (const lane of candidates) {
+    const punk = await readPunk(tokenIdValue, lane.address);
+    if (punk?.active === true) return Object.freeze({ lane, assigned: false });
+  }
+  return Object.freeze({ lane: preferred, assigned: false });
+}
+
+export async function buildLiveOwnerSetupInput(
+  tokenIdValue, limits, environment = process.env, options = {},
+) {
   if (typeof tokenIdValue !== "string" || !/^(0|[1-9][0-9]{0,3})$/.test(tokenIdValue)) {
     throw new TypeError("Choose a valid Gogh Punk ID");
   }
@@ -432,15 +474,10 @@ export async function buildLiveOwnerSetupInput(tokenIdValue, limits, environment
     throw new TypeError("Choose a supported cap and authorization duration");
   }
   const { primary: primaryUrl, secondary: secondaryUrl } = resolveRobinhoodRpcPair(environment);
-  const clients = [client(primaryUrl), client(secondaryUrl)];
-  let lane = assignedAutomationV3AgentLane(tokenIdValue, environment);
-  const existingLegacy = await readAutomationV3PunkState(tokenIdValue, environment, {
-    clients, agentAddress: AUTOMATION_V3_AGENT,
+  const clients = options.clients ?? [client(primaryUrl), client(secondaryUrl)];
+  const { lane } = await selectAutomationV3OwnerSetupLane(tokenIdValue, environment, {
+    ...options, clients,
   });
-  if (existingLegacy.active === true) {
-    lane = configuredAutomationV3AgentLanes(environment)
-      .find(({ address }) => address === AUTOMATION_V3_AGENT) ?? lane;
-  }
   const global = await readAutomationV3GlobalState(environment, {
     clients, agentAddress: lane.address,
   });

@@ -294,15 +294,39 @@ test("active Punk enrollment is idempotent and contains no signing authority", a
     account: `0x${"A".repeat(40)}`, owner: `0x${"B".repeat(40)}`,
   };
   const enrolled = await enrollAutomationV3Punk(punk, { database: {
-    async query(sql, values) { calls.push({ sql, values }); return { rows: [] }; },
+    async query(sql, values) {
+      calls.push({ sql, values });
+      return { rows: [{ agent_address: values[4], agent_lane: values[5] }] };
+    },
   } });
   assert.equal(enrolled.tokenId, "1639");
   assert.equal(enrolled.account, `0x${"a".repeat(40)}`);
   assert.match(calls[0].sql, /ON CONFLICT/);
   assert.match(calls[0].sql, /last_requested_at = NOW\(\)/);
+  assert.match(calls[0].sql, /agent_address = EXCLUDED\.agent_address/);
+  assert.doesNotMatch(calls[0].sql,
+    /owner_snapshot = EXCLUDED\.owner_snapshot,\s*agent_address = EXCLUDED\.agent_address/);
   await assert.rejects(
     () => enrollAutomationV3Punk({ ...punk, active: false }), /not active/,
   );
+});
+
+test("V3 enrollment refuses to rewrite a sticky signer assignment", async () => {
+  const punk = {
+    tokenId: "1639", created: true, active: true,
+    account: `0x${"a".repeat(40)}`, owner: `0x${"b".repeat(40)}`,
+  };
+  let calls = 0;
+  await assert.rejects(() => enrollAutomationV3Punk(punk, {
+    agentAddress: `0x${"c".repeat(40)}`, agentLane: 3,
+    database: { async query() {
+      calls += 1;
+      return calls === 1 ? { rows: [] } : { rows: [{
+        agent_address: `0x${"d".repeat(40)}`, agent_lane: 4,
+      }] };
+    } },
+  }), (error) => error.code === "PUNK_AGENT_ASSIGNMENT_CONFLICT");
+  assert.equal(calls, 2);
 });
 
 test("backfill enrollment evidence binds the exact Punk account and owner", async () => {

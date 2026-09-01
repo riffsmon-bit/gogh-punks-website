@@ -15,12 +15,24 @@ import {
   getPrepaidPunkAgentGasBalance, prepaidPunkAgentGasConfiguration,
   recordPunkPrioritySessionAttempt, startPunkPrioritySession,
 } from "./_shared/supabase-operational-store.mjs";
+import {
+  automationV3LaneEnvironment, publicAutomationV3AgentLanes,
+} from "./_shared/automation-v3-agent-pool.mjs";
 
 const MINIMUM_WEI = 100_000_000_000_000n; // 0.0001 ETH
 const MAXIMUM_WEI = 50_000_000_000_000_000n; // 0.05 ETH
 const RECOMMENDED_WEI = "500000000000000"; // 0.0005 ETH
 const MINT_LIMITS = new Set([1, 3, 5, 10]);
 const DURATION_DAYS = new Set([1, 3, 7, 30]);
+const FALLBACK_GAS_BENCHMARK = Object.freeze({
+  chainId: 4663,
+  sampleSize: 16,
+  medianWei: "74075738814000",
+  p95Wei: "156215216916000",
+  sampledAt: "2026-09-01T00:00:00.000Z",
+  label: "16 recent confirmed Art Broker mints",
+  source: "VERIFIED_RECEIPT_BASELINE",
+});
 
 function boundedChoice(value, allowed, name) {
   const selected = Number(value);
@@ -91,14 +103,29 @@ async function activePunk(selectedTokenId, expectedOwner, readPunk) {
 }
 
 async function activePunkLane(selectedTokenId, expectedOwner, dependencies, environment) {
+  if (dependencies.resolvePunk) {
+    const resolved = await dependencies.resolvePunk(selectedTokenId, environment);
+    const punk = await activePunk(selectedTokenId, expectedOwner, async () => resolved.punk);
+    if (environment.CONTEXT === "production") {
+      automationV3LaneEnvironment(environment, resolved.lane.laneId);
+    }
+    return Object.freeze({ punk, lane: resolved.lane });
+  }
   if (dependencies.readPunk) {
     const punk = await activePunk(selectedTokenId, expectedOwner, dependencies.readPunk);
-    return Object.freeze({ punk, lane: { laneId: 1, address: AUTOMATION_V3_AGENT } });
+    const lane = dependencies.lane ?? { laneId: 1, address: AUTOMATION_V3_AGENT };
+    if (environment.CONTEXT === "production") {
+      automationV3LaneEnvironment(environment, lane.laneId);
+    }
+    return Object.freeze({ punk, lane });
   }
   const resolved = await resolveAutomationV3PunkAgent(selectedTokenId, environment, {
     database: dependencies.database,
   });
   const punk = await activePunk(selectedTokenId, expectedOwner, async () => resolved.punk);
+  if (environment.CONTEXT === "production") {
+    automationV3LaneEnvironment(environment, resolved.lane.laneId);
+  }
   return Object.freeze({ punk, lane: resolved.lane });
 }
 
@@ -164,6 +191,19 @@ export async function prepaidAgentGasStatus(selectedTokenId, expectedOwner, depe
   if (balance.available !== true) {
     throw new PublicError(503, "PREPAID_GAS_UNAVAILABLE", "Per-Punk agent gas balance is unavailable.");
   }
+  const hasLiveBenchmark = Number.isSafeInteger(balance.benchmarkSampleSize)
+    && balance.benchmarkSampleSize > 0
+    && typeof balance.benchmarkMedianWei === "string"
+    && typeof balance.benchmarkP95Wei === "string";
+  const gasBenchmark = hasLiveBenchmark ? Object.freeze({
+    chainId: 4663,
+    sampleSize: balance.benchmarkSampleSize,
+    medianWei: balance.benchmarkMedianWei,
+    p95Wei: balance.benchmarkP95Wei,
+    sampledAt: balance.updatedAt,
+    label: `${balance.benchmarkSampleSize} receipt-metered confirmed priority mints`,
+    source: "SUPABASE_RECEIPT_LEDGER",
+  }) : FALLBACK_GAS_BENCHMARK;
   return Object.freeze({
     tokenId: normalizedTokenId,
     owner,
@@ -177,9 +217,25 @@ export async function prepaidAgentGasStatus(selectedTokenId, expectedOwner, depe
     durationDayOptions: Object.freeze([...DURATION_DAYS]),
     minimumWei: MINIMUM_WEI.toString(),
     maximumWei: MAXIMUM_WEI.toString(),
+    creditedWei: balance.creditedWei ?? "0",
+    spentWei: balance.spentWei ?? "0",
+    spentTodayWei: balance.spentTodayWei ?? null,
+    actualGasSpentWei: balance.actualGasSpentWei ?? null,
+    actualGasSpentTodayWei: balance.actualGasSpentTodayWei ?? null,
+    meteringAvailable: balance.meteringAvailable === true,
     availableWei: balance.availableWei,
     updatedAt: balance.updatedAt,
     session: balance.session ?? null,
+    refund: Object.freeze({
+      eligible: new Set(["COMPLETE", "EXPIRED", "CANCELLED", "OWNER_CHANGED"])
+        .has(balance.session?.state) && BigInt(balance.availableWei ?? "0") > 0n,
+      availableWei: balance.availableWei,
+      mode: "HOLDER_CLAIM_FEATURE_LOCKED",
+      destination: owner,
+      message: "Unused credit remains assigned to this Punk. Holder-claimed refunds are staged but broadcast remains locked until the exact lane settlement path is production-verified.",
+    }),
+    gasBenchmark,
+    publicAgentLanes: publicAutomationV3AgentLanes(environment),
   });
 }
 

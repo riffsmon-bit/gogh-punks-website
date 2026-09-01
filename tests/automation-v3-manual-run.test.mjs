@@ -14,14 +14,18 @@ test("manual V3 run scopes the existing worker to one active Punk", async () => 
       tokenId, created: true, active: true,
       account: `0x${"1".repeat(40)}`, owner: `0x${"2".repeat(40)}`,
     }),
-    enroll: async (punk) => { enrollments.push(punk.tokenId); },
+    lane: { laneId: 4, address: `0x${"4".repeat(40)}` },
+    enroll: async (punk, options) => { enrollments.push([punk.tokenId, options]); },
     runOnce: async (options) => {
       calls.push(options);
       return { status: "NO_ANALYZED_ACTIVE_TARGETS", submitted: 0 };
     },
   });
-  assert.deepEqual(enrollments, ["1797"]);
-  assert.deepEqual(calls, [{ requestedTokenId: "1797" }]);
+  assert.deepEqual(enrollments, [["1797", {
+    agentAddress: `0x${"4".repeat(40)}`, agentLane: 4,
+  }]]);
+  assert.deepEqual(calls, [{ requestedTokenId: "1797", laneId: 4,
+    agentAddress: `0x${"4".repeat(40)}` }]);
   assert.deepEqual(result, {
     tokenId: "1797", status: "NO_ANALYZED_ACTIVE_TARGETS", submitted: 0,
     collection: null, transactionHash: null,

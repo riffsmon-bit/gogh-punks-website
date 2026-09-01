@@ -140,7 +140,7 @@ export async function enrollAutomationV3Punk(punk, options = {}) {
     throw new TypeError("Punk automation lane is invalid");
   }
   const database = options.database ?? getDatabase().pool;
-  await database.query(
+  const result = await database.query(
     `INSERT INTO broker_automation_v3_enrollments
       (chain_id, collection_address, token_id, account_address, owner_snapshot,
        agent_address, agent_lane)
@@ -148,12 +148,23 @@ export async function enrollAutomationV3Punk(punk, options = {}) {
      ON CONFLICT (chain_id, collection_address, token_id) DO UPDATE SET
        account_address = EXCLUDED.account_address,
        owner_snapshot = EXCLUDED.owner_snapshot,
-       agent_address = EXCLUDED.agent_address,
-       agent_lane = EXCLUDED.agent_lane,
-       last_requested_at = NOW()`,
+       last_requested_at = NOW()
+     WHERE broker_automation_v3_enrollments.agent_address = EXCLUDED.agent_address
+       AND broker_automation_v3_enrollments.agent_lane = EXCLUDED.agent_lane
+     RETURNING agent_address, agent_lane`,
     ["0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6", selectedTokenId, account, owner,
       agent, lane],
   );
+  if (!result.rows?.[0]) {
+    const existing = await automationV3PunkAgentAssignment(selectedTokenId, { database });
+    const error = new TypeError(
+      existing
+        ? `Punk #${selectedTokenId} is assigned to automation lane ${existing.lane}`
+        : `Punk #${selectedTokenId} automation assignment could not be persisted`,
+    );
+    error.code = "PUNK_AGENT_ASSIGNMENT_CONFLICT";
+    throw error;
+  }
   return Object.freeze({ tokenId: selectedTokenId, account, owner, agent, lane });
 }
 

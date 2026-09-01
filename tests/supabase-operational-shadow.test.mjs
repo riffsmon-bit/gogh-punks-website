@@ -6,6 +6,7 @@ import {
   completeSupabasePunkJob,
   enqueueSupabasePunkJobs,
   getPrepaidPunkAgentGasBalance,
+  recordPunkPrioritySessionAttempt,
   recordPrepaidPunkAgentGasCredit,
   shadowAutomationV3Run,
   shadowOwnershipProjection,
@@ -222,6 +223,44 @@ test("Punk-specific prepaid gas migration reserves credit and prioritizes only i
   assert.match(sql, /ON CONFLICT \(transaction_hash\) DO NOTHING/);
   assert.match(sql, /ENABLE ROW LEVEL SECURITY/);
   assert.match(sql, /REVOKE ALL ON FUNCTION gogh_broker_credit_punk_agent_gas/);
+});
+
+test("receipt metering migration charges idempotently and stages fixed-owner refunds", async () => {
+  const sql = await readFile(new URL(
+    "../supabase/migrations/20260901090000_add_priority_gas_usage_refunds.sql",
+    import.meta.url,
+  ), "utf8");
+  assert.match(sql, /gogh_broker_punk_agent_gas_usage/);
+  assert.match(sql, /actual_cost_wei = gas_used \* effective_gas_price_wei/);
+  assert.match(sql, /ON CONFLICT \(transaction_hash\) DO NOTHING/);
+  assert.match(sql, /gogh_broker_punk_agent_gas_refunds/);
+  assert.match(sql, /owner_address/);
+  assert.match(sql, /ENABLE ROW LEVEL SECURITY/);
+  assert.match(sql, /REVOKE ALL ON FUNCTION gogh_broker_record_punk_priority_attempt/);
+});
+
+test("priority attempt forwards complete receipt gas evidence to one atomic database function", async () => {
+  const database = recordingDatabase();
+  database.query = async (sql, values = []) => {
+    database.calls.push({ sql, values });
+    return { rows: [{ punk_token_id: "93", state: "COMPLETE", requested_mints: 1,
+      completed_mints: 1, expires_at: "2026-09-07T00:00:00.000Z",
+      credited_wei: "500000000000000", spent_wei: "75000000000000",
+      available_wei: "425000000000000", usage_recorded: true }] };
+  };
+  const result = await recordPunkPrioritySessionAttempt(
+    "11111111-1111-4111-8111-111111111111",
+    { status: "MINT_CONFIRMED", submitted: 1, transactionHash: "0x" + "a".repeat(64),
+      gasUsed: "150000", effectiveGasPriceWei: "500000000",
+      transactionGasCostWei: "75000000000000" },
+    { environment: environment("SHADOW"), database },
+  );
+  assert.equal(result.usageRecorded, true);
+  assert.equal(result.availableWei, "425000000000000");
+  assert.match(database.calls[0].sql, /gogh_broker_record_punk_priority_attempt/);
+  assert.deepEqual(database.calls[0].values.slice(4, 7), [
+    "150000", "500000000", "75000000000000",
+  ]);
 });
 
 test("prepaid gas store reads and credits exactly one selected Punk", async () => {

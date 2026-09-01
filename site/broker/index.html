@@ -59,13 +59,19 @@
             <button type="button" data-owner-roster-filter="all" aria-pressed="true">All <span data-owner-filter-count="all">0</span></button>
             <button type="button" data-owner-roster-filter="activated" aria-pressed="false">Activated <span data-owner-filter-count="activated">0</span></button>
             <button type="button" data-owner-roster-filter="searching" aria-pressed="false">Searching <span data-owner-filter-count="searching">0</span></button>
-            <button type="button" data-owner-roster-filter="minting" aria-pressed="false">Minting now <span data-owner-filter-count="minting">0</span></button>
+            <button type="button" data-owner-roster-filter="collected" aria-pressed="false">Collected NFTs <span data-owner-collected-count>—</span></button>
             <button type="button" data-owner-roster-filter="attention" aria-pressed="false">Needs attention <span data-owner-filter-count="attention">0</span></button>
             <button type="button" data-owner-roster-filter="ready" aria-pressed="false">Not activated <span data-owner-filter-count="ready">0</span></button>
           </div>
+          <p class="owner-roster-filter-result" data-owner-roster-filter-result role="status" aria-live="polite">Showing all verified Punks.</p>
           <div class="owner-account-grid punk-launcher-grid" data-owner-accounts>
             <p class="empty-state">Connect the wallet that owns your Gogh Punks.</p>
           </div>
+          <section class="owner-collected-gallery" data-owner-collected-gallery aria-busy="false" hidden>
+            <div class="owner-collected-grid" data-owner-collected-grid>
+              <p class="empty-state">Open Collected NFTs to load your Punk wallets’ minted NFTs.</p>
+            </div>
+          </section>
         </details>
 
         <details class="launcher-explainer">
@@ -74,6 +80,7 @@
             <p><strong>Your wallet</strong> keeps the Gogh Punk and controls every owner action.</p>
             <p><strong>The Punk Wallet</strong> is the Punk’s separate on-chain wallet for collected NFTs.</p>
             <p><strong>The hosted agent</strong> scouts only within the limits you authorize. Autonomous execution remains bounded: paid mints, selling, arbitrary calls, and main-wallet spending remain blocked.</p>
+            <p><strong>Rarity scheduling</strong> gives rarer Punks a small, bounded head start inside the owner-fair hosted rotation. It never skips another owner’s turn, guarantees a mint, or bypasses ownership, authorization, price, runtime, policy, or simulation checks.</p>
           </div>
         </details>
       </section>

@@ -1,3 +1,5 @@
+import { fetchWithdrawableNftPortfolio } from "./nft-withdrawal.js";
+
 const CHAIN_ID = 4663;
 const CANONICAL_COLLECTION = "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6";
 const STORAGE_KEY = "gogh:activated-punk-ids:v1";
@@ -108,7 +110,8 @@ export function ownerMintDashboard(accounts = []) {
     lifetimeMints: summaries.reduce(
       (total, summary) => total + safeCount(summary?.lifetimeMints), 0,
     ),
-    collectors: summaries.filter((summary) => safeCount(summary?.lifetimeMints) > 0).length,
+    collectors: summaries.filter((summary) => safeCount(summary?.lifetimeMints) > 0
+      || /^0x[0-9a-f]{64}$/i.test(String(summary?.lastSuccessfulMint ?? ""))).length,
   });
 }
 
@@ -485,14 +488,34 @@ const SEARCHING_AGENT_STATES = new Set([
   "SCANNING", "CANDIDATE_FOUND", "RANKING", "VERIFYING", "VERIFYING_CONTRACT",
   "CHECKING_PRICE", "CHECKING_ELIGIBILITY", "CHECKING_LIMITS", "SIMULATING",
 ]);
-const MINTING_AGENT_STATES = new Set(["MINTING", "SUBMITTING", "CONFIRMING"]);
 const ATTENTION_AGENT_STATES = new Set([
   "PUNK_ERROR", "NEEDS_ATTENTION", "NEEDS_ENROLLMENT", "NEEDS_AUTHORIZATION",
   "EXPIRED", "REVOKED", "OWNER_CHANGED",
 ]);
 const OWNER_ROSTER_FILTERS = new Set([
-  "all", "activated", "searching", "minting", "attention", "ready",
+  "all", "activated", "searching", "collected", "attention", "ready",
 ]);
+const OWNER_ROSTER_FILTER_LABELS = Object.freeze({
+  all: "all verified Punks",
+  activated: "activated Punks",
+  searching: "Punks searching now",
+  collected: "NFTs currently held by your Punk wallets",
+  attention: "Punks needing attention",
+  ready: "Punks not yet activated",
+});
+
+export function artBrokerCollectedNfts(items = []) {
+  if (!Array.isArray(items)) throw new TypeError("Collected NFT items must be an array");
+  return Object.freeze(items.filter((item) => item?.provenance === "ART_BROKER"
+    && item?.ownershipStatus === "LIVE_VERIFIED")
+    .sort((left, right) => {
+      const timeDifference = Date.parse(right.acquiredAt ?? "") - Date.parse(left.acquiredAt ?? "");
+      if (Number.isFinite(timeDifference) && timeDifference !== 0) return timeDifference;
+      const punkDifference = Number(left.punkTokenId) - Number(right.punkTokenId);
+      if (punkDifference !== 0) return punkDifference;
+      return Number(left.tokenId) - Number(right.tokenId);
+    }));
+}
 
 export function ownerPunkIsActivated(item) {
   return item?.activated === true || item?.automationCreated === true
@@ -505,7 +528,11 @@ export function ownerPunkMatchesRosterFilter(item, filter = "all") {
   if (filter === "all") return true;
   if (filter === "activated") return ownerPunkIsActivated(item);
   if (filter === "searching") return SEARCHING_AGENT_STATES.has(status);
-  if (filter === "minting") return MINTING_AGENT_STATES.has(status);
+  if (filter === "collected") {
+    const lifetimeMints = Number(item?.agentSummary?.lifetimeMints ?? 0);
+    return (Number.isFinite(lifetimeMints) && lifetimeMints > 0)
+      || /^0x[0-9a-f]{64}$/i.test(String(item?.agentSummary?.lastSuccessfulMint ?? ""));
+  }
   if (filter === "attention") return ATTENTION_AGENT_STATES.has(status);
   return !ownerPunkIsActivated(item);
 }
@@ -575,7 +602,12 @@ export function renderOwnerAccounts(container, accounts, filter = "all") {
     badge.className = `punk-launcher-status status-${String(status ?? "inactive").toLowerCase()}`;
     badge.textContent = statusLabel;
     const description = documentObject.createElement("p");
-    description.textContent = detail;
+    const lifetimeMints = Number(item?.agentSummary?.lifetimeMints ?? 0);
+    description.textContent = filter === "collected"
+      ? (Number.isSafeInteger(lifetimeMints) && lifetimeMints > 0
+        ? `${lifetimeMints} confirmed Art Broker mint${lifetimeMints === 1 ? "" : "s"}.`
+        : "Confirmed Art Broker mint recorded; aggregate history is syncing.")
+      : detail;
     const open = documentObject.createElement("a");
     open.className = "punk-launcher-open";
     open.href = `/broker/punk/${encodeURIComponent(item.tokenId)}`;
@@ -746,6 +778,10 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
   const selectedPreview = browserDocument?.querySelector?.("[data-workspace-punk-preview]");
   const refreshButton = browserDocument?.querySelector?.("[data-refresh-owner-punks]");
   const mintDashboard = browserDocument?.querySelector?.("[data-owner-mint-dashboard]");
+  const rosterFilterResult = browserDocument?.querySelector?.("[data-owner-roster-filter-result]");
+  const collectedGallery = browserDocument?.querySelector?.("[data-owner-collected-gallery]");
+  const collectedGrid = browserDocument?.querySelector?.("[data-owner-collected-grid]");
+  const collectedCount = browserDocument?.querySelector?.("[data-owner-collected-count]");
   const rosterFilters = [...(browserDocument?.querySelectorAll?.("[data-owner-roster-filter]") ?? [])];
   if (!browserWindow || (!container && !picker && !mandatePicker && !workspacePicker)) return null;
   const request = fetchFunction ?? browserWindow.fetch.bind(browserWindow);
@@ -756,6 +792,151 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
   let recheckTimer = null;
   let summaryRefreshRunning = false;
   let activeRosterFilter = "all";
+  let collectedState = { key: null, loading: false, items: [], error: null };
+
+  function collectedGalleryKey(owner, accounts) {
+    const evidence = accounts.map(({ tokenId, agentSummary }) => [
+      tokenId,
+      Number(agentSummary?.lifetimeMints ?? 0),
+      String(agentSummary?.lastSuccessfulMint ?? ""),
+    ].join(":"));
+    return `${owner}:${evidence.join(",")}`;
+  }
+
+  function resetCollectedGallery() {
+    collectedState = { key: null, loading: false, items: [], error: null };
+    if (collectedCount) collectedCount.textContent = "—";
+    if (collectedGallery) {
+      collectedGallery.hidden = true;
+      collectedGallery.setAttribute("aria-busy", "false");
+    }
+    if (container) container.hidden = false;
+  }
+
+  function renderCollectedGallery() {
+    if (!collectedGallery || !collectedGrid) return;
+    collectedGallery.hidden = activeRosterFilter !== "collected";
+    if (activeRosterFilter !== "collected") return;
+    collectedGrid.replaceChildren();
+    if (collectedState.loading) {
+      const loading = browserDocument.createElement("p");
+      loading.className = "empty-state loading";
+      loading.textContent = "Loading the NFTs currently held by your Punk wallets…";
+      collectedGrid.append(loading);
+      collectedGallery.setAttribute("aria-busy", "true");
+      return;
+    }
+    collectedGallery.setAttribute("aria-busy", "false");
+    if (collectedState.error) {
+      const error = browserDocument.createElement("div");
+      error.className = "owner-collected-error";
+      const message = browserDocument.createElement("p");
+      message.textContent = "Collected NFTs are temporarily unavailable. Your Punk wallets and NFTs are unaffected.";
+      const retry = browserDocument.createElement("button");
+      retry.type = "button";
+      retry.textContent = "Retry NFT Inventory";
+      retry.addEventListener("click", () => {
+        collectedState = { key: null, loading: false, items: [], error: null };
+        renderRoster();
+      });
+      error.append(message, retry);
+      collectedGrid.append(error);
+      return;
+    }
+    if (!collectedState.items.length) {
+      const empty = browserDocument.createElement("p");
+      empty.className = "empty-state";
+      empty.textContent = currentAccounts.length
+        ? "No Art Broker-minted NFTs are currently held by these Punk wallets."
+        : "Connect the wallet that owns your Gogh Punks.";
+      collectedGrid.append(empty);
+      return;
+    }
+    for (const asset of collectedState.items) {
+      const card = browserDocument.createElement("article");
+      card.className = "owner-collected-card";
+      const art = asset.imageUrl
+        ? browserDocument.createElement("img") : browserDocument.createElement("div");
+      art.className = asset.imageUrl ? "owner-collected-art" : "owner-collected-art placeholder";
+      if (asset.imageUrl) {
+        art.src = asset.imageUrl;
+        art.alt = asset.name ?? `${asset.collectionName ?? "Collected NFT"} #${asset.tokenId}`;
+        art.loading = "lazy";
+        art.decoding = "async";
+        art.addEventListener("error", () => {
+          const placeholder = browserDocument.createElement("div");
+          placeholder.className = "owner-collected-art placeholder";
+          placeholder.textContent = `NFT #${asset.tokenId}`;
+          art.replaceWith(placeholder);
+        }, { once: true });
+      } else {
+        art.textContent = `NFT #${asset.tokenId}`;
+      }
+      const copy = browserDocument.createElement("div");
+      copy.className = "owner-collected-copy";
+      const source = browserDocument.createElement("span");
+      source.className = "owner-collected-source";
+      source.textContent = `Collected by Gogh Punk #${asset.punkTokenId}`;
+      const title = browserDocument.createElement("h3");
+      title.textContent = asset.name ?? `${asset.collectionName ?? "NFT"} #${asset.tokenId}`;
+      const collection = browserDocument.createElement("p");
+      collection.textContent = asset.collectionName ?? `Collection ${asset.collection.slice(0, 8)}…`;
+      const actions = browserDocument.createElement("div");
+      actions.className = "owner-collected-actions";
+      const view = browserDocument.createElement("a");
+      view.href = asset.openSeaUrl;
+      view.target = "_blank";
+      view.rel = "noreferrer";
+      view.textContent = "View NFT ↗";
+      const manage = browserDocument.createElement("a");
+      manage.href = `/broker/punk/${encodeURIComponent(asset.punkTokenId)}#assets`;
+      manage.textContent = "Open / Withdraw";
+      actions.append(view, manage);
+      copy.append(source, title, collection, actions);
+      card.append(art, copy);
+      collectedGrid.append(card);
+    }
+  }
+
+  async function loadCollectedGallery(accounts = currentAccounts) {
+    if (!collectedGallery || activeRosterFilter !== "collected") return;
+    const tokenIds = [...new Set(accounts.map(({ tokenId }) => String(tokenId)))]
+      .sort((left, right) => Number(left) - Number(right));
+    const owner = browserWindow.__GOGH_WALLET_SNAPSHOT__?.account?.toLowerCase?.() ?? "";
+    const key = collectedGalleryKey(owner, accounts);
+    if (collectedState.key === key && (collectedState.loading || !collectedState.error)) {
+      renderCollectedGallery();
+      return;
+    }
+    if (!owner || !tokenIds.length) {
+      collectedState = { key, loading: false, items: [], error: null };
+      if (collectedCount) collectedCount.textContent = "0";
+      renderCollectedGallery();
+      return;
+    }
+    const current = revision;
+    collectedState = { key, loading: true, items: [], error: null };
+    renderCollectedGallery();
+    try {
+      const portfolio = await fetchWithdrawableNftPortfolio(request, tokenIds);
+      if (current !== revision || activeRosterFilter !== "collected"
+        || key !== collectedGalleryKey(
+          browserWindow.__GOGH_WALLET_SNAPSHOT__?.account?.toLowerCase?.() ?? "",
+          currentAccounts,
+        )) return;
+      const items = artBrokerCollectedNfts(portfolio);
+      collectedState = { key, loading: false, items, error: null };
+      if (collectedCount) collectedCount.textContent = String(items.length);
+      if (rosterFilterResult) rosterFilterResult.textContent = items.length
+        ? `Showing ${items.length} NFT${items.length === 1 ? "" : "s"} currently held across your Punk wallets.`
+        : "No Art Broker-minted NFTs are currently held by these Punk wallets.";
+    } catch (error) {
+      if (current !== revision) return;
+      collectedState = { key, loading: false, items: [], error };
+      if (collectedCount) collectedCount.textContent = "—";
+    }
+    renderCollectedGallery();
+  }
 
   function renderRoster(accounts = currentAccounts) {
     if (!container) return;
@@ -767,7 +948,16 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
     for (const button of rosterFilters) {
       button.setAttribute("aria-pressed", String(button.dataset.ownerRosterFilter === activeRosterFilter));
     }
-    renderOwnerAccounts(container, accounts, activeRosterFilter);
+    if (rosterFilterResult && activeRosterFilter !== "collected") {
+      const visibleCount = counts[activeRosterFilter] ?? 0;
+      rosterFilterResult.textContent = activeRosterFilter === "all"
+        ? `Showing all ${accounts.length} verified Punks.`
+        : `Showing ${visibleCount} of ${accounts.length} verified Punks · ${OWNER_ROSTER_FILTER_LABELS[activeRosterFilter]}.`;
+    }
+    container.hidden = activeRosterFilter === "collected";
+    if (activeRosterFilter !== "collected") renderOwnerAccounts(container, accounts, activeRosterFilter);
+    renderCollectedGallery();
+    if (activeRosterFilter === "collected") void loadCollectedGallery(accounts);
   }
 
   function renderMintDashboard(accounts) {
@@ -1117,6 +1307,8 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       renderSelectedPunkPreview(selectedPreview, []);
       currentAccounts = [];
       currentCollection = null;
+      resetCollectedGallery();
+      activeRosterFilter = "all";
       announceOwnerPunks([]);
       setOwnershipState("CONNECT WALLET", "Canonical ownership will be verified on Robinhood Chain.");
       setContainerHtml('<p class="empty-state">Connect the wallet that owns your Gogh Punks.</p>');
@@ -1267,6 +1459,8 @@ export function setupOwnerAccounts({ windowObject, documentObject, fetchFunction
       renderSelectedPunkPreview(selectedPreview, []);
       currentAccounts = [];
       currentCollection = null;
+      resetCollectedGallery();
+      activeRosterFilter = "all";
       announceOwnerPunks([]);
       setOwnershipState("RPC UNAVAILABLE", "Ownership could not be verified. No zero-balance claim was made.");
       setContainerHtml('<p class="empty-state">Punks could not be checked right now. No ownership or wallet status was inferred from stale data.</p>');

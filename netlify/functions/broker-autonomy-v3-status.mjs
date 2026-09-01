@@ -14,6 +14,7 @@ import {
   workerPlatformHealth,
 } from "./_shared/automation-v3-worker-state.mjs";
 import { resolveAutomationV3PunkAgent } from "./_shared/automation-v3-punk-agent.mjs";
+import { publicAutomationV3AgentLanes } from "./_shared/automation-v3-agent-pool.mjs";
 import {
   getProductionAutomationV3Activity, isDeployPreview,
 } from "./_shared/automation-v3-production-bridge.mjs";
@@ -192,15 +193,25 @@ export default async function handler(request) {
           getAutomationV3WorkerHeartbeat().catch(() => null),
           getAutomationV3UsageStats().catch(() => null),
         ]).then(([heartbeat, usage]) => ({ heartbeat, usage }));
-      const resolvedPunk = tokenId === null ? null
-        : await resolveAutomationV3PunkAgent(tokenId).catch(() => null);
-      const selectedAgent = resolvedPunk?.lane?.address ?? AUTOMATION_V3_AGENT;
+      let resolvedPunk = null;
+      let routingError = null;
+      if (tokenId !== null) {
+        try {
+          resolvedPunk = await resolveAutomationV3PunkAgent(tokenId);
+        } catch (error) {
+          routingError = typeof error?.code === "string" ? error.code : "PUNK_AGENT_ROUTE_UNAVAILABLE";
+        }
+      }
+      const selectedAgent = resolvedPunk?.lane?.address
+        ?? (tokenId === null ? AUTOMATION_V3_AGENT : null);
       const [evidenceResult, selectedPunkResult, agentResult] = await Promise.allSettled([
         workerEvidence,
-        tokenId === null ? null : resolvedPunk?.punk ?? readAutomationV3PunkState(
-          tokenId, process.env, { agentAddress: selectedAgent },
-        ),
-        readAutomationV3AgentDisplayState(process.env, { agentAddress: selectedAgent }),
+        tokenId === null || selectedAgent === null ? null
+          : resolvedPunk?.punk ?? readAutomationV3PunkState(
+            tokenId, process.env, { agentAddress: selectedAgent },
+          ),
+        selectedAgent === null ? null
+          : readAutomationV3AgentDisplayState(process.env, { agentAddress: selectedAgent }),
       ]);
       const selectedPunk = selectedPunkResult.status === "fulfilled"
         ? selectedPunkResult.value : null;
@@ -209,7 +220,7 @@ export default async function handler(request) {
         ? evidenceResult.value : { heartbeat: null, usage: null, online: false };
       const { heartbeat, usage } = evidence;
       const agent = agentResult.status === "fulfilled" ? agentResult.value : {
-        address: AUTOMATION_V3_AGENT, validUntil: null, balanceWei: null, codeFree: false,
+        address: selectedAgent, validUntil: null, balanceWei: null, codeFree: false,
       };
       // This public endpoint is advisory UI state. The recent persisted worker heartbeat proves
       // that production is processing the reviewed release; re-reading the entire global contract
@@ -263,6 +274,14 @@ export default async function handler(request) {
         platformHealth: availability.platformHealth,
         usage,
         punk,
+        publicAgentLanes: publicAutomationV3AgentLanes(process.env),
+        assignedAgentLane: resolvedPunk?.lane ? Object.freeze({
+          laneId: resolvedPunk.lane.laneId,
+          address: resolvedPunk.lane.address,
+          priority: resolvedPunk.lane.priority === true,
+          persisted: resolvedPunk.assigned === true,
+        }) : null,
+        punkRoutingError: routingError,
       });
     } catch {
       automation = Object.freeze({ ...base, reason: "AUTOMATION_V3_LIVE_READ_UNAVAILABLE" });

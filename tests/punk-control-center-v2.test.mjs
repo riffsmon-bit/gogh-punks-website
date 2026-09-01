@@ -412,6 +412,11 @@ test("Control Center is progressive, mobile, and keeps mint execution disabled",
   assert.match(html, /destination is always the wallet that currently owns this Gogh Punk/);
   assert.match(browser, /OPENSEA_COLLECTION_FLOOR|OpenSea collection floor/);
   assert.match(html, /What your Punk considered/);
+  assert.match(html, /data-agent-rarity-priority/);
+  assert.match(html, /data-overview-rarity/);
+  assert.match(html, /How rarity affects the hosted rotation/);
+  assert.match(browser, /OpenRarity #\$\{rank\.toLocaleString\(\)\} · \$\{headStart\}/);
+  assert.match(browser, /Rarity changes hosted queue priority only/);
   assert.match(browser, /Website and X links affect discovery priority only|sent into live contract safety checks/);
   assert.match(browser, /View NFT \/ Withdraw/);
   assert.match(browser, /eth_call/);
@@ -482,6 +487,10 @@ test("Control Center fails clearly across route, wallet, network, and worker sta
   assert.match(html, /5 mints\/day[\s\S]*0\.0025 ETH/);
   assert.match(html, /10 mints\/day[\s\S]*0\.005 ETH/);
   assert.match(html, /not activation fees, mint prices, or guaranteed mint counts/);
+  assert.match(html, /connected owner wallet pays the reserve plus its displayed transfer fee/i);
+  assert.match(html, /ETH already inside the Punk NFT Wallet cannot pay hosted-worker gas/);
+  assert.match(html, /data-prepaid-agent-payer-balance/);
+  assert.match(browser, /INSUFFICIENT_PAYER_BALANCE|payerBalanceWei/);
   assert.match(html, /Daily free-mint limit \(1–10\)/);
   assert.match(html, /Authorization duration in days \(1–30\)/);
   assert.match(browser, /for \(const button of queryAll\("\[data-prepaid-agent-gas-open\]"\)\)/);

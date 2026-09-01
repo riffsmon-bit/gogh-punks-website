@@ -95,6 +95,9 @@ export async function runAutomationV3Once(options = {}) {
         account: error?.account ?? null,
         collection: error?.collection ?? null,
         transactionHash: error?.transactionHash ?? null,
+        gasUsed: error?.gasUsed ?? null,
+        effectiveGasPriceWei: error?.effectiveGasPriceWei ?? null,
+        transactionGasCostWei: error?.transactionGasCostWei ?? null,
         ...(error?.diagnostics ? { diagnostics: error.diagnostics } : {}),
       };
       try {

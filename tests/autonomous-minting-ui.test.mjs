@@ -30,7 +30,9 @@ test("automation panel selects the best fully ready generation and preserves the
   assert.match(html, /data-control-activate disabled/);
   assert.match(html, /data-control-panel="agent"/);
   assert.match(html, /data-control-panel="activity"/);
-  assert.match(html, /Gogh \/ Punk Terminal/);
+  assert.match(html, /GOGH CODEX \/ AGENT\.LOG/);
+  assert.match(html, /Every event above comes from persisted worker evidence/);
+  assert.match(control, /next sync ≤5s/);
   assert.equal((html.match(/data-wallet-disconnect/g) ?? []).length, 1);
   assert.doesNotMatch(html, /Legacy V1|data-owner-policy-controls|data-account-activation/);
   assert.equal(automationSelectionChanged({ tokenId: "93" }, { tokenId: "93", activated: true }), false);

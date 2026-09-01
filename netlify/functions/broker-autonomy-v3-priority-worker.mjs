@@ -51,6 +51,9 @@ export async function runPunkPriorityWorker(dependencies = {}) {
       submitted: 0,
       collection: error?.collection ?? null,
       transactionHash: error?.transactionHash ?? null,
+      gasUsed: error?.gasUsed ?? null,
+      effectiveGasPriceWei: error?.effectiveGasPriceWei ?? null,
+      transactionGasCostWei: error?.transactionGasCostWei ?? null,
     });
   }
   const sessionResult = await recordAttempt(session.id, result, {

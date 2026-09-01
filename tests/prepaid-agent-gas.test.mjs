@@ -20,8 +20,22 @@ const ENVIRONMENT = {
   BROKER_SUPABASE_QUEUE_MODE: "SHADOW",
   SUPABASE_DATABASE_URL: "postgresql://server-only:secret@db.example.invalid/postgres",
   BROKER_AUTOMATION_V3_WORKER_RELEASE: RELEASE,
+  BROKER_AUTOMATION_V3_ENABLED: "true",
   BROKER_AUTOMATION_V3_AGENT_ADDRESS: AUTOMATION_V3_AGENT,
+  BROKER_AUTOMATION_V3_AGENT_PRIVATE_KEY: `0x${"a".repeat(64)}`,
 };
+
+function poolEnvironment() {
+  const result = { ...ENVIRONMENT, BROKER_AUTOMATION_V3_AGENT_POOL_ENABLED: "true" };
+  for (let lane = 2; lane <= 6; lane += 1) {
+    result[`BROKER_AUTOMATION_V3_AGENT_LANE_${lane}_ADDRESS`] =
+      `0x${String(lane).repeat(40)}`;
+    result[`BROKER_AUTOMATION_V3_AGENT_LANE_${lane}_PRIVATE_KEY`] =
+      `0x${String(lane).repeat(64)}`;
+    result[`BROKER_AUTOMATION_V3_AGENT_LANE_${lane}_ENABLED`] = "true";
+  }
+  return result;
+}
 
 function status() {
   return {
@@ -45,6 +59,8 @@ test("Punk-specific gas preflight sends one exact native transfer to the fixed h
     calls.push({ method, params });
     if (method === "eth_chainId") return "0x1237";
     if (method === "eth_accounts") return [OWNER];
+    if (method === "eth_getBalance") return "0xde0b6b3a7640000";
+    if (method === "eth_gasPrice") return "0x3b9aca00";
     if (method === "eth_call") return "0x";
     if (method === "eth_estimateGas") return "0x5208";
     if (method === "eth_sendTransaction") return HASH;
@@ -57,8 +73,28 @@ test("Punk-specific gas preflight sends one exact native transfer to the fixed h
   });
   assert.equal(await submitPrepaidAgentGas(provider, plan), HASH);
   assert.deepEqual(calls.map(({ method }) => method), [
-    "eth_chainId", "eth_accounts", "eth_call", "eth_estimateGas", "eth_sendTransaction",
+    "eth_chainId", "eth_accounts", "eth_getBalance", "eth_gasPrice",
+    "eth_call", "eth_estimateGas", "eth_sendTransaction",
   ]);
+});
+
+test("priority preflight explains that the connected owner wallet—not the Punk wallet—needs funds", async () => {
+  let sent = false;
+  const provider = { request: async ({ method }) => {
+    if (method === "eth_chainId") return "0x1237";
+    if (method === "eth_accounts") return [OWNER];
+    if (method === "eth_getBalance") return `0x${48941081714000n.toString(16)}`;
+    if (method === "eth_gasPrice") return "0x3b9aca00";
+    if (method === "eth_sendTransaction") sent = true;
+    throw new Error(`unexpected ${method}`);
+  } };
+  await assert.rejects(
+    () => preflightPrepaidAgentGas(provider, status(), "93", SESSION),
+    (error) => error.code === "INSUFFICIENT_PAYER_BALANCE"
+      && /Connected owner wallet has 0\.00004894 ETH/.test(error.message)
+      && /not the Punk NFT Wallet/.test(error.message),
+  );
+  assert.equal(sent, false);
 });
 
 test("Punk-specific gas preflight fails before submission on owner or network drift", async () => {
@@ -80,11 +116,33 @@ test("server status exposes only an active Punk's fixed agent and isolated credi
   const result = await prepaidAgentGasStatus("93", OWNER, {
     environment: ENVIRONMENT,
     readPunk: async () => activePunk(),
-    getBalance: async () => ({ available: true, availableWei: AMOUNT, updatedAt: null }),
+    getBalance: async () => ({ available: true, creditedWei: AMOUNT, spentWei: "0",
+      spentTodayWei: "0", actualGasSpentWei: "74075738814000",
+      actualGasSpentTodayWei: "74075738814000", meteringAvailable: true,
+      availableWei: AMOUNT, updatedAt: null }),
   });
   assert.equal(result.tokenId, "93");
   assert.equal(result.agent, AUTOMATION_V3_AGENT);
   assert.equal(result.availableWei, AMOUNT);
+  assert.equal(result.actualGasSpentTodayWei, "74075738814000");
+  assert.equal(result.publicAgentLanes.length, 1);
+  assert.equal(result.publicAgentLanes[0].address, AUTOMATION_V3_AGENT);
+  assert.equal("privateKey" in result.publicAgentLanes[0], false);
+});
+
+test("production prepayment cannot fund an enabled lane pool with a missing signer", async () => {
+  const environment = poolEnvironment();
+  environment.CONTEXT = "production";
+  delete environment.BROKER_AUTOMATION_V3_AGENT_LANE_5_PRIVATE_KEY;
+  await assert.rejects(
+    () => prepaidAgentGasStatus("93", OWNER, {
+      environment,
+      readPunk: async () => activePunk(),
+      lane: { laneId: 1, address: AUTOMATION_V3_AGENT },
+      getBalance: async () => { throw new Error("balance must not be read"); },
+    }),
+    /lane 5 private key is invalid/,
+  );
 });
 
 test("confirmed exact deposit credits only its Punk and requests that Punk immediately", async () => {
@@ -115,6 +173,22 @@ test("confirmed exact deposit credits only its Punk and requests that Punk immed
   assert.deepEqual(requested, { tokenId: "93" });
   assert.equal(result.credit.availableWei, AMOUNT);
   assert.equal(result.run.status, "NO_ELIGIBLE_TARGETS");
+});
+
+test("prepaid gas targets the Punk's persisted lane and exposes every public lane", async () => {
+  const environment = poolEnvironment();
+  const lane = { laneId: 4, address: environment.BROKER_AUTOMATION_V3_AGENT_LANE_4_ADDRESS };
+  const result = await prepaidAgentGasStatus("93", OWNER, {
+    environment,
+    resolvePunk: async () => ({ punk: activePunk(), lane, assigned: true }),
+    getBalance: async () => ({ available: true, creditedWei: "0", spentWei: "0",
+      availableWei: "0", updatedAt: null }),
+  });
+  assert.equal(result.agentLane, 4);
+  assert.equal(result.agent, lane.address);
+  assert.equal(result.publicAgentLanes.length, 6);
+  assert.equal(result.publicAgentLanes[5].priority, true);
+  assert.equal(result.publicAgentLanes.some((item) => "privateKey" in item), false);
 });
 
 test("mismatched funding evidence cannot create credit or run an agent", async () => {

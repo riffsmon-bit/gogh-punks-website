@@ -1388,13 +1388,23 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
         error.tokenId = tokenId;
         error.account = accountAddress.toLowerCase();
         error.collection = collection;
+        error.gasUsed = receipt.gasUsed?.toString?.() ?? null;
+        error.effectiveGasPriceWei = receipt.effectiveGasPrice?.toString?.() ?? null;
+        error.transactionGasCostWei = receipt.gasUsed != null
+          && receipt.effectiveGasPrice != null
+          ? (receipt.gasUsed * receipt.effectiveGasPrice).toString() : null;
         throw error;
       }
       recordProfileOutcome(
         diagnostics, tokenId, "MINTED", "MINT_CONFIRMED", accountAddress.toLowerCase(),
       );
       return { status: "MINT_CONFIRMED", submitted: 1, tokenId,
-        account: accountAddress.toLowerCase(), collection, transactionHash: hash, diagnostics };
+        account: accountAddress.toLowerCase(), collection, transactionHash: hash,
+        gasUsed: receipt.gasUsed?.toString?.() ?? null,
+        effectiveGasPriceWei: receipt.effectiveGasPrice?.toString?.() ?? null,
+        transactionGasCostWei: receipt.gasUsed != null && receipt.effectiveGasPrice != null
+          ? (receipt.gasUsed * receipt.effectiveGasPrice).toString() : null,
+        diagnostics };
     }
     recordProfileOutcome(
       diagnostics, tokenId, "SKIPPED", "NO_ELIGIBLE_TARGETS",

@@ -1,7 +1,7 @@
 import { runAutomationV3Once } from "./_shared/automation-v3-runner.mjs";
 import { enrollAutomationV3Punk } from "./_shared/automation-v3-worker-state.mjs";
 import {
-  automationV3LaneEnvironment,
+  automationV3LaneEnvironment, regularAutomationV3AgentLanes,
 } from "./_shared/automation-v3-agent-pool.mjs";
 import { resolveAutomationV3PunkAgent } from "./_shared/automation-v3-punk-agent.mjs";
 import {
@@ -46,16 +46,18 @@ export function requireAutomationV3RunOrigin(request, environment = process.env)
 
 export async function runSelectedAutomationV3(body, dependencies = {}) {
   const tokenId = exactBody(body);
+  const environment = dependencies.environment ?? process.env;
   const runOnce = dependencies.runOnce ?? runAutomationV3Once;
   const enroll = dependencies.enroll ?? enrollAutomationV3Punk;
   let lane = null;
   let punk;
   if (dependencies.readPunk) {
     punk = await dependencies.readPunk(tokenId);
-    lane = { laneId: 1, address: punk?.authorization?.agent };
+    lane = dependencies.lane ?? { laneId: 1, address: punk?.authorization?.agent };
   } else {
-    ({ lane, punk } = await resolveAutomationV3PunkAgent(tokenId, process.env, {
+    ({ lane, punk } = await resolveAutomationV3PunkAgent(tokenId, environment, {
       assignment: dependencies.assignment,
+      database: dependencies.database,
     }));
   }
   if (punk?.tokenId !== tokenId || punk?.created !== true || punk?.active !== true) {
@@ -66,9 +68,10 @@ export async function runSelectedAutomationV3(body, dependencies = {}) {
     );
   }
   await enroll(punk, { agentAddress: lane.address, agentLane: lane.laneId });
-  const runOptions = { requestedTokenId: tokenId };
+  const runOptions = { requestedTokenId: tokenId, laneId: lane.laneId,
+    agentAddress: lane.address };
   if (!dependencies.runOnce) {
-    runOptions.environment = automationV3LaneEnvironment(process.env, lane.laneId);
+    runOptions.environment = automationV3LaneEnvironment(environment, lane.laneId);
     runOptions.laneId = lane.laneId;
   }
   const result = await runOnce(runOptions);
@@ -86,13 +89,35 @@ export async function runAllAutomationV3(body, dependencies = {}) {
     throw new PublicError(400, "INVALID_REQUEST", "The all-Punk scan request is invalid.");
   }
   const runOnce = dependencies.runOnce ?? runAutomationV3Once;
-  const result = await runOnce({ requestedTokenId: null });
+  if (dependencies.runOnce) {
+    const result = await runOnce({ requestedTokenId: null });
+    return Object.freeze({
+      tokenId: result.tokenId ?? null,
+      status: result.status,
+      submitted: result.submitted,
+      collection: result.collection ?? null,
+      transactionHash: result.transactionHash ?? null,
+    });
+  }
+  const environment = dependencies.environment ?? process.env;
+  const results = await Promise.all(regularAutomationV3AgentLanes(environment).map((lane) =>
+    runOnce({ requestedTokenId: null,
+      environment: automationV3LaneEnvironment(environment, lane.laneId),
+      laneId: lane.laneId })));
+  const submitted = results.reduce((total, result) => total + Number(result.submitted ?? 0), 0);
+  const result = results.find((candidate) => Number(candidate.submitted ?? 0) > 0)
+    ?? results.find((candidate) => candidate.status === "RUN_IN_PROGRESS") ?? results[0];
   return Object.freeze({
     tokenId: result.tokenId ?? null,
     status: result.status,
-    submitted: result.submitted,
+    submitted,
     collection: result.collection ?? null,
     transactionHash: result.transactionHash ?? null,
+    lanes: Object.freeze(results.map((candidate, index) => Object.freeze({
+      laneId: regularAutomationV3AgentLanes(environment)[index].laneId,
+      status: candidate.status,
+      submitted: Number(candidate.submitted ?? 0),
+    }))),
   });
 }
 

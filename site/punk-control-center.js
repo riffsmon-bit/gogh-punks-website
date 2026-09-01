@@ -53,7 +53,7 @@ function routeTokenId() {
 const state = {
   tokenId: routeTokenId(), owner: null, walletAccount: null, walletChainId: null,
   account: null, provider: null, walletRestoring: false, loading: false, error: null,
-  punkCollection: null, nativeBalance: null, wrappedBalance: null,
+  punkCollection: null, nativeBalance: null, wrappedBalance: null, rarity: null,
   owned: false, activated: false, agentStatus: null, automation: null, assets: [],
   activity: [], timings: {}, revision: 0,
   punkHeartbeat: null, observedMintHash: null, mintBaselineReady: false,
@@ -103,6 +103,29 @@ function renderDebug() {
 function setText(selector, value) {
   const element = query(selector);
   if (element) element.textContent = value;
+}
+
+function rarityPrioritySummary(rarity) {
+  const rank = Number(rarity?.rank);
+  if (!Number.isSafeInteger(rank) || rank < 1) {
+    return Object.freeze({ short: "Standard rotation",
+      detail: "No current OpenRarity scheduling head start. Owner-fair ordering still applies." });
+  }
+  const seconds = rank <= 51 ? 1_200 : rank <= 251 ? 600 : rank <= 753 ? 300
+    : rank <= 1_756 ? 120 : rank <= 3_010 ? 60 : 0;
+  const tier = typeof rarity?.proposedTier === "string"
+    ? `${rarity.proposedTier.toLowerCase()} preview · ` : "";
+  const headStart = seconds > 0 ? `${seconds / 60}-minute head start` : "standard rotation";
+  return Object.freeze({
+    short: `OpenRarity #${rank.toLocaleString()} · ${headStart}`,
+    detail: `${tier}Rarity changes hosted queue priority only. It never guarantees a mint or bypasses ownership, price, policy, or simulation checks.`,
+  });
+}
+
+function renderRarityPriority() {
+  const summary = rarityPrioritySummary(state.rarity);
+  setText("[data-agent-rarity-priority]", summary.short);
+  setText("[data-overview-rarity]", `${summary.short}. ${summary.detail}`);
 }
 
 function setOwnerPaidMessage(value) {
@@ -233,8 +256,45 @@ function renderPrepaidAgentGas() {
   }
   setText("[data-prepaid-agent-balance]", status?.availableWei != null
     ? formatNative(status.availableWei) : "Not loaded");
+  setText("[data-prepaid-agent-credited]", status?.creditedWei != null
+    ? formatNative(status.creditedWei) : "Not loaded");
+  setText("[data-prepaid-agent-spent]", status?.meteringAvailable
+    ? formatNative(status.actualGasSpentWei ?? "0") : "Metering migration pending");
+  setText("[data-prepaid-agent-spent-today]", status?.meteringAvailable
+    ? formatNative(status.actualGasSpentTodayWei ?? "0") : "Not yet metered");
+  setText("[data-summary-spent]", status?.meteringAvailable
+    ? formatNative(status.actualGasSpentTodayWei ?? "0") : "Not yet metered");
   setText("[data-prepaid-agent-recipient]", status?.agent
     ? formatAddress(status.agent) : "Fixed hosted signer not loaded");
+  setText("[data-prepaid-agent-payer]", state.walletAccount
+    ? formatAddress(state.walletAccount) : "Connect owner wallet");
+  setText("[data-prepaid-agent-payer-balance]", status?.payerBalanceWei != null
+    ? formatNative(status.payerBalanceWei) : "Not loaded");
+  const recipientLink = query("[data-prepaid-agent-recipient-link]");
+  if (recipientLink) {
+    recipientLink.href = status?.agent
+      ? `https://robinhoodchain.blockscout.com/address/${status.agent}` : "#";
+  }
+  setText("[data-prepaid-agent-refund]", status?.refund?.eligible
+    ? `${formatNative(status.refund.availableWei)} refundable · claim broadcast staged`
+    : status?.session ? "Available after this session settles" : "No settled session");
+  const benchmark = status?.gasBenchmark;
+  setText("[data-prepaid-agent-benchmark]", benchmark
+    ? `${benchmark.label}: median ${formatNative(benchmark.medianWei)}, observed p95 ${formatNative(benchmark.p95Wei)}. The reserve is intentionally conservative; a mint is never guaranteed.`
+    : "This pays gas only; it is not a mint price and does not guarantee that an eligible mint exists.");
+  const lanes = query("[data-prepaid-agent-lanes]");
+  if (lanes) {
+    lanes.replaceChildren(...(status?.publicAgentLanes ?? []).map((lane) => {
+      const row = document.createElement("p");
+      const link = document.createElement("a");
+      link.href = lane.explorerUrl;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = `Lane ${lane.laneId}${lane.priority ? " · priority" : ""} · ${lane.address} ↗`;
+      row.append(link);
+      return row;
+    }));
+  }
   const amount = query("[data-prepaid-agent-amount]");
   const mints = query("[data-prepaid-agent-mints]");
   const days = query("[data-prepaid-agent-days]");
@@ -354,6 +414,7 @@ function renderIdentity() {
   const presentation = controlPresentation();
   setText("[data-control-token]", state.tokenId ?? "—");
   setText("[data-terminal-punk]", state.tokenId ?? "—");
+  setText("[data-terminal-prompt-punk]", state.tokenId ?? "—");
   setText("[data-directed-punk]", state.tokenId ? `#${state.tokenId}` : "—");
   setText("[data-control-account]", presentation.account);
   setText("[data-punk-fund-account]", presentation.account);
@@ -417,6 +478,8 @@ async function loadOwnership(wallet) {
   state.owner = owner;
   state.owned = owner === wallet.account.toLowerCase();
   const decoration = payload.candidatePunks?.find((item) => String(item?.tokenId) === state.tokenId);
+  state.rarity = decoration?.rarity ?? null;
+  renderRarityPriority();
   const image = decoration?.artwork?.imageUrl;
   if (/^https:\/\/(?:i|raw2)\.seadn\.io\//.test(image ?? "")) {
     query("[data-control-punk-image]").src = image;
@@ -504,6 +567,90 @@ function punkWorkerMessage(event) {
     : "The hosted agent completed a bounded scan for this Punk.");
 }
 
+const TERMINAL_EVENT_CODES = Object.freeze({
+  IDLE: "IDLE", QUEUED: "QUEUE", SCANNING: "SCAN_INIT",
+  CANDIDATE_FOUND: "CANDIDATE", RANKING: "RANK",
+  VERIFYING: "VERIFY", VERIFYING_CONTRACT: "CONTRACT",
+  CHECKING_PRICE: "PRICE", CHECKING_ELIGIBILITY: "ELIGIBILITY",
+  CHECKING_LIMITS: "POLICY", SIMULATING: "SIMULATE",
+  MINTING: "SUBMIT", SUBMITTING: "SUBMIT", CONFIRMING: "CONFIRM",
+  MINTED: "MINT_OK", SKIPPED: "SCAN_DONE", ERROR: "ERROR",
+  PUNK_ERROR: "ERROR",
+});
+
+function terminalEventCode(entry) {
+  return TERMINAL_EVENT_CODES[String(entry?.state ?? "").toUpperCase()] ?? "WORKER";
+}
+
+function terminalEventKey(entry) {
+  return String(entry?.id ?? entry?.eventId ?? entry?.transactionHash
+    ?? `${entry?.at ?? ""}|${entry?.state ?? ""}|${entry?.message ?? ""}`);
+}
+
+function terminalSeverity(entry) {
+  const stateName = String(entry?.state ?? "").toUpperCase();
+  if (stateName === "MINTED") return "success";
+  if (stateName === "ERROR" || stateName === "PUNK_ERROR") return "error";
+  if (stateName === "SKIPPED") return "warning";
+  return "info";
+}
+
+function createTerminalRow(entry) {
+  const row = document.createElement("article");
+  row.dataset.eventKey = terminalEventKey(entry);
+  row.dataset.level = terminalSeverity(entry);
+  const time = document.createElement("time");
+  const code = document.createElement("code");
+  const content = document.createElement("div");
+  const message = document.createElement("p");
+  time.dateTime = entry.at ?? nowIso();
+  time.textContent = new Date(entry.at ?? Date.now()).toLocaleTimeString();
+  code.textContent = terminalEventCode(entry);
+  message.textContent = entry.message;
+  content.append(message);
+  if (ADDRESS.test(entry.collection ?? "") || ADDRESS.test(entry.transactionHash ?? "")) {
+    const evidence = document.createElement("small");
+    const parts = [];
+    if (ADDRESS.test(entry.collection ?? "")) parts.push(`collection ${formatAddress(entry.collection)}`);
+    if (/^0x[0-9a-f]{64}$/i.test(entry.transactionHash ?? "")) {
+      parts.push(`tx ${entry.transactionHash.slice(0, 10)}…${entry.transactionHash.slice(-6)}`);
+    }
+    evidence.textContent = parts.join(" · ");
+    content.append(evidence);
+  }
+  row.append(time, code, content);
+  if (entry.action === "OPEN_ASSETS") {
+    const action = document.createElement("button");
+    action.type = "button";
+    action.textContent = "View NFT / Withdraw";
+    action.addEventListener("click", () => query('[data-control-tab="assets"]')?.click());
+    content.append(action);
+  }
+  return row;
+}
+
+function renderActivityTimeline() {
+  const timeline = query("[data-agent-timeline]");
+  if (!timeline) return;
+  const shouldFollow = timeline.childElementCount <= 1
+    || timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight < 64;
+  const existing = new Map(queryAll("[data-agent-timeline] > article[data-event-key]")
+    .map((row) => [row.dataset.eventKey, row]));
+  const rows = [...state.activity]
+    .sort((left, right) => Date.parse(left.at ?? 0) - Date.parse(right.at ?? 0))
+    .map((entry) => existing.get(terminalEventKey(entry)) ?? createTerminalRow(entry));
+  if (rows.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "empty-state";
+    empty.textContent = state.owned
+      ? "No persisted worker event has been recorded for this Punk yet."
+      : "Connect the current Punk holder to load worker activity.";
+    rows.push(empty);
+  }
+  timeline.replaceChildren(...rows);
+  if (shouldFollow) timeline.scrollTop = timeline.scrollHeight;
+}
+
 function renderDiscoverySummary(summary) {
   const panel = query("[data-agent-discovery]");
   if (!panel) return;
@@ -583,13 +730,18 @@ async function loadPrepaidAgentGas() {
     return;
   }
   try {
-    state.prepaidAgentGas = await fetchPrepaidAgentGasStatus(
+    const [status, payerBalance] = await Promise.all([
+      fetchPrepaidAgentGasStatus(
       (...args) => fetch(...args), state.tokenId, state.walletAccount,
-    );
+      ),
+      rpc("eth_getBalance", [state.walletAccount, "latest"]).catch(() => null),
+    ]);
+    state.prepaidAgentGas = { ...status, payerBalanceWei:
+      payerBalance == null ? null : BigInt(payerBalance).toString() };
     setPrepaidAgentGasMessage(
       state.prepaidAgentGas.session
         ? `Punk #${state.tokenId}'s priority session is ${state.prepaidAgentGas.session.state.toLowerCase()}: ${state.prepaidAgentGas.session.completedMints} of ${state.prepaidAgentGas.session.requestedMints} successful mints.`
-        : `Punk #${state.tokenId} has ${formatNative(state.prepaidAgentGas.availableWei)} of priority agent gas credit.`,
+        : `Punk #${state.tokenId} has ${formatNative(state.prepaidAgentGas.availableWei)} of priority agent gas credit. New deposits are paid by the connected owner wallet${state.prepaidAgentGas.payerBalanceWei == null ? "." : `, which currently has ${formatNative(state.prepaidAgentGas.payerBalanceWei)}.`}`,
     );
   } catch (error) {
     state.prepaidAgentGas = null;
@@ -685,7 +837,7 @@ async function prepayAgentGasAndRun() {
       state.provider, status, selectedTokenId, configuration,
     );
     setPrepaidAgentGasMessage(
-      `Waiting for your wallet to fund Punk #${selectedTokenId}'s ${plan.mintLimit}-mint, ${plan.durationDays}-day priority session with ${formatNative(plan.amountWei)}…`,
+      `Waiting for the connected owner wallet to fund Punk #${selectedTokenId}'s ${plan.mintLimit}-mint, ${plan.durationDays}-day priority session with ${formatNative(plan.amountWei)} plus an estimated ${formatNative(plan.estimatedGasWei)} network fee…`,
     );
     const transactionHash = await submitPrepaidAgentGas(state.provider, plan);
     const transactionLink = query("[data-prepaid-agent-transaction]");
@@ -1115,28 +1267,11 @@ async function reviewWrappedNative() {
 }
 
 function addActivity(entry) {
-  if (!entry?.message || state.activity.some((item) => item.at === entry.at
-    && item.message === entry.message)) return;
+  if (!entry?.message || state.activity.some((item) =>
+    terminalEventKey(item) === terminalEventKey(entry))) return;
   state.activity.unshift(Object.freeze(entry));
-  state.activity = state.activity.slice(0, 20);
-  const timeline = query("[data-agent-timeline]");
-  timeline.replaceChildren(...state.activity.map((item) => {
-    const row = document.createElement("article");
-    const time = document.createElement("time");
-    const message = document.createElement("p");
-    time.dateTime = item.at ?? nowIso();
-    time.textContent = new Date(item.at ?? Date.now()).toLocaleTimeString();
-    message.textContent = item.message;
-    row.append(time, message);
-    if (item.action === "OPEN_ASSETS") {
-      const action = document.createElement("button");
-      action.type = "button";
-      action.textContent = "View NFT / Withdraw";
-      action.addEventListener("click", () => query('[data-control-tab="assets"]')?.click());
-      row.append(action);
-    }
-    return row;
-  }));
+  state.activity = state.activity.slice(0, 50);
+  renderActivityTimeline();
 }
 
 async function loadActivity() {
@@ -1149,7 +1284,10 @@ async function loadActivity() {
   }
   state.activityLoading = true;
   if (button) button.disabled = true;
-  setText("[data-activity-state]", `Checking Punk #${state.tokenId}'s latest worker event…`);
+  if (state.activity.length === 0) {
+    setText("[data-activity-state]", `Connecting to Punk #${state.tokenId}'s persisted worker stream…`);
+  }
+  setText("[data-terminal-sync]", "syncing persisted worker evidence…");
   try {
     const endpoint = demo ? `/api/local-v2/activity?tokenId=${encodeURIComponent(state.tokenId)}`
       : `/api/broker/autonomy-v3-activity?tokenId=${encodeURIComponent(state.tokenId)}`;
@@ -1163,6 +1301,7 @@ async function loadActivity() {
       setText("[data-activity-state]", payload.activity?.length
         ? `Loaded ${payload.activity.length} local Punk #${state.tokenId} activity events.`
         : `No local activity has been recorded for Punk #${state.tokenId} yet.`);
+      setText("[data-terminal-sync]", `live · synced ${new Date().toLocaleTimeString()} · local demo`);
       metric("Activity", started);
       return;
     }
@@ -1183,12 +1322,15 @@ async function loadActivity() {
     }
     if (punkActivity?.events?.length) {
       for (const event of [...punkActivity.events].reverse()) {
-        addActivity({ at: event.occurredAt, state: event.state,
+        addActivity({ id: event.eventId, at: event.occurredAt, state: event.state,
+          reason: event.reason, collection: event.collection,
+          transactionHash: event.transactionHash, jobId: event.jobId,
           message: punkWorkerMessage(event),
           action: event.state === "MINTED" ? "OPEN_ASSETS" : null });
       }
       setText("[data-activity-state]",
-        `Loaded ${punkActivity.events.length} Punk #${state.tokenId} worker event${punkActivity.events.length === 1 ? "" : "s"}.`);
+        `Live stream connected · ${punkActivity.events.length} persisted Punk #${state.tokenId} event${punkActivity.events.length === 1 ? "" : "s"}.`);
+      setText("[data-terminal-sync]", `live · synced ${new Date().toLocaleTimeString()} · next sync ≤5s`);
       metric("Activity", started);
       return;
     }
@@ -1198,6 +1340,7 @@ async function loadActivity() {
         message: punkWorkerMessage(event),
         action: event.state === "MINTED" ? "OPEN_ASSETS" : null });
       setText("[data-activity-state]", `Latest Punk #${state.tokenId} worker state loaded.`);
+      setText("[data-terminal-sync]", `live · synced ${new Date().toLocaleTimeString()} · next sync ≤5s`);
       metric("Activity", started);
       return;
     }
@@ -1214,8 +1357,10 @@ async function loadActivity() {
       setText("[data-activity-state]", `No hosted worker event has been recorded for Punk #${state.tokenId} yet.`);
     }
     metric("Activity", started);
+    setText("[data-terminal-sync]", `live · synced ${new Date().toLocaleTimeString()} · next sync ≤5s`);
   } catch (error) {
     setText("[data-activity-state]", `${error.message} Try again in a moment.`);
+    setText("[data-terminal-sync]", "stream interrupted · retrying automatically");
     throw error;
   } finally {
     state.activityLoading = false;
@@ -1522,7 +1667,6 @@ function renderPaidPolicy(policy) {
   setText("[data-agent-paid]", policy.enabled ? "STAGED · BROADCAST LOCKED" : "OFF");
   setText("[data-agent-spend-limit]", `${policy.daily ?? "0.025"} ETH/day · staged`);
   setText("[data-agent-per-limit]", `${policy.per ?? "0.01"} ETH · staged`);
-  setText("[data-summary-spent]", `0 / ${policy.daily ?? "0.025"} ETH`);
 }
 
 function readPaidPolicy() {
@@ -1913,6 +2057,8 @@ async function applyWallet(wallet) {
   state.punkCollection = null;
   state.nativeBalance = null;
   state.wrappedBalance = null;
+  state.rarity = null;
+  renderRarityPriority();
   state.fundingBusy = false;
   state.withdrawalFundsBusy = false;
   state.activationBusy = false;
@@ -1924,6 +2070,9 @@ async function applyWallet(wallet) {
   state.wrappedBusy = false;
   state.wrappedPlan = null;
   state.automation = null;
+  state.activity = [];
+  state.punkHeartbeat = null;
+  renderActivityTimeline();
   state.assets = [];
   state.withdrawalAsset = null;
   state.withdrawalAmount = "1";
@@ -2027,11 +2176,18 @@ else {
   window.addEventListener("gogh:wallet-state", (event) => applyWallet(event.detail));
   window.addEventListener("gogh:wallet-disconnected", () => applyWallet(null));
   applyWallet(window.__GOGH_WALLET_SNAPSHOT__ ?? null);
+  const updateTerminalClock = () => {
+    if (document.visibilityState === "visible") {
+      setText("[data-terminal-clock]", new Date().toLocaleTimeString());
+    }
+  };
+  updateTerminalClock();
+  window.setInterval(updateTerminalClock, 1_000);
   window.setInterval(() => {
     if (document.visibilityState === "visible" && state.owned) {
       void loadActivity().catch(() => {});
     }
-  }, 20_000);
+  }, 5_000);
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible" && state.owned) {
       void loadActivity().catch(() => {});
