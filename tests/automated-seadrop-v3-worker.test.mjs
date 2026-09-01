@@ -10,8 +10,10 @@ import {
   confirmedIntentWindow,
   eligibleAutomationV3Profiles,
   fairlyOrderedAutomationV3Profiles,
+  incrementalSeaDropCollections,
   mergePrioritySeaDropCollections,
   recentSeaDropCollections,
+  recordWorkerFailureProfileOutcomes,
   rarityPriorityBoostSeconds,
   rotateAutomationV3Profiles,
   runAutomatedSeaDropV3Worker,
@@ -32,6 +34,45 @@ test("V3 worker remains disabled by default and uses the confirmed intent horizo
     status: "DISABLED", submitted: 0,
   });
   assert.deepEqual(confirmedIntentWindow(1_000), { createdAt: 970, expiresAt: 1_090 });
+});
+
+test("platform discovery failures keep scheduled Punks queued instead of requiring repair", () => {
+  const diagnostics = {
+    scheduledTokenIds: ["1918", "1920"],
+    processedTokenIds: [],
+    profileOutcomes: [],
+  };
+  recordWorkerFailureProfileOutcomes(diagnostics, "DISCOVERY_RPC_UNAVAILABLE");
+  assert.deepEqual(diagnostics.profileOutcomes, [
+    {
+      tokenId: "1918", state: "QUEUED",
+      reason: "WAITING_FOR_PLATFORM_RECOVERY", account: null,
+    },
+    {
+      tokenId: "1920", state: "QUEUED",
+      reason: "WAITING_FOR_PLATFORM_RECOVERY", account: null,
+    },
+  ]);
+  recordWorkerFailureProfileOutcomes(diagnostics, "DISCOVERY_INDEX_READ_FAILED", {
+    affectedTokenIds: ["1920"],
+  });
+  assert.deepEqual(diagnostics.profileOutcomes[1], {
+    tokenId: "1920", state: "QUEUED",
+    reason: "WAITING_FOR_PLATFORM_RECOVERY", account: null,
+  });
+  recordWorkerFailureProfileOutcomes(diagnostics, "PROFILE_STATE_READ_FAILED", {
+    affectedTokenIds: ["1920"],
+  });
+  assert.deepEqual(diagnostics.profileOutcomes[1], {
+    tokenId: "1920", state: "QUEUED",
+    reason: "WAITING_FOR_PLATFORM_RECOVERY", account: null,
+  });
+  recordWorkerFailureProfileOutcomes(diagnostics, "AUTONOMOUS_MINT_REVERTED", {
+    affectedTokenIds: ["1918"],
+  });
+  assert.deepEqual(diagnostics.profileOutcomes[0], {
+    tokenId: "1918", state: "ERROR", reason: "AUTONOMOUS_MINT_REVERTED", account: null,
+  });
 });
 
 test("hosted rotation applies a bounded rarity head start without bypassing owner fairness", async () => {
@@ -415,6 +456,27 @@ test("V3 discovery fails closed when every bounded hint range fails", async () =
     return true;
   });
   assert.equal(calls, 16);
+});
+
+test("incremental discovery uses indexed hints when both log providers are unavailable", async () => {
+  const collection = `0x${"1".repeat(40)}`;
+  const reports = [];
+  const result = await incrementalSeaDropCollections({
+    getBlockNumber: async () => { throw new TypeError("primary unavailable"); },
+  }, {
+    query: async (sql) => {
+      assert.match(sql, /broker_seadrop_public_drops/);
+      return { rows: [{ collection_address: collection }] };
+    },
+  }, 20n, {
+    fallbackClient: {
+      getBlockNumber: async () => { throw new TypeError("fallback unavailable"); },
+    },
+    report: (value) => reports.push(value),
+  });
+  assert.deepEqual(result, [collection]);
+  assert.equal(reports.some((value) => /DISCOVERY_INDEX_FALLBACK/.test(value)), true);
+  assert.equal(reports.some((value) => /HEAD_UNAVAILABLE/.test(value)), true);
 });
 
 test("V3 candidate prefilter tolerates partial read failure but not total outage", async () => {

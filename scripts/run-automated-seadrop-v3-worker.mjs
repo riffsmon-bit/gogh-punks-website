@@ -245,7 +245,7 @@ function rejectionDiagnostics(profiles, collections, candidates) {
 
 function recordProfileOutcome(diagnostics, tokenId, state, reason, account = null) {
   if (!diagnostics || !/^(?:0|[1-9][0-9]{0,3})$/.test(String(tokenId))
-    || !new Set(["MINTED", "SKIPPED", "ERROR", "READY"]).has(state)
+    || !new Set(["QUEUED", "MINTED", "SKIPPED", "ERROR", "READY"]).has(state)
     || !/^[A-Z0-9_]{3,64}$/.test(reason)
     || (account !== null && !/^0x[0-9a-f]{40}$/.test(account))) return;
   if (!diagnostics.processedTokenIds.includes(String(tokenId))) {
@@ -255,6 +255,28 @@ function recordProfileOutcome(diagnostics, tokenId, state, reason, account = nul
   const outcome = Object.freeze({ tokenId: String(tokenId), state, reason, account });
   if (index === -1) diagnostics.profileOutcomes.push(outcome);
   else diagnostics.profileOutcomes[index] = outcome;
+}
+
+// These failures describe shared discovery/execution infrastructure, not a
+// defect in any selected Punk. Execution still fails closed, but preserving a
+// queued per-Punk outcome prevents a transient provider or platform gate issue
+// from falsely asking every holder to repair or reactivate their Punk.
+const PLATFORM_DELAY_FAILURE_CODES = new Set([
+  "DISCOVERY_RPC_UNAVAILABLE",
+  "DISCOVERY_INDEX_UNAVAILABLE",
+  "DISCOVERY_INDEX_READ_FAILED",
+  "DISCOVERY_INDEX_WRITE_FAILED",
+  "DISCOVERY_SCAN_FAILED",
+  "CANDIDATE_PREFILTER_FAILED",
+  "CANDIDATE_STATE_READ_FAILED",
+  "GLOBAL_STATE_READ_FAILED",
+  "GLOBAL_V3_GATE_CLOSED",
+  "PROFILE_STATE_READ_FAILED",
+  "SOCIAL_RANKING_FAILED",
+]);
+
+export function isAutomationV3PlatformDelay(code) {
+  return PLATFORM_DELAY_FAILURE_CODES.has(String(code ?? ""));
 }
 
 function recordExecutionSimulationRejection(diagnostics, error) {
@@ -604,6 +626,28 @@ function discoveryStageError(code, cause) {
   return error;
 }
 
+async function indexedActiveSeaDropCollections(database, nowSeconds) {
+  try {
+    const active = await database.query(
+      `SELECT collection_address
+         FROM broker_seadrop_public_drops
+        WHERE chain_id = $1
+          AND mint_price_wei = 0
+          AND start_time <= $2
+          AND end_time >= $2
+          AND max_total_mintable_by_wallet > 0
+        ORDER BY update_block_number DESC, collection_address
+        LIMIT $3`,
+      [4663, String(nowSeconds), DISCOVERY_COLLECTION_LIMIT],
+    );
+    return Object.freeze((active.rows ?? []).map(({ collection_address: value }) => (
+      getAddress(value).toLowerCase()
+    )));
+  } catch (error) {
+    throw discoveryStageError("DISCOVERY_INDEX_READ_FAILED", error);
+  }
+}
+
 async function discoveryRpcRead(
   primary, fallback, method, request, report = console.error,
 ) {
@@ -642,9 +686,19 @@ export async function incrementalSeaDropCollections(
   const pause = dependencies.pause ?? discoveryDelay;
   const report = dependencies.report ?? console.error;
   const fallbackClient = dependencies.fallbackClient;
-  const head = await discoveryRpcRead(
-    client, fallbackClient, "getBlockNumber", undefined, report,
-  );
+  const nowSeconds = Math.floor((dependencies.nowMs ?? Date.now()) / 1_000);
+  let head;
+  try {
+    head = await discoveryRpcRead(
+      client, fallbackClient, "getBlockNumber", undefined, report,
+    );
+  } catch {
+    report(JSON.stringify({
+      event: "AUTOMATION_V3_DISCOVERY_INDEX_FALLBACK",
+      reason: "HEAD_UNAVAILABLE",
+    }));
+    return indexedActiveSeaDropCollections(database, nowSeconds);
+  }
   const confirmedBlock = head > confirmations ? head - confirmations : 0n;
   let checkpointResult;
   try {
@@ -669,16 +723,24 @@ export async function incrementalSeaDropCollections(
   const maximumTo = fromBlock + bootstrapWindow - 1n;
   const toBlock = maximumTo < confirmedBlock ? maximumTo : confirmedBlock;
   const logs = [];
-  if (fromBlock <= toBlock) {
-    for (let cursor = fromBlock; cursor <= toBlock; cursor += DISCOVERY_LOG_CHUNK_SIZE) {
-      const chunkTo = cursor + DISCOVERY_LOG_CHUNK_SIZE - 1n < toBlock
-        ? cursor + DISCOVERY_LOG_CHUNK_SIZE - 1n : toBlock;
-      logs.push(...await discoveryRpcRead(client, fallbackClient, "getLogs", {
-        address: getAddress(SEA_DROP), event: PUBLIC_DROP_UPDATED_EVENT,
-        fromBlock: cursor, toBlock: chunkTo,
-      }, report));
-      if (chunkTo < toBlock) await pause();
+  try {
+    if (fromBlock <= toBlock) {
+      for (let cursor = fromBlock; cursor <= toBlock; cursor += DISCOVERY_LOG_CHUNK_SIZE) {
+        const chunkTo = cursor + DISCOVERY_LOG_CHUNK_SIZE - 1n < toBlock
+          ? cursor + DISCOVERY_LOG_CHUNK_SIZE - 1n : toBlock;
+        logs.push(...await discoveryRpcRead(client, fallbackClient, "getLogs", {
+          address: getAddress(SEA_DROP), event: PUBLIC_DROP_UPDATED_EVENT,
+          fromBlock: cursor, toBlock: chunkTo,
+        }, report));
+        if (chunkTo < toBlock) await pause();
+      }
     }
+  } catch {
+    report(JSON.stringify({
+      event: "AUTOMATION_V3_DISCOVERY_INDEX_FALLBACK",
+      reason: "LOGS_UNAVAILABLE",
+    }));
+    return indexedActiveSeaDropCollections(database, nowSeconds);
   }
   const latest = new Map();
   for (const log of logs) {
@@ -753,27 +815,7 @@ export async function incrementalSeaDropCollections(
   } catch (error) {
     throw discoveryStageError("DISCOVERY_INDEX_WRITE_FAILED", error);
   }
-  const nowSeconds = Math.floor((dependencies.nowMs ?? Date.now()) / 1_000);
-  let active;
-  try {
-    active = await database.query(
-      `SELECT collection_address
-         FROM broker_seadrop_public_drops
-        WHERE chain_id = $1
-          AND mint_price_wei = 0
-          AND start_time <= $2
-          AND end_time >= $2
-          AND max_total_mintable_by_wallet > 0
-        ORDER BY update_block_number DESC, collection_address
-        LIMIT $3`,
-      [4663, String(nowSeconds), DISCOVERY_COLLECTION_LIMIT],
-    );
-  } catch (error) {
-    throw discoveryStageError("DISCOVERY_INDEX_READ_FAILED", error);
-  }
-  return Object.freeze((active.rows ?? []).map(({ collection_address: value }) => (
-    getAddress(value).toLowerCase()
-  )));
+  return indexedActiveSeaDropCollections(database, nowSeconds);
 }
 
 function configuredCollectionList(environment, name, label) {
@@ -1436,12 +1478,9 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
       const affectedTokenIds = workerFailureProfileTokenIds(
         currentDiagnostics, transactionSubmitted ? submittedTokenId : null,
       );
-      for (const tokenId of affectedTokenIds) {
-        recordProfileOutcome(
-          currentDiagnostics, tokenId, "ERROR", code,
-          tokenId === submittedTokenId ? submittedAccount : null,
-        );
-      }
+      recordWorkerFailureProfileOutcomes(currentDiagnostics, code, {
+        affectedTokenIds, submittedTokenId, submittedAccount,
+      });
       error.diagnostics = currentDiagnostics;
       if (submittedTransactionHash !== null) error.transactionHash = submittedTransactionHash;
       if (submittedTokenId !== null) error.tokenId = submittedTokenId;
@@ -1463,4 +1502,21 @@ export function workerFailureProfileTokenIds(diagnostics, submittedTokenId = nul
     throw new TypeError("submitted Punk was not in the scheduled worker batch");
   }
   return [selected];
+}
+
+export function recordWorkerFailureProfileOutcomes(diagnostics, code, options = {}) {
+  const affectedTokenIds = options.affectedTokenIds
+    ?? workerFailureProfileTokenIds(diagnostics, options.submittedTokenId ?? null);
+  const submittedTokenId = options.submittedTokenId ?? null;
+  const submittedAccount = options.submittedAccount ?? null;
+  const platformDelay = isAutomationV3PlatformDelay(code);
+  for (const tokenId of affectedTokenIds) {
+    recordProfileOutcome(
+      diagnostics, tokenId,
+      platformDelay ? "QUEUED" : "ERROR",
+      platformDelay ? "WAITING_FOR_PLATFORM_RECOVERY" : code,
+      tokenId === submittedTokenId ? submittedAccount : null,
+    );
+  }
+  return diagnostics;
 }

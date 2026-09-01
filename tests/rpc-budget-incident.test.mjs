@@ -147,7 +147,7 @@ test("incident controls keep chain-wide portfolio scans opt-in and defer global 
   ]);
   assert.match(mintIndexer, /BROKER_ENABLE_CHAIN_WIDE_NFT_INDEXER/);
   assert.ok(worker.indexOf("if (candidates.length === 0)")
-    < worker.indexOf('"GLOBAL_STATE_READ_FAILED"'));
+    < worker.indexOf('const global = await workerStage(\n    "GLOBAL_STATE_READ_FAILED"'));
   assert.doesNotMatch(ownerUi, /void reconcileOwnerRoster\(/);
   assert.doesNotMatch(statusUi, /new URLSearchParams\(\{ refresh:/);
   assert.doesNotMatch(statusUi, /autonomy-v\$\{version\}-status\$\{query\}[\s\S]{0,160}cache: "no-store"/);

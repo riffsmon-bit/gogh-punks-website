@@ -507,6 +507,7 @@ function renderAutomation() {
   const visual = authorizationActive ? agentVisualState(heartbeat, true) : "INACTIVE";
   const punkSpecificFailure = visual === "NEEDS_ATTENTION"
     && !new Set(["FAILED", "WORKER_RUN_FAILED", "DISCOVERY_SCAN_FAILED",
+      "DISCOVERY_RPC_UNAVAILABLE", "GLOBAL_V3_GATE_CLOSED",
       "PROFILE_STATE_READ_FAILED", "PROVIDER_OWNER_DISAGREEMENT"]).has(
       String(heartbeat?.status ?? heartbeat?.reason ?? ""),
     );
@@ -562,6 +563,9 @@ function punkWorkerMessage(event) {
     NO_ELIGIBLE_TARGETS: "Scan complete — no mint passed every contract and policy check.",
     NO_ACTIVE_CANDIDATES: "Scan complete — no active mint candidate was available.",
     WAITING_FOR_WORKER_CAPACITY: "This Punk is enrolled and waiting in the worker rotation.",
+    WAITING_FOR_PLATFORM_RECOVERY: "This Punk stays activated while the hosted worker recovers.",
+    DISCOVERY_RPC_UNAVAILABLE: "Mint discovery is temporarily delayed. This Punk stays activated.",
+    GLOBAL_V3_GATE_CLOSED: "The hosted worker paused safely. This Punk stays activated.",
     MINT_CONFIRMED: "Mint successful. The NFT was sent to this Punk Wallet.",
     ELIGIBLE_SIMULATION_PASSED: "A candidate passed simulation without being submitted.",
     PROFILE_STATE_READ_FAILED: "The live Punk state check failed safely.",
