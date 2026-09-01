@@ -259,11 +259,17 @@ function renderPrepaidAgentGas() {
   setText("[data-prepaid-agent-credited]", status?.creditedWei != null
     ? formatNative(status.creditedWei) : "Not loaded");
   setText("[data-prepaid-agent-spent]", status?.meteringAvailable
-    ? formatNative(status.actualGasSpentWei ?? "0") : "Metering migration pending");
+    ? formatNative(status.actualGasSpentWei ?? "0") : "Receipt metering unavailable");
   setText("[data-prepaid-agent-spent-today]", status?.meteringAvailable
-    ? formatNative(status.actualGasSpentTodayWei ?? "0") : "Not yet metered");
+    ? formatNative(status.actualGasSpentTodayWei ?? "0") : "Receipt metering unavailable");
   setText("[data-summary-spent]", status?.meteringAvailable
-    ? formatNative(status.actualGasSpentTodayWei ?? "0") : "Not yet metered");
+    ? formatNative(status.actualGasSpentTodayWei ?? "0") : "Receipt metering unavailable");
+  const meteringNote = query("[data-prepaid-agent-metering-note]");
+  if (meteringNote) {
+    meteringNote.textContent = status?.meteringAvailable
+      ? "Receipt metering is active. Values include confirmed priority-agent transaction receipts recorded since the metering rollout; earlier mints are not estimated."
+      : "Receipt metering is temporarily unavailable. No estimated gas amount is presented as actual usage.";
+  }
   setText("[data-prepaid-agent-recipient]", status?.agent
     ? formatAddress(status.agent) : "Fixed hosted signer not loaded");
   setText("[data-prepaid-agent-payer]", state.walletAccount
@@ -908,6 +914,7 @@ async function activateArtBroker() {
     days: query("[data-control-activation-days]").value });
   state.activationBusy = true;
   state.activationMessage = "Preparing a live-checked activation plan for this Punk…";
+  let onchainActivationConfirmed = false;
   renderActivation();
   try {
     await verifyCurrentOwner();
@@ -925,7 +932,23 @@ async function activateArtBroker() {
       },
     });
     if (!isCurrent()) throw new Error("The selected wallet or Punk changed after activation");
-    state.activationMessage = "On-chain settings confirmed. Enrolling the agent and requesting its next scan…";
+    onchainActivationConfirmed = true;
+    state.activationMessage = "On-chain settings confirmed. Sign one free message to place this Punk in the worker rotation…";
+    renderActivation();
+    const scheduleStart = new Date();
+    const authorizationEnd = new Date(Number(artifact.limits.authorizationValidUntil) * 1_000);
+    const scheduleEnd = Number.isFinite(authorizationEnd.getTime())
+      ? authorizationEnd : new Date(scheduleStart.getTime() + Number(selection.days) * 86_400_000);
+    await saveSignedScoutingSchedule({
+      schema: "GOGH_SCOUTING_SCHEDULE_V1", tokenId,
+      startAt: scheduleStart.toISOString(), endAt: scheduleEnd.toISOString(),
+      timezone: "UTC", enabled: true,
+    }, {
+      expectedAccount: owner, expectedTokenId: tokenId,
+      onStatus(message) { state.activationMessage = message; renderActivation(); },
+    });
+    if (!isCurrent()) throw new Error("The selected wallet or Punk changed after scheduling");
+    state.activationMessage = "Rotation confirmed. Enrolling the agent and requesting its next scan…";
     renderActivation();
     const response = await fetch("/api/broker/autonomy-v3-run", {
       method: "POST", headers: { accept: "application/json", "content-type": "application/json" },
@@ -944,7 +967,9 @@ async function activateArtBroker() {
     state.activationDraftDirty = false;
     await loadAutomation();
   } catch (error) {
-    state.activationMessage = `${error?.message ?? "Activation stopped safely"}. No further transaction was submitted.`;
+    state.activationMessage = onchainActivationConfirmed
+      ? `Art Broker activation is confirmed on-chain, but its worker rotation was not enabled: ${error?.message ?? "the schedule could not be saved"}. Open Agent and save a scouting schedule to resume; no authorization was lost.`
+      : `${error?.message ?? "Activation stopped safely"}. No further transaction was submitted.`;
   } finally {
     state.activationBusy = false;
     renderActivation();
@@ -2005,40 +2030,47 @@ async function saveScoutingSchedule() {
       applyScoutingSchedule(payload.schedule);
       return;
     }
-    const expectedAccount = state.walletAccount;
-    const expectedTokenId = state.tokenId;
-    setText("[data-schedule-state]", "Preparing a free owner signature for this exact UTC window…");
-    const preparedResponse = await fetch("/api/broker/scouting-schedule", {
-      method: "POST", headers: { accept: "application/json", "content-type": "application/json" },
-      body: JSON.stringify({ action: "prepare", walletAddress: expectedAccount, schedule }),
-    });
-    const prepared = await preparedResponse.json().catch(() => null);
-    if (!preparedResponse.ok || prepared?.ok !== true) {
-      throw new Error(prepared?.message ?? "The schedule could not be prepared");
-    }
-    const signature = await state.provider.request({ method: "personal_sign",
-      params: [prepared.message, expectedAccount] });
-    const [accounts, chainRaw] = await Promise.all([
-      state.provider.request({ method: "eth_accounts" }),
-      state.provider.request({ method: "eth_chainId" }),
-    ]);
-    if (!Array.isArray(accounts) || accounts[0]?.toLowerCase() !== expectedAccount
-      || Number.parseInt(chainRaw, 16) !== CHAIN_ID || state.tokenId !== expectedTokenId) {
-      throw new Error("Wallet account, network, or selected Punk changed before saving");
-    }
-    const completeResponse = await fetch("/api/broker/scouting-schedule", {
-      method: "POST", headers: { accept: "application/json", "content-type": "application/json" },
-      body: JSON.stringify({ action: "complete", challengeId: prepared.challengeId,
-        walletAddress: expectedAccount, signature }),
-    });
-    const completed = await completeResponse.json().catch(() => null);
-    if (!completeResponse.ok || completed?.ok !== true) {
-      throw new Error(completed?.message ?? "The schedule could not be saved");
-    }
-    applyScoutingSchedule(completed.schedule);
+    await saveSignedScoutingSchedule(schedule);
   } catch (error) {
     setText("[data-schedule-state]", `${error.message}. No schedule was saved.`);
   }
+}
+
+async function saveSignedScoutingSchedule(schedule, options = {}) {
+  const expectedAccount = options.expectedAccount ?? state.walletAccount;
+  const expectedTokenId = options.expectedTokenId ?? state.tokenId;
+  const announce = options.onStatus ?? ((message) => setText("[data-schedule-state]", message));
+  announce("Preparing a free owner signature for this exact UTC worker window…");
+  const preparedResponse = await fetch("/api/broker/scouting-schedule", {
+    method: "POST", headers: { accept: "application/json", "content-type": "application/json" },
+    body: JSON.stringify({ action: "prepare", walletAddress: expectedAccount, schedule }),
+  });
+  const prepared = await preparedResponse.json().catch(() => null);
+  if (!preparedResponse.ok || prepared?.ok !== true) {
+    throw new Error(prepared?.message ?? "The schedule could not be prepared");
+  }
+  const signature = await state.provider.request({ method: "personal_sign",
+    params: [prepared.message, expectedAccount] });
+  const [accounts, chainRaw] = await Promise.all([
+    state.provider.request({ method: "eth_accounts" }),
+    state.provider.request({ method: "eth_chainId" }),
+  ]);
+  if (!Array.isArray(accounts) || accounts[0]?.toLowerCase() !== expectedAccount
+    || Number.parseInt(chainRaw, 16) !== CHAIN_ID || state.tokenId !== expectedTokenId) {
+    throw new Error("Wallet account, network, or selected Punk changed before saving");
+  }
+  announce("Owner signature received. Saving this Punk's worker rotation…");
+  const completeResponse = await fetch("/api/broker/scouting-schedule", {
+    method: "POST", headers: { accept: "application/json", "content-type": "application/json" },
+    body: JSON.stringify({ action: "complete", challengeId: prepared.challengeId,
+      walletAddress: expectedAccount, signature }),
+  });
+  const completed = await completeResponse.json().catch(() => null);
+  if (!completeResponse.ok || completed?.ok !== true) {
+    throw new Error(completed?.message ?? "The schedule could not be saved");
+  }
+  applyScoutingSchedule(completed.schedule);
+  return completed.schedule;
 }
 
 async function applyWallet(wallet) {
