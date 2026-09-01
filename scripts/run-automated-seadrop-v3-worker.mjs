@@ -598,6 +598,39 @@ function validDiscoveryDatabase(value) {
   return value && typeof value.query === "function";
 }
 
+function discoveryStageError(code, cause) {
+  const error = new Error(code, { cause });
+  error.code = code;
+  return error;
+}
+
+async function discoveryRpcRead(
+  primary, fallback, method, request, report = console.error,
+) {
+  try {
+    return request === undefined
+      ? await primary[method]() : await primary[method](request);
+  } catch (primaryError) {
+    if (!fallback || typeof fallback[method] !== "function" || fallback === primary) {
+      throw discoveryStageError("DISCOVERY_RPC_UNAVAILABLE", primaryError);
+    }
+    try {
+      const value = request === undefined
+        ? await fallback[method]() : await fallback[method](request);
+      report(JSON.stringify({
+        event: "AUTOMATION_V3_DISCOVERY_RPC_FALLBACK",
+        method: method === "getLogs" ? "LOGS" : "HEAD",
+      }));
+      return value;
+    } catch (fallbackError) {
+      throw discoveryStageError(
+        "DISCOVERY_RPC_UNAVAILABLE",
+        new AggregateError([primaryError, fallbackError], "both discovery providers failed"),
+      );
+    }
+  }
+}
+
 export async function incrementalSeaDropCollections(
   client, database, confirmations = 20n, dependencies = {},
 ) {
@@ -607,14 +640,23 @@ export async function incrementalSeaDropCollections(
     throw error;
   }
   const pause = dependencies.pause ?? discoveryDelay;
-  const head = await client.getBlockNumber();
-  const confirmedBlock = head > confirmations ? head - confirmations : 0n;
-  const checkpointResult = await database.query(
-    `SELECT indexed_through_block::text AS indexed_through_block
-       FROM broker_seadrop_discovery_state
-      WHERE chain_id = $1`,
-    [4663],
+  const report = dependencies.report ?? console.error;
+  const fallbackClient = dependencies.fallbackClient;
+  const head = await discoveryRpcRead(
+    client, fallbackClient, "getBlockNumber", undefined, report,
   );
+  const confirmedBlock = head > confirmations ? head - confirmations : 0n;
+  let checkpointResult;
+  try {
+    checkpointResult = await database.query(
+      `SELECT indexed_through_block::text AS indexed_through_block
+         FROM broker_seadrop_discovery_state
+        WHERE chain_id = $1`,
+      [4663],
+    );
+  } catch (error) {
+    throw discoveryStageError("DISCOVERY_INDEX_READ_FAILED", error);
+  }
   const checkpointValue = checkpointResult.rows?.[0]?.indexed_through_block;
   const checkpoint = typeof checkpointValue === "string" && /^(?:0|[1-9][0-9]*)$/.test(checkpointValue)
     ? BigInt(checkpointValue) : null;
@@ -631,10 +673,10 @@ export async function incrementalSeaDropCollections(
     for (let cursor = fromBlock; cursor <= toBlock; cursor += DISCOVERY_LOG_CHUNK_SIZE) {
       const chunkTo = cursor + DISCOVERY_LOG_CHUNK_SIZE - 1n < toBlock
         ? cursor + DISCOVERY_LOG_CHUNK_SIZE - 1n : toBlock;
-      logs.push(...await client.getLogs({
+      logs.push(...await discoveryRpcRead(client, fallbackClient, "getLogs", {
         address: getAddress(SEA_DROP), event: PUBLIC_DROP_UPDATED_EVENT,
         fromBlock: cursor, toBlock: chunkTo,
-      }));
+      }, report));
       if (chunkTo < toBlock) await pause();
     }
   }
@@ -657,8 +699,9 @@ export async function incrementalSeaDropCollections(
     }
   }
   const updates = [...latest.values()];
-  await database.query(
-    `WITH updates AS (
+  try {
+    await database.query(
+      `WITH updates AS (
        SELECT * FROM UNNEST(
          $2::text[], $3::numeric[], $4::numeric[], $5::numeric[], $6::integer[],
          $7::numeric[], $8::text[], $9::text[]
@@ -705,21 +748,29 @@ export async function incrementalSeaDropCollections(
       updates.map((item) => item.blockHash),
       updates.map((item) => item.transactionHash),
       toBlock.toString(),
-    ],
-  );
+      ],
+    );
+  } catch (error) {
+    throw discoveryStageError("DISCOVERY_INDEX_WRITE_FAILED", error);
+  }
   const nowSeconds = Math.floor((dependencies.nowMs ?? Date.now()) / 1_000);
-  const active = await database.query(
-    `SELECT collection_address
-       FROM broker_seadrop_public_drops
-      WHERE chain_id = $1
-        AND mint_price_wei = 0
-        AND start_time <= $2
-        AND end_time >= $2
-        AND max_total_mintable_by_wallet > 0
-      ORDER BY update_block_number DESC, collection_address
-      LIMIT $3`,
-    [4663, String(nowSeconds), DISCOVERY_COLLECTION_LIMIT],
-  );
+  let active;
+  try {
+    active = await database.query(
+      `SELECT collection_address
+         FROM broker_seadrop_public_drops
+        WHERE chain_id = $1
+          AND mint_price_wei = 0
+          AND start_time <= $2
+          AND end_time >= $2
+          AND max_total_mintable_by_wallet > 0
+        ORDER BY update_block_number DESC, collection_address
+        LIMIT $3`,
+      [4663, String(nowSeconds), DISCOVERY_COLLECTION_LIMIT],
+    );
+  } catch (error) {
+    throw discoveryStageError("DISCOVERY_INDEX_READ_FAILED", error);
+  }
   return Object.freeze((active.rows ?? []).map(({ collection_address: value }) => (
     getAddress(value).toLowerCase()
   )));
@@ -985,6 +1036,8 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   const primary = dependencies.primary ?? readClient(primaryUrl, abortSignal);
   const secondary = dependencies.secondary ?? readClient(secondaryUrl, abortSignal);
   const discovery = dependencies.discovery ?? discoveryClient(primaryUrl, abortSignal);
+  const discoveryFallback = dependencies.discoveryFallback
+    ?? discoveryClient(secondaryUrl, abortSignal);
   const database = dependencies.database ?? getDatabase().pool;
   const requestedTokenId = dependencies.requestedTokenId ?? null;
   const configuredTokenIds = configuredAutomationV3PunkIds(environment);
@@ -1018,7 +1071,10 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   const discoveredCollections = directedCollections === null
     ? await workerStage(
       "DISCOVERY_SCAN_FAILED",
-      () => incrementalSeaDropCollections(discovery, database),
+      () => incrementalSeaDropCollections(discovery, database, 20n, {
+        fallbackClient: discoveryFallback,
+        report: dependencies.report,
+      }),
     ) : [];
   if (budgetExpired()) return budgetResult();
   const collections = directedCollections
