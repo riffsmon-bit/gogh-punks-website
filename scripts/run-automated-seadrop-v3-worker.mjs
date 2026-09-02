@@ -14,8 +14,13 @@ import {
   attestAutomatedSeaDropV3CandidateLive, attestOwnerPaidSeaDropV3CandidateLive,
 } from
   "../broker/src/discovery/automated-seadrop-v3-live-screen.mjs";
+import { attestAutomatedScatterV3CandidateLive } from
+  "../broker/src/discovery/automated-scatter-v3-live-screen.mjs";
 import { buildAutomatedSeaDropV3ExecutionBatch } from
   "../broker/src/recommendation/automated-seadrop-v3-execution-batch.mjs";
+import {
+  buildAutomatedScatterV3Execution, configuredScatterTargets, SCATTER_MINT_SELECTOR,
+} from "../broker/src/recommendation/automated-scatter-v3-execution.mjs";
 import { buildOwnerPaidSeaDropV3Execution } from
   "../broker/src/recommendation/owner-paid-seadrop-v3-execution.mjs";
 import {
@@ -157,8 +162,50 @@ export function socialCandidateValidationLimit(environment = {}) {
   return Math.min(Number(raw), AUTOMATION_V3_CANDIDATE_BATCH_SIZE);
 }
 
+export function selectAutomationV3RouteCandidates(
+  scatterTargets, seaDropCandidates, rotationBucket = 0,
+) {
+  if (!Array.isArray(scatterTargets) || !Array.isArray(seaDropCandidates)
+    || !Number.isSafeInteger(rotationBucket) || rotationBucket < 0
+    || scatterTargets.some((target) => !target || typeof target.collection !== "string")
+    || seaDropCandidates.some((collection) => typeof collection !== "string")) {
+    throw new TypeError("invalid V3 route candidates");
+  }
+  const scatterOffset = scatterTargets.length === 0
+    ? 0 : rotationBucket % scatterTargets.length;
+  const rotatedScatterTargets = [
+    ...scatterTargets.slice(scatterOffset), ...scatterTargets.slice(0, scatterOffset),
+  ];
+  const scatterQuota = seaDropCandidates.length === 0
+    ? AUTOMATION_V3_CANDIDATE_BATCH_SIZE
+    : Math.min(2, rotatedScatterTargets.length);
+  return Object.freeze([
+    ...rotatedScatterTargets.slice(0, scatterQuota).map((target) => Object.freeze({
+      kind: "SCATTER", collection: target.collection, target,
+    })),
+    ...seaDropCandidates.slice(0, AUTOMATION_V3_CANDIDATE_BATCH_SIZE - scatterQuota)
+      .map((collection) => Object.freeze({ kind: "SEADROP", collection, target: null })),
+  ]);
+}
+
 function discoveryDelay() {
   return new Promise((resolve) => setTimeout(resolve, DISCOVERY_BATCH_DELAY_MS));
+}
+
+function globalGateRetryDelay() {
+  return new Promise((resolve) => setTimeout(resolve, 1_000));
+}
+
+export async function confirmedAutomationV3GlobalState(
+  readState, pause = globalGateRetryDelay,
+) {
+  if (typeof readState !== "function" || typeof pause !== "function") {
+    throw new TypeError("invalid V3 global gate reader");
+  }
+  const first = await readState();
+  if (first?.configured === true && first?.worker?.enabled === true) return first;
+  await pause();
+  return readState();
 }
 
 function boundedWorkerCode(value) {
@@ -196,6 +243,18 @@ function readFacade(raw, url) {
   });
 }
 
+function scatterReadFacade(raw, url) {
+  return Object.freeze({
+    transport: Object.freeze({ url: new URL(url).href }),
+    getBlockNumber: raw.getBlockNumber.bind(raw),
+    getBlock: raw.getBlock.bind(raw),
+    getCode: raw.getCode.bind(raw),
+    readContract: raw.readContract.bind(raw),
+    call: raw.call.bind(raw),
+    estimateGas: raw.estimateGas.bind(raw),
+  });
+}
+
 function jsonEqual(left, right) {
   const encode = (value) => JSON.stringify(value, (_, item) => typeof item === "bigint" ? item.toString() : item);
   return encode(left) === encode(right);
@@ -207,10 +266,13 @@ function field(value, name, index) {
   return selected;
 }
 
-async function accountState(client, blockNumber, account, agent) {
+async function accountState(client, blockNumber, account, agent, route = {}) {
   const policyAddress = getAddress(manifest.contracts.BrokerPolicyModuleV3.address);
   const agentRegistry = getAddress(coreManifest.contracts.ArtAgentRegistry.address);
-  const adapter = getAddress(manifest.contracts.AutomatedSeaDropStudioFreeMintAdapter.address);
+  const adapter = getAddress(route.adapter
+    ?? manifest.contracts.AutomatedSeaDropStudioFreeMintAdapter.address);
+  const venue = getAddress(route.venue ?? SEA_DROP);
+  const selector = route.selector ?? SEA_DROP_MINT_PUBLIC_SELECTOR;
   const request = (functionName, args = []) => client.readContract({ address: policyAddress, abi: POLICY_ABI, functionName, args, blockNumber });
   const [owner, nonce, policy, usage, flags, authorized, adapterAllowed, venueAllowed,
     selectorAllowed, currency, venueMaximum, controls, balance, block] = await Promise.all([
@@ -218,9 +280,9 @@ async function accountState(client, blockNumber, account, agent) {
     client.readContract({ address: account, abi: ACCOUNT_ABI, functionName: "acquisitionNonce", blockNumber }),
     request("policy", [account]), request("acquisitionUsage", [account]), request("featureFlags"),
     client.readContract({ address: agentRegistry, abi: AGENT_ABI, functionName: "isAuthorized", args: [account, agent], blockNumber }),
-    request("approvedAdapters", [account, adapter]), request("approvedMintContracts", [account, getAddress(SEA_DROP)]),
-    request("approvedSelectors", [account, SEA_DROP_MINT_PUBLIC_SELECTOR]), request("currencyPolicy", [account, NATIVE_CURRENCY]),
-    request("venueCurrencyMaximum", [account, getAddress(SEA_DROP), NATIVE_CURRENCY]), request("mintControls", [account]),
+    request("approvedAdapters", [account, adapter]), request("approvedMintContracts", [account, venue]),
+    request("approvedSelectors", [account, selector]), request("currencyPolicy", [account, NATIVE_CURRENCY]),
+    request("venueCurrencyMaximum", [account, venue, NATIVE_CURRENCY]), request("mintControls", [account]),
     client.getBalance({ address: agent, blockNumber }), client.getBlock({ blockNumber }),
   ]);
   return { owner, nonce, policy, usage, flags, authorized, adapterAllowed, venueAllowed,
@@ -235,6 +297,7 @@ function rejectionDiagnostics(profiles, collections, candidates) {
     profileOutcomes: [],
     recentSeaDropCollections: collections.length,
     onchainZeroPriceCandidates: candidates.length,
+    configuredScatterTargets: 0,
     missingActivatedAccounts: 0,
     liveScreenRejections: {},
     executionSimulationRejections: {},
@@ -1104,20 +1167,32 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   currentDiagnostics.scheduledProfileBatch = profiles.length;
   currentDiagnostics.operatorConfiguredPunks = configuredTokenIds.length;
   if (budgetExpired()) return budgetResult();
+  const scatterTargets = configuredScatterTargets(environment);
+  currentDiagnostics.configuredScatterTargets = scatterTargets.length;
   // A reviewed operator may temporarily constrain discovery to a small exact set.
   // This does not bypass any runtime, public-drop, dual-provider, policy, or simulation
   // gate below; it only prevents another eligible collection from consuming the Punk's
   // daily slot before a specifically selected launch.
   const directedCollections = configuredSeaDropCollections(environment);
   const priorityCollections = configuredPrioritySeaDropCollections(environment) ?? [];
-  const discoveredCollections = directedCollections === null
-    ? await workerStage(
-      "DISCOVERY_SCAN_FAILED",
-      () => incrementalSeaDropCollections(discovery, database, 20n, {
-        fallbackClient: discoveryFallback,
-        report: dependencies.report,
-      }),
-    ) : [];
+  let discoveredCollections = [];
+  if (directedCollections === null) {
+    try {
+      discoveredCollections = await workerStage(
+        "DISCOVERY_SCAN_FAILED",
+        () => incrementalSeaDropCollections(discovery, database, 20n, {
+          fallbackClient: discoveryFallback,
+          report: dependencies.report,
+        }),
+      );
+    } catch (error) {
+      if (scatterTargets.length === 0) throw error;
+      dependencies.report?.(JSON.stringify({
+        event: "SEADROP_DISCOVERY_DEFERRED_SCATTER_REMAINS_AVAILABLE",
+        code: boundedWorkerCode(error?.code) ?? "DISCOVERY_SCAN_FAILED",
+      }));
+    }
+  }
   if (budgetExpired()) return budgetResult();
   const collections = directedCollections
     ?? mergePrioritySeaDropCollections(priorityCollections, discoveredCollections);
@@ -1128,10 +1203,19 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   // smaller active set to the canonical endpoint for runtime classification. This
   // avoids exhausting either provider's per-second allowance. Every selected target
   // is still independently re-read and simulated by both clients before submission.
-  const analyzedCandidates = await workerStage(
-    "CANDIDATE_PREFILTER_FAILED",
-    () => activeZeroPriceSeaDropCollections(secondary, primary, collections),
-  );
+  let analyzedCandidates = [];
+  try {
+    analyzedCandidates = await workerStage(
+      "CANDIDATE_PREFILTER_FAILED",
+      () => activeZeroPriceSeaDropCollections(secondary, primary, collections),
+    );
+  } catch (error) {
+    if (scatterTargets.length === 0) throw error;
+    dependencies.report?.(JSON.stringify({
+      event: "SEADROP_PREFILTER_DEFERRED_SCATTER_REMAINS_AVAILABLE",
+      code: boundedWorkerCode(error?.code) ?? "CANDIDATE_PREFILTER_FAILED",
+    }));
+  }
   if (budgetExpired()) return budgetResult();
   const maximumSocialCandidates = socialCandidateValidationLimit(environment);
   const operatorPriorities = new Set([...(directedCollections ?? []), ...priorityCollections]);
@@ -1156,13 +1240,17 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
     : socialPool.slice(0, maximumSocialCandidates);
   const candidates = [...new Set([...exactPriorityCandidates, ...sociallySelected])]
     .slice(0, AUTOMATION_V3_CANDIDATE_BATCH_SIZE);
-  if (candidates.length === 0) {
-    const diagnostics = rejectionDiagnostics(profiles, collections, candidates);
+  const routeCandidates = selectAutomationV3RouteCandidates(
+    scatterTargets, candidates, Math.floor(startedAtMs / 300_000),
+  );
+  if (routeCandidates.length === 0) {
+    const diagnostics = rejectionDiagnostics(profiles, collections, routeCandidates);
     diagnostics.totalEligibleProfiles = orderedProfiles.length;
     diagnostics.scheduledProfileBatch = profiles.length;
     diagnostics.analyzedCandidateBatch = 0;
     diagnostics.directedTargetCollections = directedCollections?.length ?? 0;
     diagnostics.priorityTargetCollections = priorityCollections.length;
+    diagnostics.configuredScatterTargets = scatterTargets.length;
     diagnostics.operatorConfiguredPunks = configuredTokenIds.length;
     diagnostics.socialRanking = socialRanking?.diagnostics ?? {
       discovered: socialPool.length, withWebsite: 0, withX: 0, highPriority: 0,
@@ -1179,20 +1267,26 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   // scan with no candidate no longer spends RPC budget re-proving unchanged global state.
   const global = await workerStage(
     "GLOBAL_STATE_READ_FAILED",
-    () => readAutomationV3GlobalState(environment, { clients: [primary, secondary] }),
+    () => confirmedAutomationV3GlobalState(
+      () => (dependencies.readGlobalState ?? readAutomationV3GlobalState)(
+        environment, { clients: [primary, secondary] },
+      ),
+      dependencies.globalGatePause,
+    ),
   );
   if (!global.configured || !global.worker.enabled) {
     const error = new TypeError("GLOBAL_V3_GATE_CLOSED");
     error.code = "GLOBAL_V3_GATE_CLOSED";
     throw error;
   }
-  const diagnostics = rejectionDiagnostics(profiles, collections, candidates);
+  const diagnostics = rejectionDiagnostics(profiles, collections, routeCandidates);
   currentDiagnostics = diagnostics;
   diagnostics.totalEligibleProfiles = orderedProfiles.length;
   diagnostics.scheduledProfileBatch = profiles.length;
-  diagnostics.analyzedCandidateBatch = candidates.length;
+  diagnostics.analyzedCandidateBatch = routeCandidates.length;
   diagnostics.directedTargetCollections = directedCollections?.length ?? 0;
   diagnostics.priorityTargetCollections = priorityCollections.length;
+  diagnostics.configuredScatterTargets = scatterTargets.length;
   diagnostics.socialRanking = socialRanking?.diagnostics ?? {
     discovered: socialPool.length,
     withWebsite: 0,
@@ -1251,7 +1345,9 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
       continue;
     }
     diagnostics.priorityStateReadFailures += priorityState.readFailures;
-    for (const collection of candidates) {
+    for (const routeCandidate of routeCandidates) {
+      const { collection } = routeCandidate;
+      const scatterTarget = routeCandidate.kind === "SCATTER" ? routeCandidate.target : null;
       if (budgetExpired()) return budgetResult();
       diagnostics.candidateStateReadAttempts += 1;
       let latestNonce;
@@ -1272,27 +1368,54 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
       }
       const nowSeconds = Math.floor(Date.now() / 1_000);
       const intentWindow = confirmedIntentWindow(nowSeconds);
+      const candidatePrefix = scatterTarget === null
+        ? "canonical-live-seadrop" : "canonical-live-scatter";
+      const reasoningPrefix = scatterTarget === null
+        ? "reviewed-studio-active-zero-price" : "reviewed-scatter-public-zero-price";
       const candidate = {
         collection,
-        opportunityId: keccak256(stringToHex(`canonical-live-seadrop:${collection}`)),
-        reasoningHash: keccak256(stringToHex(`reviewed-studio-active-zero-price:${collection}`)),
+        opportunityId: keccak256(stringToHex(`${candidatePrefix}:${collection}`)),
+        reasoningHash: keccak256(stringToHex(`${reasoningPrefix}:${collection}`)),
         contractRiskScore: 100, tasteMatch: 0,
         metadataSanitized: true, analysisComplete: true,
       };
+      const commonScope = {
+        account: accountAddress, agent, expectedOwner,
+        nonce: BigInt(latestNonce).toString(),
+        policyVersion: BigInt(field(latestPolicy, "version", 2)).toString(),
+        createdAt: String(intentWindow.createdAt), expiresAt: String(intentWindow.expiresAt),
+      };
       const scope = {
-        account: accountAddress, agent, expectedOwner, policyModule,
+        ...commonScope, policyModule,
         adapter: manifest.contracts.AutomatedSeaDropStudioFreeMintAdapter.address,
         adapterCodeHash: manifest.contracts.AutomatedSeaDropStudioFreeMintAdapter.runtimeBytecodeHash,
-        nonce: BigInt(latestNonce).toString(), policyVersion: BigInt(field(latestPolicy, "version", 2)).toString(),
-        createdAt: String(intentWindow.createdAt), expiresAt: String(intentWindow.expiresAt),
       };
       let screen;
       try {
-        const attest = ownerPaidPlan
-          ? attestOwnerPaidSeaDropV3CandidateLive : attestAutomatedSeaDropV3CandidateLive;
-        screen = await attest(candidate, scope,
-          { primaryUrl, secondaryUrl }, { confirmations: 20, maximumEvidenceAgeSeconds: 30 },
-          { primary: readFacade(primary, primaryUrl), secondary: readFacade(secondary, secondaryUrl) });
+        if (scatterTarget !== null) {
+          if (ownerPaidPlan) {
+            const error = new TypeError("SCATTER_OWNER_PAID_UNSUPPORTED");
+            error.code = "SCATTER_OWNER_PAID_UNSUPPORTED";
+            throw error;
+          }
+          screen = await attestAutomatedScatterV3CandidateLive(
+            scatterTarget,
+            { ...commonScope, opportunityId: candidate.opportunityId,
+              reasoningHash: candidate.reasoningHash },
+            { primaryUrl, secondaryUrl },
+            { confirmations: 20, maximumEvidenceAgeSeconds: 30 },
+            {
+              primary: scatterReadFacade(primary, primaryUrl),
+              secondary: scatterReadFacade(secondary, secondaryUrl),
+            },
+          );
+        } else {
+          const attest = ownerPaidPlan
+            ? attestOwnerPaidSeaDropV3CandidateLive : attestAutomatedSeaDropV3CandidateLive;
+          screen = await attest(candidate, scope,
+            { primaryUrl, secondaryUrl }, { confirmations: 20, maximumEvidenceAgeSeconds: 30 },
+            { primary: readFacade(primary, primaryUrl), secondary: readFacade(secondary, secondaryUrl) });
+        }
       } catch (error) {
         if (budgetExpired()) return budgetResult();
         recordLiveScreenRejection(diagnostics, error);
@@ -1301,10 +1424,15 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
       const pinned = BigInt(screen.pinnedBlock.number);
       let first;
       let second;
+      const route = scatterTarget === null ? {} : {
+        adapter: scatterTarget.adapter,
+        venue: scatterTarget.collection,
+        selector: SCATTER_MINT_SELECTOR,
+      };
       try {
         [first, second] = await Promise.all([
-          accountState(primary, pinned, accountAddress, agent),
-          accountState(secondary, pinned, accountAddress, agent),
+          accountState(primary, pinned, accountAddress, agent, route),
+          accountState(secondary, pinned, accountAddress, agent, route),
         ]);
       } catch {
         if (budgetExpired()) return budgetResult();
@@ -1351,7 +1479,25 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
       let tx;
       let ownerExecution = null;
       try {
-        if (ownerPaidPlan) {
+        if (scatterTarget !== null) {
+          tx = buildAutomatedScatterV3Execution({
+            target: scatterTarget,
+            account: accountAddress,
+            agent,
+            expectedOwner,
+            nonce: commonScope.nonce,
+            policyVersion: commonScope.policyVersion,
+            tokenId: screen.tokenId,
+            createdAt: commonScope.createdAt,
+            expiresAt: commonScope.expiresAt,
+            opportunityId: candidate.opportunityId,
+            reasoningHash: candidate.reasoningHash,
+          });
+          await Promise.all([
+            primary.call({ account: agent, to: getAddress(tx.to), data: tx.data, value: 0n }),
+            secondary.call({ account: agent, to: getAddress(tx.to), data: tx.data, value: 0n }),
+          ]);
+        } else if (ownerPaidPlan) {
           ownerExecution = buildOwnerPaidSeaDropV3Execution(
             profile, liveState(profile, first, screen, maxFee), { nowSeconds },
           );
