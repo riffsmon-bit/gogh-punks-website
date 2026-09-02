@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  runPunkPriorityWorker,
+  reconcileSubmittedPriorityAttempt, resolvePrioritySessionLane, runPunkPriorityWorker,
 } from "../netlify/functions/broker-autonomy-v3-priority-worker.mjs";
 
 const SESSION = Object.freeze({
@@ -33,6 +33,21 @@ const ATTEMPT = Object.freeze({
   reason: "CLAIMED",
   state: "CLAIMED",
 });
+
+function receipt(status = "success", overrides = {}) {
+  return {
+    transactionHash: `0x${"b".repeat(64)}`,
+    blockHash: `0x${"c".repeat(64)}`,
+    status,
+    gasUsed: 100n,
+    effectiveGasPrice: 6n,
+    ...overrides,
+  };
+}
+
+function receiptClient(value) {
+  return { getTransactionReceipt: async () => value };
+}
 
 test("priority worker performs no chain work when no Punk priority session is due", async () => {
   let ran = false;
@@ -175,4 +190,101 @@ test("a submitted attempt is receipt-reconciled without entering submission agai
   assert.equal(recorded.attempt, submittedAttempt);
   assert.equal(recorded.outcome.transactionHash, submittedAttempt.transactionHash);
   assert.equal(result.reconciled, true);
+});
+
+test("two matching successful receipts settle one submitted priority attempt", async () => {
+  const submitted = { transactionHash: `0x${"B".repeat(64)}` };
+  const evidence = receipt();
+  const result = await reconcileSubmittedPriorityAttempt(submitted, {}, {
+    clients: [receiptClient(evidence), receiptClient({ ...evidence })],
+  });
+  assert.equal(result.settled, true);
+  assert.equal(result.outcome.status, "MINT_CONFIRMED");
+  assert.equal(result.outcome.submitted, 1);
+  assert.equal(result.outcome.transactionHash, `0x${"b".repeat(64)}`);
+  assert.equal(result.outcome.transactionGasCostWei, "600");
+});
+
+test("receipt disagreement cannot settle a submitted priority attempt", async () => {
+  const result = await reconcileSubmittedPriorityAttempt({
+    transactionHash: `0x${"b".repeat(64)}`,
+  }, {}, { clients: [receiptClient(receipt("success")), receiptClient(receipt("reverted"))] });
+  assert.deepEqual(result, {
+    settled: false, reason: "RECEIPT_NOT_DUALLY_CONFIRMED",
+  });
+});
+
+test("one receipt client cannot settle", async () => {
+  const result = await reconcileSubmittedPriorityAttempt({
+    transactionHash: `0x${"b".repeat(64)}`,
+  }, {}, { clients: [receiptClient(receipt())] });
+  assert.deepEqual(result, {
+    settled: false, reason: "RECEIPT_NOT_DUALLY_CONFIRMED",
+  });
+});
+
+test("an empty receipt client list cannot settle and never throws", async () => {
+  const result = await reconcileSubmittedPriorityAttempt({
+    transactionHash: `0x${"b".repeat(64)}`,
+  }, {}, { clients: [] });
+  assert.deepEqual(result, {
+    settled: false, reason: "RECEIPT_NOT_DUALLY_CONFIRMED",
+  });
+});
+
+test("an invalid submitted hash is rejected before receipt RPC", async () => {
+  let reads = 0;
+  const clients = [receiptClient(receipt()), receiptClient(receipt())].map((client) => ({
+    getTransactionReceipt: async (...args) => { reads += 1;
+      return client.getTransactionReceipt(...args); },
+  }));
+  for (const transactionHash of ["0x1", `0x${"0".repeat(64)}`]) {
+    const result = await reconcileSubmittedPriorityAttempt({ transactionHash }, {}, { clients });
+    assert.deepEqual(result, {
+      settled: false, reason: "TRANSACTION_HASH_UNAVAILABLE",
+    });
+  }
+  assert.equal(reads, 0);
+});
+
+test("two matching reverted receipts settle as a recorded failed submission", async () => {
+  const evidence = receipt("reverted");
+  const result = await reconcileSubmittedPriorityAttempt({
+    transactionHash: evidence.transactionHash,
+  }, {}, { clients: [receiptClient(evidence), receiptClient({ ...evidence })] });
+  assert.equal(result.settled, true);
+  assert.equal(result.outcome.status, "AUTONOMOUS_MINT_REVERTED");
+  assert.equal(result.outcome.submitted, 0);
+  assert.equal(result.outcome.transactionHash, evidence.transactionHash);
+});
+
+test("incomplete receipt evidence cannot settle", async () => {
+  const invalid = [
+    receipt("unknown"), receipt("success", { transactionHash: "0x1" }),
+    receipt("success", { gasUsed: null }), receipt("success", { effectiveGasPrice: null }),
+  ];
+  for (const evidence of invalid) {
+    const result = await reconcileSubmittedPriorityAttempt({
+      transactionHash: `0x${"b".repeat(64)}`,
+    }, {}, { clients: [receiptClient(evidence), receiptClient({ ...evidence })] });
+    assert.deepEqual(result, {
+      settled: false, reason: "RECEIPT_NOT_DUALLY_CONFIRMED",
+    });
+  }
+});
+
+test("priority lane resolves when another lane makes the full pool invalid", () => {
+  const environment = {
+    ...ENVIRONMENT,
+    BROKER_AUTOMATION_V3_AGENT_POOL_ENABLED: "true",
+    BROKER_AUTOMATION_V3_AGENT_LANE_2_ENABLED: "true",
+    BROKER_AUTOMATION_V3_AGENT_LANE_2_ADDRESS:
+      ENVIRONMENT.BROKER_AUTOMATION_V3_AGENT_ADDRESS,
+    BROKER_AUTOMATION_V3_AGENT_LANE_6_ENABLED: "true",
+    BROKER_AUTOMATION_V3_AGENT_LANE_6_ADDRESS:
+      `0x${SESSION.agent.slice(2).toUpperCase()}`,
+  };
+  const lane = resolvePrioritySessionLane(SESSION, environment);
+  assert.equal(lane.laneId, 6);
+  assert.equal(lane.priority, true);
 });
