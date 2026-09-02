@@ -508,7 +508,7 @@ test("Control Center fails clearly across route, wallet, network, and worker sta
   assert.match(browser, /Different holder required/);
   assert.match(browser, /autonomy-v3-activity\?tokenId=/);
   assert.match(browser, /latest hosted event belongs to another Punk/);
-  assert.match(browser, /"DISCOVERY_RPC_UNAVAILABLE", "GLOBAL_V3_GATE_CLOSED"/,
+  assert.match(browser, /"GLOBAL_V3_ONCHAIN_GATE_CLOSED", "GLOBAL_V3_WORKER_BINDING_CLOSED"/,
     "platform discovery and execution-gate outages must not be presented as Punk repair errors");
   assert.match(browser, /NFT inventory is temporarily unavailable/);
   assert.match(browser, /aria-busy/);

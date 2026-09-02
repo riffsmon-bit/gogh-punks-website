@@ -4,6 +4,7 @@ import test from "node:test";
 
 import {
   activeZeroPriceSeaDropCollections,
+  automationV3GlobalGateFailure,
   configuredAutomationV3PunkIds,
   configuredPrioritySeaDropCollections,
   configuredSeaDropCollections,
@@ -95,6 +96,31 @@ test("V3 global gate retries one closed public-RPC sample and still fails closed
     return closed;
   }, async () => {}), closed);
   assert.equal(reads, 2);
+});
+
+test("V3 global gate diagnostics distinguish chain state from worker binding", () => {
+  assert.equal(automationV3GlobalGateFailure({
+    configured: false, worker: { enabled: true },
+  }), "GLOBAL_V3_ONCHAIN_GATE_CLOSED");
+  assert.equal(automationV3GlobalGateFailure({
+    configured: true, worker: { enabled: false },
+  }), "GLOBAL_V3_WORKER_BINDING_CLOSED");
+  assert.equal(automationV3GlobalGateFailure({
+    configured: true, worker: { enabled: true },
+  }), null);
+
+  for (const code of [
+    "GLOBAL_V3_ONCHAIN_GATE_CLOSED", "GLOBAL_V3_WORKER_BINDING_CLOSED",
+  ]) {
+    const diagnostics = {
+      scheduledTokenIds: ["1918"], processedTokenIds: [], profileOutcomes: [],
+    };
+    recordWorkerFailureProfileOutcomes(diagnostics, code);
+    assert.deepEqual(diagnostics.profileOutcomes, [{
+      tokenId: "1918", state: "QUEUED",
+      reason: "WAITING_FOR_PLATFORM_RECOVERY", account: null,
+    }]);
+  }
 });
 
 test("hosted rotation applies a bounded rarity head start without bypassing owner fairness", async () => {
