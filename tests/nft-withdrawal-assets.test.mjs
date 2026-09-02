@@ -17,6 +17,7 @@ const COLLECTION = "0x1111111111111111111111111111111111111111";
 const HASH = `0x${"ab".repeat(32)}`;
 const TRANSFER = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 const IPFS_IMAGE = "https://ipfs.io/ipfs/bafybeifxubfqw4ijecm3adlgczd37x2kk3xu4mpsgelh7n4nxxq5ufmrsy";
+const NO_OPENSEA_ENVIRONMENT = Object.freeze({});
 
 function addressTopic(value) {
   return `0x${value.slice(2).padStart(64, "0")}`;
@@ -64,6 +65,7 @@ test("returns only confirmed worker mints still owned by the Punk wallet", async
   } };
   let ownerReads = 0;
   const assets = await buildWithdrawableNftAssets("93", {
+    environment: NO_OPENSEA_ENVIRONMENT,
     database,
     gateBuilder: async () => gate(),
     getReceipt: async () => receipt(),
@@ -77,6 +79,7 @@ test("returns only confirmed worker mints still owned by the Punk wallet", async
   assert.equal(validateWithdrawableNftAssets(assets, "93").length, 1);
 
   const withdrawn = await buildWithdrawableNftAssets("93", {
+    environment: NO_OPENSEA_ENVIRONMENT,
     database,
     gateBuilder: async () => gate(),
     getReceipt: async () => receipt(),
@@ -143,6 +146,7 @@ test("includes manually received indexed ERC-721 and ERC-1155 assets for live wi
 test("adds one exact live-owned ERC-721 when the marketplace account index omits it", async () => {
   const missingCollection = "0x505a22ffed8d37ebe580ffd98d2cdb0021189146";
   const assets = await buildWithdrawableNftAssets("93", {
+    environment: NO_OPENSEA_ENVIRONMENT,
     database: { query: async () => ({ rows: [] }) },
     gateBuilder: async () => gate(),
     getReceipt: async () => null,
@@ -165,6 +169,7 @@ test("adds one exact live-owned ERC-721 when the marketplace account index omits
 test("falls back to exact on-chain tokenURI display when marketplace indexing lags", async () => {
   let tokenUriReads = 0;
   const assets = await buildWithdrawableNftAssets("93", {
+    environment: NO_OPENSEA_ENVIRONMENT,
     database: { query: async (sql) => ({ rows: /worker_runs/.test(sql) ? [row()] : [] }) },
     gateBuilder: async () => gate(),
     getReceipt: async () => receipt(),
@@ -186,12 +191,14 @@ test("falls back to exact on-chain tokenURI display when marketplace indexing la
 
 test("asset list fails closed on a closed gate, malformed evidence, and hostile links", async () => {
   const unavailable = await buildWithdrawableNftAssets("93", {
+    environment: NO_OPENSEA_ENVIRONMENT,
     gateBuilder: async () => ({ capability: false, reason: "ACCOUNT_NOT_ACTIVATED" }),
   });
   assert.equal(unavailable.capability, false);
   assert.deepEqual(unavailable.items, []);
 
   const valid = await buildWithdrawableNftAssets("93", {
+    environment: NO_OPENSEA_ENVIRONMENT,
     database: { query: async () => ({ rows: [row()] }) },
     gateBuilder: async () => gate(),
     getReceipt: async () => receipt(),
