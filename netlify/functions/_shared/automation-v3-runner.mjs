@@ -54,6 +54,8 @@ export async function runAutomationV3Once(options = {}) {
         database,
         requestedTokenId: options.requestedTokenId ?? null,
         deadlineMs: startedAt.getTime() + AUTOMATION_V3_WORKER_TIME_BUDGET_MS,
+        beforeSubmission: options.beforeSubmission,
+        afterSubmission: options.afterSubmission,
       });
       const completedAt = new Date();
       try {
@@ -62,6 +64,7 @@ export async function runAutomationV3Once(options = {}) {
           release: environment.BROKER_AUTOMATION_V3_WORKER_RELEASE,
           startedAt,
           completedAt,
+          laneId,
         });
       } catch {
         console.error(JSON.stringify({ event: "AUTOMATION_V3_HEARTBEAT_FAILED" }));
@@ -80,6 +83,7 @@ export async function runAutomationV3Once(options = {}) {
           release: environment.BROKER_AUTOMATION_V3_WORKER_RELEASE,
           startedAt,
           completedAt,
+          laneId,
         });
       } catch {
         // Supabase starts as a non-authoritative shadow. A shadow write failure must be visible

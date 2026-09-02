@@ -10,11 +10,13 @@ import {
   AUTOMATION_V3_AGENT, readAutomationV3AgentDisplayState, readAutomationV3PunkState,
 } from "./_shared/autonomy-v3-live.mjs";
 import {
-  getAutomationV3UsageStats, getAutomationV3WorkerHeartbeat, workerHeartbeatIsCurrent,
-  workerPlatformHealth,
+  getAutomationV3UsageStats, getAutomationV3WorkerHeartbeat,
+  getAutomationV3WorkerLaneHeartbeats, workerHeartbeatIsCurrent, workerPlatformHealth,
 } from "./_shared/automation-v3-worker-state.mjs";
 import { resolveAutomationV3PunkAgent } from "./_shared/automation-v3-punk-agent.mjs";
-import { publicAutomationV3AgentLanes } from "./_shared/automation-v3-agent-pool.mjs";
+import {
+  automationV3WorkerBindingDiagnostics, publicAutomationV3AgentLanes,
+} from "./_shared/automation-v3-agent-pool.mjs";
 import {
   getProductionAutomationV3Activity, isDeployPreview,
 } from "./_shared/automation-v3-production-bridge.mjs";
@@ -140,12 +142,92 @@ export function automationV3WorkerAvailability(
   });
 }
 
+export function automationV3LaneAvailability(
+  globallyReady, heartbeats, release, assignedLaneId = null, nowMs = Date.now(),
+) {
+  if (!Array.isArray(heartbeats) || !Number.isSafeInteger(nowMs) || nowMs < 0
+    || (assignedLaneId !== null && (!Number.isInteger(assignedLaneId)
+      || assignedLaneId < 1 || assignedLaneId > 6))) {
+    throw new TypeError("worker lane health evidence is invalid");
+  }
+  const byLane = new Map(heartbeats.map((heartbeat) => [heartbeat.laneId, heartbeat]));
+  const lanes = Object.freeze(Array.from({ length: 6 }, (_, index) => {
+    const laneId = index + 1;
+    const heartbeat = byLane.get(laneId) ?? null;
+    const platform = globallyReady === true
+      ? workerPlatformHealth(heartbeat, release, nowMs)
+      : Object.freeze({ status: "OUTAGE", reason: "WORKER_NOT_CONFIGURED",
+        lastSuccessfulAt: null, consecutiveFailures: 0 });
+    return Object.freeze({
+      laneId,
+      purpose: laneId === 6 ? "PRIORITY" : "REGULAR",
+      ready: globallyReady === true && workerHeartbeatIsCurrent(heartbeat, release, nowMs),
+      status: platform.status,
+      reason: platform.reason,
+      heartbeat,
+    });
+  }));
+  const selected = assignedLaneId === null ? null : lanes[assignedLaneId - 1];
+  const regular = lanes.slice(0, 5);
+  const readyRegular = regular.filter(({ ready }) => ready).length;
+  let executionReady;
+  let platformHealth;
+  if (selected) {
+    executionReady = selected.ready;
+    platformHealth = Object.freeze({
+      status: selected.status,
+      reason: selected.reason,
+      lastSuccessfulAt: selected.heartbeat?.lastSuccessfulRun?.completedAt
+        ?? (selected.heartbeat?.status === "FAILED" ? null : selected.heartbeat?.completedAt ?? null),
+      consecutiveFailures: selected.heartbeat?.consecutiveFailures ?? 0,
+    });
+  } else if (globallyReady !== true) {
+    executionReady = false;
+    platformHealth = Object.freeze({ status: "OUTAGE", reason: "WORKER_NOT_CONFIGURED",
+      lastSuccessfulAt: null, consecutiveFailures: 0 });
+  } else if (readyRegular === 5) {
+    executionReady = true;
+    platformHealth = Object.freeze({ status: "HEALTHY", reason: null,
+      lastSuccessfulAt: null, consecutiveFailures: 0 });
+  } else if (readyRegular > 0) {
+    executionReady = true;
+    platformHealth = Object.freeze({ status: "DEGRADED", reason: "REGULAR_LANE_PARTIAL_OUTAGE",
+      lastSuccessfulAt: null,
+      consecutiveFailures: Math.max(...regular.map(({ heartbeat }) =>
+        heartbeat?.consecutiveFailures ?? 0)),
+    });
+  } else {
+    const sharedReason = new Set(lanes.map(({ reason }) => reason).filter(Boolean)).size === 1
+      ? "SHARED_WORKER_OUTAGE" : "REGULAR_LANES_UNAVAILABLE";
+    executionReady = false;
+    platformHealth = Object.freeze({ status: "OUTAGE", reason: sharedReason,
+      lastSuccessfulAt: null,
+      consecutiveFailures: Math.max(...regular.map(({ heartbeat }) =>
+        heartbeat?.consecutiveFailures ?? 0)),
+    });
+  }
+  const publicStatus = platformHealth.status === "HEALTHY" ? "READY"
+    : platformHealth.status === "RECOVERING" ? "WORKER_RECOVERING"
+      : platformHealth.status === "DELAYED" ? "WORKER_DELAYED"
+        : platformHealth.status === "DEGRADED" ? "WORKER_DEGRADED"
+          : globallyReady ? "WORKER_OUTAGE" : "DEPLOYED_CONFIGURATION_PENDING";
+  return Object.freeze({
+    online: platformHealth.status === "HEALTHY",
+    executionReady,
+    status: publicStatus,
+    reason: platformHealth.reason,
+    platformHealth,
+    lanes,
+    priority: lanes[5],
+    readyRegularLanes: readyRegular,
+  });
+}
+
 export function automationV3WorkerConfigured(environment = process.env) {
-  const release = environment.BROKER_AUTOMATION_V3_WORKER_RELEASE?.trim() ?? "";
   return environment.BROKER_AUTOMATION_V3_ENABLED === "true"
-    && /^[0-9a-f]{40}$/.test(release)
     && (environment.BROKER_AUTOMATION_V3_AGENT_ADDRESS ?? "").toLowerCase()
-      === AUTOMATION_V3_AGENT;
+      === AUTOMATION_V3_AGENT
+    && automationV3WorkerBindingDiagnostics(environment).enabled === true;
 }
 
 export function ownerSetupArtifactBuilderAvailable(nowMs = Date.now()) {
@@ -191,8 +273,11 @@ export default async function handler(request) {
         ? getProductionAutomationV3Activity()
         : Promise.all([
           getAutomationV3WorkerHeartbeat().catch(() => null),
+          getAutomationV3WorkerLaneHeartbeats().catch(() => []),
           getAutomationV3UsageStats().catch(() => null),
-        ]).then(([heartbeat, usage]) => ({ heartbeat, usage }));
+        ]).then(([heartbeat, laneHeartbeats, usage]) => ({
+          heartbeat, laneHeartbeats, usage,
+        }));
       let resolvedPunk = null;
       let routingError = null;
       if (tokenId !== null) {
@@ -218,7 +303,12 @@ export default async function handler(request) {
       punk = selectedPunk;
       const evidence = evidenceResult.status === "fulfilled"
         ? evidenceResult.value : { heartbeat: null, usage: null, online: false };
-      const { heartbeat, usage } = evidence;
+      const laneHeartbeats = evidence.laneHeartbeats ?? [];
+      const selectedLaneHeartbeat = resolvedPunk?.lane
+        ? laneHeartbeats.find(({ laneId }) => laneId === resolvedPunk.lane.laneId) ?? null
+        : null;
+      const heartbeat = selectedLaneHeartbeat ?? evidence.heartbeat;
+      const { usage } = evidence;
       const agent = agentResult.status === "fulfilled" ? agentResult.value : {
         address: selectedAgent, validUntil: null, balanceWei: null, codeFree: false,
       };
@@ -241,7 +331,11 @@ export default async function handler(request) {
           : `WORKER_${evidence.platformHealth?.status ?? "OUTAGE"}`,
         reason: evidence.platformHealth?.reason ?? "WORKER_EVIDENCE_MISSING",
         platformHealth: evidence.platformHealth ?? null,
-      }) : automationV3WorkerAvailability(globallyReady, heartbeat, release, Date.now());
+      }) : laneHeartbeats.length > 0
+        ? automationV3LaneAvailability(
+          globallyReady, laneHeartbeats, release, resolvedPunk?.lane?.laneId ?? null, Date.now(),
+        )
+        : automationV3WorkerAvailability(globallyReady, heartbeat, release, Date.now());
       // Preview automation is intentionally not scheduled. Its manual run endpoint is bridged to
       // production, so the preview must display the production endpoint's already-validated
       // heartbeat rather than comparing that heartbeat with the preview commit SHA.
@@ -272,6 +366,8 @@ export default async function handler(request) {
           globalAgentApproved: null, workerEnabled: globallyReady, workerOnline },
         heartbeat: heartbeat ? { ...heartbeat, online: workerOnline } : null,
         platformHealth: availability.platformHealth,
+        laneHealth: availability.lanes ?? null,
+        priorityLaneHealth: availability.priority ?? null,
         usage,
         punk,
         publicAgentLanes: publicAutomationV3AgentLanes(process.env),

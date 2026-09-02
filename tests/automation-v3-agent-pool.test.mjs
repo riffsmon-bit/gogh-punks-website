@@ -7,6 +7,7 @@ import {
   automationV3AgentLane,
   automationV3LaneEnvironment,
   automationV3LaneLockId,
+  automationV3WorkerBindingDiagnostics,
   configuredAutomationV3AgentLanes,
   LEGACY_AUTOMATION_V3_AGENT,
 } from "../netlify/functions/_shared/automation-v3-agent-pool.mjs";
@@ -28,6 +29,7 @@ function environment() {
     BROKER_AUTOMATION_V3_AGENT_ADDRESS: ADDRESSES[0],
     BROKER_AUTOMATION_V3_AGENT_PRIVATE_KEY: `0x${"a".repeat(64)}`,
     BROKER_AUTOMATION_V3_AGENT_POOL_ENABLED: "true",
+    BROKER_AUTOMATION_V3_WORKER_RELEASE: "a".repeat(40),
   };
   for (let lane = 2; lane <= 6; lane += 1) {
     result[`BROKER_AUTOMATION_V3_AGENT_LANE_${lane}_ADDRESS`] = ADDRESSES[lane - 1];
@@ -67,6 +69,50 @@ test("lane environment remaps only the reviewed worker signer binding", () => {
     base.BROKER_AUTOMATION_V3_AGENT_LANE_4_PRIVATE_KEY);
   assert.equal(selected.BROKER_AUTOMATION_V3_ACTIVE_LANE, "4");
   assert.equal(automationV3AgentLane(base, 4).laneId, 4);
+  assert.deepEqual(configuredAutomationV3AgentLanes(selected).map(({ address }) => address),
+    ADDRESSES);
+});
+
+test("all six selected lane environments preserve the canonical pool binding", () => {
+  const base = environment();
+  for (let laneId = 1; laneId <= 6; laneId += 1) {
+    const selected = automationV3LaneEnvironment(base, laneId);
+    const diagnostics = automationV3WorkerBindingDiagnostics(selected);
+    assert.equal(diagnostics.enabled, true, `lane ${laneId}: ${diagnostics.reason}`);
+    assert.equal(diagnostics.activeLaneId, laneId);
+    assert.equal(diagnostics.poolParseSucceeded, true);
+    assert.equal(diagnostics.poolSize, 6);
+    assert.equal(diagnostics.activeAgentFound, true);
+    assert.equal(diagnostics.selectedLaneEnabled, true);
+  }
+});
+
+test("worker binding diagnostics preserve distinct safe failure reasons", () => {
+  const parseFailure = automationV3LaneEnvironment(environment(), 2);
+  const duplicate = { ...parseFailure,
+    BROKER_AUTOMATION_V3_AGENT_LANE_3_ADDRESS: ADDRESSES[1] };
+  assert.equal(automationV3WorkerBindingDiagnostics(duplicate).reason,
+    "AGENT_POOL_PARSE_FAILED");
+
+  const missingAgent = { ...environment() };
+  delete missingAgent.BROKER_AUTOMATION_V3_AGENT_ADDRESS;
+  assert.equal(automationV3WorkerBindingDiagnostics(missingAgent).reason,
+    "ACTIVE_AGENT_MISSING");
+
+  const disabled = automationV3LaneEnvironment(environment(), 4);
+  const disabledLane = { ...disabled,
+    BROKER_AUTOMATION_V3_AGENT_LANE_4_ENABLED: "false" };
+  assert.equal(automationV3WorkerBindingDiagnostics(disabledLane).reason,
+    "ACTIVE_LANE_DISABLED");
+
+  const mismatchedRelease = { ...environment(), CONTEXT: "production",
+    COMMIT_REF: "b".repeat(40) };
+  assert.equal(automationV3WorkerBindingDiagnostics(mismatchedRelease).reason,
+    "RELEASE_MISMATCH");
+  const publicConfigMissing = automationV3WorkerBindingDiagnostics(environment(), {
+    requiredPublicConfigurationPresent: false,
+  });
+  assert.equal(publicConfigMissing.reason, "PUBLIC_CONFIGURATION_MISSING");
 });
 
 test("new lanes remain disabled unless the pool and lane are explicitly enabled", () => {

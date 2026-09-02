@@ -1287,6 +1287,7 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
     currentDiagnostics.globalGate = Object.freeze({
       configured: global?.configured === true,
       workerEnabled: global?.worker?.enabled === true,
+      workerBinding: global?.worker?.binding ?? null,
     });
     const error = new TypeError(globalGateFailure);
     error.code = globalGateFailure;
@@ -1560,6 +1561,22 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
         };
       }
       if (budgetExpired(AUTOMATION_V3_SUBMISSION_RESERVE_MS)) return budgetResult();
+      if (dependencies.beforeSubmission) {
+        const reservation = await workerStage(
+          "PRIORITY_SUBMISSION_RESERVATION_FAILED",
+          () => dependencies.beforeSubmission(Object.freeze({
+            tokenId,
+            account: accountAddress.toLowerCase(),
+            collection,
+            acquisitionNonce: commonScope.nonce,
+          })),
+        );
+        if (reservation?.reserved !== true) {
+          const error = new Error("PRIORITY_SUBMISSION_NOT_RESERVED");
+          error.code = "PRIORITY_SUBMISSION_NOT_RESERVED";
+          throw error;
+        }
+      }
       const wallet = createWalletClient({
         account: signingAccount, chain: CHAIN,
         transport: http(primaryUrl, { retryCount: 0, timeout: 5_000 }),
@@ -1575,6 +1592,17 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
       submittedAccount = accountAddress.toLowerCase();
       submittedCollection = collection;
       submittedTransactionHash = hash;
+      if (dependencies.afterSubmission) {
+        const noted = await workerStage(
+          "PRIORITY_SUBMISSION_PERSISTENCE_FAILED",
+          () => dependencies.afterSubmission(hash),
+        );
+        if (noted?.noted !== true) {
+          const error = new Error("PRIORITY_SUBMISSION_NOT_PERSISTED");
+          error.code = "PRIORITY_SUBMISSION_NOT_PERSISTED";
+          throw error;
+        }
+      }
       const receipt = await workerStage(
         "TRANSACTION_CONFIRMATION_UNCERTAIN",
         () => primary.waitForTransactionReceipt({

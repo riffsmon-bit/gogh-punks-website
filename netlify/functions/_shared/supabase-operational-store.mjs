@@ -549,11 +549,95 @@ export async function nextPunkPrioritySession(options = {}) {
   });
 }
 
-export async function recordPunkPrioritySessionAttempt(sessionId, outcome, options = {}) {
+export async function beginPunkPrioritySessionAttempt(sessionId, laneId, options = {}) {
+  const environment = options.environment ?? process.env;
+  const configuration = supabaseOperationalConfiguration(environment);
+  if (!configuration.shadowWrites) {
+    return Object.freeze({ executable: false, reason: "DISABLED" });
+  }
+  const selectedSession = uuid(sessionId, "priority-session ID");
+  const selectedLane = Number(laneId);
+  if (!Number.isInteger(selectedLane) || selectedLane < 1 || selectedLane > 6) {
+    throw new TypeError("priority lane ID is invalid");
+  }
+  const workerRelease = release(environment.BROKER_AUTOMATION_V3_WORKER_RELEASE);
+  const database = operationalPool(environment, options.database);
+  const result = await database.query(
+    `SELECT attempt_id::text AS attempt_id, lease_token::text AS lease_token,
+            executable, reason, attempt_state, transaction_hash, session_state, expires_at
+       FROM gogh_broker_begin_punk_priority_attempt($1::uuid, $2, $3::smallint, 120)`,
+    [selectedSession, workerRelease, selectedLane],
+  );
+  const row = result.rows?.[0];
+  if (!row) return Object.freeze({ executable: false, reason: "SESSION_NOT_FOUND" });
+  return Object.freeze({
+    id: row.attempt_id ?? null,
+    leaseToken: row.lease_token ?? null,
+    executable: row.executable === true,
+    reason: resultCode(row.reason, "ATTEMPT_UNAVAILABLE"),
+    state: row.attempt_state ?? null,
+    transactionHash: row.transaction_hash ?? null,
+    sessionState: row.session_state,
+    expiresAt: iso(row.expires_at, "priority-session expiry"),
+  });
+}
+
+export async function reservePunkPrioritySubmission(attempt, submission, options = {}) {
+  const environment = options.environment ?? process.env;
+  const configuration = supabaseOperationalConfiguration(environment);
+  if (!configuration.shadowWrites) return Object.freeze({ reserved: false, reason: "DISABLED" });
+  const attemptId = uuid(attempt?.id, "priority attempt ID");
+  const leaseToken = uuid(attempt?.leaseToken, "priority attempt lease token");
+  const account = address(submission?.account, "priority submission account");
+  const collection = address(submission?.collection, "priority submission collection");
+  const acquisitionNonce = String(submission?.acquisitionNonce ?? "");
+  if (!/^(?:0|[1-9][0-9]{0,77})$/.test(acquisitionNonce)) {
+    throw new TypeError("priority acquisition nonce is invalid");
+  }
+  const database = operationalPool(environment, options.database);
+  const result = await database.query(
+    `SELECT reserved, reason, attempt_state
+       FROM gogh_broker_reserve_punk_priority_submission(
+         $1::uuid, $2::uuid, $3, $4, $5::numeric
+       )`,
+    [attemptId, leaseToken, account, collection, acquisitionNonce],
+  );
+  const row = result.rows?.[0];
+  return Object.freeze({
+    reserved: row?.reserved === true,
+    reason: resultCode(row?.reason, "ATTEMPT_NOT_FOUND"),
+    state: row?.attempt_state ?? null,
+  });
+}
+
+export async function notePunkPrioritySubmission(attempt, transactionHashValue, options = {}) {
+  const environment = options.environment ?? process.env;
+  const configuration = supabaseOperationalConfiguration(environment);
+  if (!configuration.shadowWrites) return Object.freeze({ noted: false, reason: "DISABLED" });
+  const attemptId = uuid(attempt?.id, "priority attempt ID");
+  const leaseToken = uuid(attempt?.leaseToken, "priority attempt lease token");
+  const transactionHash = optionalHash(transactionHashValue);
+  if (!transactionHash) throw new TypeError("priority transaction hash is required");
+  const database = operationalPool(environment, options.database);
+  const result = await database.query(
+    `SELECT noted, reason, attempt_state
+       FROM gogh_broker_note_punk_priority_submission($1::uuid, $2::uuid, $3)`,
+    [attemptId, leaseToken, transactionHash],
+  );
+  const row = result.rows?.[0];
+  return Object.freeze({
+    noted: row?.noted === true,
+    reason: resultCode(row?.reason, "ATTEMPT_NOT_FOUND"),
+    state: row?.attempt_state ?? null,
+  });
+}
+
+export async function recordPunkPrioritySessionAttempt(attempt, outcome, options = {}) {
   const environment = options.environment ?? process.env;
   const configuration = supabaseOperationalConfiguration(environment);
   if (!configuration.shadowWrites) return Object.freeze({ recorded: false, reason: "DISABLED" });
-  const selectedSession = uuid(sessionId, "priority-session ID");
+  const attemptId = uuid(attempt?.id, "priority attempt ID");
+  const leaseToken = uuid(attempt?.leaseToken, "priority attempt lease token");
   const status = resultCode(outcome?.status, "UNKNOWN_RESULT");
   const minted = status === "MINT_CONFIRMED" && Number(outcome?.submitted ?? 0) === 1;
   const terminalState = status === "OWNER_CHANGED" ? "OWNER_CHANGED"
@@ -573,43 +657,18 @@ export async function recordPunkPrioritySessionAttempt(sessionId, outcome, optio
       !== BigInt(transactionGasCostWei))) {
     throw new TypeError("receipt gas evidence is incomplete or inconsistent");
   }
-  let result;
-  try {
-    result = await database.query(
+  const result = await database.query(
       `SELECT punk_token_id::text AS punk_token_id, session_state AS state,
               requested_mints, completed_mints, expires_at,
               credited_wei::text AS credited_wei, spent_wei::text AS spent_wei,
-              available_wei::text AS available_wei, usage_recorded
-         FROM gogh_broker_record_punk_priority_attempt(
-           $1::uuid, $2, $3, $4, $5::numeric, $6::numeric, $7::numeric, $8
+              available_wei::text AS available_wei, usage_recorded,
+              attempt_recorded, attempt_state
+         FROM gogh_broker_record_punk_priority_attempt_v2(
+           $1::uuid, $2::uuid, $3, $4, $5, $6::numeric, $7::numeric, $8::numeric, $9
          )`,
-      [selectedSession, status, minted, transactionHash, gasUsed,
+      [attemptId, leaseToken, status, minted, transactionHash, gasUsed,
         effectiveGasPriceWei, transactionGasCostWei, terminalState],
     );
-  } catch (error) {
-    if (error?.code !== "42883") throw error;
-    // Safe rolling-deploy fallback before the additive migration reaches the DB.
-    result = await database.query(
-    `UPDATE gogh_broker_punk_priority_sessions
-        SET completed_mints = completed_mints + CASE
-              WHEN $2 AND last_transaction_hash IS DISTINCT FROM $4 THEN 1 ELSE 0 END,
-            state = CASE
-              WHEN $5::text IS NOT NULL THEN $5::text
-              WHEN completed_mints + CASE
-                WHEN $2 AND last_transaction_hash IS DISTINCT FROM $4 THEN 1 ELSE 0 END
-                >= requested_mints
-                THEN 'COMPLETE'
-              WHEN expires_at <= NOW() THEN 'EXPIRED'
-              ELSE state END,
-            last_attempt_at = NOW(), last_result = $3,
-            last_transaction_hash = COALESCE($4, last_transaction_hash),
-            updated_at = NOW()
-      WHERE session_id = $1::uuid AND state = 'ACTIVE'
-      RETURNING punk_token_id::text AS punk_token_id, state,
-                requested_mints, completed_mints, expires_at`,
-    [selectedSession, minted, status, transactionHash, terminalState],
-    );
-  }
   const row = result.rows?.[0];
   return row ? Object.freeze({
     recorded: true,
@@ -622,6 +681,8 @@ export async function recordPunkPrioritySessionAttempt(sessionId, outcome, optio
     spentWei: row.spent_wei ?? null,
     availableWei: row.available_wei ?? null,
     usageRecorded: row.usage_recorded === true,
+    attemptRecorded: row.attempt_recorded === true,
+    attemptState: row.attempt_state ?? null,
   }) : Object.freeze({ recorded: false, reason: "SESSION_NOT_ACTIVE" });
 }
 
