@@ -11,6 +11,10 @@ The V3 signer pool has five regular lanes and one priority-only lane.
 - Existing pre-pool enrollments remain on Lane 1. They are not silently redistributed.
 - Owner setup, status, prepaid gas, manual runs, scheduled runs, and the transaction signer all use
   the same persisted assignment.
+- `BROKER_AUTOMATION_V3_REGISTRATION_LANES` can temporarily close an enabled regular lane to new
+  owner setup without stopping that lane's worker or changing any persisted assignment. The value
+  is an ordered, unique comma-separated subset of lanes 1–5; malformed or disabled lanes fail
+  closed.
 
 ## Production configuration
 
@@ -24,6 +28,7 @@ values in logs or paste them into source control.
 
 ```text
 BROKER_AUTOMATION_V3_AGENT_POOL_ENABLED=true
+BROKER_AUTOMATION_V3_REGISTRATION_LANES=1,2,3,4,5
 BROKER_AUTOMATION_V3_AGENT_LANE_2_ENABLED=true
 BROKER_AUTOMATION_V3_AGENT_LANE_2_ADDRESS=
 BROKER_AUTOMATION_V3_AGENT_LANE_2_PRIVATE_KEY=
@@ -39,6 +44,17 @@ BROKER_AUTOMATION_V3_AGENT_LANE_5_PRIVATE_KEY=
 ```
 
 Keep Lane 6 separately configured for priority-only work. Do not add it to regular allocation.
+
+To stop new registrations from increasing the legacy Lane 1 imbalance while preserving all
+existing Lane 1 Punks, set:
+
+```text
+BROKER_AUTOMATION_V3_REGISTRATION_LANES=2,3,4,5
+```
+
+The public lane list then reports `registrationOpen: false` for lanes 1 and 6. Restore
+`1,2,3,4,5` only after the effective regular workload is acceptably balanced. Reopening
+registration never migrates or reauthorizes a Punk.
 
 Verify before deployment:
 

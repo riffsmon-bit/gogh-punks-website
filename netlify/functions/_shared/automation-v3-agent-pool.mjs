@@ -66,6 +66,27 @@ export function regularAutomationV3AgentLanes(environment = process.env, options
   return Object.freeze(lanes);
 }
 
+export function registrationAutomationV3AgentLanes(
+  environment = process.env, options = {},
+) {
+  const regular = regularAutomationV3AgentLanes(environment, options);
+  const configured = environment.BROKER_AUTOMATION_V3_REGISTRATION_LANES;
+  if (configured === undefined) return regular;
+  if (typeof configured !== "string" || !/^[1-5](?:,[1-5])*$/.test(configured)) {
+    throw new TypeError("Automation V3 registration lanes must be a comma-separated list from 1 through 5");
+  }
+  const requested = configured.split(",").map(Number);
+  if (new Set(requested).size !== requested.length) {
+    throw new TypeError("Automation V3 registration lanes must be unique");
+  }
+  const byId = new Map(regular.map((lane) => [lane.laneId, lane]));
+  const lanes = requested.map((laneId) => byId.get(laneId));
+  if (lanes.some((lane) => lane === undefined)) {
+    throw new TypeError("Every Automation V3 registration lane must be enabled");
+  }
+  return Object.freeze(lanes);
+}
+
 export function configuredAutomationV3AgentLanes(environment = process.env, options = {}) {
   const lanes = [];
   const addresses = new Set();
@@ -89,11 +110,15 @@ export function configuredAutomationV3AgentLanes(environment = process.env, opti
 // deliberately omitted; the explorer links let holders independently inspect
 // the native-gas lane that processed their Punk.
 export function publicAutomationV3AgentLanes(environment = process.env) {
+  const registrationLaneIds = new Set(
+    registrationAutomationV3AgentLanes(environment).map(({ laneId }) => laneId),
+  );
   return Object.freeze(configuredAutomationV3AgentLanes(environment).map((lane) =>
     Object.freeze({
       laneId: lane.laneId,
       address: lane.address,
       priority: lane.priority === true,
+      registrationOpen: registrationLaneIds.has(lane.laneId),
       explorerUrl: `https://robinhoodchain.blockscout.com/address/${lane.address}`,
     })));
 }
@@ -105,7 +130,7 @@ export function assignedAutomationV3AgentLane(
   if (!/^(?:0|[1-9][0-9]{0,3})$/.test(tokenId)) {
     throw new TypeError("Choose a valid Gogh Punk ID");
   }
-  const lanes = regularAutomationV3AgentLanes(environment, options);
+  const lanes = registrationAutomationV3AgentLanes(environment, options);
   return lanes[Number(BigInt(tokenId) % BigInt(lanes.length))];
 }
 
