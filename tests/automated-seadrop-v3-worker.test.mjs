@@ -7,6 +7,7 @@ import {
   configuredAutomationV3PunkIds,
   configuredPrioritySeaDropCollections,
   configuredSeaDropCollections,
+  confirmedAutomationV3GlobalState,
   confirmedIntentWindow,
   eligibleAutomationV3Profiles,
   fairlyOrderedAutomationV3Profiles,
@@ -18,6 +19,7 @@ import {
   rotateAutomationV3Profiles,
   runAutomatedSeaDropV3Worker,
   scheduledAutomationV3ProfileBatch,
+  selectAutomationV3RouteCandidates,
   selectActiveZeroPriceSeaDropCollections,
   selectReviewedStudioCollections,
   workerFailureProfileTokenIds,
@@ -73,6 +75,26 @@ test("platform discovery failures keep scheduled Punks queued instead of requiri
   assert.deepEqual(diagnostics.profileOutcomes[0], {
     tokenId: "1918", state: "ERROR", reason: "AUTONOMOUS_MINT_REVERTED", account: null,
   });
+});
+
+test("V3 global gate retries one closed public-RPC sample and still fails closed", async () => {
+  const open = { configured: true, worker: { enabled: true } };
+  const closed = { configured: false, worker: { enabled: true } };
+  let reads = 0;
+  let pauses = 0;
+  assert.equal(await confirmedAutomationV3GlobalState(async () => {
+    reads += 1;
+    return reads === 1 ? closed : open;
+  }, async () => { pauses += 1; }), open);
+  assert.equal(reads, 2);
+  assert.equal(pauses, 1);
+
+  reads = 0;
+  assert.equal(await confirmedAutomationV3GlobalState(async () => {
+    reads += 1;
+    return closed;
+  }, async () => {}), closed);
+  assert.equal(reads, 2);
 });
 
 test("hosted rotation applies a bounded rarity head start without bypassing owner fairness", async () => {
@@ -157,6 +179,28 @@ test("V3 directed targets are exact, bounded, and cannot be ambiguous", () => {
   assert.deepEqual(mergePrioritySeaDropCollections(
     [second], [first, second],
   ), [second, first]);
+});
+
+test("V3 route selection adds Scatter without starving SeaDrop and rotates reviewed targets", () => {
+  const scatter = Array.from({ length: 5 }, (_, index) => ({
+    collection: `scatter-${index}`,
+  }));
+  assert.deepEqual(
+    selectAutomationV3RouteCandidates(scatter, ["sea-0", "sea-1", "sea-2"], 1)
+      .map(({ kind, collection }) => [kind, collection]),
+    [
+      ["SCATTER", "scatter-1"], ["SCATTER", "scatter-2"],
+      ["SEADROP", "sea-0"], ["SEADROP", "sea-1"],
+    ],
+  );
+  assert.deepEqual(
+    selectAutomationV3RouteCandidates(scatter, [], 4)
+      .map(({ kind, collection }) => [kind, collection]),
+    [
+      ["SCATTER", "scatter-4"], ["SCATTER", "scatter-0"],
+      ["SCATTER", "scatter-1"], ["SCATTER", "scatter-2"],
+    ],
+  );
 });
 
 test("V3 operator roster is canonical, unique, and bounded", () => {
@@ -526,7 +570,7 @@ test("V3 candidate prefilter tolerates partial read failure but not total outage
   assert.equal(fallbackDropReads, 1);
 });
 
-test("V3 worker source binds both runtime families and no paid or approval path", async () => {
+test("V3 worker source binds both mint routes and no paid or approval path", async () => {
   const source = await readFile(
     new URL("../scripts/run-automated-seadrop-v3-worker.mjs", import.meta.url),
     "utf8",
@@ -538,6 +582,10 @@ test("V3 worker source binds both runtime families and no paid or approval path"
   assert.match(source, /maxMintsPerRun: 1/);
   assert.match(source, /value: 0n/);
   assert.match(source, /buildAutomatedSeaDropV3ExecutionBatch/);
+  assert.match(source, /buildAutomatedScatterV3Execution/);
+  assert.match(source, /attestAutomatedScatterV3CandidateLive/);
+  assert.match(source, /primary\.call\(\{ account: agent/);
+  assert.match(source, /secondary\.call\(\{ account: agent/);
   assert.match(source, /DISCOVERY_COLLECTION_LIMIT = 16/);
   assert.match(source, /DISCOVERY_LOG_CHUNK_SIZE = 5_000n/);
   assert.match(source, /DISCOVERY_MAX_LOG_CHUNKS = 16n/);

@@ -6,18 +6,18 @@ import { resolveRobinhoodRpcPair } from
 
 const PRIMARY = "https://rpc.mainnet.chain.robinhood.com";
 
-test("dedicated Robinhood Alchemy key takes precedence over a stale full URL", () => {
+test("explicit secondary URL is the only server-side fallback", () => {
   const pair = resolveRobinhoodRpcPair({
     ROBINHOOD_RPC_URL: PRIMARY,
-    ROBINHOOD_ALCHEMY_API_KEY: "fresh_key_1234567890",
-    ROBINHOOD_SECONDARY_RPC_URL: "https://stale.example/old-key",
+    ROBINHOOD_ALCHEMY_API_KEY: "ignored_legacy_key_1234567890",
+    ALCHEMY_API_KEY: "ignored_shared_key_1234567890",
+    ROBINHOOD_SECONDARY_RPC_URL: "https://robinhood-rpc.publicnode.com",
   });
   assert.equal(pair.primary, `${PRIMARY}/`);
-  assert.equal(pair.secondary,
-    "https://robinhood-mainnet.g.alchemy.com/v2/fresh_key_1234567890");
+  assert.equal(pair.secondary, "https://robinhood-rpc.publicnode.com/");
 });
 
-test("automation-only endpoint takes precedence without changing the archive provider", () => {
+test("automation-only endpoint takes precedence without changing the general secondary", () => {
   const pair = resolveRobinhoodRpcPair({
     ROBINHOOD_RPC_URL: PRIMARY,
     ROBINHOOD_AUTOMATION_SECONDARY_RPC_URL: "https://robinhood-rpc.publicnode.com",
@@ -35,11 +35,11 @@ test("full secondary URL remains a supported server-side fallback", () => {
   assert.equal(pair.secondary, "https://secondary.example/rpc");
 });
 
-test("RPC resolution fails closed on invalid keys, credentials, or one provider", () => {
+test("RPC resolution fails closed on credentials or one provider", () => {
   assert.throws(() => resolveRobinhoodRpcPair({
     ROBINHOOD_RPC_URL: PRIMARY,
-    ROBINHOOD_ALCHEMY_API_KEY: "bad key",
-  }), /API_KEY is invalid/);
+    ROBINHOOD_ALCHEMY_API_KEY: "legacy-but-ignored",
+  }), /ROBINHOOD_SECONDARY_RPC_URL is unavailable/);
   assert.throws(() => resolveRobinhoodRpcPair({
     ROBINHOOD_RPC_URL: PRIMARY,
     ROBINHOOD_SECONDARY_RPC_URL: "https://user:secret@secondary.example/rpc",

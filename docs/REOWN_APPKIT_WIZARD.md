@@ -29,8 +29,8 @@ opening a wallet prompt. The document, setup copy, and Punk cards are never
 parser-blocked by the SDK.
 
 AppKit's public custom network uses only Robinhood's official public RPC.
-`ROBINHOOD_SECONDARY_RPC_URL` (including an Alchemy URL, when configured) is a
-server/CLI-only archive input. It is never returned to browser JavaScript.
+`ROBINHOOD_SECONDARY_RPC_URL` is a server/CLI-only safety-check input. It is never returned to
+browser JavaScript.
 Routine 15-second activity refreshes read the worker database only; a full
 dual-provider chain check happens when a Punk is selected, an owner requests a
 live refresh/action, or the worker evaluates a candidate.
