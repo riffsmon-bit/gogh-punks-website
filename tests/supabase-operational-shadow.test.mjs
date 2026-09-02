@@ -239,6 +239,22 @@ test("receipt metering migration charges idempotently and stages fixed-owner ref
   assert.match(sql, /REVOKE ALL ON FUNCTION gogh_broker_record_punk_priority_attempt/);
 });
 
+test("additive priority repair qualifies table expressions and reserves before submission", async () => {
+  const sql = await readFile(new URL(
+    "../supabase/migrations/20260902013000_repair_priority_attempt_reliability.sql",
+    import.meta.url,
+  ), "utf8");
+  assert.match(sql, /CREATE TABLE IF NOT EXISTS gogh_broker_punk_priority_attempts/);
+  assert.match(sql, /gogh_broker_reserve_punk_priority_submission/);
+  assert.match(sql, /gogh_broker_note_punk_priority_submission/);
+  assert.match(sql, /gas_account\.spent_wei \+ selected_charge/);
+  assert.match(sql, /priority_session\.completed_mints/);
+  assert.match(sql, /priority_session\.requested_mints/);
+  assert.match(sql, /priority_session\.expires_at/);
+  assert.match(sql, /priority_session\.last_transaction_hash/);
+  assert.doesNotMatch(sql, /\b(?:DROP TABLE|TRUNCATE|DELETE FROM)\b/i);
+});
+
 test("priority attempt forwards complete receipt gas evidence to one atomic database function", async () => {
   const database = recordingDatabase();
   database.query = async (sql, values = []) => {
@@ -249,7 +265,8 @@ test("priority attempt forwards complete receipt gas evidence to one atomic data
       available_wei: "425000000000000", usage_recorded: true }] };
   };
   const result = await recordPunkPrioritySessionAttempt(
-    "11111111-1111-4111-8111-111111111111",
+    { id: "11111111-1111-4111-8111-111111111111",
+      leaseToken: "22222222-2222-4222-8222-222222222222" },
     { status: "MINT_CONFIRMED", submitted: 1, transactionHash: "0x" + "a".repeat(64),
       gasUsed: "150000", effectiveGasPriceWei: "500000000",
       transactionGasCostWei: "75000000000000" },
@@ -257,8 +274,8 @@ test("priority attempt forwards complete receipt gas evidence to one atomic data
   );
   assert.equal(result.usageRecorded, true);
   assert.equal(result.availableWei, "425000000000000");
-  assert.match(database.calls[0].sql, /gogh_broker_record_punk_priority_attempt/);
-  assert.deepEqual(database.calls[0].values.slice(4, 7), [
+  assert.match(database.calls[0].sql, /gogh_broker_record_punk_priority_attempt_v2/);
+  assert.deepEqual(database.calls[0].values.slice(5, 8), [
     "150000", "500000000", "75000000000000",
   ]);
 });

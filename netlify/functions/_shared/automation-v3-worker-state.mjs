@@ -422,6 +422,11 @@ export function workerUsageFromRow(row) {
 
 export function workerHeartbeatFromRow(row) {
   if (!row) return null;
+  const rawLaneId = rowValue(row, "lane_id", "laneId");
+  const laneId = rawLaneId == null ? null : Number(rawLaneId);
+  if (laneId !== null && (!Number.isInteger(laneId) || laneId < 1 || laneId > 6)) {
+    throw new TypeError("worker heartbeat lane is invalid");
+  }
   const heartbeat = {
     release: text(rowValue(row, "release_commit", "release"), /^[0-9a-f]{40}$/, "release"),
     startedAt: iso(rowValue(row, "started_at", "startedAt"), "startedAt"),
@@ -475,6 +480,7 @@ export function workerHeartbeatFromRow(row) {
   }
   return Object.freeze({
     ...heartbeat,
+    laneId,
     lastSuccessfulRun: lastSuccessfulCompletedAt ? Object.freeze({
       release: lastSuccessfulRelease,
       startedAt: lastSuccessfulStartedAt,
@@ -540,6 +546,10 @@ export async function recordAutomationV3WorkerHeartbeat(result, options = {}) {
   const release = text(options.release, /^[0-9a-f]{40}$/, "release");
   const startedAt = iso(options.startedAt, "startedAt");
   const completedAt = iso(options.completedAt, "completedAt");
+  const laneId = Number(options.laneId ?? 1);
+  if (!Number.isInteger(laneId) || laneId < 1 || laneId > 6) {
+    throw new TypeError("worker lane ID is invalid");
+  }
   const status = String(result?.status ?? "FAILED");
   if (!STATUSES.has(status)) throw new TypeError("worker status is invalid");
   const submitted = Number(result?.submitted ?? 0);
@@ -568,8 +578,8 @@ export async function recordAutomationV3WorkerHeartbeat(result, options = {}) {
        INSERT INTO broker_automation_v3_worker_runs
         (release_commit, started_at, completed_at, status, submitted,
          punk_token_id, account_address, collection_address, transaction_hash, failure_code,
-         discovery_summary)
-       VALUES ($1, $2, $3, $4, $5, $6::numeric, $7, $8, $9, $10, $11::jsonb)
+         discovery_summary, lane_id)
+       VALUES ($1, $2, $3, $4, $5, $6::numeric, $7, $8, $9, $10, $11::jsonb, $12)
        ON CONFLICT DO NOTHING
        RETURNING run_id
      )
@@ -617,9 +627,59 @@ export async function recordAutomationV3WorkerHeartbeat(result, options = {}) {
      WHERE broker_automation_v3_worker_state.completed_at <= EXCLUDED.completed_at
      RETURNING *`,
     [release, startedAt, completedAt, status, submitted, tokenId, account, collection,
-      transactionHash, failureCode, discoverySummary ? JSON.stringify(discoverySummary) : null],
+      transactionHash, failureCode, discoverySummary ? JSON.stringify(discoverySummary) : null,
+      laneId],
   );
-  return query.rows[0] ? workerHeartbeatFromRow(query.rows[0]) : null;
+  const laneQuery = await database.query(
+    `INSERT INTO broker_automation_v3_worker_lane_state
+      (lane_id, release_commit, started_at, completed_at, status, submitted,
+       punk_token_id, account_address, collection_address, transaction_hash, failure_code,
+       discovery_summary, last_successful_release_commit, last_successful_started_at,
+       last_successful_completed_at, last_successful_status, consecutive_failure_count,
+       last_failure_reason)
+     VALUES ($12, $1, $2, $3, $4, $5, $6::numeric, $7, $8, $9, $10, $11::jsonb,
+       CASE WHEN $4 <> 'FAILED' THEN $1 ELSE NULL END,
+       CASE WHEN $4 <> 'FAILED' THEN $2 ELSE NULL END,
+       CASE WHEN $4 <> 'FAILED' THEN $3 ELSE NULL END,
+       CASE WHEN $4 <> 'FAILED' THEN $4 ELSE NULL END,
+       CASE WHEN $4 = 'FAILED' THEN 1 ELSE 0 END,
+       CASE WHEN $4 = 'FAILED' THEN $10 ELSE NULL END)
+     ON CONFLICT (lane_id) DO UPDATE SET
+       release_commit = EXCLUDED.release_commit,
+       started_at = EXCLUDED.started_at,
+       completed_at = EXCLUDED.completed_at,
+       status = EXCLUDED.status,
+       submitted = EXCLUDED.submitted,
+       punk_token_id = EXCLUDED.punk_token_id,
+       account_address = EXCLUDED.account_address,
+       collection_address = EXCLUDED.collection_address,
+       transaction_hash = EXCLUDED.transaction_hash,
+       failure_code = EXCLUDED.failure_code,
+       discovery_summary = EXCLUDED.discovery_summary,
+       last_successful_release_commit = CASE WHEN EXCLUDED.status <> 'FAILED'
+         THEN EXCLUDED.release_commit
+         ELSE broker_automation_v3_worker_lane_state.last_successful_release_commit END,
+       last_successful_started_at = CASE WHEN EXCLUDED.status <> 'FAILED'
+         THEN EXCLUDED.started_at
+         ELSE broker_automation_v3_worker_lane_state.last_successful_started_at END,
+       last_successful_completed_at = CASE WHEN EXCLUDED.status <> 'FAILED'
+         THEN EXCLUDED.completed_at
+         ELSE broker_automation_v3_worker_lane_state.last_successful_completed_at END,
+       last_successful_status = CASE WHEN EXCLUDED.status <> 'FAILED'
+         THEN EXCLUDED.status
+         ELSE broker_automation_v3_worker_lane_state.last_successful_status END,
+       consecutive_failure_count = CASE WHEN EXCLUDED.status = 'FAILED'
+         THEN broker_automation_v3_worker_lane_state.consecutive_failure_count + 1 ELSE 0 END,
+       last_failure_reason = CASE WHEN EXCLUDED.status = 'FAILED'
+         THEN EXCLUDED.failure_code ELSE NULL END
+     WHERE broker_automation_v3_worker_lane_state.completed_at <= EXCLUDED.completed_at
+     RETURNING *`,
+    [release, startedAt, completedAt, status, submitted, tokenId, account, collection,
+      transactionHash, failureCode, discoverySummary ? JSON.stringify(discoverySummary) : null,
+      laneId],
+  );
+  return laneQuery.rows[0] ? workerHeartbeatFromRow(laneQuery.rows[0])
+    : query.rows[0] ? workerHeartbeatFromRow(query.rows[0]) : null;
 }
 
 export async function getAutomationV3WorkerHeartbeat(options = {}) {
@@ -628,6 +688,14 @@ export async function getAutomationV3WorkerHeartbeat(options = {}) {
     `SELECT * FROM broker_automation_v3_worker_state WHERE singleton_id = 1 LIMIT 1`,
   );
   return workerHeartbeatFromRow(result.rows[0]);
+}
+
+export async function getAutomationV3WorkerLaneHeartbeats(options = {}) {
+  const database = options.database ?? getDatabase().pool;
+  const result = await database.query(
+    "SELECT * FROM broker_automation_v3_worker_lane_state ORDER BY lane_id",
+  );
+  return Object.freeze((result.rows ?? []).map(workerHeartbeatFromRow));
 }
 
 export async function getAutomationV3UsageStats(options = {}) {

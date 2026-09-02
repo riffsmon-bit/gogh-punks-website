@@ -21,6 +21,8 @@
     "broker:autonomy:v3-backfill:apply": "node --env-file-if-exists=.env scripts/backfill-automation-v3-enrollments.mjs --apply",
     "broker:supabase:migration:check": "node --env-file-if-exists=.env scripts/apply-supabase-operational-migration.mjs",
     "broker:supabase:migration:apply": "node --env-file-if-exists=.env scripts/apply-supabase-operational-migration.mjs --apply",
+    "broker:priority:postgres-integration": "node --env-file-if-exists=.env scripts/test-priority-attempt-postgres-integration.mjs --production-rollback",
+    "broker:priority:postgres-integration:production": "node scripts/test-priority-attempt-postgres-integration-from-netlify.mjs",
     "broker:autonomy:v3-deployment-manifest-proposal": "node --env-file-if-exists=.env scripts/build-automated-seadrop-v3-deployment-manifest.mjs",
     "check": "npm run site:check && npm run contracts:check",
     "code:check": "node scripts/code-check.mjs",

@@ -9,7 +9,7 @@ import {
   NATIVE_CURRENCY, SEA_DROP_MINT_PUBLIC_SELECTOR,
 } from "../../../broker/src/recommendation/automated-seadrop-v3-run-plan.mjs";
 import {
-  assignedAutomationV3AgentLane, configuredAutomationV3AgentLanes,
+  assignedAutomationV3AgentLane, automationV3WorkerBindingDiagnostics,
   regularAutomationV3AgentLanes,
   LEGACY_AUTOMATION_V3_AGENT,
 } from "./automation-v3-agent-pool.mjs";
@@ -215,16 +215,17 @@ export async function readAutomationV3GlobalState(environment = process.env, opt
   const first = normalizeGlobal(primary, nowSeconds, agentAddress);
   const second = normalizeGlobal(secondary, nowSeconds, agentAddress);
   if (JSON.stringify(first) !== JSON.stringify(second)) throw new TypeError("V3 providers disagree");
-  const workerRelease = environment.BROKER_AUTOMATION_V3_WORKER_RELEASE?.trim() ?? "";
-  let configuredAgents = [];
-  try {
-    configuredAgents = configuredAutomationV3AgentLanes(environment).map(({ address }) => address);
-  } catch {
-    configuredAgents = [];
-  }
-  const workerEnabled = /^[0-9a-f]{40}$/.test(workerRelease)
-    && configuredAgents.includes(agentAddress);
-  return Object.freeze({ ...first, worker: { enabled: workerEnabled, release: workerRelease || null } });
+  const binding = automationV3WorkerBindingDiagnostics(environment, {
+    requiredPublicConfigurationPresent: true,
+  });
+  return Object.freeze({
+    ...first,
+    worker: Object.freeze({
+      enabled: binding.enabled,
+      release: binding.expectedRelease,
+      binding,
+    }),
+  });
 }
 
 export async function readAutomationV3AgentDisplayState(

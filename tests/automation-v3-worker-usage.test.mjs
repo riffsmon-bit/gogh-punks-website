@@ -54,6 +54,8 @@ test("V3 worker records append-only history and the current heartbeat atomically
   assert.match(calls[0].sql, /ON CONFLICT DO NOTHING/);
   assert.match(calls[0].sql, /last_successful_completed_at/);
   assert.match(calls[0].sql, /consecutive_failure_count/);
+  assert.equal(calls[0].values[11], 1);
+  assert.match(calls[1].sql, /broker_automation_v3_worker_lane_state/);
   assert.deepEqual(JSON.parse(calls[0].values[10]), {
     discovered: 14, withWebsite: 8, withX: 6, highPriority: 2,
     sentToOnchainValidation: 3, maximumOnchainValidations: 3,
@@ -285,6 +287,16 @@ test("V3 history migration backfills the last heartbeat and enforces idempotence
   assert.match(source, /WHERE transaction_hash IS NOT NULL/);
   assert.match(source, /FROM broker_automation_v3_worker_state/);
   assert.match(source, /ON CONFLICT DO NOTHING/);
+});
+
+test("lane health migration records six independent last-writer states", async () => {
+  const source = await readFile(new URL(
+    "../netlify/database/migrations/20260902020000_add_automation_v3_lane_health.sql",
+    import.meta.url,
+  ), "utf8");
+  assert.match(source, /broker_automation_v3_worker_lane_state/);
+  assert.match(source, /lane_id SMALLINT PRIMARY KEY CHECK \(lane_id BETWEEN 1 AND 6\)/);
+  assert.match(source, /broker_automation_v3_worker_runs_lane_completed_idx/);
 });
 
 test("active Punk enrollment is idempotent and contains no signing authority", async () => {

@@ -27,7 +27,8 @@ import {
   workerStageError,
 } from "../scripts/run-automated-seadrop-v3-worker.mjs";
 import {
-  automationV3WorkerAvailability, automationV3WorkerConfigured, autonomyV3Status,
+  automationV3LaneAvailability, automationV3WorkerAvailability,
+  automationV3WorkerConfigured, autonomyV3Status,
 } from "../netlify/functions/broker-autonomy-v3-status.mjs";
 import { automationV3Activity } from
   "../netlify/functions/broker-autonomy-v3-activity.mjs";
@@ -334,6 +335,7 @@ test("V3 public status requires the exact production worker binding", () => {
     BROKER_AUTOMATION_V3_WORKER_RELEASE: release,
     BROKER_AUTOMATION_V3_AGENT_ADDRESS:
       "0x3bb2ebf6b3c4d7f5e5781cdf2091428f7750af7d",
+    BROKER_AUTOMATION_V3_AGENT_POOL_ENABLED: "true",
   };
   assert.equal(automationV3WorkerConfigured(configured), true);
   assert.equal(automationV3WorkerConfigured({ ...configured,
@@ -343,6 +345,43 @@ test("V3 public status requires the exact production worker binding", () => {
   assert.equal(automationV3WorkerConfigured({ ...configured,
     BROKER_AUTOMATION_V3_AGENT_ADDRESS:
       "0x0000000000000000000000000000000000000000" }), false);
+});
+
+test("priority lane degradation does not disable healthy regular automation lanes", () => {
+  const release = "a".repeat(40);
+  const now = Date.parse("2026-09-01T12:05:00.000Z");
+  const success = (laneId) => ({
+    laneId, release, status: "NO_ELIGIBLE_TARGETS", submitted: 0,
+    startedAt: "2026-09-01T12:04:00.000Z",
+    completedAt: "2026-09-01T12:04:02.000Z",
+    lastSuccessfulRun: { release, startedAt: "2026-09-01T12:04:00.000Z",
+      completedAt: "2026-09-01T12:04:02.000Z", status: "NO_ELIGIBLE_TARGETS" },
+    consecutiveFailures: 0,
+  });
+  const failed = (laneId) => ({
+    ...success(laneId), status: "FAILED", failureCode: "GLOBAL_STATE_READ_FAILED",
+    consecutiveFailures: 3, lastFailureReason: "GLOBAL_STATE_READ_FAILED",
+  });
+  const priorityFailure = automationV3LaneAvailability(
+    true, [...Array.from({ length: 5 }, (_, index) => success(index + 1)), failed(6)],
+    release, null, now,
+  );
+  assert.equal(priorityFailure.status, "READY");
+  assert.equal(priorityFailure.executionReady, true);
+  assert.equal(priorityFailure.priority.ready, false);
+
+  const oneRegularFailure = automationV3LaneAvailability(
+    true, [failed(1), ...Array.from({ length: 4 }, (_, index) => success(index + 2)), success(6)],
+    release, null, now,
+  );
+  assert.equal(oneRegularFailure.status, "WORKER_DEGRADED");
+  assert.equal(oneRegularFailure.executionReady, true);
+  assert.equal(automationV3LaneAvailability(
+    true, oneRegularFailure.lanes.map(({ heartbeat }) => heartbeat), release, 1, now,
+  ).executionReady, false);
+  assert.equal(automationV3LaneAvailability(
+    true, oneRegularFailure.lanes.map(({ heartbeat }) => heartbeat), release, 2, now,
+  ).executionReady, true);
 });
 
 test("lightweight browser activity uses recorded worker state without chain RPC", () => {
