@@ -208,6 +208,12 @@ export async function confirmedAutomationV3GlobalState(
   return readState();
 }
 
+export function automationV3GlobalGateFailure(global) {
+  if (global?.configured !== true) return "GLOBAL_V3_ONCHAIN_GATE_CLOSED";
+  if (global?.worker?.enabled !== true) return "GLOBAL_V3_WORKER_BINDING_CLOSED";
+  return null;
+}
+
 function boundedWorkerCode(value) {
   return typeof value === "string" && /^[A-Z0-9_]{1,128}$/.test(value) ? value : null;
 }
@@ -334,6 +340,8 @@ const PLATFORM_DELAY_FAILURE_CODES = new Set([
   "CANDIDATE_STATE_READ_FAILED",
   "GLOBAL_STATE_READ_FAILED",
   "GLOBAL_V3_GATE_CLOSED",
+  "GLOBAL_V3_ONCHAIN_GATE_CLOSED",
+  "GLOBAL_V3_WORKER_BINDING_CLOSED",
   "PROFILE_STATE_READ_FAILED",
   "SOCIAL_RANKING_FAILED",
 ]);
@@ -1274,9 +1282,14 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
       dependencies.globalGatePause,
     ),
   );
-  if (!global.configured || !global.worker.enabled) {
-    const error = new TypeError("GLOBAL_V3_GATE_CLOSED");
-    error.code = "GLOBAL_V3_GATE_CLOSED";
+  const globalGateFailure = automationV3GlobalGateFailure(global);
+  if (globalGateFailure) {
+    currentDiagnostics.globalGate = Object.freeze({
+      configured: global?.configured === true,
+      workerEnabled: global?.worker?.enabled === true,
+    });
+    const error = new TypeError(globalGateFailure);
+    error.code = globalGateFailure;
     throw error;
   }
   const diagnostics = rejectionDiagnostics(profiles, collections, routeCandidates);
