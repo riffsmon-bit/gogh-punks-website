@@ -10,6 +10,8 @@ import {
   automationV3WorkerBindingDiagnostics,
   configuredAutomationV3AgentLanes,
   LEGACY_AUTOMATION_V3_AGENT,
+  publicAutomationV3AgentLanes,
+  registrationAutomationV3AgentLanes,
 } from "../netlify/functions/_shared/automation-v3-agent-pool.mjs";
 import { runScheduledAutomationV3Lane } from
   "../netlify/functions/_shared/automation-v3-lane-handler.mjs";
@@ -59,6 +61,46 @@ test("regular Punk assignment excludes the dedicated priority lane", () => {
   }
   assert.deepEqual(Object.fromEntries(counts), { 1: 5, 2: 5, 3: 5, 4: 5, 5: 5 });
   assert.equal(counts.has(6), false);
+});
+
+test("registration can close lane one without disabling its worker", () => {
+  const base = { ...environment(), BROKER_AUTOMATION_V3_REGISTRATION_LANES: "2,3,4,5" };
+  assert.deepEqual(
+    registrationAutomationV3AgentLanes(base).map(({ laneId }) => laneId),
+    [2, 3, 4, 5],
+  );
+  assert.equal(automationV3AgentLane(base, 1).enabled, true,
+    "lane one must continue serving existing Punks");
+  const counts = new Map();
+  for (let tokenId = 0; tokenId < 40; tokenId += 1) {
+    const laneId = assignedAutomationV3AgentLane(tokenId, base).laneId;
+    counts.set(laneId, (counts.get(laneId) ?? 0) + 1);
+  }
+  assert.deepEqual(Object.fromEntries(counts), { 2: 10, 3: 10, 4: 10, 5: 10 });
+  assert.deepEqual(publicAutomationV3AgentLanes(base).map(({ laneId, registrationOpen }) =>
+    ({ laneId, registrationOpen })), [
+    { laneId: 1, registrationOpen: false },
+    { laneId: 2, registrationOpen: true },
+    { laneId: 3, registrationOpen: true },
+    { laneId: 4, registrationOpen: true },
+    { laneId: 5, registrationOpen: true },
+    { laneId: 6, registrationOpen: false },
+  ]);
+});
+
+test("registration lane configuration fails closed", () => {
+  for (const value of ["", "2,2", "2,6", "1, 2", "2,7", "all"]) {
+    assert.throws(
+      () => registrationAutomationV3AgentLanes({
+        ...environment(), BROKER_AUTOMATION_V3_REGISTRATION_LANES: value,
+      }),
+      /registration lanes/,
+    );
+  }
+  const disabled = environment();
+  disabled.BROKER_AUTOMATION_V3_AGENT_LANE_3_ENABLED = "false";
+  disabled.BROKER_AUTOMATION_V3_REGISTRATION_LANES = "2,3,4,5";
+  assert.throws(() => registrationAutomationV3AgentLanes(disabled), /must be enabled/);
 });
 
 test("lane environment remaps only the reviewed worker signer binding", () => {

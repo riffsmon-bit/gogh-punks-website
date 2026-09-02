@@ -10,7 +10,7 @@ import {
 } from "../../../broker/src/recommendation/automated-seadrop-v3-run-plan.mjs";
 import {
   assignedAutomationV3AgentLane, automationV3WorkerBindingDiagnostics,
-  regularAutomationV3AgentLanes,
+  registrationAutomationV3AgentLanes, regularAutomationV3AgentLanes,
   LEGACY_AUTOMATION_V3_AGENT,
 } from "./automation-v3-agent-pool.mjs";
 import { automationV3PunkAgentAssignment } from "./automation-v3-worker-state.mjs";
@@ -445,6 +445,9 @@ export async function selectAutomationV3OwnerSetupLane(
     }
     return Object.freeze({ lane, assigned: true });
   }
+  const registrationLanes = registrationAutomationV3AgentLanes(environment, {
+    requirePrivateKeys,
+  });
   const preferred = assignedAutomationV3AgentLane(tokenIdValue, environment, {
     requirePrivateKeys,
   });
@@ -453,7 +456,7 @@ export async function selectAutomationV3OwnerSetupLane(
       ...(options.clients ? { clients: options.clients } : {}), agentAddress,
     })
   ));
-  const candidates = [preferred, ...lanes].filter((candidate, index, values) =>
+  const candidates = [preferred, ...registrationLanes].filter((candidate, index, values) =>
     values.findIndex(({ address }) => address === candidate.address) === index);
   for (const lane of candidates) {
     const punk = await readPunk(tokenIdValue, lane.address);

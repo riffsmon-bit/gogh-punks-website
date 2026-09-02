@@ -87,6 +87,30 @@ test("owner setup modulo assignment excludes the priority lane", async () => {
   assert.equal(selected.lane.priority, false);
 });
 
+test("owner setup excludes closed lane one for a new registration", async () => {
+  const environment = poolEnvironment();
+  environment.BROKER_AUTOMATION_V3_REGISTRATION_LANES = "2,3,4,5";
+  const reads = [];
+  const selected = await selectAutomationV3OwnerSetupLane("100", environment, {
+    assignment: async () => null,
+    readPunk: async (_tokenId, agent) => { reads.push(agent); return { active: false }; },
+  });
+  assert.equal(selected.lane.laneId, 2);
+  assert.equal(reads.includes(A("a")), false, "closed lane one must not be probed");
+  assert.deepEqual(reads, [A("2"), A("3"), A("4"), A("5")]);
+});
+
+test("owner setup preserves an existing lane-one assignment while registration is closed", async () => {
+  const environment = poolEnvironment();
+  environment.BROKER_AUTOMATION_V3_REGISTRATION_LANES = "2,3,4,5";
+  const selected = await selectAutomationV3OwnerSetupLane("100", environment, {
+    assignment: async () => ({ tokenId: "100", lane: 1, agent: A("a") }),
+    readPunk: async () => { throw new Error("persisted assignment must not probe"); },
+  });
+  assert.equal(selected.lane.laneId, 1);
+  assert.equal(selected.assigned, true);
+});
+
 test("production owner setup fails closed before authorizing an enabled lane without its signer", async () => {
   const environment = poolEnvironment();
   environment.CONTEXT = "production";
