@@ -1,17 +1,17 @@
 import {
   runAutomationV3Once,
-} from "./ _shared/automation-v3-runner.mjs";
+} from "./_shared/automation-v3-runner.mjs";
 import {
   backgroundRpcDecision, logBackgroundRpcSkip,
-} from "./ _shared/background-rpc-policy.mjs";
+} from "./_shared/background-rpc-policy.mjs";
 import {
   beginPunkPrioritySessionAttempt, nextPunkPrioritySession,
   notePunkPrioritySubmission, recordPunkPrioritySessionAttempt,
   reservePunkPrioritySubmission,
-} from "./ _shared/supabase-operational-store.mjs";
+} from "./_shared/supabase-operational-store.mjs";
 import {
   automationV3AgentLane, automationV3LaneEnvironment, configuredAutomationV3AgentLanes,
-} from "./ _shared/automation-v3-agent-pool.mjs";
+} from "./_shared/automation-v3-agent-pool.mjs";
 import { createPublicClient, http } from "viem";
 import { resolveRobinhoodRpcPair } from
   "../../broker/src/infrastructure/robinhood-rpc-endpoints.mjs";
@@ -164,7 +164,7 @@ export async function runPunkPriorityWorker(dependencies = {}) {
       beforeSubmission: (submission) => reserveSubmission(attempt, submission, {
         environment, database: dependencies.database,
       }),
-      afterSubmission: (transactionHash) => noteSubmission(attempt, transactionHash, {
+      afterSubmission: (txHash) => noteSubmission(attempt, txHash, {
         environment, database: dependencies.database,
       }),
     });
