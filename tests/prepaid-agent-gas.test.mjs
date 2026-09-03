@@ -3,11 +3,12 @@ import test from "node:test";
 
 import {
   confirmPrepaidAgentGas as confirmPrepaidAgentGasRequest,
-  preflightPrepaidAgentGas, submitPrepaidAgentGas,
+  fetchPrepaidAgentGasStatus, preflightPrepaidAgentGas, submitPrepaidAgentGas,
 } from "../site/prepaid-agent-gas.js";
 import {
   confirmPrepaidAgentGas, prepaidAgentGasStatus,
 } from "../netlify/functions/broker-punk-agent-gas.mjs";
+import prepaidAgentGasHandler from "../netlify/functions/broker-punk-agent-gas.mjs";
 import {
   AUTOMATION_V3_AGENT,
 } from "../netlify/functions/_shared/autonomy-v3-live.mjs";
@@ -23,6 +24,7 @@ const ENVIRONMENT = {
   BROKER_AUTOMATION_V3_ENABLED: "true",
   BROKER_AUTOMATION_V3_AGENT_ADDRESS: AUTOMATION_V3_AGENT,
   BROKER_AUTOMATION_V3_AGENT_PRIVATE_KEY: `0x${"a".repeat(64)}`,
+  BROKER_PREPAID_AGENT_FUNDING_ENABLED: "true",
 };
 
 function poolEnvironment() {
@@ -42,6 +44,7 @@ function status() {
     tokenId: "93", owner: OWNER, agent: AUTOMATION_V3_AGENT,
     minimumWei: "100000000000000", maximumWei: "50000000000000000",
     recommendedWei: AMOUNT, availableWei: "0",
+    fundingEnabled: true,
     recommendedWeiByMintLimit: { "1": AMOUNT, "3": "1500000000000000",
       "5": "2500000000000000", "10": "5000000000000000" },
   };
@@ -125,9 +128,67 @@ test("server status exposes only an active Punk's fixed agent and isolated credi
   assert.equal(result.agent, AUTOMATION_V3_AGENT);
   assert.equal(result.availableWei, AMOUNT);
   assert.equal(result.actualGasSpentTodayWei, "74075738814000");
+  assert.equal(result.fundingEnabled, true);
   assert.equal(result.publicAgentLanes.length, 1);
   assert.equal(result.publicAgentLanes[0].address, AUTOMATION_V3_AGENT);
   assert.equal("privateKey" in result.publicAgentLanes[0], false);
+});
+
+test("retired prepaid funding remains readable but rejects every new credit before mutation", async () => {
+  const environment = { ...ENVIRONMENT, BROKER_PREPAID_AGENT_FUNDING_ENABLED: "false" };
+  const session = { id: "11111111-1111-4111-8111-111111111111", state: "COMPLETE",
+    requestedMints: 1, completedMints: 1, durationDays: 1,
+    startsAt: "2026-09-01T00:00:00.000Z", expiresAt: "2026-09-02T00:00:00.000Z",
+    lastAttemptAt: "2026-09-01T00:01:00.000Z", lastResult: "MINT_CONFIRMED" };
+  const result = await prepaidAgentGasStatus("93", OWNER, {
+    environment,
+    readPunk: async () => ({ ...activePunk(), active: false }),
+    getBalance: async () => ({ available: true, creditedWei: AMOUNT, spentWei: "1",
+      availableWei: String(BigInt(AMOUNT) - 1n), updatedAt: null, session,
+      sessionHistory: [session] }),
+  });
+  assert.equal(result.fundingEnabled, false);
+  assert.equal(result.fundingState, "LEGACY_READ_ONLY");
+  assert.equal(result.sessionHistory.length, 1);
+
+  let mutated = false;
+  await assert.rejects(() => confirmPrepaidAgentGas({
+    tokenId: "93", owner: OWNER, amountWei: AMOUNT, mintLimit: 1,
+    durationDays: 7, transactionHash: HASH,
+  }, {
+    environment,
+    readTransaction: async () => { mutated = true; },
+    recordCredit: async () => { mutated = true; },
+    runNow: async () => { mutated = true; },
+  }), (error) => error.code === "PREPAID_FUNDING_RETIRED" && error.status === 410);
+  assert.equal(mutated, false);
+});
+
+test("browser preflight cannot request a wallet transaction after funding retirement", async () => {
+  let requested = false;
+  await assert.rejects(() => preflightPrepaidAgentGas({
+    request: async () => { requested = true; },
+  }, { ...status(), fundingEnabled: false,
+    fundingMessage: "Legacy funding is read-only" }, "93", SESSION),
+  (error) => error.code === "PREPAID_FUNDING_RETIRED");
+  assert.equal(requested, false);
+});
+
+test("legacy balance reads use the read-only route while stale funding clients fail closed", async () => {
+  let requestedUrl;
+  await fetchPrepaidAgentGasStatus(async (url) => {
+    requestedUrl = url;
+    return { ok: true, json: async () => ({ ok: true, prepaidAgentGas: status() }) };
+  }, "93", OWNER);
+  assert.match(requestedUrl, /\?view=legacy&tokenId=93&owner=/);
+
+  const response = await prepaidAgentGasHandler({
+    method: "GET",
+    url: `https://goghpunks.xyz/api/broker/punk-agent-gas?tokenId=93&owner=${OWNER}`,
+  });
+  assert.equal(response.status, 410);
+  const payload = await response.json();
+  assert.equal(payload.code, "PREPAID_FUNDING_RETIRED");
 });
 
 test("production prepayment cannot fund an enabled lane pool with a missing signer", async () => {

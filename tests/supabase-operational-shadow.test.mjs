@@ -288,6 +288,13 @@ test("prepaid gas store reads and credits exactly one selected Punk", async () =
       return { rows: [{ credited: true, available_wei: "500000000000000",
         job_id: "12345678-1234-1234-1234-123456789abc" }] };
     }
+    if (sql.trimStart().startsWith("SELECT session_id::text AS session_id")) {
+      return { rows: [{ session_id: "12345678-1234-4234-8234-123456789abc",
+        session_state: "COMPLETE", requested_mints: 1, completed_mints: 1,
+        duration_days: 1, starts_at: "2026-08-31T12:00:00.000Z",
+        expires_at: "2026-09-01T12:00:00.000Z",
+        last_attempt_at: "2026-08-31T12:01:00.000Z", last_result: "MINT_CONFIRMED" }] };
+    }
     return { rows: [{ credited_wei: "500000000000000", spent_wei: "0",
       available_wei: "500000000000000", updated_at: "2026-08-31T12:00:00.000Z" }] };
   };
@@ -305,5 +312,7 @@ test("prepaid gas store reads and credits exactly one selected Punk", async () =
     environment: selectedEnvironment, database,
   });
   assert.equal(balance.availableWei, "500000000000000");
+  assert.equal(balance.sessionHistory.length, 1);
+  assert.equal(balance.sessionHistory[0].state, "COMPLETE");
   assert.equal(database.calls[1].values[1], "93");
 });

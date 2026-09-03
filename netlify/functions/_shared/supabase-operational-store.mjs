@@ -345,6 +345,31 @@ export async function getPrepaidPunkAgentGasBalance(selectedTokenId, options = {
     [COLLECTION, normalizedTokenId],
   );
   const row = result.rows?.[0];
+  const sessions = await database.query(
+    `SELECT session_id::text AS session_id, state AS session_state,
+            requested_mints, completed_mints, duration_days, starts_at, expires_at,
+            last_attempt_at, last_result
+       FROM gogh_broker_punk_priority_sessions
+      WHERE chain_id = 4663 AND collection_address = $1
+        AND punk_token_id = $2::numeric
+      ORDER BY created_at DESC
+      LIMIT 20`,
+    [COLLECTION, normalizedTokenId],
+  );
+  const sessionHistory = Object.freeze((sessions.rows ?? []).flatMap((sessionRow) => (
+    sessionRow?.session_id == null ? [] : [Object.freeze({
+      id: sessionRow.session_id,
+      state: sessionRow.session_state,
+      requestedMints: Number(sessionRow.requested_mints),
+      completedMints: Number(sessionRow.completed_mints),
+      durationDays: Number(sessionRow.duration_days),
+      startsAt: iso(sessionRow.starts_at, "priority-session start"),
+      expiresAt: iso(sessionRow.expires_at, "priority-session expiry"),
+      lastAttemptAt: sessionRow.last_attempt_at == null ? null
+        : iso(sessionRow.last_attempt_at, "priority-session attempt"),
+      lastResult: sessionRow.last_result ?? null,
+    })]
+  )));
   let spentTodayWei = null;
   let actualGasSpentWei = null;
   let actualGasSpentTodayWei = null;
@@ -414,6 +439,7 @@ export async function getPrepaidPunkAgentGasBalance(selectedTokenId, options = {
         : iso(row.last_attempt_at, "priority-session attempt"),
       lastResult: row.last_result ?? null,
     }),
+    sessionHistory,
   });
 }
 
