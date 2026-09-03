@@ -476,27 +476,21 @@ test("Control Center fails clearly across route, wallet, network, and worker sta
   assert.match(html, /aria-controls="control-panel-overview"/);
   assert.match(html, /id="control-panel-activity"[^>]+aria-labelledby="control-tab-activity"/);
   assert.match(html, /data-agent-send disabled/);
-  assert.equal((html.match(/data-prepaid-agent-gas-open/g) ?? []).length, 3,
-    "the Punk-specific prepaid action must be available in activation, overview, and Mint");
+  assert.equal((html.match(/data-prepaid-agent-gas-open/g) ?? []).length, 0,
+    "retired hosted funding must expose no purchase action");
   assert.match(html, /data-prepaid-agent-gas-card/);
-  assert.match(html, /unused credit remains assigned to this Punk/);
+  assert.match(html, /Legacy Hosted Balance/);
+  assert.match(html, /Read-only accounting/);
+  assert.match(html, /data-prepaid-agent-session-history/);
+  assert.match(html, /deterministic refund manifest is reviewed/);
   assert.match(html, /Activation gas/);
   assert.match(html, /No gas deposit is required to join the normal hosted rotation/);
-  assert.match(html, /1 mint\/day[\s\S]*0\.0005 ETH/);
-  assert.match(html, /3 mints\/day[\s\S]*0\.0015 ETH/);
-  assert.match(html, /5 mints\/day[\s\S]*0\.0025 ETH/);
-  assert.match(html, /10 mints\/day[\s\S]*0\.005 ETH/);
-  assert.match(html, /not activation fees, mint prices, or guaranteed mint counts/);
-  assert.match(html, /connected owner wallet pays the reserve plus its displayed transfer fee/i);
-  assert.match(html, /ETH already inside the Punk NFT Wallet cannot pay hosted-worker gas/);
-  assert.match(html, /data-prepaid-agent-payer-balance/);
-  assert.match(browser, /INSUFFICIENT_PAYER_BALANCE|payerBalanceWei/);
+  assert.match(html, /New prepaid hosted-agent deposits are closed/);
+  assert.doesNotMatch(html, /data-prepaid-agent-(?:amount|mints|days|confirm|recommended|submit)/);
   assert.match(html, /Daily free-mint limit \(1–10\)/);
   assert.match(html, /Authorization duration in days \(1–30\)/);
-  assert.match(browser, /for \(const button of queryAll\("\[data-prepaid-agent-gas-open\]"\)\)/);
   assert.match(browser, /function setPrepaidAgentGasMessage/);
-  assert.match(browser, /prepayAgentGasAndRun/);
-  assert.match(browser, /confirmPrepaidAgentGas/);
+  assert.doesNotMatch(browser, /prepayAgentGasAndRun|confirmPrepaidAgentGas|submitPrepaidAgentGas/);
   assert.match(html, /data-directed-check disabled/);
   assert.match(html, /data-activity-state aria-live="polite"/);
   assert.match(browser, /state\.walletChainId !== CHAIN_ID/);

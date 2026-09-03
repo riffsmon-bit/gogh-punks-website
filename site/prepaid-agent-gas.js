@@ -67,7 +67,7 @@ async function rpc(provider, method, params = []) {
 
 export async function fetchPrepaidAgentGasStatus(fetchFunction, tokenId, owner) {
   const response = await fetchFunction(
-    `/api/broker/punk-agent-gas?tokenId=${encodeURIComponent(tokenId)}&owner=${encodeURIComponent(owner)}`,
+    `/api/broker/punk-agent-gas?view=legacy&tokenId=${encodeURIComponent(tokenId)}&owner=${encodeURIComponent(owner)}`,
     { headers: { accept: "application/json" }, cache: "no-store" },
   );
   const payload = await response.json().catch(() => null);
@@ -78,6 +78,10 @@ export async function fetchPrepaidAgentGasStatus(fetchFunction, tokenId, owner) 
 }
 
 export async function preflightPrepaidAgentGas(provider, status, selectedTokenId, configuration) {
+  if (status?.fundingEnabled !== true) {
+    fail("PREPAID_FUNDING_RETIRED",
+      status?.fundingMessage ?? "New hosted-agent prepayments are closed");
+  }
   if (String(status?.tokenId) !== String(selectedTokenId)) {
     fail("PUNK_CHANGED", "the selected Punk changed");
   }

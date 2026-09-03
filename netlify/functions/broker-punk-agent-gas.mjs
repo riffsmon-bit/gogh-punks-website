@@ -24,6 +24,9 @@ const MAXIMUM_WEI = 50_000_000_000_000_000n; // 0.05 ETH
 const RECOMMENDED_WEI = "500000000000000"; // 0.0005 ETH
 const MINT_LIMITS = new Set([1, 3, 5, 10]);
 const DURATION_DAYS = new Set([1, 3, 7, 30]);
+export const PREPAID_FUNDING_RETIRED_CODE = "PREPAID_FUNDING_RETIRED";
+export const PREPAID_FUNDING_RETIRED_MESSAGE =
+  "New hosted-agent prepayments are closed. Existing credit remains recorded for settlement and refund review.";
 const FALLBACK_GAS_BENCHMARK = Object.freeze({
   chainId: 4663,
   sampleSize: 16,
@@ -90,9 +93,29 @@ function ensureConfiguration(environment) {
   }
 }
 
-async function activePunk(selectedTokenId, expectedOwner, readPunk) {
+export function prepaidFundingState(environment = process.env) {
+  const enabled = environment.BROKER_PREPAID_AGENT_FUNDING_ENABLED === "true";
+  return Object.freeze({
+    enabled,
+    state: enabled ? "ACTIVE" : "LEGACY_READ_ONLY",
+    message: enabled ? null : PREPAID_FUNDING_RETIRED_MESSAGE,
+  });
+}
+
+function requirePrepaidFunding(environment) {
+  if (!prepaidFundingState(environment).enabled) {
+    throw new PublicError(410, PREPAID_FUNDING_RETIRED_CODE,
+      PREPAID_FUNDING_RETIRED_MESSAGE);
+  }
+}
+
+async function verifiedPunk(selectedTokenId, expectedOwner, readPunk, requireActive) {
   const punk = await readPunk(selectedTokenId);
-  if (punk?.tokenId !== selectedTokenId || punk?.created !== true || punk?.active !== true) {
+  if (punk?.tokenId !== selectedTokenId || punk?.created !== true) {
+    throw new PublicError(409, "PUNK_WALLET_UNAVAILABLE",
+      `Punk #${selectedTokenId}'s verified wallet is unavailable.`);
+  }
+  if (requireActive && punk.active !== true) {
     throw new PublicError(409, "PUNK_AUTOMATION_INACTIVE",
       `Punk #${selectedTokenId} must be activated before its agent can be prepaid.`);
   }
@@ -103,16 +126,21 @@ async function activePunk(selectedTokenId, expectedOwner, readPunk) {
 }
 
 async function activePunkLane(selectedTokenId, expectedOwner, dependencies, environment) {
+  const requireActive = dependencies.requireActive !== false;
   if (dependencies.resolvePunk) {
     const resolved = await dependencies.resolvePunk(selectedTokenId, environment);
-    const punk = await activePunk(selectedTokenId, expectedOwner, async () => resolved.punk);
+    const punk = await verifiedPunk(
+      selectedTokenId, expectedOwner, async () => resolved.punk, requireActive,
+    );
     if (environment.CONTEXT === "production") {
       automationV3LaneEnvironment(environment, resolved.lane.laneId);
     }
     return Object.freeze({ punk, lane: resolved.lane });
   }
   if (dependencies.readPunk) {
-    const punk = await activePunk(selectedTokenId, expectedOwner, dependencies.readPunk);
+    const punk = await verifiedPunk(
+      selectedTokenId, expectedOwner, dependencies.readPunk, requireActive,
+    );
     const lane = dependencies.lane ?? { laneId: 1, address: AUTOMATION_V3_AGENT };
     if (environment.CONTEXT === "production") {
       automationV3LaneEnvironment(environment, lane.laneId);
@@ -122,7 +150,9 @@ async function activePunkLane(selectedTokenId, expectedOwner, dependencies, envi
   const resolved = await resolveAutomationV3PunkAgent(selectedTokenId, environment, {
     database: dependencies.database,
   });
-  const punk = await activePunk(selectedTokenId, expectedOwner, async () => resolved.punk);
+  const punk = await verifiedPunk(
+    selectedTokenId, expectedOwner, async () => resolved.punk, requireActive,
+  );
   if (environment.CONTEXT === "production") {
     automationV3LaneEnvironment(environment, resolved.lane.laneId);
   }
@@ -181,10 +211,13 @@ async function readTransactionEvidence(transactionHash, environment) {
 
 export async function prepaidAgentGasStatus(selectedTokenId, expectedOwner, dependencies = {}) {
   const environment = dependencies.environment ?? process.env;
+  const funding = prepaidFundingState(environment);
   ensureConfiguration(environment);
   const normalizedTokenId = tokenId(selectedTokenId);
   const owner = address(expectedOwner, "Punk owner");
-  const { lane } = await activePunkLane(normalizedTokenId, owner, dependencies, environment);
+  const { lane } = await activePunkLane(normalizedTokenId, owner, {
+    ...dependencies, requireActive: false,
+  }, environment);
   const balance = await (dependencies.getBalance ?? getPrepaidPunkAgentGasBalance)(
     normalizedTokenId, { environment, database: dependencies.database },
   );
@@ -232,20 +265,25 @@ export async function prepaidAgentGasStatus(selectedTokenId, expectedOwner, depe
       availableWei: balance.availableWei,
       mode: "HOLDER_CLAIM_FEATURE_LOCKED",
       destination: owner,
-      message: "Unused credit remains assigned to this Punk. Holder-claimed refunds are staged but broadcast remains locked until the exact lane settlement path is production-verified.",
+      message: "Unused credit remains assigned to this Punk. Refunds remain dry-run until the deterministic manifest is reviewed and explicitly approved.",
     }),
+    sessionHistory: Object.freeze(balance.sessionHistory ?? (balance.session ? [balance.session] : [])),
     gasBenchmark,
     publicAgentLanes: publicAutomationV3AgentLanes(environment),
+    fundingEnabled: funding.enabled,
+    fundingState: funding.state,
+    fundingMessage: funding.message,
   });
 }
 
 export async function confirmPrepaidAgentGas(body, dependencies = {}) {
+  const environment = dependencies.environment ?? process.env;
+  requirePrepaidFunding(environment);
   if (!body || typeof body !== "object" || Array.isArray(body)
     || Object.keys(body).sort().join(",")
       !== "amountWei,durationDays,mintLimit,owner,tokenId,transactionHash") {
     throw new PublicError(400, "INVALID_REQUEST", "The prepaid gas confirmation is invalid.");
   }
-  const environment = dependencies.environment ?? process.env;
   ensureConfiguration(environment);
   const selectedTokenId = tokenId(body.tokenId);
   const owner = address(body.owner, "Punk owner");
@@ -306,6 +344,10 @@ export default async function handler(request) {
   try {
     if (request.method === "GET") {
       const url = new URL(request.url);
+      if (url.searchParams.get("view") !== "legacy") {
+        throw new PublicError(410, PREPAID_FUNDING_RETIRED_CODE,
+          PREPAID_FUNDING_RETIRED_MESSAGE);
+      }
       const status = await prepaidAgentGasStatus(
         url.searchParams.get("tokenId"), url.searchParams.get("owner"),
       );
