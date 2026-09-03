@@ -10,7 +10,7 @@ import {
   reservePunkPrioritySubmission,
 } from "./_shared/supabase-operational-store.mjs";
 import {
-  automationV3LaneEnvironment, configuredAutomationV3AgentLanes,
+  automationV3AgentLane, automationV3LaneEnvironment, configuredAutomationV3AgentLanes,
 } from "./_shared/automation-v3-agent-pool.mjs";
 import { createPublicClient, http } from "viem";
 import { resolveRobinhoodRpcPair } from
@@ -21,12 +21,18 @@ function failureCode(error) {
     ? error.code : "PRIORITY_RUN_FAILED";
 }
 
+function transactionHash(value) {
+  return typeof value === "string" && /^0x[0-9a-fA-F]{64}$/.test(value)
+    && !/^0x0{64}$/.test(value) ? value.toLowerCase() : null;
+}
+
 function receiptEvidence(receipt) {
-  if (!receipt || typeof receipt.transactionHash !== "string"
-    || receipt.gasUsed == null || receipt.effectiveGasPrice == null) return null;
+  const hash = transactionHash(receipt?.transactionHash);
+  if (!hash || receipt.gasUsed == null || receipt.effectiveGasPrice == null) return null;
+  if (receipt.status !== "success" && receipt.status !== "reverted") return null;
   return Object.freeze({
-    transactionHash: receipt.transactionHash.toLowerCase(),
-    blockHash: receipt.blockHash?.toLowerCase?.() ?? null,
+    transactionHash: hash,
+    blockHash: transactionHash(receipt.blockHash),
     status: receipt.status,
     gasUsed: BigInt(receipt.gasUsed).toString(),
     effectiveGasPriceWei: BigInt(receipt.effectiveGasPrice).toString(),
@@ -35,29 +41,57 @@ function receiptEvidence(receipt) {
   });
 }
 
+function duallyConfirmedReceipt(reads) {
+  return Array.isArray(reads)
+    && reads.length === 2
+    && reads[0] != null
+    && JSON.stringify(reads[0]) === JSON.stringify(reads[1])
+    ? reads[0] : null;
+}
+
+export function resolvePrioritySessionLane(session, environment = process.env) {
+  const agent = typeof session?.agent === "string" ? session.agent.toLowerCase() : null;
+  if (!agent) return null;
+  try {
+    return configuredAutomationV3AgentLanes(environment)
+      .find(({ address }) => address === agent) ?? null;
+  } catch {
+    try {
+      const priorityLane = automationV3AgentLane(environment, 6);
+      return priorityLane.enabled && priorityLane.address === agent ? priorityLane : null;
+    } catch {
+      return null;
+    }
+  }
+}
+
 export async function reconcileSubmittedPriorityAttempt(attempt, environment = process.env,
   dependencies = {}) {
-  if (typeof attempt?.transactionHash !== "string") {
+  const hash = transactionHash(attempt?.transactionHash);
+  if (!hash) {
     return Object.freeze({ settled: false, reason: "TRANSACTION_HASH_UNAVAILABLE" });
   }
-  const { primary, secondary } = resolveRobinhoodRpcPair(environment);
-  const clients = dependencies.clients ?? [primary, secondary].map((url) => createPublicClient({
-    transport: http(url, { batch: false, retryCount: 1, timeout: 8_000 }),
-  }));
+  let clients = dependencies.clients;
+  if (!Array.isArray(clients)) {
+    const { primary, secondary } = resolveRobinhoodRpcPair(environment);
+    clients = [primary, secondary].map((url) => createPublicClient({
+      transport: http(url, { batch: false, retryCount: 1, timeout: 8_000 }),
+    }));
+  }
+  if (clients.length !== 2) {
+    return Object.freeze({ settled: false, reason: "RECEIPT_NOT_DUALLY_CONFIRMED" });
+  }
   const reads = await Promise.all(clients.map(async (client) => {
     try {
-      return receiptEvidence(await client.getTransactionReceipt({
-        hash: attempt.transactionHash,
-      }));
+      return receiptEvidence(await client.getTransactionReceipt({ hash }));
     } catch {
       return null;
     }
   }));
-  if (reads.some((value) => value === null)
-    || JSON.stringify(reads[0]) !== JSON.stringify(reads[1])) {
+  const receipt = duallyConfirmedReceipt(reads);
+  if (!receipt) {
     return Object.freeze({ settled: false, reason: "RECEIPT_NOT_DUALLY_CONFIRMED" });
   }
-  const receipt = reads[0];
   const minted = receipt.status === "success";
   return Object.freeze({
     settled: true,
@@ -84,13 +118,7 @@ export async function runPunkPriorityWorker(dependencies = {}) {
     ?? ((attemptValue) => reconcileSubmittedPriorityAttempt(attemptValue, environment));
   const session = await nextSession({ environment, database: dependencies.database });
   if (!session) return Object.freeze({ status: "NO_PRIORITY_SESSIONS", submitted: 0 });
-  let lane = null;
-  try {
-    lane = configuredAutomationV3AgentLanes(environment)
-      .find(({ address }) => address === session.agent) ?? null;
-  } catch {
-    lane = null;
-  }
+  const lane = resolvePrioritySessionLane(session, environment);
   const attempt = await beginAttempt(session.id, lane?.laneId ?? 6, {
     environment, database: dependencies.database,
   });
@@ -136,7 +164,7 @@ export async function runPunkPriorityWorker(dependencies = {}) {
       beforeSubmission: (submission) => reserveSubmission(attempt, submission, {
         environment, database: dependencies.database,
       }),
-      afterSubmission: (transactionHash) => noteSubmission(attempt, transactionHash, {
+      afterSubmission: (txHash) => noteSubmission(attempt, txHash, {
         environment, database: dependencies.database,
       }),
     });

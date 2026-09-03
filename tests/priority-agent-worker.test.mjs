@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  runPunkPriorityWorker,
+  reconcileSubmittedPriorityAttempt, resolvePrioritySessionLane, runPunkPriorityWorker,
 } from "../netlify/functions/broker-autonomy-v3-priority-worker.mjs";
 
 const SESSION = Object.freeze({
@@ -175,4 +175,71 @@ test("a submitted attempt is receipt-reconciled without entering submission agai
   assert.equal(recorded.attempt, submittedAttempt);
   assert.equal(recorded.outcome.transactionHash, submittedAttempt.transactionHash);
   assert.equal(result.reconciled, true);
+});
+
+function receiptClient(receipt) {
+  return {
+    getTransactionReceipt: async () => receipt,
+  };
+}
+
+const CONFIRMED_RECEIPT = Object.freeze({
+  transactionHash: `0x${"b".repeat(64)}`,
+  blockHash: `0x${"c".repeat(64)}`,
+  status: "success",
+  gasUsed: 100n,
+  effectiveGasPrice: 6n,
+});
+
+test("priority receipt reconciliation requires two matching confirmed receipts", async () => {
+  const hash = CONFIRMED_RECEIPT.transactionHash;
+  const settled = await reconcileSubmittedPriorityAttempt(
+    { transactionHash: hash },
+    {},
+    { clients: [receiptClient(CONFIRMED_RECEIPT), receiptClient(CONFIRMED_RECEIPT)] },
+  );
+  assert.equal(settled.settled, true);
+  assert.equal(settled.outcome.status, "MINT_CONFIRMED");
+  assert.equal(settled.outcome.transactionGasCostWei, "600");
+
+  const mismatched = await reconcileSubmittedPriorityAttempt(
+    { transactionHash: hash },
+    {},
+    { clients: [receiptClient(CONFIRMED_RECEIPT), receiptClient({
+      ...CONFIRMED_RECEIPT, status: "reverted",
+    })] },
+  );
+  assert.equal(mismatched.settled, false);
+  assert.equal(mismatched.reason, "RECEIPT_NOT_DUALLY_CONFIRMED");
+
+  const single = await reconcileSubmittedPriorityAttempt(
+    { transactionHash: hash },
+    {},
+    { clients: [receiptClient(CONFIRMED_RECEIPT)] },
+  );
+  assert.equal(single.settled, false);
+
+  const empty = await reconcileSubmittedPriorityAttempt(
+    { transactionHash: hash },
+    {},
+    { clients: [] },
+  );
+  assert.equal(empty.settled, false);
+
+  const invalidHash = await reconcileSubmittedPriorityAttempt({ transactionHash: "0x1" }, {});
+  assert.equal(invalidHash.reason, "TRANSACTION_HASH_UNAVAILABLE");
+});
+
+test("priority lane resolution still finds lane 6 when the regular pool cannot parse", () => {
+  const lane = resolvePrioritySessionLane(SESSION, {
+    ...ENVIRONMENT,
+    BROKER_AUTOMATION_V3_AGENT_POOL_ENABLED: "true",
+    BROKER_AUTOMATION_V3_AGENT_LANE_2_ENABLED: "true",
+    BROKER_AUTOMATION_V3_AGENT_LANE_2_ADDRESS: ENVIRONMENT.BROKER_AUTOMATION_V3_AGENT_ADDRESS,
+    BROKER_AUTOMATION_V3_AGENT_LANE_6_ENABLED: "true",
+    BROKER_AUTOMATION_V3_AGENT_LANE_6_ADDRESS: ENVIRONMENT.BROKER_AUTOMATION_V3_AGENT_ADDRESS,
+    BROKER_AUTOMATION_V3_AGENT_LANE_6_PRIVATE_KEY: ENVIRONMENT.BROKER_AUTOMATION_V3_AGENT_PRIVATE_KEY,
+  });
+  assert.equal(lane?.laneId, 6);
+  assert.equal(lane?.priority, true);
 });
