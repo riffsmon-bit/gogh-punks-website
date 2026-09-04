@@ -2,6 +2,7 @@ import { buildAutomatedSeaDropV3OwnerSetup } from
   "../../broker/src/recommendation/automated-seadrop-v3-owner-setup.mjs";
 import { json } from "./_shared/http.mjs";
 import { buildLiveOwnerSetupInput } from "./_shared/autonomy-v3-live.mjs";
+import { assertV1RegistrationEnabled } from "./_shared/broker-migration-state.mjs";
 
 function integerParam(params, name, fallback) {
   const value = params.get(name) ?? fallback;
@@ -12,6 +13,7 @@ function integerParam(params, name, fallback) {
 export default async function handler(request) {
   if (request.method !== "GET") return json({ ok: false, code: "METHOD_NOT_ALLOWED" }, 405);
   try {
+    assertV1RegistrationEnabled(process.env);
     const params = new URL(request.url).searchParams;
     const tokenId = params.get("tokenId") ?? "";
     const input = await buildLiveOwnerSetupInput(tokenId, {

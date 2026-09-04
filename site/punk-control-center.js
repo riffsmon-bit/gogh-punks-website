@@ -173,10 +173,20 @@ function renderActivation() {
   const button = query("[data-control-activate]");
   if (!button) return;
   const authorizationActive = state.automation?.punk?.active === true;
+  const migrationPaused = state.automation?.migration?.registrationEnabled === false
+    || new Set(["PAUSED_MIGRATION", "V1_RETIRED", "V1_SHUTDOWN_EXECUTING"])
+      .has(state.automation?.status);
   const setupAvailable = state.automation?.setupTransactionAvailable === true;
-  const title = authorizationActive ? "Art Broker Active" : state.activated
+  const v1Retired = state.automation?.migration?.cutoffReached === true;
+  const title = v1Retired ? "Art Broker V1 Retired"
+    : migrationPaused ? "System Paused for V4 Migration"
+    : authorizationActive ? "Art Broker Active" : state.activated
     ? "Reactivate This Art Broker" : "Activate This Art Broker";
-  const copy = authorizationActive
+  const copy = v1Retired
+    ? "This Punk is waiting for V2. Ownership, its Punk Wallet, collected assets, withdrawals, and complete V1 history remain intact; no repair is required."
+    : migrationPaused
+    ? "This Punk's ownership, wallet, assets, authorization, and history remain intact. Hosted V3 execution is intentionally paused at the system level; no Punk repair is required."
+    : authorizationActive
     ? "This Punk is authorized and remains in the fair worker rotation. A temporary worker delay does not require reactivation."
     : state.activated
       ? "The Punk Wallet already exists. Confirm only the remaining bounded permission steps shown by your wallet."
@@ -188,19 +198,24 @@ function renderActivation() {
       : setupAvailable ? "Ready. The site will label every required wallet transaction before it opens."
         : "The live setup service is not ready. Your Punk and assets remain safe."));
   button.hidden = false;
-  button.disabled = state.activationBusy || state.agentActionBusy || !state.owned || !setupAvailable;
-  button.textContent = state.activationBusy ? "ACTIVATION IN PROGRESS…"
+  button.disabled = state.activationBusy || state.agentActionBusy || !state.owned
+    || !setupAvailable || migrationPaused;
+  button.textContent = v1Retired ? "V1 RETIRED · V2 COMING SOON"
+    : state.activationBusy ? "ACTIVATION IN PROGRESS…"
     : authorizationActive ? "UPDATE FREE-MINT LIMITS"
       : state.activated ? "REACTIVATE ART BROKER" : "ACTIVATE ART BROKER";
   for (const selector of ["[data-control-activation-cap]", "[data-control-activation-days]"]) {
     const element = query(selector);
-    if (element) element.disabled = state.activationBusy || state.agentActionBusy || !state.owned;
+    if (element) element.disabled = state.activationBusy || state.agentActionBusy
+      || !state.owned || migrationPaused;
   }
 }
 
 function renderAgentActions() {
   const authorizationActive = state.automation?.punk?.active === true
     && state.owned && state.activated;
+  const hostedExecutionEnabled = state.automation?.migration?.hostedExecutionEnabled !== false
+    && state.automation?.status !== "PAUSED_MIGRATION";
   const canConfigure = state.owned && state.automation?.setupTransactionAvailable === true;
   const canOpenEditor = state.owned;
   const busy = state.agentActionBusy || state.activationBusy || state.ownerPaidBusy
@@ -212,15 +227,19 @@ function renderAgentActions() {
   const resume = query("[data-agent-resume]");
   const edit = query("[data-agent-edit]");
   const revoke = query("[data-agent-revoke]");
-  if (send) send.disabled = busy || !authorizationActive;
-  if (scout) scout.disabled = busy || !authorizationActive;
+  if (send) {
+    send.disabled = busy || !authorizationActive || !hostedExecutionEnabled;
+    send.textContent = hostedExecutionEnabled ? "Send Agent" : "V1 Retired";
+  }
+  if (scout) scout.disabled = busy || !authorizationActive || !hostedExecutionEnabled;
   for (const ownerPaid of ownerPaidButtons) {
-    ownerPaid.disabled = busy || !authorizationActive;
-    ownerPaid.hidden = ownerPaid.hasAttribute("data-owner-paid-active-only") && !authorizationActive;
+    ownerPaid.disabled = busy || !authorizationActive || !hostedExecutionEnabled;
+    ownerPaid.hidden = !hostedExecutionEnabled
+      || ownerPaid.hasAttribute("data-owner-paid-active-only") && !authorizationActive;
     ownerPaid.textContent = state.ownerPaidBusy ? "CHECKING SAFE FREE MINT…" : "RUN NOW — I PAY GAS";
   }
   for (const element of queryAll("[data-owner-paid-active-only]")) {
-    element.hidden = !authorizationActive;
+    element.hidden = !authorizationActive || !hostedExecutionEnabled;
   }
   const overviewRunNote = query("[data-overview-run-note]");
   if (overviewRunNote) overviewRunNote.hidden = !authorizationActive;
@@ -334,14 +353,18 @@ function controlPresentation() {
     account: state.account ?? "Control locked",
   };
   if (state.owned) return {
-    status: ["SCANNING", "MINTING", "MINTED", "ACTIVE"].includes(state.agentStatus)
+    status: state.agentStatus === "WAITING_FOR_V2" ? "🟡 WAITING FOR V2"
+      : state.agentStatus === "MIGRATION_PAUSED" ? "🟡 SYSTEM PAUSED"
+      : ["SCANNING", "MINTING", "MINTED", "ACTIVE"].includes(state.agentStatus)
       ? `🟢 ${state.agentStatus}`
       : ["WAITING", "QUEUED", "WAITING_FOR_WORKER"].includes(state.agentStatus)
         ? "🟡 WAITING FOR WORKER"
         : state.agentStatus === "PAUSED" ? "🟡 PAUSED"
           : state.agentStatus === "PUNK_ERROR" ? "🔴 NEEDS YOUR ATTENTION"
             : state.activated ? "🟡 CHECKING AUTHORIZATION" : "⚪ READY TO ACTIVATE",
-    heading: state.agentStatus === "SCANNING" ? "Agent scanning"
+    heading: state.agentStatus === "WAITING_FOR_V2" ? "Art Broker V1 retired"
+      : state.agentStatus === "MIGRATION_PAUSED" ? "System paused for V4 migration"
+      : state.agentStatus === "SCANNING" ? "Agent scanning"
       : state.agentStatus === "MINTING" ? "Mint in progress"
         : state.agentStatus === "MINTED" ? "Mint confirmed"
           : ["WAITING", "QUEUED", "WAITING_FOR_WORKER"].includes(state.agentStatus)
@@ -350,7 +373,11 @@ function controlPresentation() {
               : state.agentStatus === "PUNK_ERROR" ? "Punk needs attention"
                 : state.agentStatus === "ACTIVE" ? "Art Broker active"
                   : state.activated ? "Checking authorization" : "Ready to activate",
-    detail: demo ? "Local Punk ownership fixture loaded; no chain authority is implied."
+    detail: state.agentStatus === "WAITING_FOR_V2"
+      ? "This Punk remains owned, valid, and accessible. Its wallet, assets, withdrawals, and V1 history stay available while Art Broker V2 is prepared."
+      : state.agentStatus === "MIGRATION_PAUSED"
+      ? "Hosted V3 execution is intentionally paused. This Punk remains owned, activated, and safe; no repair or wallet reconnection is required."
+      : demo ? "Local Punk ownership fixture loaded; no chain authority is implied."
       : ["WAITING", "QUEUED", "WAITING_FOR_WORKER"].includes(state.agentStatus)
         ? "Your Punk is still activated. The hosted worker is temporarily delayed or this Punk is waiting for its fair turn. No owner action is required."
         : state.agentStatus === "PUNK_ERROR"
@@ -452,6 +479,9 @@ function renderAutomation() {
     ? globalHeartbeat : null);
   const authorizationActive = punk?.active === true && state.owned && state.activated;
   const platformStatus = automation?.platformHealth?.status ?? null;
+  const migrationPaused = automation?.migration?.hostedExecutionEnabled === false
+    || new Set(["PAUSED_MIGRATION", "V1_RETIRED", "V1_SHUTDOWN_EXECUTING"])
+      .has(automation?.status);
   const visual = authorizationActive ? agentVisualState(heartbeat, true) : "INACTIVE";
   const punkSpecificFailure = visual === "NEEDS_ATTENTION"
     && !new Set(["FAILED", "WORKER_RUN_FAILED", "DISCOVERY_SCAN_FAILED",
@@ -460,7 +490,10 @@ function renderAutomation() {
       "PROFILE_STATE_READ_FAILED", "PROVIDER_OWNER_DISAGREEMENT"]).has(
       String(heartbeat?.status ?? heartbeat?.reason ?? ""),
     );
-  const label = !state.activated ? "INACTIVE"
+  const label = automation?.migration?.cutoffReached === true && state.activated
+    ? "WAITING_FOR_V2"
+    : migrationPaused && state.activated ? "MIGRATION_PAUSED"
+    : !state.activated ? "INACTIVE"
     : !authorizationActive ? "PAUSED"
       : punkSpecificFailure ? "PUNK_ERROR"
         : ["SCANNING", "MINTING", "MINTED", "QUEUED"].includes(visual) ? visual
@@ -696,7 +729,9 @@ async function loadPrepaidAgentGas() {
     );
     state.prepaidAgentGas = status;
     setPrepaidAgentGasMessage(
-      state.prepaidAgentGas.session
+      state.prepaidAgentGas.fundingEnabled === false
+        ? state.prepaidAgentGas.fundingMessage
+      : state.prepaidAgentGas.session
         ? `Punk #${state.tokenId}'s priority session is ${state.prepaidAgentGas.session.state.toLowerCase()}: ${state.prepaidAgentGas.session.completedMints} of ${state.prepaidAgentGas.session.requestedMints} successful mints.`
         : `Punk #${state.tokenId} has ${formatNative(state.prepaidAgentGas.availableWei)} of legacy hosted credit. New prepaid deposits are closed.`,
     );

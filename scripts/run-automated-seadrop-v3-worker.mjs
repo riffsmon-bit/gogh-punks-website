@@ -10,6 +10,8 @@ import coreManifest from "../deployments/robinhood.json" with { type: "json" };
 import { ROBINHOOD } from "../broker/src/config.mjs";
 import { resolveRobinhoodRpcPair } from
   "../broker/src/infrastructure/robinhood-rpc-endpoints.mjs";
+import { assertHostedExecutionEnabled, V1_SHUTDOWN_AT_MS } from
+  "../netlify/functions/_shared/broker-migration-state.mjs";
 import {
   attestAutomatedSeaDropV3CandidateLive, attestOwnerPaidSeaDropV3CandidateLive,
 } from
@@ -1100,6 +1102,7 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
   }
   const clock = dependencies.now ?? Date.now;
   if (typeof clock !== "function") throw new TypeError("invalid V3 worker clock");
+  assertHostedExecutionEnabled(environment, { now: clock });
   const startedAtMs = clock();
   const deadlineMs = dependencies.deadlineMs ?? startedAtMs + AUTOMATION_V3_WORKER_TIME_BUDGET_MS;
   if (!Number.isSafeInteger(startedAtMs) || startedAtMs < 0
@@ -1380,8 +1383,16 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
         diagnostics.candidateStateReadFailures += 1;
         continue;
       }
-      const nowSeconds = Math.floor(Date.now() / 1_000);
+      const nowSeconds = Math.floor(clock() / 1_000);
       const intentWindow = confirmedIntentWindow(nowSeconds);
+      const v1ExpiresAt = Math.min(
+        intentWindow.expiresAt,
+        Math.floor(V1_SHUTDOWN_AT_MS / 1_000) - 1,
+      );
+      if (v1ExpiresAt <= intentWindow.createdAt) {
+        assertHostedExecutionEnabled(environment, { now: clock });
+        return budgetResult();
+      }
       const candidatePrefix = scatterTarget === null
         ? "canonical-live-seadrop" : "canonical-live-scatter";
       const reasoningPrefix = scatterTarget === null
@@ -1397,7 +1408,7 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
         account: accountAddress, agent, expectedOwner,
         nonce: BigInt(latestNonce).toString(),
         policyVersion: BigInt(field(latestPolicy, "version", 2)).toString(),
-        createdAt: String(intentWindow.createdAt), expiresAt: String(intentWindow.expiresAt),
+        createdAt: String(intentWindow.createdAt), expiresAt: String(v1ExpiresAt),
       };
       const scope = {
         ...commonScope, policyModule,
@@ -1577,6 +1588,10 @@ export async function runAutomatedSeaDropV3Worker(environment = process.env, dep
           throw error;
         }
       }
+      // The scheduler and runner checks reduce wasted work, but this is the authoritative
+      // transaction-boundary cutoff. A stale invocation that began before sunset cannot submit
+      // after the canonical server-side deadline.
+      assertHostedExecutionEnabled(environment, { now: clock });
       const wallet = createWalletClient({
         account: signingAccount, chain: CHAIN,
         transport: http(primaryUrl, { retryCount: 0, timeout: 5_000 }),

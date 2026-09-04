@@ -5,6 +5,7 @@ import { CURRENT_BROKER_DEPLOYMENT_SURFACE } from
   "./_shared/broker-deployment-surface.mjs";
 import { COMPLETED_EXTERNAL_FREE_MINT } from
   "./_shared/external-free-mint-display.mjs";
+import { brokerMigrationState } from "./_shared/broker-migration-state.mjs";
 
 function configuredScoutToken() {
   try {
@@ -126,6 +127,7 @@ export default async function handler(request) {
       },
       externalFreeMintTest: COMPLETED_EXTERNAL_FREE_MINT,
       featureFlags,
+      v1Lifecycle: brokerMigrationState(process.env),
       scoutStatus: {
         workerEnabled: process.env.BROKER_SCOUT_ENABLED === "true",
         indexerEnabled: process.env.BROKER_INDEXER_ENABLED === "true",

@@ -667,7 +667,8 @@ export async function recordPunkPrioritySessionAttempt(attempt, outcome, options
   const status = resultCode(outcome?.status, "UNKNOWN_RESULT");
   const minted = status === "MINT_CONFIRMED" && Number(outcome?.submitted ?? 0) === 1;
   const terminalState = status === "OWNER_CHANGED" ? "OWNER_CHANGED"
-    : new Set(["PUNK_AUTOMATION_INACTIVE", "PUNK_NOT_AUTHORIZED", "AUTHORIZATION_EXPIRED"])
+    : new Set(["PUNK_AUTOMATION_INACTIVE", "PUNK_NOT_AUTHORIZED", "AUTHORIZATION_EXPIRED",
+      "V1_RETIRED"])
       .has(status) ? "CANCELLED" : null;
   const transactionHash = optionalHash(outcome?.transactionHash);
   if (minted && !transactionHash) throw new TypeError("confirmed priority mint needs a transaction hash");
@@ -710,6 +711,34 @@ export async function recordPunkPrioritySessionAttempt(attempt, outcome, options
     attemptRecorded: row.attempt_recorded === true,
     attemptState: row.attempt_state ?? null,
   }) : Object.freeze({ recorded: false, reason: "SESSION_NOT_ACTIVE" });
+}
+
+export async function finalizeSupabaseV1Retirement(options = {}) {
+  const environment = options.environment ?? process.env;
+  const configuration = supabaseOperationalConfiguration(environment);
+  if (!configuration.shadowWrites) {
+    throw new TypeError("Supabase V1 retirement store is unavailable");
+  }
+  const database = operationalPool(environment, options.database);
+  const result = await database.query(
+    `SELECT retirement_state, jobs_cancelled, sessions_cancelled, attempts_cancelled,
+            attempts_requiring_reconciliation, shutdown_at, completed_at
+       FROM gogh_broker_finalize_v1_retirement()`,
+  );
+  const row = result.rows?.[0];
+  if (!row || typeof row.retirement_state !== "string") {
+    throw new TypeError("Supabase V1 retirement result is invalid");
+  }
+  return Object.freeze({
+    state: resultCode(row.retirement_state, "V1_SHUTDOWN_EXECUTING"),
+    jobsCancelled: Number(row.jobs_cancelled ?? 0),
+    sessionsCancelled: Number(row.sessions_cancelled ?? 0),
+    attemptsCancelled: Number(row.attempts_cancelled ?? 0),
+    attemptsRequiringReconciliation: Number(row.attempts_requiring_reconciliation ?? 0),
+    shutdownAt: iso(row.shutdown_at, "V1 shutdown time"),
+    completedAt: row.completed_at == null ? null
+      : iso(row.completed_at, "V1 retirement completion"),
+  });
 }
 
 export async function claimSupabasePunkJobs(workerId, options = {}) {

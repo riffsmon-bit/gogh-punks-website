@@ -1,4 +1,5 @@
 import { getDatabase } from "@netlify/database";
+import { assertV1RegistrationEnabled } from "./broker-migration-state.mjs";
 import { createHash } from "node:crypto";
 import { LEGACY_AUTOMATION_V3_AGENT } from "./automation-v3-agent-pool.mjs";
 
@@ -125,6 +126,7 @@ function discoverySummaryFromRow(row) {
 }
 
 export async function enrollAutomationV3Punk(punk, options = {}) {
+  assertV1RegistrationEnabled(options.environment ?? process.env, { now: options.now });
   if (!punk || punk.created !== true || punk.active !== true) {
     throw new TypeError("Punk automation is not active");
   }

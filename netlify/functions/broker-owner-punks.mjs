@@ -6,6 +6,7 @@ import { json } from "./_shared/http.mjs";
 import { nftDisplayMetadata, NFT_DISPLAY_METADATA_SELECT } from
   "./_shared/broker-display-metadata.mjs";
 import { shadowOwnershipProjection } from "./_shared/supabase-operational-store.mjs";
+import { brokerMigrationState } from "./_shared/broker-migration-state.mjs";
 
 // A holder may own any bounded subset of the canonical collection. Candidate reads are still
 // chunked below, so this collection-sized ceiling prevents a false "unavailable" result for a
@@ -459,6 +460,9 @@ export async function enrolledAutomationPunkIds(owner, query = (...args) => (
 function agentSummaryStatus(row, nowMs = Date.now()) {
   const configured = row.configured === true;
   const enrolled = row.enrolled === true;
+  if ((configured || enrolled) && brokerMigrationState({}, { now: nowMs }).cutoffReached) {
+    return "WAITING_FOR_V2";
+  }
   if (!enrolled) return configured ? "NEEDS_ENROLLMENT" : "READY";
   if (row.worker_state == null) return "WAITING_FOR_FIRST_SCAN";
   const evidenceAt = row.updated_at == null ? Number.NaN : Date.parse(row.updated_at);

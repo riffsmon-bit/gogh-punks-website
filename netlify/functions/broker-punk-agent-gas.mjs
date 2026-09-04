@@ -94,11 +94,11 @@ function ensureConfiguration(environment) {
 }
 
 export function prepaidFundingState(environment = process.env) {
-  const enabled = environment.BROKER_PREPAID_AGENT_FUNDING_ENABLED === "true";
+  void environment;
   return Object.freeze({
-    enabled,
-    state: enabled ? "ACTIVE" : "LEGACY_READ_ONLY",
-    message: enabled ? null : PREPAID_FUNDING_RETIRED_MESSAGE,
+    enabled: false,
+    state: "LEGACY_READ_ONLY",
+    message: PREPAID_FUNDING_RETIRED_MESSAGE,
   });
 }
 

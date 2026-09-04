@@ -9,6 +9,7 @@ import {
 } from "./automation-v3-worker-state.mjs";
 import { shadowAutomationV3Run } from "./supabase-operational-store.mjs";
 import { automationV3LaneLockId } from "./automation-v3-agent-pool.mjs";
+import { assertHostedExecutionEnabled } from "./broker-migration-state.mjs";
 
 const WORKER_LEASE_MILLISECONDS = 90_000;
 export const SCHEDULED_WORKER_LEASE_MILLISECONDS = 240_000;
@@ -20,6 +21,7 @@ function failureCode(error) {
 
 export async function runAutomationV3Once(options = {}) {
   const environment = options.environment ?? process.env;
+  assertHostedExecutionEnabled(environment, { now: options.now });
   const database = options.database ?? getDatabase().pool;
   const worker = options.worker ?? runAutomatedSeaDropV3Worker;
   const record = options.record ?? recordAutomationV3WorkerHeartbeat;
@@ -54,6 +56,7 @@ export async function runAutomationV3Once(options = {}) {
         database,
         requestedTokenId: options.requestedTokenId ?? null,
         deadlineMs: startedAt.getTime() + AUTOMATION_V3_WORKER_TIME_BUDGET_MS,
+        now: options.now,
         beforeSubmission: options.beforeSubmission,
         afterSubmission: options.afterSubmission,
       });

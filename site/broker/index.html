@@ -8,6 +8,7 @@
     <title>Art Broker · Gogh Punks</title>
     <link rel="icon" href="/assets/favicon.png" type="image/png" />
     <link rel="stylesheet" href="/broker.css" />
+    <script src="/broker-sunset.js" type="module"></script>
     <script src="/wallet.js?v=reown-10" type="module"></script>
     <script src="/owner-accounts.js" type="module"></script>
   </head>
@@ -28,11 +29,65 @@
     </header>
 
     <main class="broker-main broker-launcher" id="main">
+      <section class="v1-sunset" data-v1-sunset aria-labelledby="v1-sunset-title">
+        <div class="v1-sunset-pending" data-v1-sunset-pending>
+          <p class="eyebrow">🎨 Art Broker V1 Sunset</p>
+          <h1 id="v1-sunset-title">V1 autonomous agents retire September 4 at 6:00 PM EDT.</h1>
+          <div class="v1-countdown" aria-label="Time until Art Broker V1 retirement" role="timer">
+            <span><b data-v1-days>00</b><small>Days</small></span>
+            <i>:</i><span><b data-v1-hours>00</b><small>Hours</small></span>
+            <i>:</i><span><b data-v1-minutes>00</b><small>Minutes</small></span>
+            <i>:</i><span><b data-v1-seconds>00</b><small>Seconds</small></span>
+          </div>
+          <p>Your Punk and Punk Wallet remain yours. V1 remains available until the canonical server-side cutoff.</p>
+        </div>
+        <div class="v1-sunset-retired" data-v1-sunset-retired hidden>
+          <p class="eyebrow">🎨 Art Broker V1 Has Retired</p>
+          <h1>The first generation of autonomous Gogh Punks is officially complete.</h1>
+          <p>Your Punk Wallet, collection, withdrawals, and complete V1 activity remain accessible.</p>
+          <div class="v1-retired-actions"><a href="#your-punks-title">View My Punks</a><a href="/">View Collection</a><a href="#your-punks-title">Withdraw Assets</a></div>
+        </div>
+        <div class="v1-preserved">
+          <span>✓ View your Gogh Punks</span><span>✓ Open your Punk Wallet</span>
+          <span>✓ View collected NFTs</span><span>✓ Withdraw supported assets</span>
+          <span>✓ View complete V1 history</span>
+        </div>
+        <p class="v1-reference" data-v1-reference>Confirming canonical server time…</p>
+      </section>
+
       <section class="launcher-hero" aria-labelledby="launcher-title">
         <p class="eyebrow">Gogh Punks Art Broker · Robinhood Chain</p>
         <h1 id="launcher-title">Turn your Gogh Punk into an autonomous art collector.</h1>
         <p>Choose a Punk you own to activate its Art Broker, watch its agent, manage its wallet, and see everything it collects.</p>
         <button class="launcher-connect" type="button" data-wallet-connect>Connect Wallet</button>
+      </section>
+
+      <section class="v2-preview" aria-labelledby="v2-preview-title">
+        <header>
+          <p class="eyebrow">Art Broker V2 · Coming Soon</p>
+          <h2 id="v2-preview-title">Your Punk is about to become the agent.</h2>
+          <p>Fund it. Talk to it. Give it a taste in art. Send it shopping.</p>
+        </header>
+        <div class="v2-feature-grid">
+          <article><strong>Punk Wallet</strong><p>Every Punk has its own wallet, balance, and collection.</p></article>
+          <article><strong>Self-Funded</strong><p>Deposit directly into your Punk Wallet. You control the budget.</p></article>
+          <article><strong>Talk to Your Punk</strong><p>Describe what to find in plain English; deterministic policy remains authoritative.</p></article>
+          <article><strong>Smart Discovery</strong><p>One screened opportunity can efficiently serve many interested Punks.</p></article>
+          <article><strong>Security Screening</strong><p>Contracts are screened and simulated before eligible execution.</p></article>
+          <article><strong>Owner Control</strong><p>Pause, fund, withdraw, and change strategy. V2 execution is not active yet.</p></article>
+        </div>
+        <div class="v2-flywheel" aria-label="Art Broker V2 product cycle">
+          <span>Fund</span><b>→</b><span>Talk</span><b>→</b><span>Define taste</span><b>→</b>
+          <span>Discover</span><b>→</b><span>Screen + simulate</span><b>→</b><span>Collect</span><b>→</b>
+          <span>Refine preferences</span>
+        </div>
+        <p class="v2-scale-note">More Punks will not mean more dedicated hosted agents. Shared discovery, bounded policy validation, and lightweight executors reduce infrastructure per Punk.</p>
+        <article class="v2-chat-preview">
+          <div><p class="eyebrow">Gogh Punk #119 · Preview</p><h3>“What are we hunting?”</h3></div>
+          <blockquote>You’ve got .02 ETH. Find free pixel art on Robinhood. Require an X account and website. Keep .01 ETH untouched. Three mints max today.</blockquote>
+          <div class="v2-punk-reply"><strong>Got it. 🎨</strong><p>Free mints only · Pixel art preferred · X + website required · 3 max today · .01 ETH reserve · Security screening required.</p></div>
+          <button type="button" disabled>Activate — Coming Soon</button>
+        </article>
       </section>
 
       <section class="ownership-launcher" aria-labelledby="your-punks-title">

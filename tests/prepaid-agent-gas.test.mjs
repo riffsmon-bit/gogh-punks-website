@@ -128,7 +128,7 @@ test("server status exposes only an active Punk's fixed agent and isolated credi
   assert.equal(result.agent, AUTOMATION_V3_AGENT);
   assert.equal(result.availableWei, AMOUNT);
   assert.equal(result.actualGasSpentTodayWei, "74075738814000");
-  assert.equal(result.fundingEnabled, true);
+  assert.equal(result.fundingEnabled, false);
   assert.equal(result.publicAgentLanes.length, 1);
   assert.equal(result.publicAgentLanes[0].address, AUTOMATION_V3_AGENT);
   assert.equal("privateKey" in result.publicAgentLanes[0], false);
@@ -206,34 +206,19 @@ test("production prepayment cannot fund an enabled lane pool with a missing sign
   );
 });
 
-test("confirmed exact deposit credits only its Punk and requests that Punk immediately", async () => {
-  let credited;
-  let requested;
-  const result = await confirmPrepaidAgentGas({
+test("retired hosted funding rejects even a confirmed exact deposit before mutation", async () => {
+  let mutated = false;
+  await assert.rejects(() => confirmPrepaidAgentGas({
     tokenId: "93", owner: OWNER, amountWei: AMOUNT, mintLimit: 1,
     durationDays: 7, transactionHash: HASH,
   }, {
     environment: ENVIRONMENT,
-    readPunk: async () => activePunk(),
-    readTransaction: async () => ({ from: OWNER, to: AUTOMATION_V3_AGENT,
-      value: AMOUNT, input: "0x", blockNumber: "51000000" }),
-    recordCredit: async (evidence) => {
-      credited = evidence;
-      return { credited: true, availableWei: AMOUNT,
-        session: { id: "11111111-1111-4111-8111-111111111111" }, jobId: "job-93" };
-    },
-    runNow: async (body) => {
-      requested = body;
-      return { tokenId: "93", status: "NO_ELIGIBLE_TARGETS", submitted: 0,
-        collection: null, transactionHash: null };
-    },
-    recordAttempt: async () => ({ recorded: true }),
-  });
-  assert.equal(credited.tokenId, "93");
-  assert.equal(credited.amountWei, AMOUNT);
-  assert.deepEqual(requested, { tokenId: "93" });
-  assert.equal(result.credit.availableWei, AMOUNT);
-  assert.equal(result.run.status, "NO_ELIGIBLE_TARGETS");
+    readPunk: async () => { mutated = true; },
+    readTransaction: async () => { mutated = true; },
+    recordCredit: async () => { mutated = true; },
+    runNow: async () => { mutated = true; },
+  }), (error) => error.code === "PREPAID_FUNDING_RETIRED");
+  assert.equal(mutated, false);
 });
 
 test("prepaid gas targets the Punk's persisted lane and exposes every public lane", async () => {
@@ -265,7 +250,7 @@ test("mismatched funding evidence cannot create credit or run an agent", async (
       value: AMOUNT, input: "0x", blockNumber: "51000000" }),
     recordCredit: async () => { mutated = true; },
     runNow: async () => { mutated = true; },
-  }), (error) => error.code === "FUNDING_MISMATCH");
+  }), (error) => error.code === "PREPAID_FUNDING_RETIRED");
   assert.equal(mutated, false);
 });
 
@@ -304,9 +289,9 @@ test("browser confirmation retries provider propagation without requesting anoth
   assert.equal(response.credit.availableWei, AMOUNT);
 });
 
-test("preview gas credit uses immutable deploy commit when worker release is absent", async () => {
-  const queries = [];
-  await confirmPrepaidAgentGas({
+test("preview cannot restore retired hosted funding", async () => {
+  let mutated = false;
+  await assert.rejects(() => confirmPrepaidAgentGas({
     tokenId: "93", owner: OWNER, amountWei: AMOUNT, mintLimit: 1,
     durationDays: 7, transactionHash: HASH,
   }, {
@@ -315,17 +300,10 @@ test("preview gas credit uses immutable deploy commit when worker release is abs
       BROKER_AUTOMATION_V3_WORKER_RELEASE: undefined,
       COMMIT_REF: RELEASE,
     },
-    readPunk: async () => activePunk(),
-    readTransaction: async () => ({ from: OWNER, to: AUTOMATION_V3_AGENT,
-      value: AMOUNT, input: "0x", blockNumber: "51000000" }),
-    database: { query: async (text, values) => {
-      queries.push({ text, values });
-      return { rows: [{ credited: true, available_wei: AMOUNT,
-        session_id: "11111111-1111-4111-8111-111111111111", session_state: "ACTIVE",
-        completed_mints: 0, expires_at: "2026-09-07T00:00:00.000Z", job_id: null }] };
-    } },
-    runNow: async () => ({ tokenId: "93", status: "QUEUED", submitted: 0 }),
-    recordAttempt: async () => ({ recorded: true }),
-  });
-  assert.equal(queries[0].values[7], RELEASE);
+    readPunk: async () => { mutated = true; },
+    readTransaction: async () => { mutated = true; },
+    database: { query: async () => { mutated = true; } },
+    runNow: async () => { mutated = true; },
+  }), (error) => error.code === "PREPAID_FUNDING_RETIRED");
+  assert.equal(mutated, false);
 });
