@@ -17,6 +17,7 @@ function productionDatabaseUrl() {
 }
 
 const environment = { ...process.env, SUPABASE_DATABASE_URL: productionDatabaseUrl() };
-execFileSync(process.execPath, ["scripts/apply-supabase-operational-migration.mjs", "--apply"], {
+execFileSync(process.execPath, ["scripts/apply-supabase-operational-migration.mjs", "--apply",
+  ...process.argv.slice(2)], {
   cwd: process.cwd(), env: environment, stdio: ["ignore", "inherit", "inherit"],
 });

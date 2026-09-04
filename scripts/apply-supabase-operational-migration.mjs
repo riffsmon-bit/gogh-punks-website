@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import pg from "pg";
 
-const MIGRATIONS = Object.freeze([
+const AVAILABLE_MIGRATIONS = Object.freeze([
   "20260830210000_create_gogh_broker_operational_shadow",
   "20260831220000_add_punk_agent_gas_credits",
   "20260831233000_add_punk_priority_sessions",
@@ -9,8 +9,16 @@ const MIGRATIONS = Object.freeze([
   "20260902013000_repair_priority_attempt_reliability",
   "20260902043000_prepare_v4_legacy_reconciliation",
   "20260903221000_schedule_v1_retirement",
+  "20260904030000_reschedule_v1_retirement_to_september_5",
 ]);
 const APPLY = process.argv.includes("--apply");
+const onlyIndex = process.argv.indexOf("--only");
+const onlyMigration = onlyIndex === -1 ? null : process.argv[onlyIndex + 1];
+if (onlyIndex !== -1 && !AVAILABLE_MIGRATIONS.includes(onlyMigration)) {
+  throw new Error("--only must name a reviewed operational migration");
+}
+const MIGRATIONS = onlyMigration === null
+  ? AVAILABLE_MIGRATIONS : Object.freeze([onlyMigration]);
 
 function connectionString(environment = process.env) {
   const raw = environment.SUPABASE_DATABASE_URL ?? environment.SUPABASE_DB_URL;

@@ -1,6 +1,6 @@
 # Art Broker V1 shutdown map
 
-Canonical cutoff: `2026-09-04T22:00:00Z` (September 4, 2026 at 6:00 PM EDT).
+Canonical cutoff: `2026-09-05T22:00:00Z` (September 5, 2026 at 6:00 PM EDT).
 Server time is authoritative. Browser countdown state never grants execution authority.
 
 ## Execution map
