@@ -1,4 +1,4 @@
-export const V1_SHUTDOWN_AT = "2026-09-04T22:00:00Z";
+export const V1_SHUTDOWN_AT = "2026-09-05T22:00:00Z";
 export const V1_SHUTDOWN_AT_MS = Date.parse(V1_SHUTDOWN_AT);
 
 export const BROKER_V1_STATES = Object.freeze({
@@ -52,7 +52,7 @@ export function brokerMigrationState(environment = process.env, options = {}) {
     shutdownAt: V1_SHUTDOWN_AT,
     shutdownAtEpochMs: V1_SHUTDOWN_AT_MS,
     timezone: "America/Detroit",
-    displayTime: "September 4 • 6:00 PM EDT",
+    displayTime: "September 5 • 6:00 PM EDT",
     hostedExecutionEnabled: !paused,
     hostedFundingEnabled: false,
     registrationEnabled: !paused,

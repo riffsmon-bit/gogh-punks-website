@@ -1,4 +1,4 @@
-const CANONICAL_SHUTDOWN_AT = "2026-09-04T22:00:00Z";
+const CANONICAL_SHUTDOWN_AT = "2026-09-05T22:00:00Z";
 const CANONICAL_SHUTDOWN_MS = Date.parse(CANONICAL_SHUTDOWN_AT);
 
 const root = document.querySelector("[data-v1-sunset]");

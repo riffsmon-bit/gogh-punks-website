@@ -55,7 +55,7 @@ test("migration pause is explicit and takes precedence over generic background c
 });
 
 test("canonical shutdown clock is exact at every required boundary", () => {
-  assert.equal(V1_SHUTDOWN_AT, "2026-09-04T22:00:00Z");
+  assert.equal(V1_SHUTDOWN_AT, "2026-09-05T22:00:00Z");
   for (const delta of [-3_600_000, -60_000, -1_000, -1]) {
     const state = brokerMigrationState({}, { now: V1_SHUTDOWN_AT_MS + delta });
     assert.equal(state.v1State, BROKER_V1_STATES.ACTIVE);
@@ -140,7 +140,7 @@ test("migration UI keeps Punk authorization separate from system pause", async (
   assert.match(fundingRoute, /state: "LEGACY_READ_ONLY"/);
   assert.match(v3Worker, /assertHostedExecutionEnabled\(environment, \{ now: clock \}\);[\s\S]{0,400}createWalletClient/);
   assert.match(v2Worker, /assertHostedExecutionEnabled\(environment, \{ now: clock \}\);[\s\S]{0,300}wallet\.sendTransaction/);
-  assert.match(sunset, /2026-09-04T22:00:00Z/);
+  assert.match(sunset, /2026-09-05T22:00:00Z/);
   assert.match(sunset, /performance\.now/);
 });
 
@@ -186,10 +186,16 @@ test("retirement finalization is convergent and preserves receipt reconciliation
 });
 
 test("additive retirement migration cancels only unsubmitted work", async () => {
-  const migration = await readFile(new URL(
-    "../supabase/migrations/20260903221000_schedule_v1_retirement.sql", import.meta.url,
-  ), "utf8");
-  assert.match(migration, /2026-09-04T22:00:00Z/g);
+  const [migration, reschedule] = await Promise.all([
+    readFile(new URL(
+      "../supabase/migrations/20260903221000_schedule_v1_retirement.sql", import.meta.url,
+    ), "utf8"),
+    readFile(new URL(
+      "../supabase/migrations/20260904030000_reschedule_v1_retirement_to_september_5.sql",
+      import.meta.url,
+    ), "utf8"),
+  ]);
+  assert.match(reschedule, /2026-09-05T22:00:00Z/g);
   assert.match(migration, /job\.state IN \('QUEUED', 'RETRY', 'LEASED'\)/);
   assert.match(migration, /attempt\.state = 'CLAIMED'/);
   assert.match(migration, /attempt\.state IN \('SUBMISSION_RESERVED', 'SUBMITTED'\)/);

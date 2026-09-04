@@ -16,6 +16,7 @@ function connectionString(environment = process.env) {
 const migrations = await Promise.all([
   "20260902043000_prepare_v4_legacy_reconciliation",
   "20260903221000_schedule_v1_retirement",
+  "20260904030000_reschedule_v1_retirement_to_september_5",
 ].map((name) => readFile(new URL(`../supabase/migrations/${name}.sql`, import.meta.url),
   "utf8")));
 
@@ -32,7 +33,7 @@ try {
   await client.query("BEGIN");
   for (const migration of migrations) await client.query(migration);
   const databaseClock = await client.query(
-    `SELECT NOW() AS now, '2026-09-04T22:00:00Z'::timestamptz AS shutdown_at`,
+    `SELECT NOW() AS now, '2026-09-05T22:00:00Z'::timestamptz AS shutdown_at`,
   );
   const first = await client.query("SELECT * FROM gogh_broker_finalize_v1_retirement()");
   const second = await client.query("SELECT * FROM gogh_broker_finalize_v1_retirement()");
@@ -57,6 +58,7 @@ try {
   if (first.rows.length !== 1 || second.rows.length !== 1
     || first.rows[0]?.retirement_state !== expectedState
     || second.rows[0]?.retirement_state !== first.rows[0]?.retirement_state
+    || new Date(first.rows[0]?.shutdown_at).toISOString() !== "2026-09-05T22:00:00.000Z"
     || meta?.function_present !== true || meta?.security_definer !== true
     || meta?.fixed_search_path !== true || meta?.row_security !== true
     || meta?.service_execute !== true) {
@@ -68,6 +70,7 @@ try {
     databaseClockBeforeCutoff: now < shutdownAt,
     firstState: first.rows[0].retirement_state,
     repeatedState: second.rows[0].retirement_state,
+    shutdownAt: new Date(first.rows[0].shutdown_at).toISOString(),
     functionPresent: meta.function_present,
     securityDefiner: meta.security_definer,
     fixedSearchPath: meta.fixed_search_path,
