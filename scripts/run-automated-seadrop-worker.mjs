@@ -18,6 +18,8 @@ import {
 } from "../broker/src/recommendation/automated-seadrop-run-plan.mjs";
 import { AUTOMATION_V2_AGENT, readAutomationV2GlobalState } from
   "../netlify/functions/_shared/autonomy-v2-live.mjs";
+import { assertHostedExecutionEnabled } from
+  "../netlify/functions/_shared/broker-migration-state.mjs";
 import { PUBLIC_DROP_UPDATED_EVENT } from
   "../broker/src/discovery/seadrop-public-drop-index.mjs";
 
@@ -318,6 +320,9 @@ function liveState(profile, state, screen, maxFeePerGasWei) {
 
 export async function runAutomatedSeaDropWorker(environment = process.env, dependencies = {}) {
   if (environment.BROKER_AUTOMATION_V2_ENABLED !== "true") return { status: "DISABLED", submitted: 0 };
+  const clock = dependencies.now ?? Date.now;
+  if (typeof clock !== "function") throw new TypeError("invalid V2 worker clock");
+  assertHostedExecutionEnabled(environment, { now: clock });
   const key = environment.BROKER_AUTOMATION_V2_AGENT_PRIVATE_KEY;
   let signingAccount = null;
   if (dependencies.readOnly !== true) {
@@ -427,6 +432,7 @@ export async function runAutomatedSeaDropWorker(environment = process.env, depen
         };
       }
       const wallet = createWalletClient({ account: signingAccount, chain: CHAIN, transport: http(primaryUrl, { retryCount: 0, timeout: 10_000 }) });
+      assertHostedExecutionEnabled(environment, { now: clock });
       const hash = await wallet.sendTransaction({ account: signingAccount, to: getAddress(tx.to), data: tx.data, value: 0n });
       const receipt = await primary.waitForTransactionReceipt({ hash, confirmations: 1, timeout: 60_000 });
       if (receipt.status !== "success") throw new TypeError("autonomous mint reverted");

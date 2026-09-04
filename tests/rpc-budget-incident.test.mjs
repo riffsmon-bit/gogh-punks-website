@@ -23,6 +23,10 @@ test("deploy previews and the emergency switch suppress autonomous background RP
     CONTEXT: "production", PAUSE_BACKGROUND_RPC: "true",
   }).reason, "EMERGENCY_PAUSE");
   assert.equal(backgroundRpcDecision({
+    CONTEXT: "production", PAUSE_BACKGROUND_RPC: "true",
+    BROKER_V4_MIGRATION_STATE: "PAUSED_MIGRATION",
+  }, "AUTOMATION_V3_WORKER").reason, "MIGRATION_PAUSE");
+  assert.equal(backgroundRpcDecision({
     CONTEXT: "production",
     BACKGROUND_RPC_ALLOWED_TASKS: "AUTOMATION_V3_WORKER",
   }, "AUTOMATION_V3_WORKER").enabled, true);

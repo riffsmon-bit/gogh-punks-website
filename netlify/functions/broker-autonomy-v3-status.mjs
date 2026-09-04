@@ -20,6 +20,7 @@ import {
 import {
   getProductionAutomationV3Activity, isDeployPreview,
 } from "./_shared/automation-v3-production-bridge.mjs";
+import { brokerMigrationState } from "./_shared/broker-migration-state.mjs";
 
 const CONTRACT_NAMES = Object.freeze([
   "AutomatedSeaDropStudioFreeMintAdapter",
@@ -382,6 +383,21 @@ export default async function handler(request) {
     } catch {
       automation = Object.freeze({ ...base, reason: "AUTOMATION_V3_LIVE_READ_UNAVAILABLE" });
     }
+  }
+  const migration = brokerMigrationState(process.env);
+  if (migration.paused) {
+    automation = Object.freeze({
+      ...automation,
+      status: migration.state,
+      capability: false,
+      setupTransactionAvailable: false,
+      automaticSubmission: false,
+      scheduledRetry: false,
+      reason: migration.reason,
+      migration,
+    });
+  } else {
+    automation = Object.freeze({ ...automation, migration });
   }
   return json({ ok: true, automation }, 200, {
     // This response is public, contains no connected-wallet data, and is advisory UI state.

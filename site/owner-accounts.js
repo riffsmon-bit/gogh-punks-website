@@ -566,6 +566,8 @@ export function renderOwnerAccounts(container, accounts, filter = "all") {
     ACTIVE: ["ACTIVE", "Your Punk is in the worker rotation."],
     QUEUED: ["WAITING IN ROTATION", "Your Punk is activated and waiting for its turn."],
     WAITING_FOR_WORKER: ["WAITING FOR WORKER", "Still activated. No owner action is required."],
+    WAITING_FOR_V2: ["V1 RETIRED · WAITING FOR V2",
+      "Punk Wallet, assets, withdrawals, and V1 history remain available."],
     SCANNING: ["SCANNING", "Your Punk is checking mint candidates."],
     MINTING: ["MINTING", "A verified mint is being submitted."],
     PAUSED: ["PAUSED", "Open this Punk to review its controls."],
@@ -611,7 +613,8 @@ export function renderOwnerAccounts(container, accounts, filter = "all") {
     const open = documentObject.createElement("a");
     open.className = "punk-launcher-open";
     open.href = `/broker/punk/${encodeURIComponent(item.tokenId)}`;
-    open.textContent = activated ? "Open Art Broker" : "Activate Art Broker";
+    open.textContent = status === "WAITING_FOR_V2" ? "Open Punk Wallet"
+      : activated ? "Open Art Broker" : "Activate Art Broker";
     content.append(title, badge, description, open);
     card.append(visual, content);
     container.append(card);

@@ -7,6 +7,8 @@ const MIGRATIONS = Object.freeze([
   "20260831233000_add_punk_priority_sessions",
   "20260901090000_add_priority_gas_usage_refunds",
   "20260902013000_repair_priority_attempt_reliability",
+  "20260902043000_prepare_v4_legacy_reconciliation",
+  "20260903221000_schedule_v1_retirement",
 ]);
 const APPLY = process.argv.includes("--apply");
 

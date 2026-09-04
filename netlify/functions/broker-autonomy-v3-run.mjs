@@ -1,4 +1,8 @@
 import { runAutomationV3Once } from "./_shared/automation-v3-runner.mjs";
+import {
+  assertV1RegistrationEnabled, BROKER_MIGRATION_PAUSE_REASON,
+  V1_REGISTRATION_CLOSED, V1_RETIRED_REASON,
+} from "./_shared/broker-migration-state.mjs";
 import { enrollAutomationV3Punk } from "./_shared/automation-v3-worker-state.mjs";
 import {
   automationV3LaneEnvironment, regularAutomationV3AgentLanes,
@@ -47,6 +51,7 @@ export function requireAutomationV3RunOrigin(request, environment = process.env)
 export async function runSelectedAutomationV3(body, dependencies = {}) {
   const tokenId = exactBody(body);
   const environment = dependencies.environment ?? process.env;
+  assertV1RegistrationEnabled(environment, { now: dependencies.now });
   const runOnce = dependencies.runOnce ?? runAutomationV3Once;
   const enroll = dependencies.enroll ?? enrollAutomationV3Punk;
   let lane = null;
@@ -89,6 +94,8 @@ export async function runAllAutomationV3(body, dependencies = {}) {
     throw new PublicError(400, "INVALID_REQUEST", "The all-Punk scan request is invalid.");
   }
   const runOnce = dependencies.runOnce ?? runAutomationV3Once;
+  const environment = dependencies.environment ?? process.env;
+  assertV1RegistrationEnabled(environment, { now: dependencies.now });
   if (dependencies.runOnce) {
     const result = await runOnce({ requestedTokenId: null });
     return Object.freeze({
@@ -99,7 +106,6 @@ export async function runAllAutomationV3(body, dependencies = {}) {
       transactionHash: result.transactionHash ?? null,
     });
   }
-  const environment = dependencies.environment ?? process.env;
   const results = await Promise.all(regularAutomationV3AgentLanes(environment).map((lane) =>
     runOnce({ requestedTokenId: null,
       environment: automationV3LaneEnvironment(environment, lane.laneId),
@@ -151,6 +157,12 @@ export default async function handler(request) {
   } catch (error) {
     if (error instanceof PublicError) {
       return json({ ok: false, code: error.code, message: error.message }, error.status);
+    }
+    if (new Set([BROKER_MIGRATION_PAUSE_REASON, V1_REGISTRATION_CLOSED,
+      V1_RETIRED_REASON]).has(error?.code)) {
+      return json({ ok: false, code: error.code, message: error.message }, 503, {
+        "netlify-cdn-cache-control": "no-store",
+      });
     }
     console.error(JSON.stringify({
       event: "AUTOMATION_V3_MANUAL_RUN_FAILED",

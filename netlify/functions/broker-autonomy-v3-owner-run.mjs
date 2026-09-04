@@ -3,6 +3,9 @@ import { runAutomatedSeaDropV3Worker } from
   "../../scripts/run-automated-seadrop-v3-worker.mjs";
 import { isDeployPreview } from "./_shared/automation-v3-production-bridge.mjs";
 import { json, PublicError, readJson, requireSameOrigin } from "./_shared/http.mjs";
+import {
+  assertHostedExecutionEnabled, V1_RETIRED_REASON,
+} from "./_shared/broker-migration-state.mjs";
 
 function requireOwnerRunOrigin(request, environment = process.env) {
   if (!isDeployPreview(environment, request.url)) {
@@ -31,6 +34,11 @@ export async function prepareOwnerPaidAutomationV3(body, dependencies = {}) {
   const readPunk = dependencies.readPunk ?? readAutomationV3PunkState;
   const runWorker = dependencies.runWorker ?? runAutomatedSeaDropV3Worker;
   const environment = dependencies.environment ?? process.env;
+  try {
+    assertHostedExecutionEnabled(environment, { now: dependencies.now });
+  } catch (error) {
+    throw new PublicError(410, error.code ?? V1_RETIRED_REASON, error.message);
+  }
   const punk = await readPunk(tokenId);
   if (punk?.tokenId !== tokenId || punk?.created !== true || punk?.active !== true) {
     throw new PublicError(

@@ -8,6 +8,7 @@
     <title>Punk Control Center · Gogh Punks</title>
     <link rel="icon" href="/assets/favicon.png" type="image/png" />
     <link rel="stylesheet" href="/broker.css" />
+    <script src="/broker-sunset.js" type="module"></script>
     <script src="/wallet.js?v=reown-10" type="module"></script>
     <script src="/punk-control-center.js" type="module"></script>
   </head>
@@ -25,6 +26,11 @@
     </header>
 
     <main class="control-center" id="control-center-main">
+      <aside class="v1-sunset control-sunset" data-v1-sunset aria-live="polite">
+        <div data-v1-sunset-pending><p class="eyebrow">Art Broker V1 Sunset</p><h2>V1 retires September 4 at 6:00 PM EDT</h2><div class="v1-countdown" role="timer"><span><b data-v1-days>00</b><small>Days</small></span><i>:</i><span><b data-v1-hours>00</b><small>Hours</small></span><i>:</i><span><b data-v1-minutes>00</b><small>Minutes</small></span><i>:</i><span><b data-v1-seconds>00</b><small>Seconds</small></span></div></div>
+        <div data-v1-sunset-retired hidden><p class="eyebrow">Art Broker V1 Has Retired</p><h2>This Punk is waiting for V2.</h2><p>Its wallet, assets, withdrawals, ownership, and V1 history remain available.</p></div>
+        <p class="v1-reference" data-v1-reference>Confirming canonical server time…</p>
+      </aside>
       <p class="local-simulation-banner" data-local-demo hidden><strong>LOCAL SIMULATION</strong> Wallet connection is available for interface testing. All paid, directed-mint, deposit, withdrawal, and wrap actions on this page remain review-only and cannot broadcast.</p>
       <aside class="control-route-alert" data-control-route-alert hidden aria-live="polite">
         <strong>Choose a Gogh Punk first</strong>
@@ -112,7 +118,7 @@
 
       <section id="control-panel-mint" class="control-panel" role="tabpanel" aria-labelledby="control-tab-mint" data-control-panel="mint" hidden>
         <div class="control-grid two-column">
-          <article class="control-card"><p class="eyebrow">Scout mode</p><h2>Send Agent Scouting</h2><p>Search only the marketplaces and runtimes supported by the reviewed adapter set.</p><div class="control-button-stack"><button type="button" data-scout-simulate disabled>Join Normal Rotation</button></div><p class="control-note">Normal autonomous rotation remains available. New prepaid priority sessions are closed.</p><p class="control-note" data-scout-result>Connect the current holder to load Scout controls.</p></article>
+          <article class="control-card"><p class="eyebrow">Scout mode</p><h2>Send Agent Scouting</h2><p>Search only the marketplaces and runtimes supported by the reviewed adapter set until the V1 cutoff.</p><div class="control-button-stack"><button type="button" data-scout-simulate disabled>Join Normal Rotation</button></div><p class="control-note">New prepaid priority sessions are retired. Existing balances remain separately accounted user liabilities.</p><p class="control-note" data-scout-result>Connect the current holder to load Scout controls.</p></article>
           <article class="control-card"><p class="eyebrow">Directed mode</p><h2>Direct Your Punk to a Mint</h2><label class="control-field"><span>Paste an OpenSea mint link</span><input type="url" inputmode="url" data-directed-url placeholder="https://opensea.io/collection/..." /></label><button type="button" data-directed-check disabled>Check Mint</button><p class="control-note" data-directed-state>Entering a URL never authorizes spending.</p></article>
         </div>
         <article class="control-card directed-review" data-directed-review hidden>
