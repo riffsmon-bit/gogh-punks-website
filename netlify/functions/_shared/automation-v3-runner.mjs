@@ -19,6 +19,14 @@ function failureCode(error) {
     ? error.code : "FAILED";
 }
 
+export function heartbeatPersistenceFailure(error) {
+  if (typeof error?.code === "string" && /^[0-9A-Z_]{3,64}$/.test(error.code)) {
+    return error.code;
+  }
+  return error instanceof TypeError
+    ? "INVALID_HEARTBEAT_EVIDENCE" : "HEARTBEAT_PERSISTENCE_FAILED";
+}
+
 export async function runAutomationV3Once(options = {}) {
   const environment = options.environment ?? process.env;
   assertHostedExecutionEnabled(environment, { now: options.now });
@@ -69,8 +77,9 @@ export async function runAutomationV3Once(options = {}) {
           completedAt,
           laneId,
         });
-      } catch {
-        console.error(JSON.stringify({ event: "AUTOMATION_V3_HEARTBEAT_FAILED" }));
+      } catch (error) {
+        console.error(JSON.stringify({ event: "AUTOMATION_V3_HEARTBEAT_FAILED",
+          reason: heartbeatPersistenceFailure(error) }));
       }
       try {
         await (options.recordPunks ?? recordAutomationV3PunkWorkerEvidence)(result, {
@@ -114,8 +123,9 @@ export async function runAutomationV3Once(options = {}) {
           startedAt,
           completedAt,
         });
-      } catch {
-        console.error(JSON.stringify({ event: "AUTOMATION_V3_HEARTBEAT_FAILED" }));
+      } catch (error) {
+        console.error(JSON.stringify({ event: "AUTOMATION_V3_HEARTBEAT_FAILED",
+          reason: heartbeatPersistenceFailure(error) }));
       }
       try {
         await (options.recordPunks ?? recordAutomationV3PunkWorkerEvidence)(failedResult, {

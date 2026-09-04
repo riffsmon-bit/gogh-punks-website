@@ -3,8 +3,19 @@ import test from "node:test";
 
 import { runAllAutomationV3, runSelectedAutomationV3 } from
   "../netlify/functions/broker-autonomy-v3-run.mjs";
-import { runAutomationV3Once } from
+import { heartbeatPersistenceFailure, runAutomationV3Once } from
   "../netlify/functions/_shared/automation-v3-runner.mjs";
+
+test("heartbeat persistence diagnostics expose only bounded reason codes", () => {
+  assert.equal(heartbeatPersistenceFailure({ code: "42P01", message: "secret relation" }),
+    "42P01");
+  assert.equal(heartbeatPersistenceFailure(new TypeError("secret evidence")),
+    "INVALID_HEARTBEAT_EVIDENCE");
+  assert.equal(heartbeatPersistenceFailure(new Error("postgres://secret")),
+    "HEARTBEAT_PERSISTENCE_FAILED");
+  assert.equal(heartbeatPersistenceFailure({ code: "unsafe url https://secret" }),
+    "HEARTBEAT_PERSISTENCE_FAILED");
+});
 
 test("manual V3 run scopes the existing worker to one active Punk", async () => {
   const calls = [];
