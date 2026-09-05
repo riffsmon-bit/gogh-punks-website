@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Owner-controlled, gas-capped preparation for the PEPEMFERS public mint." />
+    <meta name="theme-color" content="#071321" />
+    <title>PEPEMFERS Mint Plan · Gogh Punks</title>
+    <link rel="icon" href="/assets/favicon.png" type="image/png" />
+    <link rel="stylesheet" href="/broker.css" />
+    <link rel="stylesheet" href="/pepemfers.css" />
+    <script src="/wallet.js?v=reown-10" type="module"></script>
+    <script src="/pepemfers-mint.js" type="module"></script>
+  </head>
+  <body class="pepemfers-page">
+    <a class="skip-link" href="#main">Skip to mint preparation</a>
+    <header class="broker-header">
+      <a class="broker-brand" href="/"><img src="/assets/favicon.png" alt="" /><span>GOGH PUNKS</span></a>
+      <nav aria-label="Primary navigation"><a href="/broker/">Art Broker</a><a href="/">Collection</a></nav>
+      <div class="wallet-control">
+        <button class="wallet-button" type="button" data-wallet-connect>Connect wallet</button>
+        <button class="wallet-button wallet-switch-button" type="button" data-wallet-switch hidden>Switch to Robinhood Chain</button>
+        <button class="wallet-disconnect" type="button" data-wallet-disconnect hidden>Disconnect</button>
+        <span class="wallet-state" data-wallet-state aria-live="polite">Wallet disconnected · no automatic signatures or transactions</span>
+      </div>
+    </header>
+
+    <main class="pepemfers-main" id="main">
+      <section class="pepemfers-hero" aria-labelledby="pepemfers-title">
+        <p class="eyebrow">Owner-directed · $20-equivalent gas ceiling · Robinhood Chain</p>
+        <h1 id="pepemfers-title">PEPEMFERS mint plan</h1>
+        <p>Already-activated Gogh Punk Wallets mint one PEPEMFER each. Your owner wallet keeps every Gogh Punk and pays only network gas.</p>
+        <p class="pepemfers-countdown" data-pepemfers-countdown role="timer">Calculating public mint time…</p>
+      </section>
+
+      <section class="pepemfers-panel" aria-labelledby="verified-plan-title">
+        <p class="eyebrow">Hard-pinned execution envelope</p>
+        <h2 id="verified-plan-title">Verified public phase only</h2>
+        <div class="pepemfers-grid">
+          <article><strong>Mint price</strong><span>0 ETH · gas only</span></article>
+          <article><strong>Public window</strong><span>Sep 6 · 2:00–3:00 PM EDT</span></article>
+          <article><strong>Collection</strong><span>0xd995…73f5</span></article>
+          <article><strong>Roster</strong><span data-pepemfers-roster>128 verified · readiness not checked</span></article>
+          <article><strong>Gas ceiling</strong><span>0.008 ETH including reserve</span></article>
+        </div>
+        <p class="pepemfers-warning">The 73 inactive Punk Wallets will not be activated, avoiding that gas entirely. This launcher uses only wallets that already exist and automatically reduces the mint count if the live gas estimate plus a 20% reserve would exceed 0.008 ETH. It blocks if ownership, bytecode, price, timing, supply, fee recipient, per-wallet limit, or simulation changes.</p>
+
+        <div class="pepemfers-actions">
+          <button type="button" data-pepemfers-prepare>1 · Check activated wallets</button>
+          <button type="button" data-pepemfers-mint disabled>2 · Mint within 0.008 ETH</button>
+        </div>
+        <p class="pepemfers-status" data-pepemfers-status role="status" aria-live="polite">Connect the pinned owner wallet, then run the readiness check. Nothing submits automatically.</p>
+
+        <ol class="pepemfers-steps">
+          <li>Readiness independently verifies the complete 128-Punk owner roster and derives every Punk Wallet.</li>
+          <li>Only the 55 wallets already activated at preparation time are considered; no activation transaction is offered.</li>
+          <li>During the public hour, each quantity-one mint is rechecked, simulated, and admitted only while the gas-capped plan has room.</li>
+        </ol>
+        <p class="control-note">The 0.008 ETH ceiling is approximately $20 at the planning price of $2,477.31/ETH. The live gas quote is checked again before each wallet batch, and your wallet shows its final quote before approval.</p>
+        <p><a href="https://opensea.io/collection/pepemfersnft/overview" target="_blank" rel="noopener noreferrer nofollow">Review PEPEMFERS on OpenSea ↗</a></p>
+      </section>
+    </main>
+
+    <footer class="broker-footer">Owner-controlled · no Gogh Punk transfers · no unattended signer.</footer>
+  </body>
+</html>

@@ -1,0 +1,101 @@
+.pepemfers-page {
+  background: radial-gradient(circle at 50% 0%, #123b35 0, #071321 45%, #030a11 100%);
+  min-height: 100vh;
+}
+
+.pepemfers-main {
+  margin: 0 auto;
+  max-width: 980px;
+  padding: 5rem 1.25rem 7rem;
+}
+
+.pepemfers-hero,
+.pepemfers-panel {
+  background: rgba(6, 20, 31, 0.92);
+  border: 1px solid rgba(92, 230, 191, 0.28);
+  border-radius: 22px;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.32);
+  margin-bottom: 1.25rem;
+  padding: clamp(1.4rem, 4vw, 3rem);
+}
+
+.pepemfers-hero h1 {
+  font-size: clamp(2.2rem, 7vw, 5.4rem);
+  letter-spacing: -0.055em;
+  line-height: 0.94;
+  margin: 0.35rem 0 1.25rem;
+}
+
+.pepemfers-countdown {
+  color: #72f5cc;
+  font: 700 clamp(1.1rem, 3vw, 1.7rem)/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+  margin: 1.75rem 0 0;
+}
+
+.pepemfers-grid {
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  margin: 1.5rem 0;
+}
+
+.pepemfers-grid article {
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  padding: 1rem;
+}
+
+.pepemfers-grid strong,
+.pepemfers-grid span {
+  display: block;
+}
+
+.pepemfers-grid strong { color: #fff; font-size: 1rem; margin-bottom: 0.35rem; }
+.pepemfers-grid span { color: #a7b7c5; font-size: 0.82rem; overflow-wrap: anywhere; }
+
+.pepemfers-actions {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 1.5rem 0;
+}
+
+.pepemfers-actions button {
+  background: #72f5cc;
+  border: 0;
+  border-radius: 999px;
+  color: #04120f;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+  min-height: 50px;
+  padding: 0.8rem 1.1rem;
+}
+
+.pepemfers-actions button:disabled { cursor: not-allowed; filter: grayscale(0.85); opacity: 0.42; }
+.pepemfers-actions button:last-child { background: #ffe86f; }
+
+.pepemfers-status {
+  background: #02090f;
+  border: 1px solid rgba(114, 245, 204, 0.22);
+  border-radius: 12px;
+  color: #d9fff2;
+  min-height: 3.2rem;
+  padding: 1rem;
+}
+
+.pepemfers-warning {
+  border-left: 3px solid #ffe86f;
+  color: #cad6df;
+  padding-left: 1rem;
+}
+
+.pepemfers-steps { color: #becbd4; line-height: 1.65; padding-left: 1.3rem; }
+.pepemfers-steps li + li { margin-top: 0.65rem; }
+
+@media (max-width: 760px) {
+  .pepemfers-main { padding-top: 2rem; }
+  .pepemfers-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pepemfers-actions { grid-template-columns: 1fr; }
+}
