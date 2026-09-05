@@ -9,6 +9,7 @@ const pages = [
   "broker/index.html",
   "broker/punk/index.html",
   "discover/index.html",
+  "pepemfers/index.html",
   "punk/index.html",
 ];
 const failures = [];
@@ -136,6 +137,8 @@ for (const file of ["styles.css", "main.js", "robots.txt", "site.webmanifest"]) 
 for (const file of [
   "broker.css", "broker.js", "wallet.js", "canary-execution.js", "keccak256.js",
   "owner-policy-controls.js",
+  "pepemfers-mint.js",
+  "pepemfers.css",
   "punk-control-center.js",
 ]) {
   readFileSync(join(root, file));
@@ -168,6 +171,7 @@ const searchable = pages
     readFileSync(join(root, "canary-execution.js"), "utf8"),
     readFileSync(join(root, "account-funds.js"), "utf8"),
     readFileSync(join(root, "owner-policy-controls.js"), "utf8"),
+    readFileSync(join(root, "pepemfers-mint.js"), "utf8"),
     readFileSync(join(root, "punk-control-center.js"), "utf8"),
     readFileSync(join(root, "keccak256.js"), "utf8"),
   )
