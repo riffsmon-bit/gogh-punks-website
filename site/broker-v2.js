@@ -45,6 +45,8 @@ const short = (value) => typeof value === "string" && value.length === 42
 
 function cleanImage(value, fallback = "/assets/gogh-punks-pfp.png") {
   if (typeof value !== "string") return fallback;
+  if (/^data:image\/(?:svg\+xml|png);base64,[A-Za-z0-9+/]+={0,2}$/.test(value)
+    && value.length <= 256_000) return value;
   try {
     const url = new URL(value, location.origin);
     if (url.origin === location.origin) return url.href;
@@ -229,14 +231,20 @@ async function loadPunkBalances(punk) {
   punk.balanceLoaded = true; renderSelected();
 }
 
-async function loadReviewCollection(punk) {
-  if (state.galleryTokenId === punk.tokenId || state.galleryLoadingTokenId === punk.tokenId) return;
+async function loadReviewCollection(punk, exactAsset = null) {
+  if (!exactAsset && (state.galleryTokenId === punk.tokenId
+    || state.galleryLoadingTokenId === punk.tokenId)) return;
   const tokenId = punk.tokenId; state.galleryLoadingTokenId = tokenId;
   state.gallery = [{ image: punk.image, title: `LOADING PUNK #${tokenId}…`,
     provenance: "LIVE OWNERSHIP CHECK", detail: "Reading the current Punk Wallet inventory." }];
   renderGallery(); set("[data-gallery-count]", 0);
   try {
-    const response = await fetch(`/api/broker/nft-withdrawal-assets?tokenId=${encodeURIComponent(tokenId)}`, {
+    const params = new URLSearchParams({ tokenId });
+    if (exactAsset) {
+      params.set("collection", exactAsset.collection);
+      params.set("assetTokenId", exactAsset.tokenId);
+    }
+    const response = await fetch(`/api/broker/nft-withdrawal-assets?${params}`, {
       headers: { accept: "application/json" }, cache: "no-store",
     });
     const payload = await response.json(); const assets = payload?.assets;
@@ -259,6 +267,19 @@ async function loadReviewCollection(punk) {
   } finally {
     if (state.galleryLoadingTokenId === tokenId) state.galleryLoadingTokenId = null;
   }
+}
+
+function exactOpenSeaAsset(value) {
+  let url;
+  try { url = new URL(String(value ?? "").trim()); }
+  catch { throw new Error("Paste a valid OpenSea item link."); }
+  const match = url.pathname.match(/^\/item\/robinhood\/(0x[0-9a-fA-F]{40})\/(0|[1-9][0-9]*)\/?$/);
+  if (url.protocol !== "https:" || url.hostname !== "opensea.io" || url.port
+    || url.username || url.password || url.hash || url.search || !match) {
+    throw new Error("Use an exact Robinhood Chain OpenSea item link.");
+  }
+  return Object.freeze({ collection: match[1].toLowerCase(),
+    tokenId: BigInt(match[2]).toString() });
 }
 
 function dateLabel(value) {
@@ -590,6 +611,29 @@ function setup() {
         : `I COULDN'T FINISH THE CHECK. ${error.message} Nothing was signed or prepared.`);
     } finally {
       form.removeAttribute("aria-busy"); button.disabled = false; button.textContent = "CHECK LINK";
+    }
+  });
+  one("[data-exact-nft-form]").addEventListener("submit", async (event) => {
+    event.preventDefault(); const form = event.currentTarget;
+    const output = one("[data-exact-nft-state]"); const button = form.querySelector("button");
+    try {
+      if (PREVIEW) throw new Error("Connect on Preview 42 to verify a live-held NFT.");
+      if (!state.selected || !state.wallet?.account || state.wallet.chainId !== CHAIN_ID) {
+        throw new Error("Connect the current owner and select a Punk first.");
+      }
+      const exact = exactOpenSeaAsset(one("#exact-nft-link").value);
+      form.setAttribute("aria-busy", "true"); button.disabled = true;
+      output.textContent = "VERIFYING LIVE ERC-721 OWNERSHIP…";
+      await loadReviewCollection(state.selected, exact);
+      const found = state.gallery.some((asset) => asset.collection === exact.collection
+        && asset.tokenId === exact.tokenId);
+      output.textContent = found
+        ? `VERIFIED · NFT #${exact.tokenId} was added to this Punk's collection.`
+        : "NOT FOUND · This NFT is not currently owned by the selected Punk Wallet.";
+    } catch (error) {
+      output.textContent = error?.message ?? "The NFT could not be verified.";
+    } finally {
+      form.removeAttribute("aria-busy"); button.disabled = false;
     }
   });
   one("[data-edit-strategy]").addEventListener("click", () => { one("[data-confirmation-dialog]").close(); one("#punk-prompt").focus(); });

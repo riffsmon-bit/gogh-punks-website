@@ -20,6 +20,8 @@ test("V2 Control Center exposes the complete selected-Punk action architecture",
   assert.match(html, /AUTONOMOUS · LOCKED/);
   assert.match(html, /WITHDRAW FROM THE PIECE/);
   assert.match(html, /ETH ↔ WETH/);
+  assert.match(html, /MISSING AN NFT\? PASTE ITS EXACT OPENSEA ITEM LINK/);
+  assert.match(html, /data-exact-nft-form/);
 });
 
 test("V2 semantics, mobile navigation, focus, and reduced motion are deliberate", async () => {
@@ -45,12 +47,13 @@ test("live collection and activity panels hydrate real authenticated API states"
   assert.match(script, /ensureV2Session/);
   assert.match(script, /GALLERY UNAVAILABLE/);
   assert.doesNotMatch(script, /dangerouslySetInnerHTML|innerHTML\s*=/);
-  assert.match(script, /api\/broker\/nft-withdrawal-assets\?tokenId=/);
+  assert.match(script, /api\/broker\/nft-withdrawal-assets\?\$\{params\}/);
   assert.match(script, /assets\.owner !== state\.wallet\?\.account/);
   assert.match(script, /asset\.ownershipStatus|LIVE OWNERSHIP CHECK/);
   assert.match(script, /WITHDRAW/);
   assert.match(script, /gateway\.pinata\.cloud/);
   assert.match(script, /fixedIpfs/);
+  assert.match(script, /exactOpenSeaAsset/);
 });
 
 test("funding exposes hardened ETH funding and canonical WETH wrap submission", async () => {

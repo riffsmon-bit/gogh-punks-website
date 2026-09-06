@@ -7,6 +7,7 @@ import {
 
 const METADATA_CID = "bafkreihytc54zdfjl74gk4lqhclbehejfjvw2exj6yz7qg75s2zki5ak5i";
 const IMAGE_CID = "bafybeifxubfqw4ijecm3adlgczd37x2kk3xu4mpsgelh7n4nxxq5ufmrsy";
+const EMBEDDED_IMAGE = `data:image/svg+xml;base64,${Buffer.from("<svg xmlns='http://www.w3.org/2000/svg'/>").toString("base64")}`;
 
 test("IPFS display URLs are pinned to one fixed HTTPS gateway", () => {
   assert.equal(fixedIpfsGatewayUrl(`ipfs://${METADATA_CID}`),
@@ -24,11 +25,23 @@ test("on-chain metadata keeps only bounded name and an IPFS image", () => {
     name: "Pepe\u0000 Brokers", image: `ipfs://${IMAGE_CID}`,
   }), {
     name: "Pepe Brokers", imageUrl: `https://gateway.pinata.cloud/ipfs/${IMAGE_CID}`,
-    source: "ONCHAIN_TOKEN_URI_IPFS",
+    source: "ONCHAIN_TOKEN_URI",
   });
   assert.equal(sanitizeOnchainNftDisplay({ name: "No remote image", image: "https://evil.test/a" })
     .imageUrl, null);
   assert.throws(() => sanitizeOnchainNftDisplay({ name: 7 }), /name/);
+});
+
+test("bounded on-chain JSON retains a bounded embedded SVG without a network fetch", async () => {
+  const tokenUri = `data:application/json;base64,${Buffer.from(JSON.stringify({
+    name: "#CCFF00", image: EMBEDDED_IMAGE,
+  })).toString("base64")}`;
+  const result = await readOnchainNftDisplay(tokenUri, {
+    fetchFn: async () => { throw new Error("network must not be used"); },
+  });
+  assert.deepEqual(result, {
+    name: "#CCFF00", imageUrl: EMBEDDED_IMAGE, source: "ONCHAIN_TOKEN_URI",
+  });
 });
 
 test("metadata fetch is bounded, no-redirect, cached, and reads one fixed IPFS URL", async () => {

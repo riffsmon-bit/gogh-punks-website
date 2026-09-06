@@ -6,6 +6,8 @@ const IPFS_GATEWAY_ORIGINS = Object.freeze([
 ]);
 const CACHE_TTL_MS = 60 * 60 * 1_000;
 const metadataCache = new Map();
+const JSON_DATA_URI_HEADER = /^data:application\/json(?:;charset=(?:utf-8|utf8))?(?:;base64)?$/i;
+const EMBEDDED_IMAGE = /^data:image\/(?:svg\+xml|png);base64,[A-Za-z0-9+/]+={0,2}$/;
 
 function cleanText(value, maximum) {
   if (typeof value !== "string") return null;
@@ -51,9 +53,34 @@ export function sanitizeOnchainNftDisplay(payload) {
   const rawImage = payload.image ?? payload.image_url;
   return Object.freeze({
     name: cleanText(payload.name, 200),
-    imageUrl: fixedIpfsGatewayUrl(rawImage),
-    source: "ONCHAIN_TOKEN_URI_IPFS",
+    imageUrl: typeof rawImage === "string" && rawImage.length <= MAX_METADATA_BYTES
+      && EMBEDDED_IMAGE.test(rawImage) ? rawImage : fixedIpfsGatewayUrl(rawImage),
+    source: "ONCHAIN_TOKEN_URI",
   });
+}
+
+function decodeDataJson(uri) {
+  if (typeof uri !== "string" || uri.length > MAX_METADATA_BYTES * 2) return null;
+  const comma = uri.indexOf(",");
+  if (comma <= 0 || comma > 160) return null;
+  const header = uri.slice(0, comma);
+  if (!JSON_DATA_URI_HEADER.test(header)) return null;
+  const payload = uri.slice(comma + 1);
+  let bytes;
+  try {
+    if (/;base64$/i.test(header)) {
+      if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(payload)) {
+        return null;
+      }
+      bytes = Buffer.from(payload, "base64");
+    } else {
+      bytes = Buffer.from(decodeURIComponent(payload), "utf8");
+    }
+    if (bytes.byteLength > MAX_METADATA_BYTES) return null;
+    return sanitizeOnchainNftDisplay(JSON.parse(bytes.toString("utf8")));
+  } catch {
+    return null;
+  }
 }
 
 async function boundedJson(response) {
@@ -70,6 +97,9 @@ async function boundedJson(response) {
 export async function readOnchainNftDisplay(tokenUri, {
   fetchFn = fetch, timeoutMs = 5_000, now = Date.now(),
 } = {}) {
+  if (typeof tokenUri === "string" && tokenUri.startsWith("data:")) {
+    return decodeDataJson(tokenUri);
+  }
   const endpoints = fixedIpfsGatewayUrls(tokenUri);
   if (!endpoints.length) return null;
   const cacheKey = endpoints[0];

@@ -360,18 +360,23 @@ function assetItem(value) {
     floorPrice: null,
   };
   if (value.imageUrl !== null) {
-    try {
-      const url = new URL(value.imageUrl);
-      const seaDn = ["i.seadn.io", "raw2.seadn.io"].includes(url.hostname);
-      const fixedIpfs = ["gateway.pinata.cloud", "ipfs.io"].includes(url.hostname)
-        && /^\/ipfs\/(?:Qm[1-9A-HJ-NP-Za-km-z]{44}|b[a-z2-7]{20,})(?:\/[A-Za-z0-9._~%-]+)*$/.test(url.pathname);
-      if (url.protocol !== "https:" || (!seaDn && !fixedIpfs)
-        || url.username || url.password || url.port || url.hash || url.search) {
-        throw new Error("invalid");
+    const embedded = /^data:image\/(?:svg\+xml|png);base64,[A-Za-z0-9+/]+={0,2}$/.test(value.imageUrl)
+      && value.imageUrl.length <= 256_000;
+    if (embedded) normalized.imageUrl = value.imageUrl;
+    else {
+      try {
+        const url = new URL(value.imageUrl);
+        const seaDn = ["i.seadn.io", "raw2.seadn.io"].includes(url.hostname);
+        const fixedIpfs = ["gateway.pinata.cloud", "ipfs.io"].includes(url.hostname)
+          && /^\/ipfs\/(?:Qm[1-9A-HJ-NP-Za-km-z]{44}|b[a-z2-7]{20,})(?:\/[A-Za-z0-9._~%-]+)*$/.test(url.pathname);
+        if (url.protocol !== "https:" || (!seaDn && !fixedIpfs)
+          || url.username || url.password || url.port || url.hash || url.search) {
+          throw new Error("invalid");
+        }
+        normalized.imageUrl = url.href;
+      } catch {
+        fail("INVALID_ASSET_LIST", "withdrawable NFT image is invalid");
       }
-      normalized.imageUrl = url.href;
-    } catch {
-      fail("INVALID_ASSET_LIST", "withdrawable NFT image is invalid");
     }
   }
   if (normalized.acquiredAt !== null && (typeof normalized.acquiredAt !== "string"
