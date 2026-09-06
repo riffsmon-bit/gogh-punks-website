@@ -190,6 +190,19 @@
 
           <section class="broker-panel" data-v2-panel="activity" aria-labelledby="activity-title" hidden>
             <header class="panel-header"><div><span class="kicker">MATCH HISTORY</span><h2 id="activity-title">ACTIVITY</h2></div><button class="filter-button" type="button">ALL HISTORY</button></header>
+            <section class="mission-monitor" data-mission-monitor hidden aria-labelledby="mission-monitor-title">
+              <header><div><span class="kicker">LIVE MISSION</span><h3 id="mission-monitor-title">PUNK STATUS</h3></div><b data-mission-status>READY</b></header>
+              <p data-mission-phase aria-live="polite">Waiting for a confirmed mission.</p>
+              <dl>
+                <div><dt>PROGRESS</dt><dd data-mission-progress>—</dd></div>
+                <div><dt>OPPORTUNITIES CHECKED</dt><dd data-mission-checked>0</dd></div>
+                <div><dt>COMPLETED SCANS</dt><dd data-mission-scans>0</dd></div>
+                <div><dt>QUEUE</dt><dd data-mission-queue>NOT CONNECTED</dd></div>
+                <div><dt>LAST CHECK</dt><dd data-mission-last-check>NOT YET</dd></div>
+                <div><dt>NEXT CHECK</dt><dd data-mission-next-check>NOT SCHEDULED</dd></div>
+              </dl>
+              <p class="mission-monitor-note">This displays discovery, screening, and simulation only. No mint transaction is submitted by the review agent.</p>
+            </section>
             <ol class="activity-feed" data-activity-feed></ol>
           </section>
 

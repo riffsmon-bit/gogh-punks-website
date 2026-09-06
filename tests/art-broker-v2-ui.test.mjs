@@ -40,12 +40,24 @@ test("V2 semantics, mobile navigation, focus, and reduced motion are deliberate"
 });
 
 test("live collection and activity panels hydrate real authenticated API states", async () => {
-  const script = await readFile(new URL("../site/broker-v2.js", import.meta.url), "utf8");
+  const [html, script] = await Promise.all([
+    readFile(htmlUrl, "utf8"),
+    readFile(new URL("../site/broker-v2.js", import.meta.url), "utf8"),
+  ]);
   assert.match(script, /view=indexed/);
   assert.match(script, /verifyOwnedPunkIds/);
   assert.doesNotMatch(script, /owner-punks\?owner=.*view=reconcile/);
   assert.match(script, /api\/v2\/punks\/\$\{tokenId\}\/collection/);
   assert.match(script, /api\/v2\/punks\/\$\{tokenId\}\/activity/);
+  assert.match(html, /data-mission-monitor/);
+  assert.match(html, /data-mission-next-check/);
+  assert.match(html, /data-mission-queue/);
+  assert.match(script, /REFRESHING THE LIVE ROBINHOOD NFT OPPORTUNITY QUEUE/);
+  assert.match(script, /SCREENING AND SIMULATING CURRENT CANDIDATES/);
+  assert.match(script, /SCOUT CHECK FAILED · RETRY SCHEDULED/);
+  assert.match(script, /LIVE QUEUE REFRESH RATE-LIMITED/);
+  assert.match(script, /REVIEW_DISCOVERY_BACKOFF_MS = 5 \* 60_000/);
+  assert.match(script, /last confirmed queue/);
   assert.match(script, /ensureV2Session/);
   assert.match(script, /GALLERY UNAVAILABLE/);
   assert.doesNotMatch(script, /dangerouslySetInnerHTML|innerHTML\s*=/);

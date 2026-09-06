@@ -50,8 +50,10 @@ const state = { wallet: null, punks: [], selected: null, localStrategy: null, lo
   fundingPlan: null, wrappedPlan: null, withdrawalAsset: null,
   withdrawalAmount: "1", withdrawalPlan: null, withdrawalBusy: false,
   reviewAgents: new Map(), reviewInspections: new Map(), reviewActivities: new Map(),
-  reviewRuns: new Map(), reviewConversations: new Map(), reviewSkills: new Map() };
+  reviewRuns: new Map(), reviewConversations: new Map(), reviewSkills: new Map(),
+  reviewMissionPhases: new Map(), reviewDiscoveryBackoffs: new Map() };
 const REVIEW_MISSION_POLL_MS = 60_000;
+const REVIEW_DISCOVERY_BACKOFF_MS = 5 * 60_000;
 const REVIEW_SESSION_STORAGE_KEY = "gogh-art-broker-review-session-v1";
 let reviewMissionTimer = null;
 const one = (selector) => document.querySelector(selector);
@@ -193,6 +195,57 @@ function addReviewActivity(type, title, detail) {
   state.reviewActivities.set(key, [[time, type, title, detail], ...existing].slice(0, 20));
   persistReviewSessionState();
   renderActivity();
+}
+
+function setReviewMissionPhase(key, phase, nextCheckAt = null) {
+  state.reviewMissionPhases.set(key, { phase, nextCheckAt });
+  renderMissionMonitor();
+}
+
+function missionClock(value, fallback) {
+  if (!value || !Number.isFinite(Date.parse(value))) return fallback;
+  return new Date(value).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" }).toUpperCase();
+}
+
+function renderMissionMonitor() {
+  const monitor = one("[data-mission-monitor]");
+  if (!monitor) return;
+  const key = selectedReviewKey();
+  const agent = selectedReviewAgent();
+  if (!key || !agent) { monitor.hidden = true; return; }
+  monitor.hidden = false;
+  const mission = agent.mission ?? null;
+  const livePhase = state.reviewMissionPhases.get(key) ?? null;
+  const phase = livePhase?.phase ?? (agent.status === "SCOUTING" ? "WAITING" : agent.status);
+  const phaseCopy = {
+    ACTIVE: "READY TO BE SENT OUT",
+    REFRESHING: "REFRESHING THE LIVE ROBINHOOD NFT OPPORTUNITY QUEUE",
+    SCREENING: "SCREENING AND SIMULATING CURRENT CANDIDATES",
+    WAITING: "WAITING FOR THE NEXT LIVE DISCOVERY CHECK",
+    RETRY: "LAST CHECK FAILED SAFELY · RETRY SCHEDULED",
+    RETURNED: "MISSION COMPLETE · PUNK RETURNED",
+    PAUSED: "MISSION PAUSED BY OWNER",
+  };
+  set("[data-mission-status]", agent.status === "SCOUTING" ? "OUT · SCOUTING" : agent.status);
+  set("[data-mission-phase]", phaseCopy[phase] ?? "MISSION STATE AVAILABLE");
+  set("[data-mission-progress]", mission
+    ? `${mission.foundContracts.length} / ${mission.targetMatches} MATCHES` : "NOT SENT");
+  set("[data-mission-checked]", mission?.checkedOpportunities ?? 0);
+  set("[data-mission-scans]", mission?.checks ?? 0);
+  const discoveryBackoff = state.reviewDiscoveryBackoffs.get(key) ?? 0;
+  set("[data-mission-queue]", phase === "REFRESHING" ? "REFRESHING LIVE"
+    : discoveryBackoff > Date.now() ? "LAST CONFIRMED" : REVIEW_HOST ? "LIVE" : "NOT CONNECTED");
+  set("[data-mission-last-check]", missionClock(mission?.lastCheckedAt, "NOT YET"));
+  let nextCheck = "NOT SCHEDULED";
+  if (agent.status === "SCOUTING") {
+    const defaultNext = Date.parse(mission?.lastCheckedAt ?? mission?.startedAt ?? "") + REVIEW_MISSION_POLL_MS;
+    const nextAt = livePhase?.nextCheckAt ?? defaultNext;
+    const seconds = Math.max(0, Math.ceil((nextAt - Date.now()) / 1_000));
+    nextCheck = ["REFRESHING", "SCREENING"].includes(phase) ? "CHECKING NOW"
+      : seconds === 0 ? "DUE NOW" : `${seconds} SECOND${seconds === 1 ? "" : "S"}`;
+  } else if (agent.status === "RETURNED") nextCheck = "MISSION COMPLETE";
+  else if (agent.status === "PAUSED") nextCheck = "PAUSED";
+  set("[data-mission-next-check]", nextCheck);
 }
 
 function renderReviewAgent() {
@@ -344,8 +397,11 @@ function scheduleSelectedReviewMissionCheck() {
   reviewMissionTimer = null;
   const agent = selectedReviewAgent();
   if (!REVIEW_HOST || PREVIEW || agent?.status !== "SCOUTING") return;
+  const key = selectedReviewKey();
+  const scheduled = key ? state.reviewMissionPhases.get(key)?.nextCheckAt : null;
   const previousCheck = agent.mission.lastCheckedAt ?? agent.mission.startedAt;
-  const delay = Math.max(0, REVIEW_MISSION_POLL_MS - (Date.now() - Date.parse(previousCheck)));
+  const nextCheckAt = scheduled ?? Date.parse(previousCheck) + REVIEW_MISSION_POLL_MS;
+  const delay = Math.max(0, nextCheckAt - Date.now());
   reviewMissionTimer = window.setTimeout(() => {
     reviewMissionTimer = null;
     void sendReviewAgentOut({ continueMission: true });
@@ -369,12 +425,26 @@ async function sendReviewAgentOut({ testMode = false, continueMission = false } 
     addReviewActivity("OUT", "PUNK SENT TO ROBINHOOD NFT DISCOVERY",
       `Mission target · ${agent.mission.targetMatches} unique eligible match${agent.mission.targetMatches === 1 ? "" : "es"}`);
   }
+  if (!testMode) setReviewMissionPhase(key, "REFRESHING");
   button.dataset.busy = "true"; button.disabled = true; renderReviewAgent();
   try {
-    if (!testMode) await jsonRequest("/api/v2/admin/discovery/ingest", {
-      method: "POST", headers: { "content-type": "application/json" },
-      body: "{}", timeoutMs: 45_000,
-    });
+    let refreshDegraded = false;
+    const refreshAfter = state.reviewDiscoveryBackoffs.get(key) ?? 0;
+    if (!testMode && Date.now() >= refreshAfter) {
+      try {
+        await jsonRequest("/api/v2/admin/discovery/ingest", {
+          method: "POST", headers: { "content-type": "application/json" },
+          body: "{}", timeoutMs: 45_000,
+        });
+        state.reviewDiscoveryBackoffs.delete(key);
+      } catch {
+        refreshDegraded = true;
+        state.reviewDiscoveryBackoffs.set(key, Date.now() + REVIEW_DISCOVERY_BACKOFF_MS);
+        addReviewActivity("DEGRADED", "LIVE QUEUE REFRESH RATE-LIMITED",
+          "Scanning the last confirmed Robinhood NFT queue · live refresh will retry in five minutes");
+      }
+    } else if (!testMode) refreshDegraded = true;
+    if (!testMode) setReviewMissionPhase(key, "SCREENING");
     const response = await jsonRequest("/api/v2/review/run", { method: "POST",
       headers: { "content-type": "application/json" }, body: JSON.stringify({
         owner: agent.owner, tokenId, intent: agent.intent,
@@ -393,9 +463,11 @@ async function sendReviewAgentOut({ testMode = false, continueMission = false } 
       agent = recordReviewMissionRun(agent, run);
       setReviewAgent(key, agent);
       const returned = agent.status === "RETURNED";
+      setReviewMissionPhase(key, returned ? "RETURNED" : "WAITING",
+        returned ? null : Date.parse(agent.mission.lastCheckedAt) + REVIEW_MISSION_POLL_MS);
       addReviewActivity(returned ? "RETURNED" : "SCOUTING",
         returned ? "PUNK RETURNED · MISSION COMPLETE" : "PUNK REMAINS OUT SCOUTING",
-        `${agent.mission.foundContracts.length}/${agent.mission.targetMatches} unique matches · ${agent.mission.checks} checks`);
+        `${agent.mission.foundContracts.length}/${agent.mission.targetMatches} unique matches · ${agent.mission.checks} checks · ${run.checkedCount} checked this pass · ${run.screeningPassedCount} screened · ${run.simulationPassedCount} simulated${refreshDegraded ? " · last confirmed queue" : " · live queue refreshed"}`);
       addMessage("punk", returned
         ? `I'M BACK. MISSION COMPLETE: ${agent.mission.foundContracts.length} UNIQUE ELIGIBLE MATCH${agent.mission.foundContracts.length === 1 ? "" : "ES"} FOUND.${leading ? ` Best current match: ${leading.collectionName}, ${leading.matchScore}%.` : ""} Nothing was submitted.`
         : leading
@@ -403,6 +475,11 @@ async function sendReviewAgentOut({ testMode = false, continueMission = false } 
           : `STILL OUT. I CHECKED ${run.checkedCount} ROBINHOOD NFT OPPORTUNITIES AND FOUND NO NEW ELIGIBLE MATCH. I'LL CHECK AGAIN IN ONE MINUTE. Nothing was submitted.`);
     }
   } catch (error) {
+    if (!testMode && agent.status === "SCOUTING") {
+      setReviewMissionPhase(key, "RETRY", Date.now() + REVIEW_MISSION_POLL_MS);
+      addReviewActivity("RETRY", "SCOUT CHECK FAILED · RETRY SCHEDULED",
+        "The check failed safely · Punk remains out · next attempt in one minute · no transaction submitted");
+    }
     addMessage("punk", `${error?.message ?? "Shared discovery is unavailable."} ${agent.status === "SCOUTING" ? "I'M STAYING OUT AND WILL RETRY. " : ""}Nothing was submitted or authorized.`);
   } finally {
     delete button.dataset.busy; renderReviewAgent();
@@ -523,6 +600,7 @@ function renderGallery() {
 }
 
 function renderActivity() {
+  renderMissionMonitor();
   const feed = one("[data-activity-feed]"); feed.replaceChildren();
   const key = selectedReviewKey();
   const entries = [...(key ? state.reviewActivities.get(key) ?? [] : []), ...state.activity];
@@ -542,6 +620,7 @@ function renderActivity() {
 function activateTab(name) {
   all("[data-v2-tab]").forEach((button) => button.setAttribute("aria-selected", String(button.dataset.v2Tab === name)));
   all("[data-v2-panel]").forEach((panel) => { panel.hidden = panel.dataset.v2Panel !== name; });
+  if (name === "activity") renderActivity();
   history.replaceState(null, "", `${location.pathname}?${new URLSearchParams({ ...(PREVIEW ? { preview: "1" } : {}), tab: name })}`);
   const reviewRead = REVIEW_HOST && ["fund", "collection"].includes(name);
   const productRead = !REVIEW_HOST && ["strategy", "fund", "collection", "activity"].includes(name);
@@ -1487,6 +1566,7 @@ function setup() {
   });
   if (PREVIEW) { previewData(); renderRoster(); renderSelected(); }
   else renderRoster();
+  window.setInterval(renderMissionMonitor, 1_000);
   const requestedTab = new URLSearchParams(location.search).get("tab");
   if (["talk", "strategy", "fund", "collection", "activity", "settings"].includes(requestedTab)) {
     activateTab(requestedTab);
