@@ -15,7 +15,7 @@ test("V2 Control Center exposes the complete selected-Punk action architecture",
   assert.match(html, /SELECT YOUR ART BROKER/);
   assert.match(html, /WHAT ARE WE HUNTING/);
   assert.match(html, /Funds go directly into this Punk Wallet/);
-  assert.match(html, /V1 \+ V2/);
+  assert.match(html, /ALL HISTORY/);
   assert.match(html, /GOGH INTELLIGENCE · AUTO/);
   assert.match(html, /AUTONOMOUS · LOCKED/);
   assert.match(html, /WITHDRAW FROM THE PIECE/);
@@ -124,6 +124,8 @@ test("the hosted PR review runs bounded tab agents while owner transactions stay
   assert.match(html, /data-review-agent-rules/);
   assert.match(html, /CONFIRMED DAILY LIMIT/);
   assert.match(html, /CONFIRMED MAX MINTS \/ MISSION/);
+  assert.match(html, /data-review-daily-limit>NOT SET/);
+  assert.match(html, /data-review-total-limit>NOT SET/);
   assert.match(html, /Set every mission parameter in chat/);
   assert.doesNotMatch(html, /UPDATE VIA CHAT|data-review-agent-limit-form/);
   assert.match(script, /chatForm\.requestSubmit\(\)/);
@@ -132,7 +134,10 @@ test("the hosted PR review runs bounded tab agents while owner transactions stay
   assert.match(script, /timeoutMs: 45_000/);
   assert.match(script, /testMode: "SAFE_FIXTURE"/);
   assert.match(script, /No live mint or transaction exists/);
-  assert.match(script, /SHARED V2 QUEUE/);
+  assert.match(script, /ROBINHOOD NFT QUEUE/);
+  assert.doesNotMatch(script, /SHARED V2 OPPORTUNITIES/);
+  assert.match(html, /ALL HISTORY/);
+  assert.match(script, /EARLIER ART BROKER/);
   assert.match(html, /Preview-session intelligence only/);
   assert.match(script, /startReviewAgent/);
   assert.match(script, /dispatchAfterActivation/);

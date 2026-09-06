@@ -30,10 +30,10 @@ const previewPunks = Object.freeze([
     image: "/assets/collection/44.png", balanceEth: "0.0068", reserveEth: "0.0040", nfts: 3, mode: "ASK" },
 ]);
 const previewGallery = Object.freeze([
-  ["/assets/collection/7.png", "Neon Alley #481", "V2 · FREE MINT", "Matched pixel taste · 0.00017 ETH gas"],
-  ["/assets/collection/13.png", "Odd Hours #77", "V2 · OWNER APPROVED", "Weird + experimental · simulation passed"],
-  ["/assets/collection/38.png", "Blue Study #12", "V1 · ACQUIRED", "Historical Art Broker provenance"],
-  ["/assets/collection/56.png", "Night Garden #208", "V1 · ACQUIRED", "Held by the canonical Punk Wallet"],
+  ["/assets/collection/7.png", "Neon Alley #481", "CURRENT ART BROKER · FREE MINT", "Matched pixel taste · 0.00017 ETH gas"],
+  ["/assets/collection/13.png", "Odd Hours #77", "CURRENT ART BROKER · OWNER APPROVED", "Weird + experimental · simulation passed"],
+  ["/assets/collection/38.png", "Blue Study #12", "EARLIER ART BROKER · ACQUIRED", "Historical Art Broker provenance"],
+  ["/assets/collection/56.png", "Night Garden #208", "EARLIER ART BROKER · ACQUIRED", "Held by the canonical Punk Wallet"],
 ]);
 const previewActivity = Object.freeze([
   ["11:42 AM", "FOUND SOMETHING", "NEON ALLEY · 95% MATCH", "Pixel · Free · 777 supply · X + website · screening and simulation passed"],
@@ -147,7 +147,7 @@ function renderReviewAgent() {
   set("[data-review-agent-strategy]", agent
     ? `${agent.mode} · ${agent.status}` : "NOT STARTED");
   set("[data-review-agent-route]", run
-    ? run.testMode ? "PREVIEW TEST LANE" : "SHARED V2 QUEUE" : "NOT DISPATCHED");
+    ? run.testMode ? "PREVIEW TEST LANE" : "ROBINHOOD NFT QUEUE" : "NOT DISPATCHED");
   set("[data-review-agent-discovery]", run
     ? `${run.checkedCount} CHECKED${run.testOpportunityCount ? " · 1 TEST" : ""}` : pipeline.discovery);
   const leading = run?.opportunities?.find(({ recommendationEligible }) => recommendationEligible)
@@ -163,10 +163,12 @@ function renderReviewAgent() {
       : "NO ELIGIBLE MATCH" : pipeline.decision);
   const dailyLimit = one("[data-review-daily-limit]");
   const totalLimit = one("[data-review-total-limit]");
-  const daily = agent?.intent.dailyMintLimit ?? 1;
-  const total = agent?.intent.totalMintLimit ?? 1;
-  if (dailyLimit) dailyLimit.textContent = `${daily} MINT${daily === 1 ? "" : "S"} / DAY`;
-  if (totalLimit) totalLimit.textContent = `${total} MINT${total === 1 ? "" : "S"} MAX`;
+  const daily = agent?.intent.dailyMintLimit;
+  const total = agent?.intent.totalMintLimit;
+  if (dailyLimit) dailyLimit.textContent = agent
+    ? `${daily} MINT${daily === 1 ? "" : "S"} / DAY` : "NOT SET";
+  if (totalLimit) totalLimit.textContent = agent
+    ? `${total} MINT${total === 1 ? "" : "S"} MAX` : "NOT SET";
   set("[data-review-limit-note]", agent
     ? "These are confirmed rules. To change them, tell your Punk in chat and approve the new complete draft."
     : "Set every mission parameter in chat. Your Punk will show one complete draft for review before anything changes.");
@@ -188,7 +190,7 @@ function renderReviewAgent() {
       : run ? run.testMode
         ? `Safe test only: ${run.eligibleCount} test card matched; no live opportunity or transaction.`
         : `Last run checked ${run.checkedCount}; ${run.eligibleCount} matched.`
-        : "Runs one read-only check against shared V2 opportunities.");
+        : "Runs one read-only check against Robinhood NFT opportunities.");
   set("[data-review-strategy-label]", agent
     ? `REVIEW AGENT ${agent.status}` : "NO REVIEW AGENT");
   set("[data-review-strategy-detail]", agent
@@ -299,7 +301,7 @@ async function sendReviewAgentOut({ testMode = false, continueMission = false } 
   if (!testMode && agent.status === "ACTIVE") {
     agent = dispatchReviewAgent(agent);
     state.reviewAgents.set(key, agent);
-    addReviewActivity("OUT", "PUNK SENT TO SHARED DISCOVERY",
+    addReviewActivity("OUT", "PUNK SENT TO ROBINHOOD NFT DISCOVERY",
       `Mission target · ${agent.mission.targetMatches} unique eligible match${agent.mission.targetMatches === 1 ? "" : "es"}`);
   }
   button.dataset.busy = "true"; button.disabled = true; renderReviewAgent();
@@ -333,7 +335,7 @@ async function sendReviewAgentOut({ testMode = false, continueMission = false } 
         ? `I'M BACK. MISSION COMPLETE: ${agent.mission.foundContracts.length} UNIQUE ELIGIBLE MATCH${agent.mission.foundContracts.length === 1 ? "" : "ES"} FOUND.${leading ? ` Best current match: ${leading.collectionName}, ${leading.matchScore}%.` : ""} Nothing was submitted.`
         : leading
           ? `I FOUND ${leading.collectionName} AT ${leading.matchScore}% MATCH, BUT MY MISSION ISN'T COMPLETE. I'M STAYING OUT: ${agent.mission.foundContracts.length}/${agent.mission.targetMatches} UNIQUE MATCHES. Nothing was submitted.`
-          : `STILL OUT. I CHECKED ${run.checkedCount} SHARED V2 OPPORTUNITIES AND FOUND NO NEW ELIGIBLE MATCH. I'LL CHECK AGAIN IN ONE MINUTE. Nothing was submitted.`);
+          : `STILL OUT. I CHECKED ${run.checkedCount} ROBINHOOD NFT OPPORTUNITIES AND FOUND NO NEW ELIGIBLE MATCH. I'LL CHECK AGAIN IN ONE MINUTE. Nothing was submitted.`);
     }
   } catch (error) {
     addMessage("punk", `${error?.message ?? "Shared discovery is unavailable."} ${agent.status === "SCOUTING" ? "I'M STAYING OUT AND WILL RETRY. " : ""}Nothing was submitted or authorized.`);
@@ -461,7 +463,7 @@ function renderActivity() {
   const entries = [...(key ? state.reviewActivities.get(key) ?? [] : []), ...state.activity];
   if (!entries.length) {
     const empty = document.createElement("li"); empty.className = "panel-empty";
-    empty.textContent = PREVIEW ? "No activity yet." : "Open ACTIVITY to load V1 + V2 history.";
+    empty.textContent = PREVIEW ? "No activity yet." : "Open ACTIVITY to load complete Art Broker history.";
     feed.append(empty); return;
   }
   for (const [time, type, title, detail] of entries) {
@@ -725,7 +727,7 @@ async function hydrateSelected(tab) {
       state.gallery = payload.holdings.map((holding) => [
         cleanImage(holding.artwork?.imageUrl),
         holding.artwork?.name ?? `${short(holding.collection)} #${holding.tokenId}`,
-        `${holding.provenance} · ${holding.acquisitionType}`,
+        `${holding.provenance === "V1" ? "EARLIER ART BROKER" : "CURRENT ART BROKER"} · ${holding.acquisitionType}`,
         `${holding.mintCostWei === "0" ? "FREE" : `${holding.mintCostWei} WEI`} · acquired ${dateLabel(holding.acquiredAt)}`,
       ]);
       renderGallery(); set("[data-gallery-count]", state.gallery.length);
@@ -733,7 +735,7 @@ async function hydrateSelected(tab) {
     if (tab === "activity") {
       const payload = await jsonRequest(`/api/v2/punks/${tokenId}/activity`);
       state.activity = payload.entries.map((entry) => [dateLabel(entry.occurredAt), entry.type,
-        `${entry.provenance} · ${String(entry.type).replaceAll("_", " ")}`,
+        `${entry.provenance === "V1" ? "EARLIER ART BROKER" : "CURRENT ART BROKER"} · ${String(entry.type).replaceAll("_", " ")}`,
         typeof entry.detail === "string" ? entry.detail : JSON.stringify(entry.detail ?? {})]);
       renderActivity();
     }
@@ -820,7 +822,7 @@ function showConfirmation(draft) {
     website: intent.requiresWebsite,
     x: intent.preferredSocialPlatforms.includes("X"),
     target: intent.allowedContracts?.length === 1
-      ? short(intent.allowedContracts[0]) : "SHARED DISCOVERY",
+      ? short(intent.allowedContracts[0]) : "ALL ROBINHOOD NFTS",
     free: intent.mintMode === "FREE_ONLY",
   } : draft;
   const values = [
@@ -979,8 +981,8 @@ function setup() {
       if (run) {
         const leading = run.opportunities.find(({ recommendationEligible }) => recommendationEligible);
         addMessage("punk", leading
-          ? `${run.eligibleCount} OF ${run.checkedCount} SHARED OPPORTUNITIES MATCHED. Best current match: ${leading.collectionName}, ${leading.matchScore}%.`
-          : `I CHECKED ${run.checkedCount} SHARED OPPORTUNITIES. None passed every active rule.`);
+          ? `${run.eligibleCount} OF ${run.checkedCount} ROBINHOOD NFT OPPORTUNITIES MATCHED. Best current match: ${leading.collectionName}, ${leading.matchScore}%.`
+          : `I CHECKED ${run.checkedCount} ROBINHOOD NFT OPPORTUNITIES. None passed every active rule.`);
       } else if (!state.lastInspection) {
         addMessage("punk", "NOTHING IN THE REVIEW QUEUE YET. Paste a mint or project link and I’ll normalize it without accepting its transaction data.");
       } else {
