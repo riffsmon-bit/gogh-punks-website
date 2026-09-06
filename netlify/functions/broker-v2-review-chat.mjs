@@ -4,6 +4,8 @@ import { defaultAskIntent, normalizePunkCollectingIntent } from
   "../../broker/src/v4/collecting-intent.mjs";
 import { answerPunkConversation, isPunkConversationMessage } from
   "../../broker/src/v4/ai/punk-chat.mjs";
+import { draftPunkSkillFromConversation, isTeachPunkSkillMessage,
+  normalizePunkSkill } from "../../broker/src/v4/punk-skill.mjs";
 import { PublicError, json, readJson } from "./_shared/http.mjs";
 import { createDatabaseBackedGoghIntelligence } from "./_shared/v2-ai-runtime.mjs";
 import { v2Failure } from "./_shared/v2-http.mjs";
@@ -15,7 +17,7 @@ const TOKEN = /^(?:0|[1-9]\d{0,3})$/;
 const OWNER = /^0x[0-9a-f]{40}$/;
 
 function exactBody(value) {
-  const fields = ["history", "inspection", "currentIntent", "message", "owner", "review", "tokenId"];
+  const fields = ["history", "inspection", "currentIntent", "message", "owner", "review", "skills", "tokenId"];
   const keys = value && typeof value === "object" && !Array.isArray(value)
     ? Object.keys(value) : [];
   if (!value || typeof value !== "object" || Array.isArray(value)
@@ -65,10 +67,14 @@ function exactBody(value) {
       || review.leadingMatchScore < 0 || review.leadingMatchScore > 100))) {
     throw new PublicError(400, "INVALID_REQUEST", "The discovery-review context is invalid.");
   }
+  const skills = Object.hasOwn(value, "skills") ? value.skills : [];
+  if (!Array.isArray(skills) || skills.length > 8 || skills.some((skill) => (
+    !skill || typeof skill !== "object" || Array.isArray(skill)
+  ))) throw new PublicError(400, "INVALID_REQUEST", "The Punk skill context is invalid.");
   return Object.freeze({ owner, tokenId, message, currentIntent, inspection,
     history: Object.freeze(history.map(({ role, content }) => Object.freeze({ role,
       content: content.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "").trim() }))),
-    review });
+    review, skills: Object.freeze([...skills]) });
 }
 
 function punkReply(confirmation) {
@@ -93,6 +99,7 @@ async function conversationalReply(request, body, intent, authority, answerConve
   }
   const conversation = await intelligence({ message: body.message,
     intent, inspection: body.inspection, history: body.history, review: body.review,
+    skills: body.skills,
     punkTokenId: body.tokenId,
     punkState: authority.nativeBalanceWei === undefined ? null : {
       wallet: authority.punkWallet, nativeBalanceWei: authority.nativeBalanceWei,
@@ -114,6 +121,36 @@ export async function handleV2ReviewChat(request, {
     requireV2DeployPreview(request);
     const body = exactBody(await readJson(request, 20_000));
     const authority = await readAuthority(body.tokenId, { expectedOwner: body.owner });
+    try {
+      for (const value of body.skills) {
+        const skill = normalizePunkSkill(value);
+        if (skill.state !== "ACTIVE" || skill.punkTokenId !== body.tokenId
+          || skill.expectedOwner !== body.owner || skill.punkWallet !== authority.punkWallet) {
+          throw new TypeError("skill authority mismatch");
+        }
+      }
+    } catch {
+      throw new PublicError(400, "INVALID_REQUEST", "The Punk skill context is invalid.");
+    }
+    if (isTeachPunkSkillMessage(body.message)) {
+      let skill;
+      try {
+        skill = draftPunkSkillFromConversation({ message: body.message,
+          punkTokenId: body.tokenId, expectedOwner: body.owner,
+          punkWallet: authority.punkWallet, now });
+        normalizePunkSkill(skill);
+      } catch {
+        throw new PublicError(400, "UNSAFE_SKILL",
+          "That skill cannot be taught safely. Skills may inspect, scout, rank, and explain, but cannot sign, transfer, withdraw, bypass policy, or disable screening.");
+      }
+      return json({ ok: true, reviewMode: true, persistence: "NONE", tokenId: body.tokenId,
+        responseKind: "SKILL_DRAFT",
+        reply: `SKILL DRAFTED: ${skill.name}. Review it before I learn it. It stays read-only and cannot change wallet or policy authority.`,
+        draft: null, skillDraft: skill,
+        provider: { provider: "DETERMINISTIC_SKILL_COMPILER", registryKey: null },
+        providerAvailable: true, economicPermissionsActivated: false,
+        transactionPrepared: false });
+    }
     if (isPunkConversationMessage(body.message)) {
       let current;
       try {

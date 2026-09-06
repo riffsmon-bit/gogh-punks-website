@@ -9,7 +9,7 @@ const integer = (value) => Number.isFinite(Number(value)) ? Number(value).toLoca
 function providerRows(data) {
   const health = data.aiProviderHealth ?? {};
   const usage = Array.isArray(data.providerUsage) ? data.providerUsage : [];
-  const names = [...new Set(["OPENAI", "ANTHROPIC", "XAI", "BANKR", ...Object.keys(health),
+  const names = [...new Set(["GEMINI", "OPENAI", "ANTHROPIC", "XAI", "BANKR", ...Object.keys(health),
     ...usage.map((row) => String(row.provider ?? "").toUpperCase())])].filter(Boolean);
   one("[data-provider-list]").replaceChildren(...names.map((name) => {
     const row = document.createElement("div"); row.className = "provider-row";

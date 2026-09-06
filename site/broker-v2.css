@@ -226,6 +226,14 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .safety-card li { padding: 10px 0; border-bottom: 1px solid var(--line); font-size: .72rem; font-weight: 900; }
 .safety-card li i { margin-right: 9px; color: var(--success); font-style: normal; }
 .safety-card small { color: var(--muted); line-height: 1.5; }
+.skill-card { grid-column: 1 / -1; }
+.skill-card > span b { color: var(--acid); }
+.skill-card h3 { margin-bottom: 14px; }
+.skill-card ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;
+  padding: 0; margin: 0 0 14px; list-style: none; }
+.skill-card li { display: grid; gap: 5px; min-width: 0; padding: 12px; border: 1px solid var(--line); }
+.skill-card li b { color: var(--text); font-size: .74rem; }
+.skill-card li small, .skill-card > small { color: var(--muted); font-size: .66rem; line-height: 1.45; }
 .taste-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
 .taste-tags span { padding: 8px 10px; border: 1px solid var(--line-strong); color: var(--text); font-size: .65rem; }
 .taste-tags span[data-avoid] { border-color: var(--warning); color: var(--warning); }
@@ -403,6 +411,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   .chat-composer { grid-template-columns: 1fr; }
   .chat-composer > div { justify-content: space-between; }
   .strategy-grid, .fund-layout, .settings-grid, .collection-assets { grid-template-columns: 1fr; }
+  .skill-card ul { grid-template-columns: 1fr; }
   .review-agent-console dl { grid-template-columns: repeat(2, 1fr); }
   .review-agent-limit { grid-template-columns: 1fr 1fr; }
   .review-agent-limit button { grid-column: 1 / -1; }

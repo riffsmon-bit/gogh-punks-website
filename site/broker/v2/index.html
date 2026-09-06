@@ -101,6 +101,7 @@
                 <button type="button" data-suggestion="I want weird experimental art. No PFPs.">Tune my taste</button>
                 <button type="button" data-show-link>Check a link</button>
                 <button type="button" data-suggestion="Show me what you found today.">Show discoveries</button>
+                <button type="button" data-suggestion="Teach yourself to rank small pixel collections and explain the screening result.">Teach a skill</button>
                 <button type="button" data-suggestion="Pause for tonight.">Pause</button>
               </aside>
             </div>
@@ -135,6 +136,7 @@
               <article class="ability-card"><span>TASTE PROFILE</span><h3 data-strategy-name>NOT CONFIGURED</h3><div class="taste-tags" data-strategy-tastes><span>Talk to your Punk to define explicit preferences.</span></div></article>
               <article class="ability-card limit-card"><span>LIMITS</span><dl><div><dt>MINT PRICE</dt><dd data-strategy-price>FREE ONLY</dd></div><div><dt>MAX GAS</dt><dd data-strategy-gas>0.0005 ETH</dd></div><div><dt>DAILY LIMIT</dt><dd data-strategy-daily>1</dd></div><div><dt>TOTAL LIMIT</dt><dd data-strategy-total>1</dd></div><div><dt>RESERVE</dt><dd data-strategy-reserve>0.010 ETH</dd></div></dl></article>
               <article class="ability-card safety-card"><span>SAFETY</span><ul><li><i>✓</i>CONTRACT SCREEN</li><li><i>✓</i>SIMULATION REQUIRED</li><li data-strategy-website><i>—</i>WEBSITE OPTIONAL</li><li data-strategy-social><i>—</i>SOCIAL OPTIONAL</li></ul><small>Screening reduces known risks. It is not a guarantee.</small></article>
+              <article class="ability-card skill-card"><span>TAUGHT SKILLS · <b data-punk-skill-count>0</b></span><h3>PUNK PLAYBOOK</h3><ul data-punk-skills><li>No taught skills yet. Teach one in chat.</li></ul><small>Skills guide read-only scouting and explanations. Strategy remains authoritative.</small></article>
             </div>
             <div class="review-strategy-state" data-review-strategy-state hidden><strong data-review-strategy-label>NO REVIEW AGENT</strong><p data-review-strategy-detail>Confirm a strategy draft to start this Punk in the current review tab.</p></div>
             <div class="autonomy-boundary"><strong>AUTONOMOUS SUBMISSION IS LOCKED</strong><p>The current Punk Wallet cannot originate and pay gas by itself. V2 builds and simulates this mode, but production activation requires a separately reviewed authorization mechanism.</p></div>
@@ -194,7 +196,7 @@
 
           <section class="broker-panel" data-v2-panel="settings" aria-labelledby="settings-title" hidden>
             <header class="panel-header"><div><span class="kicker">BROKER PROFILE</span><h2 id="settings-title">SETTINGS</h2></div></header>
-            <div class="settings-grid"><article><span>OPERATING MODE</span><fieldset><legend class="sr-only">Operating mode</legend><label><input type="radio" name="mode" value="ASK" checked /><b>ASK</b><small>Discover and recommend. You decide.</small></label><label><input type="radio" name="mode" value="ASSIST" /><b>ASSIST</b><small>Screen and prepare. You approve.</small></label><label class="mode-locked"><input type="radio" name="mode" value="AUTONOMOUS" disabled /><b>AUTONOMOUS · LOCKED</b><small>Built for canary testing; no production activation.</small></label></fieldset></article><article><span>GOGH INTELLIGENCE</span><label class="select-label" for="provider-setting">ROUTING<select id="provider-setting"><option>AUTO</option><option>GPT</option><option>CLAUDE</option><option>GROK</option><option>BANKR ROUTED</option></select></label><p>Auto selects for task, capability, cost, latency, and availability. Your Punk stays the product.</p></article></div>
+            <div class="settings-grid"><article><span>OPERATING MODE</span><fieldset><legend class="sr-only">Operating mode</legend><label><input type="radio" name="mode" value="ASK" checked /><b>ASK</b><small>Discover and recommend. You decide.</small></label><label><input type="radio" name="mode" value="ASSIST" /><b>ASSIST</b><small>Screen and prepare. You approve.</small></label><label class="mode-locked"><input type="radio" name="mode" value="AUTONOMOUS" disabled /><b>AUTONOMOUS · LOCKED</b><small>Built for canary testing; no production activation.</small></label></fieldset></article><article><span>GOGH INTELLIGENCE</span><label class="select-label" for="provider-setting">ROUTING<select id="provider-setting"><option>AUTO</option><option>GEMINI</option><option>GPT</option><option>CLAUDE</option><option>GROK</option><option>BANKR ROUTED</option></select></label><p>Auto selects for task, capability, cost, latency, and availability. Your Punk stays the product.</p></article></div>
           </section>
         </div>
       </section>
@@ -212,6 +214,13 @@
       <div class="confirmation-grid" data-confirmation-grid></div>
       <p class="confirmation-note">Conversation created this draft. Deterministic structured policy becomes authoritative only after owner confirmation.</p>
       <div class="dialog-actions"><button type="button" class="outline-button" data-edit-strategy>EDIT</button><button type="button" class="primary-button" data-activate-strategy>ACTIVATE STRATEGY</button></div>
+    </dialog>
+    <dialog class="confirmation-dialog skill-dialog" data-skill-dialog>
+      <form method="dialog"><button class="dialog-close" value="cancel" aria-label="Close">×</button></form>
+      <span class="kicker">SKILL DRAFT · NOT LEARNED</span><h2>TEACH THIS PUNK?</h2>
+      <div class="confirmation-grid" data-skill-confirmation-grid></div>
+      <p class="confirmation-note">A taught skill is a structured, read-only routine. It cannot change spending policy, sign transactions, move assets, or bypass screening and simulation.</p>
+      <div class="dialog-actions"><button type="button" class="outline-button" data-edit-skill>EDIT</button><button type="button" class="primary-button" data-learn-skill>TEACH SKILL</button></div>
     </dialog>
   </body>
 </html>

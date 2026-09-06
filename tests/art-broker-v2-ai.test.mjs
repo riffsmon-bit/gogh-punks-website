@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { AnthropicArtBrokerProvider } from "../broker/src/v4/ai/anthropic.mjs";
 import { BankrArtBrokerProvider } from "../broker/src/v4/ai/bankr.mjs";
+import { GeminiArtBrokerProvider } from "../broker/src/v4/ai/gemini.mjs";
 import { OpenAIArtBrokerProvider } from "../broker/src/v4/ai/openai.mjs";
 import { ArtBrokerProviderError } from "../broker/src/v4/ai/provider.mjs";
 import { ArtBrokerModelRegistry, modelRegistryFromEnvironment } from
@@ -45,6 +46,27 @@ test("OpenAI adapter uses server-side Responses structured output without storin
   assert.equal(body.text.format.strict, true);
   assert.deepEqual(result.value, { answer: "PIXEL_ART" });
   assert.equal(JSON.stringify(result).includes("server-only-openai-key"), false);
+});
+
+test("Gemini adapter uses the stateless Interactions API and free-tier registry path", async () => {
+  let request;
+  const provider = new GeminiArtBrokerProvider({ modelId: "gemini-3.8-flash",
+    environment: { GEMINI_API_KEY: "server-only-gemini-key" },
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return response({ id: "int_1", status: "completed", steps: [{ type: "model_output",
+        content: [{ type: "text", text: '{"answer":"PIXEL_ART"}' }] }],
+      usage: { total_input_tokens: 9, total_output_tokens: 4, total_cached_tokens: 0 } });
+    } });
+  const result = await provider.classifyArt({ prompt: "classify it", schema: SCHEMA });
+  const body = JSON.parse(request.options.body);
+  assert.equal(request.url, "https://generativelanguage.googleapis.com/v1beta/interactions");
+  assert.equal(request.options.headers["x-goog-api-key"], "server-only-gemini-key");
+  assert.equal(body.store, false);
+  assert.equal(body.generation_config.thinking_level, "low");
+  assert.equal(body.response_format.mime_type, "application/json");
+  assert.deepEqual(result.value, { answer: "PIXEL_ART" });
+  assert.equal(JSON.stringify(result).includes("server-only-gemini-key"), false);
 });
 
 test("Claude adapter uses Messages output_config and current version header", async () => {
@@ -99,6 +121,11 @@ test("registry keeps model IDs server-side and creates no stale defaults", () =>
   const configured = modelRegistryFromEnvironment({ GOGH_OPENAI_MODEL: "current-from-env" });
   assert.equal(configured.enabled()[0].modelId, "current-from-env");
   assert.equal(Object.hasOwn(configured.publicView()[0], "modelId"), false);
+  const free = modelRegistryFromEnvironment({ GOGH_GEMINI_MODEL: "gemini-3.8-flash",
+    GOGH_GEMINI_INPUT_COST_USD_PER_MILLION_TOKENS: "0",
+    GOGH_GEMINI_OUTPUT_COST_USD_PER_MILLION_TOKENS: "0" });
+  assert.equal(free.enabled()[0].provider, "GEMINI");
+  assert.equal(free.enabled()[0].inputCostMicrousdPerMillionTokens, 0);
 });
 
 test("model pricing is server-configured instead of frozen to stale provider prices", () => {
@@ -156,6 +183,10 @@ test("Punk conversation is grounded in strategy data and cannot grant wallet aut
   assert.match(grounded.prompt, /OPENSEA_COLLECTION/);
   assert.match(grounded.prompt, /Neon Alley/);
   assert.match(grounded.prompt, /blue pixel art/);
+  assert.doesNotMatch(grounded.prompt, new RegExp(OWNER, "i"));
+  assert.doesNotMatch(grounded.prompt, new RegExp(PUNK_WALLET, "i"));
+  assert.match(grounded.prompt, /CURRENT_OWNER/);
+  assert.match(grounded.prompt, /CANONICAL_PUNK_WALLET/);
   let invocation;
   const response = await answerPunkConversation({ router: { run: async (...args) => {
     invocation = args;

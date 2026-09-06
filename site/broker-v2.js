@@ -14,6 +14,7 @@ import {
   activateReviewAgent, normalizeReviewAgentRun, pauseReviewAgent, reviewAgentKey,
   reviewInspectionPipeline,
 } from "./broker-v2-review-agent.js";
+import { activateReviewSkill } from "./broker-v2-review-skill.js";
 
 const PREVIEW = new URLSearchParams(location.search).get("preview") === "1";
 const REVIEW_HOST = location.protocol === "https:" && /^(?:deploy-preview-[1-9][0-9]*--gogh-punks\.netlify\.app|deploy-preview-[1-9][0-9]*\.preview\.goghpunks\.xyz)$/.test(location.hostname);
@@ -40,14 +41,14 @@ const previewActivity = Object.freeze([
   ["YESTERDAY", "COLLECTED", "BLUE STUDY #12", "Free mint · 0.00016 ETH gas · asset entered this Punk Wallet"],
 ]);
 
-const state = { wallet: null, punks: [], selected: null, localStrategy: null,
+const state = { wallet: null, punks: [], selected: null, localStrategy: null, localSkill: null,
   gallery: [], activity: [], hydratedTokenId: null, lastInspection: null,
   ownershipAccount: null, ownershipLoadingAccount: null, ownershipRequestId: 0,
   balanceRequestId: 0, galleryTokenId: null, galleryLoadingTokenId: null,
   fundingPlan: null, wrappedPlan: null, withdrawalAsset: null,
   withdrawalAmount: "1", withdrawalPlan: null, withdrawalBusy: false,
   reviewAgents: new Map(), reviewInspections: new Map(), reviewActivities: new Map(),
-  reviewRuns: new Map(), reviewConversations: new Map() };
+  reviewRuns: new Map(), reviewConversations: new Map(), reviewSkills: new Map() };
 const one = (selector) => document.querySelector(selector);
 const all = (selector) => [...document.querySelectorAll(selector)];
 const set = (selector, value) => { const target = one(selector); if (target) target.textContent = String(value); };
@@ -91,6 +92,11 @@ function selectedReviewAgent() {
 function selectedReviewRun() {
   const key = selectedReviewKey();
   return key ? state.reviewRuns.get(key) ?? null : null;
+}
+
+function selectedReviewSkills() {
+  const key = selectedReviewKey();
+  return key ? state.reviewSkills.get(key) ?? [] : [];
 }
 
 function selectedConversationHistory() {
@@ -224,6 +230,26 @@ function renderReviewAgent() {
   all('input[name="mode"]').forEach((input) => { input.checked = input.value === agent.mode; });
 }
 
+function renderReviewSkills() {
+  const list = one("[data-punk-skills]");
+  if (!list) return;
+  list.replaceChildren();
+  const skills = selectedReviewSkills();
+  set("[data-punk-skill-count]", skills.length);
+  if (!skills.length) {
+    const empty = document.createElement("li");
+    empty.textContent = "No taught skills yet. Teach one in chat.";
+    list.append(empty); return;
+  }
+  for (const skill of skills) {
+    const item = document.createElement("li");
+    const name = document.createElement("b"); name.textContent = skill.name;
+    const detail = document.createElement("small");
+    detail.textContent = `${skill.capabilities.map((value) => value.replaceAll("_", " ")).join(" · ")} · READ ONLY`;
+    item.append(name, detail); list.append(item);
+  }
+}
+
 function startReviewAgent(draft) {
   const key = selectedReviewKey();
   if (!key || !state.selected?.account) throw new Error("Select an owned Punk Wallet first.");
@@ -329,7 +355,7 @@ function renderSelected() {
   const meter = one("[data-budget-meter]"); if (meter) meter.style.width = `${balance ? Math.min(100, available / balance * 100) : 0}%`;
   all("[data-hero-art], [data-chat-avatar]").forEach((image) => { image.src = cleanImage(punk.image); });
   all("[data-legacy-vault]").forEach((link) => { link.href = `/broker/punk/${punk.tokenId}?tab=assets`; });
-  renderRoster(); renderGallery(); renderActivity(); renderReviewAgent();
+  renderRoster(); renderGallery(); renderActivity(); renderReviewAgent(); renderReviewSkills();
   window.dispatchEvent(new CustomEvent("gogh:owner-snapshot", { detail: {
     address: state.wallet?.account ?? null, tokenId: punk.tokenId,
   } }));
@@ -341,7 +367,7 @@ function renderSelected() {
 function selectPunk(tokenId) {
   const punk = state.punks.find((item) => item.tokenId === tokenId);
   if (!punk) return;
-  state.selected = punk; state.localStrategy = null; state.lastInspection = null;
+  state.selected = punk; state.localStrategy = null; state.localSkill = null; state.lastInspection = null;
   const key = selectedReviewKey();
   state.lastInspection = key ? state.reviewInspections.get(key) ?? null : null;
   state.hydratedTokenId = null; state.galleryTokenId = null; state.galleryLoadingTokenId = null;
@@ -778,6 +804,26 @@ function showConfirmation(draft) {
   if (typeof dialog.showModal === "function") dialog.showModal(); else dialog.setAttribute("open", "");
 }
 
+function showSkillConfirmation(skill) {
+  state.localSkill = skill;
+  const values = [
+    ["SKILL", skill.name],
+    ["ROUTINE", skill.description],
+    ["CAPABILITIES", skill.capabilities.map((value) => value.replaceAll("_", " ")).join(" · ")],
+    ["AUTHORITY", "READ ONLY"],
+    ["POLICY EFFECT", "NONE"],
+    ["STATUS", "PENDING OWNER CONFIRMATION"],
+  ];
+  const grid = one("[data-skill-confirmation-grid]"); grid.replaceChildren();
+  for (const [label, value] of values) {
+    const row = document.createElement("div"); const name = document.createElement("span");
+    name.textContent = label; const output = document.createElement("b"); output.textContent = value;
+    row.append(name, output); grid.append(row);
+  }
+  const dialog = one("[data-skill-dialog]");
+  if (typeof dialog.showModal === "function") dialog.showModal(); else dialog.setAttribute("open", "");
+}
+
 async function fetchOwnedPunks(account) {
   const response = await fetch(`/api/broker/owner-punks?owner=${encodeURIComponent(account)}&view=indexed`, {
     headers: { accept: "application/json" }, cache: "no-store",
@@ -936,6 +982,7 @@ function setup() {
     } else if (REVIEW_HOST) {
       try {
         const currentIntent = selectedReviewAgent()?.intent ?? null;
+        const skills = selectedReviewSkills();
         const inspection = state.lastInspection ? { kind: state.lastInspection.link.kind,
           status: state.lastInspection.status } : null;
         const history = selectedConversationHistory().slice(0, -1).slice(-8);
@@ -945,7 +992,7 @@ function setup() {
           body: JSON.stringify({ owner: state.wallet.account, tokenId: state.selected.tokenId,
             message, ...(currentIntent ? { currentIntent } : {}),
             ...(inspection ? { inspection } : {}), ...(history.length ? { history } : {}),
-            ...(review ? { review } : {}) }),
+            ...(review ? { review } : {}), ...(skills.length ? { skills } : {}) }),
         };
         let payload;
         try { payload = await jsonRequest("/api/v2/review/chat", requestOptions); }
@@ -955,6 +1002,10 @@ function setup() {
           payload = await jsonRequest("/api/v2/review/chat", requestOptions);
         }
         draft = payload.draft; reply = payload.reply;
+        if (payload.responseKind === "SKILL_DRAFT") {
+          setChatBusy(false); addMessage("punk", reply); showSkillConfirmation(payload.skillDraft);
+          return;
+        }
         set("[data-intelligence-status]", payload.responseKind === "CONVERSATION"
           ? payload.providerAvailable
             ? `GOGH INTELLIGENCE · ${payload.provider.provider}`
@@ -1070,6 +1121,26 @@ function setup() {
   one("[data-v2-withdraw-submit]").addEventListener("click", withdrawCollectionAsset);
   one("[data-v2-withdraw-cancel]").addEventListener("click", cancelCollectionWithdrawal);
   one("[data-edit-strategy]").addEventListener("click", () => { one("[data-confirmation-dialog]").close(); one("#punk-prompt").focus(); });
+  one("[data-edit-skill]").addEventListener("click", () => {
+    one("[data-skill-dialog]").close(); one("#punk-prompt").focus();
+  });
+  one("[data-learn-skill]").addEventListener("click", () => {
+    const key = selectedReviewKey();
+    if (!key || !state.localSkill || !state.selected?.account || !state.wallet?.account) return;
+    try {
+      const skill = activateReviewSkill(state.localSkill, { owner: state.wallet.account,
+        punkTokenId: state.selected.tokenId, punkWallet: state.selected.account });
+      const current = state.reviewSkills.get(key) ?? [];
+      const next = [skill, ...current.filter(({ skillId }) => skillId !== skill.skillId)].slice(0, 8);
+      state.reviewSkills.set(key, next); state.localSkill = null;
+      one("[data-skill-dialog]").close(); renderReviewSkills();
+      addReviewActivity("LEARNED", `SKILL · ${skill.name}`,
+        "Read-only routine · no policy or wallet authority");
+      addMessage("punk", `SKILL LEARNED: ${skill.name}. I can use it for scouting and explanations. Your policy and all safety gates still win.`);
+    } catch (error) {
+      addMessage("punk", `${error?.message ?? "Skill activation failed."} Nothing was learned or authorized.`);
+    }
+  });
   one("[data-activate-strategy]").addEventListener("click", async () => {
     if (!state.localStrategy) return;
     const mode = state.localStrategy.intent?.operatingMode ?? state.localStrategy.mode;

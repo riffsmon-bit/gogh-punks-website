@@ -1,4 +1,4 @@
-const PROVIDERS = new Set(["OPENAI", "ANTHROPIC", "XAI", "BANKR"]);
+const PROVIDERS = new Set(["GEMINI", "OPENAI", "ANTHROPIC", "XAI", "BANKR"]);
 const CAPABILITIES = ["supportsImages", "supportsTools", "supportsStructuredOutput"];
 
 function registryEntry(value) {
@@ -59,6 +59,7 @@ export class ArtBrokerModelRegistry {
 
 export function modelRegistryFromEnvironment(environment = process.env) {
   const definitions = [
+    ["GEMINI", "GOGH_GEMINI_MODEL", "gemini:auto", "Gemini", 1, 5],
     ["OPENAI", "GOGH_OPENAI_MODEL", "openai:auto", "GPT", 2, 4],
     ["ANTHROPIC", "GOGH_ANTHROPIC_MODEL", "anthropic:auto", "Claude", 3, 3],
     ["XAI", "GOGH_XAI_MODEL", "xai:auto", "Grok", 3, 3],

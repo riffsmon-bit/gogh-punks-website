@@ -200,11 +200,14 @@ test("V2 migration is additive, lane-free, and never stores signing material", a
       import.meta.url), "utf8"),
     readFile(new URL("../netlify/database/migrations/20260906020000_add_v2_discovery_ingestion.sql",
       import.meta.url), "utf8"),
+    readFile(new URL("../netlify/database/migrations/20260906030000_add_v2_punk_skills.sql",
+      import.meta.url), "utf8"),
   ])).join("\n");
   for (const table of ["broker_v2_profiles", "broker_v2_strategies",
     "broker_v2_conversations", "broker_v2_opportunities", "broker_v2_execution_attempts",
     "broker_v2_model_registry", "broker_v2_provider_usage",
-    "broker_v2_discovery_checkpoints"]) assert.match(sql, new RegExp(table));
+    "broker_v2_discovery_checkpoints", "broker_v2_punk_skills"])
+    assert.match(sql, new RegExp(table));
   assert.doesNotMatch(sql, /private_key|seed_phrase|hosted_lane|priority_lane/i);
   assert.doesNotMatch(sql, /DROP TABLE|TRUNCATE|DELETE FROM/i);
 });

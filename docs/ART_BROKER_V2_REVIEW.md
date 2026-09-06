@@ -48,9 +48,10 @@ hint. Tests prove an old owner is rejected and a new owner is accepted immediate
 
 ## 5. Database migrations
 
-`20260906010000_create_art_broker_v2.sql` is additive. It creates profiles, signed-session state,
+The V2 migrations are additive. They create profiles, signed-session state,
 strategies, explicit preferences, conversations, opportunities and sources, cached analyses,
-screenings, simulations, durable execution attempts, activity, provider/model usage, and legacy
+screenings, simulations, durable execution attempts, activity, provider/model usage, read-only
+owner-taught Punk skills, and legacy
 links. It contains no destructive V1 statement or key material. The migration has **not** been
 applied to any database.
 
@@ -58,6 +59,7 @@ applied to any database.
 
 | Provider | Adapter | Current protocol | Structured output | Local tests | Production configuration |
 | --- | --- | --- | --- | --- | --- |
+| Gemini | `GeminiArtBrokerProvider` | Interactions API | response JSON Schema | pass | free-tier model + key required |
 | OpenAI | `OpenAIArtBrokerProvider` | Responses API | strict JSON Schema | pass | model + key required |
 | Anthropic | `AnthropicArtBrokerProvider` | Messages API | `output_config.format` | pass | model + key required |
 | xAI | `XAIArtBrokerProvider` | Responses API | strict JSON Schema | pass | model + key required |
@@ -65,7 +67,9 @@ applied to any database.
 | Future | `ArtBrokerAIProvider` | adapter-owned | capability declared | interface pass | adapter required |
 
 Model IDs and token prices are server configuration, not frontend constants. API keys remain
-server-only. No production provider credential was used during this build.
+server-only. `gemini-3.8-flash` is the reviewed free-tier preview choice; free-tier quotas apply and
+Google states that free-tier content may be used to improve its products. No production provider
+credential was used during this build.
 
 ## 7. AUTO model router
 
@@ -88,7 +92,9 @@ domain normalizer. Local and pull-request review builds use the same determinist
 without an AI charge. The PR endpoint first verifies the selected Punk's current owner and canonical
 Punk Wallet, returns an ephemeral structured draft, and is absent from production. The database-backed
 path persists the owner message, Punk response, and pending strategy version after its migration is
-authorized; neither path activates economic permission from conversation alone.
+authorized; neither path activates economic permission from conversation alone. Chat can also
+compile an owner-taught skill into a bounded `GOGH_PUNK_SKILL_V1` draft. Skills are read-only,
+require confirmation, and cannot alter structured policy or wallet authority.
 
 ## 10. Strategy schema
 
@@ -107,8 +113,10 @@ resolvers are an explicit integration boundary; an unconfigured source returns `
 ## 12. Discovery engine
 
 The in-memory and Postgres repositories normalize and deduplicate source sightings, serialize
-analysis by input hash, and reuse one collection analysis across Punks. No production discovery
-schedule or external feed has been enabled.
+analysis by input hash, and reuse one collection analysis across Punks. The isolated deploy-preview
+queue can manually ingest confirmed Robinhood SeaDrop events and fail closed through reviewed
+runtime, adapter registry, price, supply, timing, fee-recipient, and per-Punk simulation gates. No
+production discovery schedule or external feed has been enabled.
 
 ## 13. Opportunity schema
 
@@ -237,7 +245,7 @@ is **not canary-ready** with the current deployed wallet gas model.
 ## 30. Exact items requiring production authorization
 
 1. Applying `20260906010000_create_art_broker_v2.sql` to a hosted database.
-2. Adding/enabling OpenAI, Anthropic, xAI, or Bankr credentials and current model registry entries.
+2. Adding/enabling Gemini, OpenAI, Anthropic, xAI, or Bankr credentials and current model registry entries.
 3. Enabling any external discovery, contract-resolution, or simulation network job.
 4. Publishing the V2 site/functions or changing production routes.
 5. Presenting or submitting any live ASSIST transaction.

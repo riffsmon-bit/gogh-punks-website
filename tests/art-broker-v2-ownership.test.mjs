@@ -76,6 +76,6 @@ test("V2 APIs authenticate mutations and preserve independent withdrawal access"
   assert.match(ui, /submitPunkWalletFunds/); assert.match(ui, /fetchPunkWalletFundsGate/);
   assert.match(ui, /submitWrappedNativeTransaction/);
   for (const source of [chat, strategy, fund, withdrawal, session, ui]) {
-    assert.doesNotMatch(source, /OPENAI_API_KEY\s*=|ANTHROPIC_API_KEY\s*=|XAI_API_KEY\s*=|BANKR_API_KEY\s*=/);
+    assert.doesNotMatch(source, /OPENAI_API_KEY\s*=|ANTHROPIC_API_KEY\s*=|XAI_API_KEY\s*=|BANKR_API_KEY\s*=|GEMINI_API_KEY\s*=/);
   }
 });

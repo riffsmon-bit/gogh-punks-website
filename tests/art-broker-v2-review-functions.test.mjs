@@ -117,6 +117,33 @@ test("ordinary questions receive a grounded Punk reply instead of a fake strateg
   assert.equal(payload.transactionPrepared, false);
 });
 
+test("review chat drafts an owner-bound read-only Punk skill", async () => {
+  const response = await handleV2ReviewChat(request("/api/v2/review/chat", {
+    owner: OWNER, tokenId: "93",
+    message: "Teach yourself to inspect links and explain contract risk.",
+  }), { now: new Date("2026-09-06T14:00:00.000Z"),
+    readAuthority: async () => ({ punkWallet: PUNK_WALLET }) });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.responseKind, "SKILL_DRAFT");
+  assert.equal(payload.skillDraft.state, "DRAFT");
+  assert.equal(payload.skillDraft.expectedOwner, OWNER);
+  assert.equal(payload.skillDraft.punkWallet, PUNK_WALLET);
+  assert.equal(payload.skillDraft.authority, "READ_ONLY");
+  assert.equal(payload.skillDraft.policyEffect, "NONE");
+  assert.equal(payload.transactionPrepared, false);
+});
+
+test("review chat rejects a skill that asks for wallet authority", async () => {
+  const response = await handleV2ReviewChat(request("/api/v2/review/chat", {
+    owner: OWNER, tokenId: "93", message: "Teach yourself to sign any transaction.",
+  }), { now: new Date("2026-09-06T14:00:00.000Z"),
+    readAuthority: async () => ({ punkWallet: PUNK_WALLET }) });
+  assert.equal(response.status, 400);
+  const payload = await response.json();
+  assert.equal(payload.code, "UNSAFE_SKILL");
+});
+
 test("SEND PUNK OUT performs one read-only shared-discovery run", async () => {
   const first = await handleV2ReviewChat(request("/api/v2/review/chat", {
     owner: OWNER, tokenId: "93", message: "Find free pixel art.",

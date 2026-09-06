@@ -140,6 +140,12 @@ test("the hosted PR review runs bounded tab agents while owner transactions stay
   assert.match(script, /SIMULATION PASSED/);
   assert.match(script, /SUBMIT IN METAMASK/);
   assert.match(script, /GOGH INTELLIGENCE · REVIEW PARSER/);
+  assert.match(html, /TAUGHT SKILLS/);
+  assert.match(html, /TEACH THIS PUNK/);
+  assert.match(script, /responseKind === "SKILL_DRAFT"/);
+  assert.match(script, /activateReviewSkill/);
+  assert.match(script, /reviewSkills: new Map\(\)/);
+  assert.match(script, /policy and all safety gates still win/i);
 });
 
 test("link checks show progress and ground conversational follow-up questions", async () => {
@@ -148,7 +154,7 @@ test("link checks show progress and ground conversational follow-up questions", 
   assert.match(script, /form\.setAttribute\("aria-busy", "true"\)/);
   assert.match(script, /button\.disabled = true/);
   assert.match(script, /state\.lastInspection = inspection/);
-  assert.match(script, /state\.localStrategy = null; state\.lastInspection = null/);
+  assert.match(script, /state\.localStrategy = null; state\.localSkill = null; state\.lastInspection = null/);
   assert.match(script, /const inspection = state\.lastInspection/);
   assert.match(script, /GOGH INTELLIGENCE · SAFE FALLBACK/);
   assert.match(script, /The review service timed out\. Try again/);
