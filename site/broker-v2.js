@@ -1,7 +1,7 @@
 import { verifyOwnedPunkIds } from "./broker-v2-ownership.js";
 import {
   fetchPunkWalletFundsGate, preflightPunkWalletFunds, readPunkWalletFundsState,
-  submitPunkWalletFunds,
+  submitPunkWalletFunds, waitForPunkWalletTransactionReceipt,
 } from "./punk-wallet-funds.js";
 import { buildWrappedNativeTransaction, decodeUint256, ROBINHOOD_WETH,
   simulateWrappedNativeTransaction, submitWrappedNativeTransaction,
@@ -597,6 +597,8 @@ function applyOwnedPunks(punks) {
   state.gallery = []; state.activity = [];
   state.hydratedTokenId = null; state.galleryTokenId = null; state.galleryLoadingTokenId = null;
   renderRoster(); renderSelected();
+  const activeTab = all("[data-v2-tab]").find((button) => button.getAttribute("aria-selected") === "true")?.dataset.v2Tab;
+  if (state.selected && activeTab) void hydrateSelected(activeTab);
 }
 
 function setup() {
@@ -819,7 +821,7 @@ function setup() {
   fundForm.addEventListener("submit", async (event) => {
     event.preventDefault(); const output = one("[data-fund-result]");
     const amount = new FormData(fundForm).get("amount")?.toString().trim() ?? "";
-    const punk = state.selected; const owner = state.wallet?.account;
+    const punk = state.selected; const owner = state.wallet?.account; let submittedHash = null;
     try {
       if (PREVIEW) {
         output.textContent = "LOCAL PREVIEW · funding review only. No wallet transaction can be requested.";
@@ -856,12 +858,18 @@ function setup() {
       });
       const link = one("[data-fund-transaction]");
       link.href = `https://robinhoodchain.blockscout.com/tx/${submitted.hash}`; link.hidden = false;
+      submittedHash = submitted.hash;
       state.fundingPlan = null; one("[data-fund-confirm]").checked = false;
       fundButton.textContent = "REVIEW & SIMULATE";
-      output.textContent = `Funding submitted directly to Punk #${tokenId}. Follow the transaction while it confirms.`;
+      output.textContent = `Funding submitted directly to Punk #${tokenId}. Waiting for Robinhood Chain confirmation…`;
+      await waitForPunkWalletTransactionReceipt(provider, submitted.hash);
+      punk.balanceLoaded = false; renderSelected(); await loadPunkBalances(punk);
+      output.textContent = `FUNDING CONFIRMED ✓ Punk #${tokenId} balance refreshed.`;
     } catch (error) {
       state.fundingPlan = null; fundButton.textContent = "REVIEW & SIMULATE";
-      output.textContent = `${error?.message ?? "Funding was not submitted."} No transaction was submitted by the page.`;
+      output.textContent = submittedHash
+        ? `${error?.message ?? "Funding confirmation is pending."} Use the transaction link to follow it.`
+        : `${error?.message ?? "Funding was not submitted."} No transaction was submitted by the page.`;
     } finally { fundButton.disabled = false; }
   });
   const wethForm = one("[data-weth-form]");
@@ -874,7 +882,7 @@ function setup() {
   wethForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     const form = event.currentTarget; const button = form.querySelector("button[type=submit]");
-    const output = one("[data-weth-state]"); const punk = state.selected;
+    const output = one("[data-weth-state]"); const punk = state.selected; let submittedHash = null;
     const direction = new FormData(form).get("direction")?.toString() ?? "";
     const amount = new FormData(form).get("amount")?.toString().trim() ?? "";
     form.setAttribute("aria-busy", "true"); button.disabled = true; button.textContent = "SIMULATING…";
@@ -932,12 +940,19 @@ function setup() {
         async () => (await prepare()).plan, isCurrent);
       const link = one("[data-weth-transaction]");
       link.href = `https://robinhoodchain.blockscout.com/tx/${submitted.hash}`; link.hidden = false;
+      submittedHash = submitted.hash;
       state.wrappedPlan = null; one("[data-weth-confirm]").checked = false;
       button.textContent = "REVIEW & SIMULATE";
-      output.textContent = `${direction} submitted. Follow the transaction while it confirms.`;
+      output.textContent = `${direction} submitted. Waiting for Robinhood Chain confirmation…`;
+      await waitForPunkWalletTransactionReceipt(provider, submitted.hash);
+      punk.balanceLoaded = false; punk.wethBalanceEth = null; renderSelected();
+      await loadPunkBalances(punk);
+      output.textContent = `${direction} CONFIRMED ✓ ETH and WETH balances refreshed.`;
     } catch (error) {
       state.wrappedPlan = null; button.textContent = "REVIEW & SIMULATE";
-      output.textContent = `${error?.message ?? "WETH review stopped safely"} No transaction was submitted by the page.`;
+      output.textContent = submittedHash
+        ? `${error?.message ?? "WETH confirmation is pending."} Use the transaction link to follow it.`
+        : `${error?.message ?? "WETH review stopped safely"} No transaction was submitted by the page.`;
     } finally {
       form.removeAttribute("aria-busy"); button.disabled = false;
     }

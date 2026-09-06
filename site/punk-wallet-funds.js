@@ -133,6 +133,36 @@ export async function readPunkWalletFundsState(provider, gate, selectedTokenId) 
   return Object.freeze({ bindings, balanceWei });
 }
 
+export async function waitForPunkWalletTransactionReceipt(provider, hash, {
+  now = () => Date.now(),
+  sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+  timeoutMs = 120_000,
+  pollMs = 3_000,
+} = {}) {
+  if (typeof hash !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(hash)
+    || typeof now !== "function" || typeof sleep !== "function"
+    || !Number.isSafeInteger(timeoutMs) || timeoutMs < 3_000 || timeoutMs > 300_000
+    || !Number.isSafeInteger(pollMs) || pollMs < 500 || pollMs > 10_000) {
+    fail("CONFIRMATION_INVALID", "transaction confirmation request is invalid");
+  }
+  const started = now();
+  while (now() - started <= timeoutMs) {
+    const receipt = await rpc(provider, "eth_getTransactionReceipt", [hash]);
+    if (receipt !== null) {
+      if (!receipt || typeof receipt !== "object" || Array.isArray(receipt)
+        || String(receipt.transactionHash ?? "").toLowerCase() !== hash.toLowerCase()
+        || typeof receipt.blockNumber !== "string") {
+        fail("CONFIRMATION_INVALID", "wallet returned an invalid transaction receipt");
+      }
+      if (receipt.status !== "0x1") fail("TRANSACTION_REVERTED", "transaction reverted on-chain");
+      return Object.freeze({ hash: hash.toLowerCase(),
+        blockNumber: parseHexUint(receipt.blockNumber, "transaction block").toString() });
+    }
+    await sleep(pollMs);
+  }
+  fail("CONFIRMATION_PENDING", "transaction is still confirming; use its explorer link to follow it");
+}
+
 function sameTransaction(left, right) {
   return left.from === right.from && left.to === right.to
     && left.value === right.value && left.data === right.data;

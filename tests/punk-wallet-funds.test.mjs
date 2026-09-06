@@ -6,6 +6,7 @@ import {
   preflightPunkWalletFunds,
   readPunkWalletFundsState,
   submitPunkWalletFunds,
+  waitForPunkWalletTransactionReceipt,
 } from "../site/punk-wallet-funds.js";
 
 const OWNER = "0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6";
@@ -97,6 +98,25 @@ test("V3 Punk Wallet state exposes the verified selected wallet for WETH review"
   assert.equal(state.bindings.expectedOwner, OWNER);
   assert.equal(state.balanceWei, 10_000_000_000_000_000n);
   assert.equal(world.calls.some(({ method }) => method === "eth_sendTransaction"), false);
+});
+
+test("Punk Wallet transaction confirmation is receipt-bound and never resubmits", async () => {
+  const world = providerWorld(); let reads = 0; let clock = 0;
+  const original = world.provider.request;
+  world.provider.request = async ({ method, params }) => {
+    if (method === "eth_getTransactionReceipt") {
+      reads += 1;
+      return reads === 1 ? null : { transactionHash: TX_HASH, status: "0x1", blockNumber: "0x2a" };
+    }
+    return original({ method, params });
+  };
+  const receipt = await waitForPunkWalletTransactionReceipt(world.provider, TX_HASH, {
+    now: () => clock, sleep: async (milliseconds) => { clock += milliseconds; },
+    timeoutMs: 3_000, pollMs: 500,
+  });
+  assert.deepEqual(receipt, { hash: TX_HASH, blockNumber: "42" });
+  assert.equal(reads, 2);
+  assert.equal(world.calls.filter(({ method }) => method === "eth_sendTransaction").length, 0);
 });
 
 test("V3 funds path fails closed on owner, runtime, balance, and amount changes", async () => {
