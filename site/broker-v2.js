@@ -6,6 +6,10 @@ import {
 import { buildWrappedNativeTransaction, decodeUint256, ROBINHOOD_WETH,
   simulateWrappedNativeTransaction, submitWrappedNativeTransaction,
   wrappedBalanceOfData } from "./wrapped-native.js";
+import {
+  preflightNftWithdrawal, submitNftWithdrawal, validateWithdrawableNftAssets,
+  waitForNftWithdrawalReceipt,
+} from "./nft-withdrawal.js";
 
 const PREVIEW = new URLSearchParams(location.search).get("preview") === "1";
 const REVIEW_HOST = location.protocol === "https:" && /^(?:deploy-preview-[1-9][0-9]*--gogh-punks\.netlify\.app|deploy-preview-[1-9][0-9]*\.preview\.goghpunks\.xyz)$/.test(location.hostname);
@@ -36,7 +40,8 @@ const state = { wallet: null, punks: [], selected: null, localStrategy: null,
   gallery: [], activity: [], hydratedTokenId: null, lastInspection: null,
   ownershipAccount: null, ownershipLoadingAccount: null, ownershipRequestId: 0,
   balanceRequestId: 0, galleryTokenId: null, galleryLoadingTokenId: null,
-  fundingPlan: null, wrappedPlan: null };
+  fundingPlan: null, wrappedPlan: null, withdrawalAsset: null,
+  withdrawalAmount: "1", withdrawalPlan: null, withdrawalBusy: false };
 const one = (selector) => document.querySelector(selector);
 const all = (selector) => [...document.querySelectorAll(selector)];
 const set = (selector, value) => { const target = one(selector); if (target) target.textContent = String(value); };
@@ -130,9 +135,10 @@ function selectPunk(tokenId) {
   if (!punk) return;
   state.selected = punk; state.localStrategy = null; state.lastInspection = null;
   state.hydratedTokenId = null; state.galleryTokenId = null; state.galleryLoadingTokenId = null;
-  state.fundingPlan = null; state.wrappedPlan = null;
+  state.fundingPlan = null; state.wrappedPlan = null; state.withdrawalAsset = null;
+  state.withdrawalAmount = "1"; state.withdrawalPlan = null; state.withdrawalBusy = false;
   if (!PREVIEW) { state.gallery = []; state.activity = []; }
-  renderSelected();
+  renderSelected(); renderCollectionWithdrawal();
   one("[data-selected-stage]").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
 }
 
@@ -164,9 +170,10 @@ function renderGallery() {
           }
         } catch { /* Invalid display links are omitted. */ }
       }
-      const withdraw = document.createElement("a");
-      withdraw.href = `/broker/punk/${state.selected.tokenId}?tab=assets`;
+      const withdraw = document.createElement("button"); withdraw.type = "button";
       withdraw.textContent = "WITHDRAW"; withdraw.setAttribute("aria-label", `Withdraw ${itemData.title}`);
+      withdraw.disabled = state.withdrawalBusy;
+      withdraw.addEventListener("click", () => selectCollectionWithdrawal(itemData));
       actions.append(withdraw); copy.append(actions);
     }
     item.append(image, copy); grid.append(item);
@@ -255,17 +262,131 @@ async function loadReviewCollection(punk, exactAsset = null) {
       throw new Error("The live-owned NFT inventory could not be verified.");
     }
     if (state.selected?.tokenId !== tokenId) return;
-    punk.account = assets.account; punk.nfts = assets.items.length;
-    state.gallery = assets.items.map((asset) => ({
+    const verifiedItems = validateWithdrawableNftAssets(assets, tokenId);
+    punk.account = assets.account; punk.nfts = verifiedItems.length;
+    state.gallery = verifiedItems.map((asset) => ({
       image: asset.imageUrl ?? "/assets/nft-placeholder.svg",
       title: asset.name ?? `${asset.collectionName ?? short(asset.collection)} #${asset.tokenId}`,
       provenance: `${asset.ownershipStatus.replaceAll("_", " ")} · ${asset.provenance.replaceAll("_", " ")} · ${asset.standard}`,
       detail: `${asset.collectionName ?? short(asset.collection)} · TOKEN #${asset.tokenId}${asset.acquiredAt ? ` · ${dateLabel(asset.acquiredAt)}` : ""}`,
       tokenId: asset.tokenId, collection: asset.collection, openSeaUrl: asset.openSeaUrl,
+      standard: asset.standard, amount: asset.amount, collectionName: asset.collectionName,
     }));
     state.galleryTokenId = tokenId; renderSelected();
   } finally {
     if (state.galleryLoadingTokenId === tokenId) state.galleryLoadingTokenId = null;
+  }
+}
+
+function collectionWithdrawalQuantityValid() {
+  const asset = state.withdrawalAsset;
+  return asset?.standard !== "ERC1155" || (/^[1-9]\d*$/.test(state.withdrawalAmount)
+    && BigInt(state.withdrawalAmount) <= BigInt(asset.amount));
+}
+
+function renderCollectionWithdrawal() {
+  const panel = one("[data-v2-withdrawal]"); const asset = state.withdrawalAsset;
+  if (!panel) return;
+  panel.hidden = !asset;
+  if (!asset) return;
+  const image = one("[data-v2-withdraw-image]");
+  image.src = cleanImage(asset.image, "/assets/nft-placeholder.svg"); image.alt = asset.title;
+  set("[data-v2-withdraw-name]", asset.title);
+  set("[data-v2-withdraw-collection]", asset.collectionName ?? short(asset.collection));
+  set("[data-v2-withdraw-from]", `PUNK #${state.selected?.tokenId ?? "—"} · ${short(state.selected?.account)}`);
+  set("[data-v2-withdraw-to]", short(state.wallet?.account));
+  set("[data-v2-withdraw-asset]", `${asset.standard} · TOKEN #${asset.tokenId}`);
+  const quantityField = one("[data-v2-withdraw-quantity-field]");
+  const quantity = one("[data-v2-withdraw-quantity]");
+  quantityField.hidden = asset.standard !== "ERC1155"; quantity.max = asset.amount;
+  if (quantity.value !== state.withdrawalAmount) quantity.value = state.withdrawalAmount;
+  const confirm = one("[data-v2-withdraw-confirm]"); const submit = one("[data-v2-withdraw-submit]");
+  confirm.disabled = state.withdrawalBusy; quantity.disabled = state.withdrawalBusy;
+  submit.disabled = state.withdrawalBusy || !confirm.checked || !collectionWithdrawalQuantityValid();
+  submit.textContent = state.withdrawalBusy ? "CHECKING LIVE STATE…"
+    : state.withdrawalPlan ? "SUBMIT IN METAMASK" : "REVIEW & SIMULATE";
+  one("[data-v2-withdraw-cancel]").disabled = state.withdrawalBusy;
+}
+
+function selectCollectionWithdrawal(asset) {
+  state.withdrawalAsset = asset; state.withdrawalAmount = "1"; state.withdrawalPlan = null;
+  one("[data-v2-withdraw-confirm]").checked = false;
+  one("[data-v2-withdraw-transaction]").hidden = true;
+  set("[data-v2-withdraw-state]", "Review the fixed current-owner destination, then confirm and simulate.");
+  renderCollectionWithdrawal();
+  one("[data-v2-withdrawal]").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "nearest" });
+}
+
+function cancelCollectionWithdrawal() {
+  if (state.withdrawalBusy) return;
+  state.withdrawalAsset = null; state.withdrawalAmount = "1"; state.withdrawalPlan = null;
+  one("[data-v2-withdraw-confirm]").checked = false; renderCollectionWithdrawal();
+}
+
+async function fetchCollectionWithdrawalGate(tokenId) {
+  const response = await fetch(`/api/broker/nft-withdrawal-status?tokenId=${encodeURIComponent(tokenId)}`, {
+    headers: { accept: "application/json" }, cache: "no-store",
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok || payload?.ok !== true) throw new Error("NFT withdrawal status is unavailable.");
+  return payload.recovery;
+}
+
+async function withdrawCollectionAsset() {
+  const asset = state.withdrawalAsset; const punk = state.selected;
+  const owner = state.wallet?.account; const amount = state.withdrawalAmount;
+  const output = one("[data-v2-withdraw-state]"); let submittedHash = null;
+  try {
+    if (PREVIEW) throw new Error("Local fixture mode cannot request wallet transactions.");
+    if (!asset || !punk?.account || !owner || state.wallet.chainId !== CHAIN_ID) {
+      throw new Error("Connect the current Punk owner on Robinhood Chain first.");
+    }
+    if (!one("[data-v2-withdraw-confirm]").checked || !collectionWithdrawalQuantityValid()) {
+      throw new Error("Review and confirm the NFT, quantity, and fixed destination first.");
+    }
+    const provider = window.__GOGH_WALLET_PROVIDER__;
+    if (!provider?.request) throw new Error("Wallet provider unavailable.");
+    const tokenId = punk.tokenId; const account = punk.account.toLowerCase();
+    const identity = `${asset.collection}:${asset.tokenId}:${asset.standard}:${amount}`;
+    const isCurrent = () => state.selected?.tokenId === tokenId
+      && state.selected?.account?.toLowerCase() === account
+      && state.wallet?.account === owner && state.wallet?.chainId === CHAIN_ID
+      && state.withdrawalAsset === asset
+      && `${asset.collection}:${asset.tokenId}:${asset.standard}:${state.withdrawalAmount}` === identity
+      && one("[data-v2-withdraw-confirm]").checked;
+    state.withdrawalBusy = true; renderCollectionWithdrawal();
+    if (!state.withdrawalPlan) {
+      output.textContent = "Checking current owner, Punk Wallet runtime, NFT ownership, and exact transfer simulation…";
+      const gate = await fetchCollectionWithdrawalGate(tokenId);
+      const reviewed = await preflightNftWithdrawal(provider, gate, tokenId, {
+        collection: asset.collection, standard: asset.standard, tokenId: asset.tokenId,
+        amount: asset.standard === "ERC1155" ? amount : "1",
+      });
+      if (!isCurrent()) throw new Error("The wallet, Punk, NFT, or quantity changed during review.");
+      state.withdrawalPlan = reviewed;
+      output.textContent = `SIMULATION PASSED · ${reviewed.gas.toString()} gas units · destination ${short(owner)}. Review once more, then submit.`;
+      return;
+    }
+    output.textContent = "Rechecking every ownership and transaction binding before opening MetaMask…";
+    const result = await submitNftWithdrawal(provider, state.withdrawalPlan, {
+      loadGate: fetchCollectionWithdrawalGate, isCurrent,
+    });
+    submittedHash = result.hash;
+    const link = one("[data-v2-withdraw-transaction]");
+    link.href = `https://robinhoodchain.blockscout.com/tx/${result.hash}`; link.hidden = false;
+    output.textContent = "Withdrawal submitted. Waiting for Robinhood Chain confirmation…";
+    await waitForNftWithdrawalReceipt(provider, result.hash);
+    output.textContent = "NFT WITHDRAWN ✓ Collection and Punk balances are refreshing.";
+    state.withdrawalAsset = null; state.withdrawalAmount = "1"; state.withdrawalPlan = null;
+    one("[data-v2-withdraw-confirm]").checked = false; state.galleryTokenId = null;
+    await Promise.all([loadReviewCollection(punk), loadPunkBalances(punk)]);
+  } catch (error) {
+    state.withdrawalPlan = null;
+    output.textContent = submittedHash
+      ? `${error?.message ?? "Confirmation is still pending."} Use the transaction link to follow it.`
+      : `${error?.message ?? "NFT withdrawal stopped safely."} No transaction was submitted by the page.`;
+  } finally {
+    state.withdrawalBusy = false; renderCollectionWithdrawal();
   }
 }
 
@@ -636,6 +757,13 @@ function setup() {
       form.removeAttribute("aria-busy"); button.disabled = false;
     }
   });
+  one("[data-v2-withdraw-confirm]").addEventListener("change", renderCollectionWithdrawal);
+  one("[data-v2-withdraw-quantity]").addEventListener("input", (event) => {
+    state.withdrawalAmount = event.target.value; state.withdrawalPlan = null;
+    one("[data-v2-withdraw-confirm]").checked = false; renderCollectionWithdrawal();
+  });
+  one("[data-v2-withdraw-submit]").addEventListener("click", withdrawCollectionAsset);
+  one("[data-v2-withdraw-cancel]").addEventListener("click", cancelCollectionWithdrawal);
   one("[data-edit-strategy]").addEventListener("click", () => { one("[data-confirmation-dialog]").close(); one("#punk-prompt").focus(); });
   one("[data-activate-strategy]").addEventListener("click", async () => {
     if (!state.localStrategy) return;

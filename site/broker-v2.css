@@ -254,6 +254,20 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .exact-nft-form input { min-height: 48px; padding: 0 13px; border: 1px solid var(--line); color: var(--text); background: var(--surface); }
 .exact-nft-form button { min-height: 48px; padding: 0 18px; border: 0; color: var(--ink); background: var(--cyan); font-weight: 900; cursor: pointer; }
 .exact-nft-form p { margin: 10px 0 0; color: var(--muted); font-size: .72rem; }
+.collection-withdrawal { margin-bottom: 22px; padding: 22px; border: 1px solid var(--acid); background: var(--ink); }
+.collection-withdrawal-preview { display: grid; grid-template-columns: 112px 1fr; gap: 18px; align-items: center; }
+.collection-withdrawal-preview img { display: block; width: 112px; aspect-ratio: 1; object-fit: cover; border: 1px solid var(--line); }
+.collection-withdrawal-preview h3 { margin: 5px 0; font-family: var(--font-display); font-size: 2rem; }
+.collection-withdrawal-preview p, .collection-withdrawal > p { color: var(--muted); font-size: .75rem; line-height: 1.5; }
+.collection-withdrawal-facts { display: grid; grid-template-columns: repeat(3, 1fr); margin: 18px 0; }
+.collection-withdrawal-facts div { min-width: 0; padding: 13px; border: 1px solid var(--line); }
+.collection-withdrawal-facts dt { color: var(--muted); font-size: .56rem; font-weight: 900; letter-spacing: .1em; }
+.collection-withdrawal-facts dd { margin: 7px 0 0; overflow-wrap: anywhere; font-size: .76rem; font-weight: 800; }
+.collection-withdrawal-quantity { display: block; max-width: 260px; color: var(--muted); font-size: .6rem; font-weight: 900; letter-spacing: .08em; }
+.collection-withdrawal-quantity input { display: block; width: 100%; min-height: 46px; margin-top: 7px; padding: 0 12px; border: 1px solid var(--line); color: var(--text); background: var(--surface); }
+.collection-withdrawal-actions { display: flex; gap: 10px; margin-top: 14px; }
+.collection-withdrawal-actions button { min-height: 46px; padding: 0 18px; border: 1px solid var(--line-strong); color: var(--text); background: transparent; font-weight: 900; cursor: pointer; }
+.collection-withdrawal-actions .primary-button { border: 0; color: var(--ink); background: var(--acid); }
 
 .gallery-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 13px; }
 .panel-empty { grid-column: 1 / -1; min-height: 140px; display: grid; place-items: center; margin: 0;
@@ -265,9 +279,9 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .gallery-item h3 { margin: 5px 0 8px; font-size: .9rem; }
 .gallery-item p { margin: 0; color: var(--muted); font-size: .7rem; }
 .gallery-item .gallery-actions { display: flex; gap: 8px; padding: 12px 0 0; }
-.gallery-actions a { display: inline-flex; min-height: 36px; padding: 0 10px; align-items: center;
+.gallery-actions a, .gallery-actions button { display: inline-flex; min-height: 36px; padding: 0 10px; align-items: center;
   border: 1px solid var(--line-strong); color: var(--text); font-size: .59rem; font-weight: 900; }
-.gallery-actions a:last-child { border-color: var(--acid); color: var(--acid); }
+.gallery-actions button { border-color: var(--acid); color: var(--acid); background: transparent; cursor: pointer; }
 
 .activity-feed { list-style: none; padding: 0; margin: 0; }
 .activity-feed li { display: grid; grid-template-columns: 100px 1fr auto; gap: 18px; padding: 22px 0; border-top: 1px solid var(--line); }
@@ -366,6 +380,10 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   .wrapped-funding > header { align-items: start; flex-direction: column; }
   .wrapped-form { grid-template-columns: 1fr; }
   .exact-nft-form > div { grid-template-columns: 1fr; }
+  .collection-withdrawal-preview { grid-template-columns: 82px 1fr; }
+  .collection-withdrawal-preview img { width: 82px; }
+  .collection-withdrawal-facts { grid-template-columns: 1fr; }
+  .collection-withdrawal-actions { flex-direction: column; }
   .gallery-grid { grid-template-columns: repeat(2, 1fr); }
   .activity-feed li { grid-template-columns: 72px 1fr; }
   .activity-feed li > b { grid-column: 2; }

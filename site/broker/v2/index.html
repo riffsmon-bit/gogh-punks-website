@@ -161,6 +161,16 @@
               <div><input id="exact-nft-link" type="url" inputmode="url" autocomplete="off" placeholder="https://opensea.io/item/robinhood/0x…/123" /><button type="submit">VERIFY &amp; ADD</button></div>
               <p data-exact-nft-state aria-live="polite">The NFT is added only after Robinhood Chain confirms this Punk Wallet currently owns it.</p>
             </form>
+            <section class="collection-withdrawal" data-v2-withdrawal aria-labelledby="v2-withdraw-title" hidden>
+              <div class="collection-withdrawal-preview"><img data-v2-withdraw-image src="/assets/nft-placeholder.svg" alt="Selected NFT" /><div><span class="kicker">OWNER RECOVERY</span><h3 id="v2-withdraw-title" data-v2-withdraw-name>SELECT AN NFT</h3><p data-v2-withdraw-collection>Choose a Collection piece to prepare its withdrawal.</p></div></div>
+              <dl class="collection-withdrawal-facts"><div><dt>FROM</dt><dd data-v2-withdraw-from>—</dd></div><div><dt>FIXED DESTINATION</dt><dd data-v2-withdraw-to>—</dd></div><div><dt>ASSET</dt><dd data-v2-withdraw-asset>—</dd></div></dl>
+              <label class="collection-withdrawal-quantity" data-v2-withdraw-quantity-field hidden>ERC-1155 QUANTITY<input data-v2-withdraw-quantity type="number" min="1" step="1" value="1" /></label>
+              <p>The destination cannot be edited. The first step rechecks current Gogh Punk ownership, verified Punk Wallet code, NFT ownership, and the exact transfer simulation. Nothing is sent until the second step and MetaMask approval.</p>
+              <label class="transaction-confirm"><input type="checkbox" data-v2-withdraw-confirm /><span>I reviewed this NFT, quantity, and the fixed current-owner destination.</span></label>
+              <div class="collection-withdrawal-actions"><button class="primary-button" type="button" data-v2-withdraw-submit disabled>REVIEW &amp; SIMULATE</button><button type="button" data-v2-withdraw-cancel>CANCEL</button></div>
+              <p data-v2-withdraw-state aria-live="polite">Select an NFT to begin.</p>
+              <a class="transaction-link" data-v2-withdraw-transaction href="#" target="_blank" rel="noopener noreferrer" hidden>VIEW WITHDRAWAL TRANSACTION ↗</a>
+            </section>
             <div class="gallery-grid" data-gallery-grid></div>
           </section>
 

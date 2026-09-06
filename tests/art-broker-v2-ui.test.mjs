@@ -22,6 +22,8 @@ test("V2 Control Center exposes the complete selected-Punk action architecture",
   assert.match(html, /ETH ↔ WETH/);
   assert.match(html, /MISSING AN NFT\? PASTE ITS EXACT OPENSEA ITEM LINK/);
   assert.match(html, /data-exact-nft-form/);
+  assert.match(html, /data-v2-withdrawal/);
+  assert.match(html, /FIXED DESTINATION/);
 });
 
 test("V2 semantics, mobile navigation, focus, and reduced motion are deliberate", async () => {
@@ -54,6 +56,12 @@ test("live collection and activity panels hydrate real authenticated API states"
   assert.match(script, /gateway\.pinata\.cloud/);
   assert.match(script, /fixedIpfs/);
   assert.match(script, /exactOpenSeaAsset/);
+  assert.match(script, /preflightNftWithdrawal/);
+  assert.match(script, /submitNftWithdrawal/);
+  assert.match(script, /waitForNftWithdrawalReceipt/);
+  assert.match(script, /state\.withdrawalPlan \? "SUBMIT IN METAMASK" : "REVIEW & SIMULATE"/);
+  assert.match(script, /validateWithdrawableNftAssets/);
+  assert.doesNotMatch(script, /withdraw\.href = `\/broker\/punk\//);
 });
 
 test("funding exposes hardened ETH funding and canonical WETH wrap submission", async () => {
