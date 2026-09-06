@@ -99,8 +99,15 @@ export function normalizeReviewAgentRun(value, expectedTokenId) {
   const eligibleCount = uint(value.eligibleCount);
   const screeningPassedCount = uint(value.screeningPassedCount);
   const simulationPassedCount = uint(value.simulationPassedCount);
+  const testOpportunityCount = uint(value.testOpportunityCount ?? 0);
+  const testMode = value.testMode === null || value.testMode === undefined ? null : value.testMode;
   if (eligibleCount > checkedCount || screeningPassedCount > checkedCount
-    || simulationPassedCount > checkedCount) throw new TypeError("Review run totals are invalid");
+    || simulationPassedCount > checkedCount || testOpportunityCount > checkedCount
+    || ![null, "SAFE_FIXTURE"].includes(testMode)
+    || (testMode === null && testOpportunityCount !== 0)
+    || (testMode === "SAFE_FIXTURE" && testOpportunityCount !== 1)) {
+    throw new TypeError("Review run totals are invalid");
+  }
   const opportunities = value.opportunities.map((entry) => {
     const opportunity = entry?.opportunity; const match = entry?.match;
     const collectionContract = address(opportunity?.collectionContract, "collection contract");
@@ -110,11 +117,13 @@ export function normalizeReviewAgentRun(value, expectedTokenId) {
       || !SIMULATION.has(opportunity?.simulationStatus)
       || typeof match?.recommendationEligible !== "boolean" || !Number.isInteger(matchScore)
       || matchScore < 0 || matchScore > 100) throw new TypeError("Review opportunity is invalid");
-    return Object.freeze({ collectionContract, collectionName,
+    if (typeof entry.previewFixture !== "boolean") throw new TypeError("Review opportunity is invalid");
+    return Object.freeze({ collectionContract, collectionName, previewFixture: entry.previewFixture,
       screeningStatus: opportunity.screeningStatus,
       simulationStatus: opportunity.simulationStatus,
       recommendationEligible: match.recommendationEligible, matchScore });
   });
   return Object.freeze({ checkedCount, eligibleCount, screeningPassedCount,
-    simulationPassedCount, opportunities: Object.freeze(opportunities) });
+    simulationPassedCount, testMode, testOpportunityCount,
+    opportunities: Object.freeze(opportunities) });
 }

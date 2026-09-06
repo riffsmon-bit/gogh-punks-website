@@ -123,18 +123,21 @@ function renderReviewAgent() {
   set("[data-review-agent-status]", agent?.status ?? "IDLE");
   set("[data-review-agent-strategy]", agent
     ? `${agent.mode} · ${agent.status}` : "NOT STARTED");
-  set("[data-review-agent-route]", run ? "SHARED V2 QUEUE" : "NOT DISPATCHED");
-  set("[data-review-agent-discovery]", run ? `${run.checkedCount} CHECKED` : pipeline.discovery);
+  set("[data-review-agent-route]", run
+    ? run.testMode ? "PREVIEW TEST LANE" : "SHARED V2 QUEUE" : "NOT DISPATCHED");
+  set("[data-review-agent-discovery]", run
+    ? `${run.checkedCount} CHECKED${run.testOpportunityCount ? " · 1 TEST" : ""}` : pipeline.discovery);
   const leading = run?.opportunities?.find(({ recommendationEligible }) => recommendationEligible)
     ?? run?.opportunities?.[0] ?? null;
   set("[data-review-agent-contract]", leading
     ? short(leading.collectionContract) : pipeline.contract);
   set("[data-review-agent-screen]", run
-    ? `${run.screeningPassedCount}/${run.checkedCount} PASSED` : pipeline.screening);
+    ? `${run.screeningPassedCount}/${run.checkedCount} ${run.testMode ? "TEST PASS" : "PASSED"}` : pipeline.screening);
   set("[data-review-agent-simulation]", run
-    ? `${run.simulationPassedCount}/${run.checkedCount} PASSED` : pipeline.simulation);
+    ? `${run.simulationPassedCount}/${run.checkedCount} ${run.testMode ? "TEST PASS" : "PASSED"}` : pipeline.simulation);
   set("[data-review-agent-decision]", run
-    ? run.eligibleCount ? `${run.eligibleCount} MATCHED` : "NO ELIGIBLE MATCH" : pipeline.decision);
+    ? run.eligibleCount ? `${run.eligibleCount} ${run.testMode ? "TEST MATCH" : "MATCHED"}`
+      : "NO ELIGIBLE MATCH" : pipeline.decision);
   const dailyLimit = one("[data-review-daily-limit]");
   const totalLimit = one("[data-review-total-limit]");
   if (dailyLimit) dailyLimit.value = String(agent?.intent.dailyMintLimit ?? 1);
@@ -143,13 +146,18 @@ function renderReviewAgent() {
     ? `Current confirmed limits: ${agent.intent.dailyMintLimit} per day, ${agent.intent.totalMintLimit} for this strategy. Editing creates a new draft.`
     : "Creates a strategy draft. Current rules stay active until you confirm it.");
   const runButton = one("[data-review-agent-run]");
-  const runBusy = runButton.dataset.busy === "true";
+  const testButton = one("[data-review-agent-test]");
+  const runBusy = runButton.dataset.busy === "true" || testButton.dataset.busy === "true";
   runButton.disabled = runBusy || !agent || agent.status !== "ACTIVE";
+  testButton.disabled = runBusy || !agent || agent.status !== "ACTIVE";
   runButton.textContent = runBusy ? "PUNK IS OUT…" : "SEND PUNK OUT";
+  testButton.textContent = runBusy ? "TESTING…" : "RUN SAFE TEST";
   set("[data-review-agent-run-note]", !agent
     ? "Confirm an ASK or ASSIST strategy first."
     : agent.status !== "ACTIVE" ? "This review agent is paused."
-      : run ? `Last run checked ${run.checkedCount}; ${run.eligibleCount} matched.`
+      : run ? run.testMode
+        ? `Safe test only: ${run.eligibleCount} test card matched; no live opportunity or transaction.`
+        : `Last run checked ${run.checkedCount}; ${run.eligibleCount} matched.`
         : "Runs one read-only check against shared V2 opportunities.");
   set("[data-review-strategy-label]", agent
     ? `REVIEW AGENT ${agent.status}` : "NO REVIEW AGENT");
@@ -217,9 +225,9 @@ function startReviewAgent(draft) {
   return agent;
 }
 
-async function sendReviewAgentOut() {
+async function sendReviewAgentOut({ testMode = false } = {}) {
   const agent = selectedReviewAgent(); const key = selectedReviewKey();
-  const button = one("[data-review-agent-run]");
+  const button = testMode ? one("[data-review-agent-test]") : one("[data-review-agent-run]");
   if (!agent || agent.status !== "ACTIVE" || !key) return;
   if (!REVIEW_HOST || PREVIEW) {
     addMessage("punk", "Shared V2 discovery is connected only on the hosted PR review. Nothing was dispatched.");
@@ -230,13 +238,19 @@ async function sendReviewAgentOut() {
     const response = await jsonRequest("/api/v2/review/run", { method: "POST",
       headers: { "content-type": "application/json" }, body: JSON.stringify({
         owner: state.wallet.account, tokenId: state.selected.tokenId, intent: agent.intent,
+        ...(testMode ? { testMode: "SAFE_FIXTURE" } : {}),
       }), timeoutMs: 20_000 });
     const run = normalizeReviewAgentRun(response, state.selected.tokenId);
     state.reviewRuns.set(key, run);
-    addReviewActivity("SCOUTED", "PUNK RETURNED FROM SHARED DISCOVERY",
-      `${run.checkedCount} checked · ${run.eligibleCount} eligible`);
+    addReviewActivity("SCOUTED", testMode ? "SAFE PIPELINE TEST COMPLETED"
+      : "PUNK RETURNED FROM SHARED DISCOVERY",
+    `${run.checkedCount} checked · ${run.eligibleCount} eligible${testMode ? " · no live mint" : ""}`);
     const leading = run.opportunities.find(({ recommendationEligible }) => recommendationEligible);
-    addMessage("punk", leading
+    addMessage("punk", testMode
+      ? leading
+        ? `TEST COMPLETE. The non-live ${leading.collectionName} card matched at ${leading.matchScore}%. Ownership, rules, screen state, and simulation state flowed end to end. No live mint or transaction exists.`
+        : `TEST COMPLETE. The non-live test card was rejected by the current rules. No live mint or transaction exists.`
+      : leading
       ? `I'M BACK. ${run.eligibleCount} OF ${run.checkedCount} OPPORTUNITIES MATCHED. Best current match: ${leading.collectionName}, ${leading.matchScore}% match. Nothing was submitted.`
       : `I'M BACK. I CHECKED ${run.checkedCount} SHARED V2 OPPORTUNITIES AND FOUND NO ELIGIBLE MATCH UNDER YOUR RULES. Nothing was submitted.`);
   } catch (error) {
@@ -780,7 +794,8 @@ function setup() {
     set("[data-review-title]", "PR REVIEW BUILD");
     set("[data-review-detail]", "Live ownership, assets, owner-approved wallet actions, and a tab-scoped ASK/ASSIST agent. Model chat uses AUTO only when a server provider is configured. No production strategy, autonomous execution, or deployment.");
   }
-  one("[data-review-agent-run]").addEventListener("click", sendReviewAgentOut);
+  one("[data-review-agent-run]").addEventListener("click", () => sendReviewAgentOut());
+  one("[data-review-agent-test]").addEventListener("click", () => sendReviewAgentOut({ testMode: true }));
   all("[data-v2-tab]").forEach((button) => button.addEventListener("click", () => activateTab(button.dataset.v2Tab)));
   all("[data-suggestion]").forEach((button) => button.addEventListener("click", () => {
     const input = one("#punk-prompt"); input.value = button.dataset.suggestion; input.focus();

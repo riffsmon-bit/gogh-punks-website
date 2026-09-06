@@ -142,6 +142,33 @@ test("SEND PUNK OUT performs one read-only shared-discovery run", async () => {
   assert.equal(queries.length, 3);
 });
 
+test("safe preview test runs the full matcher with a non-live, non-persisted fixture", async () => {
+  const first = await handleV2ReviewChat(request("/api/v2/review/chat", {
+    owner: OWNER, tokenId: "93", message: "Find free pixel art.",
+  }), { now: new Date("2026-09-06T14:00:00.000Z"),
+    readAuthority: async () => ({ punkWallet: PUNK_WALLET }) });
+  const firstPayload = await first.json();
+  const response = await handleV2ReviewRun(request("/api/v2/review/run", {
+    owner: OWNER, tokenId: "93", intent: firstPayload.draft.intent,
+    testMode: "SAFE_FIXTURE",
+  }), { now: new Date("2026-09-06T14:01:00.000Z"),
+    readAuthority: async () => ({ owner: OWNER, punkWallet: PUNK_WALLET,
+      nativeBalanceWei: "100000000000000000" }),
+    pool: { query: async (sql) => sql.includes("broker_v2_opportunities")
+      || sql.includes("GROUP BY opportunity_id") ? { rows: [] }
+      : { rows: [{ daily: 0, total: 0 }] } } });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.testMode, "SAFE_FIXTURE");
+  assert.equal(payload.testOpportunityCount, 1);
+  assert.equal(payload.checkedCount, 1);
+  assert.equal(payload.eligibleCount, 1);
+  assert.equal(payload.opportunities[0].previewFixture, true);
+  assert.match(payload.opportunities[0].opportunity.collectionName, /PREVIEW TEST/);
+  assert.equal(payload.transactionPrepared, false);
+  assert.equal(payload.executionAttemptCreated, false);
+});
+
 test("review link inspection accepts information but no transaction authority", async () => {
   const response = await handleV2ReviewInspectUrl(request("/api/v2/review/inspect-url", {
     owner: OWNER, tokenId: "93", url: "https://opensea.io/collection/pepemfersnft/overview",

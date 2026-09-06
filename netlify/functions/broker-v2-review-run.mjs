@@ -12,8 +12,9 @@ const OWNER = /^0x[0-9a-f]{40}$/;
 const TOKEN = /^(?:0|[1-9]\d{0,3})$/;
 
 function requestBody(value) {
+  const fields = ["intent", "owner", "testMode", "tokenId"];
   if (!value || typeof value !== "object" || Array.isArray(value)
-    || Object.keys(value).length !== 3
+    || Object.keys(value).some((field) => !fields.includes(field))
     || !["intent", "owner", "tokenId"].every((field) => Object.hasOwn(value, field))) {
     throw new PublicError(400, "INVALID_REQUEST", "The review-agent run request is invalid.");
   }
@@ -23,7 +24,34 @@ function requestBody(value) {
     || typeof value.intent !== "object" || Array.isArray(value.intent)) {
     throw new PublicError(400, "INVALID_REQUEST", "Choose an owned Punk and confirmed strategy.");
   }
-  return Object.freeze({ owner, tokenId, intent: value.intent });
+  const testMode = Object.hasOwn(value, "testMode") ? value.testMode : null;
+  if (testMode !== null && testMode !== "SAFE_FIXTURE") {
+    throw new PublicError(400, "INVALID_REQUEST", "The review test mode is invalid.");
+  }
+  return Object.freeze({ owner, tokenId, intent: value.intent, testMode });
+}
+
+function previewTestOpportunity(punkWallet, now) {
+  return normalizeV2Opportunity({
+    schema: "GOGH_NORMALIZED_OPPORTUNITY_V2", version: 2,
+    opportunityId: "preview_test:pixel_study:public", chainId: ROBINHOOD.chainId,
+    collectionContract: "0x000000000000000000000000000000000000f001",
+    mintContract: "0x000000000000000000000000000000000000f002",
+    adapter: "0x000000000000000000000000000000000000a001",
+    mintStage: "PREVIEW_TEST", mintMethod: "mintPreviewTest(address,uint256)",
+    priceWei: "0", estimatedGasCostWei: "100000000000000", supply: 777, walletLimit: 1,
+    startTime: new Date(new Date(now).getTime() - 60_000).toISOString(),
+    endTime: new Date(new Date(now).getTime() + 86_400_000).toISOString(),
+    website: "https://goghpunks.xyz", socialUrls: {
+      x: "https://x.com/goghpunks", discord: null, farcaster: null,
+    },
+    sourceUrls: ["https://goghpunks.xyz"], artStyles: ["PIXEL_ART", "EXPERIMENTAL"],
+    imageReference: null, collectionName: "PREVIEW TEST · PIXEL STUDY",
+    contractCodeHash: `0x${"11".repeat(32)}`, adapterCodeHash: `0x${"22".repeat(32)}`,
+    screeningStatus: "PASSED", simulationStatus: "PASSED", riskLevel: "LOW", riskScore: 1,
+    expectedNftReceiver: punkWallet, unexpectedApprovals: false, unexpectedTransfers: false,
+    createdAt: new Date(now).toISOString(), updatedAt: new Date(now).toISOString(),
+  }, now);
 }
 
 export async function handleV2ReviewRun(request, { readAuthority = readV2PunkAuthority,
@@ -59,15 +87,20 @@ export async function handleV2ReviewRun(request, { readAuthority = readV2PunkAut
     const counts = new Map(opportunityUsageResult.rows.map((row) => (
       [row.opportunity_id, Number(row.count)])));
     const usage = activityResult.rows[0] ?? {};
-    const matches = opportunityResult.rows.map(({ normalized }) => {
-      const opportunity = normalizeV2Opportunity(normalized, now);
+    const opportunities = opportunityResult.rows.map(({ normalized }) => Object.freeze({
+      opportunity: normalizeV2Opportunity(normalized, now), previewFixture: false,
+    }));
+    if (body.testMode === "SAFE_FIXTURE") opportunities.unshift(Object.freeze({
+      opportunity: previewTestOpportunity(authority.punkWallet, now), previewFixture: true,
+    }));
+    const matches = opportunities.map(({ opportunity, previewFixture }) => {
       const match = matchV2Opportunity(intent, opportunity, {
         currentOwner: authority.owner, punkWallet: authority.punkWallet,
         punkWalletBalanceWei: authority.nativeBalanceWei,
         dailyMints: Number(usage.daily ?? 0), totalMints: Number(usage.total ?? 0),
         opportunityMints: counts.get(opportunity.opportunityId) ?? 0,
       }, now);
-      return Object.freeze({ opportunity, match });
+      return Object.freeze({ opportunity, match, previewFixture });
     });
     const eligible = matches.filter(({ match }) => match.recommendationEligible);
     const screeningPassedCount = matches.filter(({ opportunity }) => (
@@ -78,6 +111,7 @@ export async function handleV2ReviewRun(request, { readAuthority = readV2PunkAut
     return json({ ok: true, reviewOnly: true, authority: "NONE", tokenId: body.tokenId,
       checkedAt: new Date(now).toISOString(), checkedCount: matches.length,
       eligibleCount: eligible.length, screeningPassedCount, simulationPassedCount,
+      testMode: body.testMode, testOpportunityCount: matches.filter((item) => item.previewFixture).length,
       opportunities: ordered.slice(0, 20),
       transactionPrepared: false, executionAttemptCreated: false });
   } catch (error) { return v2Failure(error); }

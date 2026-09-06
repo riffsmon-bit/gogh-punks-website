@@ -119,12 +119,15 @@ test("the hosted PR review runs bounded tab agents while owner transactions stay
   assert.match(script, /api\/v2\/review\/inspect-url/);
   assert.match(html, /data-review-agent-console/);
   assert.match(html, /SEND PUNK OUT/);
+  assert.match(html, /RUN SAFE TEST/);
   assert.match(html, /data-review-agent-limit-form/);
   assert.match(html, /MAX \/ DAY/);
   assert.match(html, /MAX \/ STRATEGY/);
   assert.match(script, /Set my maximum to \$\{daily\} mints per day and \$\{total\} mints total/);
   assert.match(script, /chatForm\.requestSubmit\(\)/);
   assert.match(script, /api\/v2\/review\/run/);
+  assert.match(script, /testMode: "SAFE_FIXTURE"/);
+  assert.match(script, /No live mint or transaction exists/);
   assert.match(script, /SHARED V2 QUEUE/);
   assert.match(html, /Preview-session intelligence only/);
   assert.match(script, /startReviewAgent/);

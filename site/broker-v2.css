@@ -203,6 +203,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .review-agent-limit > p { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: .66rem; line-height: 1.45; }
 .review-agent-actions { display: flex; align-items: center; gap: 14px; margin-top: 14px; }
 .review-agent-actions button { border: 0; padding: 13px 18px; background: var(--acid); color: var(--ink); font-weight: 950; cursor: pointer; }
+.review-agent-actions [data-review-agent-test] { border: 1px solid var(--cyan); color: var(--cyan); background: transparent; }
 .review-agent-actions button:disabled { cursor: not-allowed; }
 .review-agent-actions span { color: var(--muted); font-size: .7rem; }
 
