@@ -49,7 +49,7 @@ function exactBody(value) {
 function punkReply(confirmation) {
   const taste = confirmation.lookingFor.length
     ? confirmation.lookingFor.join(" + ").replaceAll("_", " ") : "OPEN TASTE";
-  return `GOT IT. ${confirmation.mintPrice.toUpperCase()}. ${taste}. ${confirmation.dailyLimit} MAX PER DAY. REVIEW THE RULES BEFORE THEY CHANGE.`;
+  return `GOT IT. ${confirmation.mintPrice.toUpperCase()}. ${taste}. ${confirmation.dailyLimit} MAX PER DAY. ${confirmation.totalLimit} MAX FOR THIS STRATEGY. REVIEW THE RULES BEFORE THEY CHANGE.`;
 }
 
 async function conversationalReply(request, body, intent, authority, answerConversation, now) {

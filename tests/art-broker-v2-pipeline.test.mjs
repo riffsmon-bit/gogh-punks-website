@@ -70,6 +70,18 @@ test("short natural language limits remain deterministic", () => {
   assert.deepEqual(draft.intent.preferredSocialPlatforms, ["X"]);
 });
 
+test("conversation updates daily and total mint limits as a pending strategy", () => {
+  const draft = draftStrategyFromConversation({
+    message: "Set my maximum to 3 mints per day and 12 mints total for this strategy.",
+    punkTokenId: "119", expectedOwner: OWNER, punkWallet: WALLET,
+  }, NOW);
+  assert.equal(draft.intent.dailyMintLimit, 3);
+  assert.equal(draft.intent.totalMintLimit, 12);
+  assert.ok(draft.changes.includes("DAILY_LIMIT"));
+  assert.ok(draft.changes.includes("TOTAL_LIMIT"));
+  assert.equal(draft.economicPermissionsActivated, false);
+});
+
 test("link normalization accepts information but never external transaction authority", async () => {
   assert.deepEqual(normalizeArtBrokerLink("https://opensea.io/collection/pepemfersnft/overview"), {
     kind: "OPENSEA_COLLECTION", host: "opensea.io", identity: "pepemfersnft",

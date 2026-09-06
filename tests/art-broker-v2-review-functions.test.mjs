@@ -51,6 +51,7 @@ test("review chat live-binds the owner and returns an ephemeral structured draft
   assert.equal(payload.draft.intent.mintMode, "FREE_ONLY");
   assert.equal(payload.draft.intent.minimumReserveWei, "10000000000000000");
   assert.equal(payload.draft.intent.dailyMintLimit, 3);
+  assert.match(payload.reply, /3 MAX PER DAY\. 1 MAX FOR THIS STRATEGY/);
   assert.deepEqual(payload.draft.intent.preferences.prefer, ["PIXEL_ART"]);
   assert.equal(payload.draft.provider.provider, "DETERMINISTIC_REVIEW_PARSER");
   assert.deepEqual(authorityReads, [["93", { expectedOwner: OWNER }]]);

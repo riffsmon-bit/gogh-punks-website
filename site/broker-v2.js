@@ -135,6 +135,13 @@ function renderReviewAgent() {
     ? `${run.simulationPassedCount}/${run.checkedCount} PASSED` : pipeline.simulation);
   set("[data-review-agent-decision]", run
     ? run.eligibleCount ? `${run.eligibleCount} MATCHED` : "NO ELIGIBLE MATCH" : pipeline.decision);
+  const dailyLimit = one("[data-review-daily-limit]");
+  const totalLimit = one("[data-review-total-limit]");
+  if (dailyLimit) dailyLimit.value = String(agent?.intent.dailyMintLimit ?? 1);
+  if (totalLimit) totalLimit.value = String(agent?.intent.totalMintLimit ?? 1);
+  set("[data-review-limit-note]", agent
+    ? `Current confirmed limits: ${agent.intent.dailyMintLimit} per day, ${agent.intent.totalMintLimit} for this strategy. Editing creates a new draft.`
+    : "Creates a strategy draft. Current rules stay active until you confirm it.");
   const runButton = one("[data-review-agent-run]");
   const runBusy = runButton.dataset.busy === "true";
   runButton.disabled = runBusy || !agent || agent.status !== "ACTIVE";
@@ -154,6 +161,7 @@ function renderReviewAgent() {
     set("[data-strategy-price]", "FREE ONLY");
     set("[data-strategy-gas]", "0.0005 ETH");
     set("[data-strategy-daily]", "1");
+    set("[data-strategy-total]", "1");
     set("[data-strategy-reserve]", "0.0000 ETH");
     set("[data-strategy-website]", "— WEBSITE OPTIONAL");
     set("[data-strategy-social]", "— SOCIAL OPTIONAL");
@@ -171,6 +179,7 @@ function renderReviewAgent() {
     ? "FREE ONLY" : `UP TO ${intent.maxMintPriceWei} WEI`);
   set("[data-strategy-gas]", `${ethFromWei(intent.maxGasPerMintWei)} ETH`);
   set("[data-strategy-daily]", intent.dailyMintLimit);
+  set("[data-strategy-total]", intent.totalMintLimit);
   set("[data-strategy-reserve]", `${ethFromWei(intent.minimumReserveWei)} ETH`);
   const tastes = one("[data-strategy-tastes]"); tastes.replaceChildren();
   const entries = [
@@ -699,6 +708,7 @@ function showConfirmation(draft) {
   const view = intent ? {
     mode: intent.operatingMode,
     daily: intent.dailyMintLimit,
+    total: intent.totalMintLimit,
     reserve: `${(Number(intent.minimumReserveWei) / 1e18).toFixed(4)}`,
     gas: `${(Number(intent.maxGasPerMintWei) / 1e18).toFixed(4)}`,
     supply: intent.maximumCollectionSupply ?? "NO LIMIT",
@@ -711,7 +721,7 @@ function showConfirmation(draft) {
     ["NETWORK", "ROBINHOOD CHAIN"], ["MODE", view.mode],
     ["MINT PRICE", view.free ? "FREE ONLY" : "NOT CHANGED"], ["LOOKING FOR", view.tastes.join(" · ")],
     ["REQUIRES", [view.website && "WEBSITE", view.x && "X", "SCREEN + SIMULATION"].filter(Boolean).join(" · ")],
-    ["DAILY LIMIT", view.daily], ["MAX GAS", `${view.gas} ETH`], ["MINIMUM RESERVE", `${view.reserve} ETH`],
+    ["DAILY LIMIT", view.daily], ["TOTAL LIMIT", view.total], ["MAX GAS", `${view.gas} ETH`], ["MINIMUM RESERVE", `${view.reserve} ETH`],
     ["MAX SUPPLY", view.supply], ["STATUS", "PENDING OWNER CONFIRMATION"],
   ];
   const grid = one("[data-confirmation-grid]"); grid.replaceChildren();
@@ -723,6 +733,8 @@ function showConfirmation(draft) {
   activate.disabled = view.mode === "AUTONOMOUS";
   activate.textContent = view.mode === "AUTONOMOUS" ? "AUTONOMOUS LOCKED"
     : REVIEW_HOST ? "START REVIEW AGENT" : "ACTIVATE STRATEGY";
+  set("[data-review-limit-note]",
+    `Draft ready: ${view.daily} per day, ${view.total} for this strategy. Current rules stay active until confirmation.`);
   const dialog = one("[data-confirmation-dialog]");
   if (typeof dialog.showModal === "function") dialog.showModal(); else dialog.setAttribute("open", "");
 }
@@ -786,6 +798,25 @@ function setup() {
   chatInput.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
     event.preventDefault();
+    chatForm.requestSubmit();
+  });
+  one("[data-review-agent-limit-form]").addEventListener("submit", (event) => {
+    event.preventDefault();
+    const daily = Number(one("[data-review-daily-limit]").value);
+    const total = Number(one("[data-review-total-limit]").value);
+    const note = one("[data-review-limit-note]");
+    if (!Number.isInteger(daily) || daily < 1 || daily > 100
+      || !Number.isInteger(total) || total < 1 || total > 10_000) {
+      note.textContent = "Use 1–100 per day and 1–10,000 for the strategy.";
+      return;
+    }
+    if (!state.selected || !state.wallet?.account) {
+      note.textContent = "Connect the current owner and select a Punk first.";
+      return;
+    }
+    note.textContent = "Drafting this change through the Punk conversation…";
+    chatInput.value = `Set my maximum to ${daily} mints per day and ${total} mints total for this strategy. Keep every existing collecting rule.`;
+    activateTab("talk");
     chatForm.requestSubmit();
   });
   all('input[name="mode"]').forEach((input) => input.addEventListener("change", () => {
@@ -910,7 +941,7 @@ function setup() {
     const intent = draft.intent;
     const tastes = intent ? intent.preferences.prefer.map((value) => value.replaceAll("_", " ")) : draft.tastes;
     addMessage("punk", reply
-      ?? `GOT IT. ${(intent?.mintMode === "FREE_ONLY" || draft.free) ? "FREE ONLY. " : ""}${tastes.join(" + ")}. ${intent?.dailyMintLimit ?? draft.daily} MAX TODAY. REVIEW THE RULES BEFORE THEY CHANGE.`);
+      ?? `GOT IT. ${(intent?.mintMode === "FREE_ONLY" || draft.free) ? "FREE ONLY. " : ""}${tastes.join(" + ")}. ${intent?.dailyMintLimit ?? draft.daily} MAX TODAY. ${intent?.totalMintLimit ?? draft.total ?? 1} MAX FOR THIS STRATEGY. REVIEW THE RULES BEFORE THEY CHANGE.`);
     showConfirmation(draft);
   });
   one("[data-link-form]").addEventListener("submit", async (event) => {

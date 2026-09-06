@@ -112,6 +112,12 @@
             <section class="review-agent-console" data-review-agent-console hidden aria-labelledby="review-agent-title">
               <header><div><span class="kicker">REVIEW AGENT</span><h3 id="review-agent-title">PUNK PIPELINE</h3></div><strong data-review-agent-status>IDLE</strong></header>
               <dl><div><dt>STRATEGY</dt><dd data-review-agent-strategy>NOT STARTED</dd></div><div><dt>ROUTE</dt><dd data-review-agent-route>NOT DISPATCHED</dd></div><div><dt>DISCOVERY</dt><dd data-review-agent-discovery>WAITING</dd></div><div><dt>CONTRACT</dt><dd data-review-agent-contract>NOT IDENTIFIED</dd></div><div><dt>SCREEN</dt><dd data-review-agent-screen>NOT RUN</dd></div><div><dt>SIMULATION</dt><dd data-review-agent-simulation>NOT RUN</dd></div><div><dt>DECISION</dt><dd data-review-agent-decision>NO OPPORTUNITY</dd></div></dl>
+              <form class="review-agent-limit" data-review-agent-limit-form>
+                <div><label for="review-daily-limit">MAX / DAY</label><input id="review-daily-limit" data-review-daily-limit name="dailyLimit" type="number" inputmode="numeric" min="1" max="100" step="1" value="1" /></div>
+                <div><label for="review-total-limit">MAX / STRATEGY</label><input id="review-total-limit" data-review-total-limit name="totalLimit" type="number" inputmode="numeric" min="1" max="10000" step="1" value="1" /></div>
+                <button type="submit">UPDATE VIA CHAT</button>
+                <p data-review-limit-note>Creates a strategy draft. Current rules stay active until you confirm it.</p>
+              </form>
               <div class="review-agent-actions"><button type="button" data-review-agent-run disabled>SEND PUNK OUT</button><span data-review-agent-run-note>Confirm an ASK or ASSIST strategy first.</span></div>
               <p>Preview-session intelligence only. SEND PUNK OUT checks the shared V2 opportunity queue once. It has no production authority and cannot submit a mint.</p>
             </section>
@@ -127,7 +133,7 @@
             <header class="panel-header"><div><span class="kicker">MOVE SET</span><h2 id="strategy-title">COLLECTING STRATEGY</h2></div><span class="mode-stamp" data-strategy-mode>ASK MODE</span></header>
             <div class="strategy-grid">
               <article class="ability-card"><span>TASTE PROFILE</span><h3 data-strategy-name>NOT CONFIGURED</h3><div class="taste-tags" data-strategy-tastes><span>Talk to your Punk to define explicit preferences.</span></div></article>
-              <article class="ability-card limit-card"><span>LIMITS</span><dl><div><dt>MINT PRICE</dt><dd data-strategy-price>FREE ONLY</dd></div><div><dt>MAX GAS</dt><dd data-strategy-gas>0.0005 ETH</dd></div><div><dt>DAILY LIMIT</dt><dd data-strategy-daily>3</dd></div><div><dt>RESERVE</dt><dd data-strategy-reserve>0.010 ETH</dd></div></dl></article>
+              <article class="ability-card limit-card"><span>LIMITS</span><dl><div><dt>MINT PRICE</dt><dd data-strategy-price>FREE ONLY</dd></div><div><dt>MAX GAS</dt><dd data-strategy-gas>0.0005 ETH</dd></div><div><dt>DAILY LIMIT</dt><dd data-strategy-daily>1</dd></div><div><dt>TOTAL LIMIT</dt><dd data-strategy-total>1</dd></div><div><dt>RESERVE</dt><dd data-strategy-reserve>0.010 ETH</dd></div></dl></article>
               <article class="ability-card safety-card"><span>SAFETY</span><ul><li><i>✓</i>CONTRACT SCREEN</li><li><i>✓</i>SIMULATION REQUIRED</li><li data-strategy-website><i>—</i>WEBSITE OPTIONAL</li><li data-strategy-social><i>—</i>SOCIAL OPTIONAL</li></ul><small>Screening reduces known risks. It is not a guarantee.</small></article>
             </div>
             <div class="review-strategy-state" data-review-strategy-state hidden><strong data-review-strategy-label>NO REVIEW AGENT</strong><p data-review-strategy-detail>Confirm a strategy draft to start this Punk in the current review tab.</p></div>
