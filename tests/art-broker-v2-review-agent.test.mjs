@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  activateReviewAgent, pauseReviewAgent, reviewAgentKey, reviewInspectionPipeline,
+  activateReviewAgent, normalizeReviewAgentRun, pauseReviewAgent, reviewAgentKey,
+  reviewInspectionPipeline,
 } from "../site/broker-v2-review-agent.js";
 
 const OWNER = "0x1111111111111111111111111111111111111111";
@@ -51,4 +52,19 @@ test("review inspection stages never invent screening, simulation, or execution"
     discovery: "LINK NORMALIZED", contract: "NOT IDENTIFIED", screening: "NOT RUN",
     simulation: "NOT RUN", decision: "NEEDS REVIEW",
   });
+});
+
+test("review-run responses are reduced to bounded display-only evidence", () => {
+  const run = normalizeReviewAgentRun({ ok: true, reviewOnly: true, authority: "NONE",
+    tokenId: "93", checkedCount: 1, eligibleCount: 1, screeningPassedCount: 1,
+    simulationPassedCount: 1, transactionPrepared: false, executionAttemptCreated: false,
+    opportunities: [{ opportunity: { collectionContract: PUNK_WALLET,
+      collectionName: "Neon Alley", screeningStatus: "PASSED", simulationStatus: "PASSED" },
+    match: { recommendationEligible: true, matchScore: 94 } }],
+  }, "93");
+  assert.equal(run.opportunities[0].collectionName, "Neon Alley");
+  assert.equal(Object.hasOwn(run.opportunities[0], "transaction"), false);
+  assert.throws(() => normalizeReviewAgentRun({ ...run, ok: true, reviewOnly: true,
+    authority: "EXECUTE", tokenId: "93", transactionPrepared: false,
+    executionAttemptCreated: false }, "93"), /invalid/);
 });

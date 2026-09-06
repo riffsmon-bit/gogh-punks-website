@@ -1,19 +1,26 @@
+import { getDatabase } from "@netlify/database";
 import { draftStrategyFromConversation } from "../../broker/src/v4/intent-draft.mjs";
+import { defaultAskIntent, normalizePunkCollectingIntent } from
+  "../../broker/src/v4/collecting-intent.mjs";
+import { answerPunkConversation, isPunkConversationMessage } from
+  "../../broker/src/v4/ai/punk-chat.mjs";
 import { PublicError, json, readJson } from "./_shared/http.mjs";
+import { createDatabaseBackedGoghIntelligence } from "./_shared/v2-ai-runtime.mjs";
 import { v2Failure } from "./_shared/v2-http.mjs";
 import { readV2PunkAuthority } from "./_shared/v2-ownership.mjs";
 import { requireV2DeployPreview } from "./_shared/v2-review.mjs";
+import { requireV2Session } from "./_shared/v2-session.mjs";
 
 const TOKEN = /^(?:0|[1-9]\d{0,3})$/;
 const OWNER = /^0x[0-9a-f]{40}$/;
 
 function exactBody(value) {
-  const fields = value && typeof value === "object" && !Array.isArray(value)
-    && Object.hasOwn(value, "currentIntent")
-    ? ["currentIntent", "message", "owner", "tokenId"] : ["message", "owner", "tokenId"];
+  const fields = ["inspection", "currentIntent", "message", "owner", "tokenId"];
+  const keys = value && typeof value === "object" && !Array.isArray(value)
+    ? Object.keys(value) : [];
   if (!value || typeof value !== "object" || Array.isArray(value)
-    || Object.keys(value).length !== fields.length
-    || !fields.every((field) => Object.hasOwn(value, field))) {
+    || !["message", "owner", "tokenId"].every((field) => Object.hasOwn(value, field))
+    || keys.some((field) => !fields.includes(field))) {
     throw new PublicError(400, "INVALID_REQUEST", "The review chat request is invalid.");
   }
   const owner = typeof value.owner === "string" ? value.owner.toLowerCase() : "";
@@ -29,7 +36,14 @@ function exactBody(value) {
     || Array.isArray(currentIntent))) {
     throw new PublicError(400, "INVALID_REQUEST", "The current review strategy is invalid.");
   }
-  return Object.freeze({ owner, tokenId, message, currentIntent });
+  const inspection = Object.hasOwn(value, "inspection") ? value.inspection : null;
+  if (inspection !== null && (!inspection || typeof inspection !== "object"
+    || Array.isArray(inspection) || Object.keys(inspection).length !== 2
+    || !/^[A-Z][A-Z0-9_]{2,63}$/.test(String(inspection.kind ?? ""))
+    || !["BLOCKED", "NEEDS_REVIEW"].includes(String(inspection.status ?? "")))) {
+    throw new PublicError(400, "INVALID_REQUEST", "The link-review context is invalid.");
+  }
+  return Object.freeze({ owner, tokenId, message, currentIntent, inspection });
 }
 
 function punkReply(confirmation) {
@@ -38,13 +52,57 @@ function punkReply(confirmation) {
   return `GOT IT. ${confirmation.mintPrice.toUpperCase()}. ${taste}. ${confirmation.dailyLimit} MAX PER DAY. REVIEW THE RULES BEFORE THEY CHANGE.`;
 }
 
+async function conversationalReply(request, body, intent, authority, answerConversation, now) {
+  let intelligence = answerConversation;
+  if (!intelligence) {
+    let router = null;
+    if (process.env.GOGH_V2_REVIEW_AI_ENABLED === "true") {
+      const pool = getDatabase().pool;
+      const session = await requireV2Session(request, pool);
+      if (session.walletAddress !== body.owner) {
+        throw new PublicError(403, "SESSION_OWNER_MISMATCH", "Sign in with the current Punk owner.");
+      }
+      router = createDatabaseBackedGoghIntelligence(pool).router;
+    }
+    intelligence = (input) => answerPunkConversation({ ...input, router });
+  }
+  const conversation = await intelligence({ message: body.message,
+    intent, inspection: body.inspection, punkTokenId: body.tokenId,
+    punkState: authority.nativeBalanceWei === undefined ? null : {
+      wallet: authority.punkWallet, nativeBalanceWei: authority.nativeBalanceWei,
+      activated: authority.activated === true,
+    },
+    strategyStatus: body.currentIntent ? "ACTIVE" : "DEFAULT",
+    context: { ownerFingerprint: body.owner, punkTokenId: body.tokenId }, now });
+  return json({ ok: true, reviewMode: true, persistence: "NONE", tokenId: body.tokenId,
+    responseKind: "CONVERSATION", reply: conversation.reply, draft: null,
+    provider: { provider: conversation.provider, registryKey: conversation.registryKey },
+    providerAvailable: conversation.providerAvailable, economicPermissionsActivated: false,
+    transactionPrepared: false });
+}
+
 export async function handleV2ReviewChat(request, {
-  readAuthority = readV2PunkAuthority, now = new Date() } = {}) {
+  readAuthority = readV2PunkAuthority, now = new Date(), answerConversation = null } = {}) {
   if (request.method !== "POST") return json({ ok: false, code: "METHOD_NOT_ALLOWED" }, 405);
   try {
     requireV2DeployPreview(request);
     const body = exactBody(await readJson(request, 20_000));
     const authority = await readAuthority(body.tokenId, { expectedOwner: body.owner });
+    if (isPunkConversationMessage(body.message)) {
+      let current;
+      try {
+        current = body.currentIntent ? normalizePunkCollectingIntent(body.currentIntent, now)
+          : defaultAskIntent({ punkTokenId: body.tokenId, expectedOwner: body.owner,
+            punkWallet: authority.punkWallet }, now);
+      } catch {
+        throw new PublicError(400, "INVALID_REQUEST", "The current review strategy is invalid.");
+      }
+      if (current.punkTokenId !== body.tokenId || current.expectedOwner !== body.owner
+        || current.punkWallet !== authority.punkWallet) {
+        throw new PublicError(400, "INVALID_REQUEST", "The current review strategy is invalid.");
+      }
+      return conversationalReply(request, body, current, authority, answerConversation, now);
+    }
     let interpreted;
     try {
       interpreted = draftStrategyFromConversation({ message: body.message,
@@ -54,8 +112,11 @@ export async function handleV2ReviewChat(request, {
       if (!(error instanceof TypeError)) throw error;
       throw new PublicError(400, "INVALID_REQUEST", "The review strategy could not be safely interpreted.");
     }
+    if (interpreted.changes.length === 0 && interpreted.ambiguous.length === 0) {
+      return conversationalReply(request, body, interpreted.intent, authority, answerConversation, now);
+    }
     return json({ ok: true, reviewMode: true, persistence: "NONE", tokenId: body.tokenId,
-      reply: punkReply(interpreted.confirmation), draft: {
+      responseKind: "STRATEGY_DRAFT", reply: punkReply(interpreted.confirmation), draft: {
         version: null, state: interpreted.status, intent: interpreted.intent,
         intentHash: interpreted.confirmation.intentHash,
         confirmation: interpreted.confirmation,

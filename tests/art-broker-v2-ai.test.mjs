@@ -8,12 +8,18 @@ import { ArtBrokerProviderError } from "../broker/src/v4/ai/provider.mjs";
 import { ArtBrokerModelRegistry, modelRegistryFromEnvironment } from
   "../broker/src/v4/ai/registry.mjs";
 import { GoghIntelligenceRouter } from "../broker/src/v4/ai/router.mjs";
+import { answerPunkConversation, buildPunkChatPrompt, isPunkConversationMessage } from
+  "../broker/src/v4/ai/punk-chat.mjs";
+import { defaultAskIntent } from "../broker/src/v4/collecting-intent.mjs";
 import { XAIArtBrokerProvider } from "../broker/src/v4/ai/xai.mjs";
 import { estimateV2ProviderCostMicrousd } from
   "../netlify/functions/_shared/v2-ai-runtime.mjs";
 
 const SCHEMA = Object.freeze({ type: "object", properties: { answer: { type: "string" } },
   required: ["answer"], additionalProperties: false });
+const OWNER = "0x1111111111111111111111111111111111111111";
+const PUNK_WALLET = "0x2222222222222222222222222222222222222222";
+const NOW = new Date("2026-09-06T18:00:00.000Z");
 
 function response(payload, status = 200) {
   return { ok: status >= 200 && status < 300, status,
@@ -134,4 +140,40 @@ test("provider failures never return a guessed strategy", async () => {
     fetchImpl: async () => response({ error: { message: "busy" } }, 503) });
   await assert.rejects(provider.interpretIntent({ prompt: "go autonomous", schema: SCHEMA }),
     (error) => error.code === "PROVIDER_REQUEST_FAILED" && error.retryable === true);
+});
+
+test("Punk conversation is grounded in strategy data and cannot grant wallet authority", async () => {
+  const intent = defaultAskIntent({ punkTokenId: "93", expectedOwner: OWNER,
+    punkWallet: PUNK_WALLET }, NOW);
+  const grounded = buildPunkChatPrompt({ message: "What are we hunting?", intent,
+    inspection: { kind: "OPENSEA_COLLECTION", status: "NEEDS_REVIEW" },
+    punkTokenId: "93", now: NOW });
+  assert.match(grounded.instructions, /Never produce transaction calldata/);
+  assert.match(grounded.prompt, /OPENSEA_COLLECTION/);
+  let invocation;
+  const response = await answerPunkConversation({ router: { run: async (...args) => {
+    invocation = args;
+    return { text: "We’re hunting carefully.", provider: "OPENAI", registryKey: "openai:auto" };
+  } }, message: "What are we hunting?", intent, punkTokenId: "93", now: NOW });
+  assert.equal(invocation[0], "CHAT");
+  assert.equal(response.reply, "We’re hunting carefully.");
+  assert.equal(response.providerAvailable, true);
+  assert.equal(Object.hasOwn(response, "transaction"), false);
+});
+
+test("Punk conversation gives an honest useful fallback when no model is configured", async () => {
+  const intent = defaultAskIntent({ punkTokenId: "93", expectedOwner: OWNER,
+    punkWallet: PUNK_WALLET }, NOW);
+  const response = await answerPunkConversation({ router: null,
+    message: "Where do I send my agent out?", intent, punkTokenId: "93", now: NOW });
+  assert.equal(response.provider, "DETERMINISTIC_FALLBACK");
+  assert.match(response.reply, /SEND PUNK OUT/);
+  assert.match(response.reply, /cannot mint or sign/);
+  assert.equal(isPunkConversationMessage("What do you think about pixel art?"), true);
+  assert.equal(isPunkConversationMessage("Find free pixel art for me."), false);
+  const balance = await answerPunkConversation({ router: null,
+    message: "What is your wallet balance?", intent, punkTokenId: "93", now: NOW,
+    punkState: { wallet: PUNK_WALLET, nativeBalanceWei: "200000000000000", activated: true } });
+  assert.match(balance.reply, /0\.0002 ETH/);
+  assert.match(balance.reply, new RegExp(PUNK_WALLET));
 });

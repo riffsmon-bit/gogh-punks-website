@@ -192,6 +192,10 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .review-agent-console dt { color: var(--muted); font-size: .55rem; font-weight: 900; letter-spacing: .1em; }
 .review-agent-console dd { margin: 6px 0 0; color: var(--text); font-size: .72rem; font-weight: 900; }
 .review-agent-console > p { margin: 14px 0 0; color: var(--muted); font-size: .72rem; line-height: 1.5; }
+.review-agent-actions { display: flex; align-items: center; gap: 14px; margin-top: 14px; }
+.review-agent-actions button { border: 0; padding: 13px 18px; background: var(--acid); color: var(--ink); font-weight: 950; cursor: pointer; }
+.review-agent-actions button:disabled { cursor: not-allowed; }
+.review-agent-actions span { color: var(--muted); font-size: .7rem; }
 
 .strategy-grid { display: grid; grid-template-columns: 1.15fr .85fr .85fr; gap: 14px; }
 .ability-card { padding: 24px; border: 1px solid var(--line); background: var(--ink); }
@@ -390,6 +394,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   .chat-composer > div { justify-content: space-between; }
   .strategy-grid, .fund-layout, .settings-grid, .collection-assets { grid-template-columns: 1fr; }
   .review-agent-console dl { grid-template-columns: repeat(2, 1fr); }
+  .review-agent-actions { align-items: stretch; flex-direction: column; }
   .safety-card, .fund-form { grid-column: auto; }
   .balance-readout { padding: 24px; }
   .wrapped-funding { padding: 18px; }

@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { handleV2ReviewChat } from "../netlify/functions/broker-v2-review-chat.mjs";
 import { handleV2ReviewInspectUrl } from "../netlify/functions/broker-v2-review-inspect-url.mjs";
+import { handleV2ReviewRun } from "../netlify/functions/broker-v2-review-run.mjs";
 import { isV2DeployPreview } from "../netlify/functions/_shared/v2-review.mjs";
 
 const ORIGIN = "https://deploy-preview-42.preview.goghpunks.xyz";
@@ -93,6 +94,53 @@ test("review chat rejects a client-carried strategy bound to another owner", asy
   assert.equal(payload.code, "INVALID_REQUEST");
 });
 
+test("ordinary questions receive a grounded Punk reply instead of a fake strategy change", async () => {
+  const response = await handleV2ReviewChat(request("/api/v2/review/chat", {
+    owner: OWNER, tokenId: "93", message: "What do you think about pixel art?",
+    inspection: { kind: "OPENSEA_COLLECTION", status: "NEEDS_REVIEW" },
+  }), { now: new Date("2026-09-06T14:00:00.000Z"),
+    readAuthority: async () => ({ punkWallet: PUNK_WALLET }),
+    answerConversation: async ({ inspection }) => ({
+      reply: `I can explain this ${inspection.kind}.`, provider: "OPENAI",
+      registryKey: "openai:auto", providerAvailable: true,
+    }) });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.responseKind, "CONVERSATION");
+  assert.equal(payload.draft, null);
+  assert.equal(payload.provider.provider, "OPENAI");
+  assert.equal(payload.transactionPrepared, false);
+});
+
+test("SEND PUNK OUT performs one read-only shared-discovery run", async () => {
+  const first = await handleV2ReviewChat(request("/api/v2/review/chat", {
+    owner: OWNER, tokenId: "93", message: "Find free pixel art.",
+  }), { now: new Date("2026-09-06T14:00:00.000Z"),
+    readAuthority: async () => ({ punkWallet: PUNK_WALLET }) });
+  const firstPayload = await first.json();
+  const queries = [];
+  const response = await handleV2ReviewRun(request("/api/v2/review/run", {
+    owner: OWNER, tokenId: "93", intent: firstPayload.draft.intent,
+  }), { now: new Date("2026-09-06T14:01:00.000Z"),
+    readAuthority: async () => ({ owner: OWNER, punkWallet: PUNK_WALLET,
+      nativeBalanceWei: "100000000000000000" }),
+    pool: { query: async (sql) => {
+      queries.push(sql);
+      if (sql.includes("GROUP BY opportunity_id")) return { rows: [] };
+      if (sql.includes("broker_v2_opportunities")) return { rows: [] };
+      return { rows: [{ daily: 0, total: 0 }] };
+    } } });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.reviewOnly, true);
+  assert.equal(payload.authority, "NONE");
+  assert.equal(payload.checkedCount, 0);
+  assert.equal(payload.eligibleCount, 0);
+  assert.equal(payload.transactionPrepared, false);
+  assert.equal(payload.executionAttemptCreated, false);
+  assert.equal(queries.length, 3);
+});
+
 test("review link inspection accepts information but no transaction authority", async () => {
   const response = await handleV2ReviewInspectUrl(request("/api/v2/review/inspect-url", {
     owner: OWNER, tokenId: "93", url: "https://opensea.io/collection/pepemfersnft/overview",
@@ -117,6 +165,7 @@ test("review functions are absent from production and contain no transaction sen
   const sources = await Promise.all([
     readFile(new URL("../netlify/functions/broker-v2-review-chat.mjs", import.meta.url), "utf8"),
     readFile(new URL("../netlify/functions/broker-v2-review-inspect-url.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../netlify/functions/broker-v2-review-run.mjs", import.meta.url), "utf8"),
   ]);
   for (const source of sources) {
     assert.doesNotMatch(source, /eth_sendTransaction|eth_sendRawTransaction|private[_ ]?key/i);

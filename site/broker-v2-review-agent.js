@@ -2,6 +2,8 @@ const ADDRESS = /^0x[0-9a-f]{40}$/;
 const TOKEN_ID = /^(?:0|[1-9][0-9]{0,3})$/;
 const INTENT_HASH = /^0x[0-9a-f]{64}$/;
 const MODES = new Set(["ASK", "ASSIST"]);
+const SCREENING = new Set(["PENDING", "PASSED", "BLOCKED", "NEEDS_REVIEW"]);
+const SIMULATION = new Set(["PENDING", "PASSED", "FAILED", "UNAVAILABLE"]);
 
 function address(value, label) {
   const normalized = String(value ?? "").toLowerCase();
@@ -82,4 +84,37 @@ export function reviewInspectionPipeline(inspection) {
   return Object.freeze({ discovery: "LINK NORMALIZED",
     contract: contractReference ? "REFERENCE IDENTIFIED" : "NOT IDENTIFIED",
     screening: "NOT RUN", simulation: "NOT RUN", decision });
+}
+
+export function normalizeReviewAgentRun(value, expectedTokenId) {
+  const expected = tokenId(expectedTokenId);
+  const uint = (input, maximum = 100) => Number.isInteger(input) && input >= 0 && input <= maximum
+    ? input : (() => { throw new TypeError("Review run count is invalid"); })();
+  if (!value || typeof value !== "object" || Array.isArray(value)
+    || value.ok !== true || value.reviewOnly !== true || value.authority !== "NONE"
+    || tokenId(value.tokenId) !== expected || value.transactionPrepared !== false
+    || value.executionAttemptCreated !== false || !Array.isArray(value.opportunities)
+    || value.opportunities.length > 20) throw new TypeError("Review run is invalid");
+  const checkedCount = uint(value.checkedCount);
+  const eligibleCount = uint(value.eligibleCount);
+  const screeningPassedCount = uint(value.screeningPassedCount);
+  const simulationPassedCount = uint(value.simulationPassedCount);
+  if (eligibleCount > checkedCount || screeningPassedCount > checkedCount
+    || simulationPassedCount > checkedCount) throw new TypeError("Review run totals are invalid");
+  const opportunities = value.opportunities.map((entry) => {
+    const opportunity = entry?.opportunity; const match = entry?.match;
+    const collectionContract = address(opportunity?.collectionContract, "collection contract");
+    const collectionName = String(opportunity?.collectionName ?? "").trim();
+    const matchScore = Number(match?.matchScore);
+    if (!collectionName || collectionName.length > 160 || !SCREENING.has(opportunity?.screeningStatus)
+      || !SIMULATION.has(opportunity?.simulationStatus)
+      || typeof match?.recommendationEligible !== "boolean" || !Number.isInteger(matchScore)
+      || matchScore < 0 || matchScore > 100) throw new TypeError("Review opportunity is invalid");
+    return Object.freeze({ collectionContract, collectionName,
+      screeningStatus: opportunity.screeningStatus,
+      simulationStatus: opportunity.simulationStatus,
+      recommendationEligible: match.recommendationEligible, matchScore });
+  });
+  return Object.freeze({ checkedCount, eligibleCount, screeningPassedCount,
+    simulationPassedCount, opportunities: Object.freeze(opportunities) });
 }

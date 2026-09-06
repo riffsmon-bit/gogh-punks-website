@@ -111,8 +111,9 @@
             </form>
             <section class="review-agent-console" data-review-agent-console hidden aria-labelledby="review-agent-title">
               <header><div><span class="kicker">REVIEW AGENT</span><h3 id="review-agent-title">PUNK PIPELINE</h3></div><strong data-review-agent-status>IDLE</strong></header>
-              <dl><div><dt>STRATEGY</dt><dd data-review-agent-strategy>NOT STARTED</dd></div><div><dt>DISCOVERY</dt><dd data-review-agent-discovery>WAITING</dd></div><div><dt>CONTRACT</dt><dd data-review-agent-contract>NOT IDENTIFIED</dd></div><div><dt>SCREEN</dt><dd data-review-agent-screen>NOT RUN</dd></div><div><dt>SIMULATION</dt><dd data-review-agent-simulation>NOT RUN</dd></div><div><dt>DECISION</dt><dd data-review-agent-decision>NO OPPORTUNITY</dd></div></dl>
-              <p>Preview-session intelligence only. This panel can remember confirmed rules and evaluate evidence, but it has no production authority and cannot submit a mint.</p>
+              <dl><div><dt>STRATEGY</dt><dd data-review-agent-strategy>NOT STARTED</dd></div><div><dt>ROUTE</dt><dd data-review-agent-route>NOT DISPATCHED</dd></div><div><dt>DISCOVERY</dt><dd data-review-agent-discovery>WAITING</dd></div><div><dt>CONTRACT</dt><dd data-review-agent-contract>NOT IDENTIFIED</dd></div><div><dt>SCREEN</dt><dd data-review-agent-screen>NOT RUN</dd></div><div><dt>SIMULATION</dt><dd data-review-agent-simulation>NOT RUN</dd></div><div><dt>DECISION</dt><dd data-review-agent-decision>NO OPPORTUNITY</dd></div></dl>
+              <div class="review-agent-actions"><button type="button" data-review-agent-run disabled>SEND PUNK OUT</button><span data-review-agent-run-note>Confirm an ASK or ASSIST strategy first.</span></div>
+              <p>Preview-session intelligence only. SEND PUNK OUT checks the shared V2 opportunity queue once. It has no production authority and cannot submit a mint.</p>
             </section>
             <form class="chat-composer" data-chat-form>
               <label class="sr-only" for="punk-prompt">Tell your Punk what art you want</label>

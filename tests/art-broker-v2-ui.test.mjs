@@ -118,6 +118,9 @@ test("the hosted PR review runs bounded tab agents while owner transactions stay
   assert.match(script, /api\/v2\/review\/chat/);
   assert.match(script, /api\/v2\/review\/inspect-url/);
   assert.match(html, /data-review-agent-console/);
+  assert.match(html, /SEND PUNK OUT/);
+  assert.match(script, /api\/v2\/review\/run/);
+  assert.match(script, /SHARED V2 QUEUE/);
   assert.match(html, /Preview-session intelligence only/);
   assert.match(script, /startReviewAgent/);
   assert.match(script, /selectedReviewAgent\(\)\?\.intent/);
@@ -129,14 +132,15 @@ test("the hosted PR review runs bounded tab agents while owner transactions stay
   assert.match(script, /GOGH INTELLIGENCE · REVIEW PARSER/);
 });
 
-test("link checks show progress and support safe contextual follow-up questions", async () => {
+test("link checks show progress and ground conversational follow-up questions", async () => {
   const script = await readFile(new URL("../site/broker-v2.js", import.meta.url), "utf8");
   assert.match(script, /CHECKING… No wallet request will be accepted/);
   assert.match(script, /form\.setAttribute\("aria-busy", "true"\)/);
   assert.match(script, /button\.disabled = true/);
   assert.match(script, /state\.lastInspection = inspection/);
   assert.match(script, /state\.localStrategy = null; state\.lastInspection = null/);
-  assert.match(script, /I CAN'T CALL IT GOOD OR SAFE YET/);
+  assert.match(script, /const inspection = state\.lastInspection/);
+  assert.match(script, /GOGH INTELLIGENCE · SAFE FALLBACK/);
   assert.match(script, /The review service timed out\. Try again/);
   assert.match(script, /No transaction was prepared/);
 });

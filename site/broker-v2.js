@@ -11,7 +11,8 @@ import {
   waitForNftWithdrawalReceipt,
 } from "./nft-withdrawal.js";
 import {
-  activateReviewAgent, pauseReviewAgent, reviewAgentKey, reviewInspectionPipeline,
+  activateReviewAgent, normalizeReviewAgentRun, pauseReviewAgent, reviewAgentKey,
+  reviewInspectionPipeline,
 } from "./broker-v2-review-agent.js";
 
 const PREVIEW = new URLSearchParams(location.search).get("preview") === "1";
@@ -45,7 +46,8 @@ const state = { wallet: null, punks: [], selected: null, localStrategy: null,
   balanceRequestId: 0, galleryTokenId: null, galleryLoadingTokenId: null,
   fundingPlan: null, wrappedPlan: null, withdrawalAsset: null,
   withdrawalAmount: "1", withdrawalPlan: null, withdrawalBusy: false,
-  reviewAgents: new Map(), reviewInspections: new Map(), reviewActivities: new Map() };
+  reviewAgents: new Map(), reviewInspections: new Map(), reviewActivities: new Map(),
+  reviewRuns: new Map() };
 const one = (selector) => document.querySelector(selector);
 const all = (selector) => [...document.querySelectorAll(selector)];
 const set = (selector, value) => { const target = one(selector); if (target) target.textContent = String(value); };
@@ -86,6 +88,11 @@ function selectedReviewAgent() {
   return key ? state.reviewAgents.get(key) ?? null : null;
 }
 
+function selectedReviewRun() {
+  const key = selectedReviewKey();
+  return key ? state.reviewRuns.get(key) ?? null : null;
+}
+
 function reviewModeForPunk(punk) {
   if (!punk || !state.wallet?.account) return punk?.mode ?? "ASK";
   try {
@@ -111,15 +118,32 @@ function renderReviewAgent() {
   if (strategyState) strategyState.hidden = !reviewSurface;
   if (!reviewSurface) return;
   const agent = selectedReviewAgent();
+  const run = selectedReviewRun();
   const pipeline = reviewInspectionPipeline(state.lastInspection);
   set("[data-review-agent-status]", agent?.status ?? "IDLE");
   set("[data-review-agent-strategy]", agent
     ? `${agent.mode} · ${agent.status}` : "NOT STARTED");
-  set("[data-review-agent-discovery]", pipeline.discovery);
-  set("[data-review-agent-contract]", pipeline.contract);
-  set("[data-review-agent-screen]", pipeline.screening);
-  set("[data-review-agent-simulation]", pipeline.simulation);
-  set("[data-review-agent-decision]", pipeline.decision);
+  set("[data-review-agent-route]", run ? "SHARED V2 QUEUE" : "NOT DISPATCHED");
+  set("[data-review-agent-discovery]", run ? `${run.checkedCount} CHECKED` : pipeline.discovery);
+  const leading = run?.opportunities?.find(({ recommendationEligible }) => recommendationEligible)
+    ?? run?.opportunities?.[0] ?? null;
+  set("[data-review-agent-contract]", leading
+    ? short(leading.collectionContract) : pipeline.contract);
+  set("[data-review-agent-screen]", run
+    ? `${run.screeningPassedCount}/${run.checkedCount} PASSED` : pipeline.screening);
+  set("[data-review-agent-simulation]", run
+    ? `${run.simulationPassedCount}/${run.checkedCount} PASSED` : pipeline.simulation);
+  set("[data-review-agent-decision]", run
+    ? run.eligibleCount ? `${run.eligibleCount} MATCHED` : "NO ELIGIBLE MATCH" : pipeline.decision);
+  const runButton = one("[data-review-agent-run]");
+  const runBusy = runButton.dataset.busy === "true";
+  runButton.disabled = runBusy || !agent || agent.status !== "ACTIVE";
+  runButton.textContent = runBusy ? "PUNK IS OUT…" : "SEND PUNK OUT";
+  set("[data-review-agent-run-note]", !agent
+    ? "Confirm an ASK or ASSIST strategy first."
+    : agent.status !== "ACTIVE" ? "This review agent is paused."
+      : run ? `Last run checked ${run.checkedCount}; ${run.eligibleCount} matched.`
+        : "Runs one read-only check against shared V2 opportunities.");
   set("[data-review-strategy-label]", agent
     ? `REVIEW AGENT ${agent.status}` : "NO REVIEW AGENT");
   set("[data-review-strategy-detail]", agent
@@ -175,12 +199,42 @@ function startReviewAgent(draft) {
   const agent = activateReviewAgent(draft, { owner: state.wallet.account,
     punkTokenId: state.selected.tokenId, punkWallet: state.selected.account });
   state.reviewAgents.set(key, agent);
+  state.reviewRuns.delete(key);
   state.selected.mode = agent.mode;
   state.selected.reserveEth = ethFromWei(agent.intent.minimumReserveWei);
   renderSelected();
   addReviewActivity("READY", `${agent.mode} REVIEW AGENT STARTED`,
     "Structured rules active in this tab · production authority none");
   return agent;
+}
+
+async function sendReviewAgentOut() {
+  const agent = selectedReviewAgent(); const key = selectedReviewKey();
+  const button = one("[data-review-agent-run]");
+  if (!agent || agent.status !== "ACTIVE" || !key) return;
+  if (!REVIEW_HOST || PREVIEW) {
+    addMessage("punk", "Shared V2 discovery is connected only on the hosted PR review. Nothing was dispatched.");
+    return;
+  }
+  button.dataset.busy = "true"; button.disabled = true; renderReviewAgent();
+  try {
+    const response = await jsonRequest("/api/v2/review/run", { method: "POST",
+      headers: { "content-type": "application/json" }, body: JSON.stringify({
+        owner: state.wallet.account, tokenId: state.selected.tokenId, intent: agent.intent,
+      }), timeoutMs: 20_000 });
+    const run = normalizeReviewAgentRun(response, state.selected.tokenId);
+    state.reviewRuns.set(key, run);
+    addReviewActivity("SCOUTED", "PUNK RETURNED FROM SHARED DISCOVERY",
+      `${run.checkedCount} checked · ${run.eligibleCount} eligible`);
+    const leading = run.opportunities.find(({ recommendationEligible }) => recommendationEligible);
+    addMessage("punk", leading
+      ? `I'M BACK. ${run.eligibleCount} OF ${run.checkedCount} OPPORTUNITIES MATCHED. Best current match: ${leading.collectionName}, ${leading.matchScore}% match. Nothing was submitted.`
+      : `I'M BACK. I CHECKED ${run.checkedCount} SHARED V2 OPPORTUNITIES AND FOUND NO ELIGIBLE MATCH UNDER YOUR RULES. Nothing was submitted.`);
+  } catch (error) {
+    addMessage("punk", `${error?.message ?? "Shared discovery is unavailable."} Nothing was submitted or authorized.`);
+  } finally {
+    delete button.dataset.busy; renderReviewAgent();
+  }
 }
 
 function renderRoster() {
@@ -618,18 +672,6 @@ async function jsonRequest(path, options = {}) {
   }
 }
 
-function reviewQuestionReply(message) {
-  if (!REVIEW_HOST || PREVIEW || !/^(?:is|was|are|does|do|can|could|should|would|what|why|how|tell|explain)\b/i.test(message)) {
-    return null;
-  }
-  const inspection = state.lastInspection;
-  if (!inspection) {
-    return "I CAN DRAFT COLLECTING RULES IN THIS REVIEW BUILD. General conversation needs provider-backed Gogh Intelligence, which is not active in Preview 42 yet.";
-  }
-  const kind = inspection.link.kind.replaceAll("_", " ");
-  return `I IDENTIFIED IT AS ${kind}. I CAN'T CALL IT GOOD OR SAFE YET. Current verdict: ${inspection.status.replaceAll("_", " ")}. Contract resolution, security screening, and mint simulation still have to pass.`;
-}
-
 async function ensureV2Session() {
   if (PREVIEW) return null;
   if (!state.wallet?.account || state.wallet.chainId !== CHAIN_ID) {
@@ -724,8 +766,9 @@ function setup() {
   one("[data-preview-banner]").hidden = !PREVIEW && !REVIEW_HOST;
   if (REVIEW_HOST && !PREVIEW) {
     set("[data-review-title]", "PR REVIEW BUILD");
-    set("[data-review-detail]", "Live ownership, assets, owner-approved wallet actions, and a tab-scoped ASK/ASSIST agent. No production strategy, AI provider charge, autonomous execution, or deployment.");
+    set("[data-review-detail]", "Live ownership, assets, owner-approved wallet actions, and a tab-scoped ASK/ASSIST agent. Model chat uses AUTO only when a server provider is configured. No production strategy, autonomous execution, or deployment.");
   }
+  one("[data-review-agent-run]").addEventListener("click", sendReviewAgentOut);
   all("[data-v2-tab]").forEach((button) => button.addEventListener("click", () => activateTab(button.dataset.v2Tab)));
   all("[data-suggestion]").forEach((button) => button.addEventListener("click", () => {
     const input = one("#punk-prompt"); input.value = button.dataset.suggestion; input.focus();
@@ -735,6 +778,11 @@ function setup() {
   }));
   const chatForm = one("[data-chat-form]");
   const chatInput = one("#punk-prompt");
+  const chatButton = chatForm.querySelector("button[type=submit]");
+  const setChatBusy = (busy) => {
+    chatForm.toggleAttribute("aria-busy", busy); chatButton.disabled = busy;
+    chatButton.textContent = busy ? "THINKING…" : "SEND ↗";
+  };
   chatInput.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
     event.preventDefault();
@@ -753,11 +801,12 @@ function setup() {
     for (const option of providerSetting.options) {
       option.disabled = option.textContent !== "AUTO";
     }
-    providerSetting.options[0].textContent = "AUTO · REVIEW PARSER";
+    providerSetting.options[0].textContent = "AUTO · REVIEW CHAT";
   }
   chatForm.addEventListener("submit", async (event) => {
     event.preventDefault(); const input = one("#punk-prompt"); const message = input.value.trim();
-    if (!message) return; addMessage("owner", message); input.value = "";
+    if (!message || chatForm.hasAttribute("aria-busy")) return;
+    addMessage("owner", message); input.value = "";
     if (/pause/i.test(message)) {
       if (PREVIEW || REVIEW_HOST) {
         const key = selectedReviewKey(); const agent = selectedReviewAgent();
@@ -782,7 +831,13 @@ function setup() {
       return;
     }
     if (/\bshow\b.*\b(?:found|discover(?:y|ies|ed)?)\b/i.test(message)) {
-      if (!state.lastInspection) {
+      const run = selectedReviewRun();
+      if (run) {
+        const leading = run.opportunities.find(({ recommendationEligible }) => recommendationEligible);
+        addMessage("punk", leading
+          ? `${run.eligibleCount} OF ${run.checkedCount} SHARED OPPORTUNITIES MATCHED. Best current match: ${leading.collectionName}, ${leading.matchScore}%.`
+          : `I CHECKED ${run.checkedCount} SHARED OPPORTUNITIES. None passed every active rule.`);
+      } else if (!state.lastInspection) {
         addMessage("punk", "NOTHING IN THE REVIEW QUEUE YET. Paste a mint or project link and I’ll normalize it without accepting its transaction data.");
       } else {
         const pipeline = reviewInspectionPipeline(state.lastInspection);
@@ -791,8 +846,7 @@ function setup() {
       renderReviewAgent();
       return;
     }
-    const contextualReply = reviewQuestionReply(message);
-    if (contextualReply) { addMessage("punk", contextualReply); return; }
+    setChatBusy(true);
     let draft;
     let reply = null;
     if (PREVIEW) {
@@ -804,20 +858,36 @@ function setup() {
         if (!response.ok || payload?.ok !== true) throw new Error(payload?.message ?? "Local strategy draft failed.");
         draft = payload.draft;
       } catch (error) {
+        setChatBusy(false);
         addMessage("punk", `${error?.message ?? "LOCAL INTELLIGENCE UNAVAILABLE"} Existing rules remain unchanged.`);
         return;
       }
     } else if (REVIEW_HOST) {
       try {
         const currentIntent = selectedReviewAgent()?.intent ?? null;
-        const payload = await jsonRequest("/api/v2/review/chat", {
+        const inspection = state.lastInspection ? { kind: state.lastInspection.link.kind,
+          status: state.lastInspection.status } : null;
+        const requestOptions = {
           method: "POST", headers: { "content-type": "application/json" },
           body: JSON.stringify({ owner: state.wallet.account, tokenId: state.selected.tokenId,
-            message, ...(currentIntent ? { currentIntent } : {}) }),
-        });
+            message, ...(currentIntent ? { currentIntent } : {}),
+            ...(inspection ? { inspection } : {}) }),
+        };
+        let payload;
+        try { payload = await jsonRequest("/api/v2/review/chat", requestOptions); }
+        catch (error) {
+          if (!["V2_SESSION_REQUIRED", "V2_SESSION_EXPIRED"].includes(error?.code)) throw error;
+          await ensureV2Session();
+          payload = await jsonRequest("/api/v2/review/chat", requestOptions);
+        }
         draft = payload.draft; reply = payload.reply;
-        set("[data-intelligence-status]", "GOGH INTELLIGENCE · REVIEW PARSER");
+        set("[data-intelligence-status]", payload.responseKind === "CONVERSATION"
+          ? payload.providerAvailable
+            ? `GOGH INTELLIGENCE · ${payload.provider.provider}`
+            : "GOGH INTELLIGENCE · SAFE FALLBACK"
+          : "GOGH INTELLIGENCE · REVIEW PARSER");
       } catch (error) {
+        setChatBusy(false);
         addMessage("punk", `${error?.message ?? "REVIEW PARSER UNAVAILABLE"} Existing rules remain unchanged.`);
         return;
       }
@@ -830,10 +900,13 @@ function setup() {
         });
         draft = payload.draft;
       } catch (error) {
+        setChatBusy(false);
         addMessage("punk", `${error?.message ?? "GOGH INTELLIGENCE TEMPORARILY UNAVAILABLE"} Existing safety rules remain active.`);
         return;
       }
     }
+    setChatBusy(false);
+    if (!draft) { addMessage("punk", reply); return; }
     const intent = draft.intent;
     const tastes = intent ? intent.preferences.prefer.map((value) => value.replaceAll("_", " ")) : draft.tastes;
     addMessage("punk", reply
