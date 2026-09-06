@@ -164,7 +164,7 @@ export async function handleV2ReviewChat(request, {
         || current.punkWallet !== authority.punkWallet) {
         throw new PublicError(400, "INVALID_REQUEST", "The current review strategy is invalid.");
       }
-      return conversationalReply(request, body, current, authority, answerConversation, now);
+      return await conversationalReply(request, body, current, authority, answerConversation, now);
     }
     let interpreted;
     try {
@@ -176,7 +176,8 @@ export async function handleV2ReviewChat(request, {
       throw new PublicError(400, "INVALID_REQUEST", "The review strategy could not be safely interpreted.");
     }
     if (interpreted.changes.length === 0 && interpreted.ambiguous.length === 0) {
-      return conversationalReply(request, body, interpreted.intent, authority, answerConversation, now);
+      return await conversationalReply(request, body, interpreted.intent, authority,
+        answerConversation, now);
     }
     return json({ ok: true, reviewMode: true, persistence: "NONE", tokenId: body.tokenId,
       responseKind: "STRATEGY_DRAFT", reply: punkReply(interpreted.confirmation), draft: {

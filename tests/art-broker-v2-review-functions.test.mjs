@@ -4,6 +4,7 @@ import test from "node:test";
 import { handleV2ReviewChat } from "../netlify/functions/broker-v2-review-chat.mjs";
 import { handleV2ReviewInspectUrl } from "../netlify/functions/broker-v2-review-inspect-url.mjs";
 import { handleV2ReviewRun } from "../netlify/functions/broker-v2-review-run.mjs";
+import { PublicError } from "../netlify/functions/_shared/http.mjs";
 import { isV2DeployPreview } from "../netlify/functions/_shared/v2-review.mjs";
 
 const ORIGIN = "https://deploy-preview-42.preview.goghpunks.xyz";
@@ -115,6 +116,19 @@ test("ordinary questions receive a grounded Punk reply instead of a fake strateg
   assert.equal(payload.provider.provider, "OPENAI");
   assert.match(payload.reply, /1 earlier turn and 1 match/);
   assert.equal(payload.transactionPrepared, false);
+});
+
+test("review chat preserves a session challenge code from an asynchronous reply", async () => {
+  const response = await handleV2ReviewChat(request("/api/v2/review/chat", {
+    owner: OWNER, tokenId: "93", message: "What do you think about pixel art?",
+  }), { now: new Date("2026-09-06T14:00:00.000Z"),
+    readAuthority: async () => ({ punkWallet: PUNK_WALLET }),
+    answerConversation: async () => {
+      throw new PublicError(401, "V2_SESSION_REQUIRED", "Sign in with your wallet.");
+    } });
+  assert.equal(response.status, 401);
+  assert.deepEqual(await response.json(), { ok: false, code: "V2_SESSION_REQUIRED",
+    message: "Sign in with your wallet." });
 });
 
 test("review chat drafts an owner-bound read-only Punk skill", async () => {
