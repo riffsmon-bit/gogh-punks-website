@@ -93,6 +93,20 @@ test("bare chat mint quantity sets one clear mission quantity", () => {
   assert.equal(draft.status, "PENDING_OWNER_CONFIRMATION");
 });
 
+test("natural mission language understands a quantity before free mints", () => {
+  const draft = draftStrategyFromConversation({
+    message: "i life pixel art i have gas let's go out and mint 6 free mints, do not comeback until the mission is complete",
+    punkTokenId: "119", expectedOwner: OWNER, punkWallet: WALLET,
+  }, NOW);
+  assert.equal(draft.intent.mintMode, "FREE_ONLY");
+  assert.deepEqual(draft.intent.preferences.prefer, ["PIXEL_ART"]);
+  assert.equal(draft.intent.dailyMintLimit, 6);
+  assert.equal(draft.intent.totalMintLimit, 6);
+  assert.ok(draft.changes.includes("DAILY_LIMIT"));
+  assert.ok(draft.changes.includes("TOTAL_LIMIT"));
+  assert.equal(draft.status, "PENDING_OWNER_CONFIRMATION");
+});
+
 test("chat understands a standalone max-mint count and asks when the count is missing", () => {
   const bounded = draftStrategyFromConversation({
     message: "Find me free pixel art. Max one mint.",
