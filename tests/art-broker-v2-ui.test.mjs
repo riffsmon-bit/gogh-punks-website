@@ -121,10 +121,11 @@ test("the hosted PR review runs bounded tab agents while owner transactions stay
   assert.match(html, /SEND PUNK OUT/);
   assert.match(html, /ACTIVATE &amp; SEND PUNK OUT/);
   assert.match(html, /RUN SAFE TEST/);
-  assert.match(html, /data-review-agent-limit-form/);
-  assert.match(html, /MAX \/ DAY/);
-  assert.match(html, /MAX \/ STRATEGY/);
-  assert.match(script, /Set my maximum to \$\{daily\} mints per day and \$\{total\} mints total/);
+  assert.match(html, /data-review-agent-rules/);
+  assert.match(html, /CONFIRMED DAILY LIMIT/);
+  assert.match(html, /CONFIRMED MAX MINTS \/ MISSION/);
+  assert.match(html, /Set every mission parameter in chat/);
+  assert.doesNotMatch(html, /UPDATE VIA CHAT|data-review-agent-limit-form/);
   assert.match(script, /chatForm\.requestSubmit\(\)/);
   assert.match(script, /api\/v2\/review\/run/);
   assert.match(script, /api\/v2\/admin\/discovery\/ingest/);

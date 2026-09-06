@@ -163,11 +163,13 @@ function renderReviewAgent() {
       : "NO ELIGIBLE MATCH" : pipeline.decision);
   const dailyLimit = one("[data-review-daily-limit]");
   const totalLimit = one("[data-review-total-limit]");
-  if (dailyLimit) dailyLimit.value = String(agent?.intent.dailyMintLimit ?? 1);
-  if (totalLimit) totalLimit.value = String(agent?.intent.totalMintLimit ?? 1);
+  const daily = agent?.intent.dailyMintLimit ?? 1;
+  const total = agent?.intent.totalMintLimit ?? 1;
+  if (dailyLimit) dailyLimit.textContent = `${daily} MINT${daily === 1 ? "" : "S"} / DAY`;
+  if (totalLimit) totalLimit.textContent = `${total} MINT${total === 1 ? "" : "S"} MAX`;
   set("[data-review-limit-note]", agent
-    ? `Current confirmed limits: ${agent.intent.dailyMintLimit} per day, ${agent.intent.totalMintLimit} for this strategy. Editing creates a new draft.`
-    : "Creates a strategy draft. Current rules stay active until you confirm it.");
+    ? "These are confirmed rules. To change them, tell your Punk in chat and approve the new complete draft."
+    : "Set every mission parameter in chat. Your Punk will show one complete draft for review before anything changes.");
   const runButton = one("[data-review-agent-run]");
   const testButton = one("[data-review-agent-test]");
   const runBusy = runButton.dataset.busy === "true" || testButton.dataset.busy === "true";
@@ -843,8 +845,6 @@ function showConfirmation(draft) {
     : REVIEW_HOST ? "ACTIVATE ONLY" : "ACTIVATE STRATEGY";
   activateAndSend.hidden = !REVIEW_HOST || PREVIEW;
   activateAndSend.disabled = activationLocked;
-  set("[data-review-limit-note]",
-    `Draft ready: ${view.daily} per day, ${view.total} for this strategy. Current rules stay active until confirmation.`);
   const dialog = one("[data-confirmation-dialog]");
   if (typeof dialog.showModal === "function") dialog.showModal(); else dialog.setAttribute("open", "");
 }
@@ -929,25 +929,6 @@ function setup() {
   chatInput.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
     event.preventDefault();
-    chatForm.requestSubmit();
-  });
-  one("[data-review-agent-limit-form]").addEventListener("submit", (event) => {
-    event.preventDefault();
-    const daily = Number(one("[data-review-daily-limit]").value);
-    const total = Number(one("[data-review-total-limit]").value);
-    const note = one("[data-review-limit-note]");
-    if (!Number.isInteger(daily) || daily < 1 || daily > 100
-      || !Number.isInteger(total) || total < 1 || total > 10_000) {
-      note.textContent = "Use 1–100 per day and 1–10,000 for the strategy.";
-      return;
-    }
-    if (!state.selected || !state.wallet?.account) {
-      note.textContent = "Connect the current owner and select a Punk first.";
-      return;
-    }
-    note.textContent = "Drafting this change through the Punk conversation…";
-    chatInput.value = `Set my maximum to ${daily} mints per day and ${total} mints total for this strategy. Keep every existing collecting rule.`;
-    activateTab("talk");
     chatForm.requestSubmit();
   });
   all('input[name="mode"]').forEach((input) => input.addEventListener("change", () => {

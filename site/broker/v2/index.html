@@ -97,7 +97,7 @@
               </div>
               <aside class="quick-commands" aria-label="Suggested commands">
                 <span>QUICK CALLS</span>
-                <button type="button" data-suggestion="Find me free pixel art with an X account and website.">Find free mints</button>
+                <button type="button" data-suggestion="Find me free pixel art with an X account and website. Max one mint per day and one mint total. Ask me first.">Set a mission</button>
                 <button type="button" data-suggestion="I want weird experimental art. No PFPs.">Tune my taste</button>
                 <button type="button" data-show-link>Check a link</button>
                 <button type="button" data-suggestion="Show me what you found today.">Show discoveries</button>
@@ -113,12 +113,11 @@
             <section class="review-agent-console" data-review-agent-console hidden aria-labelledby="review-agent-title">
               <header><div><span class="kicker">REVIEW AGENT</span><h3 id="review-agent-title">PUNK PIPELINE</h3></div><strong data-review-agent-status>IDLE</strong></header>
               <dl><div><dt>STRATEGY</dt><dd data-review-agent-strategy>NOT STARTED</dd></div><div><dt>ROUTE</dt><dd data-review-agent-route>NOT DISPATCHED</dd></div><div><dt>DISCOVERY</dt><dd data-review-agent-discovery>WAITING</dd></div><div><dt>CONTRACT</dt><dd data-review-agent-contract>NOT IDENTIFIED</dd></div><div><dt>SCREEN</dt><dd data-review-agent-screen>NOT RUN</dd></div><div><dt>SIMULATION</dt><dd data-review-agent-simulation>NOT RUN</dd></div><div><dt>DECISION</dt><dd data-review-agent-decision>NO OPPORTUNITY</dd></div></dl>
-              <form class="review-agent-limit" data-review-agent-limit-form>
-                <div><label for="review-daily-limit">MAX / DAY</label><input id="review-daily-limit" data-review-daily-limit name="dailyLimit" type="number" inputmode="numeric" min="1" max="100" step="1" value="1" /></div>
-                <div><label for="review-total-limit">MAX / STRATEGY</label><input id="review-total-limit" data-review-total-limit name="totalLimit" type="number" inputmode="numeric" min="1" max="10000" step="1" value="1" /></div>
-                <button type="submit">UPDATE VIA CHAT</button>
-                <p data-review-limit-note>Creates a strategy draft. Current rules stay active until you confirm it.</p>
-              </form>
+              <div class="review-agent-rules" data-review-agent-rules>
+                <div><span>CONFIRMED DAILY LIMIT</span><strong data-review-daily-limit>1 MINT / DAY</strong></div>
+                <div><span>CONFIRMED MAX MINTS / MISSION</span><strong data-review-total-limit>1 MINT MAX</strong></div>
+                <p data-review-limit-note>Set every mission parameter in chat. Your Punk will show one complete draft for review before anything changes.</p>
+              </div>
               <div class="review-agent-actions"><button type="button" data-review-agent-run disabled>SEND PUNK OUT</button><button type="button" data-review-agent-test disabled>RUN SAFE TEST</button><span data-review-agent-run-note>Confirm an ASK or ASSIST strategy first.</span></div>
               <p>Preview-session intelligence only. SEND PUNK OUT keeps scouting the shared V2 queue every minute until its unique-match target is reached, it is paused, or this tab closes. It has no production authority and cannot submit a mint.</p>
             </section>

@@ -192,15 +192,14 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .review-agent-console dt { color: var(--muted); font-size: .55rem; font-weight: 900; letter-spacing: .1em; }
 .review-agent-console dd { margin: 6px 0 0; color: var(--text); font-size: .72rem; font-weight: 900; }
 .review-agent-console > p { margin: 14px 0 0; color: var(--muted); font-size: .72rem; line-height: 1.5; }
-.review-agent-limit { display: grid; grid-template-columns: minmax(120px, .55fr) minmax(140px, .7fr) auto;
-  gap: 10px; align-items: end; margin-top: 14px; padding: 14px; border: 1px solid var(--line); }
-.review-agent-limit > div { display: grid; gap: 6px; }
-.review-agent-limit label { color: var(--muted); font-size: .55rem; font-weight: 900; letter-spacing: .1em; }
-.review-agent-limit input { width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid var(--line-strong);
-  border-radius: 0; color: var(--text); background: var(--surface); font: inherit; font-weight: 900; }
-.review-agent-limit button { min-height: 44px; padding: 0 16px; border: 1px solid var(--cyan); color: var(--ink);
-  background: var(--cyan); font-size: .7rem; font-weight: 950; cursor: pointer; }
-.review-agent-limit > p { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: .66rem; line-height: 1.45; }
+.review-agent-rules { display: grid; grid-template-columns: repeat(2, minmax(140px, 1fr));
+  margin-top: 14px; border: 1px solid var(--line); }
+.review-agent-rules > div { display: grid; gap: 7px; min-height: 70px; padding: 14px; }
+.review-agent-rules > div + div { border-left: 1px solid var(--line); }
+.review-agent-rules span { color: var(--muted); font-size: .55rem; font-weight: 900; letter-spacing: .1em; }
+.review-agent-rules strong { color: var(--acid); font-size: .86rem; letter-spacing: .02em; }
+.review-agent-rules > p { grid-column: 1 / -1; margin: 0; padding: 12px 14px; border-top: 1px solid var(--line);
+  color: var(--muted); font-size: .66rem; line-height: 1.45; }
 .review-agent-actions { display: flex; align-items: center; gap: 14px; margin-top: 14px; }
 .review-agent-actions button { border: 0; padding: 13px 18px; background: var(--acid); color: var(--ink); font-weight: 950; cursor: pointer; }
 .review-agent-actions [data-review-agent-test] { border: 1px solid var(--cyan); color: var(--cyan); background: transparent; }
@@ -413,8 +412,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   .strategy-grid, .fund-layout, .settings-grid, .collection-assets { grid-template-columns: 1fr; }
   .skill-card ul { grid-template-columns: 1fr; }
   .review-agent-console dl { grid-template-columns: repeat(2, 1fr); }
-  .review-agent-limit { grid-template-columns: 1fr 1fr; }
-  .review-agent-limit button { grid-column: 1 / -1; }
+  .review-agent-rules { grid-template-columns: 1fr 1fr; }
   .review-agent-actions { align-items: stretch; flex-direction: column; }
   .safety-card, .fund-form { grid-column: auto; }
   .balance-readout { padding: 24px; }
