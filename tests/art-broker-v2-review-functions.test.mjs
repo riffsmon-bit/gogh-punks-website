@@ -99,10 +99,13 @@ test("ordinary questions receive a grounded Punk reply instead of a fake strateg
   const response = await handleV2ReviewChat(request("/api/v2/review/chat", {
     owner: OWNER, tokenId: "93", message: "What do you think about pixel art?",
     inspection: { kind: "OPENSEA_COLLECTION", status: "NEEDS_REVIEW" },
+    history: [{ role: "OWNER", content: "I like pixel art." }],
+    review: { checkedCount: 2, eligibleCount: 1,
+      leadingCollectionName: "Neon Alley", leadingMatchScore: 94 },
   }), { now: new Date("2026-09-06T14:00:00.000Z"),
     readAuthority: async () => ({ punkWallet: PUNK_WALLET }),
-    answerConversation: async ({ inspection }) => ({
-      reply: `I can explain this ${inspection.kind}.`, provider: "OPENAI",
+    answerConversation: async ({ inspection, history, review }) => ({
+      reply: `I can explain this ${inspection.kind}; ${history.length} earlier turn and ${review.eligibleCount} match.`, provider: "OPENAI",
       registryKey: "openai:auto", providerAvailable: true,
     }) });
   assert.equal(response.status, 200);
@@ -110,6 +113,7 @@ test("ordinary questions receive a grounded Punk reply instead of a fake strateg
   assert.equal(payload.responseKind, "CONVERSATION");
   assert.equal(payload.draft, null);
   assert.equal(payload.provider.provider, "OPENAI");
+  assert.match(payload.reply, /1 earlier turn and 1 match/);
   assert.equal(payload.transactionPrepared, false);
 });
 
@@ -140,6 +144,52 @@ test("SEND PUNK OUT performs one read-only shared-discovery run", async () => {
   assert.equal(payload.transactionPrepared, false);
   assert.equal(payload.executionAttemptCreated, false);
   assert.equal(queries.length, 3);
+});
+
+test("a shared opportunity becomes review-eligible only with a fresh Punk-specific simulation", async () => {
+  const first = await handleV2ReviewChat(request("/api/v2/review/chat", {
+    owner: OWNER, tokenId: "93", message: "Find free pixel art.",
+  }), { now: new Date("2026-09-06T14:00:00.000Z"),
+    readAuthority: async () => ({ punkWallet: PUNK_WALLET }) });
+  const intent = (await first.json()).draft.intent;
+  const normalized = {
+    schema: "GOGH_NORMALIZED_OPPORTUNITY_V2", version: 2,
+    opportunityId: "seadrop:pixel-study:public",
+    dedupeKey: "ignored-by-normalizer", chainId: 4663,
+    collectionContract: "0x3333333333333333333333333333333333333333",
+    mintContract: "0x00005ea00ac477b1030ce78506496e8c2de24bf5",
+    adapter: "0xd4316dfbcfa3f51f1a9de77aaa5d9e6edf848777",
+    mintStage: "PUBLIC", mintMethod: "mintPublic(address,address,address,uint256)",
+    priceWei: "0", estimatedGasCostWei: "0", supply: 777, walletLimit: 2,
+    startTime: "2026-09-06T13:00:00.000Z", endTime: "2026-09-07T14:00:00.000Z",
+    website: null, socialUrls: { x: null, discord: null, farcaster: null },
+    sourceUrls: ["https://robinhoodchain.blockscout.com/address/0x3333333333333333333333333333333333333333"],
+    artStyles: ["PIXEL_ART"], imageReference: null, collectionName: "Pixel Study",
+    contractCodeHash: `0x${"11".repeat(32)}`, adapterCodeHash: `0x${"22".repeat(32)}`,
+    screeningStatus: "PASSED", simulationStatus: "UNAVAILABLE", riskLevel: "LOW", riskScore: 10,
+    expectedNftReceiver: null, unexpectedApprovals: false, unexpectedTransfers: false,
+    createdAt: "2026-09-06T13:00:00.000Z", updatedAt: "2026-09-06T13:30:00.000Z",
+  };
+  const response = await handleV2ReviewRun(request("/api/v2/review/run", {
+    owner: OWNER, tokenId: "93", intent,
+  }), { now: new Date("2026-09-06T14:01:00.000Z"),
+    readAuthority: async () => ({ owner: OWNER, punkWallet: PUNK_WALLET,
+      nativeBalanceWei: "100000000000000000" }),
+    pool: { query: async (sql) => {
+      if (sql.includes("GROUP BY opportunity_id")) return { rows: [] };
+      if (sql.includes("broker_v2_opportunities opportunity")) return { rows: [{ normalized,
+        simulation_status: "PASSED", gas_estimate: "100000000000000",
+        expected_receiver: PUNK_WALLET }] };
+      return { rows: [{ daily: 0, total: 0 }] };
+    } } });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.checkedCount, 1);
+  assert.equal(payload.screeningPassedCount, 1);
+  assert.equal(payload.simulationPassedCount, 1);
+  assert.equal(payload.eligibleCount, 1);
+  assert.equal(payload.opportunities[0].opportunity.expectedNftReceiver, PUNK_WALLET);
+  assert.equal(payload.transactionPrepared, false);
 });
 
 test("safe preview test runs the full matcher with a non-live, non-persisted fixture", async () => {

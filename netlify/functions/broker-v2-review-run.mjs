@@ -54,6 +54,17 @@ function previewTestOpportunity(punkWallet, now) {
   }, now);
 }
 
+function opportunityForPunk(row, punkWallet, now) {
+  const normalized = normalizeV2Opportunity(row.normalized, now);
+  const receiver = typeof row.expected_receiver === "string"
+    ? row.expected_receiver.toLowerCase() : null;
+  const gas = String(row.gas_estimate ?? "");
+  if (row.simulation_status !== "PASSED" || receiver !== punkWallet
+    || !/^(?:0|[1-9][0-9]{0,77})$/.test(gas)) return normalized;
+  return normalizeV2Opportunity({ ...normalized, simulationStatus: "PASSED",
+    estimatedGasCostWei: gas, expectedNftReceiver: receiver }, now);
+}
+
 export async function handleV2ReviewRun(request, { readAuthority = readV2PunkAuthority,
   pool = getDatabase().pool, now = new Date() } = {}) {
   if (request.method !== "POST") return json({ ok: false, code: "METHOD_NOT_ALLOWED" }, 405);
@@ -80,15 +91,24 @@ export async function handleV2ReviewRun(request, { readAuthority = readV2PunkAut
         WHERE chain_id = $1 AND punk_token_id = $2::numeric AND activity_type = 'COLLECTED'
           AND opportunity_id IS NOT NULL GROUP BY opportunity_id`,
       [ROBINHOOD.chainId, body.tokenId]),
-      pool.query(`SELECT normalized FROM broker_v2_opportunities WHERE chain_id = $1
-        AND (expires_at IS NULL OR expires_at > $2) ORDER BY updated_at DESC LIMIT 100`,
-      [ROBINHOOD.chainId, new Date(now).toISOString()]),
+      pool.query(`SELECT opportunity.normalized, simulation.status AS simulation_status,
+          simulation.gas_estimate::text AS gas_estimate,
+          simulation.expected_receiver
+        FROM broker_v2_opportunities opportunity
+        LEFT JOIN LATERAL (SELECT status, gas_estimate, expected_receiver
+          FROM broker_v2_simulations WHERE opportunity_id = opportunity.opportunity_id
+            AND punk_account = $3 AND simulated_at >= opportunity.updated_at
+          ORDER BY simulated_at DESC LIMIT 1) simulation ON TRUE
+        WHERE opportunity.chain_id = $1
+          AND (opportunity.expires_at IS NULL OR opportunity.expires_at > $2)
+        ORDER BY opportunity.updated_at DESC LIMIT 100`,
+      [ROBINHOOD.chainId, new Date(now).toISOString(), authority.punkWallet]),
     ]);
     const counts = new Map(opportunityUsageResult.rows.map((row) => (
       [row.opportunity_id, Number(row.count)])));
     const usage = activityResult.rows[0] ?? {};
-    const opportunities = opportunityResult.rows.map(({ normalized }) => Object.freeze({
-      opportunity: normalizeV2Opportunity(normalized, now), previewFixture: false,
+    const opportunities = opportunityResult.rows.map((row) => Object.freeze({
+      opportunity: opportunityForPunk(row, authority.punkWallet, now), previewFixture: false,
     }));
     if (body.testMode === "SAFE_FIXTURE") opportunities.unshift(Object.freeze({
       opportunity: previewTestOpportunity(authority.punkWallet, now), previewFixture: true,

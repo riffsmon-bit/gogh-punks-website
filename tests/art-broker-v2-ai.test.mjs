@@ -147,9 +147,15 @@ test("Punk conversation is grounded in strategy data and cannot grant wallet aut
     punkWallet: PUNK_WALLET }, NOW);
   const grounded = buildPunkChatPrompt({ message: "What are we hunting?", intent,
     inspection: { kind: "OPENSEA_COLLECTION", status: "NEEDS_REVIEW" },
+    history: [{ role: "OWNER", content: "I like blue pixel art." },
+      { role: "PUNK", content: "I will keep that taste in mind." }],
+    review: { checkedCount: 3, eligibleCount: 1,
+      leadingCollectionName: "Neon Alley", leadingMatchScore: 94 },
     punkTokenId: "93", now: NOW });
   assert.match(grounded.instructions, /Never produce transaction calldata/);
   assert.match(grounded.prompt, /OPENSEA_COLLECTION/);
+  assert.match(grounded.prompt, /Neon Alley/);
+  assert.match(grounded.prompt, /blue pixel art/);
   let invocation;
   const response = await answerPunkConversation({ router: { run: async (...args) => {
     invocation = args;
@@ -176,4 +182,19 @@ test("Punk conversation gives an honest useful fallback when no model is configu
     punkState: { wallet: PUNK_WALLET, nativeBalanceWei: "200000000000000", activated: true } });
   assert.match(balance.reply, /0\.0002 ETH/);
   assert.match(balance.reply, new RegExp(PUNK_WALLET));
+  const discoveries = await answerPunkConversation({ router: null,
+    message: "Did you find any matches?", intent, punkTokenId: "93", now: NOW,
+    review: { checkedCount: 4, eligibleCount: 1,
+      leadingCollectionName: "Neon Alley", leadingMatchScore: 94 } });
+  assert.match(discoveries.reply, /4 shared opportunities/);
+  assert.match(discoveries.reply, /Neon Alley at 94%/);
+  const art = await answerPunkConversation({ router: null,
+    message: "What do you think about pixel art?", intent, punkTokenId: "93", now: NOW });
+  assert.match(art.reply, /clarity and character/);
+  const weth = await answerPunkConversation({ router: null,
+    message: "How does WETH work for bids?", intent, punkTokenId: "93", now: NOW });
+  assert.match(weth.reply, /Keep native ETH.*gas/);
+  const identity = await answerPunkConversation({ router: null,
+    message: "Who are you?", intent, punkTokenId: "93", now: NOW });
+  assert.match(identity.reply, /Gogh Punk #93/);
 });

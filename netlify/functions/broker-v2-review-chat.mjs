@@ -15,7 +15,7 @@ const TOKEN = /^(?:0|[1-9]\d{0,3})$/;
 const OWNER = /^0x[0-9a-f]{40}$/;
 
 function exactBody(value) {
-  const fields = ["inspection", "currentIntent", "message", "owner", "tokenId"];
+  const fields = ["history", "inspection", "currentIntent", "message", "owner", "review", "tokenId"];
   const keys = value && typeof value === "object" && !Array.isArray(value)
     ? Object.keys(value) : [];
   if (!value || typeof value !== "object" || Array.isArray(value)
@@ -43,7 +43,32 @@ function exactBody(value) {
     || !["BLOCKED", "NEEDS_REVIEW"].includes(String(inspection.status ?? "")))) {
     throw new PublicError(400, "INVALID_REQUEST", "The link-review context is invalid.");
   }
-  return Object.freeze({ owner, tokenId, message, currentIntent, inspection });
+  const history = Object.hasOwn(value, "history") ? value.history : [];
+  if (!Array.isArray(history) || history.length > 8 || history.some((entry) => (
+    !entry || typeof entry !== "object" || Array.isArray(entry)
+    || Object.keys(entry).length !== 2 || !["OWNER", "PUNK"].includes(entry.role)
+    || typeof entry.content !== "string" || !entry.content.trim()
+    || Buffer.byteLength(entry.content, "utf8") > 1_200
+  ))) throw new PublicError(400, "INVALID_REQUEST", "The recent chat context is invalid.");
+  const review = Object.hasOwn(value, "review") ? value.review : null;
+  const reviewFields = ["checkedCount", "eligibleCount", "leadingCollectionName", "leadingMatchScore"];
+  if (review !== null && (!review || typeof review !== "object" || Array.isArray(review)
+    || Object.keys(review).some((field) => !reviewFields.includes(field))
+    || !reviewFields.every((field) => Object.hasOwn(review, field))
+    || !Number.isInteger(review.checkedCount) || review.checkedCount < 0 || review.checkedCount > 100
+    || !Number.isInteger(review.eligibleCount) || review.eligibleCount < 0
+    || review.eligibleCount > review.checkedCount
+    || (review.leadingCollectionName === null) !== (review.leadingMatchScore === null)
+    || review.leadingCollectionName !== null && (typeof review.leadingCollectionName !== "string"
+      || !review.leadingCollectionName.trim() || review.leadingCollectionName.length > 160)
+    || review.leadingMatchScore !== null && (!Number.isInteger(review.leadingMatchScore)
+      || review.leadingMatchScore < 0 || review.leadingMatchScore > 100))) {
+    throw new PublicError(400, "INVALID_REQUEST", "The discovery-review context is invalid.");
+  }
+  return Object.freeze({ owner, tokenId, message, currentIntent, inspection,
+    history: Object.freeze(history.map(({ role, content }) => Object.freeze({ role,
+      content: content.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "").trim() }))),
+    review });
 }
 
 function punkReply(confirmation) {
@@ -67,7 +92,8 @@ async function conversationalReply(request, body, intent, authority, answerConve
     intelligence = (input) => answerPunkConversation({ ...input, router });
   }
   const conversation = await intelligence({ message: body.message,
-    intent, inspection: body.inspection, punkTokenId: body.tokenId,
+    intent, inspection: body.inspection, history: body.history, review: body.review,
+    punkTokenId: body.tokenId,
     punkState: authority.nativeBalanceWei === undefined ? null : {
       wallet: authority.punkWallet, nativeBalanceWei: authority.nativeBalanceWei,
       activated: authority.activated === true,

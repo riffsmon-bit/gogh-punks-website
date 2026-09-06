@@ -47,7 +47,7 @@ const state = { wallet: null, punks: [], selected: null, localStrategy: null,
   fundingPlan: null, wrappedPlan: null, withdrawalAsset: null,
   withdrawalAmount: "1", withdrawalPlan: null, withdrawalBusy: false,
   reviewAgents: new Map(), reviewInspections: new Map(), reviewActivities: new Map(),
-  reviewRuns: new Map() };
+  reviewRuns: new Map(), reviewConversations: new Map() };
 const one = (selector) => document.querySelector(selector);
 const all = (selector) => [...document.querySelectorAll(selector)];
 const set = (selector, value) => { const target = one(selector); if (target) target.textContent = String(value); };
@@ -91,6 +91,20 @@ function selectedReviewAgent() {
 function selectedReviewRun() {
   const key = selectedReviewKey();
   return key ? state.reviewRuns.get(key) ?? null : null;
+}
+
+function selectedConversationHistory() {
+  const key = selectedReviewKey();
+  return key ? state.reviewConversations.get(key) ?? [] : [];
+}
+
+function selectedReviewSummary() {
+  const run = selectedReviewRun();
+  if (!run) return null;
+  const leading = run.opportunities.find(({ recommendationEligible }) => recommendationEligible) ?? null;
+  return { checkedCount: run.checkedCount, eligibleCount: run.eligibleCount,
+    leadingCollectionName: leading?.collectionName ?? null,
+    leadingMatchScore: leading?.matchScore ?? null };
 }
 
 function reviewModeForPunk(punk) {
@@ -672,6 +686,13 @@ function addMessage(role, message) {
   label.textContent = role === "owner" ? "OWNER" : `PUNK #${state.selected?.tokenId ?? "—"}`;
   const text = document.createElement("p"); text.textContent = message; copy.append(label, text); article.append(copy);
   conversation.append(article); conversation.scrollTop = conversation.scrollHeight;
+  const key = selectedReviewKey();
+  if (key && typeof message === "string" && message.trim()) {
+    const existing = state.reviewConversations.get(key) ?? [];
+    state.reviewConversations.set(key, [...existing, Object.freeze({
+      role: role === "owner" ? "OWNER" : "PUNK", content: message.trim().slice(0, 1_200),
+    })].slice(-12));
+  }
 }
 
 async function jsonRequest(path, options = {}) {
@@ -913,11 +934,14 @@ function setup() {
         const currentIntent = selectedReviewAgent()?.intent ?? null;
         const inspection = state.lastInspection ? { kind: state.lastInspection.link.kind,
           status: state.lastInspection.status } : null;
+        const history = selectedConversationHistory().slice(0, -1).slice(-8);
+        const review = selectedReviewSummary();
         const requestOptions = {
           method: "POST", headers: { "content-type": "application/json" },
           body: JSON.stringify({ owner: state.wallet.account, tokenId: state.selected.tokenId,
             message, ...(currentIntent ? { currentIntent } : {}),
-            ...(inspection ? { inspection } : {}) }),
+            ...(inspection ? { inspection } : {}), ...(history.length ? { history } : {}),
+            ...(review ? { review } : {}) }),
         };
         let payload;
         try { payload = await jsonRequest("/api/v2/review/chat", requestOptions); }
