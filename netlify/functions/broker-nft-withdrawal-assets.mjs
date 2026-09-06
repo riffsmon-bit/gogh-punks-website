@@ -309,10 +309,10 @@ export async function buildWithdrawableNftAssets(
       typeof uri === "string" && uri.length > 0
     )))];
     const displayByTokenUri = new Map();
-    for (let offset = 0; offset < uniqueTokenUris.length; offset += 4) {
-      const batch = uniqueTokenUris.slice(offset, offset + 4);
+    for (let offset = 0; offset < uniqueTokenUris.length; offset += 8) {
+      const batch = uniqueTokenUris.slice(offset, offset + 8);
       const displays = await Promise.all(batch.map(async (uri) => {
-        try { return await readTokenDisplay(uri); }
+        try { return await readTokenDisplay(uri, { timeoutMs: 10_000 }); }
         catch { return null; }
       }));
       batch.forEach((uri, index) => displayByTokenUri.set(uri, displays[index]));

@@ -177,8 +177,9 @@ test("falls back to exact on-chain tokenURI display when marketplace indexing la
     getCollectionName: async () => "Pepe Brokers",
     getTokenUri: async () => { tokenUriReads += 1; return "ipfs://metadata"; },
     enrichItems: async (items) => items,
-    readTokenDisplay: async (uri) => {
+    readTokenDisplay: async (uri, options) => {
       assert.equal(uri, "ipfs://metadata");
+      assert.deepEqual(options, { timeoutMs: 10_000 });
       return { name: "Pepe Brokers #99", imageUrl: IPFS_IMAGE };
     },
   });
