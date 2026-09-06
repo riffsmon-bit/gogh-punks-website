@@ -7,16 +7,19 @@ const cssUrl = new URL("../site/broker-v2.css", import.meta.url);
 
 test("V2 Control Center exposes the complete selected-Punk action architecture", async () => {
   const html = await readFile(htmlUrl, "utf8");
-  for (const action of ["talk", "strategy", "fund", "collection", "activity", "withdraw", "settings"]) {
+  for (const action of ["talk", "strategy", "fund", "collection", "activity", "settings"]) {
     assert.match(html, new RegExp(`data-v2-tab="${action}"`));
     assert.match(html, new RegExp(`data-v2-panel="${action}"`));
   }
+  assert.doesNotMatch(html, /data-v2-(?:tab|panel)="withdraw"/);
   assert.match(html, /SELECT YOUR ART BROKER/);
   assert.match(html, /WHAT ARE WE HUNTING/);
   assert.match(html, /Funds go directly into this Punk Wallet/);
   assert.match(html, /V1 \+ V2/);
   assert.match(html, /GOGH INTELLIGENCE · AUTO/);
   assert.match(html, /AUTONOMOUS · LOCKED/);
+  assert.match(html, /WITHDRAW FROM THE PIECE/);
+  assert.match(html, /ETH ↔ WETH/);
 });
 
 test("V2 semantics, mobile navigation, focus, and reduced motion are deliberate", async () => {
@@ -42,6 +45,30 @@ test("live collection and activity panels hydrate real authenticated API states"
   assert.match(script, /ensureV2Session/);
   assert.match(script, /GALLERY UNAVAILABLE/);
   assert.doesNotMatch(script, /dangerouslySetInnerHTML|innerHTML\s*=/);
+  assert.match(script, /api\/broker\/nft-withdrawal-assets\?tokenId=/);
+  assert.match(script, /assets\.owner !== state\.wallet\?\.account/);
+  assert.match(script, /asset\.ownershipStatus|LIVE OWNERSHIP CHECK/);
+  assert.match(script, /WITHDRAW/);
+});
+
+test("funding exposes hardened ETH funding and canonical WETH wrap submission", async () => {
+  const [html, script] = await Promise.all([
+    readFile(htmlUrl, "utf8"),
+    readFile(new URL("../site/broker-v2.js", import.meta.url), "utf8"),
+  ]);
+  assert.match(html, /0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73/);
+  assert.match(html, /data-weth-form/);
+  assert.match(html, /WRAP ETH INTO WETH/);
+  assert.match(html, /UNWRAP WETH INTO ETH/);
+  assert.match(script, /wrappedBalanceOfData/);
+  assert.match(script, /buildWrappedNativeTransaction/);
+  assert.match(script, /simulateWrappedNativeTransaction/);
+  assert.match(script, /preflightPunkWalletFunds/);
+  assert.match(script, /submitPunkWalletFunds/);
+  assert.match(script, /submitWrappedNativeTransaction/);
+  assert.match(html, /data-fund-confirm/);
+  assert.match(html, /data-weth-confirm/);
+  assert.match(script, /LOCAL PREVIEW.*No wallet transaction can be requested/);
 });
 
 test("transient wallet frames do not erase or repeatedly reload a verified Punk roster", async () => {
@@ -63,7 +90,7 @@ test("chat sends on Enter while preserving Shift+Enter and composition", async (
   assert.match(script, /chatForm\.requestSubmit\(\)/);
 });
 
-test("the hosted PR review wires live-owner drafts without persistence or transaction sends", async () => {
+test("the hosted PR review keeps drafts non-persistent while owner transactions stay explicit", async () => {
   const [html, script] = await Promise.all([
     readFile(htmlUrl, "utf8"),
     readFile(new URL("../site/broker-v2.js", import.meta.url), "utf8"),
@@ -72,7 +99,8 @@ test("the hosted PR review wires live-owner drafts without persistence or transa
   assert.match(script, /api\/v2\/review\/chat/);
   assert.match(script, /api\/v2\/review\/inspect-url/);
   assert.match(script, /DRAFT TESTED IN THIS REVIEW TAB/);
-  assert.match(script, /PR REVIEW.*funding transaction not requested/s);
+  assert.match(script, /SIMULATION PASSED/);
+  assert.match(script, /SUBMIT IN METAMASK/);
   assert.match(script, /GOGH INTELLIGENCE · REVIEW PARSER/);
 });
 

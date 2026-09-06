@@ -79,8 +79,7 @@
           <button type="button" data-v2-tab="fund" aria-selected="false"><span>03</span>FUND</button>
           <button type="button" data-v2-tab="collection" aria-selected="false"><span>04</span>COLLECTION</button>
           <button type="button" data-v2-tab="activity" aria-selected="false"><span>05</span>ACTIVITY</button>
-          <button type="button" data-v2-tab="withdraw" aria-selected="false"><span>06</span>WITHDRAW</button>
-          <button type="button" data-v2-tab="settings" aria-selected="false"><span>07</span>SETTINGS</button>
+          <button type="button" data-v2-tab="settings" aria-selected="false"><span>06</span>SETTINGS</button>
         </nav>
 
         <div class="panel-stack">
@@ -133,23 +132,36 @@
             <div class="fund-layout">
               <div class="balance-readout"><span>CURRENT BALANCE</span><strong data-fund-balance>0.0300</strong><em>ETH</em></div>
               <dl class="fund-breakdown"><div><dt>PROTECTED RESERVE</dt><dd data-fund-reserve>0.0100 ETH</dd></div><div><dt>AVAILABLE ART BUDGET</dt><dd data-fund-available>0.0200 ETH</dd></div><div><dt>DESTINATION</dt><dd><code data-fund-wallet>0x0000…0000</code></dd></div></dl>
-              <form class="fund-form" data-fund-form><label for="fund-amount">AMOUNT IN ETH</label><div><input id="fund-amount" name="amount" inputmode="decimal" autocomplete="off" placeholder="0.01" /><button class="primary-button" type="submit">FUND PUNK</button></div><p data-fund-result>Funds go directly into this Punk Wallet. Gogh Punks does not custody the balance.</p></form>
+              <form class="fund-form" data-fund-form><label for="fund-amount">AMOUNT IN ETH</label><div><input id="fund-amount" name="amount" inputmode="decimal" autocomplete="off" placeholder="0.01" /><button class="primary-button" type="submit">REVIEW &amp; SIMULATE</button></div><label class="transaction-confirm"><input type="checkbox" data-fund-confirm /><span>I reviewed the real ETH amount and selected Punk Wallet. The second step will open MetaMask.</span></label><p data-fund-result aria-live="polite">Funds go directly into this Punk Wallet. Gogh Punks does not custody the balance.</p><a class="transaction-link" data-fund-transaction href="#" target="_blank" rel="noopener noreferrer" hidden>VIEW FUNDING TRANSACTION ↗</a></form>
             </div>
+            <section class="wrapped-funding" aria-labelledby="wrapped-funding-title">
+              <header><div><span class="kicker">BID BALANCE</span><h3 id="wrapped-funding-title">ETH ↔ WETH</h3></div><a href="https://robinhoodchain.blockscout.com/address/0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73" target="_blank" rel="noopener noreferrer">VERIFIED WETH ↗</a></header>
+              <p>Keep ETH available for gas and wrap only the amount this Punk needs for marketplace offers. Wrapping is one-for-one with no router, slippage, or token approval.</p>
+              <dl class="wrapped-balances"><div><dt>PUNK ETH</dt><dd data-wrap-eth-balance>—</dd></div><div><dt>PUNK WETH</dt><dd data-wrap-weth-balance>—</dd></div></dl>
+              <form data-weth-form class="wrapped-form">
+                <label for="weth-direction">ACTION<select id="weth-direction" name="direction"><option value="WRAP">WRAP ETH INTO WETH</option><option value="UNWRAP">UNWRAP WETH INTO ETH</option></select></label>
+                <label for="weth-amount">AMOUNT<input id="weth-amount" name="amount" inputmode="decimal" autocomplete="off" placeholder="0.01" /></label>
+                <button type="submit">REVIEW &amp; SIMULATE</button>
+              </form>
+              <label class="transaction-confirm"><input type="checkbox" data-weth-confirm /><span>I reviewed the selected Punk Wallet, direction, amount, and canonical WETH contract. The second step will open MetaMask.</span></label>
+              <p class="wrapped-state" data-weth-state aria-live="polite">The first step performs live authority checks and an exact simulation. Nothing is sent until the second step and MetaMask approval.</p>
+              <a class="transaction-link" data-weth-transaction href="#" target="_blank" rel="noopener noreferrer" hidden>VIEW WETH TRANSACTION ↗</a>
+            </section>
           </section>
 
           <section class="broker-panel" data-v2-panel="collection" aria-labelledby="collection-title" hidden>
             <header class="panel-header"><div><span class="kicker">PERSONAL GALLERY</span><h2 id="collection-title">PUNK COLLECTION</h2></div><span><b data-gallery-count>4</b> PIECES SHOWN</span></header>
+            <div class="collection-assets" aria-label="Punk Wallet assets and recovery">
+              <article><span>NATIVE BALANCE</span><strong data-collection-eth>—</strong><small>Keep enough ETH available for gas.</small></article>
+              <article><span>OFFER BALANCE</span><strong data-collection-weth>—</strong><small>Canonical Robinhood WETH for bids.</small></article>
+              <article class="collection-recovery"><span>OWNER RECOVERY</span><strong>WITHDRAW FROM THE PIECE</strong><small>Each live-owned NFT includes its withdrawal action below.</small><a data-legacy-vault href="/broker/punk/">MANAGE ETH · WETH · TOKENS ↗</a></article>
+            </div>
             <div class="gallery-grid" data-gallery-grid></div>
           </section>
 
           <section class="broker-panel" data-v2-panel="activity" aria-labelledby="activity-title" hidden>
             <header class="panel-header"><div><span class="kicker">MATCH HISTORY</span><h2 id="activity-title">ACTIVITY</h2></div><button class="filter-button" type="button">V1 + V2</button></header>
             <ol class="activity-feed" data-activity-feed></ol>
-          </section>
-
-          <section class="broker-panel" data-v2-panel="withdraw" aria-labelledby="withdraw-title" hidden>
-            <header class="panel-header"><div><span class="kicker">OWNER ESCAPE HATCH</span><h2 id="withdraw-title">WITHDRAW</h2></div><span class="owner-only-chip">OWNER ONLY</span></header>
-            <div class="withdraw-grid"><article><span>NATIVE TOKEN</span><h3>WITHDRAW ETH</h3><p>Use the existing owner-only Punk Wallet execution path.</p><a data-legacy-vault href="/broker/punk/">OPEN SECURE WITHDRAWAL</a></article><article><span>NFT ASSET</span><h3>WITHDRAW NFT</h3><p>Select an NFT from the indexed wallet gallery, then approve in your wallet.</p><a data-legacy-vault href="/broker/punk/">OPEN NFT WITHDRAWAL</a></article><article><span>SUPPORTED ERC20</span><h3>WITHDRAW TOKEN</h3><p>Supported token recovery remains independent of AI and discovery.</p><a data-legacy-vault href="/broker/punk/">OPEN TOKEN CONTROLS</a></article></div>
           </section>
 
           <section class="broker-panel" data-v2-panel="settings" aria-labelledby="settings-title" hidden>
