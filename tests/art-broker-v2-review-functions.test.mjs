@@ -8,23 +8,23 @@ import { isV2DeployPreview } from "../netlify/functions/_shared/v2-review.mjs";
 const ORIGIN = "https://deploy-preview-42.preview.goghpunks.xyz";
 const OWNER = "0x1111111111111111111111111111111111111111";
 const PUNK_WALLET = "0x2222222222222222222222222222222222222222";
-const ENVIRONMENT = Object.freeze({ CONTEXT: "deploy-preview" });
-
-function request(path, body, origin = ORIGIN) {
-  return new Request(`${ORIGIN}${path}`, { method: "POST", headers: {
+function request(path, body, origin = ORIGIN, base = ORIGIN) {
+  return new Request(`${base}${path}`, { method: "POST", headers: {
     "content-type": "application/json", origin,
   }, body: JSON.stringify(body) });
 }
 
 test("review-only capabilities require the exact same deploy-preview origin", () => {
-  assert.equal(isV2DeployPreview(request("/api/v2/review/chat", {}), ENVIRONMENT), true);
-  assert.equal(isV2DeployPreview(request("/api/v2/review/chat", {}), { CONTEXT: "production" }), false);
-  assert.equal(isV2DeployPreview(request("/api/v2/review/chat", {}, "https://goghpunks.xyz"),
-    ENVIRONMENT), false);
+  assert.equal(isV2DeployPreview(request("/api/v2/review/chat", {})), true);
+  assert.equal(isV2DeployPreview(request(
+    "/api/v2/review/chat", {}, "https://goghpunks.xyz",
+  )), false);
   const hostile = new Request("https://deploy-preview-42.preview.goghpunks.xyz.evil.test/api/v2/review/chat",
     { method: "POST", headers: { origin: "https://deploy-preview-42.preview.goghpunks.xyz.evil.test" },
       body: "{}" });
-  assert.equal(isV2DeployPreview(hostile, ENVIRONMENT), false);
+  assert.equal(isV2DeployPreview(hostile), false);
+  assert.equal(isV2DeployPreview(request("/api/v2/review/chat", {},
+    "https://goghpunks.xyz", "https://goghpunks.xyz")), false);
 });
 
 test("review chat live-binds the owner and returns an ephemeral structured draft", async () => {
@@ -32,7 +32,7 @@ test("review chat live-binds the owner and returns an ephemeral structured draft
   const response = await handleV2ReviewChat(request("/api/v2/review/chat", {
     owner: OWNER, tokenId: "93",
     message: "Find free pixel art with a website. Three max today. Keep .01 ETH in reserve.",
-  }), { environment: ENVIRONMENT, now: new Date("2026-09-06T14:00:00.000Z"),
+  }), { now: new Date("2026-09-06T14:00:00.000Z"),
     readAuthority: async (...args) => {
       authorityReads.push(args);
       return { punkWallet: PUNK_WALLET };
@@ -58,7 +58,7 @@ test("review chat live-binds the owner and returns an ephemeral structured draft
 test("review link inspection accepts information but no transaction authority", async () => {
   const response = await handleV2ReviewInspectUrl(request("/api/v2/review/inspect-url", {
     owner: OWNER, tokenId: "93", url: "https://opensea.io/collection/pepemfersnft/overview",
-  }), { environment: ENVIRONMENT,
+  }), {
     readAuthority: async () => ({ punkWallet: PUNK_WALLET }) });
   assert.equal(response.status, 200);
   const payload = await response.json();
@@ -71,7 +71,7 @@ test("review link inspection accepts information but no transaction authority", 
 test("review functions are absent from production and contain no transaction send path", async () => {
   const response = await handleV2ReviewChat(request("/api/v2/review/chat", {
     owner: OWNER, tokenId: "93", message: "Find free art.",
-  }), { environment: { CONTEXT: "production" },
+  }, "https://goghpunks.xyz", "https://goghpunks.xyz"), {
     readAuthority: async () => { throw new Error("must not read"); } });
   assert.equal(response.status, 404);
   const payload = await response.json();

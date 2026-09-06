@@ -7,11 +7,11 @@ import { requireV2DeployPreview } from "./_shared/v2-review.mjs";
 const TOKEN = /^(?:0|[1-9]\d{0,3})$/;
 const OWNER = /^0x[0-9a-f]{40}$/;
 
-export async function handleV2ReviewInspectUrl(request, { environment = process.env,
+export async function handleV2ReviewInspectUrl(request, {
   readAuthority = readV2PunkAuthority, inspect = inspectArtBrokerLink } = {}) {
   if (request.method !== "POST") return json({ ok: false, code: "METHOD_NOT_ALLOWED" }, 405);
   try {
-    requireV2DeployPreview(request, environment);
+    requireV2DeployPreview(request);
     const body = await readJson(request, 8_192);
     if (!body || typeof body !== "object" || Array.isArray(body)
       || Object.keys(body).length !== 3

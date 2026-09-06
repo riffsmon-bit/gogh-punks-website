@@ -30,11 +30,11 @@ function punkReply(confirmation) {
   return `GOT IT. ${confirmation.mintPrice.toUpperCase()}. ${taste}. ${confirmation.dailyLimit} MAX PER DAY. REVIEW THE RULES BEFORE THEY CHANGE.`;
 }
 
-export async function handleV2ReviewChat(request, { environment = process.env,
+export async function handleV2ReviewChat(request, {
   readAuthority = readV2PunkAuthority, now = new Date() } = {}) {
   if (request.method !== "POST") return json({ ok: false, code: "METHOD_NOT_ALLOWED" }, 405);
   try {
-    requireV2DeployPreview(request, environment);
+    requireV2DeployPreview(request);
     const body = exactBody(await readJson(request, 12_000));
     const authority = await readAuthority(body.tokenId, { expectedOwner: body.owner });
     const interpreted = draftStrategyFromConversation({ message: body.message,
