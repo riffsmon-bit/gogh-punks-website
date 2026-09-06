@@ -68,6 +68,18 @@ test("the hosted PR review wires live-owner drafts without persistence or transa
   assert.match(script, /GOGH INTELLIGENCE · REVIEW PARSER/);
 });
 
+test("link checks show progress and support safe contextual follow-up questions", async () => {
+  const script = await readFile(new URL("../site/broker-v2.js", import.meta.url), "utf8");
+  assert.match(script, /CHECKING… No wallet request will be accepted/);
+  assert.match(script, /form\.setAttribute\("aria-busy", "true"\)/);
+  assert.match(script, /button\.disabled = true/);
+  assert.match(script, /state\.lastInspection = inspection/);
+  assert.match(script, /state\.localStrategy = null; state\.lastInspection = null/);
+  assert.match(script, /I CAN'T CALL IT GOOD OR SAFE YET/);
+  assert.match(script, /The review service timed out\. Try again/);
+  assert.match(script, /No transaction was prepared/);
+});
+
 test("the local review route is isolated and explicitly cannot broadcast", async () => {
   const [html, server] = await Promise.all([
     readFile(htmlUrl, "utf8"),

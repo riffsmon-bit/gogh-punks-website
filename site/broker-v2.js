@@ -26,7 +26,7 @@ const previewActivity = Object.freeze([
 ]);
 
 const state = { wallet: null, punks: [], selected: null, localStrategy: null,
-  gallery: [], activity: [], hydratedTokenId: null };
+  gallery: [], activity: [], hydratedTokenId: null, lastInspection: null };
 const one = (selector) => document.querySelector(selector);
 const all = (selector) => [...document.querySelectorAll(selector)];
 const set = (selector, value) => { const target = one(selector); if (target) target.textContent = String(value); };
@@ -104,7 +104,8 @@ function renderSelected() {
 function selectPunk(tokenId) {
   const punk = state.punks.find((item) => item.tokenId === tokenId);
   if (!punk) return;
-  state.selected = punk; state.localStrategy = null; state.hydratedTokenId = null;
+  state.selected = punk; state.localStrategy = null; state.lastInspection = null;
+  state.hydratedTokenId = null;
   if (!PREVIEW) { state.gallery = []; state.activity = []; }
   renderSelected();
   one("[data-selected-stage]").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
@@ -223,13 +224,36 @@ function addMessage(role, message) {
 }
 
 async function jsonRequest(path, options = {}) {
-  const response = await fetch(path, { credentials: "same-origin", cache: "no-store", ...options });
-  const payload = await response.json();
-  if (!response.ok || payload?.ok !== true) {
-    const error = new Error(payload?.message ?? "Art Broker request failed safely.");
-    error.code = payload?.code ?? "V2_REQUEST_FAILED"; throw error;
+  const { timeoutMs = 20_000, ...fetchOptions } = options;
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(path, { credentials: "same-origin", cache: "no-store",
+      ...fetchOptions, signal: controller.signal });
+    const payload = await response.json();
+    if (!response.ok || payload?.ok !== true) {
+      const error = new Error(payload?.message ?? "Art Broker request failed safely.");
+      error.code = payload?.code ?? "V2_REQUEST_FAILED"; throw error;
+    }
+    return payload;
+  } catch (error) {
+    if (error?.name === "AbortError") throw new Error("The review service timed out. Try again.");
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
   }
-  return payload;
+}
+
+function reviewQuestionReply(message) {
+  if (!REVIEW_HOST || PREVIEW || !/^(?:is|was|are|does|do|can|could|should|would|what|why|how|tell|explain)\b/i.test(message)) {
+    return null;
+  }
+  const inspection = state.lastInspection;
+  if (!inspection) {
+    return "I CAN DRAFT COLLECTING RULES IN THIS REVIEW BUILD. General conversation needs provider-backed Gogh Intelligence, which is not active in Preview 42 yet.";
+  }
+  const kind = inspection.link.kind.replaceAll("_", " ");
+  return `I IDENTIFIED IT AS ${kind}. I CAN'T CALL IT GOOD OR SAFE YET. Current verdict: ${inspection.status.replaceAll("_", " ")}. Contract resolution, security screening, and mint simulation still have to pass.`;
 }
 
 async function ensureV2Session() {
@@ -359,6 +383,8 @@ function setup() {
       }
       return;
     }
+    const contextualReply = reviewQuestionReply(message);
+    if (contextualReply) { addMessage("punk", contextualReply); return; }
     let draft;
     let reply = null;
     if (PREVIEW) {
@@ -406,33 +432,52 @@ function setup() {
     showConfirmation(draft);
   });
   one("[data-link-form]").addEventListener("submit", async (event) => {
-    event.preventDefault(); const value = one("#mint-link").value.trim(); const output = one("[data-link-result]");
+    event.preventDefault();
+    const form = event.currentTarget; const value = one("#mint-link").value.trim();
+    const output = one("[data-link-result]"); const button = form.querySelector("button[type=submit]");
+    output.textContent = "CHECKING… No wallet request will be accepted.";
+    form.setAttribute("aria-busy", "true"); button.disabled = true; button.textContent = "CHECKING…";
     try {
       const url = new URL(value);
       if (url.protocol !== "https:" || url.username || url.password || url.port) throw new Error();
+      let inspection;
       if (PREVIEW) {
         const response = await fetch("/api/local-art-broker-v2/inspect-link", { method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ tokenId: state.selected.tokenId, url: value }) });
         const payload = await response.json();
         if (!response.ok || payload?.ok !== true) throw new Error(payload?.message ?? "Link blocked");
-        output.textContent = `${payload.inspection.link.kind.replaceAll("_", " ")} · ${payload.inspection.status} · no external calldata or wallet request accepted.`;
+        inspection = payload.inspection;
       } else if (REVIEW_HOST) {
         const payload = await jsonRequest("/api/v2/review/inspect-url", { method: "POST",
           headers: { "content-type": "application/json" }, body: JSON.stringify({
             owner: state.wallet.account, tokenId: state.selected.tokenId, url: value,
-          }) });
-        output.textContent = `${payload.inspection.link.kind.replaceAll("_", " ")} · ${payload.inspection.status} · no external calldata or wallet request accepted.`;
+          }), timeoutMs: 20_000 });
+        inspection = payload.inspection;
       } else {
         await ensureV2Session();
         const payload = await jsonRequest("/api/v2/inspect-url", { method: "POST",
           headers: { "content-type": "application/json" }, body: JSON.stringify({
             tokenId: state.selected.tokenId, url: value,
           }) });
-        output.textContent = `${payload.inspection.link.kind.replaceAll("_", " ")} · ${payload.inspection.status} · no external calldata or wallet request accepted.`;
+        inspection = payload.inspection;
       }
-      addMessage("punk", "LINK IDENTIFIED. It is information only. Contract resolution, screening, and simulation still have to pass.");
-    } catch { output.textContent = "BLOCKED · Paste a clean HTTPS project, marketplace, social, or explorer link."; }
+      state.lastInspection = inspection;
+      const kind = inspection.link.kind.replaceAll("_", " ");
+      const status = inspection.status.replaceAll("_", " ");
+      output.textContent = `${kind} · ${status} · no external calldata or wallet request accepted.`;
+      addMessage("punk", `LINK IDENTIFIED 👀 ${kind}. CURRENT VERDICT: ${status}. I can't call it safe yet—contract resolution, screening, and simulation still have to pass.`);
+    } catch (error) {
+      const invalid = error instanceof TypeError || !error?.message;
+      output.textContent = invalid
+        ? "BLOCKED · Paste a clean HTTPS project, marketplace, social, or explorer link."
+        : `CHECK FAILED · ${error.message} No transaction was prepared.`;
+      addMessage("punk", invalid
+        ? "I COULDN'T READ THAT LINK. Paste a clean HTTPS project, marketplace, social, or explorer URL."
+        : `I COULDN'T FINISH THE CHECK. ${error.message} Nothing was signed or prepared.`);
+    } finally {
+      form.removeAttribute("aria-busy"); button.disabled = false; button.textContent = "CHECK LINK";
+    }
   });
   one("[data-edit-strategy]").addEventListener("click", () => { one("[data-confirmation-dialog]").close(); one("#punk-prompt").focus(); });
   one("[data-activate-strategy]").addEventListener("click", async () => {
