@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Fund a Gogh Punk, define its taste, and let it find art within your rules." />
+    <meta name="theme-color" content="#080b0f" />
+    <title>Art Broker V2 · Gogh Punks</title>
+    <link rel="icon" href="/assets/favicon.png" type="image/png" />
+    <link rel="stylesheet" href="/broker-v2.css" />
+    <script src="/wallet.js?v=reown-10" type="module"></script>
+    <script src="/broker-v2.js" type="module"></script>
+  </head>
+  <body data-v2-control-center>
+    <a class="skip-link" href="#broker-main">Skip to selected Art Broker</a>
+    <header class="v2-header">
+      <a class="v2-brand" href="/" aria-label="Gogh Punks home">
+        <img src="/assets/favicon.png" alt="" />
+        <span>GOGH PUNKS</span><b>ART BROKER V2</b>
+      </a>
+      <div class="header-state">
+        <span class="system-pulse" aria-hidden="true"></span>
+        <span data-wallet-state aria-live="polite">Wallet disconnected</span>
+      </div>
+      <div class="wallet-actions">
+        <button class="outline-button" type="button" data-wallet-switch hidden>Switch network</button>
+        <button class="primary-button" type="button" data-wallet-connect>Connect wallet</button>
+        <button class="text-button" type="button" data-wallet-disconnect hidden>Disconnect</button>
+      </div>
+    </header>
+
+    <aside class="preview-ribbon" data-preview-banner hidden>
+      <strong>LOCAL PRODUCT PREVIEW</strong>
+      <span>Simulated broker data. No strategy, signature, transaction, deployment, or AI request leaves this computer.</span>
+    </aside>
+
+    <main id="broker-main" class="broker-shell">
+      <section class="roster-stage" aria-labelledby="roster-title">
+        <div class="section-heading">
+          <div><span class="kicker">CHARACTER ROSTER</span><h1 id="roster-title">SELECT YOUR ART BROKER</h1></div>
+          <p><b data-roster-count>0</b> owned Punks</p>
+        </div>
+        <div class="punk-roster" data-punk-roster role="listbox" aria-label="Owned Gogh Punks"></div>
+        <div class="roster-empty" data-roster-empty>
+          <strong>Your brokers enter here.</strong>
+          <span>Connect the wallet that holds your Gogh Punks. Ownership is checked on Robinhood Chain.</span>
+        </div>
+      </section>
+
+      <section class="selected-stage" data-selected-stage hidden>
+        <div class="punk-hero">
+          <div class="hero-number" aria-hidden="true" data-hero-number>119</div>
+          <div class="hero-art-wrap">
+            <span class="frame-corner frame-corner-one"></span><span class="frame-corner frame-corner-two"></span>
+            <img data-hero-art src="/assets/collection/1.png" alt="Selected Gogh Punk" />
+            <span class="hero-status"><i></i><b data-hero-status>READY</b></span>
+          </div>
+          <div class="hero-copy">
+            <span class="kicker">YOUR SELECTED BROKER</span>
+            <h2>GOGH PUNK <strong>#<span data-punk-token>119</span></strong></h2>
+            <p data-punk-line>Sharp eyes. Stranger taste. Owner rules always win.</p>
+            <dl class="hero-stats">
+              <div><dt>MODE</dt><dd data-punk-mode>ASK</dd></div>
+              <div><dt>WALLET</dt><dd><code data-punk-wallet>0x0000…0000</code></dd></div>
+              <div><dt>BALANCE</dt><dd data-punk-balance>0.0300 ETH</dd></div>
+              <div><dt>COLLECTION</dt><dd><span data-punk-nfts>27</span> PIECES</dd></div>
+            </dl>
+            <div class="budget-meter" aria-label="Art budget">
+              <div><span>ART BUDGET</span><b data-available-budget>0.0200 ETH AVAILABLE</b></div>
+              <div class="meter-track"><span data-budget-meter></span></div>
+              <small><span data-punk-reserve>0.0100 ETH</span> protected reserve</small>
+            </div>
+          </div>
+        </div>
+
+        <nav class="broker-tabs" aria-label="Punk actions">
+          <button type="button" data-v2-tab="talk" aria-selected="true"><span>01</span>TALK</button>
+          <button type="button" data-v2-tab="strategy" aria-selected="false"><span>02</span>STRATEGY</button>
+          <button type="button" data-v2-tab="fund" aria-selected="false"><span>03</span>FUND</button>
+          <button type="button" data-v2-tab="collection" aria-selected="false"><span>04</span>COLLECTION</button>
+          <button type="button" data-v2-tab="activity" aria-selected="false"><span>05</span>ACTIVITY</button>
+          <button type="button" data-v2-tab="withdraw" aria-selected="false"><span>06</span>WITHDRAW</button>
+          <button type="button" data-v2-tab="settings" aria-selected="false"><span>07</span>SETTINGS</button>
+        </nav>
+
+        <div class="panel-stack">
+          <section class="broker-panel talk-panel" data-v2-panel="talk" aria-labelledby="talk-title">
+            <header class="panel-header">
+              <div><span class="kicker">DIRECT LINE · PUNK #<span data-talk-token>119</span></span><h2 id="talk-title">WHAT ARE WE HUNTING?</h2></div>
+              <span class="intelligence-chip"><i></i>GOGH INTELLIGENCE · AUTO</span>
+            </header>
+            <div class="talk-layout">
+              <div class="conversation" data-conversation aria-live="polite">
+                <article class="message punk-message">
+                  <img data-chat-avatar src="/assets/collection/1.png" alt="" />
+                  <div><b>PUNK #<span data-chat-token>119</span></b><p>Give me a direction. I’ll turn it into rules you can review before anything changes.</p></div>
+                </article>
+              </div>
+              <aside class="quick-commands" aria-label="Suggested commands">
+                <span>QUICK CALLS</span>
+                <button type="button" data-suggestion="Find me free pixel art with an X account and website.">Find free mints</button>
+                <button type="button" data-suggestion="I want weird experimental art. No PFPs.">Tune my taste</button>
+                <button type="button" data-show-link>Check a link</button>
+                <button type="button" data-suggestion="Show me what you found today.">Show discoveries</button>
+                <button type="button" data-suggestion="Pause for tonight.">Pause</button>
+              </aside>
+            </div>
+            <form class="link-composer" data-link-form hidden>
+              <label for="mint-link">PASTE A MINT LINK</label>
+              <div><input id="mint-link" name="url" type="url" inputmode="url" autocomplete="off" placeholder="https://opensea.io/collection/..." /><button type="submit">CHECK LINK</button></div>
+              <p data-link-result>A link is information, never transaction authorization.</p>
+            </form>
+            <form class="chat-composer" data-chat-form>
+              <label class="sr-only" for="punk-prompt">Tell your Punk what art you want</label>
+              <textarea id="punk-prompt" name="message" rows="2" maxlength="4000" placeholder="Tell your Punk what you're looking for..."></textarea>
+              <div><button class="attach-button" type="button" data-show-link>+ LINK</button><button class="send-button" type="submit">SEND <span aria-hidden="true">↗</span></button></div>
+            </form>
+          </section>
+
+          <section class="broker-panel" data-v2-panel="strategy" aria-labelledby="strategy-title" hidden>
+            <header class="panel-header"><div><span class="kicker">MOVE SET</span><h2 id="strategy-title">COLLECTING STRATEGY</h2></div><span class="mode-stamp" data-strategy-mode>ASK MODE</span></header>
+            <div class="strategy-grid">
+              <article class="ability-card"><span>TASTE PROFILE</span><h3>PIXEL HUNTER</h3><div class="taste-row"><b>PIXEL</b><meter min="0" max="100" value="92">92</meter><em>92</em></div><div class="taste-row"><b>WEIRD</b><meter min="0" max="100" value="83">83</meter><em>83</em></div><div class="taste-row"><b>GENERATIVE</b><meter min="0" max="100" value="75">75</meter><em>75</em></div><div class="taste-row dim"><b>PHOTOGRAPHY</b><meter min="0" max="100" value="18">18</meter><em>18</em></div></article>
+              <article class="ability-card limit-card"><span>LIMITS</span><dl><div><dt>MINT PRICE</dt><dd data-strategy-price>FREE ONLY</dd></div><div><dt>MAX GAS</dt><dd data-strategy-gas>0.0005 ETH</dd></div><div><dt>DAILY LIMIT</dt><dd data-strategy-daily>3</dd></div><div><dt>RESERVE</dt><dd data-strategy-reserve>0.010 ETH</dd></div></dl></article>
+              <article class="ability-card safety-card"><span>SAFETY</span><ul><li><i>✓</i>CONTRACT SCREEN</li><li><i>✓</i>SIMULATION REQUIRED</li><li><i>✓</i>WEBSITE REQUIRED</li><li><i>✓</i>X REQUIRED</li></ul><small>Screening reduces known risks. It is not a guarantee.</small></article>
+            </div>
+            <div class="autonomy-boundary"><strong>AUTONOMOUS SUBMISSION IS LOCKED</strong><p>The current Punk Wallet cannot originate and pay gas by itself. V2 builds and simulates this mode, but production activation requires a separately reviewed authorization mechanism.</p></div>
+          </section>
+
+          <section class="broker-panel" data-v2-panel="fund" aria-labelledby="fund-title" hidden>
+            <header class="panel-header"><div><span class="kicker">POWER BAR</span><h2 id="fund-title">FUND YOUR PUNK</h2></div><span class="custody-chip">DIRECT · NON-CUSTODIAL</span></header>
+            <div class="fund-layout">
+              <div class="balance-readout"><span>CURRENT BALANCE</span><strong data-fund-balance>0.0300</strong><em>ETH</em></div>
+              <dl class="fund-breakdown"><div><dt>PROTECTED RESERVE</dt><dd data-fund-reserve>0.0100 ETH</dd></div><div><dt>AVAILABLE ART BUDGET</dt><dd data-fund-available>0.0200 ETH</dd></div><div><dt>DESTINATION</dt><dd><code data-fund-wallet>0x0000…0000</code></dd></div></dl>
+              <form class="fund-form" data-fund-form><label for="fund-amount">AMOUNT IN ETH</label><div><input id="fund-amount" name="amount" inputmode="decimal" autocomplete="off" placeholder="0.01" /><button class="primary-button" type="submit">FUND PUNK</button></div><p data-fund-result>Funds go directly into this Punk Wallet. Gogh Punks does not custody the balance.</p></form>
+            </div>
+          </section>
+
+          <section class="broker-panel" data-v2-panel="collection" aria-labelledby="collection-title" hidden>
+            <header class="panel-header"><div><span class="kicker">PERSONAL GALLERY</span><h2 id="collection-title">PUNK COLLECTION</h2></div><span><b data-gallery-count>4</b> PIECES SHOWN</span></header>
+            <div class="gallery-grid" data-gallery-grid></div>
+          </section>
+
+          <section class="broker-panel" data-v2-panel="activity" aria-labelledby="activity-title" hidden>
+            <header class="panel-header"><div><span class="kicker">MATCH HISTORY</span><h2 id="activity-title">ACTIVITY</h2></div><button class="filter-button" type="button">V1 + V2</button></header>
+            <ol class="activity-feed" data-activity-feed></ol>
+          </section>
+
+          <section class="broker-panel" data-v2-panel="withdraw" aria-labelledby="withdraw-title" hidden>
+            <header class="panel-header"><div><span class="kicker">OWNER ESCAPE HATCH</span><h2 id="withdraw-title">WITHDRAW</h2></div><span class="owner-only-chip">OWNER ONLY</span></header>
+            <div class="withdraw-grid"><article><span>NATIVE TOKEN</span><h3>WITHDRAW ETH</h3><p>Use the existing owner-only Punk Wallet execution path.</p><a data-legacy-vault href="/broker/punk/">OPEN SECURE WITHDRAWAL</a></article><article><span>NFT ASSET</span><h3>WITHDRAW NFT</h3><p>Select an NFT from the indexed wallet gallery, then approve in your wallet.</p><a data-legacy-vault href="/broker/punk/">OPEN NFT WITHDRAWAL</a></article><article><span>SUPPORTED ERC20</span><h3>WITHDRAW TOKEN</h3><p>Supported token recovery remains independent of AI and discovery.</p><a data-legacy-vault href="/broker/punk/">OPEN TOKEN CONTROLS</a></article></div>
+          </section>
+
+          <section class="broker-panel" data-v2-panel="settings" aria-labelledby="settings-title" hidden>
+            <header class="panel-header"><div><span class="kicker">BROKER PROFILE</span><h2 id="settings-title">SETTINGS</h2></div></header>
+            <div class="settings-grid"><article><span>OPERATING MODE</span><fieldset><legend class="sr-only">Operating mode</legend><label><input type="radio" name="mode" value="ASK" checked /><b>ASK</b><small>Discover and recommend. You decide.</small></label><label><input type="radio" name="mode" value="ASSIST" /><b>ASSIST</b><small>Screen and prepare. You approve.</small></label><label class="mode-locked"><input type="radio" name="mode" value="AUTONOMOUS" disabled /><b>AUTONOMOUS · LOCKED</b><small>Built for canary testing; no production activation.</small></label></fieldset></article><article><span>GOGH INTELLIGENCE</span><label class="select-label" for="provider-setting">ROUTING<select id="provider-setting"><option>AUTO</option><option>GPT</option><option>CLAUDE</option><option>GROK</option><option>BANKR ROUTED</option></select></label><p>Auto selects for task, capability, cost, latency, and availability. Your Punk stays the product.</p></article></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="flywheel" aria-labelledby="flywheel-title">
+        <header><span class="kicker">THE V2 LOOP</span><h2 id="flywheel-title">FUND IT. TALK TO IT. LET IT COLLECT.</h2></header>
+        <ol><li><b>01</b><span>FUND</span></li><li><b>02</b><span>TALK</span></li><li><b>03</b><span>DEFINE TASTE</span></li><li><b>04</b><span>DISCOVER</span></li><li><b>05</b><span>SCREEN</span></li><li><b>06</b><span>COLLECT</span></li><li><b>07</b><span>REFINE</span></li></ol>
+        <p>Discovery and analysis are shared. Money and custody stay with each Punk Wallet. Owner rules remain deterministic.</p>
+      </section>
+    </main>
+
+    <dialog class="confirmation-dialog" data-confirmation-dialog>
+      <form method="dialog"><button class="dialog-close" value="cancel" aria-label="Close">×</button></form>
+      <span class="kicker">STRATEGY DRAFT · NOT ACTIVE</span><h2>YOUR PUNK UNDERSTANDS</h2>
+      <div class="confirmation-grid" data-confirmation-grid></div>
+      <p class="confirmation-note">Conversation created this draft. Deterministic structured policy becomes authoritative only after owner confirmation.</p>
+      <div class="dialog-actions"><button type="button" class="outline-button" data-edit-strategy>EDIT</button><button type="button" class="primary-button" data-activate-strategy>ACTIVATE STRATEGY</button></div>
+    </dialog>
+  </body>
+</html>

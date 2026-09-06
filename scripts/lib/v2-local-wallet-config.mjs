@@ -1,7 +1,7 @@
 const PROJECT_ID = /^[0-9a-f]{32}$/;
 const UPSTREAM = "https://goghpunks.xyz/api/broker/wallet-config";
 const MAX_RESPONSE_BYTES = 4_096;
-const WALLET_PAGE = /^(?:\/broker\/?|\/broker\/punk\/\d+\/?|\/punk\/\d+\/?|\/discover\/?)$/;
+const WALLET_PAGE = /^(?:\/broker\/?|\/broker\/v2(?:\/admin)?\/?|\/broker\/punk\/\d+\/?|\/punk\/\d+\/?|\/discover\/?)$/;
 
 function localOrigin(value) {
   const url = new URL(value);

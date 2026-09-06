@@ -8,6 +8,7 @@ import { fetchLocalBrokerRead, LOCAL_BROKER_READ_PATHS } from
 import { V2LocalSimulation } from "./lib/v2-local-simulation.mjs";
 import { createLocalConnector } from "./lib/v2-local-connector.mjs";
 import { CONNECTOR_TOOL_DEFINITIONS } from "../broker/src/connector/gogh-connector.mjs";
+import { ArtBrokerV2LocalState } from "./lib/art-broker-v2-local-state.mjs";
 
 const root = resolve(process.cwd(), "site");
 const portValue = process.env.GOGH_V2_DEMO_PORT ?? "8888";
@@ -17,6 +18,7 @@ if (!/^[1-9][0-9]{0,4}$/.test(portValue) || Number(portValue) > 65_535) {
 const port = Number(portValue);
 const simulation = new V2LocalSimulation();
 const localConnector = createLocalConnector(simulation);
+const artBrokerV2 = new ArtBrokerV2LocalState();
 const MAX_JSON_BYTES = 16_384;
 const types = Object.freeze({ ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
@@ -103,6 +105,43 @@ async function handleSimulationApi(request, response, requestUrl) {
   } catch (error) {
     json(response, { ok: false, code: error?.code ?? "INVALID_LOCAL_REQUEST",
       message: error?.message ?? "Local simulation failed" }, 400);
+  }
+}
+
+async function handleArtBrokerV2Api(request, response, requestUrl) {
+  if (!localApiRequest(request)) {
+    json(response, { ok: false, code: "LOCAL_PAGE_ONLY" }, 403);
+    return;
+  }
+  try {
+    if (request.method === "GET" && requestUrl.pathname === "/api/local-art-broker-v2/session") {
+      json(response, { ok: true, session: artBrokerV2.session(requestUrl.searchParams.get("tokenId")) });
+      return;
+    }
+    if (request.method === "GET" && requestUrl.pathname === "/api/local-art-broker-v2/admin") {
+      json(response, { ok: true, admin: artBrokerV2.admin() });
+      return;
+    }
+    if (request.method !== "POST") {
+      response.writeHead(405, { allow: "GET, POST" }).end();
+      return;
+    }
+    const body = await readJson(request);
+    const output = requestUrl.pathname === "/api/local-art-broker-v2/chat"
+      ? { draft: artBrokerV2.chat(body) }
+      : requestUrl.pathname === "/api/local-art-broker-v2/strategy/activate"
+        ? { strategy: artBrokerV2.activate(body) }
+        : requestUrl.pathname === "/api/local-art-broker-v2/inspect-link"
+          ? { inspection: await artBrokerV2.inspect(body) }
+          : null;
+    if (!output) {
+      json(response, { ok: false, code: "NOT_FOUND" }, 404);
+      return;
+    }
+    json(response, { ok: true, ...output });
+  } catch (error) {
+    json(response, { ok: false, code: error?.code ?? "INVALID_LOCAL_REQUEST",
+      message: error?.message ?? "Local V2 preview request failed safely." }, 400);
   }
 }
 
@@ -194,6 +233,10 @@ const server = createServer(async (request, response) => {
   const requestUrl = new URL(request.url ?? "/", `http://127.0.0.1:${port}`);
   if (requestUrl.pathname.startsWith("/api/local-v2/")) {
     await handleSimulationApi(request, response, requestUrl);
+    return;
+  }
+  if (requestUrl.pathname.startsWith("/api/local-art-broker-v2/")) {
+    await handleArtBrokerV2Api(request, response, requestUrl);
     return;
   }
   if (requestUrl.pathname.startsWith("/api/local-connector/")) {
