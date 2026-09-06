@@ -147,7 +147,11 @@ test("the hosted PR review runs bounded tab agents while owner transactions stay
   assert.match(script, /selectedReviewAgent\(\)\?\.intent/);
   assert.match(script, /No production permissions were activated/);
   assert.match(script, /reviewAgents: new Map\(\)/);
-  assert.doesNotMatch(script, /localStorage|sessionStorage/);
+  assert.doesNotMatch(script, /localStorage/);
+  assert.match(script, /sessionStorage\.setItem\(REVIEW_SESSION_STORAGE_KEY/);
+  assert.match(script, /normalizeReviewAgentSnapshot/);
+  assert.match(script, /restoreReviewSessionState\(\)/);
+  assert.match(script, /persistReviewSessionState\(\)/);
   assert.match(script, /SIMULATION PASSED/);
   assert.match(script, /SUBMIT IN METAMASK/);
   assert.match(script, /GOGH INTELLIGENCE · REVIEW PARSER/);

@@ -11,8 +11,9 @@ import {
   waitForNftWithdrawalReceipt,
 } from "./nft-withdrawal.js";
 import {
-  activateReviewAgent, dispatchReviewAgent, normalizeReviewAgentRun, pauseReviewAgent,
-  recordReviewMissionRun, reviewAgentKey, reviewInspectionPipeline,
+  activateReviewAgent, dispatchReviewAgent, normalizeReviewAgentRun,
+  normalizeReviewAgentSnapshot, pauseReviewAgent, recordReviewMissionRun, reviewAgentKey,
+  reviewInspectionPipeline,
 } from "./broker-v2-review-agent.js";
 import { activateReviewSkill } from "./broker-v2-review-skill.js";
 
@@ -51,6 +52,7 @@ const state = { wallet: null, punks: [], selected: null, localStrategy: null, lo
   reviewAgents: new Map(), reviewInspections: new Map(), reviewActivities: new Map(),
   reviewRuns: new Map(), reviewConversations: new Map(), reviewSkills: new Map() };
 const REVIEW_MISSION_POLL_MS = 60_000;
+const REVIEW_SESSION_STORAGE_KEY = "gogh-art-broker-review-session-v1";
 let reviewMissionTimer = null;
 const one = (selector) => document.querySelector(selector);
 const all = (selector) => [...document.querySelectorAll(selector)];
@@ -116,6 +118,65 @@ function selectedReviewSummary() {
     leadingMatchScore: leading?.matchScore ?? null };
 }
 
+function reviewActivitySnapshot(value) {
+  if (!Array.isArray(value) || value.length > 20) return null;
+  const limits = [24, 32, 200, 500];
+  const entries = [];
+  for (const entry of value) {
+    if (!Array.isArray(entry) || entry.length !== 4
+      || entry.some((field, index) => typeof field !== "string"
+        || !field.trim() || field.length > limits[index])) return null;
+    entries.push(Object.freeze([...entry]));
+  }
+  return Object.freeze(entries);
+}
+
+function persistReviewSessionState() {
+  if (!REVIEW_HOST || PREVIEW) return;
+  try {
+    const agents = [...state.reviewAgents.entries()].slice(0, 100);
+    const agentKeys = new Set(agents.map(([key]) => key));
+    const activities = [...state.reviewActivities.entries()]
+      .filter(([key]) => agentKeys.has(key)).slice(0, 100);
+    window.sessionStorage.setItem(REVIEW_SESSION_STORAGE_KEY,
+      JSON.stringify({ version: 1, agents, activities }));
+  } catch { /* Review state remains safely tab-memory-only when storage is unavailable. */ }
+}
+
+function restoreReviewSessionState() {
+  if (!REVIEW_HOST || PREVIEW) return;
+  try {
+    const raw = window.sessionStorage.getItem(REVIEW_SESSION_STORAGE_KEY);
+    if (!raw) return;
+    const snapshot = JSON.parse(raw);
+    if (!snapshot || snapshot.version !== 1 || !Array.isArray(snapshot.agents)
+      || !Array.isArray(snapshot.activities) || snapshot.agents.length > 100
+      || snapshot.activities.length > 100) throw new TypeError("Review session is invalid");
+    const restoredKeys = new Set();
+    for (const entry of snapshot.agents) {
+      try {
+        if (!Array.isArray(entry) || entry.length !== 2 || typeof entry[0] !== "string") continue;
+        const agent = normalizeReviewAgentSnapshot(entry[1]);
+        const key = reviewAgentKey(agent.owner, agent.punkTokenId);
+        if (entry[0] !== key) continue;
+        state.reviewAgents.set(key, agent); restoredKeys.add(key);
+      } catch { /* One bad Punk snapshot cannot poison another Punk's review state. */ }
+    }
+    for (const entry of snapshot.activities) {
+      if (!Array.isArray(entry) || entry.length !== 2 || !restoredKeys.has(entry[0])) continue;
+      const activities = reviewActivitySnapshot(entry[1]);
+      if (activities) state.reviewActivities.set(entry[0], activities);
+    }
+  } catch {
+    window.sessionStorage.removeItem(REVIEW_SESSION_STORAGE_KEY);
+  }
+}
+
+function setReviewAgent(key, agent) {
+  state.reviewAgents.set(key, agent);
+  persistReviewSessionState();
+}
+
 function reviewModeForPunk(punk) {
   if (!punk || !state.wallet?.account) return punk?.mode ?? "ASK";
   try {
@@ -130,6 +191,7 @@ function addReviewActivity(type, title, detail) {
   const time = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }).toUpperCase();
   const existing = state.reviewActivities.get(key) ?? [];
   state.reviewActivities.set(key, [[time, type, title, detail], ...existing].slice(0, 20));
+  persistReviewSessionState();
   renderActivity();
 }
 
@@ -267,7 +329,7 @@ function startReviewAgent(draft) {
   if (!key || !state.selected?.account) throw new Error("Select an owned Punk Wallet first.");
   const agent = activateReviewAgent(draft, { owner: state.wallet.account,
     punkTokenId: state.selected.tokenId, punkWallet: state.selected.account });
-  state.reviewAgents.set(key, agent);
+  setReviewAgent(key, agent);
   state.reviewRuns.delete(key);
   state.selected.mode = agent.mode;
   state.selected.reserveEth = ethFromWei(agent.intent.minimumReserveWei);
@@ -280,11 +342,14 @@ function startReviewAgent(draft) {
 function scheduleSelectedReviewMissionCheck() {
   if (reviewMissionTimer !== null) window.clearTimeout(reviewMissionTimer);
   reviewMissionTimer = null;
-  if (!REVIEW_HOST || PREVIEW || selectedReviewAgent()?.status !== "SCOUTING") return;
+  const agent = selectedReviewAgent();
+  if (!REVIEW_HOST || PREVIEW || agent?.status !== "SCOUTING") return;
+  const previousCheck = agent.mission.lastCheckedAt ?? agent.mission.startedAt;
+  const delay = Math.max(0, REVIEW_MISSION_POLL_MS - (Date.now() - Date.parse(previousCheck)));
   reviewMissionTimer = window.setTimeout(() => {
     reviewMissionTimer = null;
     void sendReviewAgentOut({ continueMission: true });
-  }, REVIEW_MISSION_POLL_MS);
+  }, delay);
 }
 
 async function sendReviewAgentOut({ testMode = false, continueMission = false } = {}) {
@@ -300,7 +365,7 @@ async function sendReviewAgentOut({ testMode = false, continueMission = false } 
   const tokenId = state.selected.tokenId;
   if (!testMode && agent.status === "ACTIVE") {
     agent = dispatchReviewAgent(agent);
-    state.reviewAgents.set(key, agent);
+    setReviewAgent(key, agent);
     addReviewActivity("OUT", "PUNK SENT TO ROBINHOOD NFT DISCOVERY",
       `Mission target · ${agent.mission.targetMatches} unique eligible match${agent.mission.targetMatches === 1 ? "" : "es"}`);
   }
@@ -326,7 +391,7 @@ async function sendReviewAgentOut({ testMode = false, continueMission = false } 
         : "TEST COMPLETE. The non-live test card was rejected by the current rules. No live mint or transaction exists.");
     } else {
       agent = recordReviewMissionRun(agent, run);
-      state.reviewAgents.set(key, agent);
+      setReviewAgent(key, agent);
       const returned = agent.status === "RETURNED";
       addReviewActivity(returned ? "RETURNED" : "SCOUTING",
         returned ? "PUNK RETURNED · MISSION COMPLETE" : "PUNK REMAINS OUT SCOUTING",
@@ -907,6 +972,7 @@ function applyOwnedPunks(punks) {
 }
 
 function setup() {
+  restoreReviewSessionState();
   one("[data-preview-banner]").hidden = !PREVIEW && !REVIEW_HOST;
   if (REVIEW_HOST && !PREVIEW) {
     set("[data-review-title]", "PR REVIEW BUILD");
@@ -959,7 +1025,7 @@ function setup() {
           addMessage("punk", "NO ACTIVE REVIEW STRATEGY TO PAUSE. Production remains unchanged.");
           return;
         }
-        state.reviewAgents.set(key, pauseReviewAgent(agent));
+        setReviewAgent(key, pauseReviewAgent(agent));
         scheduleSelectedReviewMissionCheck();
         state.selected.mode = "PAUSED"; renderSelected();
         addReviewActivity("PAUSED", "REVIEW AGENT PAUSED",

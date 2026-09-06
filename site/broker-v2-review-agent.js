@@ -113,6 +113,67 @@ export function pauseReviewAgent(agent, now = new Date()) {
   return Object.freeze({ ...agent, status: "PAUSED", updatedAt: timestamp(now, "pause time") });
 }
 
+export function normalizeReviewAgentSnapshot(value, now = new Date()) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new TypeError("Review agent snapshot is invalid");
+  }
+  if (value.schema !== "GOGH_REVIEW_AGENT_V1" || value.reviewOnly !== true
+    || value.authority !== "NONE") {
+    throw new TypeError("Review agent snapshot authority is invalid");
+  }
+  const activatedAt = timestamp(value.activatedAt, "activation time");
+  const base = activateReviewAgent({ intent: value.intent, intentHash: value.intentHash }, {
+    owner: value.owner, punkTokenId: value.punkTokenId, punkWallet: value.punkWallet,
+  }, new Date(activatedAt));
+  if (Date.parse(base.intent.expiration) <= new Date(now).getTime()) {
+    throw new TypeError("Review agent snapshot is expired");
+  }
+  const status = String(value.status ?? "");
+  if (!["ACTIVE", "SCOUTING", "RETURNED", "PAUSED"].includes(status)
+    || value.mode !== base.mode) {
+    throw new TypeError("Review agent snapshot status is invalid");
+  }
+  const updatedAt = timestamp(value.updatedAt, "update time");
+  if (Date.parse(updatedAt) < Date.parse(activatedAt)) {
+    throw new TypeError("Review agent snapshot chronology is invalid");
+  }
+  let mission;
+  if (Object.hasOwn(value, "mission")) {
+    const source = value.mission;
+    if (!source || typeof source !== "object" || Array.isArray(source)
+      || source.targetMatches !== Math.min(base.intent.dailyMintLimit, base.intent.totalMintLimit)
+      || !Number.isInteger(source.checks) || source.checks < 0 || source.checks > 100_000
+      || !Number.isInteger(source.checkedOpportunities) || source.checkedOpportunities < 0
+      || source.checkedOpportunities > 10_000_000 || !Array.isArray(source.foundContracts)
+      || source.foundContracts.length > 10_000) {
+      throw new TypeError("Review agent snapshot mission is invalid");
+    }
+    const foundContracts = [...new Set(source.foundContracts.map((contract) =>
+      address(contract, "matched collection contract")))].sort();
+    if (foundContracts.length !== source.foundContracts.length) {
+      throw new TypeError("Review agent snapshot matches are invalid");
+    }
+    const startedAt = timestamp(source.startedAt, "mission start");
+    const lastCheckedAt = source.lastCheckedAt === null ? null
+      : timestamp(source.lastCheckedAt, "mission check");
+    if ((source.checks === 0) !== (lastCheckedAt === null)
+      || Date.parse(startedAt) < Date.parse(activatedAt)
+      || lastCheckedAt !== null && Date.parse(lastCheckedAt) < Date.parse(startedAt)) {
+      throw new TypeError("Review agent snapshot mission chronology is invalid");
+    }
+    mission = Object.freeze({ targetMatches: source.targetMatches, checks: source.checks,
+      checkedOpportunities: source.checkedOpportunities,
+      foundContracts: Object.freeze(foundContracts), startedAt, lastCheckedAt });
+  }
+  if (["SCOUTING", "RETURNED"].includes(status) && !mission
+    || status === "ACTIVE" && mission
+    || status === "SCOUTING" && mission.foundContracts.length >= mission.targetMatches
+    || status === "RETURNED" && mission.foundContracts.length < mission.targetMatches) {
+    throw new TypeError("Review agent snapshot mission state is invalid");
+  }
+  return Object.freeze({ ...base, status, updatedAt, ...(mission ? { mission } : {}) });
+}
+
 export function reviewInspectionPipeline(inspection) {
   if (!inspection || typeof inspection !== "object" || Array.isArray(inspection)
     || !inspection.link || typeof inspection.link !== "object") {
