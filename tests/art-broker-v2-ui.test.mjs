@@ -41,6 +41,17 @@ test("live collection and activity panels hydrate real authenticated API states"
   assert.doesNotMatch(script, /dangerouslySetInnerHTML|innerHTML\s*=/);
 });
 
+test("chat sends on Enter while preserving Shift+Enter and composition", async () => {
+  const [html, script] = await Promise.all([
+    readFile(htmlUrl, "utf8"),
+    readFile(new URL("../site/broker-v2.js", import.meta.url), "utf8"),
+  ]);
+  assert.match(html, /Press Enter to send\. Press Shift plus Enter for a new line\./);
+  assert.match(html, /aria-keyshortcuts="Enter"/);
+  assert.match(script, /event\.key !== "Enter" \|\| event\.shiftKey \|\| event\.isComposing/);
+  assert.match(script, /chatForm\.requestSubmit\(\)/);
+});
+
 test("the local review route is isolated and explicitly cannot broadcast", async () => {
   const [html, server] = await Promise.all([
     readFile(htmlUrl, "utf8"),

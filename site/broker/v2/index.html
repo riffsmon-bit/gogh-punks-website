@@ -112,7 +112,8 @@
             </form>
             <form class="chat-composer" data-chat-form>
               <label class="sr-only" for="punk-prompt">Tell your Punk what art you want</label>
-              <textarea id="punk-prompt" name="message" rows="2" maxlength="4000" placeholder="Tell your Punk what you're looking for..."></textarea>
+              <textarea id="punk-prompt" name="message" rows="2" maxlength="4000" aria-describedby="punk-prompt-help" aria-keyshortcuts="Enter" placeholder="Tell your Punk what you're looking for..."></textarea>
+              <p id="punk-prompt-help" class="sr-only">Press Enter to send. Press Shift plus Enter for a new line.</p>
               <div><button class="attach-button" type="button" data-show-link>+ LINK</button><button class="send-button" type="submit">SEND <span aria-hidden="true">↗</span></button></div>
             </form>
           </section>

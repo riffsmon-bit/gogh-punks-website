@@ -313,7 +313,14 @@ function setup() {
   all("[data-show-link]").forEach((button) => button.addEventListener("click", () => {
     one("[data-link-form]").hidden = false; one("#mint-link").focus();
   }));
-  one("[data-chat-form]").addEventListener("submit", async (event) => {
+  const chatForm = one("[data-chat-form]");
+  const chatInput = one("#punk-prompt");
+  chatInput.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
+    event.preventDefault();
+    chatForm.requestSubmit();
+  });
+  chatForm.addEventListener("submit", async (event) => {
     event.preventDefault(); const input = one("#punk-prompt"); const message = input.value.trim();
     if (!message) return; addMessage("owner", message); input.value = "";
     if (/pause/i.test(message)) {
