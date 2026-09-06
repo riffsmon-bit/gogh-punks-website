@@ -4,6 +4,7 @@ import test from "node:test";
 import { handleV2ReviewChat } from "../netlify/functions/broker-v2-review-chat.mjs";
 import { handleV2ReviewInspectUrl } from "../netlify/functions/broker-v2-review-inspect-url.mjs";
 import { handleV2ReviewRun } from "../netlify/functions/broker-v2-review-run.mjs";
+import { requireV2SessionOrigin } from "../netlify/functions/broker-v2-session.mjs";
 import { PublicError } from "../netlify/functions/_shared/http.mjs";
 import { isV2DeployPreview } from "../netlify/functions/_shared/v2-review.mjs";
 
@@ -27,6 +28,19 @@ test("review-only capabilities require the exact same deploy-preview origin", ()
   assert.equal(isV2DeployPreview(hostile), false);
   assert.equal(isV2DeployPreview(request("/api/v2/review/chat", {},
     "https://goghpunks.xyz", "https://goghpunks.xyz")), false);
+});
+
+test("V2 wallet sign-in accepts only an exact self-originating deploy preview", () => {
+  const customPreview = request("/api/v2/session", { action: "prepare" });
+  assert.doesNotThrow(() => requireV2SessionOrigin(customPreview));
+  const netlifyOrigin = "https://deploy-preview-42--gogh-punks.netlify.app";
+  assert.doesNotThrow(() => requireV2SessionOrigin(request("/api/v2/session",
+    { action: "prepare" }, netlifyOrigin, netlifyOrigin)));
+  const hostile = new Request(`${ORIGIN}/api/v2/session`, { method: "POST",
+    headers: { origin: "https://deploy-preview-42.preview.goghpunks.xyz.evil.test" },
+    body: "{}" });
+  assert.throws(() => requireV2SessionOrigin(hostile),
+    (error) => error instanceof PublicError && error.code === "ORIGIN_REJECTED");
 });
 
 test("review chat live-binds the owner and returns an ephemeral structured draft", async () => {

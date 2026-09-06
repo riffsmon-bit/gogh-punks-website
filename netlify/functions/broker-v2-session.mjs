@@ -1,6 +1,7 @@
 import { getDatabase } from "@netlify/database";
 import { json, PublicError, readJson, requireSameOrigin } from "./_shared/http.mjs";
 import { v2Failure } from "./_shared/v2-http.mjs";
+import { isV2DeployPreview, isV2DeployPreviewUrl } from "./_shared/v2-review.mjs";
 import { completeV2Session, prepareV2Session, requireV2Session, revokeV2Session } from
   "./_shared/v2-session.mjs";
 
@@ -12,6 +13,14 @@ function exact(value, fields) {
   }
 }
 
+export function requireV2SessionOrigin(request) {
+  if (isV2DeployPreview(request)) return;
+  if (isV2DeployPreviewUrl(request)) {
+    throw new PublicError(403, "ORIGIN_REJECTED", "The request origin was rejected.");
+  }
+  requireSameOrigin(request);
+}
+
 export default async function handler(request) {
   const pool = getDatabase().pool;
   try {
@@ -21,7 +30,7 @@ export default async function handler(request) {
         expiresAt: session.expiresAt });
     }
     if (request.method !== "POST") return json({ ok: false, code: "METHOD_NOT_ALLOWED" }, 405);
-    requireSameOrigin(request);
+    requireV2SessionOrigin(request);
     const body = await readJson(request, 16_384);
     if (body.action === "prepare") {
       exact(body, ["action", "walletAddress"]);

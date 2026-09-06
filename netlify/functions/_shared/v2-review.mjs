@@ -2,12 +2,20 @@ import { PublicError } from "./http.mjs";
 
 const PREVIEW_HOST = /^(?:deploy-preview-[1-9][0-9]*--gogh-punks\.netlify\.app|deploy-preview-[1-9][0-9]*\.preview\.goghpunks\.xyz)$/;
 
+export function isV2DeployPreviewUrl(request) {
+  try {
+    const url = new URL(request.url);
+    return url.protocol === "https:" && !url.username && !url.password && !url.port
+      && PREVIEW_HOST.test(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
 export function isV2DeployPreview(request) {
   try {
     const url = new URL(request.url);
-    const origin = request.headers.get("origin");
-    return url.protocol === "https:" && !url.username && !url.password && !url.port
-      && PREVIEW_HOST.test(url.hostname) && origin === url.origin;
+    return isV2DeployPreviewUrl(request) && request.headers.get("origin") === url.origin;
   } catch {
     return false;
   }
