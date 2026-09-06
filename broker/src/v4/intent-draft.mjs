@@ -46,6 +46,11 @@ export function draftStrategyFromConversation({ message, punkTokenId, expectedOw
   const base = currentIntent
     ? normalizePunkCollectingIntent(currentIntent, now)
     : defaultAskIntent({ punkTokenId, expectedOwner, punkWallet }, now);
+  if (String(base.punkTokenId) !== String(punkTokenId)
+    || base.expectedOwner !== String(expectedOwner).toLowerCase()
+    || base.punkWallet !== String(punkWallet).toLowerCase()) {
+    throw new TypeError("Current strategy authority does not match the selected Punk");
+  }
   const next = structuredClone(base);
   const changes = [];
   const ambiguous = [];

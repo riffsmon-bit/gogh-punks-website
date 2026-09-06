@@ -10,6 +10,9 @@ import {
   preflightNftWithdrawal, submitNftWithdrawal, validateWithdrawableNftAssets,
   waitForNftWithdrawalReceipt,
 } from "./nft-withdrawal.js";
+import {
+  activateReviewAgent, pauseReviewAgent, reviewAgentKey, reviewInspectionPipeline,
+} from "./broker-v2-review-agent.js";
 
 const PREVIEW = new URLSearchParams(location.search).get("preview") === "1";
 const REVIEW_HOST = location.protocol === "https:" && /^(?:deploy-preview-[1-9][0-9]*--gogh-punks\.netlify\.app|deploy-preview-[1-9][0-9]*\.preview\.goghpunks\.xyz)$/.test(location.hostname);
@@ -41,7 +44,8 @@ const state = { wallet: null, punks: [], selected: null, localStrategy: null,
   ownershipAccount: null, ownershipLoadingAccount: null, ownershipRequestId: 0,
   balanceRequestId: 0, galleryTokenId: null, galleryLoadingTokenId: null,
   fundingPlan: null, wrappedPlan: null, withdrawalAsset: null,
-  withdrawalAmount: "1", withdrawalPlan: null, withdrawalBusy: false };
+  withdrawalAmount: "1", withdrawalPlan: null, withdrawalBusy: false,
+  reviewAgents: new Map(), reviewInspections: new Map(), reviewActivities: new Map() };
 const one = (selector) => document.querySelector(selector);
 const all = (selector) => [...document.querySelectorAll(selector)];
 const set = (selector, value) => { const target = one(selector); if (target) target.textContent = String(value); };
@@ -71,6 +75,114 @@ function previewData() {
   state.gallery = [...previewGallery]; state.activity = [...previewActivity];
 }
 
+function selectedReviewKey() {
+  if (!state.wallet?.account || !state.selected?.tokenId) return null;
+  try { return reviewAgentKey(state.wallet.account, state.selected.tokenId); }
+  catch { return null; }
+}
+
+function selectedReviewAgent() {
+  const key = selectedReviewKey();
+  return key ? state.reviewAgents.get(key) ?? null : null;
+}
+
+function reviewModeForPunk(punk) {
+  if (!punk || !state.wallet?.account) return punk?.mode ?? "ASK";
+  try {
+    const agent = state.reviewAgents.get(reviewAgentKey(state.wallet.account, punk.tokenId));
+    return agent?.status === "PAUSED" ? "PAUSED" : agent?.mode ?? punk.mode ?? "ASK";
+  } catch { return punk.mode ?? "ASK"; }
+}
+
+function addReviewActivity(type, title, detail) {
+  const key = selectedReviewKey();
+  if (!key) return;
+  const time = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }).toUpperCase();
+  const existing = state.reviewActivities.get(key) ?? [];
+  state.reviewActivities.set(key, [[time, type, title, detail], ...existing].slice(0, 20));
+  renderActivity();
+}
+
+function renderReviewAgent() {
+  const reviewSurface = PREVIEW || REVIEW_HOST;
+  const consolePanel = one("[data-review-agent-console]");
+  const strategyState = one("[data-review-strategy-state]");
+  if (consolePanel) consolePanel.hidden = !reviewSurface;
+  if (strategyState) strategyState.hidden = !reviewSurface;
+  if (!reviewSurface) return;
+  const agent = selectedReviewAgent();
+  const pipeline = reviewInspectionPipeline(state.lastInspection);
+  set("[data-review-agent-status]", agent?.status ?? "IDLE");
+  set("[data-review-agent-strategy]", agent
+    ? `${agent.mode} · ${agent.status}` : "NOT STARTED");
+  set("[data-review-agent-discovery]", pipeline.discovery);
+  set("[data-review-agent-contract]", pipeline.contract);
+  set("[data-review-agent-screen]", pipeline.screening);
+  set("[data-review-agent-simulation]", pipeline.simulation);
+  set("[data-review-agent-decision]", pipeline.decision);
+  set("[data-review-strategy-label]", agent
+    ? `REVIEW AGENT ${agent.status}` : "NO REVIEW AGENT");
+  set("[data-review-strategy-detail]", agent
+    ? `${agent.mode} rules are remembered for this Punk in this browser tab. Authority: NONE.`
+    : "Confirm a strategy draft to start this Punk in the current review tab.");
+  if (!agent) {
+    set("[data-strategy-name]", "NOT CONFIGURED");
+    set("[data-strategy-price]", "FREE ONLY");
+    set("[data-strategy-gas]", "0.0005 ETH");
+    set("[data-strategy-daily]", "1");
+    set("[data-strategy-reserve]", "0.0000 ETH");
+    set("[data-strategy-website]", "— WEBSITE OPTIONAL");
+    set("[data-strategy-social]", "— SOCIAL OPTIONAL");
+    const tastes = one("[data-strategy-tastes]"); tastes.replaceChildren();
+    const empty = document.createElement("span");
+    empty.textContent = "Talk to your Punk to define explicit preferences."; tastes.append(empty);
+    all('input[name="mode"]').forEach((input) => { input.checked = input.value === "ASK"; });
+    return;
+  }
+  const intent = agent.intent;
+  set("[data-strategy-name]", intent.preferences.prefer.length
+    ? intent.preferences.prefer.map((style) => style.replaceAll("_", " ")).join(" + ")
+    : "OPEN TASTE");
+  set("[data-strategy-price]", intent.mintMode === "FREE_ONLY"
+    ? "FREE ONLY" : `UP TO ${intent.maxMintPriceWei} WEI`);
+  set("[data-strategy-gas]", `${ethFromWei(intent.maxGasPerMintWei)} ETH`);
+  set("[data-strategy-daily]", intent.dailyMintLimit);
+  set("[data-strategy-reserve]", `${ethFromWei(intent.minimumReserveWei)} ETH`);
+  const tastes = one("[data-strategy-tastes]"); tastes.replaceChildren();
+  const entries = [
+    ...intent.preferences.prefer.map((style) => [style, false]),
+    ...intent.preferences.avoid.map((style) => [style, true]),
+  ];
+  if (!entries.length) {
+    const empty = document.createElement("span"); empty.textContent = "OPEN TASTE"; tastes.append(empty);
+  } else {
+    for (const [style, avoided] of entries) {
+      const tag = document.createElement("span");
+      tag.textContent = `${avoided ? "AVOID " : ""}${style.replaceAll("_", " ")}`;
+      if (avoided) tag.dataset.avoid = "true";
+      tastes.append(tag);
+    }
+  }
+  set("[data-strategy-website]", intent.requiresWebsite ? "✓ WEBSITE REQUIRED" : "— WEBSITE OPTIONAL");
+  set("[data-strategy-social]", intent.requiresSocial
+    ? `✓ ${intent.preferredSocialPlatforms.join(" + ") || "SOCIAL"} REQUIRED` : "— SOCIAL OPTIONAL");
+  all('input[name="mode"]').forEach((input) => { input.checked = input.value === agent.mode; });
+}
+
+function startReviewAgent(draft) {
+  const key = selectedReviewKey();
+  if (!key || !state.selected?.account) throw new Error("Select an owned Punk Wallet first.");
+  const agent = activateReviewAgent(draft, { owner: state.wallet.account,
+    punkTokenId: state.selected.tokenId, punkWallet: state.selected.account });
+  state.reviewAgents.set(key, agent);
+  state.selected.mode = agent.mode;
+  state.selected.reserveEth = ethFromWei(agent.intent.minimumReserveWei);
+  renderSelected();
+  addReviewActivity("READY", `${agent.mode} REVIEW AGENT STARTED`,
+    "Structured rules active in this tab · production authority none");
+  return agent;
+}
+
 function renderRoster() {
   const roster = one("[data-punk-roster]");
   roster.replaceChildren();
@@ -86,7 +198,7 @@ function renderRoster() {
     image.src = cleanImage(punk.image);
     const label = document.createElement("span");
     const name = document.createElement("b"); name.textContent = `#${punk.tokenId}`;
-    const mode = document.createElement("small"); mode.textContent = punk.mode ?? "ASK";
+    const mode = document.createElement("small"); mode.textContent = reviewModeForPunk(punk);
     label.append(name, mode); button.append(image, label);
     button.addEventListener("click", () => selectPunk(punk.tokenId));
     roster.append(button);
@@ -96,10 +208,11 @@ function renderRoster() {
 function renderSelected() {
   const punk = state.selected;
   if (!punk) return;
+  const displayMode = reviewModeForPunk(punk);
   all("[data-punk-token], [data-talk-token], [data-chat-token]").forEach((node) => { node.textContent = punk.tokenId; });
   set("[data-hero-number]", punk.tokenId);
-  set("[data-punk-mode]", punk.mode ?? "ASK");
-  set("[data-strategy-mode]", `${punk.mode ?? "ASK"} MODE`);
+  set("[data-punk-mode]", displayMode);
+  set("[data-strategy-mode]", `${displayMode} MODE`);
   set("[data-punk-wallet]", short(punk.account));
   set("[data-fund-wallet]", short(punk.account));
   const balance = Number(punk.balanceEth ?? 0); const reserve = Number(punk.reserveEth ?? 0);
@@ -121,7 +234,7 @@ function renderSelected() {
   const meter = one("[data-budget-meter]"); if (meter) meter.style.width = `${balance ? Math.min(100, available / balance * 100) : 0}%`;
   all("[data-hero-art], [data-chat-avatar]").forEach((image) => { image.src = cleanImage(punk.image); });
   all("[data-legacy-vault]").forEach((link) => { link.href = `/broker/punk/${punk.tokenId}?tab=assets`; });
-  renderRoster(); renderGallery(); renderActivity();
+  renderRoster(); renderGallery(); renderActivity(); renderReviewAgent();
   window.dispatchEvent(new CustomEvent("gogh:owner-snapshot", { detail: {
     address: state.wallet?.account ?? null, tokenId: punk.tokenId,
   } }));
@@ -134,6 +247,8 @@ function selectPunk(tokenId) {
   const punk = state.punks.find((item) => item.tokenId === tokenId);
   if (!punk) return;
   state.selected = punk; state.localStrategy = null; state.lastInspection = null;
+  const key = selectedReviewKey();
+  state.lastInspection = key ? state.reviewInspections.get(key) ?? null : null;
   state.hydratedTokenId = null; state.galleryTokenId = null; state.galleryLoadingTokenId = null;
   state.fundingPlan = null; state.wrappedPlan = null; state.withdrawalAsset = null;
   state.withdrawalAmount = "1"; state.withdrawalPlan = null; state.withdrawalBusy = false;
@@ -182,12 +297,14 @@ function renderGallery() {
 
 function renderActivity() {
   const feed = one("[data-activity-feed]"); feed.replaceChildren();
-  if (!state.activity.length) {
+  const key = selectedReviewKey();
+  const entries = [...(key ? state.reviewActivities.get(key) ?? [] : []), ...state.activity];
+  if (!entries.length) {
     const empty = document.createElement("li"); empty.className = "panel-empty";
     empty.textContent = PREVIEW ? "No activity yet." : "Open ACTIVITY to load V1 + V2 history.";
     feed.append(empty); return;
   }
-  for (const [time, type, title, detail] of state.activity) {
+  for (const [time, type, title, detail] of entries) {
     const item = document.createElement("li"); const when = document.createElement("time"); when.textContent = time;
     const copy = document.createElement("div"); const heading = document.createElement("h3"); heading.textContent = title;
     const text = document.createElement("p"); text.textContent = detail; copy.append(heading, text);
@@ -563,7 +680,7 @@ function showConfirmation(draft) {
   const activate = one("[data-activate-strategy]");
   activate.disabled = view.mode === "AUTONOMOUS";
   activate.textContent = view.mode === "AUTONOMOUS" ? "AUTONOMOUS LOCKED"
-    : REVIEW_HOST ? "TEST DRAFT" : "ACTIVATE STRATEGY";
+    : REVIEW_HOST ? "START REVIEW AGENT" : "ACTIVATE STRATEGY";
   const dialog = one("[data-confirmation-dialog]");
   if (typeof dialog.showModal === "function") dialog.showModal(); else dialog.setAttribute("open", "");
 }
@@ -594,6 +711,8 @@ function applyOwnedPunks(punks) {
   const selectedTokenId = state.selected?.tokenId ?? null;
   state.punks = punks;
   state.selected = punks.find((punk) => punk.tokenId === selectedTokenId) ?? punks[0] ?? null;
+  const reviewKey = selectedReviewKey();
+  state.lastInspection = reviewKey ? state.reviewInspections.get(reviewKey) ?? null : null;
   state.gallery = []; state.activity = [];
   state.hydratedTokenId = null; state.galleryTokenId = null; state.galleryLoadingTokenId = null;
   renderRoster(); renderSelected();
@@ -605,7 +724,7 @@ function setup() {
   one("[data-preview-banner]").hidden = !PREVIEW && !REVIEW_HOST;
   if (REVIEW_HOST && !PREVIEW) {
     set("[data-review-title]", "PR REVIEW BUILD");
-    set("[data-review-detail]", "Live ownership and asset reads. Funding or WETH actions require exact simulation, a second confirmation, and MetaMask. No strategy persistence, AI provider charge, or autonomous execution.");
+    set("[data-review-detail]", "Live ownership, assets, owner-approved wallet actions, and a tab-scoped ASK/ASSIST agent. No production strategy, AI provider charge, autonomous execution, or deployment.");
   }
   all("[data-v2-tab]").forEach((button) => button.addEventListener("click", () => activateTab(button.dataset.v2Tab)));
   all("[data-suggestion]").forEach((button) => button.addEventListener("click", () => {
@@ -621,14 +740,36 @@ function setup() {
     event.preventDefault();
     chatForm.requestSubmit();
   });
+  all('input[name="mode"]').forEach((input) => input.addEventListener("change", () => {
+    if (!input.checked || input.value === "AUTONOMOUS") return;
+    chatInput.value = input.value === "ASSIST"
+      ? "Switch to assist mode. Keep every existing collecting rule."
+      : "Ask me first. Keep every existing collecting rule.";
+    activateTab("talk");
+    chatForm.requestSubmit();
+  }));
+  if (REVIEW_HOST && !PREVIEW) {
+    const providerSetting = one("#provider-setting");
+    for (const option of providerSetting.options) {
+      option.disabled = option.textContent !== "AUTO";
+    }
+    providerSetting.options[0].textContent = "AUTO · REVIEW PARSER";
+  }
   chatForm.addEventListener("submit", async (event) => {
     event.preventDefault(); const input = one("#punk-prompt"); const message = input.value.trim();
     if (!message) return; addMessage("owner", message); input.value = "";
     if (/pause/i.test(message)) {
-      if (PREVIEW) addMessage("punk", "Paused in this local preview. No active production strategy was changed.");
-      else if (REVIEW_HOST) {
+      if (PREVIEW || REVIEW_HOST) {
+        const key = selectedReviewKey(); const agent = selectedReviewAgent();
+        if (!key || !agent || agent.status !== "ACTIVE") {
+          addMessage("punk", "NO ACTIVE REVIEW STRATEGY TO PAUSE. Production remains unchanged.");
+          return;
+        }
+        state.reviewAgents.set(key, pauseReviewAgent(agent));
         state.selected.mode = "PAUSED"; renderSelected();
-        addMessage("punk", "PAUSED IN THIS REVIEW TAB. No saved or production strategy was changed.");
+        addReviewActivity("PAUSED", "REVIEW AGENT PAUSED",
+          "Tab-scoped only · no production strategy changed");
+        addMessage("punk", "PAUSED IN THIS REVIEW TAB. I will not evaluate new opportunities until you confirm another strategy.");
       }
       else {
         try {
@@ -638,6 +779,16 @@ function setup() {
           state.selected.mode = "PAUSED"; renderSelected(); addMessage("punk", "PAUSED. No new collection can be prepared under this strategy.");
         } catch (error) { addMessage("punk", `${error?.message ?? "Pause failed."} No permissions were broadened.`); }
       }
+      return;
+    }
+    if (/\bshow\b.*\b(?:found|discover(?:y|ies|ed)?)\b/i.test(message)) {
+      if (!state.lastInspection) {
+        addMessage("punk", "NOTHING IN THE REVIEW QUEUE YET. Paste a mint or project link and I’ll normalize it without accepting its transaction data.");
+      } else {
+        const pipeline = reviewInspectionPipeline(state.lastInspection);
+        addMessage("punk", `ONE LINK IN REVIEW. ${pipeline.discovery}. CONTRACT: ${pipeline.contract}. SCREEN: ${pipeline.screening}. SIMULATION: ${pipeline.simulation}. DECISION: ${pipeline.decision}.`);
+      }
+      renderReviewAgent();
       return;
     }
     const contextualReply = reviewQuestionReply(message);
@@ -658,10 +809,11 @@ function setup() {
       }
     } else if (REVIEW_HOST) {
       try {
+        const currentIntent = selectedReviewAgent()?.intent ?? null;
         const payload = await jsonRequest("/api/v2/review/chat", {
           method: "POST", headers: { "content-type": "application/json" },
-          body: JSON.stringify({ owner: state.wallet.account,
-            tokenId: state.selected.tokenId, message }),
+          body: JSON.stringify({ owner: state.wallet.account, tokenId: state.selected.tokenId,
+            message, ...(currentIntent ? { currentIntent } : {}) }),
         });
         draft = payload.draft; reply = payload.reply;
         set("[data-intelligence-status]", "GOGH INTELLIGENCE · REVIEW PARSER");
@@ -720,9 +872,13 @@ function setup() {
         inspection = payload.inspection;
       }
       state.lastInspection = inspection;
+      const reviewKey = selectedReviewKey();
+      if (reviewKey) state.reviewInspections.set(reviewKey, inspection);
       const kind = inspection.link.kind.replaceAll("_", " ");
       const status = inspection.status.replaceAll("_", " ");
       output.textContent = `${kind} · ${status} · no external calldata or wallet request accepted.`;
+      addReviewActivity("DISCOVERED", kind, `${status} · transaction data ignored`);
+      renderReviewAgent();
       addMessage("punk", `LINK IDENTIFIED 👀 ${kind}. CURRENT VERDICT: ${status}. I can't call it safe yet—contract resolution, screening, and simulation still have to pass.`);
     } catch (error) {
       const invalid = error instanceof TypeError || !error?.message;
@@ -772,8 +928,13 @@ function setup() {
     const mode = state.localStrategy.intent?.operatingMode ?? state.localStrategy.mode;
     if (mode === "AUTONOMOUS") return;
     if (REVIEW_HOST && !PREVIEW) {
-      state.selected.mode = mode; one("[data-confirmation-dialog]").close(); renderSelected();
-      addMessage("punk", "DRAFT TESTED IN THIS REVIEW TAB. Nothing was saved, signed, funded, or activated.");
+      try { startReviewAgent(state.localStrategy); }
+      catch (error) {
+        addMessage("punk", `${error?.message ?? "Review agent could not start."} Production remains unchanged.`);
+        return;
+      }
+      one("[data-confirmation-dialog]").close();
+      addMessage("punk", `${mode} REVIEW AGENT READY. I’ll remember these structured rules for this Punk in this tab. No production permissions were activated.`);
       return;
     }
     if (PREVIEW && state.localStrategy.intentHash) {
@@ -786,6 +947,7 @@ function setup() {
         addMessage("punk", `${payload?.message ?? "Strategy activation failed."} Existing rules remain unchanged.`);
         return;
       }
+      startReviewAgent(state.localStrategy);
     } else if (!PREVIEW && state.localStrategy.intentHash) {
       try {
         await ensureV2Session();
@@ -809,7 +971,7 @@ function setup() {
     }
     state.selected.mode = mode; one("[data-confirmation-dialog]").close(); renderSelected();
     addMessage("punk", PREVIEW ? "Strategy activated in local preview state only. Nothing was saved remotely."
-      : "Strategy activation needs an owner-signed server challenge. No unsigned change was accepted.");
+      : "STRATEGY ACTIVATED WITH YOUR WALLET SIGNATURE. No unsigned change was accepted.");
   });
   const fundForm = one("[data-fund-form]");
   const fundButton = fundForm.querySelector("button[type=submit]");

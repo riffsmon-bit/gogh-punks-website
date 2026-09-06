@@ -109,7 +109,7 @@ test("chat sends on Enter while preserving Shift+Enter and composition", async (
   assert.match(script, /chatForm\.requestSubmit\(\)/);
 });
 
-test("the hosted PR review keeps drafts non-persistent while owner transactions stay explicit", async () => {
+test("the hosted PR review runs bounded tab agents while owner transactions stay explicit", async () => {
   const [html, script] = await Promise.all([
     readFile(htmlUrl, "utf8"),
     readFile(new URL("../site/broker-v2.js", import.meta.url), "utf8"),
@@ -117,7 +117,13 @@ test("the hosted PR review keeps drafts non-persistent while owner transactions 
   assert.match(html, /data-review-title/);
   assert.match(script, /api\/v2\/review\/chat/);
   assert.match(script, /api\/v2\/review\/inspect-url/);
-  assert.match(script, /DRAFT TESTED IN THIS REVIEW TAB/);
+  assert.match(html, /data-review-agent-console/);
+  assert.match(html, /Preview-session intelligence only/);
+  assert.match(script, /startReviewAgent/);
+  assert.match(script, /selectedReviewAgent\(\)\?\.intent/);
+  assert.match(script, /No production permissions were activated/);
+  assert.match(script, /reviewAgents: new Map\(\)/);
+  assert.doesNotMatch(script, /localStorage|sessionStorage/);
   assert.match(script, /SIMULATION PASSED/);
   assert.match(script, /SUBMIT IN METAMASK/);
   assert.match(script, /GOGH INTELLIGENCE · REVIEW PARSER/);

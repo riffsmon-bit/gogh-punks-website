@@ -55,6 +55,44 @@ test("review chat live-binds the owner and returns an ephemeral structured draft
   assert.deepEqual(authorityReads, [["93", { expectedOwner: OWNER }]]);
 });
 
+test("review chat applies follow-up instructions to the Punk's current structured intent", async () => {
+  const first = await handleV2ReviewChat(request("/api/v2/review/chat", {
+    owner: OWNER, tokenId: "93", message: "Find free pixel art with a website.",
+  }), { now: new Date("2026-09-06T14:00:00.000Z"),
+    readAuthority: async () => ({ punkWallet: PUNK_WALLET }) });
+  const firstPayload = await first.json();
+  const second = await handleV2ReviewChat(request("/api/v2/review/chat", {
+    owner: OWNER, tokenId: "93", message: "Assist me and find three things per day.",
+    currentIntent: firstPayload.draft.intent,
+  }), { now: new Date("2026-09-06T14:01:00.000Z"),
+    readAuthority: async () => ({ punkWallet: PUNK_WALLET }) });
+  assert.equal(second.status, 200);
+  const payload = await second.json();
+  assert.equal(payload.draft.intent.operatingMode, "ASSIST");
+  assert.equal(payload.draft.intent.dailyMintLimit, 3);
+  assert.deepEqual(payload.draft.intent.preferences.prefer, ["PIXEL_ART"],
+    "follow-up instructions must refine rather than reset confirmed taste");
+  assert.equal(payload.draft.intent.requiresWebsite, true);
+});
+
+test("review chat rejects a client-carried strategy bound to another owner", async () => {
+  const first = await handleV2ReviewChat(request("/api/v2/review/chat", {
+    owner: OWNER, tokenId: "93", message: "Find free pixel art.",
+  }), { now: new Date("2026-09-06T14:00:00.000Z"),
+    readAuthority: async () => ({ punkWallet: PUNK_WALLET }) });
+  const firstPayload = await first.json();
+  const response = await handleV2ReviewChat(request("/api/v2/review/chat", {
+    owner: OWNER, tokenId: "93", message: "Assist me.", currentIntent: {
+      ...firstPayload.draft.intent,
+      expectedOwner: "0x9999999999999999999999999999999999999999",
+    },
+  }), { now: new Date("2026-09-06T14:01:00.000Z"),
+    readAuthority: async () => ({ punkWallet: PUNK_WALLET }) });
+  assert.equal(response.status, 400);
+  const payload = await response.json();
+  assert.equal(payload.code, "INVALID_REQUEST");
+});
+
 test("review link inspection accepts information but no transaction authority", async () => {
   const response = await handleV2ReviewInspectUrl(request("/api/v2/review/inspect-url", {
     owner: OWNER, tokenId: "93", url: "https://opensea.io/collection/pepemfersnft/overview",

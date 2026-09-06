@@ -8,9 +8,12 @@ const TOKEN = /^(?:0|[1-9]\d{0,3})$/;
 const OWNER = /^0x[0-9a-f]{40}$/;
 
 function exactBody(value) {
+  const fields = value && typeof value === "object" && !Array.isArray(value)
+    && Object.hasOwn(value, "currentIntent")
+    ? ["currentIntent", "message", "owner", "tokenId"] : ["message", "owner", "tokenId"];
   if (!value || typeof value !== "object" || Array.isArray(value)
-    || Object.keys(value).length !== 3
-    || !["message", "owner", "tokenId"].every((field) => Object.hasOwn(value, field))) {
+    || Object.keys(value).length !== fields.length
+    || !fields.every((field) => Object.hasOwn(value, field))) {
     throw new PublicError(400, "INVALID_REQUEST", "The review chat request is invalid.");
   }
   const owner = typeof value.owner === "string" ? value.owner.toLowerCase() : "";
@@ -21,7 +24,12 @@ function exactBody(value) {
     || Buffer.byteLength(message, "utf8") > 8_000) {
     throw new PublicError(400, "INVALID_REQUEST", "Choose an owned Punk and enter a valid message.");
   }
-  return Object.freeze({ owner, tokenId, message });
+  const currentIntent = Object.hasOwn(value, "currentIntent") ? value.currentIntent : null;
+  if (currentIntent !== null && (!currentIntent || typeof currentIntent !== "object"
+    || Array.isArray(currentIntent))) {
+    throw new PublicError(400, "INVALID_REQUEST", "The current review strategy is invalid.");
+  }
+  return Object.freeze({ owner, tokenId, message, currentIntent });
 }
 
 function punkReply(confirmation) {
@@ -35,10 +43,17 @@ export async function handleV2ReviewChat(request, {
   if (request.method !== "POST") return json({ ok: false, code: "METHOD_NOT_ALLOWED" }, 405);
   try {
     requireV2DeployPreview(request);
-    const body = exactBody(await readJson(request, 12_000));
+    const body = exactBody(await readJson(request, 20_000));
     const authority = await readAuthority(body.tokenId, { expectedOwner: body.owner });
-    const interpreted = draftStrategyFromConversation({ message: body.message,
-      punkTokenId: body.tokenId, expectedOwner: body.owner, punkWallet: authority.punkWallet }, now);
+    let interpreted;
+    try {
+      interpreted = draftStrategyFromConversation({ message: body.message,
+        punkTokenId: body.tokenId, expectedOwner: body.owner, punkWallet: authority.punkWallet,
+        currentIntent: body.currentIntent }, now);
+    } catch (error) {
+      if (!(error instanceof TypeError)) throw error;
+      throw new PublicError(400, "INVALID_REQUEST", "The review strategy could not be safely interpreted.");
+    }
     return json({ ok: true, reviewMode: true, persistence: "NONE", tokenId: body.tokenId,
       reply: punkReply(interpreted.confirmation), draft: {
         version: null, state: interpreted.status, intent: interpreted.intent,

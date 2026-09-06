@@ -183,6 +183,15 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .link-composer button, .fund-form button { border: 0; padding: 0 18px; color: var(--ink); background: var(--cyan); font-weight: 900; cursor: pointer; }
 .link-composer button:disabled { cursor: wait; opacity: .72; }
 .link-composer p, .fund-form p { margin: 2px 0; color: var(--muted); font-size: .74rem; }
+.review-agent-console { margin-top: 14px; padding: 18px; border: 1px solid var(--line-strong); background: var(--ink); }
+.review-agent-console > header { display: flex; justify-content: space-between; gap: 18px; align-items: end; }
+.review-agent-console h3 { margin: 4px 0 0; font-family: var(--font-display); font-size: 2rem; }
+.review-agent-console > header strong { color: var(--acid); font-size: .72rem; letter-spacing: .1em; }
+.review-agent-console dl { display: grid; grid-template-columns: repeat(3, 1fr); margin: 16px 0 0; }
+.review-agent-console dl div { min-width: 0; padding: 12px; border: 1px solid var(--line); }
+.review-agent-console dt { color: var(--muted); font-size: .55rem; font-weight: 900; letter-spacing: .1em; }
+.review-agent-console dd { margin: 6px 0 0; color: var(--text); font-size: .72rem; font-weight: 900; }
+.review-agent-console > p { margin: 14px 0 0; color: var(--muted); font-size: .72rem; line-height: 1.5; }
 
 .strategy-grid { display: grid; grid-template-columns: 1.15fr .85fr .85fr; gap: 14px; }
 .ability-card { padding: 24px; border: 1px solid var(--line); background: var(--ink); }
@@ -203,6 +212,12 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .safety-card li { padding: 10px 0; border-bottom: 1px solid var(--line); font-size: .72rem; font-weight: 900; }
 .safety-card li i { margin-right: 9px; color: var(--success); font-style: normal; }
 .safety-card small { color: var(--muted); line-height: 1.5; }
+.taste-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.taste-tags span { padding: 8px 10px; border: 1px solid var(--line-strong); color: var(--text); font-size: .65rem; }
+.taste-tags span[data-avoid] { border-color: var(--warning); color: var(--warning); }
+.review-strategy-state { margin-top: 16px; padding: 16px 18px; border-left: 4px solid var(--cyan); background: rgba(99,224,241,.06); }
+.review-strategy-state strong { color: var(--cyan); font-size: .72rem; letter-spacing: .08em; }
+.review-strategy-state p { margin: 6px 0 0; color: var(--muted); font-size: .82rem; }
 .autonomy-boundary { margin-top: 16px; padding: 16px 18px; border-left: 4px solid var(--warning); background: rgba(255,198,90,.07); }
 .autonomy-boundary strong { color: var(--warning); font-size: .72rem; letter-spacing: .08em; }
 .autonomy-boundary p { margin: 6px 0 0; color: var(--muted); font-size: .82rem; }
@@ -374,6 +389,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   .chat-composer { grid-template-columns: 1fr; }
   .chat-composer > div { justify-content: space-between; }
   .strategy-grid, .fund-layout, .settings-grid, .collection-assets { grid-template-columns: 1fr; }
+  .review-agent-console dl { grid-template-columns: repeat(2, 1fr); }
   .safety-card, .fund-form { grid-column: auto; }
   .balance-readout { padding: 24px; }
   .wrapped-funding { padding: 18px; }

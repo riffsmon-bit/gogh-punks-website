@@ -78,6 +78,9 @@ test("link normalization accepts information but never external transaction auth
   assert.equal(inspected.status, "NEEDS_REVIEW");
   assert.equal(inspected.executable, false);
   assert.equal(inspected.externalTransactionAccepted, false);
+  assert.deepEqual(normalizeArtBrokerLink(`https://robinhoodchain.blockscout.com/address/${MINT}`), {
+    kind: "ROBINHOOD_CONTRACT", host: "robinhoodchain.blockscout.com", identity: MINT,
+    canonicalUrl: `https://robinhoodchain.blockscout.com/address/${MINT}` });
   assert.throws(() => normalizeArtBrokerLink("https://127.0.0.1/mint"),
     (error) => error.code === "PRIVATE_URL_BLOCKED");
   assert.throws(() => normalizeArtBrokerLink("javascript:alert(1)"),

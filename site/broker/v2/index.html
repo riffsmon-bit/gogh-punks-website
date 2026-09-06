@@ -109,6 +109,11 @@
               <div><input id="mint-link" name="url" type="url" inputmode="url" autocomplete="off" placeholder="https://opensea.io/collection/..." /><button type="submit">CHECK LINK</button></div>
               <p data-link-result>A link is information, never transaction authorization.</p>
             </form>
+            <section class="review-agent-console" data-review-agent-console hidden aria-labelledby="review-agent-title">
+              <header><div><span class="kicker">REVIEW AGENT</span><h3 id="review-agent-title">PUNK PIPELINE</h3></div><strong data-review-agent-status>IDLE</strong></header>
+              <dl><div><dt>STRATEGY</dt><dd data-review-agent-strategy>NOT STARTED</dd></div><div><dt>DISCOVERY</dt><dd data-review-agent-discovery>WAITING</dd></div><div><dt>CONTRACT</dt><dd data-review-agent-contract>NOT IDENTIFIED</dd></div><div><dt>SCREEN</dt><dd data-review-agent-screen>NOT RUN</dd></div><div><dt>SIMULATION</dt><dd data-review-agent-simulation>NOT RUN</dd></div><div><dt>DECISION</dt><dd data-review-agent-decision>NO OPPORTUNITY</dd></div></dl>
+              <p>Preview-session intelligence only. This panel can remember confirmed rules and evaluate evidence, but it has no production authority and cannot submit a mint.</p>
+            </section>
             <form class="chat-composer" data-chat-form>
               <label class="sr-only" for="punk-prompt">Tell your Punk what art you want</label>
               <textarea id="punk-prompt" name="message" rows="2" maxlength="4000" aria-describedby="punk-prompt-help" aria-keyshortcuts="Enter" placeholder="Tell your Punk what you're looking for..."></textarea>
@@ -120,10 +125,11 @@
           <section class="broker-panel" data-v2-panel="strategy" aria-labelledby="strategy-title" hidden>
             <header class="panel-header"><div><span class="kicker">MOVE SET</span><h2 id="strategy-title">COLLECTING STRATEGY</h2></div><span class="mode-stamp" data-strategy-mode>ASK MODE</span></header>
             <div class="strategy-grid">
-              <article class="ability-card"><span>TASTE PROFILE</span><h3>PIXEL HUNTER</h3><div class="taste-row"><b>PIXEL</b><meter min="0" max="100" value="92">92</meter><em>92</em></div><div class="taste-row"><b>WEIRD</b><meter min="0" max="100" value="83">83</meter><em>83</em></div><div class="taste-row"><b>GENERATIVE</b><meter min="0" max="100" value="75">75</meter><em>75</em></div><div class="taste-row dim"><b>PHOTOGRAPHY</b><meter min="0" max="100" value="18">18</meter><em>18</em></div></article>
+              <article class="ability-card"><span>TASTE PROFILE</span><h3 data-strategy-name>NOT CONFIGURED</h3><div class="taste-tags" data-strategy-tastes><span>Talk to your Punk to define explicit preferences.</span></div></article>
               <article class="ability-card limit-card"><span>LIMITS</span><dl><div><dt>MINT PRICE</dt><dd data-strategy-price>FREE ONLY</dd></div><div><dt>MAX GAS</dt><dd data-strategy-gas>0.0005 ETH</dd></div><div><dt>DAILY LIMIT</dt><dd data-strategy-daily>3</dd></div><div><dt>RESERVE</dt><dd data-strategy-reserve>0.010 ETH</dd></div></dl></article>
-              <article class="ability-card safety-card"><span>SAFETY</span><ul><li><i>✓</i>CONTRACT SCREEN</li><li><i>✓</i>SIMULATION REQUIRED</li><li><i>✓</i>WEBSITE REQUIRED</li><li><i>✓</i>X REQUIRED</li></ul><small>Screening reduces known risks. It is not a guarantee.</small></article>
+              <article class="ability-card safety-card"><span>SAFETY</span><ul><li><i>✓</i>CONTRACT SCREEN</li><li><i>✓</i>SIMULATION REQUIRED</li><li data-strategy-website><i>—</i>WEBSITE OPTIONAL</li><li data-strategy-social><i>—</i>SOCIAL OPTIONAL</li></ul><small>Screening reduces known risks. It is not a guarantee.</small></article>
             </div>
+            <div class="review-strategy-state" data-review-strategy-state hidden><strong data-review-strategy-label>NO REVIEW AGENT</strong><p data-review-strategy-detail>Confirm a strategy draft to start this Punk in the current review tab.</p></div>
             <div class="autonomy-boundary"><strong>AUTONOMOUS SUBMISSION IS LOCKED</strong><p>The current Punk Wallet cannot originate and pay gas by itself. V2 builds and simulates this mode, but production activation requires a separately reviewed authorization mechanism.</p></div>
           </section>
 

@@ -46,7 +46,8 @@ export function normalizeArtBrokerLink(value) {
     return Object.freeze({ kind: "X_POST", host: "x.com", identity: segments[2],
       canonicalUrl: `https://x.com/${segments[0]}/status/${segments[2]}` });
   }
-  if ((host === "explorer.testnet.chain.robinhood.com" || host === "explorer.chain.robinhood.com")
+  if ((host === "explorer.testnet.chain.robinhood.com" || host === "explorer.chain.robinhood.com"
+    || host === "robinhoodchain.blockscout.com")
     && segments.length === 2 && segments[0] === "address"
     && ADDRESS.test(segments[1].toLowerCase())) {
     return Object.freeze({ kind: "ROBINHOOD_CONTRACT", host,
