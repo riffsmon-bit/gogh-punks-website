@@ -123,6 +123,30 @@ test("deterministic matcher explains a safe preference match", () => {
   assert.ok(result.matchReasons.includes("Preferred pixel art"));
 });
 
+test("default ASK treats adapter choices as protocol-screened unless the owner narrows them", () => {
+  const result = matchV2Opportunity(intent({ operatingMode: "ASK", allowedAdapters: [] }),
+    opportunity(), {
+      punkWalletBalanceWei: "30000000000000000",
+      dailyMints: 0,
+      totalMints: 0,
+      currentOwner: OWNER,
+      punkWallet: ACCOUNT,
+    }, NOW);
+  assert.equal(result.matched, true);
+  assert.equal(result.recommendationEligible, true);
+
+  const restricted = matchV2Opportunity(intent({ operatingMode: "ASK",
+    allowedAdapters: ["0x7777777777777777777777777777777777777777"] }), opportunity(), {
+    punkWalletBalanceWei: "30000000000000000",
+    dailyMints: 0,
+    totalMints: 0,
+    currentOwner: OWNER,
+    punkWallet: ACCOUNT,
+  }, NOW);
+  assert.equal(restricted.matched, false);
+  assert.ok(restricted.reasons.includes("ADAPTER_NOT_ALLOWED"));
+});
+
 test("policy matching fails closed on owner, reserve, gas, recipient, safety, and taste", () => {
   const result = matchV2Opportunity(intent({ maxGasPerMintWei: "10" }), opportunity({
     screeningStatus: "NEEDS_REVIEW",

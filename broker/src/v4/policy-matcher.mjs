@@ -43,7 +43,11 @@ export function matchV2Opportunity(intentValue, opportunityValue, state, now = n
   }
   if (opportunity.unexpectedApprovals) reasons.push("UNEXPECTED_APPROVAL");
   if (opportunity.unexpectedTransfers) reasons.push("UNEXPECTED_TRANSFER");
-  if (!intent.allowedAdapters.includes(opportunity.adapter)) reasons.push("ADAPTER_NOT_ALLOWED");
+  // The protocol security screen is the authority on whether an adapter is known-safe.
+  // An owner-supplied list is an optional additional restriction; an empty list must
+  // not make the default ASK strategy incapable of recommending screened work.
+  if (intent.allowedAdapters.length > 0
+    && !intent.allowedAdapters.includes(opportunity.adapter)) reasons.push("ADAPTER_NOT_ALLOWED");
   if (intent.blockedContracts.includes(opportunity.collectionContract)
     || intent.blockedContracts.includes(opportunity.mintContract)) reasons.push("CONTRACT_BLOCKED");
   if (intent.allowedContracts.length > 0
