@@ -4,6 +4,7 @@ import { decodeFunctionData, keccak256 } from "viem";
 
 import {
   preflightPunkWalletFunds,
+  readPunkWalletFundsState,
   submitPunkWalletFunds,
 } from "../site/punk-wallet-funds.js";
 
@@ -87,6 +88,15 @@ test("V3 Punk Wallet withdrawal fixes its destination to the current Punk owner"
   assert.equal(decoded.args[1], 1_000_000_000_000_000n);
   assert.equal(decoded.args[2], "0x");
   assert.equal(decoded.args[3], 0);
+});
+
+test("V3 Punk Wallet state exposes the verified selected wallet for WETH review", async () => {
+  const world = providerWorld();
+  const state = await readPunkWalletFundsState(world.provider, gate(), "93");
+  assert.equal(state.bindings.account, ACCOUNT);
+  assert.equal(state.bindings.expectedOwner, OWNER);
+  assert.equal(state.balanceWei, 10_000_000_000_000_000n);
+  assert.equal(world.calls.some(({ method }) => method === "eth_sendTransaction"), false);
 });
 
 test("V3 funds path fails closed on owner, runtime, balance, and amount changes", async () => {

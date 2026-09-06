@@ -123,6 +123,16 @@ export async function preflightPunkWalletFunds(provider, gate, selectedTokenId, 
   return preflightWei(provider, gate, selectedTokenId, direction, parseEther(amountText));
 }
 
+export async function readPunkWalletFundsState(provider, gate, selectedTokenId) {
+  const bindings = validateNftWithdrawalGate(gate, selectedTokenId);
+  await verifyV3PunkWallet(provider, bindings, "deposit", 0n);
+  const balanceWei = parseHexUint(
+    await rpc(provider, "eth_getBalance", [bindings.account, "latest"]),
+    "Punk Wallet balance",
+  );
+  return Object.freeze({ bindings, balanceWei });
+}
+
 function sameTransaction(left, right) {
   return left.from === right.from && left.to === right.to
     && left.value === right.value && left.data === right.data;

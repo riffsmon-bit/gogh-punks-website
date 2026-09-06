@@ -1,7 +1,7 @@
 import { verifyOwnedPunkIds } from "./broker-v2-ownership.js";
-import { fetchOwnerPolicyGate, readOwnerPolicyState } from "./owner-policy-controls.js";
 import {
-  fetchPunkWalletFundsGate, preflightPunkWalletFunds, submitPunkWalletFunds,
+  fetchPunkWalletFundsGate, preflightPunkWalletFunds, readPunkWalletFundsState,
+  submitPunkWalletFunds,
 } from "./punk-wallet-funds.js";
 import { buildWrappedNativeTransaction, decodeUint256, ROBINHOOD_WETH,
   simulateWrappedNativeTransaction, submitWrappedNativeTransaction,
@@ -901,12 +901,16 @@ function setup() {
         && one("#weth-amount").value.trim() === amount
         && one("[data-weth-confirm]").checked;
       const prepare = async () => {
-        const gate = await fetchOwnerPolicyGate((...args) => fetch(...args));
-        const live = await readOwnerPolicyState(provider, gate, selection);
-        const plan = buildWrappedNativeTransaction({ direction, punkWallet: live.account,
-          currentOwner: live.owner, amount });
+        const gate = await fetchPunkWalletFundsGate((...args) => fetch(...args), tokenId);
+        const live = await readPunkWalletFundsState(provider, gate, tokenId);
+        if (live.bindings.account !== selection.account
+          || live.bindings.expectedOwner !== selection.owner) {
+          throw new Error("Selected Punk Wallet identity or owner changed.");
+        }
+        const plan = buildWrappedNativeTransaction({ direction, punkWallet: live.bindings.account,
+          currentOwner: live.bindings.expectedOwner, amount });
         const wrappedRaw = await provider.request({ method: "eth_call", params: [{
-          to: ROBINHOOD_WETH, data: wrappedBalanceOfData(live.account),
+          to: ROBINHOOD_WETH, data: wrappedBalanceOfData(live.bindings.account),
         }, "latest"] });
         const available = direction === "WRAP" ? live.balanceWei : decodeUint256(wrappedRaw);
         if (plan.amountWei > available) {

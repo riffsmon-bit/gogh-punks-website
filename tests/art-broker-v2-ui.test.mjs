@@ -76,6 +76,8 @@ test("funding exposes hardened ETH funding and canonical WETH wrap submission", 
   assert.match(script, /wrappedBalanceOfData/);
   assert.match(script, /buildWrappedNativeTransaction/);
   assert.match(script, /simulateWrappedNativeTransaction/);
+  assert.match(script, /readPunkWalletFundsState/);
+  assert.doesNotMatch(script, /readOwnerPolicyState|fetchOwnerPolicyGate/);
   assert.match(script, /preflightPunkWalletFunds/);
   assert.match(script, /submitPunkWalletFunds/);
   assert.match(script, /submitWrappedNativeTransaction/);
