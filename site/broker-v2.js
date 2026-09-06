@@ -249,6 +249,10 @@ async function sendReviewAgentOut({ testMode = false } = {}) {
   }
   button.dataset.busy = "true"; button.disabled = true; renderReviewAgent();
   try {
+    if (!testMode) await jsonRequest("/api/v2/admin/discovery/ingest", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: "{}", timeoutMs: 45_000,
+    });
     const response = await jsonRequest("/api/v2/review/run", { method: "POST",
       headers: { "content-type": "application/json" }, body: JSON.stringify({
         owner: state.wallet.account, tokenId: state.selected.tokenId, intent: agent.intent,

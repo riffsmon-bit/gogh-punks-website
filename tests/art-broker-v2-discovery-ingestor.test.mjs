@@ -118,11 +118,23 @@ function request(token = OWNER_TOKEN) {
     { method: "POST", headers: { authorization: `Bearer ${token}` } });
 }
 
+function previewRequest() {
+  const origin = "https://deploy-preview-42.preview.goghpunks.xyz";
+  return new Request(`${origin}/api/v2/admin/discovery/ingest`, {
+    method: "POST", headers: { origin },
+  });
+}
+
 test("the live ingestor is admin-only, disabled by default, and never creates execution authority", async () => {
   const disabled = await handleV2DiscoveryIngest(request(), {
     environment: { GOGH_V2_ADMIN_TOKEN: OWNER_TOKEN }, pool: {} });
   assert.equal(disabled.status, 503);
   assert.equal((await disabled.json()).code, "V2_DISCOVERY_DISABLED");
+
+  const hostile = await handleV2DiscoveryIngest(new Request(
+    "https://goghpunks.xyz/api/v2/admin/discovery/ingest", { method: "POST" }), {
+    environment: {}, pool: {} });
+  assert.equal(hostile.status, 401);
 
   let advanced = null;
   const enabled = await handleV2DiscoveryIngest(request(), {
@@ -143,4 +155,14 @@ test("the live ingestor is admin-only, disabled by default, and never creates ex
   assert.equal(payload.transactionPrepared, false);
   assert.equal(payload.executionAttemptCreated, false);
   assert.equal(advanced, "50000000");
+
+  const preview = await handleV2DiscoveryIngest(previewRequest(), {
+    environment: {}, pool: {}, client: {}, now: NOW,
+    repository: { ingest: async () => { throw new Error("injected ingest should own persistence"); } },
+    readSource: async () => ({ sourceKey: "ROBINHOOD_SEADROP_PUBLIC_DROP_V2",
+      confirmedBlock: "50000001", observations: [] }),
+    ingest: async () => [], advanceCheckpoint: async () => {},
+  });
+  assert.equal(preview.status, 200);
+  assert.equal((await preview.json()).previewDatabaseOnly, true);
 });
