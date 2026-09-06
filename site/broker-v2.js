@@ -26,7 +26,8 @@ const previewActivity = Object.freeze([
 ]);
 
 const state = { wallet: null, punks: [], selected: null, localStrategy: null,
-  gallery: [], activity: [], hydratedTokenId: null, lastInspection: null };
+  gallery: [], activity: [], hydratedTokenId: null, lastInspection: null,
+  ownershipAccount: null, ownershipLoadingAccount: null, ownershipRequestId: 0 };
 const one = (selector) => document.querySelector(selector);
 const all = (selector) => [...document.querySelectorAll(selector)];
 const set = (selector, value) => { const target = one(selector); if (target) target.textContent = String(value); };
@@ -311,7 +312,7 @@ function showConfirmation(draft) {
   if (typeof dialog.showModal === "function") dialog.showModal(); else dialog.setAttribute("open", "");
 }
 
-async function loadOwnedPunks(account) {
+async function fetchOwnedPunks(account) {
   const response = await fetch(`/api/broker/owner-punks?owner=${encodeURIComponent(account)}&view=indexed`, {
     headers: { accept: "application/json" }, cache: "no-store",
   });
@@ -323,7 +324,7 @@ async function loadOwnedPunks(account) {
   const ownership = await verifyOwnedPunkIds(window.__GOGH_WALLET_PROVIDER__, payload.collection,
     account, payload.candidateTokenIds);
   const candidates = new Map(payload.candidatePunks.map((item) => [String(item.tokenId), item]));
-  state.punks = ownership.tokenIds.map((ownedTokenId) => {
+  return ownership.tokenIds.map((ownedTokenId) => {
     const item = candidates.get(ownedTokenId) ?? {};
     return { tokenId: ownedTokenId,
       account: item.agentSummary?.account ?? null,
@@ -331,7 +332,13 @@ async function loadOwnedPunks(account) {
       balanceEth: "0", reserveEth: "0",
       nfts: item.agentSummary?.lifetimeMints ?? 0, mode: "ASK" };
   });
-  state.selected = state.punks[0] ?? null; state.gallery = []; state.activity = [];
+}
+
+function applyOwnedPunks(punks) {
+  const selectedTokenId = state.selected?.tokenId ?? null;
+  state.punks = punks;
+  state.selected = punks.find((punk) => punk.tokenId === selectedTokenId) ?? punks[0] ?? null;
+  state.gallery = []; state.activity = [];
   state.hydratedTokenId = null; renderRoster(); renderSelected();
 }
 
@@ -552,12 +559,40 @@ function setup() {
   });
   window.addEventListener("gogh:wallet-state", async (event) => {
     if (PREVIEW) return;
-    state.wallet = event.detail;
-    if (!state.wallet?.account || state.wallet.chainId !== CHAIN_ID) {
-      state.punks = []; state.selected = null; renderRoster(); return;
+    const wallet = event.detail ?? {};
+    const account = typeof wallet.account === "string" ? wallet.account.toLowerCase() : null;
+    const verifiedSameAccount = account && state.ownershipAccount === account;
+    state.wallet = { ...wallet, account };
+    if (!account) {
+      if (wallet.restoring || wallet.status === "pending") return;
+      state.ownershipRequestId += 1; state.ownershipAccount = null;
+      state.ownershipLoadingAccount = null; state.punks = []; state.selected = null;
+      renderRoster(); return;
     }
-    try { await loadOwnedPunks(state.wallet.account); }
-    catch { state.punks = []; state.selected = null; renderRoster(); set("[data-wallet-state]", "Ownership service unavailable · no authority assumed"); }
+    if (wallet.chainId !== CHAIN_ID) {
+      if (verifiedSameAccount && (wallet.chainId == null || wallet.status === "pending")) return;
+      state.ownershipRequestId += 1; state.ownershipAccount = null;
+      state.ownershipLoadingAccount = null; state.punks = []; state.selected = null;
+      renderRoster(); return;
+    }
+    if (verifiedSameAccount || state.ownershipLoadingAccount === account) return;
+    const requestId = ++state.ownershipRequestId;
+    state.ownershipLoadingAccount = account;
+    if (state.ownershipAccount && state.ownershipAccount !== account) {
+      state.ownershipAccount = null; state.punks = []; state.selected = null; renderRoster();
+    }
+    try {
+      const punks = await fetchOwnedPunks(account);
+      if (requestId !== state.ownershipRequestId || state.wallet?.account !== account
+        || state.wallet?.chainId !== CHAIN_ID) return;
+      state.ownershipAccount = account; applyOwnedPunks(punks);
+    } catch {
+      if (requestId !== state.ownershipRequestId) return;
+      state.punks = []; state.selected = null; renderRoster();
+      set("[data-wallet-state]", "Ownership service unavailable · no authority assumed");
+    } finally {
+      if (requestId === state.ownershipRequestId) state.ownershipLoadingAccount = null;
+    }
   });
   if (PREVIEW) { previewData(); renderRoster(); renderSelected(); }
   else renderRoster();

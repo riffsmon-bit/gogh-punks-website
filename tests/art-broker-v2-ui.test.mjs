@@ -44,6 +44,14 @@ test("live collection and activity panels hydrate real authenticated API states"
   assert.doesNotMatch(script, /dangerouslySetInnerHTML|innerHTML\s*=/);
 });
 
+test("transient wallet frames do not erase or repeatedly reload a verified Punk roster", async () => {
+  const script = await readFile(new URL("../site/broker-v2.js", import.meta.url), "utf8");
+  assert.match(script, /verifiedSameAccount && \(wallet\.chainId == null \|\| wallet\.status === "pending"\)/);
+  assert.match(script, /verifiedSameAccount \|\| state\.ownershipLoadingAccount === account/);
+  assert.match(script, /requestId !== state\.ownershipRequestId/);
+  assert.match(script, /punks\.find\(\(punk\) => punk\.tokenId === selectedTokenId\)/);
+});
+
 test("chat sends on Enter while preserving Shift+Enter and composition", async () => {
   const [html, script] = await Promise.all([
     readFile(htmlUrl, "utf8"),
