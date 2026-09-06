@@ -55,6 +55,19 @@ test("chat sends on Enter while preserving Shift+Enter and composition", async (
   assert.match(script, /chatForm\.requestSubmit\(\)/);
 });
 
+test("the hosted PR review wires live-owner drafts without persistence or transaction sends", async () => {
+  const [html, script] = await Promise.all([
+    readFile(htmlUrl, "utf8"),
+    readFile(new URL("../site/broker-v2.js", import.meta.url), "utf8"),
+  ]);
+  assert.match(html, /data-review-title/);
+  assert.match(script, /api\/v2\/review\/chat/);
+  assert.match(script, /api\/v2\/review\/inspect-url/);
+  assert.match(script, /DRAFT TESTED IN THIS REVIEW TAB/);
+  assert.match(script, /PR REVIEW.*funding transaction not requested/s);
+  assert.match(script, /GOGH INTELLIGENCE · REVIEW PARSER/);
+});
+
 test("the local review route is isolated and explicitly cannot broadcast", async () => {
   const [html, server] = await Promise.all([
     readFile(htmlUrl, "utf8"),

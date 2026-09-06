@@ -2,7 +2,7 @@
 
 Review date: 2026-09-06
 
-Build status: **local review candidate**
+Build status: **local + pull-request review candidate**
 
 Production status: **not deployed, not migrated, no live transaction submitted**
 
@@ -84,8 +84,11 @@ asset transfer, and admin-withdraw tools do not exist.
 ## 9. Conversational intent system
 
 Production chat uses the provider router and validates the returned object against the canonical
-domain normalizer. A deterministic local interpreter exists only for offline product review. Chat
-persists the owner message, Punk response, and a pending strategy version; it activates nothing.
+domain normalizer. Local and pull-request review builds use the same deterministic domain parser
+without an AI charge. The PR endpoint first verifies the selected Punk's current owner and canonical
+Punk Wallet, returns an ephemeral structured draft, and is absent from production. The database-backed
+path persists the owner message, Punk response, and pending strategy version after its migration is
+authorized; neither path activates economic permission from conversation alone.
 
 ## 10. Strategy schema
 
@@ -150,10 +153,11 @@ defined but intentionally unwired.
 
 ## 19. Control Center UI
 
-The local control center implements the original premium art-broker roster, selected Punk hero,
+The control center implements the original premium art-broker roster, selected Punk hero,
 Talk, Strategy, Fund, Collection, Activity, Withdraw, and Settings. Live mode hydrates authenticated
-profile, wallet balance, V1+V2 activity, and NFT holdings. Preview data is clearly labeled and cannot
-broadcast.
+profile, wallet balance, V1+V2 activity, and NFT holdings. The pull-request review uses live pinned-block
+ownership, ephemeral strategy drafts, and review-only link inspection while explicitly blocking funding,
+persistence, provider charges, and execution. Preview data is clearly labeled and cannot broadcast.
 
 ## 20. Mobile UI
 
@@ -184,7 +188,7 @@ check.
 
 ## 24. Test results
 
-- V2-focused Node tests: **39 passed, 0 failed**.
+- V2-focused Node tests: **48 passed, 0 failed**.
 - Deploy-preview-equivalent site gate: **125 passed, 0 failed**.
 - Contract build/lint/test/ABI gate: **142 passed, 0 failed** at 1,024 fuzz runs.
 - Full repository Node suite: **1,032 passed, 13 failed**. The same 13 tests failed before V2 work;
@@ -193,8 +197,8 @@ check.
 
 ## 25. Build results
 
-Site asset/secret checks pass. JavaScript syntax checking passes for 439 modules. The Art Broker
-manifest/database check passes. All 16 V2 Netlify functions bundle locally into an isolated
+Site asset/secret checks pass. JavaScript syntax checking passes for 445 modules. The Art Broker
+manifest/database check passes. All 18 V2 Netlify functions bundle locally into an isolated
 temporary directory. No production build or deployment command was run.
 
 ## 26. Cost and usage observability
@@ -213,7 +217,8 @@ accepts LLM or website calldata as authority. Static scans found no embedded pro
 
 ## 28. Canary readiness
 
-ASK is locally product-complete and integration-ready after migration/configuration. ASSIST has the
+ASK can now be exercised in the PR review against live owner/Punk Wallet reads with ephemeral drafts.
+Its persistent AI-backed path remains integration-ready after migration/configuration. ASSIST has the
 domain and owner-approval boundary but still needs one production-reviewed adapter/simulator wiring
 before a transaction can be offered. AUTONOMOUS is built as a fail-closed policy/execution mode but
 is **not canary-ready** with the current deployed wallet gas model.

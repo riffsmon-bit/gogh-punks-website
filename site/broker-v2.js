@@ -1,6 +1,7 @@
 import { verifyOwnedPunkIds } from "./broker-v2-ownership.js";
 
 const PREVIEW = new URLSearchParams(location.search).get("preview") === "1";
+const REVIEW_HOST = location.protocol === "https:" && /^(?:deploy-preview-[1-9][0-9]*--gogh-punks\.netlify\.app|deploy-preview-[1-9][0-9]*\.preview\.goghpunks\.xyz)$/.test(location.hostname);
 const CHAIN_ID = 4663;
 const COLLECTION = "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6";
 const PREVIEW_OWNER = "0x1111111111111111111111111111111111111111";
@@ -145,7 +146,8 @@ function activateTab(name) {
   all("[data-v2-tab]").forEach((button) => button.setAttribute("aria-selected", String(button.dataset.v2Tab === name)));
   all("[data-v2-panel]").forEach((panel) => { panel.hidden = panel.dataset.v2Panel !== name; });
   history.replaceState(null, "", `${location.pathname}?${new URLSearchParams({ ...(PREVIEW ? { preview: "1" } : {}), tab: name })}`);
-  if (!PREVIEW && ["strategy", "fund", "collection", "activity", "withdraw"].includes(name)) {
+  if (!PREVIEW && !REVIEW_HOST
+    && ["strategy", "fund", "collection", "activity", "withdraw"].includes(name)) {
     void hydrateSelected(name);
   }
 }
@@ -279,7 +281,8 @@ function showConfirmation(draft) {
   }
   const activate = one("[data-activate-strategy]");
   activate.disabled = view.mode === "AUTONOMOUS";
-  activate.textContent = view.mode === "AUTONOMOUS" ? "AUTONOMOUS LOCKED" : "ACTIVATE STRATEGY";
+  activate.textContent = view.mode === "AUTONOMOUS" ? "AUTONOMOUS LOCKED"
+    : REVIEW_HOST ? "TEST DRAFT" : "ACTIVATE STRATEGY";
   const dialog = one("[data-confirmation-dialog]");
   if (typeof dialog.showModal === "function") dialog.showModal(); else dialog.setAttribute("open", "");
 }
@@ -318,7 +321,11 @@ function ethToWeiHex(value) {
 }
 
 function setup() {
-  one("[data-preview-banner]").hidden = !PREVIEW;
+  one("[data-preview-banner]").hidden = !PREVIEW && !REVIEW_HOST;
+  if (REVIEW_HOST && !PREVIEW) {
+    set("[data-review-title]", "PR REVIEW BUILD");
+    set("[data-review-detail]", "Live ownership checks. Strategy drafts stay in this tab. No funding transaction, persistence, AI provider charge, or autonomous execution.");
+  }
   all("[data-v2-tab]").forEach((button) => button.addEventListener("click", () => activateTab(button.dataset.v2Tab)));
   all("[data-suggestion]").forEach((button) => button.addEventListener("click", () => {
     const input = one("#punk-prompt"); input.value = button.dataset.suggestion; input.focus();
@@ -338,6 +345,10 @@ function setup() {
     if (!message) return; addMessage("owner", message); input.value = "";
     if (/pause/i.test(message)) {
       if (PREVIEW) addMessage("punk", "Paused in this local preview. No active production strategy was changed.");
+      else if (REVIEW_HOST) {
+        state.selected.mode = "PAUSED"; renderSelected();
+        addMessage("punk", "PAUSED IN THIS REVIEW TAB. No saved or production strategy was changed.");
+      }
       else {
         try {
           await ensureV2Session();
@@ -349,6 +360,7 @@ function setup() {
       return;
     }
     let draft;
+    let reply = null;
     if (PREVIEW) {
       try {
         const response = await fetch("/api/local-art-broker-v2/chat", { method: "POST",
@@ -359,6 +371,19 @@ function setup() {
         draft = payload.draft;
       } catch (error) {
         addMessage("punk", `${error?.message ?? "LOCAL INTELLIGENCE UNAVAILABLE"} Existing rules remain unchanged.`);
+        return;
+      }
+    } else if (REVIEW_HOST) {
+      try {
+        const payload = await jsonRequest("/api/v2/review/chat", {
+          method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ owner: state.wallet.account,
+            tokenId: state.selected.tokenId, message }),
+        });
+        draft = payload.draft; reply = payload.reply;
+        set("[data-intelligence-status]", "GOGH INTELLIGENCE · REVIEW PARSER");
+      } catch (error) {
+        addMessage("punk", `${error?.message ?? "REVIEW PARSER UNAVAILABLE"} Existing rules remain unchanged.`);
         return;
       }
     } else {
@@ -376,7 +401,8 @@ function setup() {
     }
     const intent = draft.intent;
     const tastes = intent ? intent.preferences.prefer.map((value) => value.replaceAll("_", " ")) : draft.tastes;
-    addMessage("punk", `GOT IT. ${(intent?.mintMode === "FREE_ONLY" || draft.free) ? "FREE ONLY. " : ""}${tastes.join(" + ")}. ${intent?.dailyMintLimit ?? draft.daily} MAX TODAY. REVIEW THE RULES BEFORE THEY CHANGE.`);
+    addMessage("punk", reply
+      ?? `GOT IT. ${(intent?.mintMode === "FREE_ONLY" || draft.free) ? "FREE ONLY. " : ""}${tastes.join(" + ")}. ${intent?.dailyMintLimit ?? draft.daily} MAX TODAY. REVIEW THE RULES BEFORE THEY CHANGE.`);
     showConfirmation(draft);
   });
   one("[data-link-form]").addEventListener("submit", async (event) => {
@@ -390,6 +416,12 @@ function setup() {
           body: JSON.stringify({ tokenId: state.selected.tokenId, url: value }) });
         const payload = await response.json();
         if (!response.ok || payload?.ok !== true) throw new Error(payload?.message ?? "Link blocked");
+        output.textContent = `${payload.inspection.link.kind.replaceAll("_", " ")} · ${payload.inspection.status} · no external calldata or wallet request accepted.`;
+      } else if (REVIEW_HOST) {
+        const payload = await jsonRequest("/api/v2/review/inspect-url", { method: "POST",
+          headers: { "content-type": "application/json" }, body: JSON.stringify({
+            owner: state.wallet.account, tokenId: state.selected.tokenId, url: value,
+          }) });
         output.textContent = `${payload.inspection.link.kind.replaceAll("_", " ")} · ${payload.inspection.status} · no external calldata or wallet request accepted.`;
       } else {
         await ensureV2Session();
@@ -407,6 +439,11 @@ function setup() {
     if (!state.localStrategy) return;
     const mode = state.localStrategy.intent?.operatingMode ?? state.localStrategy.mode;
     if (mode === "AUTONOMOUS") return;
+    if (REVIEW_HOST && !PREVIEW) {
+      state.selected.mode = mode; one("[data-confirmation-dialog]").close(); renderSelected();
+      addMessage("punk", "DRAFT TESTED IN THIS REVIEW TAB. Nothing was saved, signed, funded, or activated.");
+      return;
+    }
     if (PREVIEW && state.localStrategy.intentHash) {
       const response = await fetch("/api/local-art-broker-v2/strategy/activate", { method: "POST",
         headers: { "content-type": "application/json" }, body: JSON.stringify({
@@ -445,7 +482,10 @@ function setup() {
   one("[data-fund-form]").addEventListener("submit", async (event) => {
     event.preventDefault(); const output = one("[data-fund-result]");
     try {
-      if (PREVIEW) { output.textContent = "LOCAL PREVIEW · funding transaction not requested."; return; }
+      if (PREVIEW || REVIEW_HOST) {
+        output.textContent = `${PREVIEW ? "LOCAL PREVIEW" : "PR REVIEW"} · funding transaction not requested.`;
+        return;
+      }
       if (!state.selected?.account || !state.wallet?.account || state.wallet.chainId !== CHAIN_ID) {
         throw new Error("Connect the current owner on Robinhood Chain and select an activated Punk Wallet.");
       }
