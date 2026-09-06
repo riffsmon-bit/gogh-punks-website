@@ -1,5 +1,8 @@
+import { verifyOwnedPunkIds } from "./broker-v2-ownership.js";
+
 const PREVIEW = new URLSearchParams(location.search).get("preview") === "1";
 const CHAIN_ID = 4663;
+const COLLECTION = "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6";
 const PREVIEW_OWNER = "0x1111111111111111111111111111111111111111";
 const previewPunks = Object.freeze([
   { tokenId: "119", account: "0x1190119011901190119011901190119011901190",
@@ -282,15 +285,25 @@ function showConfirmation(draft) {
 }
 
 async function loadOwnedPunks(account) {
-  const response = await fetch(`/api/broker/owner-punks?owner=${encodeURIComponent(account)}&view=reconcile`, {
+  const response = await fetch(`/api/broker/owner-punks?owner=${encodeURIComponent(account)}&view=indexed`, {
     headers: { accept: "application/json" }, cache: "no-store",
   });
   const payload = await response.json();
-  if (!response.ok || payload?.ok !== true || payload.owner !== account || payload.chainId !== CHAIN_ID
-    || payload.complete !== true || !Array.isArray(payload.candidatePunks)) throw new Error("Ownership could not be reconciled.");
-  state.punks = payload.candidatePunks.map((item) => ({ tokenId: String(item.tokenId),
-    account: item.account ?? null, image: item.artwork?.imageUrl ?? "/assets/gogh-punks-pfp.png",
-    balanceEth: "0", reserveEth: "0", nfts: item.agentSummary?.lifetimeMints ?? 0, mode: "ASK" }));
+  if (!response.ok || payload?.ok !== true || payload.owner !== account
+    || payload.chainId !== CHAIN_ID || payload.collection !== COLLECTION
+    || !Array.isArray(payload.candidateTokenIds)
+    || !Array.isArray(payload.candidatePunks)) throw new Error("Ownership candidates are unavailable.");
+  const ownership = await verifyOwnedPunkIds(window.__GOGH_WALLET_PROVIDER__, payload.collection,
+    account, payload.candidateTokenIds);
+  const candidates = new Map(payload.candidatePunks.map((item) => [String(item.tokenId), item]));
+  state.punks = ownership.tokenIds.map((ownedTokenId) => {
+    const item = candidates.get(ownedTokenId) ?? {};
+    return { tokenId: ownedTokenId,
+      account: item.agentSummary?.account ?? null,
+      image: item.artwork?.imageUrl ?? "/assets/gogh-punks-pfp.png",
+      balanceEth: "0", reserveEth: "0",
+      nfts: item.agentSummary?.lifetimeMints ?? 0, mode: "ASK" };
+  });
   state.selected = state.punks[0] ?? null; state.gallery = []; state.activity = [];
   state.hydratedTokenId = null; renderRoster(); renderSelected();
 }

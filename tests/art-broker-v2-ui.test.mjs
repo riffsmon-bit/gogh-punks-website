@@ -34,6 +34,9 @@ test("V2 semantics, mobile navigation, focus, and reduced motion are deliberate"
 
 test("live collection and activity panels hydrate real authenticated API states", async () => {
   const script = await readFile(new URL("../site/broker-v2.js", import.meta.url), "utf8");
+  assert.match(script, /view=indexed/);
+  assert.match(script, /verifyOwnedPunkIds/);
+  assert.doesNotMatch(script, /owner-punks\?owner=.*view=reconcile/);
   assert.match(script, /api\/v2\/punks\/\$\{tokenId\}\/collection/);
   assert.match(script, /api\/v2\/punks\/\$\{tokenId\}\/activity/);
   assert.match(script, /ensureV2Session/);
