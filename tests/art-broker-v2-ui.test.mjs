@@ -152,6 +152,7 @@ test("the hosted PR review runs bounded tab agents while owner transactions stay
   assert.match(script, /normalizeReviewAgentSnapshot/);
   assert.match(script, /restoreReviewSessionState\(\)/);
   assert.match(script, /persistReviewSessionState\(\)/);
+  assert.match(script, /STRATEGY DRAFT CREATED/);
   assert.match(script, /SIMULATION PASSED/);
   assert.match(script, /SUBMIT IN METAMASK/);
   assert.match(script, /GOGH INTELLIGENCE · REVIEW PARSER/);

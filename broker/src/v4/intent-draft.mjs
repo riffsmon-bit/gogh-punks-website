@@ -93,8 +93,19 @@ export function draftStrategyFromConversation({ message, punkTokenId, expectedOw
     if (Number.isInteger(value) && value >= 1 && value <= 10_000) {
       next.totalMintLimit = value; changes.push("TOTAL_LIMIT");
     } else ambiguous.push("TOTAL_LIMIT");
-  } else if (/\b(?:max(?:imum)?\s+mints?|mints?\s+max(?:imum)?)\b/i.test(text)) {
-    ambiguous.push("TOTAL_LIMIT");
+  } else {
+    const missionQuantity = text.match(/\b(one|two|three|four|five|six|seven|eight|nine|ten|\d{1,5})\s+mints?\b(?!\s+(?:per day|today|daily|total|overall))/i);
+    if (missionQuantity) {
+      const value = count(missionQuantity[1]);
+      if (Number.isInteger(value) && value >= 1 && value <= 10_000) {
+        next.totalMintLimit = value; changes.push("TOTAL_LIMIT");
+        if (!daily && value <= 100) {
+          next.dailyMintLimit = value; changes.push("DAILY_LIMIT");
+        }
+      } else ambiguous.push("TOTAL_LIMIT");
+    } else if (/\b(?:max(?:imum)?\s+mints?|mints?\s+max(?:imum)?)\b/i.test(text)) {
+      ambiguous.push("TOTAL_LIMIT");
+    }
   }
   const supply = text.match(/(?:supply|collections?)\s*(?:under|below|less than|<|above)?\s*([\d,]+)/i)
     ?? text.match(/(?:nothing|no collections?)\s+(?:above|over)\s+([\d,]+)\s*(?:supply)?/i);

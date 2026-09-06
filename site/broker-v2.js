@@ -1133,6 +1133,8 @@ function setup() {
     const tastes = intent ? intent.preferences.prefer.map((value) => value.replaceAll("_", " ")) : draft.tastes;
     addMessage("punk", reply
       ?? `GOT IT. ${(intent?.mintMode === "FREE_ONLY" || draft.free) ? "FREE ONLY. " : ""}${tastes.join(" + ")}. ${intent?.dailyMintLimit ?? draft.daily} MAX TODAY. ${intent?.totalMintLimit ?? draft.total ?? 1} MAX FOR THIS STRATEGY. REVIEW THE RULES BEFORE THEY CHANGE.`);
+    addReviewActivity("DRAFT", "STRATEGY DRAFT CREATED",
+      "Awaiting owner confirmation · Punk has not been sent out");
     showConfirmation(draft);
   });
   one("[data-link-form]").addEventListener("submit", async (event) => {

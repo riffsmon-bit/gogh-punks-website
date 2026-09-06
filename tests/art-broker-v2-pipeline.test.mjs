@@ -82,6 +82,17 @@ test("conversation updates daily and total mint limits as a pending strategy", (
   assert.equal(draft.economicPermissionsActivated, false);
 });
 
+test("bare chat mint quantity sets one clear mission quantity", () => {
+  const draft = draftStrategyFromConversation({
+    message: "Find me 6 mints.", punkTokenId: "119", expectedOwner: OWNER, punkWallet: WALLET,
+  }, NOW);
+  assert.equal(draft.intent.dailyMintLimit, 6);
+  assert.equal(draft.intent.totalMintLimit, 6);
+  assert.ok(draft.changes.includes("DAILY_LIMIT"));
+  assert.ok(draft.changes.includes("TOTAL_LIMIT"));
+  assert.equal(draft.status, "PENDING_OWNER_CONFIRMATION");
+});
+
 test("chat understands a standalone max-mint count and asks when the count is missing", () => {
   const bounded = draftStrategyFromConversation({
     message: "Find me free pixel art. Max one mint.",
