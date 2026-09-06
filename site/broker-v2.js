@@ -47,8 +47,13 @@ function cleanImage(value, fallback = "/assets/gogh-punks-pfp.png") {
   if (typeof value !== "string") return fallback;
   try {
     const url = new URL(value, location.origin);
-    return url.origin === location.origin || ["i.seadn.io", "raw2.seadn.io"].includes(url.hostname)
-      ? url.href : fallback;
+    if (url.origin === location.origin) return url.href;
+    const seaDn = ["i.seadn.io", "raw2.seadn.io"].includes(url.hostname);
+    const fixedIpfs = ["gateway.pinata.cloud", "ipfs.io"].includes(url.hostname)
+      && /^\/ipfs\/(?:Qm[1-9A-HJ-NP-Za-km-z]{44}|b[a-z2-7]{20,})(?:\/[A-Za-z0-9._~%-]+)*$/.test(url.pathname)
+      && !url.search;
+    return url.protocol === "https:" && (seaDn || fixedIpfs)
+      && !url.username && !url.password && !url.port && !url.hash ? url.href : fallback;
   } catch { return fallback; }
 }
 
@@ -244,7 +249,7 @@ async function loadReviewCollection(punk) {
     if (state.selected?.tokenId !== tokenId) return;
     punk.account = assets.account; punk.nfts = assets.items.length;
     state.gallery = assets.items.map((asset) => ({
-      image: asset.imageUrl ?? "/assets/gogh-punks-pfp.png",
+      image: asset.imageUrl ?? "/assets/nft-placeholder.svg",
       title: asset.name ?? `${asset.collectionName ?? short(asset.collection)} #${asset.tokenId}`,
       provenance: `${asset.ownershipStatus.replaceAll("_", " ")} · ${asset.provenance.replaceAll("_", " ")} · ${asset.standard}`,
       detail: `${asset.collectionName ?? short(asset.collection)} · TOKEN #${asset.tokenId}${asset.acquiredAt ? ` · ${dateLabel(asset.acquiredAt)}` : ""}`,

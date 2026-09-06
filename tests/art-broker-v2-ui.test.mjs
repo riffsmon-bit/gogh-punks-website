@@ -49,6 +49,8 @@ test("live collection and activity panels hydrate real authenticated API states"
   assert.match(script, /assets\.owner !== state\.wallet\?\.account/);
   assert.match(script, /asset\.ownershipStatus|LIVE OWNERSHIP CHECK/);
   assert.match(script, /WITHDRAW/);
+  assert.match(script, /gateway\.pinata\.cloud/);
+  assert.match(script, /fixedIpfs/);
 });
 
 test("funding exposes hardened ETH funding and canonical WETH wrap submission", async () => {

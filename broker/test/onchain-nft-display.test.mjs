@@ -10,9 +10,9 @@ const IMAGE_CID = "bafybeifxubfqw4ijecm3adlgczd37x2kk3xu4mpsgelh7n4nxxq5ufmrsy";
 
 test("IPFS display URLs are pinned to one fixed HTTPS gateway", () => {
   assert.equal(fixedIpfsGatewayUrl(`ipfs://${METADATA_CID}`),
-    `https://ipfs.io/ipfs/${METADATA_CID}`);
+    `https://gateway.pinata.cloud/ipfs/${METADATA_CID}`);
   assert.equal(fixedIpfsGatewayUrl(`ipfs://ipfs/${METADATA_CID}/metadata.json`),
-    `https://ipfs.io/ipfs/${METADATA_CID}/metadata.json`);
+    `https://gateway.pinata.cloud/ipfs/${METADATA_CID}/metadata.json`);
   for (const value of ["https://evil.test/meta", "ipfs://../secret", `ipfs://${METADATA_CID}?x=1`,
     "ipfs://bafy", `ipfs://${METADATA_CID}/../../secret`]) {
     assert.equal(fixedIpfsGatewayUrl(value), null);
@@ -23,7 +23,7 @@ test("on-chain metadata keeps only bounded name and an IPFS image", () => {
   assert.deepEqual(sanitizeOnchainNftDisplay({
     name: "Pepe\u0000 Brokers", image: `ipfs://${IMAGE_CID}`,
   }), {
-    name: "Pepe Brokers", imageUrl: `https://ipfs.io/ipfs/${IMAGE_CID}`,
+    name: "Pepe Brokers", imageUrl: `https://gateway.pinata.cloud/ipfs/${IMAGE_CID}`,
     source: "ONCHAIN_TOKEN_URI_IPFS",
   });
   assert.equal(sanitizeOnchainNftDisplay({ name: "No remote image", image: "https://evil.test/a" })
@@ -43,6 +43,27 @@ test("metadata fetch is bounded, no-redirect, cached, and reads one fixed IPFS U
   const second = await readOnchainNftDisplay(`ipfs://${METADATA_CID}`, { fetchFn, now: 11 });
   assert.deepEqual(first, second);
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].url, `https://ipfs.io/ipfs/${METADATA_CID}`);
+  assert.equal(calls[0].url, `https://gateway.pinata.cloud/ipfs/${METADATA_CID}`);
   assert.equal(calls[0].options.redirect, "error");
+});
+
+test("metadata fetch falls back only to the second fixed IPFS gateway", async () => {
+  const calls = [];
+  const fetchFn = async (url) => {
+    calls.push(url);
+    if (url.startsWith("https://gateway.pinata.cloud/")) return {
+      ok: false, headers: { get: () => null }, text: async () => "",
+    };
+    return { ok: true, headers: { get: () => null }, text: async () => JSON.stringify({
+      name: "Fallback Piece", image: `ipfs://${IMAGE_CID}`,
+    }) };
+  };
+  const result = await readOnchainNftDisplay(`ipfs://${METADATA_CID}/fallback.json`, {
+    fetchFn, now: 20,
+  });
+  assert.equal(result.name, "Fallback Piece");
+  assert.deepEqual(calls, [
+    `https://gateway.pinata.cloud/ipfs/${METADATA_CID}/fallback.json`,
+    `https://ipfs.io/ipfs/${METADATA_CID}/fallback.json`,
+  ]);
 });

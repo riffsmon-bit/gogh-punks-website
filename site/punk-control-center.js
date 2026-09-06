@@ -1303,7 +1303,7 @@ function assetCard(asset) {
   image.decoding = "async";
   image.alt = asset.name || `NFT #${asset.tokenId}`;
   const validImage = /^https:\/\/(?:i|raw2)\.seadn\.io\//.test(asset.imageUrl ?? "")
-    || /^https:\/\/ipfs\.io\/ipfs\/(?:Qm[1-9A-HJ-NP-Za-km-z]{44}|b[a-z2-7]{20,})(?:\/[A-Za-z0-9._~%-]+)*$/.test(asset.imageUrl ?? "");
+    || /^https:\/\/(?:gateway\.pinata\.cloud|ipfs\.io)\/ipfs\/(?:Qm[1-9A-HJ-NP-Za-km-z]{44}|b[a-z2-7]{20,})(?:\/[A-Za-z0-9._~%-]+)*$/.test(asset.imageUrl ?? "");
   image.src = validImage ? asset.imageUrl : "/assets/nft-placeholder.svg";
   image.addEventListener("error", () => {
     if (!image.src.endsWith("/assets/nft-placeholder.svg")) {
@@ -1341,7 +1341,7 @@ function assetCard(asset) {
 
 function withdrawalImage(asset) {
   return (/^https:\/\/(?:i|raw2)\.seadn\.io\//.test(asset?.imageUrl ?? "")
-    || /^https:\/\/ipfs\.io\/ipfs\/(?:Qm[1-9A-HJ-NP-Za-km-z]{44}|b[a-z2-7]{20,})(?:\/[A-Za-z0-9._~%-]+)*$/.test(asset?.imageUrl ?? ""))
+    || /^https:\/\/(?:gateway\.pinata\.cloud|ipfs\.io)\/ipfs\/(?:Qm[1-9A-HJ-NP-Za-km-z]{44}|b[a-z2-7]{20,})(?:\/[A-Za-z0-9._~%-]+)*$/.test(asset?.imageUrl ?? ""))
     ? asset.imageUrl : "/assets/nft-placeholder.svg";
 }
 

@@ -16,7 +16,7 @@ const OWNER = "0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6";
 const COLLECTION = "0x1111111111111111111111111111111111111111";
 const HASH = `0x${"ab".repeat(32)}`;
 const TRANSFER = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
-const IPFS_IMAGE = "https://ipfs.io/ipfs/bafybeifxubfqw4ijecm3adlgczd37x2kk3xu4mpsgelh7n4nxxq5ufmrsy";
+const IPFS_IMAGE = "https://gateway.pinata.cloud/ipfs/bafybeifxubfqw4ijecm3adlgczd37x2kk3xu4mpsgelh7n4nxxq5ufmrsy";
 const NO_OPENSEA_ENVIRONMENT = Object.freeze({});
 
 function addressTopic(value) {
