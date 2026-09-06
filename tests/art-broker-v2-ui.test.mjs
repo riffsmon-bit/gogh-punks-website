@@ -17,6 +17,7 @@ test("V2 Control Center exposes the complete selected-Punk action architecture",
   assert.match(html, /Funds go directly into this Punk Wallet/);
   assert.match(html, /ALL HISTORY/);
   assert.match(html, /GOGH INTELLIGENCE · AUTO/);
+  assert.match(html, /data-welcome-message/);
   assert.match(html, /AUTONOMOUS · LOCKED/);
   assert.match(html, /WITHDRAW FROM THE PIECE/);
   assert.match(html, /ETH ↔ WETH/);
@@ -150,7 +151,7 @@ test("the hosted PR review runs bounded tab agents while owner transactions stay
   assert.doesNotMatch(script, /SHARED V2 OPPORTUNITIES/);
   assert.match(html, /ALL HISTORY/);
   assert.match(script, /EARLIER ART BROKER/);
-  assert.match(html, /Preview-session intelligence only/);
+  assert.match(html, /Browser-persistent review intelligence only/);
   assert.match(script, /startReviewAgent/);
   assert.match(script, /dispatchAfterActivation/);
   assert.match(script, /recordReviewMissionRun/);
@@ -159,8 +160,15 @@ test("the hosted PR review runs bounded tab agents while owner transactions stay
   assert.match(script, /selectedReviewAgent\(\)\?\.intent/);
   assert.match(script, /No production permissions were activated/);
   assert.match(script, /reviewAgents: new Map\(\)/);
-  assert.doesNotMatch(script, /localStorage/);
-  assert.match(script, /sessionStorage\.setItem\(REVIEW_SESSION_STORAGE_KEY/);
+  assert.match(script, /localStorage\.setItem\(REVIEW_BROWSER_STORAGE_KEY/);
+  assert.match(script, /sessionStorage\.getItem\(REVIEW_SESSION_STORAGE_KEY/);
+  assert.match(script, /REVIEW_MISSION_LEASE_MS = 15_000/);
+  assert.match(script, /acquireReviewMissionLease/);
+  assert.match(script, /window\.addEventListener\("storage"/);
+  assert.match(script, /HOOD MORNING/);
+  assert.match(script, /HOOD AFTERNOON/);
+  assert.match(script, /HOOD EVENING/);
+  assert.match(script, /Open Activity for my live status/);
   assert.match(script, /normalizeReviewAgentSnapshot/);
   assert.match(script, /restoreReviewSessionState\(\)/);
   assert.match(script, /persistReviewSessionState\(\)/);

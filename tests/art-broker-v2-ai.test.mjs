@@ -213,6 +213,16 @@ test("Punk conversation gives an honest useful fallback when no model is configu
     punkState: { wallet: PUNK_WALLET, nativeBalanceWei: "200000000000000", activated: true } });
   assert.match(balance.reply, /0\.0002 ETH/);
   assert.match(balance.reply, new RegExp(PUNK_WALLET));
+  const scouting = await answerPunkConversation({ router: { run: async () => {
+    throw new Error("mission state must not be guessed by a model");
+  } }, message: "Are you out minting right now?", intent, punkTokenId: "93", now: NOW,
+  review: { checkedCount: 0, eligibleCount: 0,
+    leadingCollectionName: null, leadingMatchScore: null,
+    missionStatus: "SCOUTING", missionTarget: 6, missionFound: 2,
+    missionChecks: 3, missionCheckedOpportunities: 75 } });
+  assert.equal(scouting.provider, "DETERMINISTIC_MISSION_STATE");
+  assert.match(scouting.reply, /out scouting right now—not minting/);
+  assert.match(scouting.reply, /2\/6 mission matches/);
   const discoveries = await answerPunkConversation({ router: null,
     message: "Did you find any matches?", intent, punkTokenId: "93", now: NOW,
     review: { checkedCount: 4, eligibleCount: 1,

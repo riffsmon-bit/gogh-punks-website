@@ -15,7 +15,7 @@ import {
   normalizeReviewAgentSnapshot, pauseReviewAgent, recordReviewMissionRun, reviewAgentKey,
   reviewInspectionPipeline,
 } from "./broker-v2-review-agent.js";
-import { activateReviewSkill } from "./broker-v2-review-skill.js";
+import { activateReviewSkill, normalizeReviewSkill } from "./broker-v2-review-skill.js";
 
 const PREVIEW = new URLSearchParams(location.search).get("preview") === "1";
 const REVIEW_HOST = location.protocol === "https:" && /^(?:deploy-preview-[1-9][0-9]*--gogh-punks\.netlify\.app|deploy-preview-[1-9][0-9]*\.preview\.goghpunks\.xyz)$/.test(location.hostname);
@@ -55,6 +55,10 @@ const state = { wallet: null, punks: [], selected: null, localStrategy: null, lo
 const REVIEW_MISSION_POLL_MS = 60_000;
 const REVIEW_DISCOVERY_BACKOFF_MS = 5 * 60_000;
 const REVIEW_SESSION_STORAGE_KEY = "gogh-art-broker-review-session-v1";
+const REVIEW_BROWSER_STORAGE_KEY = "gogh-art-broker-review-browser-v2";
+const REVIEW_MISSION_LEASE_KEY = "gogh-art-broker-review-mission-lease-v1";
+const REVIEW_MISSION_LEASE_MS = 15_000;
+const REVIEW_TAB_ID = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
 let reviewMissionTimer = null;
 const one = (selector) => document.querySelector(selector);
 const all = (selector) => [...document.querySelectorAll(selector)];
@@ -112,12 +116,18 @@ function selectedConversationHistory() {
 }
 
 function selectedReviewSummary() {
+  const agent = selectedReviewAgent();
   const run = selectedReviewRun();
-  if (!run) return null;
-  const leading = run.opportunities.find(({ recommendationEligible }) => recommendationEligible) ?? null;
-  return { checkedCount: run.checkedCount, eligibleCount: run.eligibleCount,
+  if (!agent && !run) return null;
+  const leading = run?.opportunities.find(({ recommendationEligible }) => recommendationEligible) ?? null;
+  return { checkedCount: run?.checkedCount ?? 0, eligibleCount: run?.eligibleCount ?? 0,
     leadingCollectionName: leading?.collectionName ?? null,
-    leadingMatchScore: leading?.matchScore ?? null };
+    leadingMatchScore: leading?.matchScore ?? null,
+    missionStatus: agent?.status ?? "IDLE",
+    missionTarget: agent?.mission?.targetMatches ?? 0,
+    missionFound: agent?.mission?.foundContracts.length ?? 0,
+    missionChecks: agent?.mission?.checks ?? 0,
+    missionCheckedOpportunities: agent?.mission?.checkedOpportunities ?? 0 };
 }
 
 function reviewActivitySnapshot(value) {
@@ -140,20 +150,29 @@ function persistReviewSessionState() {
     const agentKeys = new Set(agents.map(([key]) => key));
     const activities = [...state.reviewActivities.entries()]
       .filter(([key]) => agentKeys.has(key)).slice(0, 100);
-    window.sessionStorage.setItem(REVIEW_SESSION_STORAGE_KEY,
-      JSON.stringify({ version: 1, agents, activities }));
-  } catch { /* Review state remains safely tab-memory-only when storage is unavailable. */ }
+    const skills = [...state.reviewSkills.entries()]
+      .filter(([key]) => agentKeys.has(key)).slice(0, 100);
+    window.localStorage.setItem(REVIEW_BROWSER_STORAGE_KEY,
+      JSON.stringify({ version: 2, agents, activities, skills }));
+  } catch { /* Review state remains safely memory-only when browser storage is unavailable. */ }
 }
 
-function restoreReviewSessionState() {
+function restoreReviewSessionState(storageValue = null) {
   if (!REVIEW_HOST || PREVIEW) return;
+  let migratedFromSession = false;
   try {
-    const raw = window.sessionStorage.getItem(REVIEW_SESSION_STORAGE_KEY);
+    let raw = storageValue ?? window.localStorage.getItem(REVIEW_BROWSER_STORAGE_KEY);
+    if (!raw) {
+      raw = window.sessionStorage.getItem(REVIEW_SESSION_STORAGE_KEY);
+      migratedFromSession = Boolean(raw);
+    }
     if (!raw) return;
     const snapshot = JSON.parse(raw);
-    if (!snapshot || snapshot.version !== 1 || !Array.isArray(snapshot.agents)
+    if (!snapshot || ![1, 2].includes(snapshot.version) || !Array.isArray(snapshot.agents)
       || !Array.isArray(snapshot.activities) || snapshot.agents.length > 100
-      || snapshot.activities.length > 100) throw new TypeError("Review session is invalid");
+      || snapshot.activities.length > 100
+      || snapshot.version === 2 && (!Array.isArray(snapshot.skills)
+        || snapshot.skills.length > 100)) throw new TypeError("Review browser state is invalid");
     const restoredKeys = new Set();
     for (const entry of snapshot.agents) {
       try {
@@ -169,9 +188,58 @@ function restoreReviewSessionState() {
       const activities = reviewActivitySnapshot(entry[1]);
       if (activities) state.reviewActivities.set(entry[0], activities);
     }
+    for (const entry of snapshot.version === 2 ? snapshot.skills : []) {
+      if (!Array.isArray(entry) || entry.length !== 2 || !restoredKeys.has(entry[0])
+        || !Array.isArray(entry[1]) || entry[1].length > 8) continue;
+      try {
+        const agent = state.reviewAgents.get(entry[0]);
+        const skills = entry[1].map((value) => normalizeReviewSkill(value));
+        if (skills.some((skill) => skill.state !== "ACTIVE"
+          || reviewAgentKey(skill.expectedOwner, skill.punkTokenId) !== entry[0]
+          || skill.punkWallet !== agent.punkWallet)) continue;
+        state.reviewSkills.set(entry[0], Object.freeze(skills));
+      } catch { /* Invalid browser-carried skills never become active. */ }
+    }
+    if (migratedFromSession) {
+      persistReviewSessionState();
+      window.sessionStorage.removeItem(REVIEW_SESSION_STORAGE_KEY);
+    }
   } catch {
-    window.sessionStorage.removeItem(REVIEW_SESSION_STORAGE_KEY);
+    if (storageValue === null) {
+      window.localStorage.removeItem(REVIEW_BROWSER_STORAGE_KEY);
+      window.sessionStorage.removeItem(REVIEW_SESSION_STORAGE_KEY);
+    }
   }
+}
+
+function reviewMissionLease() {
+  try {
+    const value = JSON.parse(window.localStorage.getItem(REVIEW_MISSION_LEASE_KEY) ?? "null");
+    if (!value || typeof value !== "object" || typeof value.key !== "string"
+      || typeof value.holder !== "string" || !Number.isFinite(value.expiresAt)) return null;
+    return value;
+  } catch { return null; }
+}
+
+function acquireReviewMissionLease(key) {
+  if (!REVIEW_HOST || PREVIEW) return false;
+  try {
+    const current = reviewMissionLease();
+    if (current && current.expiresAt > Date.now() && current.holder !== REVIEW_TAB_ID) return false;
+    const candidate = { key, holder: REVIEW_TAB_ID, expiresAt: Date.now() + REVIEW_MISSION_LEASE_MS };
+    window.localStorage.setItem(REVIEW_MISSION_LEASE_KEY, JSON.stringify(candidate));
+    const confirmed = reviewMissionLease();
+    return confirmed?.key === key && confirmed.holder === REVIEW_TAB_ID;
+  } catch { return true; }
+}
+
+function releaseReviewMissionLease(key) {
+  try {
+    const current = reviewMissionLease();
+    if (current?.key === key && current.holder === REVIEW_TAB_ID) {
+      window.localStorage.removeItem(REVIEW_MISSION_LEASE_KEY);
+    }
+  } catch { /* An expired lease is harmless. */ }
 }
 
 function setReviewAgent(key, agent) {
@@ -200,6 +268,31 @@ function addReviewActivity(type, title, detail) {
 function setReviewMissionPhase(key, phase, nextCheckAt = null) {
   state.reviewMissionPhases.set(key, { phase, nextCheckAt });
   renderMissionMonitor();
+}
+
+function hoodGreeting(now = new Date()) {
+  const hour = now.getHours();
+  if (hour < 12) return "HOOD MORNING";
+  if (hour < 18) return "HOOD AFTERNOON";
+  return "HOOD EVENING";
+}
+
+function renderWelcomeMessage() {
+  const target = one("[data-welcome-message]");
+  if (!target) return;
+  const greeting = hoodGreeting();
+  const agent = selectedReviewAgent();
+  if (agent?.status === "SCOUTING") {
+    target.textContent = `${greeting}. I’M OUT SCOUTING: ${agent.mission.foundContracts.length}/${agent.mission.targetMatches} MISSION MATCHES. Open Activity for my live status.`;
+  } else if (agent?.status === "RETURNED") {
+    target.textContent = `${greeting}. I’M BACK—MISSION COMPLETE WITH ${agent.mission.foundContracts.length}/${agent.mission.targetMatches} MATCHES.`;
+  } else if (agent?.status === "PAUSED") {
+    target.textContent = `${greeting}. I’M PAUSED. Tell me when you want to set a new mission.`;
+  } else if (agent?.status === "ACTIVE") {
+    target.textContent = `${greeting}. MY RULES ARE READY. Send me out when you’re ready.`;
+  } else {
+    target.textContent = `${greeting}. Give me a direction and I’ll turn it into rules you can review.`;
+  }
 }
 
 function missionClock(value, fallback) {
@@ -255,6 +348,7 @@ function renderReviewAgent() {
   if (consolePanel) consolePanel.hidden = !reviewSurface;
   if (strategyState) strategyState.hidden = !reviewSurface;
   if (!reviewSurface) return;
+  renderWelcomeMessage();
   const agent = selectedReviewAgent();
   const run = selectedReviewRun();
   const pipeline = reviewInspectionPipeline(state.lastInspection);
@@ -298,7 +392,7 @@ function renderReviewAgent() {
   set("[data-review-agent-run-note]", !agent
     ? "Confirm an ASK or ASSIST strategy first."
     : agent.status === "SCOUTING"
-      ? `Mission active: ${agent.mission.foundContracts.length}/${agent.mission.targetMatches} unique matches. Rechecks every minute while this tab is open.`
+      ? `Mission active: ${agent.mission.foundContracts.length}/${agent.mission.targetMatches} unique matches. Rechecks every minute while this preview is open in at least one tab.`
       : agent.status === "RETURNED"
         ? `Mission complete: ${agent.mission.foundContracts.length} unique matches found.`
         : agent.status !== "ACTIVE" ? "This review agent is paused."
@@ -309,8 +403,8 @@ function renderReviewAgent() {
   set("[data-review-strategy-label]", agent
     ? `REVIEW AGENT ${agent.status}` : "NO REVIEW AGENT");
   set("[data-review-strategy-detail]", agent
-    ? `${agent.mode} rules are remembered for this Punk in this browser tab. ${agent.status === "SCOUTING" ? "Mission is out scouting. " : ""}Authority: NONE.`
-    : "Confirm a strategy draft to start this Punk in the current review tab.");
+    ? `${agent.mode} rules are remembered for this Punk in this browser. ${agent.status === "SCOUTING" ? "Mission is out scouting. " : ""}Authority: NONE.`
+    : "Confirm a strategy draft to start this Punk in the review browser profile.");
   if (!agent) {
     set("[data-strategy-name]", "NOT CONFIGURED");
     set("[data-strategy-price]", "FREE ONLY");
@@ -388,7 +482,7 @@ function startReviewAgent(draft) {
   state.selected.reserveEth = ethFromWei(agent.intent.minimumReserveWei);
   renderSelected();
   addReviewActivity("READY", `${agent.mode} REVIEW AGENT STARTED`,
-    "Structured rules active in this tab · production authority none");
+    "Structured rules active in this browser · production authority none");
   return agent;
 }
 
@@ -398,6 +492,7 @@ function scheduleSelectedReviewMissionCheck() {
   const agent = selectedReviewAgent();
   if (!REVIEW_HOST || PREVIEW || agent?.status !== "SCOUTING") return;
   const key = selectedReviewKey();
+  if (!key || !acquireReviewMissionLease(key)) return;
   const scheduled = key ? state.reviewMissionPhases.get(key)?.nextCheckAt : null;
   const previousCheck = agent.mission.lastCheckedAt ?? agent.mission.startedAt;
   const nextCheckAt = scheduled ?? Date.parse(previousCheck) + REVIEW_MISSION_POLL_MS;
@@ -416,6 +511,10 @@ async function sendReviewAgentOut({ testMode = false, continueMission = false } 
     || (continueMission && agent.status !== "SCOUTING")) return;
   if (!REVIEW_HOST || PREVIEW) {
     addMessage("punk", "Shared V2 discovery is connected only on the hosted PR review. Nothing was dispatched.");
+    return;
+  }
+  if (!testMode && !acquireReviewMissionLease(key)) {
+    renderMissionMonitor();
     return;
   }
   const tokenId = state.selected.tokenId;
@@ -465,6 +564,7 @@ async function sendReviewAgentOut({ testMode = false, continueMission = false } 
       const returned = agent.status === "RETURNED";
       setReviewMissionPhase(key, returned ? "RETURNED" : "WAITING",
         returned ? null : Date.parse(agent.mission.lastCheckedAt) + REVIEW_MISSION_POLL_MS);
+      if (returned) releaseReviewMissionLease(key);
       addReviewActivity(returned ? "RETURNED" : "SCOUTING",
         returned ? "PUNK RETURNED · MISSION COMPLETE" : "PUNK REMAINS OUT SCOUTING",
         `${agent.mission.foundContracts.length}/${agent.mission.targetMatches} unique matches · ${agent.mission.checks} checks · ${run.checkedCount} checked this pass · ${run.screeningPassedCount} screened · ${run.simulationPassedCount} simulated${refreshDegraded ? " · last confirmed queue" : " · live queue refreshed"}`);
@@ -1055,7 +1155,13 @@ function setup() {
   one("[data-preview-banner]").hidden = !PREVIEW && !REVIEW_HOST;
   if (REVIEW_HOST && !PREVIEW) {
     set("[data-review-title]", "PR REVIEW BUILD");
-    set("[data-review-detail]", "Live ownership, assets, owner-approved wallet actions, and a tab-scoped ASK/ASSIST agent. Model chat uses AUTO only when a server provider is configured. No production strategy, autonomous execution, or deployment.");
+    set("[data-review-detail]", "Live ownership, assets, owner-approved wallet actions, and a browser-persistent ASK/ASSIST agent. Model chat uses AUTO only when a server provider is configured. No production strategy, autonomous execution, or deployment.");
+    window.addEventListener("storage", (event) => {
+      if (event.key !== REVIEW_BROWSER_STORAGE_KEY || !event.newValue) return;
+      restoreReviewSessionState(event.newValue);
+      renderSelected();
+      scheduleSelectedReviewMissionCheck();
+    });
   }
   one("[data-review-agent-run]").addEventListener("click", () => sendReviewAgentOut());
   one("[data-review-agent-test]").addEventListener("click", () => sendReviewAgentOut({ testMode: true }));
@@ -1105,11 +1211,12 @@ function setup() {
           return;
         }
         setReviewAgent(key, pauseReviewAgent(agent));
+        releaseReviewMissionLease(key);
         scheduleSelectedReviewMissionCheck();
         state.selected.mode = "PAUSED"; renderSelected();
         addReviewActivity("PAUSED", "REVIEW AGENT PAUSED",
-          "Tab-scoped only · no production strategy changed");
-        addMessage("punk", "PAUSED IN THIS REVIEW TAB. I will not evaluate new opportunities until you confirm another strategy.");
+          "Browser review only · no production strategy changed");
+        addMessage("punk", "PAUSED IN THIS REVIEW BROWSER. I will not evaluate new opportunities until you confirm another strategy.");
       }
       else {
         try {
@@ -1341,7 +1448,7 @@ function setup() {
       one("[data-confirmation-dialog]").close();
       addMessage("punk", dispatchAfterActivation
         ? `${mode} REVIEW AGENT READY. I'M HEADING TO THE SHARED QUEUE NOW. No production permissions were activated.`
-        : `${mode} REVIEW AGENT READY. I’ll remember these structured rules for this Punk in this tab. No production permissions were activated.`);
+        : `${mode} REVIEW AGENT READY. I’ll remember these structured rules for this Punk in this browser. No production permissions were activated.`);
       if (dispatchAfterActivation) await sendReviewAgentOut();
       return;
     }
@@ -1567,6 +1674,13 @@ function setup() {
   if (PREVIEW) { previewData(); renderRoster(); renderSelected(); }
   else renderRoster();
   window.setInterval(renderMissionMonitor, 1_000);
+  window.setInterval(renderWelcomeMessage, 60_000);
+  window.setInterval(() => {
+    const key = selectedReviewKey(); const agent = selectedReviewAgent();
+    if (key && agent?.status === "SCOUTING" && acquireReviewMissionLease(key)) {
+      scheduleSelectedReviewMissionCheck();
+    }
+  }, 5_000);
   const requestedTab = new URLSearchParams(location.search).get("tab");
   if (["talk", "strategy", "fund", "collection", "activity", "settings"].includes(requestedTab)) {
     activateTab(requestedTab);

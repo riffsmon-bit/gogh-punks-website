@@ -155,11 +155,13 @@ test("ordinary questions receive a grounded Punk reply instead of a fake strateg
     inspection: { kind: "OPENSEA_COLLECTION", status: "NEEDS_REVIEW" },
     history: [{ role: "OWNER", content: "I like pixel art." }],
     review: { checkedCount: 2, eligibleCount: 1,
-      leadingCollectionName: "Neon Alley", leadingMatchScore: 94 },
+      leadingCollectionName: "Neon Alley", leadingMatchScore: 94,
+      missionStatus: "SCOUTING", missionTarget: 6, missionFound: 1,
+      missionChecks: 2, missionCheckedOpportunities: 40 },
   }), { now: new Date("2026-09-06T14:00:00.000Z"),
     readAuthority: async () => ({ punkWallet: PUNK_WALLET }),
     answerConversation: async ({ inspection, history, review }) => ({
-      reply: `I can explain this ${inspection.kind}; ${history.length} earlier turn and ${review.eligibleCount} match.`, provider: "OPENAI",
+      reply: `I can explain this ${inspection.kind}; ${history.length} earlier turn, ${review.eligibleCount} match, and mission ${review.missionStatus}.`, provider: "OPENAI",
       registryKey: "openai:auto", providerAvailable: true,
     }) });
   assert.equal(response.status, 200);
@@ -167,7 +169,7 @@ test("ordinary questions receive a grounded Punk reply instead of a fake strateg
   assert.equal(payload.responseKind, "CONVERSATION");
   assert.equal(payload.draft, null);
   assert.equal(payload.provider.provider, "OPENAI");
-  assert.match(payload.reply, /1 earlier turn and 1 match/);
+  assert.match(payload.reply, /1 earlier turn, 1 match, and mission SCOUTING/);
   assert.equal(payload.transactionPrepared, false);
 });
 

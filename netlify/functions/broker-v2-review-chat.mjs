@@ -59,9 +59,13 @@ function exactBody(value) {
   ))) throw new PublicError(400, "INVALID_REQUEST", "The recent chat context is invalid.");
   const review = Object.hasOwn(value, "review") ? value.review : null;
   const reviewFields = ["checkedCount", "eligibleCount", "leadingCollectionName", "leadingMatchScore"];
+  const missionFields = ["missionStatus", "missionTarget", "missionFound", "missionChecks",
+    "missionCheckedOpportunities"];
+  const missionIncluded = review !== null && missionFields.some((field) => Object.hasOwn(review, field));
   if (review !== null && (!review || typeof review !== "object" || Array.isArray(review)
-    || Object.keys(review).some((field) => !reviewFields.includes(field))
+    || Object.keys(review).some((field) => ![...reviewFields, ...missionFields].includes(field))
     || !reviewFields.every((field) => Object.hasOwn(review, field))
+    || missionIncluded && !missionFields.every((field) => Object.hasOwn(review, field))
     || !Number.isInteger(review.checkedCount) || review.checkedCount < 0 || review.checkedCount > 100
     || !Number.isInteger(review.eligibleCount) || review.eligibleCount < 0
     || review.eligibleCount > review.checkedCount
@@ -69,7 +73,16 @@ function exactBody(value) {
     || review.leadingCollectionName !== null && (typeof review.leadingCollectionName !== "string"
       || !review.leadingCollectionName.trim() || review.leadingCollectionName.length > 160)
     || review.leadingMatchScore !== null && (!Number.isInteger(review.leadingMatchScore)
-      || review.leadingMatchScore < 0 || review.leadingMatchScore > 100))) {
+      || review.leadingMatchScore < 0 || review.leadingMatchScore > 100)
+    || missionIncluded && (!['ACTIVE', 'SCOUTING', 'RETURNED', 'PAUSED'].includes(review.missionStatus)
+      || !Number.isInteger(review.missionTarget) || review.missionTarget < 0 || review.missionTarget > 100
+      || !Number.isInteger(review.missionFound) || review.missionFound < 0
+      || review.missionFound > 10_000
+      || !Number.isInteger(review.missionChecks) || review.missionChecks < 0
+      || review.missionChecks > 100_000
+      || !Number.isInteger(review.missionCheckedOpportunities)
+      || review.missionCheckedOpportunities < 0
+      || review.missionCheckedOpportunities > 10_000_000))) {
     throw new PublicError(400, "INVALID_REQUEST", "The discovery-review context is invalid.");
   }
   const skills = Object.hasOwn(value, "skills") ? value.skills : [];
