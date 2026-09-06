@@ -15,6 +15,19 @@ const OWNER_OF_ABI = parseAbi(["function ownerOf(uint256 tokenId) view returns (
 const COLLECTION_NAME_ABI = parseAbi(["function name() view returns (string)"]);
 const TOKEN_URI_ABI = parseAbi(["function tokenURI(uint256 tokenId) view returns (string)"]);
 
+// Discovery hints for externally received assets that are absent from both the
+// V1 mint ledger and the marketplace account index. A hint never establishes
+// ownership: ownerOf is re-read from Robinhood Chain on every inventory load,
+// and the withdrawal path performs its own fresh authority and simulation checks.
+const REGISTERED_RECEIVED_NFTS = Object.freeze({
+  "93": Object.freeze([
+    Object.freeze({
+      collection: "0x505a22ffed8d37ebe580ffd98d2cdb0021189146",
+      tokenId: "882",
+    }),
+  ]),
+});
+
 function displayCollectionName(value) {
   if (typeof value !== "string") return null;
   const clean = value.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
@@ -125,7 +138,7 @@ export async function buildWithdrawableNftAssets(
   { environment = process.env, database, gateBuilder = buildNftWithdrawalGate,
     getReceipt, getOwner, getCollectionName, getTokenUri,
     enrichItems = enrichOpenSeaPortfolio, readTokenDisplay = readOnchainNftDisplay,
-    openSeaSource, exactAsset = null } = {},
+    openSeaSource, exactAsset = null, registeredAssets = REGISTERED_RECEIVED_NFTS } = {},
 ) {
   const normalizedTokenId = tokenId(selectedTokenId);
   const gate = await gateBuilder(normalizedTokenId);
@@ -224,14 +237,20 @@ export async function buildWithdrawableNftAssets(
     }
   }
   let items = [...unique.values()].slice(0, 64);
-  // A marketplace account index may lag or omit an otherwise live-owned NFT. Allow the
-  // holder to supply one exact ERC-721 identity, then prove ownerOf against the selected
-  // Punk Wallet before exposing it to the existing withdrawal preflight. This is a
-  // bounded recovery lookup, not a user-controlled transaction path.
-  if (exactAsset && items.length < 64) {
+  // A marketplace account index may lag or omit an otherwise live-owned NFT. Registered
+  // recovery hints and one owner-supplied exact identity are both proven with ownerOf
+  // before being exposed to the existing withdrawal preflight. They are bounded discovery
+  // inputs, not user-controlled transaction paths.
+  const receivedHints = [
+    ...(Array.isArray(registeredAssets?.[normalizedTokenId])
+      ? registeredAssets[normalizedTokenId].slice(0, 16) : []),
+    ...(exactAsset ? [exactAsset] : []),
+  ];
+  for (const receivedHint of receivedHints) {
+    if (items.length >= 64) break;
     try {
-      const collection = address(exactAsset.collection, "exact NFT collection");
-      const identifier = BigInt(exactAsset.tokenId).toString();
+      const collection = address(receivedHint.collection, "exact NFT collection");
+      const identifier = BigInt(receivedHint.tokenId).toString();
       if (!/^(?:0|[1-9][0-9]*)$/.test(identifier)) throw new TypeError();
       const identity = `${collection}:${identifier}`;
       const currentOwner = address(await ownerReader(collection, identifier), "NFT owner");

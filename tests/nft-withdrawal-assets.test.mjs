@@ -18,6 +18,7 @@ const HASH = `0x${"ab".repeat(32)}`;
 const TRANSFER = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 const IPFS_IMAGE = "https://gateway.pinata.cloud/ipfs/bafybeifxubfqw4ijecm3adlgczd37x2kk3xu4mpsgelh7n4nxxq5ufmrsy";
 const NO_OPENSEA_ENVIRONMENT = Object.freeze({});
+const NO_REGISTERED_ASSETS = Object.freeze({});
 
 function addressTopic(value) {
   return `0x${value.slice(2).padStart(64, "0")}`;
@@ -71,6 +72,7 @@ test("returns only confirmed worker mints still owned by the Punk wallet", async
     getReceipt: async () => receipt(),
     getOwner: async () => { ownerReads += 1; return ACCOUNT; },
     getCollectionName: async () => "The Doll Club NFTs",
+    registeredAssets: NO_REGISTERED_ASSETS,
   });
   assert.equal(assets.capability, true);
   assert.equal(assets.items.length, 1);
@@ -84,6 +86,7 @@ test("returns only confirmed worker mints still owned by the Punk wallet", async
     gateBuilder: async () => gate(),
     getReceipt: async () => receipt(),
     getOwner: async () => OWNER,
+    registeredAssets: NO_REGISTERED_ASSETS,
   });
   assert.deepEqual(withdrawn.items, []);
 });
@@ -109,6 +112,7 @@ test("adds advisory OpenSea art and floor while keeping receipt and live owner a
           collectionSlug: "example-collection",
           sourceUrl: "https://opensea.io/collection/example-collection" } }));
     },
+    registeredAssets: NO_REGISTERED_ASSETS,
   });
   assert.equal(enrichCalls, 1);
   const [item] = validateWithdrawableNftAssets(assets, "93");
@@ -133,6 +137,7 @@ test("includes manually received indexed ERC-721 and ERC-1155 assets for live wi
       name: "Manual Edition #7", imageUrl: "https://i.seadn.io/manual.png",
     }] },
     enrichItems: async (items) => items,
+    registeredAssets: NO_REGISTERED_ASSETS,
   });
   const [item] = validateWithdrawableNftAssets(assets, "93");
   assert.equal(item.standard, "ERC1155");
@@ -157,6 +162,7 @@ test("adds one exact live-owned ERC-721 when the marketplace account index omits
     },
     getCollectionName: async () => "CCFF00",
     exactAsset: { collection: missingCollection, tokenId: "882" },
+    registeredAssets: NO_REGISTERED_ASSETS,
   });
   const [item] = validateWithdrawableNftAssets(assets, "93");
   assert.equal(item.collection, missingCollection);
@@ -164,6 +170,31 @@ test("adds one exact live-owned ERC-721 when the marketplace account index omits
   assert.equal(item.collectionName, "CCFF00");
   assert.equal(item.provenance, "RECEIVED");
   assert.equal(item.ownershipStatus, "LIVE_CHECK_REQUIRED");
+});
+
+test("automatically includes a registered externally received NFT only while it remains live-owned", async () => {
+  const receivedCollection = "0x505a22ffed8d37ebe580ffd98d2cdb0021189146";
+  const common = {
+    environment: NO_OPENSEA_ENVIRONMENT,
+    database: { query: async () => ({ rows: [] }) },
+    gateBuilder: async () => gate(),
+    getReceipt: async () => null,
+    getCollectionName: async () => "CCFF00",
+    getTokenUri: async () => "",
+    registeredAssets: { "93": [{ collection: receivedCollection, tokenId: "882" }] },
+  };
+  const held = await buildWithdrawableNftAssets("93", {
+    ...common, getOwner: async () => ACCOUNT,
+  });
+  assert.equal(held.items.length, 1);
+  assert.equal(held.items[0].collection, receivedCollection);
+  assert.equal(held.items[0].tokenId, "882");
+  assert.equal(held.items[0].ownershipStatus, "LIVE_CHECK_REQUIRED");
+
+  const transferred = await buildWithdrawableNftAssets("93", {
+    ...common, getOwner: async () => OWNER,
+  });
+  assert.deepEqual(transferred.items, []);
 });
 
 test("falls back to exact on-chain tokenURI display when marketplace indexing lags", async () => {
@@ -182,6 +213,7 @@ test("falls back to exact on-chain tokenURI display when marketplace indexing la
       assert.deepEqual(options, { timeoutMs: 10_000 });
       return { name: "Pepe Brokers #99", imageUrl: IPFS_IMAGE };
     },
+    registeredAssets: NO_REGISTERED_ASSETS,
   });
   assert.equal(tokenUriReads, 1);
   assert.equal(assets.items[0].name, "Pepe Brokers #99");
@@ -204,6 +236,7 @@ test("asset list fails closed on a closed gate, malformed evidence, and hostile 
     gateBuilder: async () => gate(),
     getReceipt: async () => receipt(),
     getOwner: async () => ACCOUNT,
+    registeredAssets: NO_REGISTERED_ASSETS,
   });
   const changed = structuredClone(valid);
   changed.items[0].openSeaUrl = "https://example.com/attacker";
