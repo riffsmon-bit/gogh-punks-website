@@ -261,6 +261,8 @@ test("site exposes a selectable NFT list while retaining a live-checked manual f
   assert.match(browser, /waitForNftWithdrawalReceipt/);
   assert.match(browser, /gogh:portfolio-invalidated/);
   assert.match(endpoint, /status = 'MINT_CONFIRMED'/);
+  assert.match(endpoint, /uniqueTokenUris/);
+  assert.match(endpoint, /displayByTokenUri/);
   assert.doesNotMatch(endpoint, /eth_send|sendTransaction|privateKey|mnemonic/);
 });
 

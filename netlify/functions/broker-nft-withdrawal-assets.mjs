@@ -290,25 +290,43 @@ export async function buildWithdrawableNftAssets(
     }
   }
   if (tokenUriReader && typeof readTokenDisplay === "function") {
-    const hydrated = [];
-    for (let offset = 0; offset < items.length; offset += 4) {
-      const batch = await Promise.all(items.slice(offset, offset + 4).map(async (item) => {
-        if (item.name && item.imageUrl) return item;
+    const tokenUriByIdentity = new Map();
+    const missingDisplay = items.filter((item) => !item.name || !item.imageUrl);
+    for (let offset = 0; offset < missingDisplay.length; offset += 4) {
+      const batch = await Promise.all(missingDisplay.slice(offset, offset + 4).map(async (item) => {
         try {
-          const display = await readTokenDisplay(await tokenUriReader(item.collection, item.tokenId));
-          if (!display) return item;
-          return Object.freeze({
-            ...item,
-            name: item.name ?? display.name ?? null,
-            imageUrl: item.imageUrl ?? display.imageUrl ?? null,
-          });
+          return [
+            `${item.collection}:${item.tokenId}`,
+            await tokenUriReader(item.collection, item.tokenId),
+          ];
         } catch {
-          return item;
+          return [`${item.collection}:${item.tokenId}`, null];
         }
       }));
-      hydrated.push(...batch);
+      for (const [identity, uri] of batch) tokenUriByIdentity.set(identity, uri);
     }
-    items = hydrated;
+    const uniqueTokenUris = [...new Set([...tokenUriByIdentity.values()].filter((uri) => (
+      typeof uri === "string" && uri.length > 0
+    )))];
+    const displayByTokenUri = new Map();
+    for (let offset = 0; offset < uniqueTokenUris.length; offset += 4) {
+      const batch = uniqueTokenUris.slice(offset, offset + 4);
+      const displays = await Promise.all(batch.map(async (uri) => {
+        try { return await readTokenDisplay(uri); }
+        catch { return null; }
+      }));
+      batch.forEach((uri, index) => displayByTokenUri.set(uri, displays[index]));
+    }
+    items = items.map((item) => {
+      if (item.name && item.imageUrl) return item;
+      const uri = tokenUriByIdentity.get(`${item.collection}:${item.tokenId}`);
+      const display = displayByTokenUri.get(uri);
+      return display ? Object.freeze({
+        ...item,
+        name: item.name ?? display.name ?? null,
+        imageUrl: item.imageUrl ?? display.imageUrl ?? null,
+      }) : item;
+    });
   }
   return Object.freeze({
     status: "READY", capability: true, reason: null, checkedAt: new Date().toISOString(),
