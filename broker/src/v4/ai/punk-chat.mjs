@@ -19,10 +19,13 @@ function inspectionContext(value) {
   if (value === null || value === undefined) return null;
   const kind = String(value.kind ?? "");
   const status = String(value.status ?? "");
+  const identity = Object.hasOwn(value, "identity") ? String(value.identity) : null;
   if (!value || typeof value !== "object" || Array.isArray(value)
-    || Object.keys(value).length !== 2 || !LINK_KINDS.test(kind)
-    || !INSPECTION_STATUSES.has(status)) throw new TypeError("inspection context is invalid");
-  return Object.freeze({ kind, status });
+    || Object.keys(value).some((key) => !["kind", "status", "identity"].includes(key))
+    || ![2, 3].includes(Object.keys(value).length) || !LINK_KINDS.test(kind)
+    || !INSPECTION_STATUSES.has(status) || (identity !== null
+      && (!identity || identity.length > 256))) throw new TypeError("inspection context is invalid");
+  return Object.freeze({ kind, status, ...(identity === null ? {} : { identity }) });
 }
 
 function historyContext(value) {

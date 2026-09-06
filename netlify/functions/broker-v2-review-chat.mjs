@@ -40,9 +40,14 @@ function exactBody(value) {
   }
   const inspection = Object.hasOwn(value, "inspection") ? value.inspection : null;
   if (inspection !== null && (!inspection || typeof inspection !== "object"
-    || Array.isArray(inspection) || Object.keys(inspection).length !== 2
+    || Array.isArray(inspection) || ![2, 3].includes(Object.keys(inspection).length)
+    || Object.keys(inspection).some((field) => !["kind", "status", "identity"].includes(field))
     || !/^[A-Z][A-Z0-9_]{2,63}$/.test(String(inspection.kind ?? ""))
-    || !["BLOCKED", "NEEDS_REVIEW"].includes(String(inspection.status ?? "")))) {
+    || !["BLOCKED", "NEEDS_REVIEW"].includes(String(inspection.status ?? ""))
+    || Object.hasOwn(inspection, "identity") && (typeof inspection.identity !== "string"
+      || !inspection.identity || inspection.identity.length > 256)
+    || inspection.kind === "ROBINHOOD_CONTRACT"
+      && !/^0x[0-9a-f]{40}$/.test(String(inspection.identity ?? "")))) {
     throw new PublicError(400, "INVALID_REQUEST", "The link-review context is invalid.");
   }
   const history = Object.hasOwn(value, "history") ? value.history : [];
@@ -170,10 +175,20 @@ export async function handleV2ReviewChat(request, {
     try {
       interpreted = draftStrategyFromConversation({ message: body.message,
         punkTokenId: body.tokenId, expectedOwner: body.owner, punkWallet: authority.punkWallet,
-        currentIntent: body.currentIntent }, now);
+        currentIntent: body.currentIntent,
+        targetContract: body.inspection?.kind === "ROBINHOOD_CONTRACT"
+          ? body.inspection.identity : null }, now);
     } catch (error) {
       if (!(error instanceof TypeError)) throw error;
       throw new PublicError(400, "INVALID_REQUEST", "The review strategy could not be safely interpreted.");
+    }
+    if (interpreted.ambiguous.length) {
+      const fields = interpreted.ambiguous.map((field) => field.replaceAll("_", " "));
+      return json({ ok: true, reviewMode: true, persistence: "NONE", tokenId: body.tokenId,
+        responseKind: "CLARIFICATION_REQUIRED",
+        reply: `I NEED ONE DETAIL: give me an exact ${fields.join(" and ").toLowerCase()} before I change or activate anything.`,
+        draft: null, clarificationFields: interpreted.ambiguous,
+        economicPermissionsActivated: false, transactionPrepared: false });
     }
     if (interpreted.changes.length === 0 && interpreted.ambiguous.length === 0) {
       return await conversationalReply(request, body, interpreted.intent, authority,

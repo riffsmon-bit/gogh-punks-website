@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  activateReviewAgent, normalizeReviewAgentRun, pauseReviewAgent, reviewAgentKey,
-  reviewInspectionPipeline,
+  activateReviewAgent, dispatchReviewAgent, normalizeReviewAgentRun, pauseReviewAgent,
+  recordReviewMissionRun, reviewAgentKey, reviewInspectionPipeline,
 } from "../site/broker-v2-review-agent.js";
 
 const OWNER = "0x1111111111111111111111111111111111111111";
@@ -15,6 +15,7 @@ function draft(overrides = {}) {
     schema: "PUNK_COLLECTING_INTENT_V1", version: 1, chainId: 4663,
     punkTokenId: "93", expectedOwner: OWNER, punkWallet: PUNK_WALLET,
     operatingMode: "ASK", preferences: { prefer: ["PIXEL_ART"], avoid: [] },
+    dailyMintLimit: 1, totalMintLimit: 1,
     expiration: "2026-10-06T18:00:00.000Z", ...overrides,
   } };
 }
@@ -32,6 +33,28 @@ test("review agents bind one confirmed ASK or ASSIST strategy to the selected Pu
   assert.equal(Object.isFrozen(agent.intent.preferences), true);
   assert.equal(Object.isFrozen(agent.intent.preferences.prefer), true);
   assert.equal(pauseReviewAgent(agent, new Date(NOW.getTime() + 1_000)).status, "PAUSED");
+});
+
+test("a dispatched Punk stays out until its unique-match mission is complete", () => {
+  const active = activateReviewAgent(draft({ dailyMintLimit: 2, totalMintLimit: 2 }), {
+    owner: OWNER, punkTokenId: "93", punkWallet: PUNK_WALLET,
+  }, NOW);
+  const scouting = dispatchReviewAgent(active, new Date(NOW.getTime() + 1_000));
+  assert.equal(scouting.status, "SCOUTING");
+  assert.equal(scouting.mission.targetMatches, 2);
+  const one = { checkedCount: 25, opportunities: [{ collectionContract: PUNK_WALLET,
+    recommendationEligible: true }] };
+  const stillOut = recordReviewMissionRun(scouting, one, new Date(NOW.getTime() + 2_000));
+  assert.equal(stillOut.status, "SCOUTING");
+  assert.equal(stillOut.mission.foundContracts.length, 1);
+  const duplicate = recordReviewMissionRun(stillOut, one, new Date(NOW.getTime() + 3_000));
+  assert.equal(duplicate.status, "SCOUTING", "repeat sightings cannot finish the mission twice");
+  const returned = recordReviewMissionRun(duplicate, { checkedCount: 25,
+    opportunities: [{ collectionContract: OWNER, recommendationEligible: true }] },
+  new Date(NOW.getTime() + 4_000));
+  assert.equal(returned.status, "RETURNED");
+  assert.equal(returned.mission.checks, 3);
+  assert.equal(returned.mission.checkedOpportunities, 75);
 });
 
 test("review agents reject autonomy, ownership drift, wallet drift, and expired drafts", () => {

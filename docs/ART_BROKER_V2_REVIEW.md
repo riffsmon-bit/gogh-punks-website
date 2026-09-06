@@ -88,9 +88,9 @@ asset transfer, and admin-withdraw tools do not exist.
 ## 9. Conversational intent system
 
 Production chat uses the provider router and validates the returned object against the canonical
-domain normalizer. Local and pull-request review builds use the same deterministic domain parser
-without an AI charge. The PR endpoint first verifies the selected Punk's current owner and canonical
-Punk Wallet, returns an ephemeral structured draft, and is absent from production. The database-backed
+domain normalizer. The pull-request review combines deterministic policy parsing with a configured
+server-side Gemini conversational provider. The PR endpoint first verifies the selected Punk's current
+owner and canonical Punk Wallet, returns an ephemeral structured draft, and is absent from production. The database-backed
 path persists the owner message, Punk response, and pending strategy version after its migration is
 authorized; neither path activates economic permission from conversation alone. Chat can also
 compile an owner-taught skill into a bounded `GOGH_PUNK_SKILL_V1` draft. Skills are read-only,
@@ -114,7 +114,7 @@ resolvers are an explicit integration boundary; an unconfigured source returns `
 
 The in-memory and Postgres repositories normalize and deduplicate source sightings, serialize
 analysis by input hash, and reuse one collection analysis across Punks. The isolated deploy-preview
-queue can manually ingest confirmed Robinhood SeaDrop events and fail closed through reviewed
+queue can ingest confirmed Robinhood SeaDrop events and fail closed through reviewed
 runtime, adapter registry, price, supply, timing, fee-recipient, and per-Punk simulation gates. No
 production discovery schedule or external feed has been enabled.
 
@@ -164,8 +164,11 @@ defined but intentionally unwired.
 The control center implements the original premium art-broker roster, selected Punk hero,
 Talk, Strategy, Fund, Collection, Activity, Withdraw, and Settings. Live mode hydrates authenticated
 profile, wallet balance, V1+V2 activity, and NFT holdings. The pull-request review uses live pinned-block
-ownership, ephemeral strategy drafts, and review-only link inspection while explicitly blocking funding,
-persistence, provider charges, and execution. Preview data is clearly labeled and cannot broadcast.
+ownership, ephemeral strategy drafts, AI conversation, and review-only link inspection. Owner-approved
+funding, WETH wrapping/unwrapping, and withdrawals remain explicit wallet transactions; agent discovery
+cannot broadcast. A confirmed chat mission can send a tab-scoped Punk into the shared review queue. It
+rechecks once per minute, deduplicates eligible collection contracts, and returns only when its requested
+unique-match count is reached or the owner pauses it. Closing the tab stops this preview loop.
 
 ## 20. Mobile UI
 
@@ -196,8 +199,8 @@ check.
 
 ## 24. Test results
 
-- V2-focused Node tests: **48 passed, 0 failed**.
-- Deploy-preview-equivalent site gate: **125 passed, 0 failed**.
+- Current mission/chat-focused Node tests: **53 passed, 0 failed**.
+- Deploy-preview-equivalent site gate: **127 passed, 0 failed**.
 - Contract build/lint/test/ABI gate: **142 passed, 0 failed** at 1,024 fuzz runs.
 - Full repository Node suite: **1,032 passed, 13 failed**. The same 13 tests failed before V2 work;
   all assert obsolete pre-retirement V1 worker behavior after the fixed 2026-09-05 cutoff now returns
@@ -226,6 +229,10 @@ accepts LLM or website calldata as authority. Static scans found no embedded pro
 ## 28. Canary readiness
 
 ASK can now be exercised in the PR review against live owner/Punk Wallet reads with ephemeral drafts.
+Chat can activate and immediately dispatch a review-only mission. A mission remains `SCOUTING` across
+repeated queue checks and becomes `RETURNED` only after its unique-match target is met. A phrase such as
+"this mint" binds only when the link scanner has resolved an exact Robinhood contract; unresolved marketplace
+or project links request clarification instead of broadening authority.
 Its persistent AI-backed path remains integration-ready after migration/configuration. ASSIST has the
 domain and owner-approval boundary but still needs one production-reviewed adapter/simulator wiring
 before a transaction can be offered. AUTONOMOUS is built as a fail-closed policy/execution mode but
@@ -234,9 +241,11 @@ is **not canary-ready** with the current deployed wallet gas model.
 ## 29. Remaining blockers
 
 - Apply and smoke-test the additive migration in a non-production review database.
-- Configure current server-side model IDs, keys, and token prices; run provider contract tests with
-  controlled low-cost calls.
+- Authorize and configure production server-side model IDs, keys, and token prices; run provider
+  contract tests with controlled low-cost calls. The isolated PR preview currently uses Gemini.
 - Implement and review source-specific URL resolvers and production discovery feed jobs.
+- Move tab-scoped mission polling into a durable authenticated scheduler before claiming that a Punk keeps
+  scouting after its browser tab closes.
 - Wire at least one reviewed adapter to live, pinned simulation for ASSIST.
 - Resolve how a Punk-funded AUTONOMOUS transaction pays gas without restoring hosted project gas or
   giving an executor unrestricted withdrawal authority.

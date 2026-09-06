@@ -65,11 +65,51 @@ export function activateReviewAgent(draft, selection, now = new Date()) {
     activatedAt, updatedAt: activatedAt });
 }
 
-export function pauseReviewAgent(agent, now = new Date()) {
+function activeReviewAgent(agent, statuses) {
   if (!agent || agent.schema !== "GOGH_REVIEW_AGENT_V1" || agent.reviewOnly !== true
-    || agent.authority !== "NONE" || agent.status !== "ACTIVE") {
-    throw new TypeError("Active review agent is required");
+    || agent.authority !== "NONE" || !statuses.includes(agent.status)) {
+    throw new TypeError("Review agent mission state is invalid");
   }
+  return agent;
+}
+
+export function dispatchReviewAgent(agentValue, now = new Date()) {
+  const agent = activeReviewAgent(agentValue, ["ACTIVE"]);
+  const dailyLimit = Number(agent.intent.dailyMintLimit);
+  const totalLimit = Number(agent.intent.totalMintLimit);
+  if (!Number.isInteger(dailyLimit) || dailyLimit < 1 || !Number.isInteger(totalLimit)
+    || totalLimit < 1) throw new TypeError("Review agent mission limit is invalid");
+  const startedAt = timestamp(now, "mission start");
+  return Object.freeze({ ...agent, status: "SCOUTING", updatedAt: startedAt,
+    mission: Object.freeze({ targetMatches: Math.min(dailyLimit, totalLimit), checks: 0,
+      checkedOpportunities: 0, foundContracts: Object.freeze([]), startedAt,
+      lastCheckedAt: null }) });
+}
+
+export function recordReviewMissionRun(agentValue, run, now = new Date()) {
+  const agent = activeReviewAgent(agentValue, ["SCOUTING"]);
+  if (!run || typeof run !== "object" || !Array.isArray(run.opportunities)
+    || !Number.isInteger(run.checkedCount) || run.checkedCount < 0) {
+    throw new TypeError("Review agent mission run is invalid");
+  }
+  const found = new Set(agent.mission.foundContracts);
+  for (const opportunity of run.opportunities) {
+    if (opportunity.recommendationEligible === true) {
+      found.add(address(opportunity.collectionContract, "matched collection contract"));
+    }
+  }
+  const checkedAt = timestamp(now, "mission check");
+  const foundContracts = Object.freeze([...found].sort());
+  const mission = Object.freeze({ ...agent.mission, checks: agent.mission.checks + 1,
+    checkedOpportunities: agent.mission.checkedOpportunities + run.checkedCount,
+    foundContracts, lastCheckedAt: checkedAt });
+  return Object.freeze({ ...agent,
+    status: foundContracts.length >= mission.targetMatches ? "RETURNED" : "SCOUTING",
+    mission, updatedAt: checkedAt });
+}
+
+export function pauseReviewAgent(agent, now = new Date()) {
+  activeReviewAgent(agent, ["ACTIVE", "SCOUTING"]);
   return Object.freeze({ ...agent, status: "PAUSED", updatedAt: timestamp(now, "pause time") });
 }
 

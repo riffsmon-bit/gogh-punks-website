@@ -82,6 +82,33 @@ test("conversation updates daily and total mint limits as a pending strategy", (
   assert.equal(draft.economicPermissionsActivated, false);
 });
 
+test("chat understands a standalone max-mint count and asks when the count is missing", () => {
+  const bounded = draftStrategyFromConversation({
+    message: "Find me free pixel art. Max one mint.",
+    punkTokenId: "119", expectedOwner: OWNER, punkWallet: WALLET,
+  }, NOW);
+  assert.equal(bounded.intent.totalMintLimit, 1);
+  assert.ok(bounded.changes.includes("TOTAL_LIMIT"));
+  assert.equal(bounded.status, "PENDING_OWNER_CONFIRMATION");
+  const unclear = draftStrategyFromConversation({
+    message: "Find me pixel art and max mint.",
+    punkTokenId: "119", expectedOwner: OWNER, punkWallet: WALLET,
+  }, NOW);
+  assert.equal(unclear.status, "NEEDS_CLARIFICATION");
+  assert.deepEqual(unclear.ambiguous, ["TOTAL_LIMIT"]);
+});
+
+test("a specific-mint mission binds only a server-resolved Robinhood contract", () => {
+  const targeted = draftStrategyFromConversation({ message: "Watch this mint when public opens.",
+    punkTokenId: "119", expectedOwner: OWNER, punkWallet: WALLET, targetContract: MINT }, NOW);
+  assert.deepEqual(targeted.intent.allowedContracts, [MINT]);
+  assert.ok(targeted.changes.includes("TARGET_CONTRACT"));
+  const unresolved = draftStrategyFromConversation({ message: "Watch this mint when public opens.",
+    punkTokenId: "119", expectedOwner: OWNER, punkWallet: WALLET }, NOW);
+  assert.equal(unresolved.status, "NEEDS_CLARIFICATION");
+  assert.deepEqual(unresolved.ambiguous, ["TARGET_CONTRACT"]);
+});
+
 test("link normalization accepts information but never external transaction authority", async () => {
   assert.deepEqual(normalizeArtBrokerLink("https://opensea.io/collection/pepemfersnft/overview"), {
     kind: "OPENSEA_COLLECTION", host: "opensea.io", identity: "pepemfersnft",

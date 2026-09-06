@@ -119,6 +119,7 @@ test("the hosted PR review runs bounded tab agents while owner transactions stay
   assert.match(script, /api\/v2\/review\/inspect-url/);
   assert.match(html, /data-review-agent-console/);
   assert.match(html, /SEND PUNK OUT/);
+  assert.match(html, /ACTIVATE &amp; SEND PUNK OUT/);
   assert.match(html, /RUN SAFE TEST/);
   assert.match(html, /data-review-agent-limit-form/);
   assert.match(html, /MAX \/ DAY/);
@@ -133,6 +134,10 @@ test("the hosted PR review runs bounded tab agents while owner transactions stay
   assert.match(script, /SHARED V2 QUEUE/);
   assert.match(html, /Preview-session intelligence only/);
   assert.match(script, /startReviewAgent/);
+  assert.match(script, /dispatchAfterActivation/);
+  assert.match(script, /recordReviewMissionRun/);
+  assert.match(script, /REVIEW_MISSION_POLL_MS = 60_000/);
+  assert.match(script, /if \(dispatchAfterActivation\) await sendReviewAgentOut\(\)/);
   assert.match(script, /selectedReviewAgent\(\)\?\.intent/);
   assert.match(script, /No production permissions were activated/);
   assert.match(script, /reviewAgents: new Map\(\)/);

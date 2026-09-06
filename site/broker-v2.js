@@ -11,8 +11,8 @@ import {
   waitForNftWithdrawalReceipt,
 } from "./nft-withdrawal.js";
 import {
-  activateReviewAgent, normalizeReviewAgentRun, pauseReviewAgent, reviewAgentKey,
-  reviewInspectionPipeline,
+  activateReviewAgent, dispatchReviewAgent, normalizeReviewAgentRun, pauseReviewAgent,
+  recordReviewMissionRun, reviewAgentKey, reviewInspectionPipeline,
 } from "./broker-v2-review-agent.js";
 import { activateReviewSkill } from "./broker-v2-review-skill.js";
 
@@ -42,6 +42,7 @@ const previewActivity = Object.freeze([
 ]);
 
 const state = { wallet: null, punks: [], selected: null, localStrategy: null, localSkill: null,
+  dispatchAfterActivation: false,
   gallery: [], activity: [], hydratedTokenId: null, lastInspection: null,
   ownershipAccount: null, ownershipLoadingAccount: null, ownershipRequestId: 0,
   balanceRequestId: 0, galleryTokenId: null, galleryLoadingTokenId: null,
@@ -49,6 +50,8 @@ const state = { wallet: null, punks: [], selected: null, localStrategy: null, lo
   withdrawalAmount: "1", withdrawalPlan: null, withdrawalBusy: false,
   reviewAgents: new Map(), reviewInspections: new Map(), reviewActivities: new Map(),
   reviewRuns: new Map(), reviewConversations: new Map(), reviewSkills: new Map() };
+const REVIEW_MISSION_POLL_MS = 60_000;
+let reviewMissionTimer = null;
 const one = (selector) => document.querySelector(selector);
 const all = (selector) => [...document.querySelectorAll(selector)];
 const set = (selector, value) => { const target = one(selector); if (target) target.textContent = String(value); };
@@ -170,11 +173,16 @@ function renderReviewAgent() {
   const runBusy = runButton.dataset.busy === "true" || testButton.dataset.busy === "true";
   runButton.disabled = runBusy || !agent || agent.status !== "ACTIVE";
   testButton.disabled = runBusy || !agent || agent.status !== "ACTIVE";
-  runButton.textContent = runBusy ? "PUNK IS OUT…" : "SEND PUNK OUT";
+  runButton.textContent = runBusy || agent?.status === "SCOUTING" ? "PUNK IS OUT…"
+    : agent?.status === "RETURNED" ? "MISSION COMPLETE" : "SEND PUNK OUT";
   testButton.textContent = runBusy ? "TESTING…" : "RUN SAFE TEST";
   set("[data-review-agent-run-note]", !agent
     ? "Confirm an ASK or ASSIST strategy first."
-    : agent.status !== "ACTIVE" ? "This review agent is paused."
+    : agent.status === "SCOUTING"
+      ? `Mission active: ${agent.mission.foundContracts.length}/${agent.mission.targetMatches} unique matches. Rechecks every minute while this tab is open.`
+      : agent.status === "RETURNED"
+        ? `Mission complete: ${agent.mission.foundContracts.length} unique matches found.`
+        : agent.status !== "ACTIVE" ? "This review agent is paused."
       : run ? run.testMode
         ? `Safe test only: ${run.eligibleCount} test card matched; no live opportunity or transaction.`
         : `Last run checked ${run.checkedCount}; ${run.eligibleCount} matched.`
@@ -182,7 +190,7 @@ function renderReviewAgent() {
   set("[data-review-strategy-label]", agent
     ? `REVIEW AGENT ${agent.status}` : "NO REVIEW AGENT");
   set("[data-review-strategy-detail]", agent
-    ? `${agent.mode} rules are remembered for this Punk in this browser tab. Authority: NONE.`
+    ? `${agent.mode} rules are remembered for this Punk in this browser tab. ${agent.status === "SCOUTING" ? "Mission is out scouting. " : ""}Authority: NONE.`
     : "Confirm a strategy draft to start this Punk in the current review tab.");
   if (!agent) {
     set("[data-strategy-name]", "NOT CONFIGURED");
@@ -265,13 +273,32 @@ function startReviewAgent(draft) {
   return agent;
 }
 
-async function sendReviewAgentOut({ testMode = false } = {}) {
-  const agent = selectedReviewAgent(); const key = selectedReviewKey();
+function scheduleSelectedReviewMissionCheck() {
+  if (reviewMissionTimer !== null) window.clearTimeout(reviewMissionTimer);
+  reviewMissionTimer = null;
+  if (!REVIEW_HOST || PREVIEW || selectedReviewAgent()?.status !== "SCOUTING") return;
+  reviewMissionTimer = window.setTimeout(() => {
+    reviewMissionTimer = null;
+    void sendReviewAgentOut({ continueMission: true });
+  }, REVIEW_MISSION_POLL_MS);
+}
+
+async function sendReviewAgentOut({ testMode = false, continueMission = false } = {}) {
+  let agent = selectedReviewAgent(); const key = selectedReviewKey();
   const button = testMode ? one("[data-review-agent-test]") : one("[data-review-agent-run]");
-  if (!agent || agent.status !== "ACTIVE" || !key) return;
+  if (!agent || !key || (testMode && agent.status !== "ACTIVE")
+    || (!testMode && !["ACTIVE", "SCOUTING"].includes(agent.status))
+    || (continueMission && agent.status !== "SCOUTING")) return;
   if (!REVIEW_HOST || PREVIEW) {
     addMessage("punk", "Shared V2 discovery is connected only on the hosted PR review. Nothing was dispatched.");
     return;
+  }
+  const tokenId = state.selected.tokenId;
+  if (!testMode && agent.status === "ACTIVE") {
+    agent = dispatchReviewAgent(agent);
+    state.reviewAgents.set(key, agent);
+    addReviewActivity("OUT", "PUNK SENT TO SHARED DISCOVERY",
+      `Mission target · ${agent.mission.targetMatches} unique eligible match${agent.mission.targetMatches === 1 ? "" : "es"}`);
   }
   button.dataset.busy = "true"; button.disabled = true; renderReviewAgent();
   try {
@@ -281,26 +308,36 @@ async function sendReviewAgentOut({ testMode = false } = {}) {
     });
     const response = await jsonRequest("/api/v2/review/run", { method: "POST",
       headers: { "content-type": "application/json" }, body: JSON.stringify({
-        owner: state.wallet.account, tokenId: state.selected.tokenId, intent: agent.intent,
+        owner: agent.owner, tokenId, intent: agent.intent,
         ...(testMode ? { testMode: "SAFE_FIXTURE" } : {}),
       }), timeoutMs: 20_000 });
-    const run = normalizeReviewAgentRun(response, state.selected.tokenId);
+    const run = normalizeReviewAgentRun(response, tokenId);
     state.reviewRuns.set(key, run);
-    addReviewActivity("SCOUTED", testMode ? "SAFE PIPELINE TEST COMPLETED"
-      : "PUNK RETURNED FROM SHARED DISCOVERY",
-    `${run.checkedCount} checked · ${run.eligibleCount} eligible${testMode ? " · no live mint" : ""}`);
     const leading = run.opportunities.find(({ recommendationEligible }) => recommendationEligible);
-    addMessage("punk", testMode
-      ? leading
+    if (testMode) {
+      addReviewActivity("SCOUTED", "SAFE PIPELINE TEST COMPLETED",
+        `${run.checkedCount} checked · ${run.eligibleCount} eligible · no live mint`);
+      addMessage("punk", leading
         ? `TEST COMPLETE. The non-live ${leading.collectionName} card matched at ${leading.matchScore}%. Ownership, rules, screen state, and simulation state flowed end to end. No live mint or transaction exists.`
-        : `TEST COMPLETE. The non-live test card was rejected by the current rules. No live mint or transaction exists.`
-      : leading
-      ? `I'M BACK. ${run.eligibleCount} OF ${run.checkedCount} OPPORTUNITIES MATCHED. Best current match: ${leading.collectionName}, ${leading.matchScore}% match. Nothing was submitted.`
-      : `I'M BACK. I CHECKED ${run.checkedCount} SHARED V2 OPPORTUNITIES AND FOUND NO ELIGIBLE MATCH UNDER YOUR RULES. Nothing was submitted.`);
+        : "TEST COMPLETE. The non-live test card was rejected by the current rules. No live mint or transaction exists.");
+    } else {
+      agent = recordReviewMissionRun(agent, run);
+      state.reviewAgents.set(key, agent);
+      const returned = agent.status === "RETURNED";
+      addReviewActivity(returned ? "RETURNED" : "SCOUTING",
+        returned ? "PUNK RETURNED · MISSION COMPLETE" : "PUNK REMAINS OUT SCOUTING",
+        `${agent.mission.foundContracts.length}/${agent.mission.targetMatches} unique matches · ${agent.mission.checks} checks`);
+      addMessage("punk", returned
+        ? `I'M BACK. MISSION COMPLETE: ${agent.mission.foundContracts.length} UNIQUE ELIGIBLE MATCH${agent.mission.foundContracts.length === 1 ? "" : "ES"} FOUND.${leading ? ` Best current match: ${leading.collectionName}, ${leading.matchScore}%.` : ""} Nothing was submitted.`
+        : leading
+          ? `I FOUND ${leading.collectionName} AT ${leading.matchScore}% MATCH, BUT MY MISSION ISN'T COMPLETE. I'M STAYING OUT: ${agent.mission.foundContracts.length}/${agent.mission.targetMatches} UNIQUE MATCHES. Nothing was submitted.`
+          : `STILL OUT. I CHECKED ${run.checkedCount} SHARED V2 OPPORTUNITIES AND FOUND NO NEW ELIGIBLE MATCH. I'LL CHECK AGAIN IN ONE MINUTE. Nothing was submitted.`);
+    }
   } catch (error) {
-    addMessage("punk", `${error?.message ?? "Shared discovery is unavailable."} Nothing was submitted or authorized.`);
+    addMessage("punk", `${error?.message ?? "Shared discovery is unavailable."} ${agent.status === "SCOUTING" ? "I'M STAYING OUT AND WILL RETRY. " : ""}Nothing was submitted or authorized.`);
   } finally {
     delete button.dataset.busy; renderReviewAgent();
+    scheduleSelectedReviewMissionCheck();
   }
 }
 
@@ -374,7 +411,7 @@ function selectPunk(tokenId) {
   state.fundingPlan = null; state.wrappedPlan = null; state.withdrawalAsset = null;
   state.withdrawalAmount = "1"; state.withdrawalPlan = null; state.withdrawalBusy = false;
   if (!PREVIEW) { state.gallery = []; state.activity = []; }
-  renderSelected(); renderCollectionWithdrawal();
+  renderSelected(); renderCollectionWithdrawal(); scheduleSelectedReviewMissionCheck();
   one("[data-selected-stage]").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
 }
 
@@ -780,6 +817,8 @@ function showConfirmation(draft) {
     tastes: intent.preferences.prefer.map((value) => value.replaceAll("_", " ")),
     website: intent.requiresWebsite,
     x: intent.preferredSocialPlatforms.includes("X"),
+    target: intent.allowedContracts?.length === 1
+      ? short(intent.allowedContracts[0]) : "SHARED DISCOVERY",
     free: intent.mintMode === "FREE_ONLY",
   } : draft;
   const values = [
@@ -787,7 +826,8 @@ function showConfirmation(draft) {
     ["MINT PRICE", view.free ? "FREE ONLY" : "NOT CHANGED"], ["LOOKING FOR", view.tastes.join(" · ")],
     ["REQUIRES", [view.website && "WEBSITE", view.x && "X", "SCREEN + SIMULATION"].filter(Boolean).join(" · ")],
     ["DAILY LIMIT", view.daily], ["TOTAL LIMIT", view.total], ["MAX GAS", `${view.gas} ETH`], ["MINIMUM RESERVE", `${view.reserve} ETH`],
-    ["MAX SUPPLY", view.supply], ["STATUS", "PENDING OWNER CONFIRMATION"],
+    ["MAX SUPPLY", view.supply], ["TARGET", view.target],
+    ["STATUS", "PENDING OWNER CONFIRMATION"],
   ];
   const grid = one("[data-confirmation-grid]"); grid.replaceChildren();
   for (const [label, value] of values) {
@@ -795,9 +835,14 @@ function showConfirmation(draft) {
     const output = document.createElement("b"); output.textContent = value; row.append(name, output); grid.append(row);
   }
   const activate = one("[data-activate-strategy]");
-  activate.disabled = view.mode === "AUTONOMOUS";
+  const activateAndSend = one("[data-activate-send-strategy]");
+  const activationLocked = view.mode === "AUTONOMOUS"
+    || draft.state === "NEEDS_CLARIFICATION";
+  activate.disabled = activationLocked;
   activate.textContent = view.mode === "AUTONOMOUS" ? "AUTONOMOUS LOCKED"
-    : REVIEW_HOST ? "START REVIEW AGENT" : "ACTIVATE STRATEGY";
+    : REVIEW_HOST ? "ACTIVATE ONLY" : "ACTIVATE STRATEGY";
+  activateAndSend.hidden = !REVIEW_HOST || PREVIEW;
+  activateAndSend.disabled = activationLocked;
   set("[data-review-limit-note]",
     `Draft ready: ${view.daily} per day, ${view.total} for this strategy. Current rules stay active until confirmation.`);
   const dialog = one("[data-confirmation-dialog]");
@@ -854,7 +899,7 @@ function applyOwnedPunks(punks) {
   state.lastInspection = reviewKey ? state.reviewInspections.get(reviewKey) ?? null : null;
   state.gallery = []; state.activity = [];
   state.hydratedTokenId = null; state.galleryTokenId = null; state.galleryLoadingTokenId = null;
-  renderRoster(); renderSelected();
+  renderRoster(); renderSelected(); scheduleSelectedReviewMissionCheck();
   const activeTab = all("[data-v2-tab]").find((button) => button.getAttribute("aria-selected") === "true")?.dataset.v2Tab;
   if (state.selected && activeTab) void hydrateSelected(activeTab);
 }
@@ -927,11 +972,12 @@ function setup() {
     if (/pause/i.test(message)) {
       if (PREVIEW || REVIEW_HOST) {
         const key = selectedReviewKey(); const agent = selectedReviewAgent();
-        if (!key || !agent || agent.status !== "ACTIVE") {
+        if (!key || !agent || !["ACTIVE", "SCOUTING"].includes(agent.status)) {
           addMessage("punk", "NO ACTIVE REVIEW STRATEGY TO PAUSE. Production remains unchanged.");
           return;
         }
         state.reviewAgents.set(key, pauseReviewAgent(agent));
+        scheduleSelectedReviewMissionCheck();
         state.selected.mode = "PAUSED"; renderSelected();
         addReviewActivity("PAUSED", "REVIEW AGENT PAUSED",
           "Tab-scoped only · no production strategy changed");
@@ -984,7 +1030,9 @@ function setup() {
         const currentIntent = selectedReviewAgent()?.intent ?? null;
         const skills = selectedReviewSkills();
         const inspection = state.lastInspection ? { kind: state.lastInspection.link.kind,
-          status: state.lastInspection.status } : null;
+          status: state.lastInspection.status,
+          ...(state.lastInspection.link.identity
+            ? { identity: state.lastInspection.link.identity } : {}) } : null;
         const history = selectedConversationHistory().slice(0, -1).slice(-8);
         const review = selectedReviewSummary();
         const requestOptions = {
@@ -1120,7 +1168,14 @@ function setup() {
   });
   one("[data-v2-withdraw-submit]").addEventListener("click", withdrawCollectionAsset);
   one("[data-v2-withdraw-cancel]").addEventListener("click", cancelCollectionWithdrawal);
-  one("[data-edit-strategy]").addEventListener("click", () => { one("[data-confirmation-dialog]").close(); one("#punk-prompt").focus(); });
+  one("[data-edit-strategy]").addEventListener("click", () => {
+    state.dispatchAfterActivation = false;
+    one("[data-confirmation-dialog]").close(); one("#punk-prompt").focus();
+  });
+  one("[data-activate-send-strategy]").addEventListener("click", () => {
+    state.dispatchAfterActivation = true;
+    one("[data-activate-strategy]").click();
+  });
   one("[data-edit-skill]").addEventListener("click", () => {
     one("[data-skill-dialog]").close(); one("#punk-prompt").focus();
   });
@@ -1143,6 +1198,8 @@ function setup() {
   });
   one("[data-activate-strategy]").addEventListener("click", async () => {
     if (!state.localStrategy) return;
+    const dispatchAfterActivation = state.dispatchAfterActivation;
+    state.dispatchAfterActivation = false;
     const mode = state.localStrategy.intent?.operatingMode ?? state.localStrategy.mode;
     if (mode === "AUTONOMOUS") return;
     if (REVIEW_HOST && !PREVIEW) {
@@ -1152,7 +1209,10 @@ function setup() {
         return;
       }
       one("[data-confirmation-dialog]").close();
-      addMessage("punk", `${mode} REVIEW AGENT READY. I’ll remember these structured rules for this Punk in this tab. No production permissions were activated.`);
+      addMessage("punk", dispatchAfterActivation
+        ? `${mode} REVIEW AGENT READY. I'M HEADING TO THE SHARED QUEUE NOW. No production permissions were activated.`
+        : `${mode} REVIEW AGENT READY. I’ll remember these structured rules for this Punk in this tab. No production permissions were activated.`);
+      if (dispatchAfterActivation) await sendReviewAgentOut();
       return;
     }
     if (PREVIEW && state.localStrategy.intentHash) {

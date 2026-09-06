@@ -11,6 +11,7 @@ import { isV2DeployPreview } from "../netlify/functions/_shared/v2-review.mjs";
 const ORIGIN = "https://deploy-preview-42.preview.goghpunks.xyz";
 const OWNER = "0x1111111111111111111111111111111111111111";
 const PUNK_WALLET = "0x2222222222222222222222222222222222222222";
+const TARGET = "0x3333333333333333333333333333333333333333";
 function request(path, body, origin = ORIGIN, base = ORIGIN) {
   return new Request(`${base}${path}`, { method: "POST", headers: {
     "content-type": "application/json", origin,
@@ -90,6 +91,44 @@ test("review chat applies follow-up instructions to the Punk's current structure
   assert.deepEqual(payload.draft.intent.preferences.prefer, ["PIXEL_ART"],
     "follow-up instructions must refine rather than reset confirmed taste");
   assert.equal(payload.draft.intent.requiresWebsite, true);
+});
+
+test("review chat asks for a missing max-mint number instead of activating a guess", async () => {
+  const response = await handleV2ReviewChat(request("/api/v2/review/chat", {
+    owner: OWNER, tokenId: "93", message: "Find pixel art and max mint.",
+  }), { now: new Date("2026-09-06T14:00:00.000Z"),
+    readAuthority: async () => ({ punkWallet: PUNK_WALLET }) });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.responseKind, "CLARIFICATION_REQUIRED");
+  assert.equal(payload.draft, null);
+  assert.deepEqual(payload.clarificationFields, ["TOTAL_LIMIT"]);
+  assert.match(payload.reply, /exact total limit/i);
+  assert.equal(payload.economicPermissionsActivated, false);
+});
+
+test("review chat binds a specific mission only to an identified Robinhood contract", async () => {
+  const response = await handleV2ReviewChat(request("/api/v2/review/chat", {
+    owner: OWNER, tokenId: "93", message: "Watch this mint when public opens. Max one mint.",
+    inspection: { kind: "ROBINHOOD_CONTRACT", status: "NEEDS_REVIEW", identity: TARGET },
+  }), { now: new Date("2026-09-06T14:00:00.000Z"),
+    readAuthority: async () => ({ punkWallet: PUNK_WALLET }) });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.responseKind, "STRATEGY_DRAFT");
+  assert.deepEqual(payload.draft.intent.allowedContracts, [TARGET]);
+  assert.equal(payload.draft.intent.totalMintLimit, 1);
+  assert.equal(payload.economicPermissionsActivated, false);
+});
+
+test("review chat rejects an unverified contract identity carried by the browser", async () => {
+  const response = await handleV2ReviewChat(request("/api/v2/review/chat", {
+    owner: OWNER, tokenId: "93", message: "Watch this mint when public opens.",
+    inspection: { kind: "ROBINHOOD_CONTRACT", status: "NEEDS_REVIEW", identity: "not-an-address" },
+  }), { now: new Date("2026-09-06T14:00:00.000Z"),
+    readAuthority: async () => ({ punkWallet: PUNK_WALLET }) });
+  assert.equal(response.status, 400);
+  assert.equal((await response.json()).code, "INVALID_REQUEST");
 });
 
 test("review chat rejects a client-carried strategy bound to another owner", async () => {

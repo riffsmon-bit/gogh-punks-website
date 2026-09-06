@@ -13,6 +13,8 @@ const STYLE_PATTERNS = Object.freeze([
 ]);
 const NUMBER_WORDS = Object.freeze({ one: 1, two: 2, three: 3, four: 4, five: 5,
   six: 6, seven: 7, eight: 8, nine: 9, ten: 10 });
+const ADDRESS = /^0x[0-9a-f]{40}$/;
+const SPECIFIC_TARGET = /\b(?:this|that|specific)\s+(?:mint|collection|contract|project)\b|\bonly\s+(?:mint|collect)\s+(?:from\s+)?(?:this|that)\b/i;
 
 function decimalEthToWei(value) {
   if (!/^(?:0|[1-9]\d*|\.\d+|\d+\.\d+)$/.test(value)) throw new TypeError("ETH amount is invalid");
@@ -41,7 +43,7 @@ function count(value) {
 }
 
 export function draftStrategyFromConversation({ message, punkTokenId, expectedOwner, punkWallet,
-  currentIntent = null }, now = new Date()) {
+  currentIntent = null, targetContract = null }, now = new Date()) {
   const text = boundedUserText(message);
   const base = currentIntent
     ? normalizePunkCollectingIntent(currentIntent, now)
@@ -82,12 +84,17 @@ export function draftStrategyFromConversation({ message, punkTokenId, expectedOw
   }
   const total = text.match(/\b(one|two|three|four|five|six|seven|eight|nine|ten|\d{1,5})\s+(?:mints?|pieces?|things?)\s+(?:total|overall|for (?:this|the) strategy)\b/i)
     ?? text.match(/\b(?:total|overall|strategy)\s+(?:mint )?(?:limit|max(?:imum)?)\s+(?:of\s+)?(one|two|three|four|five|six|seven|eight|nine|ten|\d{1,5})\b/i)
-    ?? text.match(/\bmax(?:imum)?\s+(?:of\s+)?(one|two|three|four|five|six|seven|eight|nine|ten|\d{1,5})\s+(?:mints?|pieces?|things?)\s+(?:total|overall)\b/i);
+    ?? text.match(/\bmax(?:imum)?\s+(?:of\s+)?(one|two|three|four|five|six|seven|eight|nine|ten|\d{1,5})\s+(?:mints?|pieces?|things?)\s+(?:total|overall)\b/i)
+    ?? text.match(/\bmax(?:imum)?\s+(?:of\s+)?(one|two|three|four|five|six|seven|eight|nine|ten|\d{1,5})\s+mints?\b(?!\s+(?:per day|today|daily))/i)
+    ?? text.match(/\b(one|two|three|four|five|six|seven|eight|nine|ten|\d{1,5})\s+mints?\s+max(?:imum)?\b(?!\s+(?:per day|today|daily))/i)
+    ?? text.match(/\bmax(?:imum)?\s+mints?\s+(one|two|three|four|five|six|seven|eight|nine|ten|\d{1,5})\b/i);
   if (total) {
     const value = count(total[1]);
     if (Number.isInteger(value) && value >= 1 && value <= 10_000) {
       next.totalMintLimit = value; changes.push("TOTAL_LIMIT");
     } else ambiguous.push("TOTAL_LIMIT");
+  } else if (/\b(?:max(?:imum)?\s+mints?|mints?\s+max(?:imum)?)\b/i.test(text)) {
+    ambiguous.push("TOTAL_LIMIT");
   }
   const supply = text.match(/(?:supply|collections?)\s*(?:under|below|less than|<|above)?\s*([\d,]+)/i)
     ?? text.match(/(?:nothing|no collections?)\s+(?:above|over)\s+([\d,]+)\s*(?:supply)?/i);
@@ -112,6 +119,15 @@ export function draftStrategyFromConversation({ message, punkTokenId, expectedOw
     const negative = new RegExp(`(?:no|not|don't|dont|stop collecting|avoid|less)\\s+(?:\\w+\\s+){0,2}${pattern.source}`, "i").test(text);
     if (negative) { avoid.add(style); prefer.delete(style); changes.push(`AVOID_${style}`); }
     else { prefer.add(style); avoid.delete(style); changes.push(`PREFER_${style}`); }
+  }
+  if (SPECIFIC_TARGET.test(text)) {
+    const target = String(targetContract ?? "").toLowerCase();
+    if (!ADDRESS.test(target)) ambiguous.push("TARGET_CONTRACT");
+    else if (next.blockedContracts.includes(target)) ambiguous.push("BLOCKED_TARGET_CONTRACT");
+    else {
+      next.allowedContracts = [target];
+      changes.push("TARGET_CONTRACT");
+    }
   }
   next.preferences = { prefer: [...prefer], avoid: [...avoid] };
   next.requireSimulation = true;
