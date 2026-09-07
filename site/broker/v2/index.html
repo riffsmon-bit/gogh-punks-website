@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Fund a Gogh Punk, define its taste, and let it find art within your rules." />
+    <meta name="theme-color" content="#080b0f" />
+    <title>Art Broker V2 · Gogh Punks</title>
+    <link rel="icon" href="/assets/favicon.png" type="image/png" />
+    <link rel="stylesheet" href="/broker-v2.css" />
+    <script src="/wallet.js?v=reown-10" type="module"></script>
+    <script src="/broker-v2.js" type="module"></script>
+  </head>
+  <body data-v2-control-center>
+    <a class="skip-link" href="#broker-main">Skip to selected Art Broker</a>
+    <header class="v2-header">
+      <a class="v2-brand" href="/" aria-label="Gogh Punks home">
+        <img src="/assets/favicon.png" alt="" />
+        <span>GOGH PUNKS</span><b>ART BROKER V2</b>
+      </a>
+      <div class="header-state">
+        <span class="system-pulse" aria-hidden="true"></span>
+        <span data-wallet-state aria-live="polite">Wallet disconnected</span>
+      </div>
+      <div class="wallet-actions">
+        <button class="outline-button" type="button" data-wallet-switch hidden>Switch network</button>
+        <button class="primary-button" type="button" data-wallet-connect>Connect wallet</button>
+        <button class="text-button" type="button" data-wallet-disconnect hidden>Disconnect</button>
+      </div>
+    </header>
+
+    <aside class="preview-ribbon" data-preview-banner hidden>
+      <strong data-review-title>LOCAL PRODUCT PREVIEW</strong>
+      <span data-review-detail>Simulated broker data. No strategy, signature, transaction, deployment, or AI request leaves this computer.</span>
+    </aside>
+
+    <main id="broker-main" class="broker-shell">
+      <section class="roster-stage" aria-labelledby="roster-title">
+        <div class="section-heading">
+          <div><span class="kicker">CHARACTER ROSTER</span><h1 id="roster-title">SELECT YOUR ART BROKER</h1></div>
+          <p><b data-roster-count>0</b> owned Punks</p>
+        </div>
+        <div class="punk-roster" data-punk-roster role="listbox" aria-label="Owned Gogh Punks"></div>
+        <div class="roster-empty" data-roster-empty>
+          <strong>Your brokers enter here.</strong>
+          <span>Connect the wallet that holds your Gogh Punks. Ownership is checked on Robinhood Chain.</span>
+        </div>
+      </section>
+
+      <section class="selected-stage" data-selected-stage hidden>
+        <div class="punk-hero">
+          <div class="hero-number" aria-hidden="true" data-hero-number>119</div>
+          <div class="hero-art-wrap">
+            <span class="frame-corner frame-corner-one"></span><span class="frame-corner frame-corner-two"></span>
+            <img data-hero-art src="/assets/collection/1.png" alt="Selected Gogh Punk" />
+            <span class="hero-status"><i></i><b data-hero-status>READY</b></span>
+          </div>
+          <div class="hero-copy">
+            <span class="kicker">YOUR SELECTED BROKER</span>
+            <h2>GOGH PUNK <strong>#<span data-punk-token>119</span></strong></h2>
+            <p data-punk-line>Sharp eyes. Stranger taste. Owner rules always win.</p>
+            <dl class="hero-stats">
+              <div><dt>MODE</dt><dd data-punk-mode>ASK</dd></div>
+              <div><dt>WALLET</dt><dd><code data-punk-wallet>0x0000…0000</code></dd></div>
+              <div><dt>BALANCE</dt><dd data-punk-balance>0.0300 ETH</dd></div>
+              <div><dt>COLLECTION</dt><dd><span data-punk-nfts>27</span> PIECES</dd></div>
+            </dl>
+            <div class="budget-meter" aria-label="Art budget">
+              <div><span>ART BUDGET</span><b data-available-budget>0.0200 ETH AVAILABLE</b></div>
+              <div class="meter-track"><span data-budget-meter></span></div>
+              <small><span data-punk-reserve>0.0100 ETH</span> protected reserve</small>
+            </div>
+          </div>
+        </div>
+
+        <nav class="broker-tabs" aria-label="Punk actions">
+          <button type="button" data-v2-tab="talk" aria-selected="true"><span>01</span>TALK</button>
+          <button type="button" data-v2-tab="strategy" aria-selected="false"><span>02</span>STRATEGY</button>
+          <button type="button" data-v2-tab="fund" aria-selected="false"><span>03</span>FUND</button>
+          <button type="button" data-v2-tab="collection" aria-selected="false"><span>04</span>COLLECTION</button>
+          <button type="button" data-v2-tab="activity" aria-selected="false"><span>05</span>ACTIVITY</button>
+          <button type="button" data-v2-tab="settings" aria-selected="false"><span>06</span>SETTINGS</button>
+        </nav>
+
+        <div class="panel-stack">
+          <section class="broker-panel talk-panel" data-v2-panel="talk" aria-labelledby="talk-title">
+            <header class="panel-header">
+              <div><span class="kicker">DIRECT LINE · PUNK #<span data-talk-token>119</span></span><h2 id="talk-title">WHAT ARE WE HUNTING?</h2></div>
+              <span class="intelligence-chip" data-intelligence-status><i></i>GOGH INTELLIGENCE · AUTO</span>
+            </header>
+            <div class="talk-layout">
+              <div class="conversation" data-conversation aria-live="polite">
+                <article class="message punk-message">
+                  <img data-chat-avatar src="/assets/collection/1.png" alt="" />
+                  <div><b>PUNK #<span data-chat-token>119</span></b><p data-welcome-message>Welcome. Give me a direction and I’ll turn it into rules you can review.</p></div>
+                </article>
+              </div>
+              <aside class="quick-commands" aria-label="Suggested commands">
+                <span>QUICK CALLS</span>
+                <button type="button" data-suggestion="Assist me. Find free pixel art with a website or social profile. Max one mint per day and one mint total.">Set a mission</button>
+                <button type="button" data-suggestion="I want weird experimental art. No PFPs.">Tune my taste</button>
+                <button type="button" data-show-link>Check a link</button>
+                <button type="button" data-suggestion="Show me what you found today.">Show discoveries</button>
+                <button type="button" data-suggestion="Teach yourself to rank small pixel collections and explain the screening result.">Teach a skill</button>
+                <button type="button" data-suggestion="Pause for tonight.">Pause</button>
+              </aside>
+            </div>
+            <form class="link-composer" data-link-form hidden>
+              <label for="mint-link">PASTE A MINT LINK</label>
+              <div><input id="mint-link" name="url" type="url" inputmode="url" autocomplete="off" placeholder="https://opensea.io/collection/..." /><button type="submit">CHECK LINK</button></div>
+              <p data-link-result>A link is information, never transaction authorization.</p>
+            </form>
+            <section class="review-agent-console" data-review-agent-console hidden aria-labelledby="review-agent-title">
+              <header><div><span class="kicker">REVIEW AGENT</span><h3 id="review-agent-title">PUNK PIPELINE</h3></div><strong data-review-agent-status>IDLE</strong></header>
+              <dl><div><dt>STRATEGY</dt><dd data-review-agent-strategy>NOT STARTED</dd></div><div><dt>ROUTE</dt><dd data-review-agent-route>NOT DISPATCHED</dd></div><div><dt>DISCOVERY</dt><dd data-review-agent-discovery>WAITING</dd></div><div><dt>CONTRACT</dt><dd data-review-agent-contract>NOT IDENTIFIED</dd></div><div><dt>SCREEN</dt><dd data-review-agent-screen>NOT RUN</dd></div><div><dt>SIMULATION</dt><dd data-review-agent-simulation>NOT RUN</dd></div><div><dt>DECISION</dt><dd data-review-agent-decision>NO OPPORTUNITY</dd></div></dl>
+              <div class="review-agent-rules" data-review-agent-rules>
+                <div><span>CONFIRMED DAILY LIMIT</span><strong data-review-daily-limit>NOT SET</strong></div>
+                <div><span>CONFIRMED MAX MINTS / MISSION</span><strong data-review-total-limit>NOT SET</strong></div>
+                <p data-review-limit-note>Set every mission parameter in chat. Your Punk will show one complete draft for review before anything changes.</p>
+              </div>
+              <div class="review-agent-actions"><button type="button" data-review-agent-run disabled>SEND PUNK OUT</button><button type="button" data-review-agent-recall hidden>CALL PUNK BACK</button><button type="button" data-review-agent-test disabled>RUN SAFE TEST</button><span data-review-agent-run-note>Confirm an ASK or ASSIST strategy first.</span></div>
+              <section class="review-live-mint" data-review-live-mint hidden>
+                <div><span>OWNER-APPROVED LIVE CANARY</span><strong data-review-mint-name>ELIGIBLE FREE MINT</strong><small data-review-mint-detail>One exact quantity-one mint will be prepared and simulated.</small></div>
+                <label class="transaction-confirm"><input type="checkbox" data-review-mint-confirm /><span>I reviewed this collection, the 0 ETH mint price, quantity 1, Punk Wallet receiver, and gas limit. MetaMask is the final approval.</span></label>
+                <button type="button" data-review-mint-submit>REVIEW &amp; SIMULATE</button>
+                <p data-review-mint-status aria-live="polite">No transaction has been prepared or submitted.</p>
+                <a class="transaction-link" data-review-mint-transaction href="#" target="_blank" rel="noopener noreferrer" hidden>VIEW MINT TRANSACTION ↗</a>
+              </section>
+              <p>Browser-persistent review intelligence only. SEND PUNK OUT keeps scouting Robinhood NFT opportunities every minute until its unique-match target is reached or it is paused, while this preview remains open in at least one tab. ASK never prepares a transaction. ASSIST may prepare one exact owner-approved live canary, but only MetaMask can submit it.</p>
+            </section>
+            <form class="chat-composer" data-chat-form>
+              <label class="sr-only" for="punk-prompt">Tell your Punk what art you want</label>
+              <textarea id="punk-prompt" name="message" rows="2" maxlength="4000" aria-describedby="punk-prompt-help" aria-keyshortcuts="Enter" placeholder="Tell your Punk what you're looking for..."></textarea>
+              <p id="punk-prompt-help" class="sr-only">Press Enter to send. Press Shift plus Enter for a new line.</p>
+              <div><button class="attach-button" type="button" data-show-link>+ LINK</button><button class="send-button" type="submit">SEND <span aria-hidden="true">↗</span></button></div>
+            </form>
+          </section>
+
+          <section class="broker-panel" data-v2-panel="strategy" aria-labelledby="strategy-title" hidden>
+            <header class="panel-header"><div><span class="kicker">MOVE SET</span><h2 id="strategy-title">COLLECTING STRATEGY</h2></div><span class="mode-stamp" data-strategy-mode>ASK MODE</span></header>
+            <div class="strategy-grid">
+              <article class="ability-card"><span>TASTE PROFILE</span><h3 data-strategy-name>NOT CONFIGURED</h3><div class="taste-tags" data-strategy-tastes><span>Talk to your Punk to define explicit preferences.</span></div></article>
+              <article class="ability-card limit-card"><span>LIMITS</span><dl><div><dt>MINT PRICE</dt><dd data-strategy-price>FREE ONLY</dd></div><div><dt>MAX GAS</dt><dd data-strategy-gas>0.0005 ETH</dd></div><div><dt>DAILY LIMIT</dt><dd data-strategy-daily>1</dd></div><div><dt>TOTAL LIMIT</dt><dd data-strategy-total>1</dd></div><div><dt>RESERVE</dt><dd data-strategy-reserve>0.010 ETH</dd></div></dl></article>
+              <article class="ability-card safety-card"><span>SAFETY</span><ul><li><i>✓</i>CONTRACT SCREEN</li><li><i>✓</i>SIMULATION REQUIRED</li><li data-strategy-presence><i>—</i>WEBSITE + SOCIAL OPTIONAL</li></ul><small>Screening reduces known risks. It is not a guarantee.</small></article>
+              <article class="ability-card skill-card"><span>TAUGHT SKILLS · <b data-punk-skill-count>0</b></span><h3>PUNK PLAYBOOK</h3><ul data-punk-skills><li>No taught skills yet. Teach one in chat.</li></ul><small>Skills guide read-only scouting and explanations. Strategy remains authoritative.</small></article>
+            </div>
+            <div class="review-strategy-state" data-review-strategy-state hidden><strong data-review-strategy-label>NO REVIEW AGENT</strong><p data-review-strategy-detail>Confirm a strategy draft to start this Punk in the review browser profile.</p></div>
+            <div class="agent-account-card" data-agent-account-card>
+              <header><strong>PUNK AGENT ACCOUNT</strong><b data-agent-account-status>CHECKING READINESS</b></header>
+              <p data-agent-account-detail>The ownership-bound account, mission session, bundler, and receipt reconciler are being checked.</p>
+              <dl><div><dt>ACCOUNT</dt><dd data-agent-account-address>NOT ACTIVATED</dd></div><div><dt>GAS BALANCE</dt><dd data-agent-account-balance>0 ETH</dd></div><div><dt>MISSION</dt><dd data-agent-account-mission>NOT AUTHORIZED</dd></div><div><dt>WORKER</dt><dd data-agent-account-worker>LOCKED</dd></div></dl>
+              <button class="outline-button" type="button" data-fund-agent-account hidden>FUND AGENT GAS</button>
+            </div>
+            <div class="autonomy-boundary"><strong>OWNER-BOUNDED AUTONOMY</strong><p>After setup, the Punk Agent Account can spend only its deposited ETH for gas, only on screened and simulated free mints, within the exact mission limits you approve. Call the Punk back at any time to revoke its session on chain.</p></div>
+          </section>
+
+          <section class="broker-panel" data-v2-panel="fund" aria-labelledby="fund-title" hidden>
+            <header class="panel-header"><div><span class="kicker">POWER BAR</span><h2 id="fund-title">FUND YOUR PUNK</h2></div><span class="custody-chip">DIRECT · NON-CUSTODIAL</span></header>
+            <div class="fund-layout">
+              <div class="balance-readout"><span data-fund-balance-label>CURRENT PUNK WALLET BALANCE</span><strong data-fund-balance>0.0300</strong><em>ETH</em></div>
+              <dl class="fund-breakdown"><div><dt>PROTECTED RESERVE</dt><dd data-fund-reserve>0.0100 ETH</dd></div><div><dt>AVAILABLE ART BUDGET</dt><dd data-fund-available>0.0200 ETH</dd></div><div><dt>DESTINATION</dt><dd><code data-fund-wallet>0x0000…0000</code></dd></div></dl>
+              <form class="fund-form" data-fund-form><label for="fund-amount">AMOUNT IN ETH</label><div><input id="fund-amount" name="amount" inputmode="decimal" autocomplete="off" placeholder="0.01" /><button class="primary-button" type="submit">REVIEW &amp; SIMULATE</button></div><label class="transaction-confirm"><input type="checkbox" data-fund-confirm /><span>I reviewed the real ETH amount and <span data-fund-destination-name>selected Punk Wallet</span>. The second step will open MetaMask.</span></label><p data-fund-result aria-live="polite">Funds go directly into this Punk Wallet. Gogh Punks does not custody the balance.</p><a class="transaction-link" data-fund-transaction href="#" target="_blank" rel="noopener noreferrer" hidden>VIEW FUNDING TRANSACTION ↗</a></form>
+            </div>
+            <section class="wrapped-funding" aria-labelledby="wrapped-funding-title">
+              <header><div><span class="kicker">BID BALANCE</span><h3 id="wrapped-funding-title">ETH ↔ WETH</h3></div><a href="https://robinhoodchain.blockscout.com/address/0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73" target="_blank" rel="noopener noreferrer">VERIFIED WETH ↗</a></header>
+              <p>Keep ETH available for gas and wrap only the amount this Punk needs for marketplace offers. Wrapping is one-for-one with no router, slippage, or token approval.</p>
+              <dl class="wrapped-balances"><div><dt>PUNK ETH</dt><dd data-wrap-eth-balance>—</dd></div><div><dt>PUNK WETH</dt><dd data-wrap-weth-balance>—</dd></div></dl>
+              <form data-weth-form class="wrapped-form">
+                <label for="weth-direction">ACTION<select id="weth-direction" name="direction"><option value="WRAP">WRAP ETH INTO WETH</option><option value="UNWRAP">UNWRAP WETH INTO ETH</option></select></label>
+                <label for="weth-amount">AMOUNT<input id="weth-amount" name="amount" inputmode="decimal" autocomplete="off" placeholder="0.01" /></label>
+                <button type="submit">REVIEW &amp; SIMULATE</button>
+              </form>
+              <label class="transaction-confirm"><input type="checkbox" data-weth-confirm /><span>I reviewed the selected Punk Wallet, direction, amount, and canonical WETH contract. The second step will open MetaMask.</span></label>
+              <p class="wrapped-state" data-weth-state aria-live="polite">The first step performs live authority checks and an exact simulation. Nothing is sent until the second step and MetaMask approval.</p>
+              <a class="transaction-link" data-weth-transaction href="#" target="_blank" rel="noopener noreferrer" hidden>VIEW WETH TRANSACTION ↗</a>
+            </section>
+          </section>
+
+          <section class="broker-panel" data-v2-panel="collection" aria-labelledby="collection-title" hidden>
+            <header class="panel-header"><div><span class="kicker">PERSONAL GALLERY</span><h2 id="collection-title">PUNK COLLECTION</h2></div><span><b data-gallery-count>4</b> PIECES SHOWN</span></header>
+            <div class="collection-assets" aria-label="Punk Wallet assets and recovery">
+              <article><span>NATIVE BALANCE</span><strong data-collection-eth>—</strong><small>Keep enough ETH available for gas.</small></article>
+              <article><span>OFFER BALANCE</span><strong data-collection-weth>—</strong><small>Canonical Robinhood WETH for bids.</small></article>
+              <article class="collection-recovery"><span>OWNER RECOVERY</span><strong>WITHDRAW FROM THE PIECE</strong><small>Each live-owned NFT includes its withdrawal action below.</small><a data-legacy-vault href="/broker/punk/">MANAGE ETH · WETH · TOKENS ↗</a></article>
+            </div>
+            <form class="exact-nft-form" data-exact-nft-form>
+              <label for="exact-nft-link">MISSING AN NFT? PASTE ITS EXACT OPENSEA ITEM LINK</label>
+              <div><input id="exact-nft-link" type="url" inputmode="url" autocomplete="off" placeholder="https://opensea.io/item/robinhood/0x…/123" /><button type="submit">VERIFY &amp; ADD</button></div>
+              <p data-exact-nft-state aria-live="polite">The NFT is added only after Robinhood Chain confirms this Punk Wallet currently owns it.</p>
+            </form>
+            <section class="collection-withdrawal" data-v2-withdrawal aria-labelledby="v2-withdraw-title" hidden>
+              <div class="collection-withdrawal-preview"><img data-v2-withdraw-image src="/assets/nft-placeholder.svg" alt="Selected NFT" /><div><span class="kicker">OWNER RECOVERY</span><h3 id="v2-withdraw-title" data-v2-withdraw-name>SELECT AN NFT</h3><p data-v2-withdraw-collection>Choose a Collection piece to prepare its withdrawal.</p></div></div>
+              <dl class="collection-withdrawal-facts"><div><dt>FROM</dt><dd data-v2-withdraw-from>—</dd></div><div><dt>FIXED DESTINATION</dt><dd data-v2-withdraw-to>—</dd></div><div><dt>ASSET</dt><dd data-v2-withdraw-asset>—</dd></div></dl>
+              <label class="collection-withdrawal-quantity" data-v2-withdraw-quantity-field hidden>ERC-1155 QUANTITY<input data-v2-withdraw-quantity type="number" min="1" step="1" value="1" /></label>
+              <p>The destination cannot be edited. The first step rechecks current Gogh Punk ownership, verified Punk Wallet code, NFT ownership, and the exact transfer simulation. Nothing is sent until the second step and MetaMask approval.</p>
+              <label class="transaction-confirm"><input type="checkbox" data-v2-withdraw-confirm /><span>I reviewed this NFT, quantity, and the fixed current-owner destination.</span></label>
+              <div class="collection-withdrawal-actions"><button class="primary-button" type="button" data-v2-withdraw-submit disabled>REVIEW &amp; SIMULATE</button><button type="button" data-v2-withdraw-cancel>CANCEL</button></div>
+              <p data-v2-withdraw-state aria-live="polite">Select an NFT to begin.</p>
+              <a class="transaction-link" data-v2-withdraw-transaction href="#" target="_blank" rel="noopener noreferrer" hidden>VIEW WITHDRAWAL TRANSACTION ↗</a>
+            </section>
+            <div class="gallery-grid" data-gallery-grid></div>
+          </section>
+
+          <section class="broker-panel" data-v2-panel="activity" aria-labelledby="activity-title" hidden>
+            <header class="panel-header"><div><span class="kicker">MATCH HISTORY</span><h2 id="activity-title">ACTIVITY</h2></div><button class="filter-button" type="button">ALL HISTORY</button></header>
+            <section class="mission-monitor" data-mission-monitor hidden aria-labelledby="mission-monitor-title">
+              <header><div><span class="kicker">LIVE MISSION</span><h3 id="mission-monitor-title">PUNK STATUS</h3></div><b data-mission-status>READY</b></header>
+              <p data-mission-phase aria-live="polite">Waiting for a confirmed mission.</p>
+              <dl>
+                <div><dt>PROGRESS</dt><dd data-mission-progress>—</dd></div>
+                <div><dt>OPPORTUNITIES CHECKED</dt><dd data-mission-checked>0</dd></div>
+                <div><dt>COMPLETED SCANS</dt><dd data-mission-scans>0</dd></div>
+                <div><dt>QUEUE</dt><dd data-mission-queue>NOT CONNECTED</dd></div>
+                <div><dt>LAST CHECK</dt><dd data-mission-last-check>NOT YET</dd></div>
+                <div><dt>NEXT CHECK</dt><dd data-mission-next-check>NOT SCHEDULED</dd></div>
+              </dl>
+              <p class="mission-monitor-note">This displays discovery, screening, and simulation only. No mint transaction is submitted by the review agent.</p>
+            </section>
+            <ol class="activity-feed" data-activity-feed></ol>
+          </section>
+
+          <section class="broker-panel" data-v2-panel="settings" aria-labelledby="settings-title" hidden>
+            <header class="panel-header"><div><span class="kicker">BROKER PROFILE</span><h2 id="settings-title">SETTINGS</h2></div></header>
+            <div class="settings-grid"><article><span>OPERATING MODE</span><fieldset><legend class="sr-only">Operating mode</legend><label><input type="radio" name="mode" value="ASK" checked /><b>ASK</b><small>Discover and recommend. You decide.</small></label><label><input type="radio" name="mode" value="ASSIST" /><b>ASSIST</b><small>Screen and prepare. You approve.</small></label><label class="mode-locked" data-autonomous-mode><input type="radio" name="mode" value="AUTONOMOUS" disabled /><b data-autonomous-mode-label>AUTONOMOUS · LOCKED</b><small data-autonomous-mode-detail>Waiting for Punk Agent Account readiness.</small></label></fieldset></article><article><span>GOGH INTELLIGENCE</span><label class="select-label" for="provider-setting">ROUTING<select id="provider-setting"><option>AUTO</option><option>GEMINI</option><option>GPT</option><option>CLAUDE</option><option>GROK</option><option>BANKR ROUTED</option></select></label><p>Auto selects for task, capability, cost, latency, and availability. Your Punk stays the product.</p></article></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="flywheel" aria-labelledby="flywheel-title">
+        <header><span class="kicker">THE V2 LOOP</span><h2 id="flywheel-title">FUND IT. TALK TO IT. LET IT COLLECT.</h2></header>
+        <ol><li><b>01</b><span>FUND</span></li><li><b>02</b><span>TALK</span></li><li><b>03</b><span>DEFINE TASTE</span></li><li><b>04</b><span>DISCOVER</span></li><li><b>05</b><span>SCREEN</span></li><li><b>06</b><span>COLLECT</span></li><li><b>07</b><span>REFINE</span></li></ol>
+        <p>Discovery and analysis are shared. Money and custody stay with each Punk Wallet. Owner rules remain deterministic.</p>
+      </section>
+    </main>
+
+    <dialog class="confirmation-dialog" data-confirmation-dialog>
+      <form method="dialog"><button class="dialog-close" value="cancel" aria-label="Close">×</button></form>
+      <span class="kicker">STRATEGY DRAFT · NOT ACTIVE</span><h2>YOUR PUNK UNDERSTANDS</h2>
+      <div class="confirmation-grid" data-confirmation-grid></div>
+      <p class="confirmation-note">Conversation created this draft. Deterministic structured policy becomes authoritative only after owner confirmation.</p>
+      <p class="confirmation-note" data-strategy-activation-status aria-live="polite">Ready for owner confirmation. No wallet request has been made.</p>
+      <div class="dialog-actions"><button type="button" class="outline-button" data-edit-strategy>EDIT</button><button type="button" class="outline-button" data-activate-strategy>ACTIVATE STRATEGY</button><button type="button" class="primary-button" data-activate-send-strategy hidden>ACTIVATE &amp; SEND PUNK OUT</button></div>
+    </dialog>
+    <dialog class="confirmation-dialog skill-dialog" data-skill-dialog>
+      <form method="dialog"><button class="dialog-close" value="cancel" aria-label="Close">×</button></form>
+      <span class="kicker">SKILL DRAFT · NOT LEARNED</span><h2>TEACH THIS PUNK?</h2>
+      <div class="confirmation-grid" data-skill-confirmation-grid></div>
+      <p class="confirmation-note">A taught skill is a structured, read-only routine. It cannot change spending policy, sign transactions, move assets, or bypass screening and simulation.</p>
+      <div class="dialog-actions"><button type="button" class="outline-button" data-edit-skill>EDIT</button><button type="button" class="primary-button" data-learn-skill>TEACH SKILL</button></div>
+    </dialog>
+  </body>
+</html>

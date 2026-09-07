@@ -296,6 +296,51 @@ test("an already-authorized desktop MetaMask account restores when AppKit stays 
   controller.destroy();
 });
 
+test("a restored MetaMask provider remains the wallet-action provider after late AppKit snapshots", async () => {
+  const fixture = reownFixture();
+  fixture.storage.set("gogh.wallet.reown.returning.v1", "1");
+  fixture.current.account = { address: OWNER, isConnected: true, status: "connected" };
+  let queuedCallback;
+  const requestedMethods = [];
+  const injectedProvider = {
+    isMetaMask: true,
+    async request({ method }) {
+      requestedMethods.push(method);
+      if (method === "eth_accounts") return [OWNER];
+      if (method === "eth_chainId") return "0x1237";
+      if (method === "eth_sendTransaction") return `0x${"ab".repeat(32)}`;
+      return null;
+    },
+    on() {},
+    removeListener() {},
+  };
+  fixture.windowObject.ethereum = injectedProvider;
+  fixture.windowObject.queueMicrotask = (callback) => { queuedCallback = callback; };
+
+  const controller = await setupReownWallet({
+    windowObject: fixture.windowObject,
+    documentObject: fixture.documentObject,
+    sessionFactory: () => fixture.session,
+    restoreProbeDelaysMs: [],
+  });
+  await queuedCallback();
+  await controller.ensureSession();
+
+  assert.equal(fixture.windowObject.__GOGH_WALLET_PROVIDER__, injectedProvider,
+    "AppKit's post-ready provider must not replace the verified injected provider");
+  fixture.callbacks.provider(PROVIDER);
+  fixture.callbacks.account(fixture.current.account);
+  fixture.windowListeners.get("pageshow")();
+  assert.equal(fixture.windowObject.__GOGH_WALLET_PROVIDER__, injectedProvider,
+    "late provider, account, and resume snapshots must retain the MetaMask handoff");
+  await fixture.windowObject.__GOGH_WALLET_PROVIDER__.request({
+    method: "eth_sendTransaction", params: [{ from: OWNER }],
+  });
+  assert.deepEqual(requestedMethods, ["eth_accounts", "eth_chainId", "eth_sendTransaction"],
+    "the final wallet request must be handed to the injected MetaMask provider");
+  controller.destroy();
+});
+
 test("explicit disconnect ends injected desktop recovery until the user reconnects", async () => {
   const fixture = reownFixture();
   fixture.storage.set("gogh.wallet.reown.returning.v1", "1");

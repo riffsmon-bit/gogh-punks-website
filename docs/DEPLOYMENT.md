@@ -1,8 +1,103 @@
 # Art Broker Deployment
 
-Status: **NOT DEPLOYED**.
+Status: **PUNK AGENT ACCOUNT DEPLOYED; PRODUCTION WORKER SWITCH OFF PENDING CANARY**.
 
 No command in the default validation workflow signs or broadcasts a transaction.
+
+## Punk Agent Account activation
+
+The autonomous product is named **Punk Agent Account**. It combines the Punk's ERC-6551
+ownership-bound identity with a narrowly typed ERC-4337 mission session. ERC-8004 identity,
+skills, and reputation remain descriptive layers; they do not grant transaction authority.
+ERC-8004 is still an EIP draft, and no verified Robinhood registry address is configured here;
+on-chain ERC-8004 registration is therefore deliberately deferred and fail-closed. The current
+owner-taught playbook is persisted as read-only application data and cannot alter mint policy.
+
+The checked-in
+[`robinhood-punk-agent-account.json`](../deployments/robinhood-punk-agent-account.json)
+manifest records the live implementation and registry while remaining fail-closed. The UI may
+explain and preview the flow, but it must not offer autonomous authorization while any manifest
+blocker remains.
+The scheduled worker is also disabled by default and returns before constructing an RPC client,
+bundler, or signer.
+
+An authorized release must complete these gates in order:
+
+1. Apply `20260907010000_add_punk_agent_accounts.sql` after the earlier V2 migrations and
+   confirm its partial unique indexes and foreign keys.
+2. Re-run all Node and Foundry tests from the exact clean release commit.
+3. Dry-run `DeployPunkAgentAccount.s.sol` on a Robinhood fork without `--broadcast`; review
+   EntryPoint v0.8, adapter registry, implementation, salt, predicted registry, runtime sizes,
+   and gas.
+4. Obtain explicit deployment authorization, broadcast with a secure owner-controlled signer,
+   wait for the approved confirmation depth, and verify both sources on Blockscout.
+5. Independently compare implementation and registry runtime hashes, confirm the reused
+   `ArtAdapterRegistry`, free-mint adapter, and SeaDrop runtimes, then record the exact values in
+   the deployment manifest. Do not mark `sourceVerified` or
+   `adapterRegistrationConfirmed` from a deployment receipt alone.
+6. Provision one dedicated server-side session signer and an HTTPS Robinhood-compatible
+   ERC-4337 bundler. Store only `PUNK_AGENT_SESSION_ADDRESS` publicly; keep
+   `PUNK_AGENT_SESSION_PRIVATE_KEY` in the Functions secret scope.
+7. Exercise setup, immediate recall, owner-transfer invalidation, expired-session rejection,
+   zero-balance behavior, failed UserOperation reconciliation, and one free-mint canary. Verify
+   the NFT's live `ownerOf`, exact account event, Collection record, and Activity record.
+8. Set the manifest receipt/bundler/signer readiness flags only from reviewed evidence. Enable
+   `GOGH_V2_DISCOVERY_INGEST_ENABLED=true`, `PUNK_AGENT_WORKER_ENABLED=true`, and
+   `automaticSubmissionEnabled=true` last, under a separate production authorization.
+9. If ERC-8004 is later adopted, separately verify the final standard, registry deployment, and
+   owner-controlled registration flow. Never treat registration, reputation, or validation scores
+   as wallet authority.
+
+Required server environment:
+
+```text
+PUNK_AGENT_WORKER_ENABLED=false
+PUNK_AGENT_BUNDLER_MODE=HTTPS
+PUNK_AGENT_BUNDLER_RPC_URL=https://...
+PUNK_AGENT_DIRECT_RELAY_RPC_URL=https://...
+PUNK_AGENT_RECEIPT_LOOKBACK_BLOCKS=120000
+PUNK_AGENT_DIRECT_RELAY_MIN_BALANCE_WEI=200000000000000
+PUNK_AGENT_SESSION_ADDRESS=0x...
+PUNK_AGENT_SESSION_PRIVATE_KEY=<Functions secret>
+PUNK_AGENT_VERIFICATION_GAS_LIMIT=250000
+PUNK_AGENT_CALL_GAS_LIMIT=350000
+PUNK_AGENT_PRE_VERIFICATION_GAS=75000
+GOGH_V2_DISCOVERY_INGEST_ENABLED=false
+```
+
+For the non-Alchemy deployment, set `PUNK_AGENT_BUNDLER_MODE=DIRECT_PRIVATE_RELAY` and point
+`PUNK_AGENT_DIRECT_RELAY_RPC_URL` at the production Robinhood JSON-RPC provider. This is a private,
+single-UserOperation relayer embedded in the scheduled worker, not a public ERC-4337 mempool. It
+permits only chain/readiness, exact gas simulation, one `handleOps` submission, and canonical
+receipt lookup. Keep its endpoint and signer in Functions scope and keep the worker disabled until
+the relayer signer has a deliberately small native-gas float and the Punk account has an EntryPoint
+deposit.
+
+The production relay binding can be checked without exporting or printing its Keychain-backed
+private key:
+
+```bash
+node scripts/check-punk-agent-direct-relay-readiness.mjs
+```
+
+The owner flow is intentionally explicit. If the counterfactual account has not been created,
+the wallet first activates it; the wallet then signs the bounded mission authorization. The
+owner separately funds the Punk Agent Account with ETH for EntryPoint gas. After that, matching
+free mints do not require a popup per mint. “Call Punk Back” submits the owner-only on-chain
+session revocation and the server marks the mission recalled only after the exact receipt is
+confirmed.
+
+The session key can submit only quantity-one, zero-price ERC-721 mints through the one reviewed
+adapter and venue. The contract independently enforces expiration, daily and total mint limits,
+maximum gas cost, minimum native reserve, current Punk ownership, adapter runtime hash, collection
+scope when supplied, no paymaster, no approvals, and no arbitrary calldata. Every successful
+mint must reconcile both the exact `SessionAcquisitionExecuted` event and live NFT ownership
+before it appears in Collection. ASK and ASSIST remain available if this autonomous gate is not
+fully ready.
+
+The scheduled discovery refresh and Punk worker both honor `PAUSE_BACKGROUND_RPC`, deploy-preview
+background restrictions, and `BACKGROUND_RPC_ALLOWED_TASKS`. If an allowlist is configured, include
+both `V2_DISCOVERY_INGEST` and `PUNK_AGENT_WORKER`; otherwise they remain intentionally idle.
 
 ## Roles
 

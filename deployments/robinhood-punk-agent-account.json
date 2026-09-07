@@ -1,0 +1,43 @@
+{
+  "schema": "GOGH_PUNK_AGENT_ACCOUNT_DEPLOYMENT_V1",
+  "version": 1,
+  "status": "DEPLOYED",
+  "chainId": 4663,
+  "network": "Robinhood Chain",
+  "canonicalCollection": "0xE0F92B3B0E6DeD3654177FE3809Cd300e5ffaDf6",
+  "entryPoint": "0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108",
+  "contracts": {
+    "GoghPunkAgentAccount": {
+      "address": "0xfdb26c2Ec70956227728414fF4ab7A5eda64D13b",
+      "deploymentTransaction": "0x407fba2f11ddbf9dd1816f1bc66a79546539e93fcbc1ece6278f2ad8184fa42e",
+      "deploymentBlock": 56907291,
+      "runtimeBytecodeHash": "0x7d37d360014ce94902655062605b8318581097df100ab2573be52904afa6badc",
+      "verificationStatus": "VERIFIED"
+    },
+    "GoghPunkAgentAccountRegistry": {
+      "address": "0x3253adc3bBd5B0010C1Bf9cE8def26b7e0DB5844",
+      "deploymentTransaction": "0x6d47a0b68230b21d24452084dab93a29b2d02f15562c571b0b1b188d7c26220a",
+      "deploymentBlock": 56907291,
+      "runtimeBytecodeHash": "0x5a1001edb812b6ec2e233cbba6db4b7c680d0832453927696cf1ef623fff8e22",
+      "verificationStatus": "VERIFIED"
+    }
+  },
+  "reusedContracts": {
+    "ArtAdapterRegistry": "0x421D51709Fe21736a35fFa2a86B157Df1b030EE2",
+    "AutomatedSeaDropStudioFreeMintAdapter": "0xD4316dfbCFa3f51F1a9De77aAA5D9E6eDf848777",
+    "SeaDrop": "0x00005EA00Ac477B1030CE78506496e8C2dE24bf5"
+  },
+  "configuration": {
+    "sourceVerified": true,
+    "adapterRegistrationConfirmed": true,
+    "bundlerConfigured": true,
+    "sessionSignerConfigured": true,
+    "receiptReconciliationEnabled": true,
+    "workerEnabled": true
+  },
+  "authorization": {
+    "deploymentAuthorized": true,
+    "automaticSubmissionEnabled": true
+  },
+  "notes": "Deployed on Robinhood Chain in block 56907291 by the encrypted dedicated deployer. Both sources matched on Sourcify and runtime hashes plus immutable EntryPoint and adapter-registry bindings were independently re-read on-chain. PublicNode private relay, Keychain-backed Functions signer, receipt reconciliation, and scheduled worker code are configured. Automatic submission is permitted only for a separately owner-authorized on-chain session; the production worker environment switch remains off through deployment and setup validation."
+}

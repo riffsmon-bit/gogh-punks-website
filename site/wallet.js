@@ -847,7 +847,12 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
           ? normalizeWalletAddress(accountState.address) : null;
         if (restoredAccount) {
           state.account = restoredAccount;
-          state.provider = sessionProvider ?? state.provider;
+          // A silent injected-wallet recovery has already proved that this provider
+          // controls the restored account on the selected chain. AppKit can publish
+          // a late adapter snapshot for the same account which remains adequate for
+          // reads but no longer opens the extension for wallet actions. Keep the
+          // verified injected provider until that provider itself disconnects.
+          state.provider = injectedRecoveryProvider ?? sessionProvider ?? state.provider;
         } else if (!(injectedRecoveryProvider && state.account)) {
           state.account = null;
           state.provider = sessionProvider;
@@ -862,7 +867,7 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
           // reconnecting between pages. Keep the last working provider until an authoritative
           // account-disconnected event arrives; otherwise every live Punk read fails at once and
           // the rest of the page appears to disconnect with it.
-          if (provider) state.provider = provider;
+          if (provider && !injectedRecoveryProvider) state.provider = provider;
           render();
         }));
         unsubscribers.push(state.session.subscribeAccount((account) => {
@@ -871,8 +876,10 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
             || account?.status === "reconnecting";
           const nextAccount = connectedNow ? normalizeWalletAddress(account.address) : null;
           if (nextAccount) {
+            const previousAccount = state.account;
             state.account = nextAccount;
-            injectedRecoveryProvider = null;
+            if (injectedRecoveryProvider && previousAccount
+              && nextAccount !== previousAccount) injectedRecoveryProvider = null;
             clearRestoreProbes();
           } else if (!accountPending && !(injectedRecoveryProvider && state.account)) {
             // A settled account event is authoritative. Temporary reconnect frames are not.
@@ -928,7 +935,7 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
             state.provider = null;
           }
           if (nextChainId !== null) state.chainId = nextChainId;
-          if (nextProvider) state.provider = nextProvider;
+          if (nextProvider && !injectedRecoveryProvider) state.provider = nextProvider;
           if (state.account) setReturningSessionMarker(browserWindow, true);
           render();
           if (state.account && typeof state.session?.close === "function") {

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="theme-color" content="#080b0f" />
+    <title>Art Broker V2 Operations · Gogh Punks</title>
+    <link rel="icon" href="/assets/favicon.png" type="image/png" />
+    <link rel="stylesheet" href="/broker-v2.css" />
+    <link rel="stylesheet" href="/broker-v2-admin.css" />
+    <script src="/broker-v2-admin.js" type="module"></script>
+  </head>
+  <body class="operations-body">
+    <a class="skip-link" href="#operations-main">Skip to operations</a>
+    <header class="v2-header operations-header">
+      <a class="v2-brand" href="/broker/v2/" aria-label="Back to Art Broker V2">
+        <img src="/assets/favicon.png" alt="" />
+        <span>GOGH PUNKS</span><b>V2 OPERATIONS</b>
+      </a>
+      <span class="privacy-chip">AGGREGATED · PRIVATE</span>
+    </header>
+
+    <aside class="preview-ribbon" data-admin-preview hidden>
+      <strong>LOCAL OPERATIONS PREVIEW</strong>
+      <span>Local state only. No database, provider, RPC, executor, or production service is contacted.</span>
+    </aside>
+
+    <main id="operations-main" class="operations-shell">
+      <header class="operations-title">
+        <div><span class="kicker">ART BROKER V2</span><h1>OPERATIONAL READOUT</h1></div>
+        <div class="operations-actions">
+          <form data-admin-auth>
+            <label for="admin-token">ADMIN BEARER</label>
+            <input id="admin-token" name="token" type="password" autocomplete="off" placeholder="Kept in memory only" />
+            <button type="submit">LOAD</button>
+          </form>
+          <button type="button" data-admin-refresh>REFRESH</button>
+        </div>
+      </header>
+
+      <p class="operations-state" data-admin-state role="status" aria-live="polite">Waiting for authorization.</p>
+
+      <section class="operations-grid" aria-label="V2 summary">
+        <article class="operations-score"><span>DISCOVERED</span><strong data-opportunities-discovered>—</strong><small>normalized opportunities</small></article>
+        <article class="operations-score"><span>SCREENED</span><strong data-opportunities-screened>—</strong><small>passed security screening</small></article>
+        <article class="operations-score danger"><span>BLOCKED</span><strong data-opportunities-blocked>—</strong><small>failed closed</small></article>
+        <article class="operations-score"><span>ACTIVE STRATEGIES</span><strong data-active-strategies>—</strong><small>owner-authorized rules</small></article>
+        <article class="operations-score"><span>EXECUTION ATTEMPTS</span><strong data-execution-attempts>—</strong><small>durable attempt identities</small></article>
+        <article class="operations-score success"><span>SUCCESSFUL MINTS</span><strong data-successful-mints>—</strong><small>confirmed receipts</small></article>
+      </section>
+
+      <section class="operations-detail-grid">
+        <article class="operations-panel">
+          <header><div><span class="kicker">SERVICE HEALTH</span><h2>PIPELINE</h2></div><span data-executor-state>EXECUTOR —</span></header>
+          <dl class="health-list" data-service-health></dl>
+          <div class="production-lock">
+            <b>PRODUCTION SUBMISSION LOCKED</b>
+            <p data-executor-blocker>The deployed Punk Wallet cannot originate and pay gas autonomously.</p>
+          </div>
+        </article>
+
+        <article class="operations-panel">
+          <header><div><span class="kicker">GOGH INTELLIGENCE</span><h2>PROVIDERS</h2></div><span>AUTO ROUTER</span></header>
+          <div class="provider-list" data-provider-list></div>
+        </article>
+
+        <article class="operations-panel cost-panel">
+          <header><div><span class="kicker">COST CONTROL</span><h2>USAGE</h2></div><span>AGGREGATED ONLY</span></header>
+          <dl class="cost-readout">
+            <div><dt>ESTIMATED INFRA COST</dt><dd data-estimated-cost>—</dd></div>
+            <div><dt>PROVIDER CALLS</dt><dd data-provider-calls>—</dd></div>
+            <div><dt>CACHE UTILIZATION</dt><dd data-cache-utilization>—</dd></div>
+            <div><dt>FAILED / RECONCILE</dt><dd data-failed-attempts>—</dd></div>
+          </dl>
+        </article>
+      </section>
+
+      <footer class="operations-footer">
+        <span>NO USER CONVERSATIONS · NO WALLET ADDRESSES · NO PRIVATE KEYS</span>
+        <a href="/broker/v2/">RETURN TO CONTROL CENTER</a>
+      </footer>
+    </main>
+  </body>
+</html>
