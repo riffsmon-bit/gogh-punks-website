@@ -94,7 +94,8 @@ export function draftStrategyFromConversation({ message, punkTokenId, expectedOw
       next.totalMintLimit = value; changes.push("TOTAL_LIMIT");
     } else ambiguous.push("TOTAL_LIMIT");
   } else {
-    const missionQuantity = text.match(/\b(one|two|three|four|five|six|seven|eight|nine|ten|\d{1,5})\s+(?:(?:free|paid)\s+)?mints?\b(?!\s+(?:per day|today|daily|total|overall))/i);
+    const missionQuantity = text.match(/\b(one|two|three|four|five|six|seven|eight|nine|ten|\d{1,5})\s+(?:(?:free|paid)\s+)?mints?\b(?!\s+(?:per day|today|daily|total|overall))/i)
+      ?? text.match(/\b(?:find|get|mint|collect)\s+(?:me\s+)?(one|two|three|four|five|six|seven|eight|nine|ten|\d{1,5})\b/i);
     if (missionQuantity) {
       const value = count(missionQuantity[1]);
       if (Number.isInteger(value) && value >= 1 && value <= 10_000) {
