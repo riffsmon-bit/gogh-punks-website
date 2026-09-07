@@ -84,6 +84,23 @@ test("conversation can require either a website or a social profile", () => {
   assert.ok(draft.changes.includes("REQUIRE_WEBSITE_OR_SOCIAL"));
 });
 
+test("conversation can explicitly make website and social presence optional", () => {
+  const currentIntent = draftStrategyFromConversation({
+    message: "Require a website or social profile.", punkTokenId: "119",
+    expectedOwner: OWNER, punkWallet: WALLET,
+  }, NOW).intent;
+  const draft = draftStrategyFromConversation({
+    message: "Website and social are optional. Assist me.", punkTokenId: "119",
+    expectedOwner: OWNER, punkWallet: WALLET, currentIntent,
+  }, NOW);
+  assert.equal(draft.intent.onlinePresenceRequirement, undefined);
+  assert.equal(draft.intent.requiresWebsite, false);
+  assert.equal(draft.intent.requiresSocial, false);
+  assert.deepEqual(draft.intent.preferredSocialPlatforms, []);
+  assert.ok(draft.changes.includes("ONLINE_PRESENCE_OPTIONAL"));
+  assert.equal(draft.intent.operatingMode, "ASSIST");
+});
+
 test("conversation updates daily and total mint limits as a pending strategy", () => {
   const draft = draftStrategyFromConversation({
     message: "Set my maximum to 3 mints per day and 12 mints total for this strategy.",

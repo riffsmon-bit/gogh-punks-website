@@ -115,8 +115,15 @@ export function draftStrategyFromConversation({ message, punkTokenId, expectedOw
       next.maximumCollectionSupply = value; changes.push("MAX_SUPPLY");
     } else ambiguous.push("MAX_SUPPLY");
   }
+  const onlinePresenceOptional = /\b(?:website|site)(?:\s+(?:and|or|\/))?\s+(?:social(?:\s+(?:profile|account))?|x(?:\s+account)?|twitter)?\s+(?:is|are\s+)?optional\b|\b(?:do\s+not|don't|dont|no\s+need\s+to)\s+require\s+(?:a\s+)?(?:website|site|social(?:\s+(?:profile|account))?)/i.test(text);
   const websiteOrSocial = /\b(?:website|site)\s+(?:or|\/\s*)\s+(?:social(?:\s+(?:profile|account))?|x(?:\s+account)?|twitter)\b|\b(?:social(?:\s+(?:profile|account))?|x(?:\s+account)?|twitter)\s+(?:or|\/\s*)\s+(?:website|site)\b/i.test(text);
-  if (websiteOrSocial) {
+  if (onlinePresenceOptional) {
+    next.requiresWebsite = false;
+    next.requiresSocial = false;
+    next.preferredSocialPlatforms = [];
+    delete next.onlinePresenceRequirement;
+    changes.push("ONLINE_PRESENCE_OPTIONAL");
+  } else if (websiteOrSocial) {
     next.requiresWebsite = false;
     next.requiresSocial = false;
     next.preferredSocialPlatforms = [];

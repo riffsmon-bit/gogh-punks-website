@@ -103,10 +103,11 @@ test("review-run responses are reduced to bounded display-only evidence", () => 
     opportunities: [{ previewFixture: false, opportunity: {
       opportunityId: "seadrop:neon-alley:public", collectionContract: PUNK_WALLET,
       collectionName: "Neon Alley", screeningStatus: "PASSED", simulationStatus: "PASSED" },
-    match: { recommendationEligible: true, matchScore: 94 } }],
+    match: { recommendationEligible: true, matchScore: 94, reasons: [] } }],
   }, "93");
   assert.equal(run.opportunities[0].collectionName, "Neon Alley");
   assert.equal(run.opportunities[0].previewFixture, false);
+  assert.deepEqual(run.opportunities[0].blockingReasons, []);
   assert.equal(Object.hasOwn(run.opportunities[0], "transaction"), false);
   assert.throws(() => normalizeReviewAgentRun({ ...run, ok: true, reviewOnly: true,
     authority: "EXECUTE", tokenId: "93", transactionPrepared: false,

@@ -2,6 +2,7 @@ const ADDRESS = /^0x[0-9a-f]{40}$/;
 const TOKEN_ID = /^(?:0|[1-9][0-9]{0,3})$/;
 const INTENT_HASH = /^0x[0-9a-f]{64}$/;
 const OPPORTUNITY_ID = /^[a-zA-Z0-9:_-]{8,256}$/;
+const MATCH_REASON = /^[A-Z][A-Z0-9_]{2,63}$/;
 const MODES = new Set(["ASK", "ASSIST"]);
 const SCREENING = new Set(["PENDING", "PASSED", "BLOCKED", "NEEDS_REVIEW"]);
 const SIMULATION = new Set(["PENDING", "PASSED", "FAILED", "UNAVAILABLE"]);
@@ -216,17 +217,21 @@ export function normalizeReviewAgentRun(value, expectedTokenId) {
     const collectionContract = address(opportunity?.collectionContract, "collection contract");
     const collectionName = String(opportunity?.collectionName ?? "").trim();
     const matchScore = Number(match?.matchScore);
+    const blockingReasons = Array.isArray(match?.reasons) ? match.reasons : [];
     if (!OPPORTUNITY_ID.test(opportunityId) || !collectionName || collectionName.length > 160
       || !SCREENING.has(opportunity?.screeningStatus)
       || !SIMULATION.has(opportunity?.simulationStatus)
       || typeof match?.recommendationEligible !== "boolean" || !Number.isInteger(matchScore)
-      || matchScore < 0 || matchScore > 100) throw new TypeError("Review opportunity is invalid");
+      || matchScore < 0 || matchScore > 100 || blockingReasons.length > 32
+      || blockingReasons.some((reason) => typeof reason !== "string"
+        || !MATCH_REASON.test(reason))) throw new TypeError("Review opportunity is invalid");
     if (typeof entry.previewFixture !== "boolean") throw new TypeError("Review opportunity is invalid");
     return Object.freeze({ opportunityId, collectionContract, collectionName,
       previewFixture: entry.previewFixture,
       screeningStatus: opportunity.screeningStatus,
       simulationStatus: opportunity.simulationStatus,
-      recommendationEligible: match.recommendationEligible, matchScore });
+      recommendationEligible: match.recommendationEligible, matchScore,
+      blockingReasons: Object.freeze([...new Set(blockingReasons)]) });
   });
   return Object.freeze({ checkedCount, eligibleCount, screeningPassedCount,
     simulationPassedCount, testMode, testOpportunityCount,

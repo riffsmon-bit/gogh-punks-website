@@ -87,6 +87,20 @@ function cleanImage(value, fallback = "/assets/gogh-punks-pfp.png") {
   } catch { return fallback; }
 }
 
+function describeMatchBlocker(opportunity) {
+  if (!opportunity) return "no current opportunity was available";
+  const reasons = new Set(opportunity.blockingReasons ?? []);
+  if (reasons.has("WEBSITE_OR_SOCIAL_REQUIRED")) {
+    return "closest screened mint has neither a verified website nor social profile";
+  }
+  if (reasons.has("SIMULATION_NOT_PASSED")) return "closest mint has not passed simulation";
+  if (reasons.has("SCREENING_NOT_PASSED")) return "closest mint has not passed contract screening";
+  if (reasons.has("GAS_LIMIT_EXCEEDED")) return "closest mint exceeds your gas cap";
+  if (reasons.has("DAILY_LIMIT_REACHED")) return "your daily mint limit is reached";
+  if (reasons.has("TOTAL_LIMIT_REACHED")) return "your mission mint limit is reached";
+  return [...reasons][0]?.replaceAll("_", " ").toLowerCase() ?? "no eligible match";
+}
+
 function previewData() {
   state.wallet = { account: PREVIEW_OWNER, chainId: CHAIN_ID, status: "owner" };
   state.punks = previewPunks.map((punk) => ({ ...punk }));
@@ -369,6 +383,9 @@ function renderReviewAgent() {
   set("[data-review-agent-discovery]", run
     ? `${run.checkedCount} CHECKED${run.testOpportunityCount ? " · 1 TEST" : ""}` : pipeline.discovery);
   const leading = run?.opportunities?.find(({ recommendationEligible }) => recommendationEligible)
+    ?? run?.opportunities?.find(({ screeningStatus, simulationStatus }) => (
+      screeningStatus === "PASSED" && simulationStatus === "PASSED"))
+    ?? run?.opportunities?.find(({ screeningStatus }) => screeningStatus === "PASSED")
     ?? run?.opportunities?.[0] ?? null;
   set("[data-review-agent-contract]", leading
     ? short(leading.collectionContract) : pipeline.contract);
@@ -410,7 +427,8 @@ function renderReviewAgent() {
         : agent.status !== "ACTIVE" ? "This review agent is paused."
       : run ? run.testMode
         ? `Safe test only: ${run.eligibleCount} test card matched; no live opportunity or transaction.`
-        : `Last run checked ${run.checkedCount}; ${run.eligibleCount} matched.`
+        : run.eligibleCount ? `Last run checked ${run.checkedCount}; ${run.eligibleCount} matched.`
+          : `No MetaMask request yet · ${describeMatchBlocker(leading)}.`
         : "Runs one read-only check against Robinhood NFT opportunities.");
   const eligibleMint = run?.testMode ? null
     : run?.opportunities?.find(({ recommendationEligible }) => recommendationEligible) ?? null;
@@ -609,6 +627,11 @@ async function sendReviewAgentOut({ testMode = false, continueMission = false } 
     if (!testMode && selectedReviewAgent()?.status !== "SCOUTING") return;
     state.reviewRuns.set(key, run);
     const leading = run.opportunities.find(({ recommendationEligible }) => recommendationEligible);
+    const closest = leading
+      ?? run.opportunities.find(({ screeningStatus, simulationStatus }) => (
+        screeningStatus === "PASSED" && simulationStatus === "PASSED"))
+      ?? run.opportunities.find(({ screeningStatus }) => screeningStatus === "PASSED")
+      ?? run.opportunities[0] ?? null;
     if (testMode) {
       addReviewActivity("SCOUTED", "SAFE PIPELINE TEST COMPLETED",
         `${run.checkedCount} checked · ${run.eligibleCount} eligible · no live mint`);
@@ -624,12 +647,12 @@ async function sendReviewAgentOut({ testMode = false, continueMission = false } 
       if (returned) releaseReviewMissionLease(key);
       addReviewActivity(returned ? "RETURNED" : "SCOUTING",
         returned ? "PUNK RETURNED · MISSION COMPLETE" : "PUNK REMAINS OUT SCOUTING",
-        `${agent.mission.foundContracts.length}/${agent.mission.targetMatches} unique matches · ${agent.mission.checks} checks · ${run.checkedCount} checked this pass · ${run.screeningPassedCount} screened · ${run.simulationPassedCount} simulated${refreshDegraded ? " · last confirmed queue" : " · live queue refreshed"}`);
+        `${agent.mission.foundContracts.length}/${agent.mission.targetMatches} unique matches · ${agent.mission.checks} checks · ${run.checkedCount} checked this pass · ${run.screeningPassedCount} screened · ${run.simulationPassedCount} simulated${run.eligibleCount ? "" : ` · blocked: ${describeMatchBlocker(closest)}`}${refreshDegraded ? " · last confirmed queue" : " · live queue refreshed"}`);
       addMessage("punk", returned
         ? `I'M BACK. MISSION COMPLETE: ${agent.mission.foundContracts.length} UNIQUE ELIGIBLE MATCH${agent.mission.foundContracts.length === 1 ? "" : "ES"} FOUND.${leading ? ` Best current match: ${leading.collectionName}, ${leading.matchScore}%.` : ""} Nothing was submitted.`
         : leading
           ? `I FOUND ${leading.collectionName} AT ${leading.matchScore}% MATCH, BUT MY MISSION ISN'T COMPLETE. I'M STAYING OUT: ${agent.mission.foundContracts.length}/${agent.mission.targetMatches} UNIQUE MATCHES. Nothing was submitted.`
-          : `STILL OUT. I CHECKED ${run.checkedCount} ROBINHOOD NFT OPPORTUNITIES AND FOUND NO NEW ELIGIBLE MATCH. I'LL CHECK AGAIN IN ONE MINUTE. Nothing was submitted.`);
+          : `STILL OUT. I CHECKED ${run.checkedCount} ROBINHOOD NFT OPPORTUNITIES AND FOUND NO NEW ELIGIBLE MATCH. NO METAMASK REQUEST YET: ${describeMatchBlocker(closest)}. I'LL CHECK AGAIN IN ONE MINUTE. Nothing was submitted.`);
     }
   } catch (error) {
     if (!testMode && agent.status === "SCOUTING") {
