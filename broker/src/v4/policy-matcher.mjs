@@ -72,12 +72,16 @@ export function matchV2Opportunity(intentValue, opportunityValue, state, now = n
     && (opportunity.supply === null || opportunity.supply > intent.maximumCollectionSupply)) {
     reasons.push(opportunity.supply === null ? "SUPPLY_UNKNOWN" : "SUPPLY_LIMIT_EXCEEDED");
   }
-  if (intent.requiresWebsite && !opportunity.website) reasons.push("WEBSITE_REQUIRED");
-  if (intent.requiresSocial && !Object.values(opportunity.socialUrls).some(Boolean)) {
-    reasons.push("SOCIAL_REQUIRED");
-  }
-  for (const platform of intent.preferredSocialPlatforms) {
-    if (!socialPresent(opportunity, platform)) reasons.push(`${platform}_REQUIRED`);
+  const hasWebsite = Boolean(opportunity.website);
+  const hasSocial = Object.values(opportunity.socialUrls).some(Boolean);
+  if (intent.onlinePresenceRequirement === "WEBSITE_OR_SOCIAL") {
+    if (!hasWebsite && !hasSocial) reasons.push("WEBSITE_OR_SOCIAL_REQUIRED");
+  } else {
+    if (intent.requiresWebsite && !hasWebsite) reasons.push("WEBSITE_REQUIRED");
+    if (intent.requiresSocial && !hasSocial) reasons.push("SOCIAL_REQUIRED");
+    for (const platform of intent.preferredSocialPlatforms) {
+      if (!socialPresent(opportunity, platform)) reasons.push(`${platform}_REQUIRED`);
+    }
   }
   const avoided = opportunity.artStyles.filter((style) => intent.preferences.avoid.includes(style));
   if (avoided.length > 0) reasons.push("AVOIDED_STYLE");

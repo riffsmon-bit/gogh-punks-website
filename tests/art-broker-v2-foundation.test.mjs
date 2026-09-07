@@ -123,6 +123,31 @@ test("deterministic matcher explains a safe preference match", () => {
   assert.ok(result.matchReasons.includes("Preferred pixel art"));
 });
 
+test("website-or-social presence accepts either signal and blocks candidates with neither", () => {
+  const oneOfIntent = intent({ requiresWebsite: false, requiresSocial: false,
+    preferredSocialPlatforms: [], onlinePresenceRequirement: "WEBSITE_OR_SOCIAL" });
+  const state = { punkWalletBalanceWei: "30000000000000000", dailyMints: 0,
+    totalMints: 0, currentOwner: OWNER, punkWallet: ACCOUNT };
+  assert.equal(matchV2Opportunity(oneOfIntent, opportunity({ socialUrls: {
+    x: null, discord: null, farcaster: null } }), state, NOW).matched, true);
+  assert.equal(matchV2Opportunity(oneOfIntent, opportunity({ website: null }), state, NOW).matched, true);
+  const missing = matchV2Opportunity(oneOfIntent, opportunity({ website: null, socialUrls: {
+    x: null, discord: null, farcaster: null } }), state, NOW);
+  assert.equal(missing.matched, false);
+  assert.deepEqual(missing.reasons.filter((reason) => reason.includes("SOCIAL")
+    || reason.includes("WEBSITE")), ["WEBSITE_OR_SOCIAL_REQUIRED"]);
+});
+
+test("legacy website-and-social strategies keep requiring both signals", () => {
+  const state = { punkWalletBalanceWei: "30000000000000000", dailyMints: 0,
+    totalMints: 0, currentOwner: OWNER, punkWallet: ACCOUNT };
+  const legacy = matchV2Opportunity(intent(), opportunity({ socialUrls: {
+    x: null, discord: null, farcaster: null } }), state, NOW);
+  assert.equal(legacy.matched, false);
+  assert.ok(legacy.reasons.includes("SOCIAL_REQUIRED"));
+  assert.ok(legacy.reasons.includes("X_REQUIRED"));
+});
+
 test("default ASK treats adapter choices as protocol-screened unless the owner narrows them", () => {
   const result = matchV2Opportunity(intent({ operatingMode: "ASK", allowedAdapters: [] }),
     opportunity(), {

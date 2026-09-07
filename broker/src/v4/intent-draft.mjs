@@ -115,13 +115,25 @@ export function draftStrategyFromConversation({ message, punkTokenId, expectedOw
       next.maximumCollectionSupply = value; changes.push("MAX_SUPPLY");
     } else ambiguous.push("MAX_SUPPLY");
   }
-  if (/\b(?:with|requires?|only).*\bwebsite\b|\bwebsite required\b/i.test(text)) {
-    next.requiresWebsite = true; changes.push("REQUIRE_WEBSITE");
-  }
-  if (/\b(?:with|requires?|only).*\b(?:x(?: account)?|twitter)\b|\b(?:x account|twitter) required\b/i.test(text)) {
-    next.requiresSocial = true;
-    next.preferredSocialPlatforms = [...new Set([...next.preferredSocialPlatforms, "X"])];
-    changes.push("REQUIRE_X");
+  const websiteOrSocial = /\b(?:website|site)\s+(?:or|\/\s*)\s+(?:social(?:\s+(?:profile|account))?|x(?:\s+account)?|twitter)\b|\b(?:social(?:\s+(?:profile|account))?|x(?:\s+account)?|twitter)\s+(?:or|\/\s*)\s+(?:website|site)\b/i.test(text);
+  if (websiteOrSocial) {
+    next.requiresWebsite = false;
+    next.requiresSocial = false;
+    next.preferredSocialPlatforms = [];
+    next.onlinePresenceRequirement = "WEBSITE_OR_SOCIAL";
+    changes.push("REQUIRE_WEBSITE_OR_SOCIAL");
+  } else {
+    const websiteRequired = /\b(?:with|requires?|only).*\bwebsite\b|\bwebsite required\b/i.test(text);
+    const xRequired = /\b(?:with|requires?|only).*\b(?:x(?: account)?|twitter)\b|\b(?:x account|twitter) required\b/i.test(text);
+    if (websiteRequired || xRequired) delete next.onlinePresenceRequirement;
+    if (websiteRequired) {
+      next.requiresWebsite = true; changes.push("REQUIRE_WEBSITE");
+    }
+    if (xRequired) {
+      next.requiresSocial = true;
+      next.preferredSocialPlatforms = [...new Set([...next.preferredSocialPlatforms, "X"])];
+      changes.push("REQUIRE_X");
+    }
   }
   const prefer = new Set(next.preferences.prefer);
   const avoid = new Set(next.preferences.avoid);

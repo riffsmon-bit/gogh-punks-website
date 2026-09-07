@@ -444,8 +444,7 @@ function renderReviewAgent() {
     set("[data-strategy-daily]", "1");
     set("[data-strategy-total]", "1");
     set("[data-strategy-reserve]", "0.0000 ETH");
-    set("[data-strategy-website]", "— WEBSITE OPTIONAL");
-    set("[data-strategy-social]", "— SOCIAL OPTIONAL");
+    set("[data-strategy-presence]", "— WEBSITE + SOCIAL OPTIONAL");
     const tastes = one("[data-strategy-tastes]"); tastes.replaceChildren();
     const empty = document.createElement("span");
     empty.textContent = "Talk to your Punk to define explicit preferences."; tastes.append(empty);
@@ -477,9 +476,15 @@ function renderReviewAgent() {
       tastes.append(tag);
     }
   }
-  set("[data-strategy-website]", intent.requiresWebsite ? "✓ WEBSITE REQUIRED" : "— WEBSITE OPTIONAL");
-  set("[data-strategy-social]", intent.requiresSocial
-    ? `✓ ${intent.preferredSocialPlatforms.join(" + ") || "SOCIAL"} REQUIRED` : "— SOCIAL OPTIONAL");
+  const presenceRule = intent.onlinePresenceRequirement === "WEBSITE_OR_SOCIAL"
+    ? "✓ WEBSITE OR SOCIAL REQUIRED"
+    : intent.requiresWebsite && intent.requiresSocial
+      ? `✓ WEBSITE + ${intent.preferredSocialPlatforms.join(" + ") || "SOCIAL"} REQUIRED`
+      : intent.requiresWebsite ? "✓ WEBSITE REQUIRED"
+        : intent.requiresSocial
+          ? `✓ ${intent.preferredSocialPlatforms.join(" + ") || "SOCIAL"} REQUIRED`
+          : "— WEBSITE + SOCIAL OPTIONAL";
+  set("[data-strategy-presence]", presenceRule);
   all('input[name="mode"]').forEach((input) => { input.checked = input.value === agent.mode; });
 }
 
@@ -1245,8 +1250,11 @@ function showConfirmation(draft) {
     gas: `${(Number(intent.maxGasPerMintWei) / 1e18).toFixed(4)}`,
     supply: intent.maximumCollectionSupply ?? "NO LIMIT",
     tastes: intent.preferences.prefer.map((value) => value.replaceAll("_", " ")),
-    website: intent.requiresWebsite,
-    x: intent.preferredSocialPlatforms.includes("X"),
+    presence: intent.onlinePresenceRequirement === "WEBSITE_OR_SOCIAL"
+      ? "WEBSITE OR SOCIAL"
+      : [intent.requiresWebsite && "WEBSITE",
+        intent.requiresSocial && (intent.preferredSocialPlatforms.join(" + ") || "SOCIAL")]
+        .filter(Boolean).join(" + "),
     target: intent.allowedContracts?.length === 1
       ? short(intent.allowedContracts[0]) : "ALL ROBINHOOD NFTS",
     free: intent.mintMode === "FREE_ONLY",
@@ -1254,7 +1262,7 @@ function showConfirmation(draft) {
   const values = [
     ["NETWORK", "ROBINHOOD CHAIN"], ["MODE", view.mode],
     ["MINT PRICE", view.free ? "FREE ONLY" : "NOT CHANGED"], ["LOOKING FOR", view.tastes.join(" · ")],
-    ["REQUIRES", [view.website && "WEBSITE", view.x && "X", "SCREEN + SIMULATION"].filter(Boolean).join(" · ")],
+    ["REQUIRES", [view.presence, "SCREEN + SIMULATION"].filter(Boolean).join(" · ")],
     ["DAILY LIMIT", view.daily], ["TOTAL LIMIT", view.total], ["MAX GAS", `${view.gas} ETH`], ["MINIMUM RESERVE", `${view.reserve} ETH`],
     ["MAX SUPPLY", view.supply], ["TARGET", view.target],
     ["STATUS", "PENDING OWNER CONFIRMATION"],

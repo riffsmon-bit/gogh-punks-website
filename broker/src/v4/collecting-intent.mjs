@@ -26,6 +26,7 @@ export const PUNK_COLLECTING_INTENT_JSON_SCHEMA = Object.freeze({
       avoid: { type: "array", items: { type: "string", enum: V2_ART_STYLES } },
     }, required: ["prefer", "avoid"], additionalProperties: false },
     requiresWebsite: { type: "boolean" }, requiresSocial: { type: "boolean" },
+    onlinePresenceRequirement: { type: "string", enum: ["WEBSITE_OR_SOCIAL"] },
     preferredSocialPlatforms: { type: "array", items: { type: "string", enum: ["X", "DISCORD", "FARCASTER"] } },
     blockedContracts: { type: "array", items: { type: "string" } },
     allowedContracts: { type: "array", items: { type: "string" } },
@@ -51,7 +52,8 @@ const TOP_LEVEL_FIELDS = Object.freeze([
   "schema", "version", "chainId", "punkTokenId", "expectedOwner", "punkWallet",
   "operatingMode", "mintMode", "maxMintPriceWei", "maxGasPerMintWei", "dailyMintLimit",
   "totalMintLimit", "minimumReserveWei", "maximumCollectionSupply", "preferences",
-  "requiresWebsite", "requiresSocial", "preferredSocialPlatforms", "blockedContracts",
+  "requiresWebsite", "requiresSocial", "onlinePresenceRequirement",
+  "preferredSocialPlatforms", "blockedContracts",
   "allowedContracts", "blockedCollections", "allowedAdapters", "riskThreshold",
   "requireSimulation", "expiration", "userSubmittedLinksAllowed", "discoveryEnabled",
 ]);
@@ -186,6 +188,10 @@ export function normalizePunkCollectingIntent(value, now = new Date()) {
     preferences: normalizedPreferences,
     requiresWebsite: boolean(source.requiresWebsite, "website requirement"),
     requiresSocial: boolean(source.requiresSocial, "social requirement"),
+    ...(source.onlinePresenceRequirement === undefined ? {} : {
+      onlinePresenceRequirement: enumValue(source.onlinePresenceRequirement,
+        ["WEBSITE_OR_SOCIAL"], "online presence requirement"),
+    }),
     preferredSocialPlatforms: strings(source.preferredSocialPlatforms, "social platforms", {
       allowed: ["X", "DISCORD", "FARCASTER"], maximum: 8,
     }),
@@ -223,8 +229,10 @@ export function collectingIntentConfirmation(value, now = new Date()) {
     lookingFor: intent.preferences.prefer,
     avoids: intent.preferences.avoid,
     requirements: Object.freeze([
-      ...(intent.requiresWebsite ? ["Website"] : []),
-      ...(intent.requiresSocial ? ["Social profile"] : []),
+      ...(intent.onlinePresenceRequirement === "WEBSITE_OR_SOCIAL"
+        ? ["Website or social profile"]
+        : [...(intent.requiresWebsite ? ["Website"] : []),
+          ...(intent.requiresSocial ? ["Social profile"] : [])]),
       ...(intent.requireSimulation ? ["Simulation"] : []),
       "Security screening",
     ]),

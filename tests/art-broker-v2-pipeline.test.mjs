@@ -70,6 +70,20 @@ test("short natural language limits remain deterministic", () => {
   assert.deepEqual(draft.intent.preferredSocialPlatforms, ["X"]);
 });
 
+test("conversation can require either a website or a social profile", () => {
+  const draft = draftStrategyFromConversation({
+    message: "Find free pixel art. Require a website or social profile. One mint total.",
+    punkTokenId: "119", expectedOwner: OWNER, punkWallet: WALLET,
+  }, NOW);
+  assert.equal(draft.intent.onlinePresenceRequirement, "WEBSITE_OR_SOCIAL");
+  assert.equal(draft.intent.requiresWebsite, false);
+  assert.equal(draft.intent.requiresSocial, false);
+  assert.deepEqual(draft.confirmation.requirements, [
+    "Website or social profile", "Simulation", "Security screening",
+  ]);
+  assert.ok(draft.changes.includes("REQUIRE_WEBSITE_OR_SOCIAL"));
+});
+
 test("conversation updates daily and total mint limits as a pending strategy", () => {
   const draft = draftStrategyFromConversation({
     message: "Set my maximum to 3 mints per day and 12 mints total for this strategy.",
