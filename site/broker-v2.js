@@ -1241,22 +1241,29 @@ async function jsonRequest(path, options = {}) {
   }
 }
 
-async function ensureV2Session() {
+async function ensureV2Session(report = () => {}) {
   if (PREVIEW) return null;
   if (!state.wallet?.account || state.wallet.chainId !== CHAIN_ID) {
     throw new Error("Connect the current owner on Robinhood Chain first.");
   }
+  report("Checking the signed-in wallet session…");
   try {
     const current = await jsonRequest("/api/v2/session");
-    if (current.walletAddress === state.wallet.account) return current;
+    if (current.walletAddress === state.wallet.account) {
+      report("Wallet session confirmed. Preparing the strategy proof…");
+      return current;
+    }
   } catch { /* prepare a new current-wallet session */ }
+  report("Preparing a wallet sign-in message…");
   const prepared = await jsonRequest("/api/v2/session", { method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ action: "prepare", walletAddress: state.wallet.account }) });
   const provider = window.__GOGH_WALLET_PROVIDER__;
   if (!provider?.request) throw new Error("Wallet provider unavailable.");
+  report("MetaMask should be open now. Sign the free wallet-login message.");
   const signature = await provider.request({ method: "personal_sign",
     params: [prepared.challenge.message, state.wallet.account] });
+  report("Wallet-login signature received. Verifying it…");
   return jsonRequest("/api/v2/session", { method: "POST",
     headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "complete",
       challengeId: prepared.challenge.challengeId, walletAddress: state.wallet.account, signature }) });
@@ -1304,6 +1311,9 @@ function showConfirmation(draft) {
     : REVIEW_HOST ? "ACTIVATE ONLY" : "ACTIVATE STRATEGY";
   activateAndSend.hidden = !REVIEW_HOST || PREVIEW;
   activateAndSend.disabled = activationLocked;
+  set("[data-strategy-activation-status]", activationLocked
+    ? "This draft cannot be activated. Edit it before continuing."
+    : "Ready for owner confirmation. No wallet request has been made.");
   const dialog = one("[data-confirmation-dialog]");
   if (typeof dialog.showModal === "function") dialog.showModal(); else dialog.setAttribute("open", "");
 }
@@ -1657,27 +1667,48 @@ function setup() {
   });
   one("[data-activate-strategy]").addEventListener("click", async () => {
     if (!state.localStrategy) return;
+    const activateButton = one("[data-activate-strategy]");
+    const activateAndSendButton = one("[data-activate-send-strategy]");
+    if (activateButton.dataset.busy === "true") return;
+    const report = (message) => set("[data-strategy-activation-status]", message);
+    const unlock = () => {
+      delete activateButton.dataset.busy;
+      activateButton.disabled = false;
+      activateAndSendButton.disabled = false;
+    };
+    activateButton.dataset.busy = "true";
+    activateButton.disabled = true;
+    activateAndSendButton.disabled = true;
     const dispatchAfterActivation = state.dispatchAfterActivation;
     state.dispatchAfterActivation = false;
     const mode = state.localStrategy.intent?.operatingMode ?? state.localStrategy.mode;
-    if (mode === "AUTONOMOUS") return;
+    if (mode === "AUTONOMOUS") {
+      report("Autonomous activation is locked for this Punk Wallet.");
+      unlock();
+      return;
+    }
     if (REVIEW_HOST && !PREVIEW) {
       try {
         if (mode === "ASSIST") {
-          await ensureV2Session();
+          await ensureV2Session(report);
+          report("Saving the complete owner-bound ASSIST strategy…");
           const persisted = await jsonRequest("/api/v2/review/strategy-draft", {
             method: "POST", headers: { "content-type": "application/json" },
             body: JSON.stringify({ owner: state.wallet.account,
               tokenId: state.selected.tokenId, intent: state.localStrategy.intent }),
           });
+          report("Preparing the strategy-activation message…");
           const prepared = await jsonRequest(`/api/v2/punks/${state.selected.tokenId}/strategy`, {
             method: "POST", headers: { "content-type": "application/json" },
             body: JSON.stringify({ action: "prepare_activation",
               intentHash: persisted.draft.intentHash }),
           });
           const provider = window.__GOGH_WALLET_PROVIDER__;
+          if (!provider?.request) throw new Error("MetaMask provider is unavailable. Reconnect the wallet and retry.");
+          report("MetaMask should be open now. Sign the free strategy-activation message.");
           const signature = await provider.request({ method: "personal_sign",
             params: [prepared.challenge.message, state.wallet.account] });
+          report("Strategy signature received. Activating the mission…");
           await jsonRequest(`/api/v2/punks/${state.selected.tokenId}/strategy`, {
             method: "POST", headers: { "content-type": "application/json" },
             body: JSON.stringify({ action: "complete_activation",
@@ -1687,9 +1718,12 @@ function setup() {
         } else startReviewAgent(state.localStrategy);
       }
       catch (error) {
+        report(`ACTIVATION STOPPED · ${error?.message ?? "The review agent could not start."}`);
         addMessage("punk", `${error?.message ?? "Review agent could not start."} No mint authority was granted.`);
+        unlock();
         return;
       }
+      report("Strategy activated. Starting the first live discovery check…");
       one("[data-confirmation-dialog]").close();
       addMessage("punk", mode === "ASSIST"
         ? dispatchAfterActivation
@@ -1699,6 +1733,7 @@ function setup() {
           ? "ASK REVIEW AGENT READY. I'M HEADING TO THE ROBINHOOD NFT QUEUE NOW. No mint authority was activated."
           : "ASK REVIEW AGENT READY. I’ll remember these read-only rules in this browser. No mint authority was activated.");
       if (dispatchAfterActivation) await sendReviewAgentOut();
+      unlock();
       return;
     }
     if (PREVIEW && state.localStrategy.intentHash) {
@@ -1708,7 +1743,9 @@ function setup() {
         }) });
       const payload = await response.json();
       if (!response.ok || payload?.ok !== true) {
+        report(`ACTIVATION STOPPED · ${payload?.message ?? "Strategy activation failed."}`);
         addMessage("punk", `${payload?.message ?? "Strategy activation failed."} Existing rules remain unchanged.`);
+        unlock();
         return;
       }
       startReviewAgent(state.localStrategy);
@@ -1729,13 +1766,16 @@ function setup() {
             challengeId: prepared.challenge.challengeId, signature }),
         });
       } catch (error) {
+        report(`ACTIVATION STOPPED · ${error?.message ?? "Strategy activation failed."}`);
         addMessage("punk", `${error?.message ?? "Strategy activation failed."} Existing rules remain unchanged.`);
+        unlock();
         return;
       }
     }
     state.selected.mode = mode; one("[data-confirmation-dialog]").close(); renderSelected();
     addMessage("punk", PREVIEW ? "Strategy activated in local preview state only. Nothing was saved remotely."
       : "STRATEGY ACTIVATED WITH YOUR WALLET SIGNATURE. No unsigned change was accepted.");
+    unlock();
   });
   const fundForm = one("[data-fund-form]");
   const fundButton = fundForm.querySelector("button[type=submit]");

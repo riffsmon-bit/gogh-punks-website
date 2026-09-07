@@ -133,6 +133,7 @@ test("the hosted PR review runs bounded tab agents while owner transactions stay
   assert.match(html, /data-review-agent-console/);
   assert.match(html, /SEND PUNK OUT/);
   assert.match(html, /ACTIVATE &amp; SEND PUNK OUT/);
+  assert.match(html, /data-strategy-activation-status/);
   assert.match(html, /data-review-agent-recall hidden>CALL PUNK BACK/);
   assert.match(html, /RUN SAFE TEST/);
   assert.match(html, /data-review-agent-rules/);
@@ -165,6 +166,8 @@ test("the hosted PR review runs bounded tab agents while owner transactions stay
   assert.match(script, /if \(dispatchAfterActivation\) await sendReviewAgentOut\(\)/);
   assert.match(script, /selectedReviewAgent\(\)\?\.intent/);
   assert.match(script, /Your signed strategy is active, but only MetaMask can approve a mint/);
+  assert.match(script, /MetaMask should be open now\. Sign the free strategy-activation message/);
+  assert.match(script, /ACTIVATION STOPPED/);
   assert.match(script, /api\/v2\/review\/strategy-draft/);
   assert.match(script, /api\/v2\/review\/mint-receipt/);
   assert.match(script, /reviewAgents: new Map\(\)/);
