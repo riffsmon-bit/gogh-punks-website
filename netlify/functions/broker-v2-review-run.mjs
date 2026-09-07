@@ -1,8 +1,12 @@
 import { getDatabase } from "@netlify/database";
+import { createPublicClient, http } from "viem";
 import { ROBINHOOD } from "../../broker/src/config.mjs";
 import { normalizePunkCollectingIntent } from "../../broker/src/v4/collecting-intent.mjs";
 import { normalizeV2Opportunity } from "../../broker/src/v4/opportunity.mjs";
 import { matchV2Opportunity } from "../../broker/src/v4/policy-matcher.mjs";
+import { simulateOwnerAssistedSeaDropMint } from
+  "../../broker/src/v4/owner-assisted-seadrop-mint.mjs";
+import { getRpcUrl } from "./_shared/config.mjs";
 import { PublicError, json, readJson } from "./_shared/http.mjs";
 import { v2Failure } from "./_shared/v2-http.mjs";
 import { readV2PunkAuthority } from "./_shared/v2-ownership.mjs";
@@ -66,7 +70,8 @@ function opportunityForPunk(row, punkWallet, now) {
 }
 
 export async function handleV2ReviewRun(request, { readAuthority = readV2PunkAuthority,
-  pool = getDatabase().pool, now = new Date() } = {}) {
+  pool = getDatabase().pool, now = new Date(), client = null,
+  simulateOpportunity = simulateOwnerAssistedSeaDropMint } = {}) {
   if (request.method !== "POST") return json({ ok: false, code: "METHOD_NOT_ALLOWED" }, 405);
   try {
     requireV2DeployPreview(request);
@@ -107,9 +112,39 @@ export async function handleV2ReviewRun(request, { readAuthority = readV2PunkAut
     const counts = new Map(opportunityUsageResult.rows.map((row) => (
       [row.opportunity_id, Number(row.count)])));
     const usage = activityResult.rows[0] ?? {};
-    const opportunities = opportunityResult.rows.map((row) => Object.freeze({
-      opportunity: opportunityForPunk(row, authority.punkWallet, now), previewFixture: false,
-    }));
+    const simulationClient = () => client ?? createPublicClient({
+      transport: http(getRpcUrl(), { timeout: 10_000, retryCount: 1 }),
+    });
+    const opportunities = [];
+    let liveSimulationCount = 0;
+    for (const row of opportunityResult.rows) {
+      let opportunity = opportunityForPunk(row, authority.punkWallet, now);
+      if (opportunity.screeningStatus === "PASSED" && opportunity.simulationStatus !== "PASSED"
+        && liveSimulationCount < 3) {
+        liveSimulationCount += 1;
+        try {
+          const simulated = await simulateOpportunity({ client: simulationClient(), authority,
+            opportunity, now });
+          opportunity = normalizeV2Opportunity({ ...opportunity,
+            simulationStatus: "PASSED",
+            estimatedGasCostWei: simulated.evidence.estimatedGasWei,
+            expectedNftReceiver: authority.punkWallet,
+            updatedAt: new Date(now).toISOString() }, now);
+          await pool.query(`INSERT INTO broker_v2_simulations
+            (opportunity_id, punk_account, input_hash, pinned_block, status, gas_estimate,
+             expected_receiver, effects, simulated_at)
+            VALUES ($1, $2, $3, $4::numeric, 'PASSED', $5::numeric, $2, $6::jsonb, $7)
+            ON CONFLICT (opportunity_id, punk_account, input_hash) DO NOTHING`,
+          [opportunity.opportunityId, authority.punkWallet, simulated.evidence.inputHash,
+            simulated.evidence.pinnedBlock, simulated.evidence.estimatedGasWei,
+            JSON.stringify({ expectedTokenId: simulated.evidence.expectedTokenId,
+              quantity: 1, mintPriceWei: "0", callDidNotRevert: true,
+              effectTraceAvailable: false, postconditionPendingReceipt: true,
+              ownerApprovalRequired: true }), simulated.evidence.simulatedAt]);
+        } catch { /* One unsafe or unavailable candidate cannot stop the bounded review pass. */ }
+      }
+      opportunities.push(Object.freeze({ opportunity, previewFixture: false }));
+    }
     if (body.testMode === "SAFE_FIXTURE") opportunities.unshift(Object.freeze({
       opportunity: previewTestOpportunity(authority.punkWallet, now), previewFixture: true,
     }));

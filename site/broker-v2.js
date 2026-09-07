@@ -16,6 +16,9 @@ import {
   reviewInspectionPipeline,
 } from "./broker-v2-review-agent.js";
 import { activateReviewSkill, normalizeReviewSkill } from "./broker-v2-review-skill.js";
+import {
+  confirmOwnerAssistedMint, preflightOwnerAssistedMint, submitOwnerAssistedMint,
+} from "./owner-assisted-seadrop-mint.js";
 
 const PREVIEW = new URLSearchParams(location.search).get("preview") === "1";
 const REVIEW_HOST = location.protocol === "https:" && /^(?:deploy-preview-[1-9][0-9]*--gogh-punks\.netlify\.app|deploy-preview-[1-9][0-9]*\.preview\.goghpunks\.xyz)$/.test(location.hostname);
@@ -52,7 +55,8 @@ const state = { wallet: null, punks: [], selected: null, localStrategy: null, lo
   reviewAgents: new Map(), reviewInspections: new Map(), reviewActivities: new Map(),
   reviewRuns: new Map(), reviewConversations: new Map(), reviewSkills: new Map(),
   reviewMissionPhases: new Map(), reviewDiscoveryBackoffs: new Map(),
-  reviewMissionInFlight: new Set() };
+  reviewMissionInFlight: new Set(), reviewMintOpportunityId: null,
+  reviewMintArtifact: null, reviewMintPrepared: null, reviewMintBusy: false };
 const REVIEW_MISSION_POLL_MS = 60_000;
 const REVIEW_DISCOVERY_BACKOFF_MS = 5 * 60_000;
 const REVIEW_SESSION_STORAGE_KEY = "gogh-art-broker-review-session-v1";
@@ -408,6 +412,26 @@ function renderReviewAgent() {
         ? `Safe test only: ${run.eligibleCount} test card matched; no live opportunity or transaction.`
         : `Last run checked ${run.checkedCount}; ${run.eligibleCount} matched.`
         : "Runs one read-only check against Robinhood NFT opportunities.");
+  const eligibleMint = run?.testMode ? null
+    : run?.opportunities?.find(({ recommendationEligible }) => recommendationEligible) ?? null;
+  const mintPanel = one("[data-review-live-mint]");
+  const mintAvailable = REVIEW_HOST && !PREVIEW && agent?.mode === "ASSIST" && eligibleMint;
+  if (mintPanel) mintPanel.hidden = !mintAvailable;
+  if (mintAvailable) {
+    if (state.reviewMintOpportunityId !== eligibleMint.opportunityId) {
+      state.reviewMintOpportunityId = eligibleMint.opportunityId;
+      state.reviewMintArtifact = null; state.reviewMintPrepared = null;
+      one("[data-review-mint-confirm]").checked = false;
+      one("[data-review-mint-transaction]").hidden = true;
+      set("[data-review-mint-status]", "One exact owner-approved mint can be reviewed. Nothing has been prepared or submitted.");
+    }
+    set("[data-review-mint-name]", eligibleMint.collectionName);
+    set("[data-review-mint-detail]", `${eligibleMint.matchScore}% strategy match · 0 ETH mint · quantity 1 · NFT enters ${short(agent.punkWallet)}`);
+    const mintButton = one("[data-review-mint-submit]");
+    mintButton.disabled = state.reviewMintBusy;
+    mintButton.textContent = state.reviewMintBusy ? "CHECKING LIVE STATE…"
+      : state.reviewMintPrepared ? "SUBMIT IN METAMASK" : "REVIEW & SIMULATE";
+  }
   set("[data-review-strategy-label]", agent
     ? `REVIEW AGENT ${agent.status}` : "NO REVIEW AGENT");
   set("[data-review-strategy-detail]", agent
@@ -616,6 +640,127 @@ async function sendReviewAgentOut({ testMode = false, continueMission = false } 
   }
 }
 
+async function runOwnerAssistedLiveMint() {
+  if (state.reviewMintBusy || !REVIEW_HOST || PREVIEW) return;
+  const agent = selectedReviewAgent(); const run = selectedReviewRun(); const punk = state.selected;
+  const opportunity = run?.opportunities?.find(({ recommendationEligible, previewFixture }) => (
+    recommendationEligible && !previewFixture));
+  const confirmed = one("[data-review-mint-confirm]");
+  const output = one("[data-review-mint-status]");
+  const link = one("[data-review-mint-transaction]");
+  if (!agent || agent.mode !== "ASSIST" || !punk?.account || !opportunity) {
+    output.textContent = "A live eligible match under a confirmed ASSIST strategy is required.";
+    return;
+  }
+  if (!confirmed.checked) {
+    output.textContent = "Review the exact free-mint conditions and check the confirmation box first.";
+    return;
+  }
+  const provider = window.__GOGH_WALLET_PROVIDER__;
+  if (!provider?.request || !state.wallet?.account || state.wallet.chainId !== CHAIN_ID) {
+    output.textContent = "Connect the current Punk owner on Robinhood Chain first.";
+    return;
+  }
+  const selection = { owner: state.wallet.account, account: punk.account, tokenId: punk.tokenId };
+  const stillCurrent = () => state.selected?.tokenId === selection.tokenId
+    && state.selected?.account?.toLowerCase() === selection.account.toLowerCase()
+    && state.wallet?.account === selection.owner && one("[data-review-mint-confirm]").checked
+    && state.reviewMintOpportunityId === opportunity.opportunityId;
+  state.reviewMintBusy = true; renderReviewAgent();
+  let submittedHash = null;
+  let chainConfirmed = false;
+  try {
+    if (!state.reviewMintPrepared) {
+      await ensureV2Session();
+      output.textContent = "Rechecking the live drop, contract code, Punk ownership, strategy limits, and exact quantity-one simulation…";
+      const payload = await jsonRequest("/api/v2/review/mint", { method: "POST",
+        headers: { "content-type": "application/json" }, body: JSON.stringify({
+          owner: agent.owner, tokenId: punk.tokenId, intent: agent.intent,
+          opportunityId: opportunity.opportunityId,
+        }), timeoutMs: 30_000 });
+      if (payload.attemptId !== payload.mint?.attemptId) {
+        throw new Error("The live mint reservation is inconsistent.");
+      }
+      if (!stillCurrent()) throw new Error("The selected Punk, owner, or match changed during review.");
+      const recoveryPayload = await jsonRequest(
+        `/api/broker/nft-withdrawal-status?tokenId=${encodeURIComponent(punk.tokenId)}`);
+      if (!recoveryPayload.recovery?.capability) {
+        throw new Error("The verified Punk Wallet recovery gate is unavailable.");
+      }
+      const prepared = await preflightOwnerAssistedMint(provider, payload.mint, selection,
+        recoveryPayload.recovery);
+      if (!stillCurrent()) throw new Error("The selected Punk, owner, or match changed before approval.");
+      state.reviewMintArtifact = payload.mint; state.reviewMintPrepared = prepared;
+      output.textContent = `SIMULATION PASSED · ${payload.mint.collectionName} · token #${payload.mint.expectedTokenId} · 0 ETH · quantity 1 · estimated gas ${ethFromWei(prepared.gasCostWei)} ETH. Review once more, then submit.`;
+      addReviewActivity("SIMULATED", "LIVE MINT READY FOR OWNER",
+        `${payload.mint.collectionName} · token #${payload.mint.expectedTokenId} · 0 ETH · quantity 1 · nothing submitted`);
+      return;
+    }
+    output.textContent = "Re-simulating the exact call before opening MetaMask…";
+    const recoveryPayload = await jsonRequest(
+      `/api/broker/nft-withdrawal-status?tokenId=${encodeURIComponent(punk.tokenId)}`);
+    const prepared = await preflightOwnerAssistedMint(provider, state.reviewMintArtifact,
+      selection, recoveryPayload.recovery);
+    if (!stillCurrent()) throw new Error("The selected Punk, owner, or match changed before submission.");
+    output.textContent = "Waiting for MetaMask. Mint price is fixed at 0 ETH; your owner wallet pays network gas.";
+    const hash = await submitOwnerAssistedMint(provider, prepared);
+    submittedHash = hash;
+    link.href = `https://robinhoodchain.blockscout.com/tx/${hash}`; link.hidden = false;
+    output.textContent = "Mint submitted. Waiting for Robinhood Chain confirmation and NFT ownership verification…";
+    addReviewActivity("SUBMITTED", "OWNER-APPROVED MINT SUBMITTED",
+      `${prepared.mint.collectionName} · ${hash.slice(0, 10)}… · waiting for confirmation`);
+    try {
+      await jsonRequest("/api/v2/review/mint-receipt", { method: "POST",
+        headers: { "content-type": "application/json" }, body: JSON.stringify({
+          attemptId: prepared.mint.attemptId, owner: selection.owner,
+          tokenId: selection.tokenId, transactionHash: hash,
+        }), timeoutMs: 20_000 });
+    } catch { /* The confirmed receipt path below retries after wallet RPC catches up. */ }
+    const receipt = await confirmOwnerAssistedMint(provider, prepared, hash);
+    chainConfirmed = true;
+    let recorded = false;
+    let recordError = null;
+    for (let attempt = 0; attempt < 3 && !recorded; attempt += 1) {
+      try {
+        const recordedReceipt = await jsonRequest("/api/v2/review/mint-receipt", { method: "POST",
+          headers: { "content-type": "application/json" }, body: JSON.stringify({
+            attemptId: prepared.mint.attemptId, owner: selection.owner,
+            tokenId: selection.tokenId, transactionHash: hash,
+          }), timeoutMs: 20_000 });
+        if (recordedReceipt.confirmed !== true) {
+          throw new Error("The server is still waiting for the confirmed receipt.");
+        }
+        recorded = true;
+      } catch (error) {
+        recordError = error;
+        if (attempt < 2) await new Promise((resolve) => window.setTimeout(resolve, 1_000));
+      }
+    }
+    output.textContent = `MINT CONFIRMED ✓ ${prepared.mint.collectionName} #${receipt.tokenId} is held by Punk #${punk.tokenId}.`;
+    addReviewActivity("COLLECTED", `MINT CONFIRMED · ${prepared.mint.collectionName}`,
+      `Token #${receipt.tokenId} · 0 ETH · owner-approved MetaMask transaction${recorded ? " · server receipt verified" : " · receipt reconciliation pending"}`);
+    addMessage("punk", `I'M BACK WITH ${prepared.mint.collectionName} #${receipt.tokenId}. THE NFT IS VERIFIED IN MY PUNK WALLET.`);
+    if (!recorded) {
+      output.textContent += ` The on-chain mint succeeded, but the activity receipt still needs server reconciliation: ${recordError?.message ?? "temporarily unavailable"}.`;
+    }
+    state.reviewMintArtifact = null; state.reviewMintPrepared = null;
+    confirmed.checked = false;
+    await loadReviewCollection(punk, { collection: receipt.collection, tokenId: receipt.tokenId });
+  } catch (error) {
+    state.reviewMintArtifact = null; state.reviewMintPrepared = null;
+    output.textContent = submittedHash
+      ? `${error?.message ?? "Confirmation could not be verified."} A transaction was submitted; check the linked Robinhood Chain receipt before trying again.`
+      : `${error?.message ?? "The live mint stopped safely."} No transaction was submitted.`;
+    addReviewActivity(chainConfirmed ? "RECONCILE" : "STOPPED",
+      chainConfirmed ? "MINT CONFIRMED · RECEIPT RECONCILIATION NEEDED" : "LIVE MINT STOPPED SAFELY",
+      submittedHash
+        ? `${error?.code ?? "CONFIRMATION_FAILED"} · transaction ${submittedHash.slice(0, 10)}… may require review`
+        : `${error?.code ?? "PRECHECK_FAILED"} · no transaction submitted`);
+  } finally {
+    state.reviewMintBusy = false; renderReviewAgent();
+  }
+}
+
 function renderRoster() {
   const roster = one("[data-punk-roster]");
   roster.replaceChildren();
@@ -684,6 +829,8 @@ function selectPunk(tokenId) {
   state.lastInspection = key ? state.reviewInspections.get(key) ?? null : null;
   state.hydratedTokenId = null; state.galleryTokenId = null; state.galleryLoadingTokenId = null;
   state.fundingPlan = null; state.wrappedPlan = null; state.withdrawalAsset = null;
+  state.reviewMintOpportunityId = null; state.reviewMintArtifact = null;
+  state.reviewMintPrepared = null; state.reviewMintBusy = false;
   state.withdrawalAmount = "1"; state.withdrawalPlan = null; state.withdrawalBusy = false;
   if (!PREVIEW) { state.gallery = []; state.activity = []; }
   renderSelected(); renderCollectionWithdrawal(); scheduleSelectedReviewMissionCheck();
@@ -1201,6 +1348,14 @@ function setup() {
   one("[data-review-agent-run]").addEventListener("click", () => sendReviewAgentOut());
   one("[data-review-agent-recall]").addEventListener("click", recallSelectedReviewAgent);
   one("[data-review-agent-test]").addEventListener("click", () => sendReviewAgentOut({ testMode: true }));
+  one("[data-review-mint-submit]").addEventListener("click", runOwnerAssistedLiveMint);
+  one("[data-review-mint-confirm]").addEventListener("change", () => {
+    if (!one("[data-review-mint-confirm]").checked && state.reviewMintPrepared) {
+      state.reviewMintArtifact = null; state.reviewMintPrepared = null;
+      set("[data-review-mint-status]", "Confirmation cleared. Prepare a fresh live review before submitting.");
+      renderReviewAgent();
+    }
+  });
   all("[data-v2-tab]").forEach((button) => button.addEventListener("click", () => activateTab(button.dataset.v2Tab)));
   all("[data-suggestion]").forEach((button) => button.addEventListener("click", () => {
     const input = one("#punk-prompt"); input.value = button.dataset.suggestion; input.focus();
@@ -1476,15 +1631,42 @@ function setup() {
     const mode = state.localStrategy.intent?.operatingMode ?? state.localStrategy.mode;
     if (mode === "AUTONOMOUS") return;
     if (REVIEW_HOST && !PREVIEW) {
-      try { startReviewAgent(state.localStrategy); }
+      try {
+        if (mode === "ASSIST") {
+          await ensureV2Session();
+          const persisted = await jsonRequest("/api/v2/review/strategy-draft", {
+            method: "POST", headers: { "content-type": "application/json" },
+            body: JSON.stringify({ owner: state.wallet.account,
+              tokenId: state.selected.tokenId, intent: state.localStrategy.intent }),
+          });
+          const prepared = await jsonRequest(`/api/v2/punks/${state.selected.tokenId}/strategy`, {
+            method: "POST", headers: { "content-type": "application/json" },
+            body: JSON.stringify({ action: "prepare_activation",
+              intentHash: persisted.draft.intentHash }),
+          });
+          const provider = window.__GOGH_WALLET_PROVIDER__;
+          const signature = await provider.request({ method: "personal_sign",
+            params: [prepared.challenge.message, state.wallet.account] });
+          await jsonRequest(`/api/v2/punks/${state.selected.tokenId}/strategy`, {
+            method: "POST", headers: { "content-type": "application/json" },
+            body: JSON.stringify({ action: "complete_activation",
+              challengeId: prepared.challenge.challengeId, signature }),
+          });
+          startReviewAgent({ ...state.localStrategy, intentHash: persisted.draft.intentHash });
+        } else startReviewAgent(state.localStrategy);
+      }
       catch (error) {
-        addMessage("punk", `${error?.message ?? "Review agent could not start."} Production remains unchanged.`);
+        addMessage("punk", `${error?.message ?? "Review agent could not start."} No mint authority was granted.`);
         return;
       }
       one("[data-confirmation-dialog]").close();
-      addMessage("punk", dispatchAfterActivation
-        ? `${mode} REVIEW AGENT READY. I'M HEADING TO THE SHARED QUEUE NOW. No production permissions were activated.`
-        : `${mode} REVIEW AGENT READY. I’ll remember these structured rules for this Punk in this browser. No production permissions were activated.`);
+      addMessage("punk", mode === "ASSIST"
+        ? dispatchAfterActivation
+          ? "ASSIST REVIEW AGENT READY. I'M HEADING TO THE ROBINHOOD NFT QUEUE NOW. Your signed strategy is active, but only MetaMask can approve a mint."
+          : "ASSIST REVIEW AGENT READY. Your signed strategy is active. I can scout and simulate; only MetaMask can approve a mint."
+        : dispatchAfterActivation
+          ? "ASK REVIEW AGENT READY. I'M HEADING TO THE ROBINHOOD NFT QUEUE NOW. No mint authority was activated."
+          : "ASK REVIEW AGENT READY. I’ll remember these read-only rules in this browser. No mint authority was activated.");
       if (dispatchAfterActivation) await sendReviewAgentOut();
       return;
     }

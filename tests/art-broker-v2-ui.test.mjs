@@ -164,7 +164,9 @@ test("the hosted PR review runs bounded tab agents while owner transactions stay
   assert.match(script, /REVIEW_MISSION_POLL_MS = 60_000/);
   assert.match(script, /if \(dispatchAfterActivation\) await sendReviewAgentOut\(\)/);
   assert.match(script, /selectedReviewAgent\(\)\?\.intent/);
-  assert.match(script, /No production permissions were activated/);
+  assert.match(script, /Your signed strategy is active, but only MetaMask can approve a mint/);
+  assert.match(script, /api\/v2\/review\/strategy-draft/);
+  assert.match(script, /api\/v2\/review\/mint-receipt/);
   assert.match(script, /reviewAgents: new Map\(\)/);
   assert.match(script, /localStorage\.setItem\(REVIEW_BROWSER_STORAGE_KEY/);
   assert.match(script, /sessionStorage\.getItem\(REVIEW_SESSION_STORAGE_KEY/);

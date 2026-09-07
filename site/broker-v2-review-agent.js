@@ -1,6 +1,7 @@
 const ADDRESS = /^0x[0-9a-f]{40}$/;
 const TOKEN_ID = /^(?:0|[1-9][0-9]{0,3})$/;
 const INTENT_HASH = /^0x[0-9a-f]{64}$/;
+const OPPORTUNITY_ID = /^[a-zA-Z0-9:_-]{8,256}$/;
 const MODES = new Set(["ASK", "ASSIST"]);
 const SCREENING = new Set(["PENDING", "PASSED", "BLOCKED", "NEEDS_REVIEW"]);
 const SIMULATION = new Set(["PENDING", "PASSED", "FAILED", "UNAVAILABLE"]);
@@ -211,15 +212,18 @@ export function normalizeReviewAgentRun(value, expectedTokenId) {
   }
   const opportunities = value.opportunities.map((entry) => {
     const opportunity = entry?.opportunity; const match = entry?.match;
+    const opportunityId = String(opportunity?.opportunityId ?? "");
     const collectionContract = address(opportunity?.collectionContract, "collection contract");
     const collectionName = String(opportunity?.collectionName ?? "").trim();
     const matchScore = Number(match?.matchScore);
-    if (!collectionName || collectionName.length > 160 || !SCREENING.has(opportunity?.screeningStatus)
+    if (!OPPORTUNITY_ID.test(opportunityId) || !collectionName || collectionName.length > 160
+      || !SCREENING.has(opportunity?.screeningStatus)
       || !SIMULATION.has(opportunity?.simulationStatus)
       || typeof match?.recommendationEligible !== "boolean" || !Number.isInteger(matchScore)
       || matchScore < 0 || matchScore > 100) throw new TypeError("Review opportunity is invalid");
     if (typeof entry.previewFixture !== "boolean") throw new TypeError("Review opportunity is invalid");
-    return Object.freeze({ collectionContract, collectionName, previewFixture: entry.previewFixture,
+    return Object.freeze({ opportunityId, collectionContract, collectionName,
+      previewFixture: entry.previewFixture,
       screeningStatus: opportunity.screeningStatus,
       simulationStatus: opportunity.simulationStatus,
       recommendationEligible: match.recommendationEligible, matchScore });

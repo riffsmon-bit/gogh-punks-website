@@ -100,7 +100,8 @@ test("review-run responses are reduced to bounded display-only evidence", () => 
     tokenId: "93", checkedCount: 1, eligibleCount: 1, screeningPassedCount: 1,
     simulationPassedCount: 1, transactionPrepared: false, executionAttemptCreated: false,
     testMode: null, testOpportunityCount: 0,
-    opportunities: [{ previewFixture: false, opportunity: { collectionContract: PUNK_WALLET,
+    opportunities: [{ previewFixture: false, opportunity: {
+      opportunityId: "seadrop:neon-alley:public", collectionContract: PUNK_WALLET,
       collectionName: "Neon Alley", screeningStatus: "PASSED", simulationStatus: "PASSED" },
     match: { recommendationEligible: true, matchScore: 94 } }],
   }, "93");
