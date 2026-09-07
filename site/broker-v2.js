@@ -1796,7 +1796,12 @@ function setup() {
           method: "POST", headers: { "content-type": "application/json" },
           body: JSON.stringify({ message }),
         });
-        draft = payload.draft;
+        draft = payload.draft; reply = payload.reply;
+        if (payload.responseKind === "CONVERSATION") {
+          set("[data-intelligence-status]", payload.providerAvailable
+            ? `GOGH INTELLIGENCE · ${payload.provider.provider}`
+            : "GOGH INTELLIGENCE · SAFE FALLBACK");
+        }
       } catch (error) {
         setChatBusy(false);
         addMessage("punk", `${error?.message ?? "GOGH INTELLIGENCE TEMPORARILY UNAVAILABLE"} Existing safety rules remain active.`);

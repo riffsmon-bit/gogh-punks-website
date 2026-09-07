@@ -1,7 +1,9 @@
 import { getDatabase } from "@netlify/database";
 import { ROBINHOOD } from "../../broker/src/config.mjs";
 import { defaultAskIntent } from "../../broker/src/v4/collecting-intent.mjs";
-import { interpretPunkCollectingIntent } from "../../broker/src/v4/ai/intent-interpreter.mjs";
+import { answerPunkConversation, isPunkConversationMessage } from
+  "../../broker/src/v4/ai/punk-chat.mjs";
+import { draftStrategyFromConversation } from "../../broker/src/v4/intent-draft.mjs";
 import { PublicError, json, readJson, requireSameOrigin } from "./_shared/http.mjs";
 import { createDatabaseBackedGoghIntelligence } from "./_shared/v2-ai-runtime.mjs";
 import { v2Failure } from "./_shared/v2-http.mjs";
@@ -25,7 +27,38 @@ function message(value) {
 }
 function punkReply(confirmation) {
   const taste = confirmation.lookingFor.length ? confirmation.lookingFor.join(" + ").replaceAll("_", " ") : "OPEN TASTE";
-  return `GOT IT. ${confirmation.mintPrice.toUpperCase()}. ${taste}. ${confirmation.dailyLimit} MAX PER DAY. REVIEW THE RULES BEFORE THEY CHANGE.`;
+  return `GOT IT. ${confirmation.mintPrice.toUpperCase()}. ${taste}. ${confirmation.dailyLimit} MAX PER DAY. ${confirmation.totalLimit} MAX FOR THIS STRATEGY. REVIEW THE RULES BEFORE THEY CHANGE.`;
+}
+
+export async function resolveV2PunkChat({ router, ownerMessage, currentIntent, tokenId,
+  authority, owner, now = new Date(), context = {} }) {
+  const conversation = async (intent = currentIntent) => {
+    const answer = await answerPunkConversation({ router, message: ownerMessage, intent,
+      punkTokenId: tokenId, punkState: authority.nativeBalanceWei === undefined ? null : {
+        wallet: authority.punkWallet, nativeBalanceWei: authority.nativeBalanceWei,
+        activated: authority.activated === true,
+      }, strategyStatus: intent === currentIntent ? "ACTIVE" : "DEFAULT", context, now });
+    return Object.freeze({ responseKind: "CONVERSATION", reply: answer.reply, draft: null,
+      provider: { provider: answer.provider, registryKey: answer.registryKey },
+      providerAvailable: answer.providerAvailable });
+  };
+  if (isPunkConversationMessage(ownerMessage)) return conversation();
+  const interpreted = draftStrategyFromConversation({ message: ownerMessage, punkTokenId: tokenId,
+    expectedOwner: owner, punkWallet: authority.punkWallet, currentIntent }, now);
+  if (interpreted.ambiguous.length) {
+    const fields = interpreted.ambiguous.map((field) => field.replaceAll("_", " "));
+    return Object.freeze({ responseKind: "CLARIFICATION_REQUIRED",
+      reply: `I NEED ONE DETAIL: give me an exact ${fields.join(" and ").toLowerCase()} before I change or activate anything.`,
+      draft: null, provider: { provider: "DETERMINISTIC_REVIEW_PARSER", registryKey: null },
+      providerAvailable: true });
+  }
+  if (!interpreted.changes.length) return conversation(interpreted.intent);
+  return Object.freeze({ responseKind: "STRATEGY_DRAFT", reply: punkReply(interpreted.confirmation),
+    draft: { state: interpreted.status, intent: interpreted.intent,
+      intentHash: interpreted.confirmation.intentHash, confirmation: interpreted.confirmation,
+      provider: { provider: "DETERMINISTIC_REVIEW_PARSER", modelId: null } },
+    provider: { provider: "DETERMINISTIC_REVIEW_PARSER", registryKey: null },
+    providerAvailable: true });
 }
 
 export default async function handler(request) {
@@ -51,9 +84,9 @@ export default async function handler(request) {
     const currentIntent = latest.rows[0]?.intent ?? defaultAskIntent({ punkTokenId: tokenId,
       expectedOwner: session.walletAddress, punkWallet: authority.punkWallet }, now);
     const intelligence = createDatabaseBackedGoghIntelligence(pool);
-    const interpreted = await interpretPunkCollectingIntent({ router: intelligence.router,
-      message: ownerMessage, currentIntent, context: { ownerFingerprint: session.walletAddress,
-        punkTokenId: tokenId }, now });
+    const resolved = await resolveV2PunkChat({ router: intelligence.router, ownerMessage,
+      currentIntent, tokenId, authority, owner: session.walletAddress, now,
+      context: { ownerFingerprint: session.walletAddress, punkTokenId: tokenId } });
     const client = await pool.connect();
     let version;
     let conversationId;
@@ -84,29 +117,33 @@ export default async function handler(request) {
         [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, tokenId, session.walletAddress]);
         conversationId = created.rows[0].conversation_id;
       }
-      const next = await client.query(`SELECT COALESCE(MAX(version), 0) + 1 AS version
-        FROM broker_v2_strategies WHERE chain_id = $1 AND collection_address = $2
-          AND token_id = $3::numeric`, [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, tokenId]);
-      version = Number(next.rows[0].version);
-      await client.query(`INSERT INTO broker_v2_strategies
-        (chain_id, collection_address, token_id, version, schema_name, intent_hash, intent,
-         state, configured_by, ownership_block, expires_at)
-        VALUES ($1, $2, $3::numeric, $4, 'PUNK_COLLECTING_INTENT_V1',
-          $5, $6::jsonb, 'PENDING_OWNER_CONFIRMATION', $7, $8::bigint, $9)`,
-      [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, tokenId, version,
-        interpreted.confirmation.intentHash, JSON.stringify(interpreted.intent),
-        session.walletAddress, authority.blockNumber, interpreted.intent.expiration]);
-      const reply = punkReply(interpreted.confirmation);
+      if (resolved.draft) {
+        const next = await client.query(`SELECT COALESCE(MAX(version), 0) + 1 AS version
+          FROM broker_v2_strategies WHERE chain_id = $1 AND collection_address = $2
+            AND token_id = $3::numeric`, [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, tokenId]);
+        version = Number(next.rows[0].version);
+        await client.query(`INSERT INTO broker_v2_strategies
+          (chain_id, collection_address, token_id, version, schema_name, intent_hash, intent,
+           state, configured_by, ownership_block, expires_at)
+          VALUES ($1, $2, $3::numeric, $4, 'PUNK_COLLECTING_INTENT_V1',
+            $5, $6::jsonb, 'PENDING_OWNER_CONFIRMATION', $7, $8::bigint, $9)`,
+        [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, tokenId, version,
+          resolved.draft.confirmation.intentHash, JSON.stringify(resolved.draft.intent),
+          session.walletAddress, authority.blockNumber, resolved.draft.intent.expiration]);
+      }
       await client.query(`INSERT INTO broker_v2_conversation_messages
-        (conversation_id, role, content) VALUES ($1, 'OWNER', $2), ($1, 'PUNK', $3)`,
-      [conversationId, ownerMessage, reply]);
+        (conversation_id, role, content, provider, model_registry_key)
+        VALUES ($1, 'OWNER', $2, NULL, NULL), ($1, 'PUNK', $3, $4, $5)`,
+      [conversationId, ownerMessage, resolved.reply, resolved.provider.provider,
+        resolved.provider.registryKey]);
       await client.query("COMMIT");
     } catch (error) { await client.query("ROLLBACK"); throw error; }
     finally { client.release(); }
-    return json({ ok: true, tokenId, conversationId, reply: punkReply(interpreted.confirmation),
-      draft: { version, state: "PENDING_OWNER_CONFIRMATION", intent: interpreted.intent,
-        intentHash: interpreted.confirmation.intentHash, confirmation: interpreted.confirmation,
-        provider: interpreted.provider }, economicPermissionsActivated: false });
+    return json({ ok: true, tokenId, conversationId, responseKind: resolved.responseKind,
+      reply: resolved.reply, provider: resolved.provider,
+      providerAvailable: resolved.providerAvailable,
+      draft: resolved.draft ? { ...resolved.draft, version } : null,
+      economicPermissionsActivated: false });
   } catch (error) { return v2Failure(error); }
 }
 

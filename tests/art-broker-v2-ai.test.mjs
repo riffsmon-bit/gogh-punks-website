@@ -69,6 +69,27 @@ test("Gemini adapter uses the stateless Interactions API and free-tier registry 
   assert.equal(JSON.stringify(result).includes("server-only-gemini-key"), false);
 });
 
+test("Gemini chat uses the broadly supported stateless generateContent endpoint", async () => {
+  let request;
+  const provider = new GeminiArtBrokerProvider({ modelId: "gemini-3.8-flash",
+    environment: { GEMINI_API_KEY: "server-only-gemini-key" },
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return response({ responseId: "resp_1", candidates: [{ content: { parts: [
+        { text: "Hood afternoon." },
+      ] } }], usageMetadata: { promptTokenCount: 8, candidatesTokenCount: 3 } });
+    } });
+  const result = await provider.chat({ prompt: "hello", instructions: "Be concise." });
+  const body = JSON.parse(request.options.body);
+  assert.equal(request.url,
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent");
+  assert.equal(body.system_instruction.parts[0].text, "Be concise.");
+  assert.equal(body.contents[0].parts[0].text, "hello");
+  assert.equal(body.generationConfig.thinkingConfig.thinkingLevel, "low");
+  assert.equal(result.text, "Hood afternoon.");
+  assert.equal(result.usage.inputTokens, 8);
+});
+
 test("Claude adapter uses Messages output_config and current version header", async () => {
   let request;
   const provider = new AnthropicArtBrokerProvider({ modelId: "runtime-claude",

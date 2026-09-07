@@ -138,6 +138,18 @@ test("natural mission language understands a quantity before free mints", () => 
   assert.equal(draft.status, "PENDING_OWNER_CONFIRMATION");
 });
 
+test("natural mission language understands verb-first mint quantities", () => {
+  const draft = draftStrategyFromConversation({
+    message: "yooo i want you to find some free mints, find me 5 and mint 5 please",
+    punkTokenId: "119", expectedOwner: OWNER, punkWallet: WALLET,
+  }, NOW);
+  assert.equal(draft.intent.mintMode, "FREE_ONLY");
+  assert.equal(draft.intent.dailyMintLimit, 5);
+  assert.equal(draft.intent.totalMintLimit, 5);
+  assert.ok(draft.changes.includes("DAILY_LIMIT"));
+  assert.ok(draft.changes.includes("TOTAL_LIMIT"));
+});
+
 test("chat understands a standalone max-mint count and asks when the count is missing", () => {
   const bounded = draftStrategyFromConversation({
     message: "Find me free pixel art. Max one mint.",
