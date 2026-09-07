@@ -51,7 +51,8 @@ const state = { wallet: null, punks: [], selected: null, localStrategy: null, lo
   withdrawalAmount: "1", withdrawalPlan: null, withdrawalBusy: false,
   reviewAgents: new Map(), reviewInspections: new Map(), reviewActivities: new Map(),
   reviewRuns: new Map(), reviewConversations: new Map(), reviewSkills: new Map(),
-  reviewMissionPhases: new Map(), reviewDiscoveryBackoffs: new Map() };
+  reviewMissionPhases: new Map(), reviewDiscoveryBackoffs: new Map(),
+  reviewMissionInFlight: new Set() };
 const REVIEW_MISSION_POLL_MS = 60_000;
 const REVIEW_DISCOVERY_BACKOFF_MS = 5 * 60_000;
 const REVIEW_SESSION_STORAGE_KEY = "gogh-art-broker-review-session-v1";
@@ -260,6 +261,10 @@ function addReviewActivity(type, title, detail) {
   if (!key) return;
   const time = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }).toUpperCase();
   const existing = state.reviewActivities.get(key) ?? [];
+  if (existing[0]?.[1] === type && existing[0]?.[2] === title && existing[0]?.[3] === detail) {
+    renderActivity();
+    return;
+  }
   state.reviewActivities.set(key, [[time, type, title, detail], ...existing].slice(0, 20));
   persistReviewSessionState();
   renderActivity();
@@ -492,7 +497,7 @@ function scheduleSelectedReviewMissionCheck() {
   const agent = selectedReviewAgent();
   if (!REVIEW_HOST || PREVIEW || agent?.status !== "SCOUTING") return;
   const key = selectedReviewKey();
-  if (!key || !acquireReviewMissionLease(key)) return;
+  if (!key || state.reviewMissionInFlight.has(key) || !acquireReviewMissionLease(key)) return;
   const scheduled = key ? state.reviewMissionPhases.get(key)?.nextCheckAt : null;
   const previousCheck = agent.mission.lastCheckedAt ?? agent.mission.startedAt;
   const nextCheckAt = scheduled ?? Date.parse(previousCheck) + REVIEW_MISSION_POLL_MS;
@@ -509,6 +514,7 @@ async function sendReviewAgentOut({ testMode = false, continueMission = false } 
   if (!agent || !key || (testMode && agent.status !== "ACTIVE")
     || (!testMode && !["ACTIVE", "SCOUTING"].includes(agent.status))
     || (continueMission && agent.status !== "SCOUTING")) return;
+  if (state.reviewMissionInFlight.has(key)) return;
   if (!REVIEW_HOST || PREVIEW) {
     addMessage("punk", "Shared V2 discovery is connected only on the hosted PR review. Nothing was dispatched.");
     return;
@@ -517,6 +523,7 @@ async function sendReviewAgentOut({ testMode = false, continueMission = false } 
     renderMissionMonitor();
     return;
   }
+  state.reviewMissionInFlight.add(key);
   const tokenId = state.selected.tokenId;
   if (!testMode && agent.status === "ACTIVE") {
     agent = dispatchReviewAgent(agent);
@@ -582,6 +589,7 @@ async function sendReviewAgentOut({ testMode = false, continueMission = false } 
     }
     addMessage("punk", `${error?.message ?? "Shared discovery is unavailable."} ${agent.status === "SCOUTING" ? "I'M STAYING OUT AND WILL RETRY. " : ""}Nothing was submitted or authorized.`);
   } finally {
+    state.reviewMissionInFlight.delete(key);
     delete button.dataset.busy; renderReviewAgent();
     scheduleSelectedReviewMissionCheck();
   }
@@ -703,7 +711,13 @@ function renderActivity() {
   renderMissionMonitor();
   const feed = one("[data-activity-feed]"); feed.replaceChildren();
   const key = selectedReviewKey();
-  const entries = [...(key ? state.reviewActivities.get(key) ?? [] : []), ...state.activity];
+  const seen = new Set();
+  const entries = [...(key ? state.reviewActivities.get(key) ?? [] : []), ...state.activity]
+    .filter((entry) => {
+      const signature = JSON.stringify(entry);
+      if (seen.has(signature)) return false;
+      seen.add(signature); return true;
+    });
   if (!entries.length) {
     const empty = document.createElement("li"); empty.className = "panel-empty";
     empty.textContent = PREVIEW ? "No activity yet." : "Open ACTIVITY to load complete Art Broker history.";

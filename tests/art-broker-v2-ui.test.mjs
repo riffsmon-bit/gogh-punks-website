@@ -164,6 +164,10 @@ test("the hosted PR review runs bounded tab agents while owner transactions stay
   assert.match(script, /sessionStorage\.getItem\(REVIEW_SESSION_STORAGE_KEY/);
   assert.match(script, /REVIEW_MISSION_LEASE_MS = 15_000/);
   assert.match(script, /acquireReviewMissionLease/);
+  assert.match(script, /reviewMissionInFlight: new Set\(\)/);
+  assert.match(script, /state\.reviewMissionInFlight\.has\(key\)/);
+  assert.match(script, /state\.reviewMissionInFlight\.delete\(key\)/);
+  assert.match(script, /const seen = new Set\(\)/);
   assert.match(script, /window\.addEventListener\("storage"/);
   assert.match(script, /HOOD MORNING/);
   assert.match(script, /HOOD AFTERNOON/);
