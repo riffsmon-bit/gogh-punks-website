@@ -42,3 +42,19 @@ test("production chat sends ordinary questions to AI and preserves a safe fallba
   assert.equal(fallback.providerAvailable, false);
   assert.match(fallback.reply, /Pixel art rewards clarity/);
 });
+
+test("production chat can refine an active Punk Agent Account strategy", async () => {
+  const agentWallet = "0x3333333333333333333333333333333333333333";
+  const autonomousIntent = { ...currentIntent, punkWallet: agentWallet,
+    operatingMode: "AUTONOMOUS", dailyMintLimit: 5, totalMintLimit: 5 };
+  const result = await resolveV2PunkChat({ router: { run: async () => {
+    throw new Error("strategy commands must not require an AI provider");
+  } }, ownerMessage: "prioritize pixel art", currentIntent: autonomousIntent,
+  tokenId: "93", authority, owner: OWNER, now: NOW });
+  assert.equal(result.responseKind, "STRATEGY_DRAFT");
+  assert.equal(result.draft.intent.operatingMode, "AUTONOMOUS");
+  assert.equal(result.draft.intent.punkWallet, agentWallet);
+  assert.equal(result.draft.intent.dailyMintLimit, 5);
+  assert.equal(result.draft.intent.totalMintLimit, 5);
+  assert.deepEqual(result.draft.intent.preferences.prefer, ["PIXEL_ART"]);
+});
