@@ -6,6 +6,7 @@ import { ROBINHOOD } from "../../broker/src/config.mjs";
 import { normalizePunkCollectingIntent } from "../../broker/src/v4/collecting-intent.mjs";
 import { getSiteUrl } from "./_shared/config.mjs";
 import { PublicError, json, readJson, requireSameOrigin } from "./_shared/http.mjs";
+import { isV2DeployPreviewUrl, requireV2DeployPreview } from "./_shared/v2-review.mjs";
 import { v2Failure } from "./_shared/v2-http.mjs";
 import { readV2PunkAuthority } from "./_shared/v2-ownership.mjs";
 import { requireV2Session } from "./_shared/v2-session.mjs";
@@ -13,6 +14,15 @@ import { verifyWalletSignature } from "./_shared/verification.mjs";
 
 const CHALLENGE_SECONDS = 10 * 60;
 const INTENT_HASH = /^0x[0-9a-f]{64}$/;
+
+export function requireV2StrategyOrigin(request) {
+  if (isV2DeployPreviewUrl(request)) {
+    requireV2DeployPreview(request);
+    return;
+  }
+  requireSameOrigin(request);
+}
+
 function tokenIdFrom(request) {
   const match = new URL(request.url).pathname.match(/^\/api\/v2\/punks\/(\d+)\/strategy$/);
   if (!match || !/^(?:0|[1-9]\d{0,3})$/.test(match[1])) {
@@ -170,7 +180,7 @@ export default async function handler(request) {
       return json({ ok: true, tokenId, strategy: await current(pool, tokenId) });
     }
     if (request.method !== "POST") return json({ ok: false, code: "METHOD_NOT_ALLOWED" }, 405);
-    requireSameOrigin(request);
+    requireV2StrategyOrigin(request);
     const body = await readJson(request, 20_000);
     if (body.action === "prepare_activation") return json({ ok: true,
       challenge: await prepare(pool, tokenId, session, body), strategyActivated: false });

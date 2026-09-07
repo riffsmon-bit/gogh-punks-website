@@ -5,6 +5,7 @@ import { handleV2ReviewChat } from "../netlify/functions/broker-v2-review-chat.m
 import { handleV2ReviewInspectUrl } from "../netlify/functions/broker-v2-review-inspect-url.mjs";
 import { handleV2ReviewRun } from "../netlify/functions/broker-v2-review-run.mjs";
 import { requireV2SessionOrigin } from "../netlify/functions/broker-v2-session.mjs";
+import { requireV2StrategyOrigin } from "../netlify/functions/broker-v2-strategy.mjs";
 import { PublicError } from "../netlify/functions/_shared/http.mjs";
 import { isV2DeployPreview } from "../netlify/functions/_shared/v2-review.mjs";
 
@@ -42,6 +43,25 @@ test("V2 wallet sign-in accepts only an exact self-originating deploy preview", 
     body: "{}" });
   assert.throws(() => requireV2SessionOrigin(hostile),
     (error) => error instanceof PublicError && error.code === "ORIGIN_REJECTED");
+});
+
+test("strategy activation accepts the exact custom and Netlify preview origins", () => {
+  assert.doesNotThrow(() => requireV2StrategyOrigin(request(
+    "/api/v2/punks/93/strategy", { action: "prepare_activation" })));
+  const netlifyOrigin = "https://deploy-preview-42--gogh-punks.netlify.app";
+  assert.doesNotThrow(() => requireV2StrategyOrigin(request(
+    "/api/v2/punks/93/strategy", { action: "prepare_activation" },
+    netlifyOrigin, netlifyOrigin)));
+  const missingOrigin = new Request(`${ORIGIN}/api/v2/punks/93/strategy`, {
+    method: "POST", body: "{}",
+  });
+  assert.throws(() => requireV2StrategyOrigin(missingOrigin),
+    (error) => error instanceof PublicError && error.code === "V2_REVIEW_ONLY");
+  const hostile = new Request(`${ORIGIN}/api/v2/punks/93/strategy`, {
+    method: "POST", headers: { origin: `${ORIGIN}.evil.test` }, body: "{}",
+  });
+  assert.throws(() => requireV2StrategyOrigin(hostile),
+    (error) => error instanceof PublicError && error.code === "V2_REVIEW_ONLY");
 });
 
 test("review chat live-binds the owner and returns an ephemeral structured draft", async () => {
