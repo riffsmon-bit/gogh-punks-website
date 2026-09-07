@@ -32,19 +32,26 @@ function punkReply(confirmation) {
 
 export async function resolveV2PunkChat({ router, ownerMessage, currentIntent, tokenId,
   authority, owner, now = new Date(), context = {} }) {
+  // An autonomous strategy is bound to the owner-approved Punk Agent Account, while ASK and
+  // ASSIST use the canonical Punk Wallet returned by the ownership check. Keep chat grounded in
+  // the strategy's exact custody account so an owner can refine an active autonomous mission.
+  const strategyWallet = currentIntent?.punkWallet ?? authority.punkWallet;
+  const livePunkState = authority.nativeBalanceWei === undefined
+    || strategyWallet !== authority.punkWallet ? null : {
+        wallet: strategyWallet, nativeBalanceWei: authority.nativeBalanceWei,
+        activated: authority.activated === true,
+      };
   const conversation = async (intent = currentIntent) => {
     const answer = await answerPunkConversation({ router, message: ownerMessage, intent,
-      punkTokenId: tokenId, punkState: authority.nativeBalanceWei === undefined ? null : {
-        wallet: authority.punkWallet, nativeBalanceWei: authority.nativeBalanceWei,
-        activated: authority.activated === true,
-      }, strategyStatus: intent === currentIntent ? "ACTIVE" : "DEFAULT", context, now });
+      punkTokenId: tokenId, punkState: livePunkState,
+      strategyStatus: intent === currentIntent ? "ACTIVE" : "DEFAULT", context, now });
     return Object.freeze({ responseKind: "CONVERSATION", reply: answer.reply, draft: null,
       provider: { provider: answer.provider, registryKey: answer.registryKey },
       providerAvailable: answer.providerAvailable });
   };
   if (isPunkConversationMessage(ownerMessage)) return conversation();
   const interpreted = draftStrategyFromConversation({ message: ownerMessage, punkTokenId: tokenId,
-    expectedOwner: owner, punkWallet: authority.punkWallet, currentIntent }, now);
+    expectedOwner: owner, punkWallet: strategyWallet, currentIntent }, now);
   if (interpreted.ambiguous.length) {
     const fields = interpreted.ambiguous.map((field) => field.replaceAll("_", " "));
     return Object.freeze({ responseKind: "CLARIFICATION_REQUIRED",

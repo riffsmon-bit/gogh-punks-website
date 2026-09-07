@@ -18,6 +18,8 @@ test("V2 Control Center exposes the complete selected-Punk action architecture",
   assert.match(html, /ALL HISTORY/);
   assert.match(html, /GOGH INTELLIGENCE · AUTO/);
   assert.match(html, /data-welcome-message/);
+  assert.match(html, /data-talk-mode-control/);
+  assert.equal((html.match(/data-operating-mode/g) ?? []).length, 6);
   assert.match(html, /AUTONOMOUS · LOCKED/);
   assert.match(html, /PUNK AGENT ACCOUNT/);
   assert.match(html, /data-fund-agent-account/);
@@ -27,6 +29,18 @@ test("V2 Control Center exposes the complete selected-Punk action architecture",
   assert.match(html, /data-exact-nft-form/);
   assert.match(html, /data-v2-withdrawal/);
   assert.match(html, /FIXED DESTINATION/);
+});
+
+test("Talk and Settings mode controls share the selected Punk's authoritative mode", async () => {
+  const [html, script] = await Promise.all([
+    readFile(htmlUrl, "utf8"),
+    readFile(new URL("../site/broker-v2.js", import.meta.url), "utf8"),
+  ]);
+  assert.match(html, /name="talk-mode" value="ASK" data-operating-mode/);
+  assert.match(html, /name="settings-mode" value="AUTONOMOUS" data-operating-mode/);
+  assert.match(script, /serverMission\?\.status === "ACTIVE"\s*\? "AUTONOMOUS"/);
+  assert.match(script, /all\("\[data-operating-mode\]"\).*addEventListener\("change"/s);
+  assert.match(script, /Keep every existing collecting rule and show me the complete mission for approval/);
 });
 
 test("V2 semantics, mobile navigation, focus, and reduced motion are deliberate", async () => {
