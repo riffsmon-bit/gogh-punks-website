@@ -10,7 +10,7 @@ import { PublicError, json, readJson } from "./_shared/http.mjs";
 import { createDatabaseBackedGoghIntelligence } from "./_shared/v2-ai-runtime.mjs";
 import { v2Failure } from "./_shared/v2-http.mjs";
 import { readV2PunkAuthority } from "./_shared/v2-ownership.mjs";
-import { requireV2DeployPreview } from "./_shared/v2-review.mjs";
+import { requireV2ChatHost } from "./_shared/v2-review.mjs";
 import { requireV2Session } from "./_shared/v2-session.mjs";
 
 const TOKEN = /^(?:0|[1-9]\d{0,3})$/;
@@ -136,7 +136,7 @@ export async function handleV2ReviewChat(request, {
   readAuthority = readV2PunkAuthority, now = new Date(), answerConversation = null } = {}) {
   if (request.method !== "POST") return json({ ok: false, code: "METHOD_NOT_ALLOWED" }, 405);
   try {
-    requireV2DeployPreview(request);
+    requireV2ChatHost(request);
     const body = exactBody(await readJson(request, 20_000));
     const authority = await readAuthority(body.tokenId, { expectedOwner: body.owner });
     try {

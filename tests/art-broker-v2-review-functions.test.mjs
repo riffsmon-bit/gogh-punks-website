@@ -7,7 +7,8 @@ import { handleV2ReviewRun } from "../netlify/functions/broker-v2-review-run.mjs
 import { requireV2SessionOrigin } from "../netlify/functions/broker-v2-session.mjs";
 import { requireV2StrategyOrigin } from "../netlify/functions/broker-v2-strategy.mjs";
 import { PublicError } from "../netlify/functions/_shared/http.mjs";
-import { isV2DeployPreview } from "../netlify/functions/_shared/v2-review.mjs";
+import { isV2ChatHost, isV2DeployPreview } from
+  "../netlify/functions/_shared/v2-review.mjs";
 
 const ORIGIN = "https://deploy-preview-42.preview.goghpunks.xyz";
 const OWNER = "0x1111111111111111111111111111111111111111";
@@ -30,6 +31,17 @@ test("review-only capabilities require the exact same deploy-preview origin", ()
   assert.equal(isV2DeployPreview(hostile), false);
   assert.equal(isV2DeployPreview(request("/api/v2/review/chat", {},
     "https://goghpunks.xyz", "https://goghpunks.xyz")), false);
+});
+
+test("Punk conversation accepts exact production and branch hosts only", () => {
+  assert.equal(isV2ChatHost(request("/api/v2/review/chat", {},
+    "https://goghpunks.xyz", "https://goghpunks.xyz")), true);
+  const branch = "https://ai-chat--gogh-punks.netlify.app";
+  assert.equal(isV2ChatHost(request("/api/v2/review/chat", {}, branch, branch)), true);
+  assert.equal(isV2ChatHost(request("/api/v2/review/chat", {},
+    "https://goghpunks.xyz.evil.test", "https://goghpunks.xyz.evil.test")), false);
+  assert.equal(isV2ChatHost(request("/api/v2/review/chat", {},
+    "https://goghpunks.xyz", "https://www.goghpunks.xyz")), false);
 });
 
 test("V2 wallet sign-in accepts only an exact self-originating deploy preview", () => {
@@ -348,14 +360,19 @@ test("review link inspection accepts information but no transaction authority", 
   assert.equal(payload.externalCalldataAccepted, false);
 });
 
-test("review functions are absent from production and contain no transaction send path", async () => {
+test("production chat remains owner-bound and all review functions contain no send path", async () => {
+  let authorityRead = false;
   const response = await handleV2ReviewChat(request("/api/v2/review/chat", {
-    owner: OWNER, tokenId: "93", message: "Find free art.",
+    owner: OWNER, tokenId: "93", message: "What do you think about pixel art?",
   }, "https://goghpunks.xyz", "https://goghpunks.xyz"), {
-    readAuthority: async () => { throw new Error("must not read"); } });
-  assert.equal(response.status, 404);
+    readAuthority: async () => { authorityRead = true; return { punkWallet: PUNK_WALLET }; },
+    answerConversation: async () => ({ reply: "I can help review free art.",
+      provider: "TEST", registryKey: "test:chat", providerAvailable: true }),
+  });
+  assert.equal(response.status, 200);
   const payload = await response.json();
-  assert.equal(payload.code, "V2_REVIEW_ONLY");
+  assert.equal(payload.reply, "I can help review free art.");
+  assert.equal(authorityRead, true);
   const sources = await Promise.all([
     readFile(new URL("../netlify/functions/broker-v2-review-chat.mjs", import.meta.url), "utf8"),
     readFile(new URL("../netlify/functions/broker-v2-review-inspect-url.mjs", import.meta.url), "utf8"),
