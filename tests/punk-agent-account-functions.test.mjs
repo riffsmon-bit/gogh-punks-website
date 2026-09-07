@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import undeployed from "../deployments/robinhood-punk-agent-account.json" with { type: "json" };
+import deployment from "../deployments/robinhood-punk-agent-account.json" with { type: "json" };
 import { defaultAskIntent } from "../broker/src/v4/collecting-intent.mjs";
 import { draftPunkSkillFromConversation } from "../broker/src/v4/punk-skill.mjs";
 import { runScheduledPunkAgentWorker } from
@@ -16,6 +16,14 @@ const ORIGIN = "https://deploy-preview-42.preview.goghpunks.xyz";
 const OWNER = "0x1111111111111111111111111111111111111111";
 const PUNK_WALLET = "0x2222222222222222222222222222222222222222";
 const NOW = new Date("2026-09-07T12:00:00.000Z");
+
+const undeployed = Object.freeze({ ...structuredClone(deployment), status: "UNDEPLOYED",
+  contracts: { GoghPunkAgentAccount: null, GoghPunkAgentAccountRegistry: null },
+  configuration: Object.fromEntries(Object.keys(deployment.configuration)
+    .map((key) => [key, false])),
+  authorization: { deploymentAuthorized: false, automaticSubmissionEnabled: false },
+  notes: "Test fixture: no deployed Punk Agent Account contracts or authority.",
+});
 
 function setupRequest() {
   return new Request(`${ORIGIN}/api/v2/agent-account/setup`, { method: "POST",

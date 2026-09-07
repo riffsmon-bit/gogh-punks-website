@@ -4,6 +4,7 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 
 import { ENTRY_POINT_V08 } from "./punk-agent-account-setup.mjs";
+import { createPunkAgentDirectRelay } from "./punk-agent-direct-relay.mjs";
 import {
   normalizePunkAgentAccountDeployment,
   punkAgentAccountReadiness,
@@ -246,6 +247,22 @@ export function createPunkAgentBundler({ url, fetchImpl = globalThis.fetch, time
   } });
 }
 
+export function createConfiguredPunkAgentBundler(environment = process.env) {
+  const mode = environment.PUNK_AGENT_BUNDLER_MODE ?? "HTTPS";
+  if (mode === "DIRECT_PRIVATE_RELAY") {
+    return createPunkAgentDirectRelay({
+      url: environment.PUNK_AGENT_DIRECT_RELAY_RPC_URL,
+      privateKey: environment.PUNK_AGENT_SESSION_PRIVATE_KEY,
+      expectedAddress: environment.PUNK_AGENT_SESSION_ADDRESS,
+      receiptLookbackBlocks: environment.PUNK_AGENT_RECEIPT_LOOKBACK_BLOCKS ?? "120000",
+      minimumBalanceWei: environment.PUNK_AGENT_DIRECT_RELAY_MIN_BALANCE_WEI
+        ?? "200000000000000",
+    });
+  }
+  if (mode !== "HTTPS") fail("INVALID_BUNDLER", "Punk Agent bundler mode is invalid");
+  return createPunkAgentBundler({ url: environment.PUNK_AGENT_BUNDLER_RPC_URL });
+}
+
 export async function readPunkAgentBundlerReadiness({ bundler, entryPoint = ENTRY_POINT_V08 }) {
   if (!bundler || typeof bundler.request !== "function") {
     fail("INVALID_BUNDLER", "bundler transport is unavailable");
@@ -258,8 +275,11 @@ export async function readPunkAgentBundlerReadiness({ bundler, entryPoint = ENTR
     || !supported.some((item) => String(item).toLowerCase() === ENTRY_POINT_V08)) {
     fail("BUNDLER_BINDING_MISMATCH", "bundler does not support canonical Robinhood EntryPoint");
   }
+  const funding = typeof bundler.fundingState === "function"
+    ? await bundler.fundingState() : null;
   return Object.freeze({ ready: true, chainId: 4663, entryPoint: getAddress(entryPoint),
-    endpointOrigin: bundler.endpointOrigin ?? null });
+    mode: bundler.mode ?? "HTTPS", endpointOrigin: bundler.endpointOrigin ?? null,
+    ...(funding ? { funding } : {}) });
 }
 
 export async function readPunkAgentUserOperationReceipt({ bundler, userOpHash }) {

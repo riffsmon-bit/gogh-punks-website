@@ -3,7 +3,7 @@ import { createPublicClient, http } from "viem";
 
 import deployment from "../../deployments/robinhood-punk-agent-account.json" with { type: "json" };
 import {
-  createPunkAgentBundler,
+  createConfiguredPunkAgentBundler,
   createPunkAgentSessionSigner,
   readPunkAgentAccountRuntime,
   readPunkAgentBundlerReadiness,
@@ -55,10 +55,11 @@ export async function handleV2AgentAccount(request, {
         ...(signerAddress ? { expectedSessionKey: signerAddress } : {}) });
     }
     let bundler = Object.freeze({ ready: false });
-    if (environment.PUNK_AGENT_BUNDLER_RPC_URL) {
-      try { bundler = await readPunkAgentBundlerReadiness({ bundler: createPunkAgentBundler({
-        url: environment.PUNK_AGENT_BUNDLER_RPC_URL,
-      }) }); } catch { bundler = Object.freeze({ ready: false }); }
+    if (environment.PUNK_AGENT_BUNDLER_RPC_URL
+      || environment.PUNK_AGENT_BUNDLER_MODE === "DIRECT_PRIVATE_RELAY") {
+      try { bundler = await readPunkAgentBundlerReadiness({
+        bundler: createConfiguredPunkAgentBundler(environment),
+      }); } catch { bundler = Object.freeze({ ready: false }); }
     }
     let mission = null;
     let skills = [];

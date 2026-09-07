@@ -1,6 +1,6 @@
 # Art Broker Deployment
 
-Status: **NOT DEPLOYED**.
+Status: **PUNK AGENT ACCOUNT DEPLOYED; PRODUCTION WORKER SWITCH OFF PENDING CANARY**.
 
 No command in the default validation workflow signs or broadcasts a transaction.
 
@@ -15,8 +15,9 @@ owner-taught playbook is persisted as read-only application data and cannot alte
 
 The checked-in
 [`robinhood-punk-agent-account.json`](../deployments/robinhood-punk-agent-account.json)
-manifest is deliberately `UNDEPLOYED` and fail-closed. The UI may explain and preview the
-flow, but it must not offer autonomous authorization while any manifest blocker remains.
+manifest records the live implementation and registry while remaining fail-closed. The UI may
+explain and preview the flow, but it must not offer autonomous authorization while any manifest
+blocker remains.
 The scheduled worker is also disabled by default and returns before constructing an RPC client,
 bundler, or signer.
 
@@ -51,13 +52,32 @@ Required server environment:
 
 ```text
 PUNK_AGENT_WORKER_ENABLED=false
+PUNK_AGENT_BUNDLER_MODE=HTTPS
 PUNK_AGENT_BUNDLER_RPC_URL=https://...
+PUNK_AGENT_DIRECT_RELAY_RPC_URL=https://...
+PUNK_AGENT_RECEIPT_LOOKBACK_BLOCKS=120000
+PUNK_AGENT_DIRECT_RELAY_MIN_BALANCE_WEI=200000000000000
 PUNK_AGENT_SESSION_ADDRESS=0x...
 PUNK_AGENT_SESSION_PRIVATE_KEY=<Functions secret>
 PUNK_AGENT_VERIFICATION_GAS_LIMIT=250000
 PUNK_AGENT_CALL_GAS_LIMIT=350000
 PUNK_AGENT_PRE_VERIFICATION_GAS=75000
 GOGH_V2_DISCOVERY_INGEST_ENABLED=false
+```
+
+For the non-Alchemy deployment, set `PUNK_AGENT_BUNDLER_MODE=DIRECT_PRIVATE_RELAY` and point
+`PUNK_AGENT_DIRECT_RELAY_RPC_URL` at the production Robinhood JSON-RPC provider. This is a private,
+single-UserOperation relayer embedded in the scheduled worker, not a public ERC-4337 mempool. It
+permits only chain/readiness, exact gas simulation, one `handleOps` submission, and canonical
+receipt lookup. Keep its endpoint and signer in Functions scope and keep the worker disabled until
+the relayer signer has a deliberately small native-gas float and the Punk account has an EntryPoint
+deposit.
+
+The production relay binding can be checked without exporting or printing its Keychain-backed
+private key:
+
+```bash
+node scripts/check-punk-agent-direct-relay-readiness.mjs
 ```
 
 The owner flow is intentionally explicit. If the counterfactual account has not been created,

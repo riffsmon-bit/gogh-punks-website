@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { encodeAbiParameters, encodeEventTopics, keccak256 } from "viem";
 
-import undeployed from "../deployments/robinhood-punk-agent-account.json" with { type: "json" };
+import deployment from "../deployments/robinhood-punk-agent-account.json" with { type: "json" };
 import {
   createPunkAgentBundler,
   createPunkAgentSessionSigner,
@@ -27,6 +27,14 @@ const OPPORTUNITY = `0x${"66".repeat(32)}`;
 const USER_OP = `0x${"77".repeat(32)}`;
 const TRANSACTION = `0x${"88".repeat(32)}`;
 const CODE = "0x6001600055";
+
+const undeployed = Object.freeze({ ...structuredClone(deployment), status: "UNDEPLOYED",
+  contracts: { GoghPunkAgentAccount: null, GoghPunkAgentAccountRegistry: null },
+  configuration: Object.fromEntries(Object.keys(deployment.configuration)
+    .map((key) => [key, false])),
+  authorization: { deploymentAuthorized: false, automaticSubmissionEnabled: false },
+  notes: "Test fixture: no deployed Punk Agent Account contracts or authority.",
+});
 
 function deployed() {
   return { ...structuredClone(undeployed), status: "DEPLOYED",

@@ -3,7 +3,7 @@ import { getDatabase } from "@netlify/database";
 import { createPublicClient, http, keccak256 } from "viem";
 
 import deployment from "../../deployments/robinhood-punk-agent-account.json" with { type: "json" };
-import { createPunkAgentBundler, createPunkAgentSessionSigner,
+import { createConfiguredPunkAgentBundler, createPunkAgentSessionSigner,
   readPunkAgentUserOperationReceipt, verifyPunkAgentMintReceipt } from
   "../../broker/src/agent-account/punk-agent-account-runtime.mjs";
 import { runPunkAgentMissionOnce } from
@@ -353,9 +353,7 @@ export async function runScheduledPunkAgentWorker({
       [ROBINHOOD.chainId, 8004]);
     leaseHeld = leaseResult.rows[0]?.acquired === true;
     if (!leaseHeld) return Object.freeze({ status: "WORKER_ALREADY_RUNNING", submitted: false });
-    const liveBundler = bundler ?? createPunkAgentBundler({
-      url: environment.PUNK_AGENT_BUNDLER_RPC_URL,
-    });
+    const liveBundler = bundler ?? createConfiguredPunkAgentBundler(environment);
     const liveClient = client ?? createClient();
     const liveSigner = signer ?? createPunkAgentSessionSigner(environment);
     const reconciliation = await reconcileOne(pool, liveClient, liveBundler, now);
