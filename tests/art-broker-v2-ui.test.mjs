@@ -133,6 +133,7 @@ test("the hosted PR review runs bounded tab agents while owner transactions stay
   assert.match(html, /data-review-agent-console/);
   assert.match(html, /SEND PUNK OUT/);
   assert.match(html, /ACTIVATE &amp; SEND PUNK OUT/);
+  assert.match(html, /data-review-agent-recall hidden>CALL PUNK BACK/);
   assert.match(html, /RUN SAFE TEST/);
   assert.match(html, /data-review-agent-rules/);
   assert.match(html, /CONFIRMED DAILY LIMIT/);
@@ -155,6 +156,11 @@ test("the hosted PR review runs bounded tab agents while owner transactions stay
   assert.match(script, /startReviewAgent/);
   assert.match(script, /dispatchAfterActivation/);
   assert.match(script, /recordReviewMissionRun/);
+  assert.match(script, /function recallSelectedReviewAgent\(\)/);
+  assert.match(script, /PUNK CALLED BACK BY OWNER/);
+  assert.match(script, /selectedReviewAgent\(\)\?\.status !== "SCOUTING"/);
+  assert.match(script, /reviewMissionTimer = null/);
+  assert.match(script, /releaseReviewMissionLease\(key\)/);
   assert.match(script, /REVIEW_MISSION_POLL_MS = 60_000/);
   assert.match(script, /if \(dispatchAfterActivation\) await sendReviewAgentOut\(\)/);
   assert.match(script, /selectedReviewAgent\(\)\?\.intent/);

@@ -387,9 +387,12 @@ function renderReviewAgent() {
     ? "These are confirmed rules. To change them, tell your Punk in chat and approve the new complete draft."
     : "Set every mission parameter in chat. Your Punk will show one complete draft for review before anything changes.");
   const runButton = one("[data-review-agent-run]");
+  const recallButton = one("[data-review-agent-recall]");
   const testButton = one("[data-review-agent-test]");
   const runBusy = runButton.dataset.busy === "true" || testButton.dataset.busy === "true";
   runButton.disabled = runBusy || !agent || agent.status !== "ACTIVE";
+  recallButton.hidden = agent?.status !== "SCOUTING";
+  recallButton.disabled = agent?.status !== "SCOUTING";
   testButton.disabled = runBusy || !agent || agent.status !== "ACTIVE";
   runButton.textContent = runBusy || agent?.status === "SCOUTING" ? "PUNK IS OUT…"
     : agent?.status === "RETURNED" ? "MISSION COMPLETE" : "SEND PUNK OUT";
@@ -508,6 +511,22 @@ function scheduleSelectedReviewMissionCheck() {
   }, delay);
 }
 
+function recallSelectedReviewAgent() {
+  const key = selectedReviewKey(); const agent = selectedReviewAgent();
+  if (!key || agent?.status !== "SCOUTING") return;
+  if (reviewMissionTimer !== null) window.clearTimeout(reviewMissionTimer);
+  reviewMissionTimer = null;
+  const recalled = pauseReviewAgent(agent);
+  setReviewAgent(key, recalled);
+  setReviewMissionPhase(key, "PAUSED");
+  releaseReviewMissionLease(key);
+  state.selected.mode = "PAUSED";
+  renderSelected();
+  addReviewActivity("CALLED BACK", "PUNK CALLED BACK BY OWNER",
+    `${recalled.mission.foundContracts.length}/${recalled.mission.targetMatches} mission matches · scouting stopped · no transaction submitted`);
+  addMessage("punk", "I’M BACK. SCOUTING HAS STOPPED, THE MISSION TIMER IS OFF, AND NOTHING WAS SUBMITTED.");
+}
+
 async function sendReviewAgentOut({ testMode = false, continueMission = false } = {}) {
   let agent = selectedReviewAgent(); const key = selectedReviewKey();
   const button = testMode ? one("[data-review-agent-test]") : one("[data-review-agent-run]");
@@ -550,6 +569,7 @@ async function sendReviewAgentOut({ testMode = false, continueMission = false } 
           "Scanning the last confirmed Robinhood NFT queue · live refresh will retry in five minutes");
       }
     } else if (!testMode) refreshDegraded = true;
+    if (!testMode && selectedReviewAgent()?.status !== "SCOUTING") return;
     if (!testMode) setReviewMissionPhase(key, "SCREENING");
     const response = await jsonRequest("/api/v2/review/run", { method: "POST",
       headers: { "content-type": "application/json" }, body: JSON.stringify({
@@ -557,6 +577,7 @@ async function sendReviewAgentOut({ testMode = false, continueMission = false } 
         ...(testMode ? { testMode: "SAFE_FIXTURE" } : {}),
       }), timeoutMs: 20_000 });
     const run = normalizeReviewAgentRun(response, tokenId);
+    if (!testMode && selectedReviewAgent()?.status !== "SCOUTING") return;
     state.reviewRuns.set(key, run);
     const leading = run.opportunities.find(({ recommendationEligible }) => recommendationEligible);
     if (testMode) {
@@ -1178,6 +1199,7 @@ function setup() {
     });
   }
   one("[data-review-agent-run]").addEventListener("click", () => sendReviewAgentOut());
+  one("[data-review-agent-recall]").addEventListener("click", recallSelectedReviewAgent);
   one("[data-review-agent-test]").addEventListener("click", () => sendReviewAgentOut({ testMode: true }));
   all("[data-v2-tab]").forEach((button) => button.addEventListener("click", () => activateTab(button.dataset.v2Tab)));
   all("[data-suggestion]").forEach((button) => button.addEventListener("click", () => {
