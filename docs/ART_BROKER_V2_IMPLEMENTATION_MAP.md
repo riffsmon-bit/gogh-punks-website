@@ -1,8 +1,8 @@
 # Gogh Punks Art Broker V2 implementation map
 
 Status: repository audit and implementation boundary. Public product name is **Art Broker V2**.
-New internal modules use `v4` where needed to avoid colliding with the retired V1 repository's
-existing V2/V3 automation names.
+Next-generation modules use descriptive capability names rather than adding another public product
+version.
 
 ## Product boundary
 
@@ -42,11 +42,24 @@ or multi-adapter rules on chain. Those additional rules may narrow an already-su
 off-chain, but they cannot broaden the deployed contract's authority.
 
 A contract account also cannot originate an EVM transaction or pay transaction gas by itself. The
-deployed autonomous entry point expects an externally funded authorized EOA to submit and pay gas;
-it has no narrowly typed reimbursement path from the Punk Wallet. Therefore a fully self-funded
-AUTONOMOUS V2 executor is not production-capable under the simultaneous constraints of no hosted
-gas and no new deployment. V2 must fail closed here. ASK and ASSIST can be real without that gap;
-AUTONOMOUS stays disabled until the owner separately chooses an architecture that closes it.
+deployed V3 autonomous entry point expects an externally funded authorized EOA to submit and pay
+gas; it has no narrowly typed reimbursement path from the Punk Wallet. Therefore the deployed V3
+path remains fail-closed for fully self-funded autonomy.
+
+The repository now contains an undeployed Punk Agent Account resolution built around Robinhood's canonical
+ERC-4337 v0.8 EntryPoint. The Punk Agent Account remains ERC-6551 ownership-bound, but replaces the hosted EOA authority
+with an owner-approved, expiring mission session key. The account validates the entire packed
+UserOperation, admits only one registered mint adapter and venue, requires a quantity-one zero-price
+ERC-721 intent, enforces daily and mission caps, caps maximum UserOperation gas, preserves an owner
+defined native reserve, and can supply a missing EntryPoint prefund from the Punk Wallet's ETH.
+Ownership transfer and owner revocation invalidate the session. Paymasters, paid mints, arbitrary
+session calldata, token approvals, sales, and transfers are outside the session authority.
+
+This source and its two-approval artifact do not make AUTONOMOUS production-capable by themselves.
+The Punk Agent Account implementation and facade must be separately deployed and verified, the existing reviewed
+adapter must be confirmed active, a secure session signer and bundler path must be provisioned, and
+receipt reconciliation must be completed before the UI lock can be removed. ASK and ASSIST remain
+the only production-capable modes until those gates pass.
 
 ## V1 deprecation inventory
 
@@ -122,8 +135,10 @@ data or recovery code.
    grants authority.
 9. **Execution** — durable attempt identity from selection through receipt reconciliation. ASK and
    ASSIST remain distinct from AUTONOMOUS. Unsupported on-chain authority is rejected.
-10. **Canary** — ASK first, ASSIST second, and no autonomous activation until the self-funded gas
-    blocker and transfer-epoch limitation receive a separate explicit resolution and authorization.
+10. **Punk Agent Account** — undeployed ERC-6551 + ERC-4337 account, mission-session limits,
+    Punk-funded EntryPoint prefund, and a deterministic maximum-two-approval owner artifact.
+11. **Canary** — ASK first, ASSIST second, then a separately authorized Punk Agent Account deployment and one-Punk
+    autonomous canary only after signer, bundler, receipt, pause, and monitoring gates pass.
 
 ## Versioned domain records
 

@@ -52,6 +52,7 @@ function requireEvent(name, contractArtifact, eventName, expectedInputs) {
 }
 
 const account = artifact("GoghPunkAccountV1.sol", "GoghPunkAccountV1");
+const autonomousAccount = artifact("GoghPunkAgentAccount.sol", "GoghPunkAgentAccount");
 const registry = artifact("GoghPunkAccountRegistry.sol", "GoghPunkAccountRegistry");
 const policy = artifact("BrokerPolicyModule.sol", "BrokerPolicyModule");
 const agents = artifact("ArtAgentRegistry.sol", "ArtAgentRegistry");
@@ -84,6 +85,27 @@ requireEvent("GoghPunkAccountV1", account, "AcquisitionExecuted", [
   { name: "nonce", type: "uint256", indexed: false },
   { name: "state", type: "uint256", indexed: false },
 ]);
+requireFunctions("GoghPunkAgentAccount", autonomousAccount, [
+  "owner",
+  "token",
+  "execute",
+  "executeBatch",
+  "configureAutonomousSession",
+  "revokeAutonomousSession",
+  "validateUserOp",
+  "executeSessionAcquisition",
+  "depositToEntryPoint",
+  "withdrawEntryPointDeposit",
+]);
+requireEvent("GoghPunkAgentAccount", autonomousAccount, "SessionAcquisitionExecuted", [
+  { name: "generation", type: "uint64", indexed: true },
+  { name: "opportunityId", type: "bytes32", indexed: true },
+  { name: "collection", type: "address", indexed: true },
+  { name: "tokenId", type: "uint256", indexed: false },
+  { name: "nonce", type: "uint256", indexed: false },
+  { name: "remainingMints", type: "uint32", indexed: false },
+  { name: "state", type: "uint256", indexed: false },
+]);
 requireFunctions("GoghPunkAccountRegistry", registry, [
   "account",
   "createAccount",
@@ -109,6 +131,7 @@ requireFunctions("ArtAdapterRegistry", adapters, [
 
 const sizes = {
   GoghPunkAccountV1: requireDeployableSize("GoghPunkAccountV1", account),
+  GoghPunkAgentAccount: requireDeployableSize("GoghPunkAgentAccount", autonomousAccount),
   GoghPunkAccountRegistry: requireDeployableSize("GoghPunkAccountRegistry", registry),
   BrokerPolicyModule: requireDeployableSize("BrokerPolicyModule", policy),
   ArtAgentRegistry: requireDeployableSize("ArtAgentRegistry", agents),
