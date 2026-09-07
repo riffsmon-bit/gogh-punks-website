@@ -33,8 +33,12 @@ export default async function handler(request) {
           amount: String(row.asset_amount), acquiredAt: new Date(row.acquired_at).toISOString(),
           provenance: String(row.acquisition_mode).startsWith("V2") ? "V2" : "V1",
           acquisitionType: row.acquisition_mode, mintCostWei: String(row.price),
+          custodyAccount: row.punk_account_address,
+          custodyType: row.punk_account_address === authority.punkWallet
+            ? "PUNK_WALLET" : "PUNK_AGENT_ACCOUNT",
           transactionHash: row.transaction_hash, artwork: row.nftMetadata ?? null,
-          withdrawControlUrl: `/broker/punk/${tokenId}?tab=assets` };
+          withdrawControlUrl: row.punk_account_address === authority.punkWallet
+            ? `/broker/punk/${tokenId}?tab=assets` : null };
       }), indexerIsCustodyAuthority: false });
   } catch (error) { return v2Failure(error); }
 }

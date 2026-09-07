@@ -19,6 +19,8 @@ test("V2 Control Center exposes the complete selected-Punk action architecture",
   assert.match(html, /GOGH INTELLIGENCE · AUTO/);
   assert.match(html, /data-welcome-message/);
   assert.match(html, /AUTONOMOUS · LOCKED/);
+  assert.match(html, /PUNK AGENT ACCOUNT/);
+  assert.match(html, /data-fund-agent-account/);
   assert.match(html, /WITHDRAW FROM THE PIECE/);
   assert.match(html, /ETH ↔ WETH/);
   assert.match(html, /MISSING AN NFT\? PASTE ITS EXACT OPENSEA ITEM LINK/);
@@ -91,6 +93,10 @@ test("funding exposes hardened ETH funding and canonical WETH wrap submission", 
   assert.match(script, /simulateWrappedNativeTransaction/);
   assert.match(script, /readPunkWalletFundsState/);
   assert.match(script, /waitForPunkWalletTransactionReceipt/);
+  assert.match(script, /api\/v2\/agent-account\/setup/);
+  assert.match(script, /api\/v2\/agent-account\/receipt/);
+  assert.match(script, /api\/v2\/agent-account\/recall/);
+  assert.match(script, /Punk Agent Account gas/);
   assert.doesNotMatch(script, /readOwnerPolicyState|fetchOwnerPolicyGate/);
   assert.match(script, /if \(state\.selected && activeTab\) void hydrateSelected\(activeTab\)/);
   assert.match(script, /FUNDING CONFIRMED/);

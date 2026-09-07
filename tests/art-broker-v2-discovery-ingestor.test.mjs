@@ -7,6 +7,8 @@ import {
 } from "../broker/src/v4/discovery/seadrop-ingestor.mjs";
 import { handleV2DiscoveryIngest } from
   "../netlify/functions/broker-v2-discovery-ingest.mjs";
+import { runScheduledV2Discovery } from
+  "../netlify/functions/broker-v2-discovery-worker.mjs";
 import { advanceRobinhoodDiscoveryCheckpoint, readCurrentRobinhoodSeaDropObservations } from
   "../broker/src/v4/discovery/robinhood-seadrop-source.mjs";
 
@@ -165,4 +167,27 @@ test("the live ingestor is admin-only, disabled by default, and never creates ex
   });
   assert.equal(preview.status, 200);
   assert.equal((await preview.json()).previewDatabaseOnly, true);
+});
+
+test("scheduled discovery refreshes the shared queue only behind production RPC gates", async () => {
+  let calls = 0;
+  const run = async ({ environment }) => {
+    calls += 1;
+    assert.equal(environment.GOGH_V2_DISCOVERY_INGEST_ENABLED, "true");
+    return { status: "COMPLETE", discoveredCount: 2 };
+  };
+  assert.deepEqual(await runScheduledV2Discovery({ environment: {}, run }),
+    { status: "DISABLED" });
+  assert.equal(calls, 0);
+  const reports = [];
+  assert.deepEqual(await runScheduledV2Discovery({ environment: {
+    GOGH_V2_DISCOVERY_INGEST_ENABLED: "true", PAUSE_BACKGROUND_RPC: "true",
+  }, run, report: (value) => reports.push(value) }),
+  { status: "BACKGROUND_DISABLED", reason: "EMERGENCY_PAUSE" });
+  assert.equal(calls, 0);
+  assert.match(reports[0], /V2_DISCOVERY_INGEST/);
+  assert.deepEqual(await runScheduledV2Discovery({ environment: {
+    GOGH_V2_DISCOVERY_INGEST_ENABLED: "true",
+  }, run }), { status: "COMPLETE", discoveredCount: 2 });
+  assert.equal(calls, 1);
 });

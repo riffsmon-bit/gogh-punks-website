@@ -25,7 +25,7 @@ const REGISTRY_ABI = Object.freeze([{
   outputs: [{ name: "accountAddress", type: "address" }],
 }]);
 
-const ACCOUNT_ABI = Object.freeze([
+export const PUNK_AGENT_ACCOUNT_SETUP_ABI = Object.freeze([
   {
     type: "function", name: "configureAutonomousSession", stateMutability: "nonpayable",
     inputs: [{
@@ -191,11 +191,11 @@ export function buildPunkAgentAccountSessionSetup(inputValue, options = {}) {
   }
   setupTransactions.push(transaction(
     setupTransactions.length + 1, 2, "AUTHORIZE_MISSION_SESSION", owner, account,
-    ACCOUNT_ABI, "configureAutonomousSession", [sessionTuple],
+    PUNK_AGENT_ACCOUNT_SETUP_ABI, "configureAutonomousSession", [sessionTuple],
   ));
   const stopTransaction = transaction(
     1, null, "REVOKE_MISSION_SESSION", owner, account,
-    ACCOUNT_ABI, "revokeAutonomousSession", [],
+    PUNK_AGENT_ACCOUNT_SETUP_ABI, "revokeAutonomousSession", [],
   );
   const artifact = {
     schema: PUNK_AGENT_ACCOUNT_SETUP_SCHEMA,

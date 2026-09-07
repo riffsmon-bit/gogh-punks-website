@@ -127,17 +127,19 @@ function fallbackReply(message, intent, inspection, strategyStatus, punkState, r
   const text = message.toLowerCase();
   if (/\b(?:where|send|out|go)\b.*\b(?:agent|punk|you)\b|\b(?:agent|punk|you)\b.*\b(?:where|send|out|go)\b/.test(text)) {
     if (review?.missionStatus === "SCOUTING") {
-      return `I’m out scouting right now—not minting. I’ve completed ${review.missionChecks} check${review.missionChecks === 1 ? "" : "s"}, reviewed ${review.missionCheckedOpportunities} opportunities, and found ${review.missionFound}/${review.missionTarget} mission matches. I cannot mint or sign in this review build.`;
+      return intent.operatingMode === "AUTONOMOUS"
+        ? `I’m out on an owner-approved Punk Agent Account mission. I’ve completed ${review.missionChecks} check${review.missionChecks === 1 ? "" : "s"}, reviewed ${review.missionCheckedOpportunities} opportunities, and found ${review.missionFound}/${review.missionTarget} completed mints. The worker may submit only a screened, simulated free mint inside my on-chain session limits.`
+        : `I’m out scouting right now—not minting. I’ve completed ${review.missionChecks} check${review.missionChecks === 1 ? "" : "s"}, reviewed ${review.missionCheckedOpportunities} opportunities, and found ${review.missionFound}/${review.missionTarget} mission matches. A mint still needs your exact wallet approval.`;
     }
     if (review?.missionStatus === "RETURNED") {
       return `I’m back. The scouting mission finished with ${review.missionFound}/${review.missionTarget} eligible matches; nothing was minted or signed.`;
     }
     if (review?.missionStatus === "PAUSED") return "I’m paused, so I’m not scouting or minting right now.";
     if (review?.missionStatus === "ACTIVE") return "My strategy is ready, but I haven’t been sent out yet. Use SEND PUNK OUT to begin scouting.";
-    return "Confirm my strategy, then use SEND PUNK OUT. In this review build I check the Robinhood NFT opportunity queue and report matches; I cannot mint or sign anything.";
+    return "Confirm my strategy, then use SEND PUNK OUT. In ASK mode I cannot mint or sign; ASSIST prepares a wallet-approved mint, and an enabled Punk Agent Account can execute only within a separately owner-approved autonomous session.";
   }
   if (/\b(?:what can you do|help|capabilities)\b/.test(text)) {
-    return `I can remember a confirmed ASK or ASSIST strategy, review shared opportunities, inspect links, explain what is known, and help manage my collection.${skills.length ? ` You have taught me ${skills.length} active skill${skills.length === 1 ? "" : "s"}.` : " You can also teach me a read-only art-broker skill in chat."} Mint submission stays locked in this review build.`;
+    return `I can remember a confirmed strategy, review current opportunities, inspect links, explain what is known, and help manage my collection.${skills.length ? ` You have taught me ${skills.length} active skill${skills.length === 1 ? "" : "s"}.` : " You can also teach me a read-only art-broker skill in chat."} Autonomous submission requires a separately owner-approved Punk Agent Account session and every deterministic safety gate.`;
   }
   if (/\b(?:skill|skills|learned|taught|teach)\b/.test(text)) {
     if (!skills.length) return "I have no active taught skills yet. Try: “Teach yourself to rank small pixel collections and explain the screening result.” I’ll show a structured draft for you to review.";
@@ -150,7 +152,7 @@ function fallbackReply(message, intent, inspection, strategyStatus, punkState, r
     return "WETH is wrapped ETH used for marketplace bids and offers. Keep native ETH in my Punk Wallet for gas, and wrap only the amount you want available for bids; wrapping is one-to-one.";
   }
   if (/\b(?:ask|assist|autonomous)\b.*\b(?:mode|difference|mean|work)\b|\bmode\b.*\b(?:ask|assist|autonomous)\b/.test(text)) {
-    return "ASK recommends and waits. ASSIST screens and prepares a transaction for your approval. AUTONOMOUS may act only inside separately activated deterministic rules, and it stays locked in this review build.";
+    return "ASK recommends and waits. ASSIST screens and prepares a transaction for your wallet approval. AUTONOMOUS uses an ownership-bound Punk Agent Account and may act only inside a separately owner-approved, revocable on-chain session.";
   }
   if (/\b(?:gas|reserve)\b/.test(text)) {
     return `My gas cap limits one mint's estimated transaction cost, while my ${ethFromWei(intent.minimumReserveWei)} ETH reserve must remain untouched. An opportunity fails policy if price plus gas would push my balance below that reserve.`;

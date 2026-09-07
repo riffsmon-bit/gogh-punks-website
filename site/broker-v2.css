@@ -254,6 +254,16 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .autonomy-boundary { margin-top: 16px; padding: 16px 18px; border-left: 4px solid var(--warning); background: rgba(255,198,90,.07); }
 .autonomy-boundary strong { color: var(--warning); font-size: .72rem; letter-spacing: .08em; }
 .autonomy-boundary p { margin: 6px 0 0; color: var(--muted); font-size: .82rem; }
+.agent-account-card { margin-top: 16px; padding: 18px; border: 1px solid var(--line-strong); background: var(--ink); }
+.agent-account-card > header { display: flex; justify-content: space-between; gap: 16px; }
+.agent-account-card > header strong { color: var(--cyan); font-size: .72rem; letter-spacing: .08em; }
+.agent-account-card > header b { color: var(--acid); font-size: .72rem; text-align: right; }
+.agent-account-card > p { color: var(--muted); font-size: .78rem; line-height: 1.5; }
+.agent-account-card dl { display: grid; grid-template-columns: repeat(4, 1fr); margin: 14px 0 0; }
+.agent-account-card dl div { min-width: 0; padding: 12px; border: 1px solid var(--line); }
+.agent-account-card dt { color: var(--muted); font-size: .55rem; font-weight: 900; letter-spacing: .1em; }
+.agent-account-card dd { margin: 6px 0 0; overflow-wrap: anywhere; font-size: .72rem; font-weight: 900; }
+.agent-account-card > button { margin-top: 14px; }
 
 .fund-layout { display: grid; grid-template-columns: minmax(270px, .8fr) 1fr; gap: 30px; align-items: center; }
 .balance-readout { padding: 34px; border-left: 6px solid var(--acid); background: var(--ink); }
@@ -433,6 +443,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   .chat-composer { grid-template-columns: 1fr; }
   .chat-composer > div { justify-content: space-between; }
   .strategy-grid, .fund-layout, .settings-grid, .collection-assets { grid-template-columns: 1fr; }
+  .agent-account-card dl { grid-template-columns: 1fr 1fr; }
   .skill-card ul { grid-template-columns: 1fr; }
   .review-agent-console dl { grid-template-columns: repeat(2, 1fr); }
   .review-agent-rules { grid-template-columns: 1fr 1fr; }

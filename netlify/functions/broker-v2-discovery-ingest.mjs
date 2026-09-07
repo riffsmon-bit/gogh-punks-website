@@ -12,6 +12,28 @@ import { v2Failure } from "./_shared/v2-http.mjs";
 import { isV2DeployPreview, requireV2DeployPreview } from "./_shared/v2-review.mjs";
 import { verifyAdminBearer } from "./_shared/v2-session.mjs";
 
+export async function runV2DiscoveryIngest({ environment = process.env,
+  pool = getDatabase().pool, client = null, now = new Date(), repository = null,
+  readSource = readCurrentRobinhoodSeaDropObservations,
+  ingest = ingestSeaDropObservations,
+  advanceCheckpoint = advanceRobinhoodDiscoveryCheckpoint } = {}) {
+  if (environment.GOGH_V2_DISCOVERY_INGEST_ENABLED !== "true") {
+    throw new PublicError(503, "V2_DISCOVERY_DISABLED",
+      "V2 discovery ingestion is disabled until production is explicitly authorized.");
+  }
+  const source = await readSource({ pool,
+    client: client ?? createRobinhoodDiscoveryClient(environment.ROBINHOOD_RPC_URL), now });
+  const results = await ingest({ observations: source.observations,
+    repository: repository ?? new PostgresV2OpportunityRepository(pool), pool, now });
+  await advanceCheckpoint(pool, source.confirmedBlock);
+  return Object.freeze({ status: "COMPLETE", chainId: 4663, source: source.sourceKey,
+    confirmedBlock: source.confirmedBlock, discoveredCount: results.length,
+    passedScreenCount: results.filter(({ screeningStatus }) => screeningStatus === "PASSED").length,
+    needsReviewCount: results.filter(({ screeningStatus }) => screeningStatus === "NEEDS_REVIEW").length,
+    blockedCount: results.filter(({ screeningStatus }) => screeningStatus === "BLOCKED").length,
+    eligibleCount: 0, simulationRequiredPerPunk: true, results });
+}
+
 export async function handleV2DiscoveryIngest(request, { environment = process.env,
   pool = getDatabase().pool, client = null, now = new Date(), repository = null,
   readSource = readCurrentRobinhoodSeaDropObservations,
@@ -23,23 +45,11 @@ export async function handleV2DiscoveryIngest(request, { environment = process.e
     if (preview) requireV2DeployPreview(request);
     else {
       verifyAdminBearer(request, environment);
-      if (environment.GOGH_V2_DISCOVERY_INGEST_ENABLED !== "true") {
-        throw new PublicError(503, "V2_DISCOVERY_DISABLED",
-          "V2 discovery ingestion is disabled until production is explicitly authorized.");
-      }
     }
-    const source = await readSource({ pool,
-      client: client ?? createRobinhoodDiscoveryClient(environment.ROBINHOOD_RPC_URL), now });
-    const results = await ingest({ observations: source.observations,
-      repository: repository ?? new PostgresV2OpportunityRepository(pool), pool, now });
-    await advanceCheckpoint(pool, source.confirmedBlock);
-    return json({ ok: true, chainId: 4663, source: source.sourceKey,
-      previewDatabaseOnly: preview,
-      confirmedBlock: source.confirmedBlock, discoveredCount: results.length,
-      passedScreenCount: results.filter(({ screeningStatus }) => screeningStatus === "PASSED").length,
-      needsReviewCount: results.filter(({ screeningStatus }) => screeningStatus === "NEEDS_REVIEW").length,
-      blockedCount: results.filter(({ screeningStatus }) => screeningStatus === "BLOCKED").length,
-      eligibleCount: 0, simulationRequiredPerPunk: true, results,
+    const result = await runV2DiscoveryIngest({ environment: preview
+      ? { ...environment, GOGH_V2_DISCOVERY_INGEST_ENABLED: "true" } : environment,
+    pool, client, now, repository, readSource, ingest, advanceCheckpoint });
+    return json({ ok: true, ...result, previewDatabaseOnly: preview,
       transactionPrepared: false, executionAttemptCreated: false });
   } catch (error) { return v2Failure(error); }
 }

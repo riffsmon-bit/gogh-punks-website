@@ -61,6 +61,19 @@ adapter must be confirmed active, a secure session signer and bundler path must 
 receipt reconciliation must be completed before the UI lock can be removed. ASK and ASSIST remain
 the only production-capable modes until those gates pass.
 
+The application-side lifecycle is now implemented behind those gates: authenticated setup and
+receipt endpoints, exact owner-transaction reconciliation, direct account gas funding, on-chain
+recall, a single-instance scheduled worker, durable UserOperation reservation and reconciliation,
+live ERC-721 ownership verification, Collection materialization, and Activity heartbeats. The
+checked-in deployment manifest remains `UNDEPLOYED`, the migration remains unapplied, and the
+worker remains disabled, so this implementation does not silently claim live authority.
+
+Owner-taught skills now persist server-side only after a signed-in current-owner check and a fresh
+Punk Wallet authority read. They remain declarative `READ_ONLY` playbook entries with
+`policyEffect: NONE`; they can guide conversation, scouting, ranking, and explanations but cannot
+broaden a strategy or authorize a transaction. ERC-8004 registration is intentionally deferred
+while the EIP remains a draft and no verified Robinhood registry deployment is configured.
+
 ## V1 deprecation inventory
 
 ### KEEP
