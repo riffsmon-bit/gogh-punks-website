@@ -69,6 +69,7 @@ let reviewMissionTimer = null;
 const one = (selector) => document.querySelector(selector);
 const all = (selector) => [...document.querySelectorAll(selector)];
 const set = (selector, value) => { const target = one(selector); if (target) target.textContent = String(value); };
+const setAll = (selector, value) => all(selector).forEach((target) => { target.textContent = String(value); });
 const short = (value) => typeof value === "string" && value.length === 42
   ? `${value.slice(0, 6)}…${value.slice(-4)}` : "NOT ACTIVATED";
 
@@ -160,15 +161,15 @@ function renderAgentAccount() {
   const status = selectedAgentAccount();
   const fundButton = one("[data-fund-agent-account]");
   if (fundButton) fundButton.hidden = true;
-  const mode = one('input[name="mode"][value="AUTONOMOUS"]');
-  const modeLabel = one("[data-autonomous-mode]");
+  const modes = all('[data-operating-mode][value="AUTONOMOUS"]');
+  const modeLabels = all("[data-autonomous-mode]");
   const setupAvailable = status?.readiness?.setupAvailable === true;
   const active = status?.mission?.status === "ACTIVE";
   const available = setupAvailable || active;
-  if (mode) mode.disabled = !available;
-  if (modeLabel) modeLabel.classList.toggle("mode-locked", !available);
-  set("[data-autonomous-mode-label]", available ? "AUTONOMOUS · PUNK AGENT ACCOUNT" : "AUTONOMOUS · LOCKED");
-  set("[data-autonomous-mode-detail]", active
+  modes.forEach((mode) => { mode.disabled = !available; });
+  modeLabels.forEach((label) => { label.classList.toggle("mode-locked", !available); });
+  setAll("[data-autonomous-mode-label]", available ? "AUTONOMOUS · PUNK AGENT ACCOUNT" : "AUTONOMOUS · LOCKED");
+  setAll("[data-autonomous-mode-detail]", active
     ? "Owner-approved mission session is active. Per-mint wallet popups are not required."
     : setupAvailable ? "Ready for up to two owner-approved setup transactions."
       : "Waiting for verified contracts, worker, signer, bundler, and database readiness.");
@@ -594,7 +595,7 @@ function renderReviewAgent() {
     const tastes = one("[data-strategy-tastes]"); tastes.replaceChildren();
     const empty = document.createElement("span");
     empty.textContent = "Talk to your Punk to define explicit preferences."; tastes.append(empty);
-    all('input[name="mode"]').forEach((input) => { input.checked = input.value === "ASK"; });
+    all("[data-operating-mode]").forEach((input) => { input.checked = input.value === "ASK"; });
     return;
   }
   set("[data-strategy-name]", intent.preferences.prefer.length
@@ -630,8 +631,10 @@ function renderReviewAgent() {
           ? `✓ ${intent.preferredSocialPlatforms.join(" + ") || "SOCIAL"} REQUIRED`
           : "— WEBSITE + SOCIAL OPTIONAL";
   set("[data-strategy-presence]", presenceRule);
-  all('input[name="mode"]').forEach((input) => {
-    input.checked = input.value === (agent?.mode ?? intent.operatingMode);
+  const effectiveMode = serverMission?.status === "ACTIVE"
+    ? "AUTONOMOUS" : agent?.mode ?? intent.operatingMode;
+  all("[data-operating-mode]").forEach((input) => {
+    input.checked = input.value === effectiveMode;
   });
 }
 
@@ -1668,7 +1671,7 @@ function setup() {
     event.preventDefault();
     chatForm.requestSubmit();
   });
-  all('input[name="mode"]').forEach((input) => input.addEventListener("change", () => {
+  all("[data-operating-mode]").forEach((input) => input.addEventListener("change", () => {
     if (!input.checked) return;
     chatInput.value = input.value === "AUTONOMOUS"
       ? "Use my Punk Agent Account autonomously. Keep every existing collecting rule and show me the complete mission for approval."

@@ -88,6 +88,14 @@
               <div><span class="kicker">DIRECT LINE · PUNK #<span data-talk-token>119</span></span><h2 id="talk-title">WHAT ARE WE HUNTING?</h2></div>
               <span class="intelligence-chip" data-intelligence-status><i></i>GOGH INTELLIGENCE · AUTO</span>
             </header>
+            <div class="talk-mode-control" data-talk-mode-control>
+              <div><span>OPERATING MODE</span><small>Choose here, then review the chat draft before anything changes.</small></div>
+              <fieldset><legend class="sr-only">Operating mode for this Punk</legend>
+                <label><input type="radio" name="talk-mode" value="ASK" data-operating-mode checked /><span><b>ASK</b><small>Recommend</small></span></label>
+                <label><input type="radio" name="talk-mode" value="ASSIST" data-operating-mode /><span><b>ASSIST</b><small>Prepare</small></span></label>
+                <label class="mode-locked" data-autonomous-mode><input type="radio" name="talk-mode" value="AUTONOMOUS" data-operating-mode disabled /><span><b data-autonomous-mode-label>AUTONOMOUS · LOCKED</b><small data-autonomous-mode-detail>Waiting for Punk Agent Account readiness.</small></span></label>
+              </fieldset>
+            </div>
             <div class="talk-layout">
               <div class="conversation" data-conversation aria-live="polite">
                 <article class="message punk-message">
@@ -221,7 +229,7 @@
 
           <section class="broker-panel" data-v2-panel="settings" aria-labelledby="settings-title" hidden>
             <header class="panel-header"><div><span class="kicker">BROKER PROFILE</span><h2 id="settings-title">SETTINGS</h2></div></header>
-            <div class="settings-grid"><article><span>OPERATING MODE</span><fieldset><legend class="sr-only">Operating mode</legend><label><input type="radio" name="mode" value="ASK" checked /><b>ASK</b><small>Discover and recommend. You decide.</small></label><label><input type="radio" name="mode" value="ASSIST" /><b>ASSIST</b><small>Screen and prepare. You approve.</small></label><label class="mode-locked" data-autonomous-mode><input type="radio" name="mode" value="AUTONOMOUS" disabled /><b data-autonomous-mode-label>AUTONOMOUS · LOCKED</b><small data-autonomous-mode-detail>Waiting for Punk Agent Account readiness.</small></label></fieldset></article><article><span>GOGH INTELLIGENCE</span><label class="select-label" for="provider-setting">ROUTING<select id="provider-setting"><option>AUTO</option><option>GEMINI</option><option>GPT</option><option>CLAUDE</option><option>GROK</option><option>BANKR ROUTED</option></select></label><p>Auto selects for task, capability, cost, latency, and availability. Your Punk stays the product.</p></article></div>
+            <div class="settings-grid"><article><span>OPERATING MODE</span><fieldset><legend class="sr-only">Operating mode</legend><label><input type="radio" name="settings-mode" value="ASK" data-operating-mode checked /><b>ASK</b><small>Discover and recommend. You decide.</small></label><label><input type="radio" name="settings-mode" value="ASSIST" data-operating-mode /><b>ASSIST</b><small>Screen and prepare. You approve.</small></label><label class="mode-locked" data-autonomous-mode><input type="radio" name="settings-mode" value="AUTONOMOUS" data-operating-mode disabled /><b data-autonomous-mode-label>AUTONOMOUS · LOCKED</b><small data-autonomous-mode-detail>Waiting for Punk Agent Account readiness.</small></label></fieldset></article><article><span>GOGH INTELLIGENCE</span><label class="select-label" for="provider-setting">ROUTING<select id="provider-setting"><option>AUTO</option><option>GEMINI</option><option>GPT</option><option>CLAUDE</option><option>GROK</option><option>BANKR ROUTED</option></select></label><p>Auto selects for task, capability, cost, latency, and availability. Your Punk stays the product.</p></article></div>
           </section>
         </div>
       </section>
