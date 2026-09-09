@@ -14,6 +14,7 @@ test('local Forge: contract snapshots, read-only HTTP and responsive browser', {
     const data = await (await fetch(`${preview.url}/api/forge?tokenId=1`)).json();
     assert.equal(data.chainId, 31337); assert.equal(data.canBurn, false); assert.equal(data.productionReadyCount, 0);
     assert.equal(data.forgeMinimumSupply, '1111');
+    assert.equal(data.cap, 7);
     assert.equal(data.skills.length, 13);
     assert.equal(data.skills.filter(skill => skill.comingSoon).length, 8);
     assert.ok(data.skills.every(skill => skill.learnable === false));

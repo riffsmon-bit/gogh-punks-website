@@ -8,6 +8,7 @@ import { createPublicClient, createWalletClient, http, decodeEventLog } from 'vi
 import { manifestHash, instructionHash } from '../../../broker/src/v4/skill-forge/capability-resolver.mjs';
 import { previewLibrary } from './library-roadmap.mjs';
 import { FORGE_MINIMUM_SUPPLY } from '../../../broker/src/v4/skill-forge/supply-floor.mjs';
+import { SLOT_POLICY } from '../../../broker/src/v4/skill-forge/slot-policy.mjs';
 
 export const catalog = [
   { id: 3, name: 'Contract Detective', mark: '01', status: 'TESTING', capability: 'CONTRACT_READ', bit: 1n, tools: ['inspect_contract'], description: 'Inspect code, interface support and proxy slots. Findings are evidence, not a security guarantee.', boundary: 'Read-only. No signing or spending authority.' },
@@ -60,7 +61,7 @@ export async function startPreview({ port = 0 } = {}) {
     const prog = await artifact('GoghSkillProgression.sol', 'GoghSkillProgression');
     const collection = await deploy(nft, []), registry = await deploy(reg, [owner]);
     const source = await deploy(training, [collection]);
-    const progression = await deploy(prog, [collection, registry, source, 1, 4]);
+    const progression = await deploy(prog, [collection, registry, source, SLOT_POLICY.baseSlots, SLOT_POLICY.maxEquippedSkills]);
     await write(training, source, 'bind', [progression]);
     for (const id of [1, 44, 7, 1001, 1002, 1003, 1004, 1005]) await write(nft, collection, 'mint', [owner, BigInt(id)]);
     const skills = [];

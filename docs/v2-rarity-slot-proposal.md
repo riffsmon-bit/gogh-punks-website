@@ -1,12 +1,12 @@
-# Rarity-based starting slots — proposal, not an activated economy
+# Rarity-based starting slots — approved rules, snapshot pending
 
-User requested consideration of OpenSea rarity-based slot capacity with a maximum of 7–10 equipped skills. No rarity cap or allocation has been approved. Current test contracts still use 1 base / 4 maximum slots; this document changes neither contracts nor production rights.
+User approved locking in the proposed rules while requesting a rarity snapshot from the Gogh Punks OpenSea collection. The rules are now recorded in `slot-policy.mjs`; the disposable UI fixture uses 1 base / 7 maximum slots. No production rights have been awarded. Individual rarity bonuses remain pending a complete verified snapshot.
 
 ## Recommended starting point
 
 Use rarity for **starting slots**, not a permanent ceiling that stops less-rare Punks from developing. Keep learning separate from equipment: a Punk can learn many skills while equipping at most seven under this proposal. Both Sniper mission choices are part of one equipped skill, not two slots. Owner authorizations still bound each selected mission.
 
-Illustrative, unapproved allocation:
+Approved allocation rule, not yet applied to production tokens:
 
 | Frozen collection rarity band | Starting slots | Maximum after training |
 |---|---|---|
@@ -14,7 +14,9 @@ Illustrative, unapproved allocation:
 | Above 5%, through top 25% | 2 | 7 |
 | Remaining Punks | 1 | 7 |
 
-This lets rarity provide a head start without making training pointless. Seven maintains more loadout trade-offs than ten; ten remains a product alternative. One credit per additional slot remains the proposed economy, not an executed product migration. Do not charge users based on illustrative bands.
+One sacrificed Punk creates one training credit, regardless of rarity. One credit learns one approved Tier-I skill OR unlocks one slot; it does not do both. The sacrificed Punk's own learned skills, slots and unused credits do not transfer to the survivor. Production burning remains disabled.
+
+Rank cutoffs use exact integer comparisons: rank × 100 ≤ population × 5, then ≤ population × 25. Equal ranks receive equal allocations; tied groups can cross an exact percentage headcount. At a 4,295-token baseline these numerical cutoffs are rank 214 and 1,073. This is arithmetic only, not a claim that any specific token has those ranks. Freeze the reviewed rank/population pair rather than recalculating from later burns.
 
 ## Data and persistence requirements
 
@@ -31,6 +33,6 @@ Before assigning permanent slots, obtain and review a complete, collection/chain
 - Rarity unlocks capacity only, not learned skills, paid execution, relaxed security or spend authority.
 - Apply only through a reviewed additive contract/migration. Current immutable base/cap progression needs a deliberate design change; do not silently reinterpret already-learned versions.
 
-## Decision still required
+## Snapshot still required
 
-Approve starting-slot bands and whether the maximum is 7 or 10. Alternative: rarity-specific maximum ceilings, but this limits the training potential of common Punks; the recommended design above uses a shared cap. Nothing has been deployed or awarded using this proposal.
+OpenSea collection metadata was successfully retrieved and identifies `openrarity` version `1.0`, `max_rank=4295`, `rarity.total_supply=4295`, and matching Robinhood contract identity. Public individual-NFT and paginated-NFT endpoints returned HTTP 401 without a key. The existing Netlify OpenSea variable is secret and its values are unreadable through the API; protection was not changed. No complete per-token snapshot is saved or frozen. See [the retrieval checkpoint](v2-rarity-snapshot-status.md). A readable, authorized API key or verified complete export is still required.

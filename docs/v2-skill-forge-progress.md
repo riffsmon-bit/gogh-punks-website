@@ -2,6 +2,8 @@
 
 Local feature branch: `feat/gogh-skill-forge`. No push, production deployment, environment change, real NFT burn or transfer is part of this checkpoint. Core V2 remains unchanged.
 
+Latest approved product configuration: **seven maximum equipped skills**, rarity-based starting slots of 3 (top 5%), 2 (next band through top 25%) or 1 (remainder), and no rarity multiplier for sacrifices. One sacrifice grants one credit, spent on one slot OR one approved Tier-I skill. The local UI fixture now uses cap seven; old contract regression fixtures retain their independent cap-four test cases. The complete OpenSea rarity snapshot is **blocked on authenticated per-token reads**; no real token bonus has been assigned. See [snapshot retrieval status](v2-rarity-snapshot-status.md). Current combined JavaScript run: **74 passed**.
+
 ## Implemented and exercised locally
 
 - **GoghSkillRegistry**: append-only skill/version identity; immutable manifest/instruction/capability/prerequisite mapping; controlled review statuses; READY requires TESTING plus evidence hash; per-skill and capability/global emergency disable; permanent deprecation with explicit replacement. Governance attests review—it cannot cryptographically prove an audit was performed. It has no fund-withdrawal methods.
