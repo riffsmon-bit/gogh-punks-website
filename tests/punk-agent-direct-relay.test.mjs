@@ -20,7 +20,8 @@ function operation(overrides = {}) {
     maxPriorityFeePerGas: "0x1", signature: SIGNATURE, ...overrides };
 }
 
-function fixture({ estimateGas = 300_000n, balance = 1_000_000_000_000_000n } = {}) {
+function fixture({ estimateGas = 300_000n, balance = 1_000_000_000_000_000n,
+  archiveError = false, receiptPublicClient = null } = {}) {
   const calls = [];
   const event = { transactionHash: TRANSACTION_HASH, blockNumber: 100n, args: {
     userOpHash: USER_OP_HASH, sender: SENDER,
@@ -37,16 +38,32 @@ function fixture({ estimateGas = 300_000n, balance = 1_000_000_000_000_000n } = 
     async estimateGas(input) { calls.push({ method: "estimateGas", input }); return estimateGas; },
     async readContract(input) { calls.push({ method: "readContract", input }); return USER_OP_HASH; },
     async getBlockNumber() { return 100n; },
-    async getLogs() { return [event]; },
+    async getLogs() { if (archiveError) throw new Error('Archive requests require a personal token'); return [event]; },
     async getTransactionReceipt() { return receipt; },
   };
   const walletClient = { async sendTransaction(input) {
     calls.push({ method: "sendTransaction", input }); return TRANSACTION_HASH;
   } };
   const relay = createPunkAgentDirectRelay({ url: "https://robinhood-rpc.publicnode.com",
-    expectedAddress: SIGNER, account: { address: SIGNER }, publicClient, walletClient });
-  return { relay, calls };
+    expectedAddress: SIGNER, account: { address: SIGNER }, publicClient, walletClient, receiptPublicClient });
+  return { relay, calls, publicClient };
 }
+
+test('receipt history fallback is read-only and restricted to Robinhood Chain', async () => {
+  const history = fixture().publicClient;
+  const { relay, calls } = fixture({ archiveError: true, receiptPublicClient: history });
+  const result = await relay.request({ method: 'eth_getUserOperationReceipt', params: [USER_OP_HASH] });
+  assert.equal(result.receipt.transactionHash, TRANSACTION_HASH);
+  assert.equal(result.success, true);
+  assert.equal(calls.length, 0);
+  const wrongChain = fixture({ archiveError: true, receiptPublicClient: { ...history, getChainId: async () => 1 } });
+  await assert.rejects(wrongChain.relay.request({ method: 'eth_getUserOperationReceipt', params: [USER_OP_HASH] }),
+    { code: 'DIRECT_RELAY_RECEIPT_WRONG_CHAIN' });
+  const unavailable = fixture({ archiveError: true, receiptPublicClient: { ...history, getLogs: async () => { throw new Error('offline'); } } });
+  await assert.rejects(unavailable.relay.request({ method: 'eth_getUserOperationReceipt', params: [USER_OP_HASH] }), /offline/);
+  const primary = fixture({ receiptPublicClient: { getChainId: async () => { throw new Error('fallback must not be used'); } } });
+  assert.equal((await primary.relay.request({ method: 'eth_getUserOperationReceipt', params: [USER_OP_HASH] })).success, true);
+});
 
 test("private relay supports only the canonical EntryPoint flow", async () => {
   const { relay, calls } = fixture();

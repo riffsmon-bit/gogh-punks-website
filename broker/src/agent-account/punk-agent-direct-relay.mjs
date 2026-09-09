@@ -173,6 +173,8 @@ export function createPunkAgentDirectRelay({
   privateKey,
   expectedAddress,
   publicClient = null,
+  receiptPublicClient = null,
+  receiptRpcUrl = null,
   walletClient = null,
   account = null,
   receiptLookbackBlocks = DEFAULT_RECEIPT_LOOKBACK_BLOCKS,
@@ -196,6 +198,11 @@ export function createPunkAgentDirectRelay({
   const reader = publicClient ?? createPublicClient({
     transport: http(endpoint.toString(), { timeout: 12_000, retryCount: 1 }),
   });
+  // Receipt discovery is read-only. PublicNode can reject historical logs on its
+  // public endpoint; an independently configured reader never receives a signer.
+  const receiptReader = receiptPublicClient ?? (receiptRpcUrl ? createPublicClient({
+    transport: http(cleanHttpsUrl(receiptRpcUrl).toString(), { timeout: 12_000, retryCount: 1 }),
+  }) : null);
   const writer = walletClient ?? createWalletClient({ account: signer,
     transport: http(endpoint.toString(), { timeout: 12_000, retryCount: 1 }) });
   const pendingTransactions = new Map();
@@ -222,7 +229,7 @@ export function createPunkAgentDirectRelay({
     return Object.freeze({ ...normalized, data, gas });
   }
 
-  async function receipt(userOpHash) {
+  async function receiptFrom(source, userOpHash) {
     const normalizedHash = String(userOpHash ?? "").toLowerCase();
     if (!HASH.test(normalizedHash)) {
       fail("INVALID_DIRECT_RELAY_REQUEST", "UserOperation hash is invalid");
@@ -230,16 +237,16 @@ export function createPunkAgentDirectRelay({
     let transactionReceipt = null;
     const pendingHash = pendingTransactions.get(normalizedHash);
     if (pendingHash) {
-      try { transactionReceipt = await reader.getTransactionReceipt({ hash: pendingHash }); }
+      try { transactionReceipt = await source.getTransactionReceipt({ hash: pendingHash }); }
       catch { return null; }
     }
     const event = transactionReceipt ? null
-      : await locateUserOperationEvent(reader, normalizedHash, lookback);
+      : await locateUserOperationEvent(source, normalizedHash, lookback);
     if (!transactionReceipt && !event) return null;
     if (!transactionReceipt) {
-      transactionReceipt = await reader.getTransactionReceipt({ hash: event.transactionHash });
+      transactionReceipt = await source.getTransactionReceipt({ hash: event.transactionHash });
     }
-    const matchedEvent = event ?? (await reader.getLogs({ address: ENTRY_POINT_V08,
+    const matchedEvent = event ?? (await source.getLogs({ address: ENTRY_POINT_V08,
       event: DIRECT_RELAY_ENTRY_POINT_ABI[2], args: { userOpHash: normalizedHash },
       fromBlock: transactionReceipt.blockNumber, toBlock: transactionReceipt.blockNumber }))
       .find((item) => item.transactionHash === transactionReceipt.transactionHash);
@@ -253,6 +260,18 @@ export function createPunkAgentDirectRelay({
       actualGasUsed: matchedEvent.args.actualGasUsed,
       logs: transactionReceipt.logs,
       receipt: transactionReceipt });
+  }
+
+  async function receipt(userOpHash) {
+    try { return await receiptFrom(reader, userOpHash); }
+    catch (error) {
+      if (!receiptReader) throw error;
+      // Only a Robinhood reader may locate a receipt. The worker subsequently
+      // verifies canonical block, exact events and current NFT ownership again.
+      if (await receiptReader.getChainId() !== 4663) fail("DIRECT_RELAY_RECEIPT_WRONG_CHAIN",
+        "Receipt reader is not on Robinhood Chain");
+      return receiptFrom(receiptReader, userOpHash);
+    }
   }
 
   return Object.freeze({ mode: "DIRECT_PRIVATE_RELAY", endpointOrigin: endpoint.origin,
