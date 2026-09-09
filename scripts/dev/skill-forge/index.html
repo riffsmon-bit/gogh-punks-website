@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Gogh Skill Forge · Local preview</title><link rel="stylesheet" href="/style.css"><script type="module" src="/app.mjs"></script></head>
+<body>
+  <div class="preview-banner">LOCAL CHAIN FIXTURE · READ-ONLY PREVIEW · NOT YOUR REAL PUNKS</div>
+  <header><a href="/" class="brand">GOGH PUNKS <span>SKILL FORGE</span></a><span class="connection">● LOCAL / 31337</span></header>
+  <main>
+    <nav aria-label="Select fixture Punk" class="roster">
+      <span class="eyebrow">SELECT YOUR FIGHTER <small>LOCAL FIXTURES</small></span>
+      <div class="roster-buttons"><button type="button" data-punk="1" aria-pressed="true"><img src="/art/1.png" alt="">PUNK #1</button><button type="button" data-punk="44" aria-pressed="false"><img src="/art/44.png" alt="">PUNK #44</button><button type="button" data-punk="7" aria-pressed="false"><img src="/art/7.png" alt="">PUNK #7</button></div>
+    </nav>
+    <p id="status" role="status">Reading local progression…</p>
+    <div id="profile" hidden>
+      <section class="hero" aria-labelledby="forge-title">
+        <div class="portrait"><img id="portrait" src="/art/1.png" alt="Gogh Punk #1 artwork used for local fixture"><span>THE PUNK REMEMBERS.</span></div>
+        <div class="hero-copy"><p class="eyebrow">PERMANENT TRAINING · <span id="punk-label">PUNK #1</span></p><h1 id="forge-title">BUILT.<br>NOT BORN.</h1><p class="intro">Learn a capability. Build a loadout.<br>The owner changes. The training stays.</p><div class="stats" id="stats"></div></div>
+      </section>
+      <section class="loadout panel" aria-labelledby="loadout-title"><div class="section-heading"><div><p class="eyebrow">EQUIPMENT MAKES THE DIFFERENCE</p><h2 id="loadout-title">PUNK LOADOUT</h2></div><span class="tag">LOCAL CONTRACT STATE</span></div><div id="slots" class="slots"></div><p class="note">Learned ≠ equipped. Equipment enables a capability; owner authorization still controls execution. Four slots is a test configuration, not the final cap.</p></section>
+      <section aria-labelledby="skills-title"><div class="section-heading"><div><p class="eyebrow">CHOOSE YOUR NEXT MOVE</p><h2 id="skills-title">THE SKILL LIBRARY</h2></div><span class="tag warning">0 PRODUCTION READY</span></div><p class="section-description">Inspect the work in progress. Test-chain learning below does not make a skill available in production.</p><div id="skills" class="skills"></div></section>
+      <div class="bottom-grid"><section class="panel" aria-labelledby="training-title"><p class="eyebrow">ONE CREDIT. ONE PERMANENT STEP.</p><h2 id="training-title">TRAINING ROOM</h2><p>One approved sacrifice would credit another Punk. Spend a credit to learn one Tier-I skill or unlock one slot.</p><div class="training-actions"><button type="button" disabled>LEARN · NOT LIVE</button><button type="button" disabled>UNLOCK SLOT · NOT LIVE</button></div><div class="burn-box"><h3>PERMANENT SACRIFICE IS LOCKED</h3><p>A warning alone cannot protect a token-bound wallet. Assets, unresolved activity or an incomplete inventory must block sacrifice.</p><button type="button" id="review-burn">REVIEW BURN SAFETY ↗</button></div></section>
+      <section class="panel history-panel" aria-labelledby="history-title"><p class="eyebrow">VERIFIABLE LOCAL PROVENANCE</p><h2 id="history-title">TRAINING HISTORY</h2><ol id="history"></ol><p id="snapshot" class="note"></p></section></div>
+      <footer>LOCAL DESIGN & CONTRACT PREVIEW · No production skills registered. No real NFT burned. No private owner conversations loaded.</footer>
+    </div>
+  </main>
+  <dialog id="detail" aria-labelledby="detail-title"><button type="button" id="close-detail" aria-label="Close details">✕</button><p class="eyebrow" id="detail-kicker"></p><h2 id="detail-title"></h2><div id="detail-body"></div><button type="button" id="detail-action" disabled>PRODUCTION TRAINING DISABLED</button></dialog>
+</body></html>
