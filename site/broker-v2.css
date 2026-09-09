@@ -290,6 +290,9 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .fund-breakdown div { display: grid; grid-template-columns: 1fr 1.2fr; padding: 15px; border: 1px solid var(--line); border-bottom: 0; }
 .fund-breakdown div:last-child { border-bottom: 1px solid var(--line); }
 .fund-breakdown code { color: var(--cyan); }
+[data-agent-gas-destination], [data-agent-gas-result] { overflow-wrap: anywhere; }
+[data-agent-gas-readiness] { padding: 12px; border-left: 3px solid var(--cyan); }
+[data-agent-gas-form] { margin-top: 18px; }
 .fund-form { grid-column: 1 / -1; padding: 22px; border: 1px solid var(--line); }
 .fund-form label { display: block; margin-bottom: 8px; color: var(--muted); font-size: .62rem; font-weight: 900; }
 .fund-form > div { display: grid; grid-template-columns: 1fr auto; gap: 8px; }

@@ -1,4 +1,5 @@
 import { verifyOwnedPunkIds } from "./broker-v2-ownership.js";
+import { prepareAgentGasFunding, submitAgentGasFunding } from "./punk-agent-gas-funding.js";
 import {
   fetchPunkWalletFundsGate, preflightPunkWalletFunds, readPunkWalletFundsState,
   submitPunkWalletFunds, waitForPunkWalletTransactionReceipt,
@@ -50,7 +51,7 @@ const state = { wallet: null, punks: [], selected: null, localStrategy: null, lo
   gallery: [], activity: [], hydratedTokenId: null, lastInspection: null,
   ownershipAccount: null, ownershipLoadingAccount: null, ownershipRequestId: 0,
   balanceRequestId: 0, galleryTokenId: null, galleryLoadingTokenId: null,
-  fundingPlan: null, wrappedPlan: null, withdrawalAsset: null,
+  fundingPlan: null, gasFundingPlan: null, gasFundingBusy: false, wrappedPlan: null, withdrawalAsset: null,
   withdrawalAmount: "1", withdrawalPlan: null, withdrawalBusy: false,
   reviewAgents: new Map(), reviewInspections: new Map(), reviewActivities: new Map(),
   reviewRuns: new Map(), reviewConversations: new Map(), reviewSkills: new Map(),
@@ -164,6 +165,7 @@ function renderAgentAccount() {
   const modes = all('[data-operating-mode][value="AUTONOMOUS"]');
   const modeLabels = all("[data-autonomous-mode]");
   const setupAvailable = status?.readiness?.setupAvailable === true;
+  renderAgentGasFunding(status);
   const active = status?.mission?.status === "ACTIVE";
   const available = setupAvailable || active;
   modes.forEach((mode) => { mode.disabled = !available; });
@@ -172,7 +174,9 @@ function renderAgentAccount() {
   setAll("[data-autonomous-mode-detail]", active
     ? "Owner-approved mission session is active. Per-mint wallet popups are not required."
     : setupAvailable ? "Ready for up to two owner-approved setup transactions."
-      : "Waiting for verified contracts, worker, signer, bundler, and database readiness.");
+      : status?.error ? `Sign in / recheck readiness: ${status.error}`
+        : status ? `Blocked: ${(status.readiness?.blockers ?? []).map(blockerLabel).join(" · ") || "readiness unavailable"}. Check autonomous readiness.`
+          : "Readiness not verified. Use CHECK AUTONOMOUS READINESS.");
   if (!status) {
     set("[data-agent-account-status]", "CHECKING READINESS");
     return;
@@ -202,6 +206,20 @@ function renderAgentAccount() {
   set("[data-agent-account-worker]", status.readiness?.automaticExecutionReady
     ? "LIVE" : "LOCKED");
   if (fundButton) fundButton.hidden = status.runtime?.accountCreated !== true;
+}
+
+function renderAgentGasFunding(status = selectedAgentAccount()) {
+  const runtime = status?.runtime;
+  const verified = runtime?.accountCreated === true && !status?.error;
+  set("[data-agent-gas-punk-balance]", state.selected?.balanceLoaded === false
+    ? "CHECKING…" : `${state.selected?.balanceEth ?? "—"} ETH`);
+  set("[data-agent-gas-native]", verified && runtime.nativeBalance != null ? `${ethFromWei(runtime.nativeBalance)} ETH` : "NOT VERIFIED");
+  set("[data-agent-gas-deposit]", verified && runtime.entryPointDeposit != null ? `${ethFromWei(runtime.entryPointDeposit)} ETH` : "NOT VERIFIED");
+  set("[data-agent-gas-destination]", verified ? runtime.account : "NOT VERIFIED");
+  set("[data-agent-gas-readiness]", status?.error
+    ? `READINESS UNAVAILABLE · ${status.error} Use RECHECK / SIGN IN; gas funding and mission activation are separate.`
+    : !status ? "Readiness has not been verified. Use RECHECK / SIGN IN."
+      : `AUTONOMOUS ${status.readiness?.setupAvailable ? "SETUP AVAILABLE" : "LOCKED"} · ${(status.readiness?.blockers ?? []).map(blockerLabel).join(" · ") || "No reported blockers"}. Funding does not activate a mission.`);
 }
 
 function selectedReviewRun() {
@@ -1041,6 +1059,11 @@ function selectPunk(tokenId) {
   state.lastInspection = key ? state.reviewInspections.get(key) ?? null : null;
   state.hydratedTokenId = null; state.galleryTokenId = null; state.galleryLoadingTokenId = null;
   state.fundingPlan = null; state.wrappedPlan = null; state.withdrawalAsset = null;
+  state.gasFundingPlan = null;
+  one("[data-agent-gas-confirm]").checked = false;
+  one("[data-agent-gas-form] button").textContent = "REVIEW & SIMULATE";
+  one("[data-agent-gas-transaction]").hidden = true;
+  set("[data-agent-gas-result]", "Review this Punk's source and gas amount. No funds move until MetaMask approval.");
   state.fundAgentAccount = false;
   state.reviewMintOpportunityId = null; state.reviewMintArtifact = null;
   state.reviewMintPrepared = null; state.reviewMintBusy = false;
@@ -1668,11 +1691,20 @@ function setup() {
   one("[data-review-agent-recall]").addEventListener("click", recallSelectedReviewAgent);
   one("[data-review-agent-test]").addEventListener("click", () => sendReviewAgentOut({ testMode: true }));
   one("[data-fund-agent-account]").addEventListener("click", () => {
-    state.fundAgentAccount = true; state.fundingPlan = null;
+    state.fundAgentAccount = false; state.fundingPlan = null;
     one("[data-fund-confirm]").checked = false;
     activateTab("fund"); renderSelected();
-    set("[data-fund-result]", "Funds go directly to the ownership-bound Punk Agent Account and are available only for its gas and owner-controlled recovery.");
-    one("#fund-amount").focus();
+    one("#agent-gas-amount").focus();
+  });
+  one("[data-agent-gas-recheck]").addEventListener("click", async () => {
+    set("[data-agent-gas-readiness]", "Checking readiness; MetaMask may request a sign-in message, not a funding transaction…");
+    await loadAgentAccountStatus({ authenticate: true });
+    renderAgentAccount();
+  });
+  one("[data-open-agent-readiness]").addEventListener("click", () => {
+    activateTab("fund");
+    one("[data-agent-gas-recheck]").focus();
+    one("[data-agent-gas-recheck]").click();
   });
   one("[data-review-mint-submit]").addEventListener("click", runOwnerAssistedLiveMint);
   one("[data-review-mint-confirm]").addEventListener("change", () => {
@@ -2093,6 +2125,63 @@ function setup() {
     addMessage("punk", PREVIEW ? "Strategy activated in local preview state only. Nothing was saved remotely."
       : "STRATEGY ACTIVATED WITH YOUR WALLET SIGNATURE. No unsigned change was accepted.");
     unlock();
+  });
+  const gasForm = one("[data-agent-gas-form]");
+  const gasButton = gasForm.querySelector("button[type=submit]");
+  const resetGasReview = () => { state.gasFundingPlan = null; gasButton.textContent = "REVIEW & SIMULATE"; };
+  gasForm.addEventListener("input", resetGasReview);
+  one("[data-agent-gas-confirm]").addEventListener("change", resetGasReview);
+  gasForm.addEventListener("submit", async event => {
+    event.preventDefault();
+    if (state.gasFundingBusy) return;
+    const punk = state.selected, owner = state.wallet?.account;
+    const source = one("#agent-gas-source").value, amount = one("#agent-gas-amount").value.trim();
+    const output = one("[data-agent-gas-result]");
+    let submittedHash = null;
+    const isCurrent = () => state.selected === punk && state.wallet?.account === owner
+      && state.wallet?.chainId === CHAIN_ID && one("#agent-gas-source").value === source
+      && one("#agent-gas-amount").value.trim() === amount && one("[data-agent-gas-confirm]").checked;
+    try {
+      if (PREVIEW) throw new Error("Local preview cannot fund a real account.");
+      if (!punk || !owner || !isCurrent()) throw new Error("Connect the owner on Robinhood Chain and check the gas-funding confirmation.");
+      state.gasFundingBusy = true; gasButton.disabled = true;
+      const provider = window.__GOGH_WALLET_PROVIDER__;
+      const loadContext = async () => {
+        await ensureV2Session();
+        const [gate, agent, funding] = await Promise.all([
+          fetchPunkWalletFundsGate((...args) => fetch(...args), punk.tokenId),
+          jsonRequest(`/api/v2/punks/${punk.tokenId}/agent-account`),
+          jsonRequest(`/api/v2/punks/${punk.tokenId}/fund`),
+        ]);
+        return { gate, agent, funding };
+      };
+      if (!state.gasFundingPlan) {
+        output.textContent = "Verifying both accounts, current ownership, reserve and exact transfer simulation…";
+        const prepared = await prepareAgentGasFunding(provider, await loadContext(), punk.tokenId, source, amount);
+        if (!isCurrent()) throw new Error("Selection changed during review.");
+        state.gasFundingPlan = prepared; gasButton.textContent = "SUBMIT IN METAMASK";
+        output.textContent = `SIMULATION PASSED · Move ${amount} ETH from ${source === "PUNK" ? "this Punk Wallet" : "your connected wallet"} to Agent Account ${prepared.destination}. Your connected wallet pays the transfer fee. No mission is activated.`;
+        return;
+      }
+      output.textContent = "Rechecking funding before MetaMask…";
+      const submitted = await submitAgentGasFunding(provider, state.gasFundingPlan, { loadContext, isCurrent });
+      submittedHash = submitted.hash; state.gasFundingPlan = null;
+      if (state.selected === punk) {
+        const link = one("[data-agent-gas-transaction]"); link.href = `https://robinhoodchain.blockscout.com/tx/${submittedHash}`; link.hidden = false;
+        output.textContent = "Gas funding submitted. Waiting for confirmation; do not submit again.";
+      }
+      await waitForPunkWalletTransactionReceipt(provider, submittedHash);
+      if (state.selected === punk) {
+        one("[data-agent-gas-confirm]").checked = false;
+        await Promise.all([loadAgentAccountStatus(), loadPunkBalances(punk)]);
+        if (state.selected === punk) { renderSelected(); output.textContent = "GAS FUNDING CONFIRMED ✓ Now review and approve your autonomous mission in Talk."; }
+      }
+    } catch (error) {
+      state.gasFundingPlan = null;
+      if (state.selected === punk) output.textContent = submittedHash
+        ? "Funding confirmation is pending. Check the linked transaction before retrying."
+        : `${error?.message ?? "Gas funding stopped."} Check wallet activity before retrying if MetaMask opened.`;
+    } finally { state.gasFundingBusy = false; gasButton.disabled = false; if (!state.gasFundingPlan) gasButton.textContent = "REVIEW & SIMULATE"; }
   });
   const fundForm = one("[data-fund-form]");
   const fundButton = fundForm.querySelector("button[type=submit]");
