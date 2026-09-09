@@ -9,6 +9,8 @@ import { pathToFileURL } from 'node:url';
 import { createPublicClient, createWalletClient, http, decodeEventLog, keccak256 } from 'viem';
 import { manifestHash, instructionHash, createProgressionReader } from '../../../broker/src/v4/skill-forge/capability-resolver.mjs';
 import { createResearchSkillRuntime } from '../../../broker/src/v4/skill-forge/research-runtime.mjs';
+import { createLocalTrainingIntents } from '../../../broker/src/v4/skill-forge/training-intents.mjs';
+import { createTrainingWalletAdapter } from '../../../site/forge-training-wallet.js';
 import { previewLibrary } from './library-roadmap.mjs';
 import { FORGE_MINIMUM_SUPPLY } from '../../../broker/src/v4/skill-forge/supply-floor.mjs';
 import { SLOT_POLICY } from '../../../broker/src/v4/skill-forge/slot-policy.mjs';
@@ -150,10 +152,14 @@ export async function startPreview({ port = 0, researchClient, controlCenterTrai
       const capabilityContext = await runtime.resolve({ tokenId, owner: currentOwner });
       return { localOnly: true, localTrainingNonce, chainId: 31337, tokenId, owner: currentOwner, collection, registry, progression, blockNumber: block.number, blockHash: block.hash, credits, slots, cap, learned, equipped, history, skills: previewLibrary(skills), candidates, capabilityContext, forgeMinimumSupply: String(FORGE_MINIMUM_SUPPLY), productionReadyCount: 0, canBurn: false };
     };
+    const trainingWallet = createTrainingWalletAdapter({ provider: { request: args => client.request(args) }, readSnapshot: snapshot });
+    const trainingIntents = createLocalTrainingIntents({ client, owner, progression, readSnapshot: snapshot,
+      approvedKeys: skills.filter(s => [2, 3, 4].includes(s.id)).map(s => s.key),
+      sendTransaction: async (_transaction, context) => (await trainingWallet.submit(context)).transactionHash });
     const files = new Map([
       ['/control-center', ['control-center.html', 'text/html']],
       ['/control-center.mjs', ['control-center.mjs', 'text/javascript']],
-      ...['broker-v2-forge.js', 'forge-training.js', 'forge-catalog.js'].map(name => [`/${name}`, [`../../../site/${name}`, 'text/javascript']]),
+      ...['broker-v2-forge.js', 'forge-training.js', 'forge-training-transaction.js', 'forge-catalog.js'].map(name => [`/${name}`, [`../../../site/${name}`, 'text/javascript']]),
       ['/broker-v2-forge.css', ['../../../site/broker-v2-forge.css', 'text/css']],
       ['/forge-training.css', ['../../../site/forge-training.css', 'text/css']],
       ['/', ['index.html', 'text/html']], ['/app.mjs', ['app.mjs', 'text/javascript']], ['/style.css', ['style.css', 'text/css']],
@@ -169,6 +175,25 @@ export async function startPreview({ port = 0, researchClient, controlCenterTrai
       res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
       const expectedHost = `127.0.0.1:${server.address().port}`;
       if (req.headers.host !== expectedHost || (req.headers.origin && req.headers.origin !== `http://${expectedHost}`)) { res.writeHead(403); return res.end('Local preview only'); }
+      if (req.method === 'POST' && ['/api/local-training/prepare', '/api/local-training/confirm', '/api/local-training/status'].includes(req.url)) {
+        if (req.headers.origin !== `http://${expectedHost}` || req.headers['x-forge-nonce'] !== localTrainingNonce
+          || req.headers['content-type'] !== 'application/json') { res.writeHead(403); return res.end('Local confirmation required'); }
+        try {
+          let body = '';
+          for await (const chunk of req) { body += chunk.toString('utf8'); if (Buffer.byteLength(body) > 2048) throw Error('REQUEST_TOO_LARGE'); }
+          const input = JSON.parse(body);
+          let result;
+          if (req.url.endsWith('/prepare')) result = await trainingIntents.prepare(input);
+          else {
+            if (!input || Array.isArray(input) || Object.keys(input).length !== 1 || !/^[0-9a-f]{64}$/.test(input.intentId)) throw Error('INVALID_REVIEW');
+            result = await trainingIntents[req.url.endsWith('/status') ? 'status' : 'confirm'](input.intentId);
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(json(result));
+        } catch (error) {
+          const safe = ['STALE_REVIEW_STATE', 'TRAINING_STATE_CHANGED', 'TRAINING_REVIEW_EXPIRED', 'TRAINING_REVIEW_CONSUMED', 'TRAINING_TRANSACTION_UNRESOLVED'];
+          res.writeHead(409); return res.end(`${safe.includes(error.message) ? error.message : 'TRAINING_REVIEW_UNAVAILABLE'}. Inspect local transaction history before creating another review. No production action exists.`);
+        }
+      }
       if (req.method === 'POST' && req.url === '/api/local-tool') {
         if (req.headers.origin !== `http://${expectedHost}` || req.headers['x-forge-nonce'] !== localTrainingNonce
           || req.headers['content-type'] !== 'application/json') { res.writeHead(403); return res.end('Local confirmation required'); }
@@ -212,11 +237,11 @@ export async function startPreview({ port = 0, researchClient, controlCenterTrai
           if (input.operation === 'equip') { functionName = 'equipSkill'; args = [BigInt(input.tokenId), input.slot, input.key]; }
           if (input.operation === 'unequip') { functionName = 'unequipSkill'; args = [BigInt(input.tokenId), input.slot]; }
           await client.simulateContract({ address: progression, abi: prog.abi, functionName, args, account: owner });
-          const result = await write(prog, progression, functionName, args);
-          let updated = null;
-          try { updated = await snapshot(input.tokenId); } catch { /* Confirmed receipt remains truthful even if the follow-up read fails. */ }
+          // The older standalone preview also uses the same pending/retry safety boundary.
+          const reviewed = await trainingIntents.prepare(input);
+          const confirmation = await trainingIntents.confirm(reviewed.intentId);
           res.writeHead(200, { 'Content-Type': 'application/json' });
-          return res.end(json({ localOnly: true, chainId: 31337, productionAuthority: false, transactionHash: result.transactionHash, snapshot: updated }));
+          return res.end(json(confirmation));
         } catch {
           res.writeHead(409); return res.end('Local action not confirmed. Refresh state before retrying. No production action exists.');
         } finally { mutationInFlight = false; }

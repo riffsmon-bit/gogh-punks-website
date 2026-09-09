@@ -1,5 +1,6 @@
 // Shared Control Center training view. Only the loopback test harness supplies this adapter.
 // No production deployment or wallet authority is inferred from a URL/query flag.
+import { validateTrainingReview } from './forge-training-transaction.js';
 const ZERO = /^0x0{64}$/;
 const HASH = /^0x[0-9a-f]{64}$/i;
 const node = (tag, text, cls) => { const n = document.createElement(tag); if (text != null) n.textContent = text; if (cls) n.className = cls; return n; };
@@ -21,8 +22,10 @@ export function validateTrainingSnapshot(data, tokenId) {
 export function createTrainingControl({ root, getSelection, request, localOnly }) {
   if (localOnly !== true || window.location.hostname !== '127.0.0.1' || window.location.protocol !== 'http:') throw Error('Local training adapter is not available here');
   let data = null, selected = null, sequence = 0, busy = false;
+  const pendingReviews = new Map();
   const status = node('p', 'Load a disposable test Punk.', 'forge-note'); status.setAttribute('role', 'status');
   const refresh = node('button', 'REFRESH CONTRACT STATE', 'filter-button'); refresh.type = 'button';
+  const recheck = node('button', 'RECHECK TRANSACTION RECEIPT', 'filter-button'); recheck.type = 'button'; recheck.hidden = true;
   const stats = node('p', '', 'forge-training-stats');
   const slots = node('div', '', 'forge-slots');
   const library = node('div', '', 'forge-library');
@@ -31,13 +34,14 @@ export function createTrainingControl({ root, getSelection, request, localOnly }
   const result = node('pre', '', 'forge-training-result');
   const modal = node('dialog', '', 'forge-training-confirm');
   const warning = node('p', 'DISPOSABLE CHAIN 31337 · No MetaMask, real Punk, production skill or production ETH. Burn stays locked.', 'forge-banner');
-  root.replaceChildren(warning, refresh, status, stats, node('h3', 'PUNK LOADOUT · LOCAL CONTRACT'), slots,
+  root.replaceChildren(warning, refresh, recheck, status, stats, node('h3', 'PUNK LOADOUT · LOCAL CONTRACT'), slots,
     node('h3', 'LEARN · THEN EQUIP'), library, tools, result, node('h3', 'CONFIRMED TRAINING HISTORY'), history, modal);
   const isCurrent = (ticket, token) => ticket === sequence && String(getSelection()?.tokenId) === String(token);
   function clear() { data = null; stats.textContent = ''; slots.replaceChildren(); library.replaceChildren(); tools.replaceChildren(); result.textContent = ''; history.replaceChildren(); if (modal.open) modal.close(); }
-  const button = (text, fn, disabled = false) => { const b = node('button', text, 'filter-button'); b.type = 'button'; b.disabled = disabled || busy; b.addEventListener('click', fn); return b; };
+  const button = (text, fn, disabled = false) => { const b = node('button', text, 'filter-button'); b.type = 'button'; b.disabled = disabled || busy || pendingReviews.has(Number(selected)); b.addEventListener('click', fn); return b; };
   function render() {
     refresh.disabled = busy;
+    recheck.hidden = !pendingReviews.has(Number(selected)); recheck.disabled = busy;
     if (!data) return;
     stats.textContent = `TEST PUNK #${data.tokenId} · ${data.credits} CREDIT(S) · ${data.learned.length} LEARNED · ${data.equipped.filter(k => !ZERO.test(k)).length}/${data.slots} EQUIPPED`;
     slots.replaceChildren(); library.replaceChildren(); tools.replaceChildren(); history.replaceChildren();
@@ -83,28 +87,56 @@ export function createTrainingControl({ root, getSelection, request, localOnly }
     } catch (e) { if (isCurrent(ticket, token)) { clear(); status.textContent = e.message; } }
     finally { if (isCurrent(ticket, token)) { busy = false; render(); } }
   }
-  function review(operation, extra = {}) {
-    if (busy || !data) return;
+  async function review(operation, extra = {}) {
+    if (busy || !data || pendingReviews.has(Number(selected))) return;
     const captured = data, token = data.tokenId, ticket = sequence;
+    busy = true; render(); status.textContent = 'Preparing exact transaction and gas estimate. Nothing submitted.';
+    let prepared;
+    try {
+      prepared = validateTrainingReview(await request('/api/local-training/prepare', { method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-forge-nonce': captured.localTrainingNonce },
+        body: JSON.stringify({ tokenId: token, expectedBlock: captured.blockNumber, operation, ...extra }) }), captured, { operation, ...extra });
+      if (!isCurrent(ticket, token)) return;
+    } catch (e) { if (isCurrent(ticket, token)) { clear(); status.textContent = `${e.message} Refresh before reviewing again.`; } return; }
+    finally { if (isCurrent(ticket, token)) { busy = false; render(); } }
     modal.replaceChildren(node('h3', `REVIEW ${operation.toUpperCase()} · TEST ONLY`),
       node('p', `Local Punk #${token} · chain 31337 · ${['learn', 'unlock'].includes(operation) ? 'cost: 1 training credit' : 'cost: 0 training credits'}`),
       node('p', `Skill: ${data.skills.find(s => s.key === extra.key)?.name ?? (operation === 'unlock' ? 'one additional slot' : `slot ${(extra.slot ?? 0) + 1}`)}`),
-      node('p', `Progression contract: ${captured.progression}`), node('p', 'This submits a disposable local transaction. No real Punk is burned.'));
+      node('p', `Progression contract: ${captured.progression}`),
+      node('p', `ETH value: 0 · Estimated gas: ${prepared.estimatedGas} · Maximum test-network fee: ${prepared.maximumNetworkFeeWei} wei`),
+      node('p', `Review expires: ${new Date(prepared.expiresAt).toLocaleTimeString()}`),
+      node('p', 'This submits a disposable local transaction. No real Punk is burned.'));
     const confirm = button('CONFIRM LOCAL TRANSACTION', async () => {
       if (busy || !isCurrent(ticket, token) || data !== captured) { modal.close(); return; }
-      busy = true; modal.close(); render(); status.textContent = 'Simulating and confirming local transaction…';
-      try {
-        const response = await request('/api/local-training', { method: 'POST', headers: { 'content-type': 'application/json', 'x-forge-nonce': captured.localTrainingNonce },
-          body: JSON.stringify({ tokenId: token, expectedBlock: captured.blockNumber, operation, ...extra }) });
-        if (!isCurrent(ticket, token)) return;
-        if (response.localOnly !== true || response.chainId !== 31337 || response.productionAuthority !== false || !HASH.test(response.transactionHash)) throw Error('Transaction receipt could not be verified');
-        const next = response.snapshot ? validateTrainingSnapshot(response.snapshot, token) : null;
-        data = next; clearViewAfterReceipt();
-        status.textContent = `LOCAL TRANSACTION CONFIRMED: ${response.transactionHash}${next ? '' : ' · Refresh to retrieve progression.'}`;
-      } catch (e) { if (isCurrent(ticket, token)) { clear(); status.textContent = `${e.message} Refresh contract state before retrying.`; } }
-      finally { if (isCurrent(ticket, token)) { busy = false; render(); } }
+      if (Date.now() > prepared.expiresAt) { modal.close(); status.textContent = 'Review expired. Refresh and prepare again.'; return; }
+      pendingReviews.set(token, { prepared, captured });
+      modal.close(); await submitPrepared(token, ticket);
     });
     modal.append(button('CANCEL', () => modal.close()), confirm); modal.showModal();
+  }
+  async function submitPrepared(token, ticket, reconcileOnly = false) {
+      const pending = pendingReviews.get(token); if (busy || !pending) return;
+      const { prepared, captured } = pending;
+      busy = true; render(); status.textContent = 'Rechecking owner and state; submitting or reconciling the exact reviewed transaction…';
+      try {
+        const response = await request(`/api/local-training/${reconcileOnly ? 'status' : 'confirm'}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-forge-nonce': captured.localTrainingNonce },
+          body: JSON.stringify({ intentId: prepared.intentId }) });
+        if (!isCurrent(ticket, token)) return;
+        if (response.localOnly !== true || response.chainId !== 31337 || response.productionAuthority !== false || response.intentId !== prepared.intentId
+          || !['CONFIRMED', 'SUBMITTED', 'AWAITING_WALLET', 'REVERTED', 'INVALIDATED', 'REJECTED', 'SUBMISSION_UNKNOWN', 'NOT_SUBMITTED'].includes(response.status)) throw Error('Transaction status could not be verified');
+        if (response.status !== 'CONFIRMED') {
+          clear();
+          const terminal = ['REVERTED', 'INVALIDATED', 'REJECTED', 'NOT_SUBMITTED'].includes(response.status);
+          if (terminal) pendingReviews.delete(token);
+          status.textContent = `LOCAL TRANSACTION ${response.status}: ${response.transactionHash ?? 'no confirmed transaction hash'}. ${terminal ? 'Refresh state and prepare a new review.' : 'Recheck receipt; do not submit another transaction.'}`; return;
+        }
+        if (!HASH.test(response.transactionHash)) throw Error('Transaction receipt could not be verified');
+        const next = response.snapshot ? validateTrainingSnapshot(response.snapshot, token) : null;
+        pendingReviews.delete(token);
+        data = next; clearViewAfterReceipt();
+        status.textContent = `LOCAL TRANSACTION CONFIRMED: ${response.transactionHash}${next ? '' : ' · Refresh to retrieve progression.'}`;
+      } catch (e) { if (isCurrent(ticket, token)) { clear(); status.textContent = `${e.message} Submission may be unresolved. Recheck this receipt; do not create a second transaction.`; } }
+      finally { if (isCurrent(ticket, token)) { busy = false; render(); } }
   }
   function clearViewAfterReceipt() { slots.replaceChildren(); library.replaceChildren(); tools.replaceChildren(); result.textContent = ''; history.replaceChildren(); if (!data) stats.textContent = ''; }
   async function runTool(name) {
@@ -119,6 +151,7 @@ export function createTrainingControl({ root, getSelection, request, localOnly }
     finally { if (isCurrent(ticket, token)) { busy = false; render(); } }
   }
   refresh.addEventListener('click', load);
+  recheck.addEventListener('click', () => submitPrepared(Number(selected), sequence, true));
   const selectionChanged = () => { const token = getSelection()?.tokenId; if (token !== selected) return load(); };
   selectionChanged();
   return { selectionChanged };

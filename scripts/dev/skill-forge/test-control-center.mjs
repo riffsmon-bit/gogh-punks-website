@@ -15,7 +15,10 @@ ws.onmessage = ({ data }) => { const m = JSON.parse(data); if (m.method === 'Run
 const call = (method, params = {}) => new Promise((resolve, reject) => { const next = ++id; pending.set(next, { resolve, reject }); ws.send(JSON.stringify({ id: next, method, params })); });
 const evaluate = async expression => { const r = await call('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }); if (r.exceptionDetails) throw Error(JSON.stringify(r.exceptionDetails)); return r.result.value; };
 const until = async expression => { for (let i = 0; i < 240; i++) { if (await evaluate(expression)) return; await new Promise(r => setTimeout(r, 100)); } throw Error(`DOM timeout: ${expression}`); };
-const click = text => evaluate(`[...document.querySelectorAll('button')].find(b=>b.textContent===${JSON.stringify(text)}).click()`);
+const click = async text => {
+  if (['CONFIRM LOCAL TRANSACTION', 'CANCEL'].includes(text)) await until("document.querySelector('dialog').open");
+  return evaluate(`[...document.querySelectorAll('button')].find(b=>b.textContent===${JSON.stringify(text)}).click()`);
+};
 try {
   await call('Runtime.enable'); await call('Page.enable');
   await until("document.querySelectorAll('.forge-socket').length===7");
@@ -27,11 +30,14 @@ try {
   // Learning requires a separate explicit confirmation; Cancel performs no write.
   await click('REVIEW LEARN · 1 CREDIT');
   await until("document.querySelector('dialog').open");
+  assert.match(await evaluate("document.querySelector('dialog').textContent"), /ETH value: 0.*Estimated gas:.*Maximum test-network fee:/);
+  assert.match(await evaluate("document.querySelector('dialog').textContent"), /Review expires:/);
   await click('CANCEL');
   assert.match(await evaluate("document.querySelector('.forge-training-stats').textContent"), /1 CREDIT/);
   await click('REVIEW LEARN · 1 CREDIT'); await click('CONFIRM LOCAL TRANSACTION');
   await until("document.querySelector('[role=status]').textContent.includes('LOCAL TRANSACTION CONFIRMED')");
   assert.match(await evaluate("document.querySelector('.forge-training-stats').textContent"), /0 CREDIT.*3 LEARNED.*1\/2 EQUIPPED/);
+  assert.equal(await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent==='RECHECK TRANSACTION RECEIPT').hidden"), true);
   // Equip Rarity Eye in the empty second slot. Learning alone did not grant this tool.
   await evaluate("const s=document.querySelectorAll('.forge-socket select')[1];s.value=[...s.options].find(o=>o.textContent==='Rarity Eye').value;document.querySelectorAll('.forge-socket')[1].querySelector('button').click()");
   await click('CONFIRM LOCAL TRANSACTION');
