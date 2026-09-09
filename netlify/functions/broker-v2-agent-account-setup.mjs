@@ -59,6 +59,25 @@ function preparationError(error) {
   return error;
 }
 
+export async function reuseAgentStrategyReview(database, { tokenId, intentHash, owner }) {
+  const bindings = [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, tokenId, intentHash, owner];
+  const result = await database.query(`SELECT version, state FROM broker_v2_strategies
+    WHERE chain_id = $1 AND collection_address = $2 AND token_id = $3::numeric
+      AND intent_hash = $4 AND configured_by = $5 LIMIT 1 FOR UPDATE`, bindings);
+  const row = result.rows[0];
+  if (!row) return null;
+  if (!["PENDING_OWNER_CONFIRMATION", "PAUSED"].includes(row.state)) throw new PublicError(409,
+    "STRATEGY_ALREADY_RECORDED", "This strategy is active or retired. Recall an active mission or review changed limits before a new setup.");
+  if (row.state === "PAUSED") {
+    // Preparation can reopen a review, never activate it. Receipt reconciliation
+    // still requires a fresh owner-signed on-chain session with the next generation.
+    await database.query(`UPDATE broker_v2_strategies SET state = 'PENDING_OWNER_CONFIRMATION'
+      WHERE chain_id = $1 AND collection_address = $2 AND token_id = $3::numeric
+        AND intent_hash = $4 AND configured_by = $5 AND state = 'PAUSED'`, bindings);
+  }
+  return Number(row.version);
+}
+
 export async function handleV2AgentAccountSetup(request, {
   pool = getDatabase().pool, readAuthority = readV2PunkAuthority, client = null,
   manifest = deployment, environment = process.env, now = new Date(),
@@ -125,8 +144,8 @@ export async function handleV2AgentAccountSetup(request, {
     let strategyVersion; let sessionId;
     try {
       await database.query("BEGIN");
-      await database.query("SELECT pg_advisory_xact_lock($1::integer, $2::integer)",
-        [ROBINHOOD.chainId, Number(body.tokenId)]);
+      await database.query("SELECT pg_advisory_xact_lock($1)",
+        [(BigInt(ROBINHOOD.chainId) * 10_000n + BigInt(body.tokenId)).toString()]);
       const active = await database.query(`SELECT session_id::text, status
         FROM broker_v2_agent_sessions WHERE chain_id = $1 AND punk_token_id = $2::numeric
           AND status IN ('ACTIVE', 'PAUSED') FOR UPDATE`, [ROBINHOOD.chainId, body.tokenId]);
@@ -145,13 +164,9 @@ export async function handleV2AgentAccountSetup(request, {
         if (existing.rows[0]) await database.query(`UPDATE broker_v2_agent_sessions
           SET status = 'REVOKED', updated_at = $1 WHERE session_id = $2`,
         [new Date(now).toISOString(), existing.rows[0].session_id]);
-        const pendingStrategy = await database.query(`SELECT version FROM broker_v2_strategies
-          WHERE chain_id = $1 AND collection_address = $2 AND token_id = $3::numeric
-            AND intent_hash = $4 AND state = 'PENDING_OWNER_CONFIRMATION'
-            AND configured_by = $5 LIMIT 1 FOR UPDATE`, [ROBINHOOD.chainId,
-          ROBINHOOD.canonicalCollection, body.tokenId, intentHash, body.owner]);
-        if (pendingStrategy.rows[0]) strategyVersion = Number(pendingStrategy.rows[0].version);
-        else {
+        strategyVersion = await reuseAgentStrategyReview(database, {
+          tokenId: body.tokenId, intentHash, owner: body.owner });
+        if (strategyVersion === null) {
           const versionResult = await database.query(`SELECT COALESCE(MAX(version), 0) + 1 AS version
             FROM broker_v2_strategies WHERE chain_id = $1 AND collection_address = $2
               AND token_id = $3::numeric`, [ROBINHOOD.chainId,

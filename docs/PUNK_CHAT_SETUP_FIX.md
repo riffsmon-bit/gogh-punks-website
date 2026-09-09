@@ -8,6 +8,8 @@ Production chat logs for the owner's 08:22 EDT requests showed PostgreSQL `23505
 
 The handler now looks up the exact collection/token/hash under its existing per-Punk transaction lock. Pending and paused reviews belonging to the same current owner are returned at their existing version. No strategy is activated, reset, or superseded by reuse. Active/retired hashes return explicit state messages, not a generic outage. The base-strategy query excludes previous-owner rows. Normal owner verification and fresh activation signatures remain mandatory.
 
+The subsequent Agent setup endpoint also reuses the paused strategy instead of inserting the same hash. Only an explicit setup request moves it to pending review; a fresh next-generation owner transaction and receipt reconciliation are still required to activate. Chat and Agent setup now share the same advisory lock when allocating a strategy version. Active/retired rows are not silently revived. A direct live helper probe was stopped by the diagnostic database role's read-only privileges at `FOR UPDATE`; no production row was changed by that probe.
+
 ## Talk actions
 
 - `Check my gas` or `Are you minting right now?`: authenticated account/mission status, with no invented balance or current-execution claim.
@@ -24,7 +26,7 @@ The previously suggested phrase “total gas spending within 0.0005 ETH” descr
 
 ## Verification
 
-- 68 targeted tests passed, including full-handler duplicate pending/paused requests, no mutation on reuse, wrong owner/retired state rejection, transaction funding boundaries, strict signing/runtime checks and chat actions.
+- 72 targeted tests passed, including full-handler duplicate pending/paused requests, no mutation on chat reuse, setup reopening only pending review, wrong owner/retired state rejection, transaction funding boundaries, strict signing/runtime checks and chat actions.
 - Syntax: 474 modules passed. Site: 7 pages, 16 previews and asset/secret checks passed.
 - Chrome local preview: 1440, 390 and 375px, no horizontal overflow or runtime exceptions. Chat prefills exact amount without confirmation, moves the single component between Talk/Fund, and never auto-submits.
 - Live authenticated wallet/browser flow still requires the owner's test. No mint receipt or new mission activation is claimed.
