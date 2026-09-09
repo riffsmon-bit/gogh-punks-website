@@ -1,6 +1,21 @@
 # Agent Gas Fund — implementation checkpoint
 
-September 9, 2026. Branch `feat/punk-agent-gas-funding`, based on `bce4c8c`. Additive V2 UI change; Skill Forge is not involved. No production deployment, environment change, signature, transfer or mission activation performed.
+September 9, 2026. Branch `feat/punk-agent-gas-funding`, based on `bce4c8c`. Additive V2 UI change; Skill Forge is not involved. The implementation checkpoints below precede the authorized production release recorded next.
+
+## Authorized production release — September 9, 2026
+
+The owner explicitly approved deploying the readiness fix and Agent Gas Fund without merging main. Netlify built a tracked-source ZIP of `cf0f1089f9261a945b4f329dd5d06d284a98cfbd` in production context and published it at **2026-09-09 12:16:47 UTC** (08:16 EDT).
+
+- Site: `goghpunks.xyz`; site ID `9f495fcf-b694-4b06-bdf5-7cd63bfe220e`.
+- Build: `6aa14de56a373ea3e3c1f56e`; deploy: `6aa14de56a373ea3e3c1f570` (`ready`, published).
+- Prior production/rollback deploy: `6aa0b9cc397ada0008da516a`. Its source tree matched the feature branch base before release.
+- No Git push/merge to main, environment edits, wallet signatures, ETH transfers, or mission activations were performed. Netlify labels source-ZIP production builds with its configured branch `main`; this is not a Git merge or push.
+- Local targeted regression: **55 passed**. Netlify's complete `site:deploy-check` succeeded, including wallet build, static/code/broker checks and **127 deployment-gate tests**; function bundling and publication succeeded.
+- Local full build was blocked by pre-existing incomplete dependencies and then insufficient disk space. Only the incomplete dependencies created for this release were removed; Netlify performed the successful clean build instead.
+- Live HTML, `broker-v2.js`, `broker-v2.css`, and `punk-agent-gas-funding.js` returned HTTP 200 and SHA-256 matched the release source exactly.
+- Live unauthenticated Agent Account request returned HTTP 401 `V2_SESSION_REQUIRED`, preserving owner authentication. Authenticated owner recheck and real funding remain user-driven acceptance tests; no live mint is claimed.
+
+Owner test: hard-refresh `/broker/v2/?tab=fund`, select #93, use **RECHECK / SIGN IN**, review the verified balances and **USE PUNK WALLET ETH** funding plan, then explicitly confirm the transaction in MetaMask. Reserve checks remain enforced. Funding alone does not activate a mission; review and authorize a separate mission in Talk afterward.
 
 ## User flow
 
