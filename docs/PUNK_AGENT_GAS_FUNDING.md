@@ -23,6 +23,16 @@ The UI previously disabled the mode based on `setupAvailable`/mission state but 
 
 Read-only production checks during this work: worker enabled; direct private relay mode; global pause false; background allowlist includes Punk Agent Worker and discovery ingest. Relay signer had 0.001 ETH. Those facts do not establish the user's authenticated `setupAvailable` result or prove the cause of the current locked mode. The requested screenshot/readiness response is still needed to identify that exact blocker. No server switch was changed.
 
+### Follow-up: recalled-session lock reproduced and fixed locally
+
+Subsequent read-only checks identified the concrete failure: #93's on-chain `sessionActive` is false and its session key is zero after `revokeAutonomousSession()` deletes `_session`. Reading that runtime with the configured public worker key reproduces `SESSION_KEY_MISMATCH`. The status endpoint had supplied this execution-key constraint even when no active session existed, producing HTTP 503; the UI mislabeled the failure as sign-in required.
+
+The status endpoint now reads ownership-bound account state without requiring an inactive key match. An **active** key mismatch is still an explicit blocker and prevents setup/execution readiness. Worker execution and receipt reconciliation retain the original strict expected-key checks. An inactive session remains unauthorized and cannot mint; owner setup must still pass manifest, database, signer and bundler checks. No session is reactivated by this GET. UI auth errors are distinguished from service errors and unverified balances no longer display as zero.
+
+Follow-up suite: **36 tests passed**, including five new recalled-session/readiness regressions plus existing function/runtime/funding/UI checks. The newly reproduced fix is local, not a confirmed production deployment. The earlier paragraph records the state of the investigation before this reproduction; no more wallet screenshots are required to establish this bug.
+
+Expanded final regression: `node --test tests/punk-agent-*.test.mjs tests/punk-wallet-funds.test.mjs tests/art-broker-v2-ui.test.mjs` — **55 passed, zero failed/skipped**, including mint intent, UserOperation and strict signing/submission tests.
+
 ## Verification
 
 - 27 targeted tests passed: gas funding (7), existing Punk Wallet funds (5), V2 UI (11), Agent runtime (4).

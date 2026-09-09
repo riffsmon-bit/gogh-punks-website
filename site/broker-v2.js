@@ -174,7 +174,7 @@ function renderAgentAccount() {
   setAll("[data-autonomous-mode-detail]", active
     ? "Owner-approved mission session is active. Per-mint wallet popups are not required."
     : setupAvailable ? "Ready for up to two owner-approved setup transactions."
-      : status?.error ? `Sign in / recheck readiness: ${status.error}`
+      : status?.error ? `Readiness check failed: ${status.error}`
         : status ? `Blocked: ${(status.readiness?.blockers ?? []).map(blockerLabel).join(" · ") || "readiness unavailable"}. Check autonomous readiness.`
           : "Readiness not verified. Use CHECK AUTONOMOUS READINESS.");
   if (!status) {
@@ -182,11 +182,15 @@ function renderAgentAccount() {
     return;
   }
   if (status.error) {
-    set("[data-agent-account-status]", "SIGN-IN REQUIRED");
-    set("[data-agent-account-detail]", `${status.error} Open a mission draft to sign in and recheck.`);
+    const signInRequired = ["V2_SESSION_REQUIRED", "V2_SESSION_EXPIRED"].includes(status.code);
+    set("[data-agent-account-status]", signInRequired ? "SIGN-IN REQUIRED" : "READINESS UNAVAILABLE");
+    set("[data-agent-account-detail]", signInRequired
+      ? `${status.error} Use Check Autonomous Readiness to sign in and recheck.`
+      : `${status.error} Recheck readiness. No deposit or mission signature can resolve a service error.`);
     set("[data-agent-account-address]", "NOT CONFIRMED");
-    set("[data-agent-account-mission]", "NOT AUTHORIZED");
-    set("[data-agent-account-worker]", "LOCKED");
+    set("[data-agent-account-balance]", "NOT VERIFIED");
+    set("[data-agent-account-mission]", "NOT VERIFIED");
+    set("[data-agent-account-worker]", "NOT VERIFIED");
     return;
   }
   const blockers = status.readiness?.blockers ?? [];

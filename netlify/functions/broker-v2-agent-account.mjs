@@ -36,7 +36,7 @@ function publicRuntime(runtime) {
 export async function handleV2AgentAccount(request, {
   pool = getDatabase().pool, readAuthority = readV2PunkAuthority, client = null,
   manifest = deployment, environment = process.env, requireSession = requireV2Session,
-  now = new Date(),
+  now = new Date(), readBundlerReadiness = readPunkAgentBundlerReadiness,
 } = {}) {
   if (request.method !== "GET") return json({ ok: false, code: "METHOD_NOT_ALLOWED" }, 405);
   try {
@@ -53,13 +53,17 @@ export async function handleV2AgentAccount(request, {
     let runtime = null;
     if (manifest.status === "DEPLOYED") {
       runtime = await readPunkAgentAccountRuntime({ client: client ?? liveClient(),
-        deployment: manifest, tokenId, expectedOwner: session.walletAddress,
-        ...(signerAddress ? { expectedSessionKey: signerAddress } : {}) });
+        deployment: manifest, tokenId, expectedOwner: session.walletAddress });
     }
+    // Readiness is not execution authorization. Recall clears the session key; requiring
+    // a worker-key match on that inactive session prevents the owner from setting up again.
+    // Active mismatches remain explicit blockers. Worker/receipt checks stay strict.
+    const sessionKeyMatches = runtime?.sessionActive !== true
+      || runtime.session.sessionKey === signerAddress;
     let bundler = Object.freeze({ ready: false });
     if (environment.PUNK_AGENT_BUNDLER_RPC_URL
       || environment.PUNK_AGENT_BUNDLER_MODE === "DIRECT_PRIVATE_RELAY") {
-      try { bundler = await readPunkAgentBundlerReadiness({
+      try { bundler = await readBundlerReadiness({
         bundler: createConfiguredPunkAgentBundler(environment),
       }); } catch { bundler = Object.freeze({ ready: false }); }
     }
@@ -140,6 +144,7 @@ export async function handleV2AgentAccount(request, {
       ...readiness.blockers,
       ...(databaseReady ? [] : ["AGENT_DATABASE_NOT_READY"]),
       ...(signerConfigured ? [] : ["SESSION_SIGNER_NOT_CONFIGURED"]),
+      ...(sessionKeyMatches ? [] : ["SESSION_KEY_MISMATCH"]),
       ...(bundler.ready ? [] : ["BUNDLER_NOT_READY"]),
       ...(runtime?.accountCreated ? [] : ["ACCOUNT_NOT_ACTIVATED"]),
       ...(runtime?.sessionActive ? [] : ["SESSION_NOT_AUTHORIZED"]),
@@ -150,7 +155,8 @@ export async function handleV2AgentAccount(request, {
     return json({ ok: true, tokenId, productName: "Punk Agent Account",
       owner: session.walletAddress, readiness: { ...readiness,
         ready: blockers.length === 0, automaticExecutionReady: blockers.length === 0,
-        setupAvailable: readiness.ready && databaseReady && signerConfigured && bundler.ready,
+        setupAvailable: readiness.ready && databaseReady && signerConfigured && bundler.ready
+          && sessionKeyMatches,
         databaseReady, blockers }, signer: { configured: signerConfigured, address: signerAddress },
       bundler, worker, runtime: publicRuntime(runtime), mission, skills, transactionPrepared: false,
       transactionSubmitted: false }, 200, {
