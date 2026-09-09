@@ -27,3 +27,6 @@ ops/reviewed-free-mint-queue.json
 ops/reviewed-free-mint-live-state.json
 ops/reviewed-free-mint-run-plan.json
 site/reown-wallet-app.js
+artifacts/skill-forge/rarity/capture-checkpoint.json
+artifacts/skill-forge/rarity/capture-checkpoint.json.tmp
+artifacts/skill-forge/rarity/partial-*.json

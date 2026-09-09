@@ -1,6 +1,6 @@
-# Rarity-based starting slots — approved rules, snapshot pending
+# Rarity-based starting slots — approved rules and verified snapshot
 
-User approved locking in the proposed rules while requesting a rarity snapshot from the Gogh Punks OpenSea collection. The rules are now recorded in `slot-policy.mjs`; the disposable UI fixture uses 1 base / 7 maximum slots. No production rights have been awarded. Individual rarity bonuses remain pending a complete verified snapshot.
+User approved locking in the proposed rules while requesting a rarity snapshot from the Gogh Punks OpenSea collection. The rules are recorded in `slot-policy.mjs`; the disposable UI fixture uses 1 base / 7 maximum slots. A complete verified 4,295-Punk snapshot is now saved; see [snapshot status](v2-rarity-snapshot-status.md). No production rights have been awarded. On-chain application still requires a reviewed additive migration.
 
 ## Recommended starting point
 
@@ -20,7 +20,7 @@ Rank cutoffs use exact integer comparisons: rank × 100 ≤ population × 5, the
 
 ## Data and persistence requirements
 
-OpenSea's [Get NFT API](https://docs.opensea.io/reference/get_nft) documents NFT rarity data. Its [OpenRarity help article](https://support.opensea.io/en/articles/8867099-what-is-openrarity) says enabled collection ranks can be available through its API. This does NOT establish that Gogh Punks currently has complete usable ranks. Authenticated live Gogh rarity retrieval has not succeeded yet.
+OpenSea's [Get NFT API](https://docs.opensea.io/reference/get_nft) documents NFT rarity data. Authenticated single-NFT and batch-by-ID reads have now succeeded for Gogh; the complete frozen baseline is verified against canonical token existence. Documentation alone was not used as proof of availability.
 
 Before assigning permanent slots, obtain and review a complete, collection/chain-bound rarity snapshot. Record collection contract, chain, token ID, rank, method/version, full baseline population, ties, snapshot date/block, metadata fingerprints and content hash. Publish reproducible evidence and anchor the reviewed allocation (for example a Merkle root) if incorporated into production contracts. A marketplace response alone cannot confer economic permissions.
 
@@ -33,6 +33,6 @@ Before assigning permanent slots, obtain and review a complete, collection/chain
 - Rarity unlocks capacity only, not learned skills, paid execution, relaxed security or spend authority.
 - Apply only through a reviewed additive contract/migration. Current immutable base/cap progression needs a deliberate design change; do not silently reinterpret already-learned versions.
 
-## Snapshot still required
+## Snapshot captured
 
-OpenSea collection metadata was successfully retrieved and identifies `openrarity` version `1.0`, `max_rank=4295`, `rarity.total_supply=4295`, and matching Robinhood contract identity. Public individual-NFT and paginated-NFT endpoints returned HTTP 401 without a key. The existing Netlify OpenSea variable is secret and its values are unreadable through the API; protection was not changed. No complete per-token snapshot is saved or frozen. See [the retrieval checkpoint](v2-rarity-snapshot-status.md). A readable, authorized API key or verified complete export is still required.
+The snapshot contains all 4,295 circulating token IDs with OpenSea ranks, per-record metadata fingerprints, retrieval timestamps, start/end canonical blocks, approved slot allocations and payload hash `8a492f7dbb1ea8fe2ca51a134ffb6a9d4003bd6e9aa7cb87b121de43a40430de`. Allocation totals: 214 Punks start with three slots, 859 with two, and 3,222 with one. #93 ranks 1,295 and starts with one. All can train up to seven. See [the verification checkpoint](v2-rarity-snapshot-status.md). The owner-provided key remains in macOS Keychain; Netlify protection was not changed.

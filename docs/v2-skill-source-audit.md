@@ -9,9 +9,9 @@ This is an evidence checkpoint, **not a completed Skill Forge release**. No exte
 
 - Seven public repositories cloned and source-inspected; exact revisions below.
 - Fourteen candidate packages/workflow surfaces evaluated below. Three whole-runtime integrations rejected; their public documentation can still inform independent implementations.
-- Two hosted external tool surfaces probed: Emblem anonymous tool discovery worked; OpenSea initialization worked but data access is blocked pending a usable key. This is **not** two successful end-to-end skills.
+- Two hosted external tool surfaces were initially probed: Emblem anonymous tool discovery worked; OpenSea initialization worked but unauthenticated data access was blocked. Subsequent owner-provided Keychain access enabled live OpenSea reads, documented below. Tool discovery is **not** successful end-to-end skill acceptance.
 - Zero externally implemented skills vendored, installed, or approved for production.
-- Three Gogh-native tool paths implemented: contract evidence, inline NFT metadata/sample ranking, and a restricted market read adapter. First two exercised against Robinhood; market reads have fixture tests only.
+- Three Gogh-native tool paths implemented: contract evidence, inline NFT metadata/sample ranking, and a restricted market read adapter. All three now have narrow live Robinhood evidence (see the September 9 authenticated follow-up below); this is not complete production acceptance.
 - **Zero READY production skills.** Capability registration, on-chain equipment enforcement, integration tests and production review remain outstanding. Do not show the candidate list as learnable skills.
 
 ## Pinned sources
@@ -121,7 +121,7 @@ API: concrete feed/inscription routes exist in source. MCP: none established for
 | Gogh candidate | Status | Demonstrated | Still needed before READY | Wallet capability |
 |---|---|---|---|---|
 | Contract Detective | TESTING | Live Robinhood bytecode/hash, interface and EIP-1967 storage evidence at pinned block | Capability/loadout gate, broader proxy/source findings, integration acceptance | NONE |
-| Market Scout | BLOCKED | Restricted REST adapter passes fixtures; source/API protocol inspected | Successful current Robinhood collection/listing data read, freshness tests, gated integration | NONE |
+| Market Scout | TESTING | Restricted REST adapter passes fixtures; authenticated live read returned five Gogh listings on Robinhood | Freshness/order-validity tests and gated integration; no purchase capability | NONE |
 | Rarity Eye | TESTING | Live inline metadata retrieved for #93/#94/#95; sample frequencies and ranks computed | Complete collection snapshot, burned-ID handling, revealed-state and numeric-trait product decisions, gated integration | NONE |
 | Link Sniper | ADAPTING | Existing V2 normalizer and trusted-resolver boundary identified | Approved live link→contract→chain→mechanism→price→screen→simulation end-to-end proof | No execution by itself |
 | Mint Hunter | ADAPTING | Existing V2 screened zero-price SeaDrop builder/simulator identified | Exercise real test mint through full gated pipeline; prove equipment/policy/expiry/receipt behavior | Only existing bounded free-mint executor after authorization |
@@ -136,6 +136,16 @@ No future paid-mint, purchase, bidder or trading skill is activated. Source inst
 - Emblem anonymous MCP tool listing 200. Tool discovery is not authenticated data retrieval or execution acceptance.
 
 ## Promotion and update policy
+
+### Authenticated OpenSea follow-up — 2026-09-09 UTC
+
+The owner saved an OpenSea API key through a hidden Terminal password prompt into macOS Keychain. It was read directly into process memory, never placed in source, shell history, logs or the browser. No Netlify setting was changed.
+
+At `2026-09-09T03:34:19.020Z`, the unchanged `createMarketReader().getListings()` path successfully validated the Gogh collection's Robinhood contract and retrieved five current listings from OpenSea. First returned order: `0x32a8897d12ac24ef1d3784ac575586c8b034897a28aeb2ca792c4b07ba190ef7`; quoted value `799999900000000` wei (ETH with 18 decimals). This is historical data evidence, not a current price recommendation or execution proof. The adapter discarded protocol/signing data and returned `walletAuthority: NONE`, `executable: false`.
+
+Authenticated Get NFT also returned OpenRarity strategy `1.0` and rank `1295` for Punk #93. Collection-wide capture is tracked separately in [snapshot status](v2-rarity-snapshot-status.md). A single successful rank read is not a finalized collection snapshot.
+
+The earlier unauthenticated probes above remain historical evidence. Authentication is no longer the Market Scout blocker. This follow-up does not install an external skill, create a new registry approval, or enable Floor Snipe purchases. Production READY count remains zero.
 
 Each manifest must pin upstream commit and file hashes, local executable/instruction hashes, dependencies, adapter versions, approved tools, capability mapping, chain, risk tier and acceptance evidence. Registration is controlled review, never an AI action. Only READY, active, nondeprecated versions may be learned for production. Capability resolver also checks equipment and current owner authorization on each economically significant boundary. Remote API responses remain untrusted even when package source is pinned.
 
