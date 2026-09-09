@@ -2,6 +2,21 @@ import { sniperMissionPreview } from './sniper-missions.mjs';
 const $ = selector => document.querySelector(selector);
 const element = (tag, text, className) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; if (className) node.className = className; return node; };
 const zero = `0x${'0'.repeat(64)}`;
+// Original, code-native equipment glyphs; no third-party game assets.
+function equipmentIcon(name, locked) {
+  const paths = locked ? ['M8 11V7a4 4 0 0 1 8 0v4', 'M6 11h12v10H6z', 'M12 15v3']
+    : /detective/i.test(name) ? ['M15 15l6 6', 'M17 10a7 7 0 1 1-14 0 7 7 0 0 1 14 0', 'M7 10h6', 'M10 7v6']
+    : /rarity/i.test(name) ? ['M3 8l4-5h10l4 5-9 13z', 'M3 8h18', 'M7 3l5 18 5-18']
+    : /market/i.test(name) ? ['M3 3v18h18', 'M6 15l5-5 4 3 6-8', 'M16 5h5v5']
+    : /sniper|hunter/i.test(name) ? ['M20 12a8 8 0 1 1-16 0 8 8 0 0 1 16 0', 'M12 1v6m0 10v6M1 12h6m10 0h6', 'M10 12h4m-2-2v4']
+    : ['M12 5v14', 'M5 12h14'];
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('aria-hidden', 'true');
+  for (const d of paths) {
+    const path = document.createElementNS(svg.namespaceURI, 'path'); path.setAttribute('d', d); svg.append(path);
+  }
+  return svg;
+}
 let request = 0;
 let selectedPunk;
 let skillFilter = 'all';
@@ -118,10 +133,17 @@ function render(data) {
   $('#slots').replaceChildren(...Array.from({ length: data.cap }, (_, index) => {
     const skill = data.skills.find(item => item.key === data.equipped[index]);
     const locked = index >= data.slots;
-    const node = element('div', undefined, `slot ${skill ? 'active' : locked ? 'locked' : ''}`);
-    node.append(element('span', `SLOT 0${index + 1}`, 'slot-label'), element('strong', skill?.name || (locked ? 'LOCKED' : 'EMPTY SLOT')), element('small', skill ? 'Level 1 · local fixture' : locked ? 'Unlock with 1 credit · not live' : 'No active capability'));
+    const node = element('div', undefined, `slot ${skill ? 'active' : locked ? 'locked' : 'empty'}`);
+    const socket = element('div', undefined, 'equipment-socket');
+    socket.append(equipmentIcon(skill?.name || '', locked));
+    const level = data.learned.find(item => item.key === skill?.key)?.level;
+    if (skill) socket.append(element('span', level == null ? 'EQUIPPED' : `LV ${level}`, 'equipment-level'));
+    node.append(element('span', `SLOT 0${index + 1}`, 'slot-label'), socket,
+      element('strong', skill?.name || (locked ? 'LOCKED' : 'EMPTY SLOT')),
+      element('small', skill ? 'Equipped · local fixture' : locked ? '1 credit to unlock · local' : 'Equip a learned skill'));
     if (!locked) {
-      const change = element('button', 'CHANGE · LOCAL'); change.type = 'button'; change.dataset.loadoutSlot = index;
+      const change = element('button', skill ? 'CHANGE · LOCAL' : 'EQUIP · LOCAL'); change.type = 'button'; change.dataset.loadoutSlot = index;
+      change.setAttribute('aria-label', `${skill ? 'Change' : 'Equip'} skill in local slot ${index + 1}${skill ? `: ${skill.name}` : ''}`);
       change.addEventListener('click', () => {
         detail(`LOCAL SLOT ${index + 1}`, 'LOADOUT PRACTICE · CHAIN 31337', ['Only already-learned test skills can be equipped. This does not authorize a live mint.'], []);
         for (const learned of data.learned) {

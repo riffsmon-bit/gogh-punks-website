@@ -81,6 +81,14 @@ test('local Forge: contract snapshots, guarded local training and responsive bro
     await call('Page.navigate', { url: preview.url });
     await until("document.querySelector('#profile')?.hidden === false");
     assert.equal(await evaluate("document.querySelectorAll('.skill').length"), 13);
+    assert.match(await evaluate("document.querySelector('.roster .eyebrow').textContent"), /SELECT YOUR PUNK/);
+    assert.equal(await evaluate("document.querySelectorAll('.equipment-socket svg[aria-hidden=true]').length"), 7);
+    assert.equal(await evaluate("document.querySelectorAll('.slot.locked button').length"), 0);
+    assert.equal(await evaluate("document.querySelectorAll('.slot.empty [data-loadout-slot]').length"), 1);
+    await evaluate("document.querySelector('[data-loadout-slot=\"0\"]').click()");
+    assert.match(await evaluate("document.querySelector('#detail-title').textContent"), /LOCAL SLOT 1/);
+    assert.match(await evaluate("document.querySelector('#detail-body').textContent"), /UNEQUIP · LOCAL/);
+    await evaluate("document.querySelector('#close-detail').click()");
     assert.match(await evaluate("document.querySelector('#forge-floor').textContent"), /1,111 PUNKS · not deployed/);
     for (const [filter, count] of [['research', 5], ['discovery', 4], ['execution', 4], ['learned', 2], ['all', 13]]) {
       await evaluate(`document.querySelector('[data-filter="${filter}"]').click()`);
