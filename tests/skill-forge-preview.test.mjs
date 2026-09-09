@@ -82,7 +82,9 @@ test('local Forge: contract snapshots, guarded local training and responsive bro
     await until("document.querySelector('#profile')?.hidden === false");
     assert.equal(await evaluate("document.querySelectorAll('.skill').length"), 13);
     assert.match(await evaluate("document.querySelector('.roster .eyebrow').textContent"), /SELECT YOUR PUNK/);
-    assert.equal(await evaluate("document.querySelectorAll('.equipment-socket svg[aria-hidden=true]').length"), 7);
+    assert.equal(await evaluate("document.querySelectorAll('.equipment-socket [aria-hidden=true]').length"), 7);
+    await until("[...document.querySelectorAll('.skill-art')].every(img => img.complete && img.naturalWidth > 0)");
+    assert.equal(await evaluate("document.querySelectorAll('.library-skill-art').length"), 13);
     assert.equal(await evaluate("document.querySelectorAll('.slot.locked button').length"), 0);
     assert.equal(await evaluate("document.querySelectorAll('.slot.empty [data-loadout-slot]').length"), 1);
     await evaluate("document.querySelector('[data-loadout-slot=\"0\"]').click()");
@@ -144,6 +146,7 @@ test('local Forge: contract snapshots, guarded local training and responsive bro
     await evaluate("document.querySelector('[data-punk=\"1\"]').click()");
     await until("document.querySelector('#punk-label').textContent === 'LOCAL PUNK #1'");
     assert.equal(await evaluate("document.querySelectorAll('.skill.learned').length"), 2);
+    await until("[...document.querySelectorAll('.skill-art')].every(img => img.complete && img.naturalWidth > 0)");
     const desktop = await call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });
     await writeFile(join(folder, 'forge-desktop.png'), Buffer.from(desktop.data, 'base64'));
     for (const width of [390, 375]) {

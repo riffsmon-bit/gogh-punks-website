@@ -1,9 +1,16 @@
 import { sniperMissionPreview } from './sniper-missions.mjs';
+import { skillIconUrl } from './skill-icons.mjs';
 const $ = selector => document.querySelector(selector);
 const element = (tag, text, className) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; if (className) node.className = className; return node; };
 const zero = `0x${'0'.repeat(64)}`;
 // Original, code-native equipment glyphs; no third-party game assets.
 function equipmentIcon(name, locked) {
+  const source = !locked && skillIconUrl(name);
+  if (source) {
+    const icon = element('img', undefined, 'skill-art'); icon.src = source;
+    icon.alt = ''; icon.setAttribute('aria-hidden', 'true'); icon.decoding = 'async';
+    return icon;
+  }
   const paths = locked ? ['M8 11V7a4 4 0 0 1 8 0v4', 'M6 11h12v10H6z', 'M12 15v3']
     : /detective/i.test(name) ? ['M15 15l6 6', 'M17 10a7 7 0 1 1-14 0 7 7 0 0 1 14 0', 'M7 10h6', 'M10 7v6']
     : /rarity/i.test(name) ? ['M3 8l4-5h10l4 5-9 13z', 'M3 8h18', 'M7 3l5 18 5-18']
@@ -168,7 +175,9 @@ function render(data) {
     const learned = data.learned.find(item => item.key === skill.key);
     const card = element('article', undefined, `skill ${learned ? 'learned' : ''}`);
     card.dataset.category = skill.category; card.dataset.skill = skill.id;
-    const top = element('div', undefined, 'skill-top'); top.append(element('span', skill.mark, 'skill-number'), element('span', skill.comingSoon ? `COMING SOON · ${skill.status.replaceAll('_', ' ')}` : skill.status, 'skill-status'));
+    const top = element('div', undefined, 'skill-top');
+    const art = equipmentIcon(skill.name, false); art.classList.add('library-skill-art');
+    top.append(art, element('span', skill.comingSoon ? `COMING SOON · ${skill.status.replaceAll('_', ' ')}` : skill.status, 'skill-status'));
     card.append(top, element('h3', skill.name), element('p', learned ? `LEARNED · LEVEL ${learned.level} · LOCAL FIXTURE` : skill.comingSoon ? 'NOT LEARNABLE YET' : 'NOT LEARNED', 'learned-label'), element('p', skill.description, 'description'));
     const button = element('button', 'INSPECT CAPABILITY ↗'); button.type = 'button';
     button.addEventListener('click', () => {

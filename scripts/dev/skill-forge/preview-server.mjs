@@ -2,6 +2,7 @@
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
+import { SKILL_ICON_SLUGS } from './skill-icons.mjs';
 import { createServer as netServer } from 'node:net';
 import { createServer } from 'node:http';
 import { pathToFileURL } from 'node:url';
@@ -130,6 +131,8 @@ export async function startPreview({ port = 0 } = {}) {
       ['/', ['index.html', 'text/html']], ['/app.mjs', ['app.mjs', 'text/javascript']], ['/style.css', ['style.css', 'text/css']],
       ['/picker.css', ['picker.css', 'text/css']],
       ['/sniper-missions.mjs', ['sniper-missions.mjs', 'text/javascript']],
+      ['/skill-icons.mjs', ['skill-icons.mjs', 'text/javascript']],
+      ...SKILL_ICON_SLUGS.map(slug => [`/assets/skill-forge/v1/${slug}.png`, [`../../../site/assets/skill-forge/v1/${slug}.png`, 'image/png']]),
       ...[1, 44, 7].map(id => [`/art/${id}.png`, [`../../../site/assets/collection/${id}.png`, 'image/png']]),
     ]);
     server = createServer(async (req, res) => {
