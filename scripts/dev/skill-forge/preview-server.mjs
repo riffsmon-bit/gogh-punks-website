@@ -18,7 +18,8 @@ const zero = `0x${'0'.repeat(64)}`;
 const artifact = async (file, name) => JSON.parse(await readFile(new URL(`../../../contracts/out/${file}/${name}.json`, import.meta.url), 'utf8'));
 const json = value => JSON.stringify(value, (_key, item) => typeof item === 'bigint' ? item.toString() : item);
 
-export async function startPreview() {
+export async function startPreview({ port = 0 } = {}) {
+  if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('Invalid local preview port');
   const reservation = netServer();
   await new Promise(resolve => reservation.listen(0, '127.0.0.1', resolve));
   const rpcPort = reservation.address().port;
@@ -101,10 +102,24 @@ export async function startPreview() {
         const event = decodeEventLog({ abi: prog.abi, data: log.data, topics: log.topics });
         return event.args.tokenId === BigInt(tokenId) ? [{ name: event.eventName, args: event.args, transactionHash: log.transactionHash, blockNumber: log.blockNumber, logIndex: log.logIndex }] : [];
       }).reverse();
-      return { localOnly: true, chainId: 31337, tokenId, owner: currentOwner, collection, registry, progression, blockNumber: block.number, blockHash: block.hash, credits, slots, cap, learned, equipped, history, skills, productionReadyCount: 0, canBurn: false };
+      // Fixed fixture inventory only, with fresh owner/existence checks at the snapshot block.
+      // This is not a production ownership indexer or a complete wallet-asset inventory.
+      const candidates = [];
+      for (const id of [1, 44, 7, 1001, 1002, 1003, 1004]) {
+        if (id === tokenId) continue;
+        let candidateOwner;
+        try { candidateOwner = await client.readContract({ address: collection, abi: nft.abi, functionName: 'ownerOf', args: [BigInt(id)], blockNumber: block.number }); } catch { continue; }
+        if (candidateOwner.toLowerCase() !== currentOwner.toLowerCase()) continue;
+        candidates.push({ tokenId: id, owner: candidateOwner, learnedCount: await read('learnedCount', [BigInt(id)]),
+          credits: await read('trainingCredits', [BigInt(id)]), unlockedSlots: await read('unlockedSlots', [BigInt(id)]),
+          canBurn: false, eligibility: 'BLOCKED', inventory: 'UNKNOWN',
+          reason: 'Punk Wallet assets and unresolved activity have not been verified. Production sacrifice is locked.' });
+      }
+      return { localOnly: true, chainId: 31337, tokenId, owner: currentOwner, collection, registry, progression, blockNumber: block.number, blockHash: block.hash, credits, slots, cap, learned, equipped, history, skills, candidates, productionReadyCount: 0, canBurn: false };
     };
     const files = new Map([
       ['/', ['index.html', 'text/html']], ['/app.mjs', ['app.mjs', 'text/javascript']], ['/style.css', ['style.css', 'text/css']],
+      ['/picker.css', ['picker.css', 'text/css']],
       ...[1, 44, 7].map(id => [`/art/${id}.png`, [`../../../site/assets/collection/${id}.png`, 'image/png']]),
     ]);
     server = createServer(async (req, res) => {
@@ -128,14 +143,14 @@ export async function startPreview() {
         res.writeHead(200, { 'Content-Type': file[1] }); res.end(body);
       } catch { if (!res.headersSent) res.writeHead(503); res.end('Local snapshot unavailable. No action was taken.'); }
     });
-    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); });
     return { url: `http://127.0.0.1:${server.address().port}`, close };
   } catch (error) { await close(); throw error; }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  if (process.argv.length !== 3 || process.argv[2] !== '--local-only') throw new Error('Requires --local-only');
-  const preview = await startPreview();
+  if (process.argv[2] !== '--local-only' || process.argv.length > 4 || (process.argv[3] && !/^--port=\d{1,5}$/.test(process.argv[3]))) throw new Error('Requires --local-only, optionally --port=NUMBER');
+  const preview = await startPreview({ port: process.argv[3] ? Number(process.argv[3].split('=')[1]) : 0 });
   console.log(`Skill Forge local preview: ${preview.url}\nDisposable chain 31337. Read-only browser. No production wallet connection.`);
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, async () => { await preview.close(); process.exit(0); });
 }

@@ -17,8 +17,12 @@ test('local Forge: contract snapshots, read-only HTTP and responsive browser', {
     assert.equal(data.equipped.filter(key => !/^0x0+$/.test(key)).length, 1);
     assert.equal(data.history.filter(event => event.name === 'TrainingCreditEarned').length, 4);
     assert.ok(data.history.every(event => /^0x[0-9a-f]{64}$/.test(event.transactionHash)));
+    assert.deepEqual(data.candidates.map(candidate => candidate.tokenId), [44, 7]);
+    assert.ok(data.candidates.every(candidate => candidate.canBurn === false && candidate.inventory === 'UNKNOWN' && candidate.owner === data.owner));
     const other = await (await fetch(`${preview.url}/api/forge?tokenId=44`)).json();
     assert.equal(other.learned.length, 0); assert.equal(other.history.length, 0); assert.equal(other.credits, '0');
+    assert.deepEqual(other.candidates.map(candidate => candidate.tokenId), [1, 7]);
+    assert.equal(other.candidates[0].learnedCount, '2');
   });
   await t.test('no mutation, arbitrary token, cross-origin or file access', async () => {
     assert.equal((await fetch(`${preview.url}/api/forge?tokenId=1`, { method: 'POST' })).status, 405);
@@ -72,6 +76,16 @@ test('local Forge: contract snapshots, read-only HTTP and responsive browser', {
     await until("document.querySelector('#profile')?.hidden === false");
     assert.equal(await evaluate("document.querySelectorAll('.skill').length"), 5);
     assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true);
+    await evaluate("document.querySelector('#browse-sacrifice').click()");
+    await until("document.querySelectorAll('.sacrifice-card').length === 2");
+    assert.match(await evaluate("document.querySelector('#training-target').textContent"), /PUNK #1/);
+    assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-candidate]')].map(n=>n.dataset.candidate)"), ['44', '7']);
+    assert.match(await evaluate("document.querySelector('.sacrifice-card').textContent"), /Unknown/);
+    await evaluate("document.querySelector('.sacrifice-card button').click()");
+    assert.equal(await evaluate("document.querySelector('#candidate-review').hidden"), false);
+    assert.match(await evaluate("document.querySelector('#candidate-title').textContent"), /#44 → TRAIN #1/);
+    assert.equal(await evaluate("document.querySelector('#candidate-review>button').disabled"), true);
+    await evaluate("document.querySelector('#close-picker').click()");
     await evaluate("document.querySelector('.skill button').click()");
     assert.equal(await evaluate("document.querySelector('#detail').open"), true);
     assert.match(await evaluate("document.querySelector('#detail-body').textContent"), /No signing or spending authority/);
@@ -80,6 +94,11 @@ test('local Forge: contract snapshots, read-only HTTP and responsive browser', {
     await evaluate("document.querySelector('[data-punk=\"44\"]').click()");
     await until("document.querySelector('#punk-label').textContent === 'LOCAL PUNK #44'");
     assert.match(await evaluate("document.querySelector('#history').textContent"), /No training events/);
+    await evaluate("document.querySelector('#browse-sacrifice').click()");
+    await until("document.querySelector('[data-candidate=\"1\"]') !== null");
+    await evaluate("document.querySelector('[data-candidate=\"1\"] button').click()");
+    assert.match(await evaluate("document.querySelector('#candidate-inventory').textContent"), /2 learned skills, 1 credits and 2 slots/);
+    await evaluate("document.querySelector('#close-picker').click()");
     await evaluate("document.querySelector('[data-punk=\"1\"]').click()");
     await until("document.querySelector('#punk-label').textContent === 'LOCAL PUNK #1'");
     assert.equal(await evaluate("document.querySelectorAll('.skill.learned').length"), 2);
@@ -89,6 +108,15 @@ test('local Forge: contract snapshots, read-only HTTP and responsive browser', {
       await call('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: true });
       assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, `overflow at ${width}`);
       assert.equal(await evaluate("[...document.querySelectorAll('button')].filter(b=>b.getClientRects().length).every(b=>b.getBoundingClientRect().height>=44)"), true);
+      await evaluate("document.querySelector('#browse-sacrifice').click()");
+      await until("document.querySelectorAll('.sacrifice-card').length === 2");
+      assert.equal(await evaluate("document.querySelector('#sacrifice-picker').scrollWidth <= document.querySelector('#sacrifice-picker').clientWidth"), true);
+      await evaluate("document.querySelector('.sacrifice-card button').click()");
+      assert.equal(await evaluate("document.querySelector('#sacrifice-picker').scrollWidth <= document.querySelector('#sacrifice-picker').clientWidth"), true);
+      const picker = await call('Page.captureScreenshot', { format: 'png' });
+      await writeFile(join(folder, `forge-sacrifice-${width}.png`), Buffer.from(picker.data, 'base64'));
+      await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+      await until("!document.querySelector('#sacrifice-picker').open");
     }
     const mobile = await call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });
     await writeFile(join(folder, 'forge-mobile.png'), Buffer.from(mobile.data, 'base64'));
@@ -97,7 +125,16 @@ test('local Forge: contract snapshots, read-only HTTP and responsive browser', {
     assert.match(await evaluate("document.querySelector('#detail-body').textContent"), /Unknown inventory is blocked/);
     assert.equal(await evaluate("document.querySelector('#detail-action').disabled"), true);
     assert.equal(await evaluate("document.querySelector('#detail').scrollWidth <= document.querySelector('#detail').clientWidth"), true);
-    await evaluate("document.querySelector('#close-detail').click(); window.fetch = async () => { throw new Error('offline fixture') }; document.querySelector('[data-punk=\"7\"]').click()");
+    await evaluate("document.querySelector('#close-detail').click(); window.realFetch = window.fetch; window.stalePicker = new Promise(resolve => window.finishStalePicker = resolve); window.fetch = () => window.stalePicker; document.querySelector('#browse-sacrifice').click(); document.querySelector('#close-picker').click(); window.fetch = window.realFetch; document.querySelector('#browse-sacrifice').click()");
+    await until("document.querySelectorAll('.sacrifice-card').length === 2");
+    await evaluate("window.finishStalePicker({ok:true,json:async()=>({localOnly:true,chainId:31337,tokenId:1,canBurn:false,candidates:[]})}); new Promise(resolve=>setTimeout(resolve,50))");
+    assert.equal(await evaluate("document.querySelectorAll('.sacrifice-card').length"), 2);
+    await evaluate("document.querySelector('.sacrifice-card button').click(); document.querySelector('#leave-review').click()");
+    assert.equal(await evaluate("document.querySelector('#sacrifice-picker').open"), false);
+    await evaluate("window.fetch = async () => { throw new Error('offline fixture') }; document.querySelector('#browse-sacrifice').click()");
+    await until("document.querySelector('#picker-status').textContent.includes('unavailable')");
+    assert.equal(await evaluate("document.querySelectorAll('.sacrifice-card').length"), 0);
+    await evaluate("document.querySelector('#close-picker').click(); document.querySelector('[data-punk=\"7\"]').click()");
     await until("document.querySelector('#status').textContent.includes('unavailable')");
     assert.equal(await evaluate("document.querySelector('#profile').hidden"), true);
     assert.deepEqual(errors, []);

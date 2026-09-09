@@ -63,6 +63,14 @@ This test requires local Google Chrome on macOS and Anvil. It checks on-chain cr
 
 The preview does not attach to #93 or inspect current production balances. Its safety dialog labels inventory and unresolved jobs UNKNOWN, not empty. Existing #93 gas-funding evidence is preserved in the burn audit. Warning acknowledgement cannot enable sacrifice.
 
+### Sacrifice candidate selection checkpoint
+
+The Training Room now opens **Browse Punks to Sacrifice**. The local server rechecks ownership/existence against its mock collection at the same block as the progression snapshot. It excludes the training target and already-burned fixture tokens. This bounded fixture list is NOT a production ownership indexer. The browser refreshes candidates on opening; failed reads clear selection, and responses from a closed/older picker cannot populate a newly opened one.
+
+Candidate cards show artwork, token ID, progression at risk, and explicit UNKNOWN values for native funds, NFTs, ERC20s, missions/automation and pending transactions. Inspection lists all known wallet generations; no unknown value is converted to zero. Learned skills and unused credits on the sacrificed token do not transfer to the survivor. Review selection is not eligibility or consent: all candidates remain BLOCKED, no transaction route exists, and a Cancel & Keep Both Punks action exits review. No typed irreversible confirmation is offered while eligibility is blocked.
+
+Browser/API regression coverage now also checks candidate exclusion, per-target candidate changes, trained-token warnings, mobile picker overflow, Escape dismissal and candidate-read failures. An optional `--port=NUMBER` argument keeps the loopback preview URL stable across restarts; it cannot change the RPC or bind address. Real wallet inventories, current production ownership discovery, safe migration/withdrawal and authorized burn submission remain future integration work.
+
 ## Remaining work, in order
 
 1. **Security/semantic review of new contracts and resolver**. This is test-backed prototype code, not an audited production release. Add invariant/state-machine, event-indexing/reorg, hostile source and broader property tests.
