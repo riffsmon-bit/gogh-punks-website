@@ -83,7 +83,20 @@ export function createTrainingControl({ root, getSelection, request, localOnly }
     const token = getSelection()?.tokenId; selected = token; const ticket = ++sequence; busy = true; clear(); render();
     status.textContent = 'Reading confirmed local contract state…';
     try { const next = validateTrainingSnapshot(await request(`/api/forge?tokenId=${token}`), token);
-      if (!isCurrent(ticket, token)) return; data = next; status.textContent = `Confirmed local snapshot at block ${data.blockNumber}. No production permissions.`;
+      if (!isCurrent(ticket, token)) return;
+      const recovery = await request('/api/local-training/recover', { method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-forge-nonce': next.localTrainingNonce }, body: JSON.stringify({ tokenId: Number(token) }) });
+      if (!isCurrent(ticket, token)) return;
+      if (recovery.localOnly !== true || recovery.chainId !== 31337 || recovery.productionAuthority !== false
+        || recovery.tokenId !== Number(token) || recovery.owner?.toLowerCase() !== next.owner.toLowerCase()
+        || recovery.progression?.toLowerCase() !== next.progression.toLowerCase() || !Array.isArray(recovery.records)
+        || recovery.records.some(r => !/^[0-9a-f]{64}$/.test(r.intentId) || r.tokenId !== Number(token) || r.recoveryOnly !== true
+          || r.owner?.toLowerCase() !== next.owner.toLowerCase() || r.progression?.toLowerCase() !== next.progression.toLowerCase())) throw Error('Unverified training recovery');
+      pendingReviews.delete(Number(token));
+      const pending = recovery.records.find(r => ['CHECKING', 'AWAITING_WALLET', 'SUBMITTED', 'SUBMISSION_UNKNOWN'].includes(r.status));
+      if (pending) pendingReviews.set(Number(token), { prepared: { intentId: pending.intentId }, captured: next });
+      data = next; status.textContent = pending ? 'Recovered an unresolved training request. Recheck its receipt; new transactions stay locked.'
+        : `Confirmed local snapshot at block ${data.blockNumber}. No production permissions.`;
     } catch (e) { if (isCurrent(ticket, token)) { clear(); status.textContent = e.message; } }
     finally { if (isCurrent(ticket, token)) { busy = false; render(); } }
   }
@@ -123,7 +136,7 @@ export function createTrainingControl({ root, getSelection, request, localOnly }
           body: JSON.stringify({ intentId: prepared.intentId }) });
         if (!isCurrent(ticket, token)) return;
         if (response.localOnly !== true || response.chainId !== 31337 || response.productionAuthority !== false || response.intentId !== prepared.intentId
-          || !['CONFIRMED', 'SUBMITTED', 'AWAITING_WALLET', 'REVERTED', 'INVALIDATED', 'REJECTED', 'SUBMISSION_UNKNOWN', 'NOT_SUBMITTED'].includes(response.status)) throw Error('Transaction status could not be verified');
+          || !['CONFIRMED', 'SUBMITTED', 'AWAITING_WALLET', 'REVERTED', 'INVALIDATED', 'REJECTED', 'SUBMISSION_UNKNOWN', 'NOT_SUBMITTED', 'RECOVERY_REQUIRED'].includes(response.status)) throw Error('Transaction status could not be verified');
         if (response.status !== 'CONFIRMED') {
           clear();
           const terminal = ['REVERTED', 'INVALIDATED', 'REJECTED', 'NOT_SUBMITTED'].includes(response.status);

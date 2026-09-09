@@ -34,8 +34,18 @@ try {
   assert.match(await evaluate("document.querySelector('dialog').textContent"), /Review expires:/);
   await click('CANCEL');
   assert.match(await evaluate("document.querySelector('.forge-training-stats').textContent"), /1 CREDIT/);
+  preview.setReceiptVisibility(false);
   await click('REVIEW LEARN · 1 CREDIT'); await click('CONFIRM LOCAL TRANSACTION');
+  await until("document.querySelector('[role=status]').textContent.includes('LOCAL TRANSACTION SUBMITTED')");
+  const submittedHash = (await evaluate("document.querySelector('[role=status]').textContent")).match(/0x[0-9a-f]{64}/)[0];
+  preview.reopenCoordinator();
+  await call('Page.reload');
+  await until("document.querySelector('[role=status]')?.textContent.includes('Recovered an unresolved')");
+  assert.equal(await evaluate("[...document.querySelectorAll('.forge-socket button')].every(b=>b.disabled)"), true);
+  preview.setReceiptVisibility(true);
+  await click('RECHECK TRANSACTION RECEIPT');
   await until("document.querySelector('[role=status]').textContent.includes('LOCAL TRANSACTION CONFIRMED')");
+  assert.ok((await evaluate("document.querySelector('[role=status]').textContent")).includes(submittedHash));
   assert.match(await evaluate("document.querySelector('.forge-training-stats').textContent"), /0 CREDIT.*3 LEARNED.*1\/2 EQUIPPED/);
   assert.equal(await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent==='RECHECK TRANSACTION RECEIPT').hidden"), true);
   // Equip Rarity Eye in the empty second slot. Learning alone did not grant this tool.
@@ -72,5 +82,5 @@ try {
   await until("document.querySelector('[role=status]').textContent.includes('Research completed')");
   assert.match(await evaluate("document.querySelector('.forge-training-stats').textContent"), /0 CREDIT.*1 LEARNED.*1\/1 EQUIPPED/);
   assert.deepEqual(errors, []);
-  console.log(`PASS shared V2 component: confirm/cancel, learn, equip, gated live research, unequip, token switch, 1440/390/375px. Screenshots: ${folder}`);
+  console.log(`PASS shared V2 component: pending receipt + coordinator restart + browser reload without resend, confirm/cancel, learn, equip, gated live research, unequip, token switch, 1440/390/375px. Screenshots: ${folder}`);
 } finally { ws.close(); await fetch(`http://127.0.0.1:9227/json/close/${page.id}`); await preview.close(); }

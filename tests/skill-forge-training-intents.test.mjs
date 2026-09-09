@@ -5,6 +5,12 @@ import { createLocalTrainingIntents } from '../broker/src/v4/skill-forge/trainin
 import { trainingCalldata, validateTrainingReview } from '../site/forge-training-transaction.js';
 import { createTrainingWalletAdapter } from '../site/forge-training-wallet.js';
 import { startPreview } from '../scripts/dev/skill-forge/preview-server.mjs';
+import { openTrainingJournal } from '../broker/src/v4/skill-forge/training-journal.mjs';
+import { mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { DatabaseSync } from 'node:sqlite';
 const owner = `0x${'1'.repeat(40)}`, progression = `0x${'2'.repeat(40)}`, key = `0x${'3'.repeat(64)}`;
 const hash = `0x${'4'.repeat(64)}`, blockHash = `0x${'5'.repeat(64)}`, zero = `0x${'0'.repeat(64)}`;
 function fixture() {
@@ -18,8 +24,9 @@ function fixture() {
     getTransactionReceipt: async () => { if (!f.receiptAvailable) throw Error('Not found'); return f.receipt; },
     getTransaction: async () => ({ from: owner, to: progression, input: f.last.data, value: 0n, gas: 120_000n, gasPrice: 1n, ...f.transactionOverride }),
     getBlock: async () => ({ hash: f.canonicalHash ?? blockHash }) };
-  f.manager = createLocalTrainingIntents({ client: f.client, owner, progression, approvedKeys: [key], now: () => f.now,
+  f.makeManager = journal => createLocalTrainingIntents({ client: f.client, owner, progression, approvedKeys: [key], now: () => f.now, journal,
     readSnapshot: async () => structuredClone(f.state), sendTransaction: async tx => { f.sends++; f.last = tx; if (f.send) return f.send(); return hash; } });
+  f.manager = f.makeManager();
   f.prepare = () => f.manager.prepare({ tokenId: 44, operation: 'learn', key, expectedBlock: '10' });
   return f;
 }
@@ -34,13 +41,14 @@ test('review contains exact zero-value calldata and a bounded gas estimate; prep
   const confirmed = await f.manager.confirm(review.intentId); assert.equal(confirmed.status, 'CONFIRMED');
   assert.equal((await f.manager.confirm(review.intentId)).transactionHash, hash); assert.equal(f.sends, 1);
 });
-for (const change of ['owner', 'chain', 'credits', 'equipment', 'expiry']) test(`${change} change invalidates review without sending`, async () => {
+for (const change of ['owner', 'chain', 'credits', 'equipment', 'expiry', 'ownershipEpoch']) test(`${change} change invalidates review without sending`, async () => {
   const f = fixture(), review = await f.prepare();
   if (change === 'owner') f.state.owner = progression;
   if (change === 'chain') f.chain = 4663;
   if (change === 'credits') f.state.credits = '0';
   if (change === 'equipment') f.state.equipped = [key];
   if (change === 'expiry') f.now += 60001;
+  if (change === 'ownershipEpoch') f.state.ownershipEpoch = 'transferred-away-and-back';
   assert.equal((await f.manager.confirm(review.intentId)).status, 'INVALIDATED'); assert.equal(f.sends, 0);
 });
 test('pending receipt and transport retry never broadcast twice or allow another review', async () => {
@@ -123,4 +131,96 @@ test('HTTP prepare → confirmed transaction → repeated confirm returns one re
   const retry = await (await post('/api/local-training/confirm', { intentId: review.intentId })).json();
   assert.equal(retry.transactionHash, result.transactionHash);
   assert.equal(retry.snapshot.history.filter(e => e.name === 'SkillLearned').length, 1);
+  preview.reopenCoordinator();
+  const restored = await (await post('/api/local-training/status', { intentId: review.intentId })).json();
+  assert.equal(restored.status, 'CONFIRMED'); assert.equal(restored.transactionHash, result.transactionHash);
+});
+
+async function withJournal(t) {
+  const directory = await mkdtemp(join(tmpdir(), 'forge-journal-test-'));
+  const options = { path: join(directory, 'journal.sqlite'), deploymentIdentity: 'a'.repeat(64) };
+  let current = openTrainingJournal(options); t.after(() => current.close());
+  return { options, get current() { return current; }, reopen() { current.close(); current = openTrainingJournal(options); return current; } };
+}
+test('disk journal restores a submitted hash after restart without broadcasting again', async t => {
+  const j = await withJournal(t), f = fixture(); f.manager = f.makeManager(j.current);
+  const review = await f.prepare(); f.receiptAvailable = false;
+  assert.equal((await f.manager.confirm(review.intentId)).status, 'SUBMITTED');
+  f.manager = f.makeManager(j.reopen());
+  assert.equal((await f.manager.recover(44))[0].transactionHash, hash);
+  await assert.rejects(f.prepare(), /UNRESOLVED/);
+  f.receiptAvailable = true;
+  assert.equal((await f.manager.status(review.intentId)).status, 'CONFIRMED'); assert.equal(f.sends, 1);
+});
+test('process exit after durable pre-wallet marker recovers as blocked, never resent', async t => {
+  const j = await withJournal(t), f = fixture(); f.manager = f.makeManager(j.current);
+  const review = await f.prepare();
+  const module = new URL('../broker/src/v4/skill-forge/training-journal.mjs', import.meta.url).href;
+  const child = spawnSync(process.execPath, ['--input-type=module', '-e',
+    `import {openTrainingJournal} from ${JSON.stringify(module)}; const j=openTrainingJournal(${JSON.stringify(j.options)});const e=j.loadAll()[0];e.status='AWAITING_WALLET';j.save(e);process.exit(23);`]);
+  assert.equal(child.status, 23);
+  f.manager = f.makeManager(j.reopen());
+  assert.equal((await f.manager.status(review.intentId)).status, 'RECOVERY_REQUIRED');
+  await assert.rejects(f.prepare(), /UNRESOLVED/); assert.equal(f.sends, 0);
+});
+test('same deployment journal supports concurrent status reads without stealing a wallet claim', async t => {
+  const j = await withJournal(t), f = fixture(); f.manager = f.makeManager(j.current);
+  const a = await f.prepare(), b = await f.prepare();
+  const secondStore = openTrainingJournal(j.options); t.after(() => secondStore.close());
+  const second = f.makeManager(secondStore); let release;
+  f.send = () => new Promise(resolve => { release = resolve; });
+  const first = f.manager.confirm(a.intentId); while (!release) await new Promise(resolve => setImmediate(resolve));
+  assert.equal((await second.status(a.intentId)).status, 'RECOVERY_REQUIRED');
+  await assert.rejects(second.confirm(b.intentId), /UNRESOLVED/);
+  release(hash); assert.equal((await first).status, 'CONFIRMED'); assert.equal(f.sends, 1);
+});
+for (const when of ['before_wallet', 'after_wallet']) test(`journal write failure ${when} stays fail-closed after recovery`, async t => {
+  const j = await withJournal(t), f = fixture();
+  const faultStore = { loadAll: () => j.current.loadAll(), save: entry => {
+    if (when === 'before_wallet' && entry.status === 'AWAITING_WALLET' || when === 'after_wallet' && entry.transactionHash) throw Error('DISK_FULL');
+    j.current.save(entry);
+  } };
+  f.manager = f.makeManager(faultStore); const review = await f.prepare();
+  assert.equal((await f.manager.confirm(review.intentId)).status, 'RECOVERY_REQUIRED');
+  assert.equal(f.sends, when === 'before_wallet' ? 0 : 1);
+  f.manager = f.makeManager(j.reopen()); await assert.rejects(f.prepare(), /UNRESOLVED/);
+  assert.equal((await f.manager.status(review.intentId)).status, 'RECOVERY_REQUIRED');
+});
+test('journal refuses a different deployment identity', async t => {
+  const j = await withJournal(t);
+  assert.throws(() => openTrainingJournal({ ...j.options, deploymentIdentity: 'b'.repeat(64) }), /DEPLOYMENT_MISMATCH/);
+});
+test('journal corruption blocks all new wallet actions rather than starting an empty ledger', async t => {
+  const j = await withJournal(t), f = fixture(); f.manager = f.makeManager(j.current);
+  const review = await f.prepare();
+  const corruptor = new DatabaseSync(j.options.path);
+  corruptor.prepare('UPDATE training_intents SET checksum=? WHERE id=?').run('bad-checksum', review.intentId); corruptor.close();
+  f.manager = f.makeManager(j.reopen());
+  await assert.rejects(f.manager.confirm(review.intentId), /JOURNAL_CORRUPT/);
+  await assert.rejects(f.prepare(), /JOURNAL_UNAVAILABLE/); assert.equal(f.sends, 0);
+});
+test('stale journal revision cannot overwrite a newer state', async t => {
+  const j = await withJournal(t), f = fixture(); f.manager = f.makeManager(j.current); await f.prepare();
+  const [first] = j.current.loadAll(), stale = structuredClone(first);
+  first.status = 'CHECKING'; j.current.save(first);
+  stale.status = 'REJECTED'; assert.throws(() => j.current.save(stale), /REVISION_CONFLICT/);
+  assert.equal(j.current.loadAll()[0].status, 'CHECKING');
+});
+test('a reverted receipt must match the reviewed transaction before it releases the pending lock', async () => {
+  const f = fixture(), review = await f.prepare(); f.receipt.status = 'reverted'; f.receipt.transactionHash = zero;
+  assert.equal((await f.manager.confirm(review.intentId)).status, 'SUBMITTED'); await assert.rejects(f.prepare(), /UNRESOLVED/);
+  f.receipt.transactionHash = hash;
+  assert.equal((await f.manager.status(review.intentId)).status, 'REVERTED'); assert.equal(f.sends, 1);
+});
+test('real round-trip ownership transfer invalidates the old training review but keeps learned state', { timeout: 60000 }, async t => {
+  const preview = await startPreview({ controlCenterTraining: true }); t.after(() => preview.close());
+  const read = async () => (await fetch(`${preview.url}/api/forge?tokenId=1`)).json();
+  const before = await read();
+  const post = (path, body) => fetch(preview.url + path, { method: 'POST', headers: { origin: preview.url,
+    'content-type': 'application/json', 'x-forge-nonce': before.localTrainingNonce }, body: JSON.stringify(body) });
+  const review = await (await post('/api/local-training/prepare', { tokenId: 1, operation: 'unlock', expectedBlock: before.blockNumber })).json();
+  await preview.roundTripFixture(1);
+  const after = await read(); assert.equal(after.owner, before.owner); assert.notEqual(after.ownershipEpoch, before.ownershipEpoch);
+  assert.deepEqual(after.learned, before.learned); assert.deepEqual(after.equipped, before.equipped); assert.equal(after.credits, before.credits);
+  assert.equal((await (await post('/api/local-training/confirm', { intentId: review.intentId })).json()).status, 'INVALIDATED');
 });

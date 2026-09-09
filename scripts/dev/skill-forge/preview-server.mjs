@@ -1,15 +1,18 @@
 // Isolated UI harness. Training writes reach only its own disposable Anvil, never a real wallet.
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { readFile, mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { SKILL_ICON_SLUGS } from './skill-icons.mjs';
 import { createServer as netServer } from 'node:net';
 import { createServer } from 'node:http';
 import { pathToFileURL } from 'node:url';
-import { createPublicClient, createWalletClient, http, decodeEventLog, keccak256 } from 'viem';
+import { createPublicClient, createWalletClient, http, decodeEventLog, keccak256, parseAbiItem } from 'viem';
 import { manifestHash, instructionHash, createProgressionReader } from '../../../broker/src/v4/skill-forge/capability-resolver.mjs';
 import { createResearchSkillRuntime } from '../../../broker/src/v4/skill-forge/research-runtime.mjs';
 import { createLocalTrainingIntents } from '../../../broker/src/v4/skill-forge/training-intents.mjs';
+import { openTrainingJournal } from '../../../broker/src/v4/skill-forge/training-journal.mjs';
 import { createTrainingWalletAdapter } from '../../../site/forge-training-wallet.js';
 import { previewLibrary } from './library-roadmap.mjs';
 import { FORGE_MINIMUM_SUPPLY } from '../../../broker/src/v4/skill-forge/supply-floor.mjs';
@@ -33,10 +36,11 @@ export async function startPreview({ port = 0, researchClient, controlCenterTrai
   const rpcPort = reservation.address().port;
   await new Promise(resolve => reservation.close(resolve));
   const child = spawn('anvil', ['--silent', '--host', '127.0.0.1', '--port', String(rpcPort), '--chain-id', '31337'], { stdio: 'ignore' });
-  let startupError, server;
+  let startupError, server, journal;
   child.on('error', error => { startupError = error; });
   const close = async () => {
     if (server?.listening) await new Promise(resolve => { server.close(resolve); server.closeAllConnections(); });
+    if (journal) { journal.close(); journal = null; }
     if (child.exitCode === null && !child.killed) child.kill('SIGTERM');
   };
   try {
@@ -150,12 +154,30 @@ export async function startPreview({ port = 0, researchClient, controlCenterTrai
           reason: 'Punk Wallet assets and unresolved activity have not been verified. Production sacrifice is locked.' });
       }
       const capabilityContext = await runtime.resolve({ tokenId, owner: currentOwner });
-      return { localOnly: true, localTrainingNonce, chainId: 31337, tokenId, owner: currentOwner, collection, registry, progression, blockNumber: block.number, blockHash: block.hash, credits, slots, cap, learned, equipped, history, skills: previewLibrary(skills), candidates, capabilityContext, forgeMinimumSupply: String(FORGE_MINIMUM_SUPPLY), productionReadyCount: 0, canBurn: false };
+      // Full history is bounded here because this is our disposable test chain, not a
+      // production RPC scan. Round-trip transfers must invalidate an earlier review.
+      const transfers = await client.getLogs({ address: collection, event: parseAbiItem('event Transfer(address indexed from,address indexed to,uint256 indexed tokenId)'),
+        args: { tokenId: BigInt(tokenId) }, fromBlock: 0n, toBlock: block.number });
+      const latestTransfer = transfers.at(-1);
+      if (!latestTransfer || (await client.getBlock({ blockNumber: block.number })).hash !== block.hash) throw Error('OWNERSHIP_EPOCH_UNAVAILABLE');
+      const ownershipEpoch = `${latestTransfer.blockHash}:${latestTransfer.transactionHash}:${latestTransfer.logIndex}`;
+      return { localOnly: true, localTrainingNonce, chainId: 31337, tokenId, owner: currentOwner, collection, registry, progression, ownershipEpoch, blockNumber: block.number, blockHash: block.hash, credits, slots, cap, learned, equipped, history, skills: previewLibrary(skills), candidates, capabilityContext, forgeMinimumSupply: String(FORGE_MINIMUM_SUPPLY), productionReadyCount: 0, canBurn: false };
     };
     const trainingWallet = createTrainingWalletAdapter({ provider: { request: args => client.request(args) }, readSnapshot: snapshot });
-    const trainingIntents = createLocalTrainingIntents({ client, owner, progression, readSnapshot: snapshot,
+    const journalDirectory = await mkdtemp(join(tmpdir(), 'gogh-training-journal-'));
+    const journalOptions = { path: join(journalDirectory, 'intents.sqlite'), deploymentIdentity: manifestHash({ chainId: 31337,
+      genesis: (await client.getBlock({ blockNumber: 0n })).hash, collection, registry, progression, owner,
+      registryCode: keccak256(await client.getCode({ address: registry })), progressionCode: keccak256(await client.getCode({ address: progression })) }).slice(2) };
+    journal = openTrainingJournal(journalOptions);
+    let receiptsVisible = true;
+    const trainingClient = { ...client, getTransactionReceipt: args => {
+      if (!receiptsVisible) throw Error('TEST_RECEIPT_VISIBILITY_DELAY');
+      return client.getTransactionReceipt(args);
+    } };
+    const makeCoordinator = () => createLocalTrainingIntents({ client: trainingClient, owner, progression, readSnapshot: snapshot, journal,
       approvedKeys: skills.filter(s => [2, 3, 4].includes(s.id)).map(s => s.key),
       sendTransaction: async (_transaction, context) => (await trainingWallet.submit(context)).transactionHash });
+    let trainingIntents = makeCoordinator();
     const files = new Map([
       ['/control-center', ['control-center.html', 'text/html']],
       ['/control-center.mjs', ['control-center.mjs', 'text/javascript']],
@@ -175,7 +197,7 @@ export async function startPreview({ port = 0, researchClient, controlCenterTrai
       res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
       const expectedHost = `127.0.0.1:${server.address().port}`;
       if (req.headers.host !== expectedHost || (req.headers.origin && req.headers.origin !== `http://${expectedHost}`)) { res.writeHead(403); return res.end('Local preview only'); }
-      if (req.method === 'POST' && ['/api/local-training/prepare', '/api/local-training/confirm', '/api/local-training/status'].includes(req.url)) {
+      if (req.method === 'POST' && ['/api/local-training/prepare', '/api/local-training/confirm', '/api/local-training/status', '/api/local-training/recover'].includes(req.url)) {
         if (req.headers.origin !== `http://${expectedHost}` || req.headers['x-forge-nonce'] !== localTrainingNonce
           || req.headers['content-type'] !== 'application/json') { res.writeHead(403); return res.end('Local confirmation required'); }
         try {
@@ -184,6 +206,11 @@ export async function startPreview({ port = 0, researchClient, controlCenterTrai
           const input = JSON.parse(body);
           let result;
           if (req.url.endsWith('/prepare')) result = await trainingIntents.prepare(input);
+          else if (req.url.endsWith('/recover')) {
+            if (!input || Array.isArray(input) || Object.keys(input).length !== 1 || ![1, 44, 7].includes(input.tokenId)) throw Error('INVALID_RECOVERY');
+            result = { localOnly: true, chainId: 31337, productionAuthority: false, tokenId: input.tokenId,
+              owner, progression, records: await trainingIntents.recover(input.tokenId) };
+          }
           else {
             if (!input || Array.isArray(input) || Object.keys(input).length !== 1 || !/^[0-9a-f]{64}$/.test(input.intentId)) throw Error('INVALID_REVIEW');
             result = await trainingIntents[req.url.endsWith('/status') ? 'status' : 'confirm'](input.intentId);
@@ -263,7 +290,18 @@ export async function startPreview({ port = 0, researchClient, controlCenterTrai
     });
     server.requestTimeout = 10000;
     await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); });
-    return { url: `http://127.0.0.1:${server.address().port}`, close };
+    return { url: `http://127.0.0.1:${server.address().port}`, close,
+      // Test-only process-local hook: no HTTP route and no production deployment.
+      reopenCoordinator: () => { journal.close(); journal = openTrainingJournal(journalOptions); trainingIntents = makeCoordinator(); },
+      journalPath: journalOptions.path,
+      setReceiptVisibility: visible => { receiptsVisible = visible === true; },
+      roundTripFixture: async tokenId => {
+        if (![1, 44, 7].includes(tokenId)) throw Error('INVALID_FIXTURE');
+        const [, secondOwner] = await client.request({ method: 'eth_accounts' });
+        await write(nft, collection, 'transferFrom', [owner, secondOwner, BigInt(tokenId)]);
+        const other = createWalletClient({ transport, account: secondOwner });
+        await receipt(await other.writeContract({ address: collection, abi: nft.abi, functionName: 'transferFrom', args: [secondOwner, owner, BigInt(tokenId)], chain: null }));
+      } };
   } catch (error) { await close(); throw error; }
 }
 

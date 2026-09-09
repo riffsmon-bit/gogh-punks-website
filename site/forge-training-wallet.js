@@ -1,6 +1,6 @@
 import { validateTrainingReview } from './forge-training-transaction.js';
 const binding = state => JSON.stringify([state.tokenId, state.owner?.toLowerCase(), state.collection?.toLowerCase(),
-  state.registry?.toLowerCase(), state.progression?.toLowerCase(), state.credits, state.slots, state.cap, state.learned, state.equipped],
+  state.registry?.toLowerCase(), state.progression?.toLowerCase(), state.credits, state.slots, state.cap, state.learned, state.equipped, state.ownershipEpoch ?? null],
   (_key, value) => typeof value === 'bigint' ? value.toString() : value);
 
 // EIP-1193 boundary for a future explicit wallet button. Currently exercised only with

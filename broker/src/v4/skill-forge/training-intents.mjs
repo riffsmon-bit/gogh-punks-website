@@ -14,20 +14,41 @@ const eq = (a, b) => typeof a === 'string' && typeof b === 'string' && a.toLower
 const serialize = value => JSON.stringify(value, (_key, item) => typeof item === 'bigint' ? item.toString() : item);
 const fingerprint = state => createHash('sha256').update(serialize([
   state.chainId, state.collection, state.registry, state.progression, state.tokenId, state.owner,
-  state.credits, state.slots, state.cap, state.learned, state.equipped,
+  state.credits, state.slots, state.cap, state.learned, state.equipped, state.ownershipEpoch ?? null,
 ])).digest('hex');
 
 // Only disposable deployments may instantiate this coordinator. No production sender exists.
 // Deployment addresses, owner, approved keys, reader and signer are trusted harness inputs.
 export function createLocalTrainingIntents({ client, owner, progression, approvedKeys, readSnapshot,
-  sendTransaction, now = Date.now, lifetimeMs = 60_000 }) {
+  sendTransaction, now = Date.now, lifetimeMs = 60_000, journal = null }) {
   const intents = new Map();
+  let journalFault = false;
+  const persist = entry => {
+    if (!journal) return;
+    try { journal.save(entry); } catch (error) { journalFault = true; throw error; }
+  };
+  const refreshJournal = () => {
+    if (journalFault) throw Error('TRAINING_JOURNAL_UNAVAILABLE');
+    if (!journal) return;
+    try {
+      for (const saved of journal.loadAll()) {
+        if (intents.get(saved.review.intentId)?.busy) continue;
+        if (!eq(saved.review.owner, owner) || !eq(saved.review.progression, progression)
+          || saved.review.chainId !== 31337 || saved.review.localOnly !== true || saved.review.productionAuthority !== false) throw Error('INVALID_RECOVERED_REVIEW');
+        const spec = action(saved.input, saved.state);
+        if (encodeFunctionData({ abi: ABI, functionName: spec.functionName, args: spec.args }) !== saved.review.transaction.data
+          || !eq(saved.review.transaction.to, progression) || saved.review.transaction.value !== '0x0'
+          || saved.digest !== fingerprint(saved.state)) throw Error('INVALID_RECOVERED_REVIEW');
+        intents.set(saved.review.intentId, { ...saved, spec });
+      }
+    } catch (error) { journalFault = true; throw error; }
+  };
   const unresolved = entry => ['CHECKING', 'AWAITING_WALLET', 'SUBMITTED', 'SUBMISSION_UNKNOWN'].includes(entry.status);
   const guard = async () => { if (await client.getChainId() !== 31337) throw Error('LOCAL_CHAIN_REQUIRED'); };
   async function stateFor(tokenId) {
     await guard(); const state = await readSnapshot(tokenId);
     if (state.localOnly !== true || state.chainId !== 31337 || state.canBurn !== false
-      || !eq(state.owner, owner) || !eq(state.progression, progression)) throw Error('OWNER_OR_DEPLOYMENT_CHANGED');
+      || String(state.tokenId) !== String(tokenId) || !eq(state.owner, owner) || !eq(state.progression, progression)) throw Error('OWNER_OR_DEPLOYMENT_CHANGED');
     return state;
   }
   function action(input, state) {
@@ -48,11 +69,12 @@ export function createLocalTrainingIntents({ client, owner, progression, approve
     return { functionName: spec[0], args: spec[1], eventName: spec[2] };
   }
   async function prepare(input) {
+    refreshJournal();
     if (!input || ![1, 44, 7].includes(input.tokenId)) throw Error('INVALID_TEST_PUNK');
     if ([...intents.values()].some(entry => entry.input.tokenId === input.tokenId && unresolved(entry))) throw Error('TRAINING_TRANSACTION_UNRESOLVED');
     // Expired reviews can be discarded, but submitted hashes are retained for this process.
-    for (const [id, entry] of intents) if (entry.status === 'PREPARED' && entry.expiresAt < now()) intents.delete(id);
-    if (intents.size >= 128) throw Error('LOCAL_REVIEW_LIMIT');
+    if (!journal) for (const [id, entry] of intents) if (entry.status === 'PREPARED' && entry.expiresAt < now()) intents.delete(id);
+    if (intents.size >= (journal ? 4096 : 128)) throw Error('LOCAL_REVIEW_LIMIT');
     const state = await stateFor(input.tokenId), spec = action(input, state);
     if (String(state.blockNumber) !== input.expectedBlock) throw Error('STALE_REVIEW_STATE');
     const call = { address: progression, abi: ABI, functionName: spec.functionName, args: spec.args, account: owner };
@@ -71,7 +93,8 @@ export function createLocalTrainingIntents({ client, owner, progression, approve
       creditCost: ['learn', 'unlock'].includes(input.operation) ? 1 : 0,
       estimatedGas: estimate.toString(), maximumGas: gas.toString(), maximumNetworkFeeWei: (gas * gasPrice).toString(),
       createdAt, expiresAt, transaction, productionAuthority: false });
-    intents.set(intentId, { review, input: { ...input }, spec, state, digest: fingerprint(state), expiresAt, status: 'PREPARED', transactionHash: null });
+    const entry = { review, input: { ...input }, spec, state, digest: fingerprint(state), expiresAt, status: 'PREPARED', transactionHash: null };
+    persist(entry); intents.set(intentId, entry);
     return review;
   }
   async function reconcile(entry) {
@@ -79,10 +102,9 @@ export function createLocalTrainingIntents({ client, owner, progression, approve
     let receipt;
     try { receipt = await client.getTransactionReceipt({ hash: entry.transactionHash }); }
     catch { entry.status = 'SUBMITTED'; return outcome(entry); }
-    if (receipt.status === 'reverted') { entry.status = 'REVERTED'; return outcome(entry); }
     const transaction = await client.getTransaction({ hash: entry.transactionHash });
     const canonical = await client.getBlock({ blockNumber: receipt.blockNumber });
-    if (receipt.status !== 'success' || !eq(receipt.transactionHash, entry.transactionHash)
+    if (!['success', 'reverted'].includes(receipt.status) || !eq(receipt.transactionHash, entry.transactionHash)
       || !eq(canonical.hash, receipt.blockHash) || !eq(transaction.from, owner) || !eq(transaction.to, progression)
       || transaction.input !== entry.review.transaction.data || transaction.value !== 0n
       || typeof transaction.gas !== 'bigint' || typeof transaction.gasPrice !== 'bigint'
@@ -90,6 +112,7 @@ export function createLocalTrainingIntents({ client, owner, progression, approve
       || typeof receipt.gasUsed !== 'bigint' || typeof receipt.effectiveGasPrice !== 'bigint'
       || receipt.gasUsed <= 0n || receipt.effectiveGasPrice <= 0n
       || receipt.gasUsed * receipt.effectiveGasPrice > BigInt(entry.review.maximumNetworkFeeWei)) throw Error('UNVERIFIED_TRAINING_RECEIPT');
+    if (receipt.status === 'reverted') { entry.status = 'REVERTED'; return outcome(entry); }
     const events = receipt.logs.flatMap(log => {
       if (!eq(log.address, progression)) return [];
       try { const event = decodeEventLog({ abi: ABI, topics: log.topics, data: log.data });
@@ -106,12 +129,14 @@ export function createLocalTrainingIntents({ client, owner, progression, approve
     return outcome(entry);
   }
   async function outcome(entry, status = entry.status) {
+    if (!entry.busy || status === entry.status) persist(entry);
     let snapshot = null;
     if (status === 'CONFIRMED') { try { snapshot = await stateFor(entry.input.tokenId); } catch { } }
     return { localOnly: true, chainId: 31337, productionAuthority: false, status, intentId: entry.review.intentId,
       transactionHash: entry.transactionHash, blockHash: entry.blockHash ?? null, snapshot };
   }
   async function confirm(intentId) {
+    refreshJournal();
     const entry = intents.get(intentId); if (!entry) throw Error('UNKNOWN_TRAINING_REVIEW');
     if (entry.busy) return outcome(entry, entry.transactionHash ? 'SUBMITTED' : 'AWAITING_WALLET');
     // Preserve ambiguity/rejection on retries; never turn UNKNOWN into a fresh review.
@@ -122,6 +147,7 @@ export function createLocalTrainingIntents({ client, owner, progression, approve
       if (entry.transactionHash) return await reconcile(entry); // Never broadcast again after a known hash.
       if (entry.status !== 'PREPARED') throw Error('TRAINING_REVIEW_CONSUMED');
       entry.status = 'CHECKING';
+      persist(entry);
       if (now() > entry.expiresAt) throw Error('TRAINING_REVIEW_EXPIRED');
       const state = await stateFor(entry.input.tokenId);
       if (fingerprint(state) !== entry.digest) throw Error('TRAINING_STATE_CHANGED');
@@ -129,12 +155,16 @@ export function createLocalTrainingIntents({ client, owner, progression, approve
       if (now() > entry.expiresAt) throw Error('TRAINING_REVIEW_EXPIRED');
       await guard();
       entry.status = 'AWAITING_WALLET';
+      persist(entry); // Must reach durable storage BEFORE any request that could broadcast.
       // Send exactly the reviewed zero-value transaction, not caller-supplied calldata.
       const hash = await sendTransaction(entry.review.transaction, { review: entry.review, snapshot: state, action: entry.input });
       if (!/^0x[0-9a-f]{64}$/i.test(hash)) throw Error('MISSING_TRANSACTION_HASH');
       entry.transactionHash = hash; entry.status = 'SUBMITTED';
+      persist(entry);
       return await reconcile(entry);
     } catch (error) {
+      if (journalFault) return { localOnly: true, chainId: 31337, productionAuthority: false, status: 'RECOVERY_REQUIRED',
+        intentId, transactionHash: entry.transactionHash, snapshot: null };
       if (entry.transactionHash) { entry.status = 'SUBMITTED'; return outcome(entry); }
       // A signer/RPC failure without a hash can be ambiguous. Never retry this review.
       entry.status = entry.status === 'AWAITING_WALLET' ? (error.code === 4001 ? 'REJECTED' : 'SUBMISSION_UNKNOWN') : 'INVALIDATED';
@@ -142,13 +172,22 @@ export function createLocalTrainingIntents({ client, owner, progression, approve
     } finally { entry.busy = false; }
   }
   async function status(intentId) {
+    refreshJournal();
     const entry = intents.get(intentId); if (!entry) throw Error('UNKNOWN_TRAINING_REVIEW');
     if (entry.busy) return outcome(entry, entry.transactionHash ? 'SUBMITTED' : 'AWAITING_WALLET');
-    if (!entry.transactionHash) return outcome(entry, entry.status === 'PREPARED' ? 'NOT_SUBMITTED' : entry.status);
+    if (!entry.transactionHash) return outcome(entry, entry.status === 'PREPARED' ? 'NOT_SUBMITTED'
+      : ['CHECKING', 'AWAITING_WALLET'].includes(entry.status) ? 'RECOVERY_REQUIRED' : entry.status);
     entry.busy = true;
     try { return await reconcile(entry); }
     catch { entry.status = 'SUBMITTED'; return outcome(entry); }
     finally { entry.busy = false; }
   }
-  return Object.freeze({ prepare, confirm, status });
+  async function recover(tokenId) {
+    refreshJournal(); await stateFor(tokenId);
+    return [...intents.values()].filter(entry => entry.input.tokenId === tokenId
+      && (unresolved(entry) || entry.transactionHash)).map(entry => ({ intentId: entry.review.intentId,
+      tokenId, owner, progression, chainId: 31337, status: entry.status, transactionHash: entry.transactionHash,
+      recoveryOnly: true }));
+  }
+  return Object.freeze({ prepare, confirm, status, recover });
 }
