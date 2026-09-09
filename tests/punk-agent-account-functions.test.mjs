@@ -4,7 +4,7 @@ import test from "node:test";
 import deployment from "../deployments/robinhood-punk-agent-account.json" with { type: "json" };
 import { defaultAskIntent } from "../broker/src/v4/collecting-intent.mjs";
 import { draftPunkSkillFromConversation } from "../broker/src/v4/punk-skill.mjs";
-import { runScheduledPunkAgentWorker } from
+import workerHandler, { runScheduledPunkAgentWorker } from
   "../netlify/functions/broker-punk-agent-worker.mjs";
 import { handleV2AgentAccount } from
   "../netlify/functions/broker-v2-agent-account.mjs";
@@ -159,4 +159,88 @@ test("scheduled autonomous worker is disabled by default and locked by manifest"
     environment: { PUNK_AGENT_WORKER_ENABLED: "true", PAUSE_BACKGROUND_RPC: "true" }, pool: {} });
   assert.deepEqual(paused, { status: "BACKGROUND_DISABLED", submitted: false,
     reason: "EMERGENCY_PAUSE" });
+});
+
+test("worker logs outcomes and suppresses arbitrary error text and payloads", async () => {
+  const logs = [];
+  const response = await workerHandler(null, { report: (line) => logs.push(JSON.parse(line)),
+    run: async () => ({ status: "NO_ELIGIBLE_MATCH", submitted: false, tokenId: "93",
+      privatePayload: "must not be logged" }),
+  });
+  assert.equal(response.status, 200);
+  assert.deepEqual(logs[0], { event: "PUNK_AGENT_WORKER", status: "NO_ELIGIBLE_MATCH",
+    submitted: false, tokenId: "93" });
+  const failed = await workerHandler(null, { report: (line) => logs.push(JSON.parse(line)),
+    run: async () => { throw Object.assign(new Error("secret diagnostic"), {
+      code: "https://secret.example/key",
+    }); },
+  });
+  assert.equal(failed.status, 503);
+  assert.deepEqual(logs[1], { event: "PUNK_AGENT_WORKER_FAILED", code: "PUNK_AGENT_WORKER_FAILED" });
+});
+
+test("persisted revoked missions and actual check timestamps survive status hydration", async () => {
+  const response = await handleV2AgentAccount(
+    new Request(`${ORIGIN}/api/v2/punks/93/agent-account`), {
+      manifest: undeployed, environment: {}, now: NOW,
+      pool: { async query(sql) {
+        if (sql.includes("FROM broker_v2_agent_sessions session")) {
+          assert.ok(!sql.includes("AND session.status IN"));
+          return { rows: [{ session_id: "session-93", punk_account: PUNK_WALLET,
+            status: "REVOKED", strategy_version: 3, valid_after: NOW,
+            valid_until: "2026-10-01T00:00:00Z", max_mints_per_day: 5, max_mints_total: 5 }] };
+        }
+        if (sql.includes("FROM broker_v2_activity")) return { rows: [{ checks: 4,
+          completed_mints: 0, opportunities_checked: 20, last_checked_at: NOW,
+          last_failed_at: "2026-09-07T11:00:00Z" }] };
+        return { rows: [] };
+      } },
+      requireSession: async () => ({ walletAddress: OWNER }),
+      readAuthority: async () => ({ owner: OWNER, punkWallet: PUNK_WALLET }),
+    });
+  const body = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(body.mission.status, "REVOKED");
+  assert.equal(body.mission.lastCheckedAt, NOW.toISOString());
+  assert.equal(body.mission.checks, 4);
+  assert.equal(body.worker.enabled, false);
+  assert.equal(body.readiness.automaticExecutionReady, false);
+});
+
+test("a no-match scan rotates the mission; failed scans record a public reason and also rotate", async () => {
+  for (const failure of [false, true]) {
+    const writes = [];
+    let released = false;
+    const pool = { async query(sql, args = []) {
+      writes.push({ sql, args });
+      if (sql.includes("SELECT session.session_id::text")) return { rows: [{
+        session_id: "session-93", punk_token_id: 93, punk_account: PUNK_WALLET,
+        owner_snapshot: OWNER, session_generation: "1", strategy_version: 1,
+        strategy_hash: `0x${"ab".repeat(32)}`, intent: defaultAskIntent({
+          punkTokenId: "93", expectedOwner: OWNER, punkWallet: PUNK_WALLET,
+        }, NOW),
+      }] };
+      return { rows: [] };
+    }, async connect() { return { async query(sql) {
+      return { rows: sql.includes("pg_try_advisory_lock") ? [{ acquired: true }] : [] };
+    }, release() { released = true; } }; } };
+    const run = runScheduledPunkAgentWorker({ pool, now: NOW, manifest: deployment,
+      environment: { PUNK_AGENT_WORKER_ENABLED: "true" }, bundler: {}, signer: {},
+      client: { async getGasPrice() { return 1n; } },
+      runMission: async ({ loadMission }) => {
+        const mission = await loadMission();
+        assert.equal(mission.tokenId, "93");
+        if (failure) throw Object.assign(new Error("private RPC response"), { code: "RPC_UNAVAILABLE" });
+        return { status: "NO_ELIGIBLE_MATCH", tokenId: "93", submitted: false };
+      },
+    });
+    if (failure) await assert.rejects(run, { code: "RPC_UNAVAILABLE" });
+    else assert.equal((await run).status, "NO_ELIGIBLE_MATCH");
+    assert.ok(writes.some(({ sql, args }) => sql.includes("UPDATE broker_v2_agent_sessions")
+      && args[1] === "session-93"));
+    const activity = writes.find(({ sql }) => sql.includes("INSERT INTO broker_v2_activity"));
+    assert.equal(activity.args[2], failure ? "AGENT_CHECK_FAILED" : "AGENT_SCOUTED");
+    assert.equal(JSON.stringify(activity).includes("private RPC response"), false);
+    assert.equal(released, true);
+  }
 });

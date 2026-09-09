@@ -431,20 +431,28 @@ function renderMissionMonitor() {
   const serverMission = selectedAgentAccount()?.mission ?? null;
   if (!key || !agent && !serverMission) { monitor.hidden = true; return; }
   monitor.hidden = false;
-  if (!agent && serverMission) {
+  if (serverMission && (!agent || serverMission.status === "ACTIVE")) {
     const active = serverMission.status === "ACTIVE";
+    const workerDisabled = selectedAgentAccount()?.worker?.enabled === false;
+    const gasUnfunded = selectedAgentAccount()?.readiness?.blockers?.includes("AGENT_GAS_UNFUNDED");
+    const checkFailed = serverMission.lastFailedAt && (!serverMission.lastCheckedAt
+      || Date.parse(serverMission.lastFailedAt) > Date.parse(serverMission.lastCheckedAt));
     set("[data-mission-status]", active ? "OUT · AUTONOMOUS" : serverMission.status);
     set("[data-mission-phase]", active
-      ? "WAITING FOR THE NEXT SERVER DISCOVERY CHECK" : "MISSION SESSION IS NOT ACTIVE");
+      ? workerDisabled ? "AUTOMATIC CHECKS ARE DISABLED"
+        : gasUnfunded ? "SCOUTING · FUND AGENT GAS TO ENABLE MINTING"
+        : checkFailed ? "LAST CHECK FAILED · SEE ACTIVITY"
+          : "WAITING FOR THE NEXT SERVER DISCOVERY CHECK" : "MISSION SESSION IS NOT ACTIVE");
     set("[data-mission-progress]", `${serverMission.completedMints} / ${serverMission.totalLimit} MINTS`);
     set("[data-mission-checked]", serverMission.opportunitiesChecked);
     set("[data-mission-scans]", serverMission.checks);
     set("[data-mission-queue]", active ? "SERVER WORKER" : "STOPPED");
     set("[data-mission-last-check]", missionClock(
-      serverMission.latestOperation?.updatedAt, serverMission.checks ? "SEE ACTIVITY" : "NOT YET"));
-    set("[data-mission-next-check]", active ? "WITHIN 1 MINUTE" : "NOT SCHEDULED");
+      serverMission.lastCheckedAt, "NOT YET"));
+    set("[data-mission-next-check]", active && !workerDisabled ? "SCHEDULED EVERY MINUTE" : "NOT SCHEDULED");
     set(".mission-monitor-note", active
-      ? "Every candidate is contract-screened, live-simulated, policy-matched, submitted through the owner-approved account session, and receipt-reconciled."
+      ? gasUnfunded ? "Your mission is authorized, but this agent account has no ETH for gas. Open Fund to fund the Punk Agent Account."
+        : "Every candidate is contract-screened, live-simulated, policy-matched, submitted through the owner-approved account session, and receipt-reconciled."
       : "The worker cannot submit for this Punk while its mission session is inactive.");
     return;
   }

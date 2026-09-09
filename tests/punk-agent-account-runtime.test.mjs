@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { encodeAbiParameters, encodeEventTopics, keccak256 } from "viem";
+import { DIRECT_RELAY_ENTRY_POINT_ABI } from "../broker/src/agent-account/punk-agent-direct-relay.mjs";
 
 import deployment from "../deployments/robinhood-punk-agent-account.json" with { type: "json" };
 import {
@@ -129,19 +130,48 @@ test("confirmed UserOperation requires the exact acquisition event and live NFT 
     { type: "uint256" }, { type: "uint256" }, { type: "uint32" }, { type: "uint256" },
   ], [42n, 9n, 2, 10n]);
   const receipt = { userOpHash: USER_OP, sender: ACCOUNT, success: true,
-    actualGasCost: "100", actualGasUsed: "200", logs: [{ address: ACCOUNT, topics, data }],
+    actualGasCost: "999", actualGasUsed: "999", logs: [{ address: ACCOUNT, topics, data }],
     receipt: { status: "success", transactionHash: TRANSACTION,
       blockNumber: 123n, blockHash: `0x${"99".repeat(32)}`, logs: [] } };
+  const chainReceipt = { ...receipt.receipt, logs: [
+    { address: ACCOUNT, topics, data, logIndex: 7 },
+    { address: deployment.entryPoint, topics: encodeEventTopics({
+      abi: DIRECT_RELAY_ENTRY_POINT_ABI, eventName: "UserOperationEvent", args: {
+        userOpHash: USER_OP, sender: ACCOUNT,
+        paymaster: "0x0000000000000000000000000000000000000000",
+      } }), data: encodeAbiParameters([
+        { type: "uint256" }, { type: "bool" }, { type: "uint256" }, { type: "uint256" },
+      ], [0n, true, 100n, 200n]), logIndex: 8 },
+  ] };
+  const client = { async readContract() { return ACCOUNT; },
+    async getTransactionReceipt() { return chainReceipt; },
+    async getBlock() { return { hash: chainReceipt.blockHash }; } };
+  const input = { client, receipt, userOpHash: USER_OP, account: ACCOUNT,
+    opportunityId: OPPORTUNITY, collection: COLLECTION, tokenId: "42",
+    sessionGeneration: "4", acquisitionNonce: "9" };
   const result = await verifyPunkAgentMintReceipt({
-    client: { async readContract() { return ACCOUNT; } }, receipt, userOpHash: USER_OP,
-    account: ACCOUNT, opportunityId: OPPORTUNITY, collection: COLLECTION, tokenId: "42",
+    ...input,
   });
   assert.equal(result.confirmed, true);
   assert.equal(result.tokenId, "42");
   assert.equal(result.transactionHash, TRANSACTION);
   assert.equal(result.blockNumber, "123");
+  assert.equal(result.logIndex, 7);
+  assert.equal(result.actualGasCostWei, "100");
   await assert.rejects(verifyPunkAgentMintReceipt({
-    client: { async readContract() { return OWNER; } }, receipt, userOpHash: USER_OP,
-    account: ACCOUNT, opportunityId: OPPORTUNITY, collection: COLLECTION, tokenId: "42",
+    ...input, client: { ...client, async readContract() { return OWNER; } },
   }), { code: "NFT_POSTCONDITION_FAILED" });
+  await assert.rejects(verifyPunkAgentMintReceipt({ ...input, sessionGeneration: "5" }),
+    { code: "ACQUISITION_EVENT_MISMATCH" });
+  await assert.rejects(verifyPunkAgentMintReceipt({ ...input, acquisitionNonce: "10" }),
+    { code: "ACQUISITION_EVENT_MISMATCH" });
+  await assert.rejects(verifyPunkAgentMintReceipt({ ...input, client: { ...client,
+    async getTransactionReceipt() { return { ...chainReceipt, logs: [] }; },
+  } }), { code: "USER_OPERATION_EVENT_MISMATCH" });
+  await assert.rejects(verifyPunkAgentMintReceipt({ ...input, client: { ...client,
+    async getBlock() { return { hash: `0x${"aa".repeat(32)}` }; },
+  } }), { code: "RECEIPT_CHAIN_MISMATCH" });
+  await assert.rejects(verifyPunkAgentMintReceipt({ ...input, client: { ...client,
+    async getTransactionReceipt() { return { ...chainReceipt, status: "reverted" }; },
+  } }), { code: "RECEIPT_CHAIN_MISMATCH" });
 });

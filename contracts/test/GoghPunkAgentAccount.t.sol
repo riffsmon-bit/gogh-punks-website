@@ -298,6 +298,30 @@ contract GoghPunkAgentAccountTest {
         new GoghPunkAgentAccount(address(venue), address(adapters));
     }
 
+    function testRecallInvalidatesAlreadySignedMintAndPreservesFunds() public {
+        (PackedUserOperation memory userOp, bytes32 userOpHash) = _signedUserOp(_intent(1));
+        uint256 balanceBefore = address(account).balance;
+        VM.prank(owner);
+        account.revokeAutonomousSession();
+        require(!account.isAutonomousSessionActive(), "recalled session inactive");
+        VM.expectRevert(GoghPunkAgentAccount.InvalidIntent.selector);
+        entryPoint.validate(account, userOp, userOpHash, 0.001 ether);
+        VM.expectRevert(GoghPunkAgentAccount.InvalidIntent.selector);
+        entryPoint.execute(address(account), userOp.callData);
+        require(address(account).balance == balanceBefore, "recall preserved funds");
+        require(account.acquisitionNonce() == 0, "no mint after recall");
+    }
+
+    function testExecutedMintCannotBeReplayed() public {
+        (PackedUserOperation memory userOp, bytes32 userOpHash) = _signedUserOp(_intent(1));
+        entryPoint.validate(account, userOp, userOpHash, 0);
+        entryPoint.execute(address(account), userOp.callData);
+        VM.expectRevert(GoghPunkAgentAccount.InvalidIntent.selector);
+        entryPoint.execute(address(account), userOp.callData);
+        require(account.acquisitionNonce() == 1, "only one execution");
+        require(account.autonomousSession().remainingMints == 1, "only one mint counted");
+    }
+
     function _configureSession(uint32 perDay, uint32 total, uint256 maxGas, uint256 reserve)
         private
     {
