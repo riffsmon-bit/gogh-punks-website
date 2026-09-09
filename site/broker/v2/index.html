@@ -109,10 +109,13 @@
                 <button type="button" data-suggestion="I want weird experimental art. No PFPs.">Tune my taste</button>
                 <button type="button" data-show-link>Check a link</button>
                 <button type="button" data-suggestion="Show me what you found today.">Show discoveries</button>
+                <button type="button" data-suggestion="Check my gas">Check gas / status</button>
+                <button type="button" data-suggestion="Fund gas">Fund gas here</button>
                 <button type="button" data-suggestion="Teach yourself to rank small pixel collections and explain the screening result.">Teach a skill</button>
                 <button type="button" data-suggestion="Pause for tonight.">Pause</button>
               </aside>
             </div>
+            <div data-talk-gas-host hidden></div>
             <form class="link-composer" data-link-form hidden>
               <label for="mint-link">PASTE A MINT LINK</label>
               <div><input id="mint-link" name="url" type="url" inputmode="url" autocomplete="off" placeholder="https://opensea.io/collection/..." /><button type="submit">CHECK LINK</button></div>
@@ -164,7 +167,7 @@
 
           <section class="broker-panel" data-v2-panel="fund" aria-labelledby="fund-title" hidden>
             <header class="panel-header"><div><span class="kicker">POWER BAR</span><h2 id="fund-title">FUND YOUR PUNK</h2></div><span class="custody-chip">DIRECT · NON-CUSTODIAL</span></header>
-            <section class="wrapped-funding" aria-labelledby="agent-gas-title">
+            <div data-fund-gas-home><section class="wrapped-funding" data-agent-gas-panel aria-labelledby="agent-gas-title">
               <header><div><span class="kicker">AUTONOMOUS MINTING · SEPARATE GAS BALANCE</span><h3 id="agent-gas-title">AGENT GAS FUND</h3></div><button class="outline-button" type="button" data-agent-gas-recheck>RECHECK / SIGN IN</button></header>
               <p>Your Punk Wallet ETH is separate from its Agent Account gas. Move existing Punk ETH below, or add ETH from your connected wallet. No hosted-agent prepayment or project custody.</p>
               <dl class="fund-breakdown"><div><dt>PUNK WALLET ETH</dt><dd data-agent-gas-punk-balance>CHECKING…</dd></div><div><dt>AGENT ACCOUNT ETH</dt><dd data-agent-gas-native>NOT VERIFIED</dd></div><div><dt>ENTRYPOINT GAS DEPOSIT</dt><dd data-agent-gas-deposit>NOT VERIFIED</dd></div><div><dt>AGENT DESTINATION</dt><dd><code data-agent-gas-destination>NOT VERIFIED</code></dd></div></dl>
@@ -177,7 +180,8 @@
               <label class="transaction-confirm"><input type="checkbox" data-agent-gas-confirm /><span>I reviewed the source, amount and selected Punk. My connected wallet pays this transfer's network fee. A second step opens MetaMask.</span></label>
               <p data-agent-gas-result aria-live="polite">Only the amount you approve moves. Punk-funded transfers preserve the current protected reserve. Then approve a separate mission in Talk.</p>
               <a class="transaction-link" data-agent-gas-transaction href="#" target="_blank" rel="noopener noreferrer" hidden>VIEW GAS FUNDING TRANSACTION ↗</a>
-            </section>
+              <button class="outline-button" type="button" data-resume-chat-mission hidden>REVIEW SAVED MISSION</button>
+            </section></div>
             <div class="fund-layout">
               <div class="balance-readout"><span data-fund-balance-label>CURRENT PUNK WALLET BALANCE</span><strong data-fund-balance>0.0300</strong><em>ETH</em></div>
               <dl class="fund-breakdown"><div><dt>PROTECTED RESERVE</dt><dd data-fund-reserve>0.0100 ETH</dd></div><div><dt>AVAILABLE ART BUDGET</dt><dd data-fund-available>0.0200 ETH</dd></div><div><dt>DESTINATION</dt><dd><code data-fund-wallet>0x0000…0000</code></dd></div></dl>

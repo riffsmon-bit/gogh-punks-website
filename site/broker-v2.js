@@ -1,5 +1,6 @@
 import { verifyOwnedPunkIds } from "./broker-v2-ownership.js";
 import { prepareAgentGasFunding, submitAgentGasFunding } from "./punk-agent-gas-funding.js";
+import { punkChatAction, agentChatStatus } from "./punk-chat-actions.js";
 import {
   fetchPunkWalletFundsGate, preflightPunkWalletFunds, readPunkWalletFundsState,
   submitPunkWalletFunds, waitForPunkWalletTransactionReceipt,
@@ -1065,6 +1066,7 @@ function selectPunk(tokenId) {
   state.fundingPlan = null; state.wrappedPlan = null; state.withdrawalAsset = null;
   state.gasFundingPlan = null;
   one("[data-agent-gas-confirm]").checked = false;
+  one("[data-resume-chat-mission]").hidden = true;
   one("[data-agent-gas-form] button").textContent = "REVIEW & SIMULATE";
   one("[data-agent-gas-transaction]").hidden = true;
   set("[data-agent-gas-result]", "Review this Punk's source and gas amount. No funds move until MetaMask approval.");
@@ -1162,6 +1164,10 @@ function renderActivity() {
 }
 
 function activateTab(name) {
+  if (name === "fund") {
+    one("[data-fund-gas-home]").append(one("[data-agent-gas-panel]"));
+    one("[data-talk-gas-host]").hidden = true;
+  }
   all("[data-v2-tab]").forEach((button) => button.setAttribute("aria-selected", String(button.dataset.v2Tab === name)));
   all("[data-v2-panel]").forEach((panel) => { panel.hidden = panel.dataset.v2Panel !== name; });
   if (name === "activity") renderActivity();
@@ -1171,6 +1177,25 @@ function activateTab(name) {
   if (!PREVIEW && (reviewRead || productRead)) {
     void hydrateSelected(name);
   }
+}
+
+async function openChatGasReview(action = {}) {
+  const punk = state.selected;
+  if (!punk || state.gasFundingBusy) return;
+  state.gasFundingPlan = null;
+  one("[data-agent-gas-confirm]").checked = false;
+  one("[data-agent-gas-form] button[type=submit]").textContent = "REVIEW & SIMULATE";
+  one("[data-agent-gas-transaction]").hidden = true;
+  one("#agent-gas-amount").value = action.amount ?? "";
+  one("#agent-gas-source").value = action.source ?? "PUNK";
+  set("[data-agent-gas-result]", "Review the exact source and amount below. Nothing is sent by chat; simulation and your separate MetaMask confirmation are required.");
+  const host = one("[data-talk-gas-host]");
+  host.append(one("[data-agent-gas-panel]")); host.hidden = false;
+  one("[data-resume-chat-mission]").hidden = !state.localStrategy;
+  activateTab("talk");
+  host.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  await loadAgentAccountStatus({ authenticate: true });
+  if (state.selected === punk) renderAgentAccount();
 }
 
 function ethFromWei(value) {
@@ -1706,9 +1731,13 @@ function setup() {
     renderAgentAccount();
   });
   one("[data-open-agent-readiness]").addEventListener("click", () => {
-    activateTab("fund");
-    one("[data-agent-gas-recheck]").focus();
-    one("[data-agent-gas-recheck]").click();
+    void openChatGasReview();
+  });
+  one("[data-resume-chat-mission]").addEventListener("click", async () => {
+    const punk = state.selected, draft = state.localStrategy;
+    if (!draft) return;
+    await loadAgentAccountStatus({ authenticate: true });
+    if (state.selected === punk && state.localStrategy === draft) showConfirmation(draft);
   });
   one("[data-review-mint-submit]").addEventListener("click", runOwnerAssistedLiveMint);
   one("[data-review-mint-confirm]").addEventListener("change", () => {
@@ -1757,7 +1786,22 @@ function setup() {
     event.preventDefault(); const input = one("#punk-prompt"); const message = input.value.trim();
     if (!message || chatForm.hasAttribute("aria-busy")) return;
     addMessage("owner", message); input.value = "";
-    if (/pause/i.test(message)) {
+    const chatAction = punkChatAction(message);
+    if (chatAction?.kind === "GAS" || chatAction?.kind === "STATUS") {
+      const punk = state.selected;
+      setChatBusy(true);
+      try {
+        if (chatAction.kind === "GAS") {
+          addMessage("punk", "Let's review gas funding here. Choose the source and exact amount, simulate, then approve in MetaMask. Funding won't start a mission.");
+          await openChatGasReview(chatAction);
+        } else {
+          const status = await loadAgentAccountStatus({ authenticate: true });
+          if (state.selected === punk) addMessage("punk", agentChatStatus(status));
+        }
+      } finally { setChatBusy(false); }
+      return;
+    }
+    if (/pause/i.test(message) || chatAction?.kind === "RECALL") {
       if (selectedAgentAccount()?.mission?.status === "ACTIVE") {
         await recallSelectedReviewAgent();
         return;
@@ -1881,6 +1925,13 @@ function setup() {
     if (!draft) { addMessage("punk", reply); return; }
     if (draft.intent?.operatingMode === "AUTONOMOUS") {
       await loadAgentAccountStatus({ authenticate: false });
+      const runtime = selectedAgentAccount()?.runtime;
+      if (runtime?.accountCreated && runtime.nativeBalance === "0" && runtime.entryPointDeposit === "0") {
+        state.localStrategy = draft;
+        addMessage("punk", "Your mission draft is saved, but my Agent gas is empty. Review funding here first, then use REVIEW SAVED MISSION. Neither step grants the other permission.");
+        await openChatGasReview();
+        return;
+      }
     }
     const intent = draft.intent;
     const tastes = intent ? intent.preferences.prefer.map((value) => value.replaceAll("_", " ")) : draft.tastes;
@@ -2178,7 +2229,11 @@ function setup() {
       if (state.selected === punk) {
         one("[data-agent-gas-confirm]").checked = false;
         await Promise.all([loadAgentAccountStatus(), loadPunkBalances(punk)]);
-        if (state.selected === punk) { renderSelected(); output.textContent = "GAS FUNDING CONFIRMED ✓ Now review and approve your autonomous mission in Talk."; }
+        if (state.selected === punk) {
+          renderSelected(); output.textContent = "GAS FUNDING CONFIRMED ✓ Review and approve your mission separately.";
+          one("[data-resume-chat-mission]").hidden = !state.localStrategy;
+          addMessage("punk", `GAS FUNDING CONFIRMED. ${amount} ETH moved to my Agent Account. No mission was activated. ${state.localStrategy ? "Use REVIEW SAVED MISSION to continue." : "Tell me your mission and I'll show its limits for approval."}`);
+        }
       }
     } catch (error) {
       state.gasFundingPlan = null;

@@ -50,6 +50,11 @@ export async function resolveV2PunkChat({ router, ownerMessage, currentIntent, t
       providerAvailable: answer.providerAvailable });
   };
   if (isPunkConversationMessage(ownerMessage)) return conversation();
+  if (/\btotal\s+gas\b|\bgas\s+(?:spend(?:ing)?|budget)\s+(?:total|overall|for (?:the|this) mission)\b/i.test(ownerMessage)) {
+    return Object.freeze({ responseKind: "CLARIFICATION_REQUIRED", draft: null,
+      reply: "I can enforce a gas cap per mint, not a separate cumulative gas budget across retries. For this test, say: Autonomously find and mint one free NFT. Max one mint per day and one mint total. Max 0.0005 ETH gas per mint. Then review the full limits before signing. Nothing has been authorized.",
+      provider: { provider: "DETERMINISTIC_REVIEW_PARSER", registryKey: null }, providerAvailable: true });
+  }
   const interpreted = draftStrategyFromConversation({ message: ownerMessage, punkTokenId: tokenId,
     expectedOwner: owner, punkWallet: strategyWallet, currentIntent }, now);
   if (interpreted.ambiguous.length) {
@@ -68,14 +73,45 @@ export async function resolveV2PunkChat({ router, ownerMessage, currentIntent, t
     providerAvailable: true });
 }
 
-export default async function handler(request) {
+// Called under the per-Punk advisory transaction lock. Repeated chat commands must
+// reuse a review, not violate the globally unique intent hash or reactivate it.
+export async function persistV2ChatDraft(client, { tokenId, owner, authority, draft }) {
+  const bindings = [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, tokenId];
+  const existing = await client.query(`SELECT version, state, configured_by FROM broker_v2_strategies
+    WHERE chain_id = $1 AND collection_address = $2 AND token_id = $3::numeric
+      AND intent_hash = $4 FOR UPDATE`, [...bindings, draft.confirmation.intentHash]);
+  const row = existing.rows[0];
+  if (row) {
+    if (row.configured_by !== owner) throw new PublicError(403, "STRATEGY_OWNER_CHANGED", "Only the current owner's strategy can be reviewed.");
+    if (!["PENDING_OWNER_CONFIRMATION", "PAUSED"].includes(row.state)) {
+      throw new PublicError(409, "STRATEGY_ALREADY_RECORDED", row.state === "ACTIVE"
+        ? "These rules are already active. Check mission status before sending the Punk again."
+        : "These rules belong to a retired strategy. Change the mission limits to create a new review.");
+    }
+    return { version: Number(row.version), reused: true };
+  }
+  const next = await client.query(`SELECT COALESCE(MAX(version), 0) + 1 AS version
+    FROM broker_v2_strategies WHERE chain_id = $1 AND collection_address = $2
+      AND token_id = $3::numeric`, bindings);
+  const version = Number(next.rows[0].version);
+  await client.query(`INSERT INTO broker_v2_strategies
+    (chain_id, collection_address, token_id, version, schema_name, intent_hash, intent,
+     state, configured_by, ownership_block, expires_at)
+    VALUES ($1, $2, $3::numeric, $4, 'PUNK_COLLECTING_INTENT_V1',
+      $5, $6::jsonb, 'PENDING_OWNER_CONFIRMATION', $7, $8::bigint, $9)`,
+  [...bindings, version, draft.confirmation.intentHash, JSON.stringify(draft.intent),
+    owner, authority.blockNumber, draft.intent.expiration]);
+  return { version, reused: false };
+}
+
+export async function handleV2Chat(request, { pool, requireSession = requireV2Session,
+  readAuthority = readV2PunkAuthority, createIntelligence = createDatabaseBackedGoghIntelligence } = {}) {
   if (request.method !== "POST") return json({ ok: false, code: "METHOD_NOT_ALLOWED" }, 405);
-  const pool = getDatabase().pool;
   try {
     requireSameOrigin(request);
     const tokenId = tokenIdFrom(request);
-    const session = await requireV2Session(request, pool);
-    const authority = await readV2PunkAuthority(tokenId, { expectedOwner: session.walletAddress });
+    const session = await requireSession(request, pool);
+    const authority = await readAuthority(tokenId, { expectedOwner: session.walletAddress });
     const body = await readJson(request, 12_000);
     if (!body || typeof body !== "object" || Array.isArray(body)
       || Object.keys(body).length !== 1 || !Object.hasOwn(body, "message")) {
@@ -84,13 +120,13 @@ export default async function handler(request) {
     const ownerMessage = message(body.message);
     const latest = await pool.query(`SELECT intent FROM broker_v2_strategies
       WHERE chain_id = $1 AND collection_address = $2 AND token_id = $3::numeric
-        AND state IN ('ACTIVE', 'PAUSED') AND expires_at > NOW()
+        AND state IN ('ACTIVE', 'PAUSED') AND expires_at > NOW() AND configured_by = $4
       ORDER BY version DESC LIMIT 1`,
-    [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, tokenId]);
+    [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, tokenId, session.walletAddress]);
     const now = new Date();
     const currentIntent = latest.rows[0]?.intent ?? defaultAskIntent({ punkTokenId: tokenId,
       expectedOwner: session.walletAddress, punkWallet: authority.punkWallet }, now);
-    const intelligence = createDatabaseBackedGoghIntelligence(pool);
+    const intelligence = createIntelligence(pool);
     const resolved = await resolveV2PunkChat({ router: intelligence.router, ownerMessage,
       currentIntent, tokenId, authority, owner: session.walletAddress, now,
       context: { ownerFingerprint: session.walletAddress, punkTokenId: tokenId } });
@@ -125,18 +161,8 @@ export default async function handler(request) {
         conversationId = created.rows[0].conversation_id;
       }
       if (resolved.draft) {
-        const next = await client.query(`SELECT COALESCE(MAX(version), 0) + 1 AS version
-          FROM broker_v2_strategies WHERE chain_id = $1 AND collection_address = $2
-            AND token_id = $3::numeric`, [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, tokenId]);
-        version = Number(next.rows[0].version);
-        await client.query(`INSERT INTO broker_v2_strategies
-          (chain_id, collection_address, token_id, version, schema_name, intent_hash, intent,
-           state, configured_by, ownership_block, expires_at)
-          VALUES ($1, $2, $3::numeric, $4, 'PUNK_COLLECTING_INTENT_V1',
-            $5, $6::jsonb, 'PENDING_OWNER_CONFIRMATION', $7, $8::bigint, $9)`,
-        [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, tokenId, version,
-          resolved.draft.confirmation.intentHash, JSON.stringify(resolved.draft.intent),
-          session.walletAddress, authority.blockNumber, resolved.draft.intent.expiration]);
+        ({ version } = await persistV2ChatDraft(client, { tokenId, owner: session.walletAddress,
+          authority, draft: resolved.draft }));
       }
       await client.query(`INSERT INTO broker_v2_conversation_messages
         (conversation_id, role, content, provider, model_registry_key)
@@ -152,6 +178,10 @@ export default async function handler(request) {
       draft: resolved.draft ? { ...resolved.draft, version } : null,
       economicPermissionsActivated: false });
   } catch (error) { return v2Failure(error); }
+}
+
+export default async function handler(request) {
+  return handleV2Chat(request, { pool: getDatabase().pool });
 }
 
 export const config = { path: "/api/v2/punks/:tokenId/chat", rateLimit: {
