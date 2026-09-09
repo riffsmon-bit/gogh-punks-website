@@ -1,5 +1,6 @@
 // Advisory preflight only. NEVER use a browser snapshot as burn authorization.
 // Production burns remain locked until complete asset/state safety is established.
+import { assessSupplyFloor } from './supply-floor.mjs';
 export const BURN_WALLET_ROLES = Object.freeze(['V1', 'V2', 'V3', 'AGENT']);
 const ADDRESS = /^0x[0-9a-f]{40}$/i;
 const UINT = /^(0|[1-9][0-9]{0,77})$/;
@@ -11,6 +12,12 @@ export function assessSacrifice(snapshot, { now = Date.now() } = {}) {
   const add = (code, message, wallet = null) => reasons.push({ code, message, wallet });
   if (!snapshot || typeof snapshot !== 'object') snapshot = {};
   const { owner, burnOwner, trainOwner, punkToBurn, punkToTrain } = snapshot;
+  const supply = assessSupplyFloor(snapshot.supply, { now });
+  if (snapshot.supply?.blockHash !== snapshot.blockHash || snapshot.supply?.checkedAt !== snapshot.checkedAt || supply.status === 'SUPPLY_UNKNOWN') {
+    add('SUPPLY_UNKNOWN', 'Verify current collection supply at the same block as the wallet checks.');
+  } else if (!supply.allowedBySupplyRule) {
+    add('SUPPLY_FLOOR_REACHED', 'Forge sacrifices stop at 1,111 remaining Punks.');
+  }
   if (![owner, burnOwner, trainOwner].every((x) => ADDRESS.test(x ?? ''))
     || owner.toLowerCase() !== burnOwner.toLowerCase()
     || owner.toLowerCase() !== trainOwner.toLowerCase()) {
@@ -64,6 +71,7 @@ export function assessSacrifice(snapshot, { now = Date.now() } = {}) {
     status: reasons.length ? 'BLOCKED' : 'CHECKS_PASSED_PRODUCTION_LOCKED',
     canBurn: false,
     productionBurnEnabled: false,
+    supply,
     reasons: Object.freeze(reasons),
     warning: 'Permanent sacrifice destroys the NFT. Wallet assets are NOT transferred and may become inaccessible.',
     confirmationText: UINT.test(String(punkToBurn)) ? `BURN ${punkToBurn}` : null,

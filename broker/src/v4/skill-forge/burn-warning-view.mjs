@@ -12,6 +12,7 @@ export function renderBurnWarning(container, snapshot, { onReviewWallet = () => 
   const warning = element('p', report.warning);
   warning.setAttribute('role', 'alert');
   container.append(warning);
+  container.append(element('p', `Forge minimum remaining supply: 1,111. Supply headroom: ${report.supply.headroom ?? 'unknown'}. This is not burn authorization.`));
   for (const wallet of snapshot?.wallets ?? []) {
     const card = element('section', '');
     card.append(element('h3', `${wallet.role} PUNK WALLET`));

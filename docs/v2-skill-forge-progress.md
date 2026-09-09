@@ -51,7 +51,7 @@ From this feature worktree, with Anvil on PATH and Foundry artifacts already com
 node scripts/dev/skill-forge/preview-server.mjs --local-only
 ```
 
-Open the loopback URL printed by the process. Stop it with Ctrl-C. Each launch deploys a new disposable mock collection, registry and progression on chain 31337. Mock Punk #1 starts with two learned skills, one equipped skill, two unlocked slots and one remaining credit, created through actual local mock-sacrifice transactions. Mock Punks #44 and #7 are untrained. The two learnable fixture definitions are marked READY only on that disposable chain; their actual production status remains TESTING. No external skill is promoted to production READY by this preview.
+Open the loopback URL printed by the process. Stop it with Ctrl-C. Each launch deploys a new disposable mock collection, registry and progression on chain 31337. Mock Punk #1 starts with two learned skills, one equipped skill, two unlocked slots and one remaining credit, created through actual local mock-sacrifice transactions. Mock Punk #44 is untrained. Mock Punk #7 now has a learned, unequipped Sniper fixture to demonstrate both mission choices. Three definitions are marked READY only on this disposable chain; their actual production statuses remain TESTING or ADAPTING. No external skill is promoted to production READY by this preview.
 
 Browser/API regression:
 
@@ -71,7 +71,17 @@ Candidate cards show artwork, token ID, progression at risk, and explicit UNKNOW
 
 Browser/API regression coverage now also checks candidate exclusion, per-target candidate changes, trained-token warnings, mobile picker overflow, Escape dismissal and candidate-read failures. An optional `--port=NUMBER` argument keeps the loopback preview URL stable across restarts; it cannot change the RPC or bind address. Real wallet inventories, current production ownership discovery, safe migration/withdrawal and authorized burn submission remain future integration work.
 
+## Sniper and expanded library checkpoint
+
+The local library now contains **13 browseable entries**, not 13 functioning production skills. Five existing development fixtures are joined by eight unregistered roadmap candidates: Scheduled Hunter, Art Curator, Social Scout, Paid Mint License, Collection Researcher, Listing Watcher, Portfolio Curator and Whitelist Scout. Research, discovery, execution and locally learned filters make these navigable. Roadmap cards say Coming Soon, include source evidence and missing work, have no registry key/hash/approved tools, and cannot consume credits. Source-sharing variants are not counted as independently tested upstream implementations. No new production SKILL.md packages or registry entries were created.
+
+Sniper is the proposed single-skill product experience with **Mint Link** and **Floor Snipe** choices. Local Punk #7 demonstrates choosing either chat template after learning the fixture; unlearned Punks can inspect but not select the templates. Both templates require explicit price/currency, quantity, total budget, gas, reserve and deadline, with owner confirmation. Templates are not dispatched. The fixture still grants only LINK_REVIEW, is unequipped, and has no mint/purchase authority. Broader production versions require explicit versioning and separate capability review; an old Link Sniper manifest is never silently expanded into marketplace signing.
+
+Combined JavaScript regression run: **68 passed**, including library non-authority invariants, strict learned-state checks, both Sniper choices, category/learned filters, roadmap detail warnings and existing desktop/mobile/HTTP/sacrifice tests. No contract code changed in this checkpoint. Current fixture cap remains four. The separate [rarity-slot proposal](v2-rarity-slot-proposal.md) discusses a seven-slot cap and rarity-based starting capacity; it is not approved or implemented.
+
 ## Remaining work, in order
+
+Latest supply-floor addition: [1,111 minimum Forge supply policy](v2-forge-supply-floor.md). Advisory checks and a pre/post Solidity guard library are implemented and tested, but no production burn source is enabled. Direct owner burns in the existing collection cannot be stopped by this additive guard. Updated combined JavaScript suite: **71 passed**. The prior 16 progression contract tests remain passing; five new supply-policy tests cover boundary/race/rollback behavior. Current production supply was read as 4,295 at block 58212032; no NFT was burned.
 
 1. **Security/semantic review of new contracts and resolver**. This is test-backed prototype code, not an audited production release. Add invariant/state-machine, event-indexing/reorg, hostile source and broader property tests.
 2. **Real skill acceptance**. Zero new production READY skills. Contract Detective and sample Rarity Eye have narrow live evidence; Market Scout still needs successful authenticated live listing retrieval; Link Sniper/Mint Hunter need complete permitted live/test pipelines. Do not register test fixture manifests for production.

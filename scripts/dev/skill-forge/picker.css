@@ -18,4 +18,14 @@
 #candidate-review h3{font-size:29px;line-height:1.15}
 #candidate-review>button{width:100%}
 #leave-review{margin-top:12px;color:var(--cyan);border-color:var(--cyan)}
+.sniper-options{border:1px solid var(--cyan);padding:18px;margin-bottom:24px;background:#102129}
+.sniper-options>button{width:100%;margin:6px 0}
+.sniper-options [aria-pressed=true]{color:var(--ink);background:var(--lime);border-color:var(--lime)}
+.sniper-prompt:not(:empty){border-top:1px solid var(--line);margin-top:18px;padding-top:18px}
+.skill-filters{display:flex;gap:8px;flex-wrap:wrap;margin:20px 0 10px}
+.skill-filters [aria-pressed=true]{color:var(--ink);background:var(--lime);border-color:var(--lime)}
+#skill-count{margin-bottom:20px}
+#forge-floor{border:1px solid var(--lime);padding:12px;color:var(--lime);font-size:11px}
+.skill-top{gap:12px}.skill-status{text-align:right;line-height:1.5}
+#detail-body>a{display:block;font-size:11px;color:var(--cyan);padding:16px 0;overflow-wrap:anywhere}
 @media(max-width:600px){#sacrifice-candidates{grid-template-columns:1fr}#picker-title{font-size:36px}.sacrifice-card{padding:16px}#candidate-review h3{font-size:25px}}

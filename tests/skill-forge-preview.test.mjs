@@ -13,6 +13,11 @@ test('local Forge: contract snapshots, read-only HTTP and responsive browser', {
   await t.test('credits, learned/equipped distinction and real local events', async () => {
     const data = await (await fetch(`${preview.url}/api/forge?tokenId=1`)).json();
     assert.equal(data.chainId, 31337); assert.equal(data.canBurn, false); assert.equal(data.productionReadyCount, 0);
+    assert.equal(data.forgeMinimumSupply, '1111');
+    assert.equal(data.skills.length, 13);
+    assert.equal(data.skills.filter(skill => skill.comingSoon).length, 8);
+    assert.ok(data.skills.every(skill => skill.learnable === false));
+    assert.ok(data.skills.filter(skill => skill.comingSoon).every(skill => skill.key === null && skill.tools.length === 0));
     assert.equal(data.credits, '1'); assert.equal(data.learned.length, 2); assert.equal(data.slots, 2);
     assert.equal(data.equipped.filter(key => !/^0x0+$/.test(key)).length, 1);
     assert.equal(data.history.filter(event => event.name === 'TrainingCreditEarned').length, 4);
@@ -74,7 +79,20 @@ test('local Forge: contract snapshots, read-only HTTP and responsive browser', {
     await call('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
     await call('Page.navigate', { url: preview.url });
     await until("document.querySelector('#profile')?.hidden === false");
-    assert.equal(await evaluate("document.querySelectorAll('.skill').length"), 5);
+    assert.equal(await evaluate("document.querySelectorAll('.skill').length"), 13);
+    assert.match(await evaluate("document.querySelector('#forge-floor').textContent"), /1,111 PUNKS · not deployed/);
+    for (const [filter, count] of [['research', 5], ['discovery', 4], ['execution', 4], ['learned', 2], ['all', 13]]) {
+      await evaluate(`document.querySelector('[data-filter="${filter}"]').click()`);
+      assert.equal(await evaluate("document.querySelectorAll('.skill:not([hidden])').length"), count);
+    }
+    await evaluate("document.querySelector('[data-skill=\"2\"] button').click()");
+    assert.equal(await evaluate("document.querySelectorAll('[data-mission]:disabled').length"), 2);
+    await evaluate("document.querySelector('#close-detail').click()");
+    await evaluate("document.querySelector('[data-skill=\"proposal:paid-mint-license\"] button').click()");
+    assert.match(await evaluate("document.querySelector('#detail-body').textContent"), /Higher risk/);
+    assert.match(await evaluate("document.querySelector('#detail-body').textContent"), /Unregistered roadmap candidate/);
+    assert.equal(await evaluate("document.querySelector('#detail-action').disabled"), true);
+    await evaluate("document.querySelector('#close-detail').click()");
     assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true);
     await evaluate("document.querySelector('#browse-sacrifice').click()");
     await until("document.querySelectorAll('.sacrifice-card').length === 2");
@@ -94,11 +112,26 @@ test('local Forge: contract snapshots, read-only HTTP and responsive browser', {
     await evaluate("document.querySelector('[data-punk=\"44\"]').click()");
     await until("document.querySelector('#punk-label').textContent === 'LOCAL PUNK #44'");
     assert.match(await evaluate("document.querySelector('#history').textContent"), /No training events/);
+    await evaluate("document.querySelector('[data-filter=\"learned\"]').click()");
+    assert.equal(await evaluate("document.querySelectorAll('.skill:not([hidden])').length"), 0);
+    await evaluate("document.querySelector('[data-filter=\"all\"]').click()");
     await evaluate("document.querySelector('#browse-sacrifice').click()");
     await until("document.querySelector('[data-candidate=\"1\"]') !== null");
     await evaluate("document.querySelector('[data-candidate=\"1\"] button').click()");
     assert.match(await evaluate("document.querySelector('#candidate-inventory').textContent"), /2 learned skills, 1 credits and 2 slots/);
     await evaluate("document.querySelector('#close-picker').click()");
+    await evaluate("document.querySelector('[data-punk=\"7\"]').click()");
+    await until("document.querySelector('#punk-label').textContent === 'LOCAL PUNK #7'");
+    await evaluate("document.querySelector('[data-skill=\"2\"] button').click()");
+    assert.equal(await evaluate("document.querySelectorAll('[data-mission]:enabled').length"), 2);
+    assert.match(await evaluate("document.querySelector('.sniper-options').textContent"), /Equip Sniper before dispatching/);
+    await evaluate("document.querySelector('[data-mission=\"floor-snipe\"]').click()");
+    assert.match(await evaluate("document.querySelector('.sniper-prompt').textContent"), /Link review alone grants no purchase authority/);
+    assert.match(await evaluate("document.querySelector('.sniper-prompt').textContent"), /\[budget\]/);
+    await evaluate("document.querySelector('[data-mission=\"mint-link\"]').click()");
+    assert.match(await evaluate("document.querySelector('.sniper-prompt').textContent"), /Paid mints require paid-mint permission/);
+    assert.equal(await evaluate("document.querySelector('#detail-action').disabled"), true);
+    await evaluate("document.querySelector('#close-detail').click()");
     await evaluate("document.querySelector('[data-punk=\"1\"]').click()");
     await until("document.querySelector('#punk-label').textContent === 'LOCAL PUNK #1'");
     assert.equal(await evaluate("document.querySelectorAll('.skill.learned').length"), 2);

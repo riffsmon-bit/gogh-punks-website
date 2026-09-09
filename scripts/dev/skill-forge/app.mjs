@@ -1,8 +1,18 @@
+import { sniperMissionPreview } from './sniper-missions.mjs';
 const $ = selector => document.querySelector(selector);
 const element = (tag, text, className) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; if (className) node.className = className; return node; };
 const zero = `0x${'0'.repeat(64)}`;
 let request = 0;
 let selectedPunk;
+let skillFilter = 'all';
+function filterSkills() {
+  const cards = [...$('#skills').children];
+  for (const card of cards) card.hidden = !(skillFilter === 'all' || (skillFilter === 'learned' ? card.classList.contains('learned') : card.dataset.category === skillFilter));
+  const count = cards.filter(card => !card.hidden).length;
+  $('#skill-count').textContent = `${count} of ${cards.length} entries · 0 production learnable${count === 0 ? ' · No skills in this view for this Punk.' : ''}`;
+  document.querySelectorAll('[data-filter]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.filter === skillFilter)));
+}
+document.querySelectorAll('[data-filter]').forEach(button => button.addEventListener('click', () => { skillFilter = button.dataset.filter; filterSkills(); }));
 let pickerRequest = 0;
 function closePicker() { ++pickerRequest; $('#sacrifice-picker').close(); $('#candidate-review').hidden = true; }
 $('#close-picker').addEventListener('click', closePicker);
@@ -66,6 +76,9 @@ $('#review-burn').addEventListener('click', () => detail('PERMANENT MEANS PERMAN
 ], [['WALLET ASSET INVENTORY', 'Not connected / unknown. This preview does not inspect your production wallets.'], ['OPEN MISSIONS & UNSETTLED TRANSACTIONS', 'Unknown / not checked.'], ['BURN ELIGIBILITY', 'BLOCKED. No production burn source approved.'], ['PRODUCTION PUNK #93', 'Not used in this fixture. Previously observed gas funds must not be treated as zero.'], ['CONFIRMATION', 'No burn approval or signing is possible here. A future approved flow must recheck eligibility and require explicit token-ID confirmation.']]));
 function render(data) {
   selectedPunk = data;
+  let floor = $('#forge-floor');
+  if (!floor) { floor = element('p', undefined, 'target-strip'); floor.id = 'forge-floor'; $('#training-title').after(floor); }
+  floor.textContent = `FORGE SUPPLY FLOOR: ${Number(data.forgeMinimumSupply).toLocaleString('en-US')} PUNKS · not deployed. Live supply not checked in this preview. Direct collection burns are outside this guard.`;
   $('#punk-label').textContent = `LOCAL PUNK #${data.tokenId}`;
   $('#portrait').src = `/art/${data.tokenId}.png`;
   $('#portrait').alt = `Gogh Punk #${data.tokenId} artwork used for local fixture`;
@@ -84,14 +97,36 @@ function render(data) {
   $('#skills').replaceChildren(...data.skills.map(skill => {
     const learned = data.learned.find(item => item.key === skill.key);
     const card = element('article', undefined, `skill ${learned ? 'learned' : ''}`);
-    const top = element('div', undefined, 'skill-top'); top.append(element('span', skill.mark, 'skill-number'), element('span', skill.status, 'skill-status'));
-    card.append(top, element('h3', skill.name), element('p', learned ? `LEARNED · LEVEL ${learned.level} · LOCAL FIXTURE` : 'NOT LEARNED', 'learned-label'), element('p', skill.description, 'description'));
+    card.dataset.category = skill.category; card.dataset.skill = skill.id;
+    const top = element('div', undefined, 'skill-top'); top.append(element('span', skill.mark, 'skill-number'), element('span', skill.comingSoon ? `COMING SOON · ${skill.status.replaceAll('_', ' ')}` : skill.status, 'skill-status'));
+    card.append(top, element('h3', skill.name), element('p', learned ? `LEARNED · LEVEL ${learned.level} · LOCAL FIXTURE` : skill.comingSoon ? 'NOT LEARNABLE YET' : 'NOT LEARNED', 'learned-label'), element('p', skill.description, 'description'));
     const button = element('button', 'INSPECT CAPABILITY ↗'); button.type = 'button';
-    button.addEventListener('click', () => detail(skill.name.toUpperCase(), `PRODUCTION STATUS · ${skill.status}`, [skill.description, skill.boundary], [
-      ['PROPOSED TOOLS', skill.tools.join(' · ')], ['CAPABILITY', skill.capability], ['VERSION', `${skill.version} · disposable local fixture, not a registered production package`], ['MANIFEST HASH · LOCAL FIXTURE', skill.manifestHash], ['INSTRUCTION HASH · LOCAL FIXTURE', skill.instructionHash], ['READINESS', 'No production learning or live tool execution. Local test readiness is not production acceptance.'],
-    ]));
+    button.addEventListener('click', () => {
+      detail(skill.name.toUpperCase(), `PRODUCTION STATUS · ${skill.status}`, [skill.description, skill.boundary], [
+      ['PROPOSED TOOLS', skill.tools.length ? skill.tools.join(' · ') : 'No approved tool mapping yet'], ['CAPABILITY', skill.capability], ['VERSION', skill.version ? `${skill.version} · disposable local fixture, not a registered production package` : 'Unregistered roadmap candidate'], ['MANIFEST HASH · LOCAL FIXTURE', skill.manifestHash ?? 'Not registered'], ['INSTRUCTION HASH · LOCAL FIXTURE', skill.instructionHash ?? 'Not registered'], ['SOURCE / EVIDENCE', skill.source], ['STILL REQUIRED', skill.missing], ['READINESS', 'No production learning or live tool execution. Local test readiness is not production acceptance.'],
+      ]);
+      if (skill.sourceUrl) { const source = element('a', 'INSPECT PINNED UPSTREAM SOURCE ↗'); source.href = skill.sourceUrl; source.target = '_blank'; source.rel = 'noopener noreferrer'; $('#detail-body').append(source); }
+      if (skill.id === 2) {
+        const model = sniperMissionPreview({ learned: Boolean(learned), equipped: data.equipped.includes(skill.key) });
+        const section = element('section', undefined, 'sniper-options');
+        section.append(element('h3', 'CHOOSE YOUR MISSION'), element('p', model.canChoose ? `Local Punk #${data.tokenId} learned Sniper. Both mission templates are unlocked for preview.` : 'Unlock Sniper to choose either mission. Local Punk #7 demonstrates the learned state.'), element('p', model.equipmentNote));
+        const output = element('div', undefined, 'sniper-prompt'); output.setAttribute('role', 'status');
+        for (const option of model.options) {
+          const choice = element('button', option.name); choice.type = 'button'; choice.dataset.mission = option.id;
+          choice.disabled = !model.canChoose; choice.setAttribute('aria-pressed', 'false');
+          choice.addEventListener('click', () => {
+            section.querySelectorAll('[data-mission]').forEach(item => item.setAttribute('aria-pressed', String(item === choice)));
+            output.replaceChildren(element('h3', option.name), element('p', option.description), element('p', option.requires), element('p', 'EXAMPLE CHAT REQUEST · FILL IN YOUR LIMITS', 'eyebrow'), element('p', option.prompt), element('p', 'PREVIEW ONLY — no mission was sent, no signature requested, no transaction prepared.'));
+          });
+          section.append(choice);
+        }
+        section.append(output); $('#detail-body').prepend(section);
+      }
+    });
+    if (skill.id === 2) button.textContent = learned ? 'CHOOSE SNIPER MISSION ↗' : 'INSPECT BOTH MISSIONS ↗';
     card.append(button); return card;
   }));
+  filterSkills();
   const names = { TrainingCreditEarned: 'TRAINING CREDIT EARNED', SkillLearned: 'SKILL LEARNED', SlotUnlocked: 'SLOT UNLOCKED', SkillEquipped: 'SKILL EQUIPPED', SkillUnequipped: 'SKILL UNEQUIPPED' };
   $('#history').replaceChildren(...data.history.map(event => {
     const skill = data.skills.find(item => item.key === event.args.key);

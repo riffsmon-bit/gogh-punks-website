@@ -7,12 +7,21 @@ const blockHash = `0x${'22'.repeat(32)}`;
 function empty() {
   return { chainId: 4663, owner, burnOwner: owner, trainOwner: owner, punkToBurn: '93', punkToTrain: '119',
     burnTokenExists: true, trainTokenExists: true, checkedAt: 1000, blockHash,
+    supply: { chainId: 4663, collection: '0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6', totalSupply: '3000', checkedAt: 1000, blockHash },
     openMissions: 0, activeAutomation: 0, unsettledTransactions: 0, legacyLocks: 0,
     wallets: BURN_WALLET_ROLES.map((role, i) => ({ role, address: `0x${String(i + 1).repeat(40)}`,
       checkedAt: 1000, blockHash, nativeWei: '0', entryPointDepositWei: '0', nftCount: 0,
       erc20AssetCount: 0, otherAssetCount: 0, inventoryComplete: true })) };
 }
 const assess = (snapshot) => assessSacrifice(snapshot, { now: 1000 });
+test('floor and missing or cross-block supply evidence block sacrifice', () => {
+  for (const mutate of [s => s.supply.totalSupply = '1111', s => delete s.supply,
+    s => s.supply.blockHash = `0x${'33'.repeat(32)}`, s => s.supply.checkedAt = 999]) {
+    const snapshot = empty(); mutate(snapshot);
+    assert.equal(assess(snapshot).status, 'BLOCKED');
+    assert.ok(assess(snapshot).reasons.some(reason => reason.code.startsWith('SUPPLY_')));
+  }
+});
 test('even complete empty mock inventory never enables production burn', () => {
   assert.equal(assess(empty()).status, 'CHECKS_PASSED_PRODUCTION_LOCKED');
   assert.equal(assess(empty()).canBurn, false);

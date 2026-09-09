@@ -6,12 +6,14 @@ import { createServer } from 'node:http';
 import { pathToFileURL } from 'node:url';
 import { createPublicClient, createWalletClient, http, decodeEventLog } from 'viem';
 import { manifestHash, instructionHash } from '../../../broker/src/v4/skill-forge/capability-resolver.mjs';
+import { previewLibrary } from './library-roadmap.mjs';
+import { FORGE_MINIMUM_SUPPLY } from '../../../broker/src/v4/skill-forge/supply-floor.mjs';
 
 export const catalog = [
   { id: 3, name: 'Contract Detective', mark: '01', status: 'TESTING', capability: 'CONTRACT_READ', bit: 1n, tools: ['inspect_contract'], description: 'Inspect code, interface support and proxy slots. Findings are evidence, not a security guarantee.', boundary: 'Read-only. No signing or spending authority.' },
   { id: 4, name: 'Rarity Eye', mark: '02', status: 'TESTING', capability: 'RARITY_READ', bit: 8n, tools: ['get_metadata', 'rank_trait_sample'], description: 'Compare trait frequencies in an explicit metadata sample. Not a whole-collection rarity rank.', boundary: 'Read-only. Sample coverage must remain visible.' },
   { id: 8, name: 'Market Scout', mark: '03', status: 'BLOCKED', capability: 'MARKET_READ', bit: 4n, tools: ['get_market_listings'], description: 'Approved listing research wrapper. Successful authenticated live data retrieval is still required.', boundary: 'No purchases, offers, approvals or marketplace signing.' },
-  { id: 2, name: 'Link Sniper', mark: '04', status: 'ADAPTING', capability: 'LINK_REVIEW', bit: 16n, tools: ['inspect_mint_link'], description: 'Resolve a mint link into a chain, contract and mechanism. Full screening and simulation acceptance remains unfinished.', boundary: 'Link recognition never grants mint execution.' },
+  { id: 2, name: 'Sniper', mark: '04', status: 'ADAPTING', capability: 'LINK_REVIEW', bit: 16n, tools: ['inspect_mint_link'], description: 'One skill, two planned missions: Mint Link or Floor Snipe. Choose your target and price in chat.', boundary: 'This fixture grants only link review. Neither minting nor marketplace buying is authorized by the mission picker. Floor Snipe needs a separately reviewed purchase capability.' },
   { id: 1, name: 'Mint Hunter', mark: '05', status: 'ADAPTING', capability: 'FREE_MINT', bit: 2n, tools: ['inspect_mint', 'simulate_mint', 'prepare_mint'], description: 'Prepare screened free mints. The equipped-skill execution path still needs end-to-end acceptance.', boundary: 'Owner policy, session, gas, reserve, expiry and simulation always apply. No live execution in this preview.' },
 ];
 const zero = `0x${'0'.repeat(64)}`;
@@ -60,7 +62,7 @@ export async function startPreview({ port = 0 } = {}) {
     const source = await deploy(training, [collection]);
     const progression = await deploy(prog, [collection, registry, source, 1, 4]);
     await write(training, source, 'bind', [progression]);
-    for (const id of [1, 44, 7, 1001, 1002, 1003, 1004]) await write(nft, collection, 'mint', [owner, BigInt(id)]);
+    for (const id of [1, 44, 7, 1001, 1002, 1003, 1004, 1005]) await write(nft, collection, 'mint', [owner, BigInt(id)]);
     const skills = [];
     for (const entry of catalog) {
       const manifest = { skillId: entry.id, version: 1, chainId: 31337, capabilities: [entry.capability], description: 'LOCAL FIXTURE ONLY — NOT PRODUCTION READY' };
@@ -68,7 +70,7 @@ export async function startPreview({ port = 0 } = {}) {
       await write(reg, registry, 'register', [entry.id, 1, hash, instructions, zero, entry.bit, entry.id === 1 ? 1 : 0]);
       const key = await client.readContract({ address: registry, abi: reg.abi, functionName: 'skillKey', args: [entry.id, 1] });
       // Only test definitions on this disposable chain receive fixture readiness.
-      if ([3, 4].includes(entry.id)) {
+      if ([2, 3, 4].includes(entry.id)) {
         await write(reg, registry, 'setStatus', [key, 3, zero]);
         await write(reg, registry, 'setStatus', [key, 4, manifestHash({ localFixture: true, skillId: entry.id })]);
       }
@@ -82,6 +84,9 @@ export async function startPreview({ port = 0 } = {}) {
     await write(prog, progression, 'learnSkill', [1n, skills[1].key]);
     await write(prog, progression, 'unlockSlot', [1n]);
     await write(prog, progression, 'equipSkill', [1n, 0, skills[0].key]);
+    await write(nft, collection, 'approve', [source, 1005n]);
+    await write(training, source, 'sacrifice', [1005n, 7n]);
+    await write(prog, progression, 'learnSkill', [7n, skills.find(skill => skill.id === 2).key]);
     const snapshot = async tokenId => {
       if (![1, 44, 7].includes(tokenId)) throw new Error('Unknown fixture Punk');
       const block = await client.getBlock();
@@ -105,7 +110,7 @@ export async function startPreview({ port = 0 } = {}) {
       // Fixed fixture inventory only, with fresh owner/existence checks at the snapshot block.
       // This is not a production ownership indexer or a complete wallet-asset inventory.
       const candidates = [];
-      for (const id of [1, 44, 7, 1001, 1002, 1003, 1004]) {
+      for (const id of [1, 44, 7, 1001, 1002, 1003, 1004, 1005]) {
         if (id === tokenId) continue;
         let candidateOwner;
         try { candidateOwner = await client.readContract({ address: collection, abi: nft.abi, functionName: 'ownerOf', args: [BigInt(id)], blockNumber: block.number }); } catch { continue; }
@@ -115,11 +120,12 @@ export async function startPreview({ port = 0 } = {}) {
           canBurn: false, eligibility: 'BLOCKED', inventory: 'UNKNOWN',
           reason: 'Punk Wallet assets and unresolved activity have not been verified. Production sacrifice is locked.' });
       }
-      return { localOnly: true, chainId: 31337, tokenId, owner: currentOwner, collection, registry, progression, blockNumber: block.number, blockHash: block.hash, credits, slots, cap, learned, equipped, history, skills, candidates, productionReadyCount: 0, canBurn: false };
+      return { localOnly: true, chainId: 31337, tokenId, owner: currentOwner, collection, registry, progression, blockNumber: block.number, blockHash: block.hash, credits, slots, cap, learned, equipped, history, skills: previewLibrary(skills), candidates, forgeMinimumSupply: String(FORGE_MINIMUM_SUPPLY), productionReadyCount: 0, canBurn: false };
     };
     const files = new Map([
       ['/', ['index.html', 'text/html']], ['/app.mjs', ['app.mjs', 'text/javascript']], ['/style.css', ['style.css', 'text/css']],
       ['/picker.css', ['picker.css', 'text/css']],
+      ['/sniper-missions.mjs', ['sniper-missions.mjs', 'text/javascript']],
       ...[1, 44, 7].map(id => [`/art/${id}.png`, [`../../../site/assets/collection/${id}.png`, 'image/png']]),
     ]);
     server = createServer(async (req, res) => {
