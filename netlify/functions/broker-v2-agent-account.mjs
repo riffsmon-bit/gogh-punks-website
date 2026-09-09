@@ -11,6 +11,7 @@ import {
 import { punkAgentAccountReadiness } from
   "../../broker/src/agent-account/punk-agent-account-manifest.mjs";
 import { getRpcUrl } from "./_shared/config.mjs";
+import { backgroundRpcDecision } from "./_shared/background-rpc-policy.mjs";
 import { json } from "./_shared/http.mjs";
 import { v2Failure } from "./_shared/v2-http.mjs";
 import { readV2PunkAuthority } from "./_shared/v2-ownership.mjs";
@@ -35,6 +36,7 @@ function publicRuntime(runtime) {
 export async function handleV2AgentAccount(request, {
   pool = getDatabase().pool, readAuthority = readV2PunkAuthority, client = null,
   manifest = deployment, environment = process.env, requireSession = requireV2Session,
+  now = new Date(),
 } = {}) {
   if (request.method !== "GET") return json({ ok: false, code: "METHOD_NOT_ALLOWED" }, 405);
   try {
@@ -80,13 +82,15 @@ export async function handleV2AgentAccount(request, {
           FROM broker_v2_agent_user_operations WHERE session_id = session.session_id
           ORDER BY created_at DESC LIMIT 1) operation ON TRUE
         WHERE session.chain_id = 4663 AND session.punk_token_id = $1::numeric
-          AND session.status IN ('PENDING_RECEIPT', 'ACTIVE', 'PAUSED', 'COMPLETED')
         ORDER BY session.created_at DESC LIMIT 1`, [tokenId]);
       const row = result.rows[0];
       if (row) {
         const activity = await pool.query(`SELECT
             COUNT(*) FILTER (WHERE activity_type IN ('AGENT_SCOUTED', 'USER_OPERATION_SUBMITTED'))::integer AS checks,
             COUNT(*) FILTER (WHERE activity_type = 'COLLECTED')::integer AS completed_mints,
+            MAX(occurred_at) FILTER (WHERE activity_type IN
+              ('AGENT_SCOUTED', 'USER_OPERATION_SUBMITTED')) AS last_checked_at,
+            MAX(occurred_at) FILTER (WHERE activity_type = 'AGENT_CHECK_FAILED') AS last_failed_at,
             COALESCE(SUM(CASE WHEN public_detail->>'opportunitiesChecked' ~ '^[0-9]+$'
               THEN (public_detail->>'opportunitiesChecked')::integer ELSE 0 END), 0)::integer
               AS opportunities_checked
@@ -95,7 +99,14 @@ export async function handleV2AgentAccount(request, {
         const counters = activity.rows[0] ?? {};
         mission = Object.freeze({ sessionId: row.session_id,
         account: row.punk_account, sessionKey: row.session_key,
-        strategyVersion: Number(row.strategy_version), status: row.status,
+        strategyVersion: Number(row.strategy_version),
+        status: row.status === "ACTIVE" && Date.parse(row.valid_until) <= new Date(now).getTime()
+          ? "EXPIRED" : row.status === "ACTIVE" && runtime && !runtime.sessionActive
+            ? "INACTIVE" : row.status,
+        lastCheckedAt: counters.last_checked_at
+          ? new Date(counters.last_checked_at).toISOString() : null,
+        lastFailedAt: counters.last_failed_at
+          ? new Date(counters.last_failed_at).toISOString() : null,
         validAfter: new Date(row.valid_after).toISOString(),
         validUntil: new Date(row.valid_until).toISOString(),
         dailyLimit: Number(row.max_mints_per_day), totalLimit: Number(row.max_mints_total),
@@ -121,6 +132,10 @@ export async function handleV2AgentAccount(request, {
         state: "ACTIVE", createdAt: new Date(skill.created_at).toISOString(),
       }));
     } catch { databaseReady = false; }
+    const background = backgroundRpcDecision(environment, "PUNK_AGENT_WORKER");
+    const worker = Object.freeze({ enabled: environment.PUNK_AGENT_WORKER_ENABLED === "true"
+      && background.enabled, reason: environment.PUNK_AGENT_WORKER_ENABLED !== "true"
+      ? "WORKER_DISABLED" : background.reason });
     const blockers = [...new Set([
       ...readiness.blockers,
       ...(databaseReady ? [] : ["AGENT_DATABASE_NOT_READY"]),
@@ -128,13 +143,16 @@ export async function handleV2AgentAccount(request, {
       ...(bundler.ready ? [] : ["BUNDLER_NOT_READY"]),
       ...(runtime?.accountCreated ? [] : ["ACCOUNT_NOT_ACTIVATED"]),
       ...(runtime?.sessionActive ? [] : ["SESSION_NOT_AUTHORIZED"]),
+      ...(worker.enabled ? [] : ["WORKER_NOT_ENABLED"]),
+      ...(runtime?.accountCreated && runtime.nativeBalance === 0n
+        && runtime.entryPointDeposit === 0n ? ["AGENT_GAS_UNFUNDED"] : []),
     ])];
     return json({ ok: true, tokenId, productName: "Punk Agent Account",
       owner: session.walletAddress, readiness: { ...readiness,
         ready: blockers.length === 0, automaticExecutionReady: blockers.length === 0,
         setupAvailable: readiness.ready && databaseReady && signerConfigured && bundler.ready,
         databaseReady, blockers }, signer: { configured: signerConfigured, address: signerAddress },
-      bundler, runtime: publicRuntime(runtime), mission, skills, transactionPrepared: false,
+      bundler, worker, runtime: publicRuntime(runtime), mission, skills, transactionPrepared: false,
       transactionSubmitted: false }, 200, {
       "cache-control": "private, no-store", "netlify-cdn-cache-control": "no-store",
     });

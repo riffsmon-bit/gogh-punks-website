@@ -4,7 +4,7 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 
 import { ENTRY_POINT_V08 } from "./punk-agent-account-setup.mjs";
-import { createPunkAgentDirectRelay } from "./punk-agent-direct-relay.mjs";
+import { createPunkAgentDirectRelay, DIRECT_RELAY_ENTRY_POINT_ABI } from "./punk-agent-direct-relay.mjs";
 import {
   normalizePunkAgentAccountDeployment,
   punkAgentAccountReadiness,
@@ -294,6 +294,7 @@ export async function readPunkAgentUserOperationReceipt({ bundler, userOpHash })
 
 export async function verifyPunkAgentMintReceipt({
   client, receipt, userOpHash, account, opportunityId, collection, tokenId,
+  sessionGeneration = null, acquisitionNonce = null,
 }) {
   const expectedHash = hash(userOpHash, "UserOperation hash");
   const expectedAccount = address(account, "Punk Agent Account");
@@ -307,8 +308,36 @@ export async function verifyPunkAgentMintReceipt({
     && receipt.receipt.status !== 1n) {
     fail("USER_OPERATION_FAILED", "UserOperation did not confirm successfully");
   }
+  // The bundler locates the transaction; chain RPC supplies authoritative evidence.
+  const transactionHash = hash(receipt.receipt.transactionHash, "transaction hash");
+  const chainReceipt = await client.getTransactionReceipt({ hash: transactionHash });
+  if (!chainReceipt || chainReceipt.status !== "success"
+    || hash(chainReceipt.transactionHash, "chain transaction hash") !== transactionHash
+    || hash(chainReceipt.blockHash, "chain block hash") !== hash(receipt.receipt.blockHash, "bundler block hash")
+    || uint(chainReceipt.blockNumber, "chain block number") !== uint(receipt.receipt.blockNumber, "bundler block number")) {
+    fail("RECEIPT_CHAIN_MISMATCH", "bundler receipt differs from the chain receipt");
+  }
+  const block = await client.getBlock({ blockNumber: chainReceipt.blockNumber });
+  if (!block || hash(block.hash, "canonical block hash") !== chainReceipt.blockHash.toLowerCase()) {
+    fail("RECEIPT_CHAIN_MISMATCH", "receipt block is no longer canonical");
+  }
+  const operations = [];
+  for (const log of chainReceipt.logs ?? []) {
+    if (String(log.address ?? "").toLowerCase() !== ENTRY_POINT_V08 || log.removed) continue;
+    try {
+      const event = decodeEventLog({ abi: DIRECT_RELAY_ENTRY_POINT_ABI,
+        data: log.data, topics: log.topics, strict: true });
+      if (event.eventName === "UserOperationEvent"
+        && String(event.args.userOpHash).toLowerCase() === expectedHash) operations.push(event.args);
+    } catch { /* Ignore unrelated EntryPoint logs. */ }
+  }
+  if (operations.length !== 1 || operations[0].success !== true
+    || String(operations[0].sender).toLowerCase() !== expectedAccount) {
+    fail("USER_OPERATION_EVENT_MISMATCH", "chain receipt lacks the successful exact UserOperation");
+  }
   const events = [];
-  for (const log of receipt.logs ?? receipt.receipt.logs ?? []) {
+  for (const log of chainReceipt.logs ?? []) {
+    if (log.removed) continue;
     if (String(log.address ?? "").toLowerCase() !== expectedAccount) continue;
     try {
       const decoded = decodeEventLog({ abi: PUNK_AGENT_RUNTIME_ABI, data: log.data,
@@ -321,7 +350,9 @@ export async function verifyPunkAgentMintReceipt({
   if (events.length !== 1
     || String(events[0].args.opportunityId).toLowerCase() !== expectedOpportunity
     || String(events[0].args.collection).toLowerCase() !== expectedCollection
-    || uint(events[0].args.tokenId, "event token ID") !== expectedTokenId) {
+    || uint(events[0].args.tokenId, "event token ID") !== expectedTokenId
+    || sessionGeneration !== null && uint(events[0].args.generation, "event generation") !== uint(sessionGeneration, "expected generation")
+    || acquisitionNonce !== null && uint(events[0].args.nonce, "event nonce") !== uint(acquisitionNonce, "expected nonce")) {
     fail("ACQUISITION_EVENT_MISMATCH", "receipt lacks the exact Punk acquisition event");
   }
   const liveOwner = address(await client.readContract({ address: expectedCollection,
@@ -330,16 +361,16 @@ export async function verifyPunkAgentMintReceipt({
     fail("NFT_POSTCONDITION_FAILED", "minted NFT is not held by the Punk Agent Account");
   }
   return Object.freeze({ confirmed: true, userOpHash: expectedHash,
-    transactionHash: hash(receipt.receipt.transactionHash, "transaction hash"),
+    transactionHash,
     account: expectedAccount, collection: expectedCollection,
     tokenId: expectedTokenId.toString(), opportunityId: expectedOpportunity,
     generation: uint(events[0].args.generation, "session generation").toString(),
     acquisitionNonce: uint(events[0].args.nonce, "acquisition nonce").toString(),
     remainingMints: uint(events[0].args.remainingMints, "remaining mints").toString(),
     stateSequence: uint(events[0].args.state, "account state").toString(),
-    logIndex: Number(uint(events[0].logIndex ?? 0, "event log index")),
+    logIndex: Number(uint(events[0].logIndex, "event log index")),
     blockNumber: uint(receipt.receipt.blockNumber, "receipt block number").toString(),
     blockHash: hash(receipt.receipt.blockHash, "receipt block hash"),
-    actualGasCostWei: uint(receipt.actualGasCost ?? 0, "actual gas cost").toString(),
-    actualGasUsed: uint(receipt.actualGasUsed ?? 0, "actual gas used").toString() });
+    actualGasCostWei: uint(operations[0].actualGasCost, "actual gas cost").toString(),
+    actualGasUsed: uint(operations[0].actualGasUsed, "actual gas used").toString() });
 }

@@ -431,20 +431,28 @@ function renderMissionMonitor() {
   const serverMission = selectedAgentAccount()?.mission ?? null;
   if (!key || !agent && !serverMission) { monitor.hidden = true; return; }
   monitor.hidden = false;
-  if (!agent && serverMission) {
+  if (serverMission && (!agent || serverMission.status === "ACTIVE")) {
     const active = serverMission.status === "ACTIVE";
+    const workerDisabled = selectedAgentAccount()?.worker?.enabled === false;
+    const gasUnfunded = selectedAgentAccount()?.readiness?.blockers?.includes("AGENT_GAS_UNFUNDED");
+    const checkFailed = serverMission.lastFailedAt && (!serverMission.lastCheckedAt
+      || Date.parse(serverMission.lastFailedAt) > Date.parse(serverMission.lastCheckedAt));
     set("[data-mission-status]", active ? "OUT · AUTONOMOUS" : serverMission.status);
     set("[data-mission-phase]", active
-      ? "WAITING FOR THE NEXT SERVER DISCOVERY CHECK" : "MISSION SESSION IS NOT ACTIVE");
+      ? workerDisabled ? "AUTOMATIC CHECKS ARE DISABLED"
+        : gasUnfunded ? "SCOUTING · FUND AGENT GAS TO ENABLE MINTING"
+        : checkFailed ? "LAST CHECK FAILED · SEE ACTIVITY"
+          : "WAITING FOR THE NEXT SERVER DISCOVERY CHECK" : "MISSION SESSION IS NOT ACTIVE");
     set("[data-mission-progress]", `${serverMission.completedMints} / ${serverMission.totalLimit} MINTS`);
     set("[data-mission-checked]", serverMission.opportunitiesChecked);
     set("[data-mission-scans]", serverMission.checks);
     set("[data-mission-queue]", active ? "SERVER WORKER" : "STOPPED");
     set("[data-mission-last-check]", missionClock(
-      serverMission.latestOperation?.updatedAt, serverMission.checks ? "SEE ACTIVITY" : "NOT YET"));
-    set("[data-mission-next-check]", active ? "WITHIN 1 MINUTE" : "NOT SCHEDULED");
+      serverMission.lastCheckedAt, "NOT YET"));
+    set("[data-mission-next-check]", active && !workerDisabled ? "SCHEDULED EVERY MINUTE" : "NOT SCHEDULED");
     set(".mission-monitor-note", active
-      ? "Every candidate is contract-screened, live-simulated, policy-matched, submitted through the owner-approved account session, and receipt-reconciled."
+      ? gasUnfunded ? "Your mission is authorized, but this agent account has no ETH for gas. Open Fund to fund the Punk Agent Account."
+        : "Every candidate is contract-screened, live-simulated, policy-matched, submitted through the owner-approved account session, and receipt-reconciled."
       : "The worker cannot submit for this Punk while its mission session is inactive.");
     return;
   }
@@ -1080,6 +1088,22 @@ function renderGallery() {
   }
 }
 
+function activityDetail(entry) {
+  const detail = entry.detail;
+  if (typeof detail === "string") return detail;
+  if (entry.type === "AGENT_SCOUTED") {
+    return `Checked ${detail?.opportunitiesChecked ?? 0} screened candidates · ${detail?.liveSimulationsPassed ?? 0} live simulations passed. No eligible mint; nothing submitted.`;
+  }
+  if (entry.type === "AGENT_CHECK_FAILED") {
+    return `Check could not complete: ${blockerLabel(detail?.code ?? "CHECK_FAILED")}. Mint progress has not been increased.`;
+  }
+  if (entry.type === "USER_OPERATION_SUBMITTED") return "Mint submitted. Waiting for a verified transaction receipt before counting it as collected.";
+  if (entry.type === "COLLECTED") return `Mint confirmed · NFT #${detail?.tokenId ?? "?"} · ${short(detail?.collection ?? "")} · held by the Punk Agent Account.`;
+  if (entry.type === "AGENT_RECALLED") return "Owner recalled this Punk. Its on-chain mission session is revoked.";
+  if (entry.type === "AGENT_MISSION_COMPLETED") return "Mission mint limit reached. The Punk has returned.";
+  return JSON.stringify(detail ?? {});
+}
+
 function renderActivity() {
   renderMissionMonitor();
   const feed = one("[data-activity-feed]"); feed.replaceChildren();
@@ -1096,10 +1120,16 @@ function renderActivity() {
     empty.textContent = PREVIEW ? "No activity yet." : "Open ACTIVITY to load complete Art Broker history.";
     feed.append(empty); return;
   }
-  for (const [time, type, title, detail] of entries) {
+  for (const [time, type, title, detail, transactionHash] of entries) {
     const item = document.createElement("li"); const when = document.createElement("time"); when.textContent = time;
     const copy = document.createElement("div"); const heading = document.createElement("h3"); heading.textContent = title;
     const text = document.createElement("p"); text.textContent = detail; copy.append(heading, text);
+    if (/^0x[0-9a-f]{64}$/i.test(transactionHash ?? "")) {
+      const receipt = document.createElement("a");
+      receipt.href = `https://robinhoodchain.blockscout.com/tx/${transactionHash}`;
+      receipt.textContent = "VIEW TRANSACTION ↗"; receipt.target = "_blank";
+      receipt.rel = "noopener noreferrer"; copy.append(receipt);
+    }
     const badge = document.createElement("b"); badge.textContent = type; item.append(when, copy, badge); feed.append(item);
   }
 }
@@ -1350,7 +1380,7 @@ async function hydrateSelected(tab) {
         const payload = await jsonRequest(`/api/v2/punks/${tokenId}/activity`);
         state.activity = payload.entries.map((entry) => [dateLabel(entry.occurredAt), entry.type,
           `CURRENT ART BROKER · ${String(entry.type).replaceAll("_", " ")}`,
-          typeof entry.detail === "string" ? entry.detail : JSON.stringify(entry.detail ?? {})]);
+          activityDetail(entry), entry.detail?.transactionHash]);
         renderActivity();
       }
       return;
@@ -1386,7 +1416,7 @@ async function hydrateSelected(tab) {
       const payload = await jsonRequest(`/api/v2/punks/${tokenId}/activity`);
       state.activity = payload.entries.map((entry) => [dateLabel(entry.occurredAt), entry.type,
         `${entry.provenance === "V1" ? "EARLIER ART BROKER" : "CURRENT ART BROKER"} · ${String(entry.type).replaceAll("_", " ")}`,
-        typeof entry.detail === "string" ? entry.detail : JSON.stringify(entry.detail ?? {})]);
+        activityDetail(entry), entry.detail?.transactionHash]);
       renderActivity();
     }
   } catch (error) {

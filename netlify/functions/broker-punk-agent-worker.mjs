@@ -241,6 +241,7 @@ async function reconcileOne(pool, client, bundler, now) {
   const result = await pool.query(`SELECT operation.operation_id::text,
       operation.attempt_id::text, operation.user_operation_hash, operation.opportunity_id,
       operation.opportunity_hash, operation.expected_collection, operation.expected_token_id,
+      operation.account_nonce, operation.session_generation,
       session.session_id::text, session.strategy_version, session.punk_token_id,
       session.punk_account, session.session_key, session.adapter_address, session.venue_address
     FROM broker_v2_agent_user_operations operation
@@ -264,7 +265,8 @@ async function reconcileOne(pool, client, bundler, now) {
   const verified = await verifyPunkAgentMintReceipt({ client, receipt,
     userOpHash: row.user_operation_hash, account: row.punk_account,
     opportunityId: row.opportunity_hash, collection: row.expected_collection,
-    tokenId: row.expected_token_id });
+    tokenId: row.expected_token_id, sessionGeneration: row.session_generation,
+    acquisitionNonce: row.account_nonce });
   const block = await client.getBlock({ blockNumber: BigInt(verified.blockNumber) });
   if (!block?.timestamp) throw Object.assign(new Error("confirmed block timestamp unavailable"),
     { code: "RECEIPT_BLOCK_UNAVAILABLE" });
@@ -336,6 +338,7 @@ async function reconcileOne(pool, client, bundler, now) {
 export async function runScheduledPunkAgentWorker({
   pool = getDatabase().pool, client = null, environment = process.env,
   manifest = deployment, now = new Date(), bundler = null, signer = null,
+  runMission = runPunkAgentMissionOnce,
 } = {}) {
   if (environment.PUNK_AGENT_WORKER_ENABLED !== "true") {
     return Object.freeze({ status: "DISABLED", submitted: false });
@@ -348,6 +351,7 @@ export async function runScheduledPunkAgentWorker({
     blockers: readiness.blockers });
   const lease = await pool.connect();
   let leaseHeld = false;
+  let selectedMission = null;
   try {
     const leaseResult = await lease.query("SELECT pg_try_advisory_lock($1::integer, $2::integer) AS acquired",
       [ROBINHOOD.chainId, 8004]);
@@ -361,9 +365,12 @@ export async function runScheduledPunkAgentWorker({
       status: "RECONCILIATION_PENDING", submitted: false, reconciliation });
     const gas = await gasEnvelope(liveClient, environment);
     const observation = { opportunitiesChecked: 0, liveSimulationsPassed: 0 };
-    const run = await runPunkAgentMissionOnce({ deployment: manifest, client: liveClient,
+    const run = await runMission({ deployment: manifest, client: liveClient,
       bundler: liveBundler, signer: liveSigner, gas, now,
-      loadMission: () => loadMission(pool, now),
+      loadMission: async () => {
+        selectedMission = await loadMission(pool, now);
+        return selectedMission;
+      },
       loadCandidate: ({ mission, runtime }) => loadCandidate(
         pool, liveClient, mission, runtime, now, observation),
       reserveOperation: (input) => reserveOperation(pool, input),
@@ -380,7 +387,26 @@ export async function runScheduledPunkAgentWorker({
         transactionSubmitted: true, ...observation,
       }, now);
     }
+    if (selectedMission) {
+      // Rotate even when no mint matches so one Punk cannot monopolize the queue.
+      await pool.query(`UPDATE broker_v2_agent_sessions SET updated_at = $1
+        WHERE session_id = $2`, [new Date(now).toISOString(), selectedMission.sessionId]);
+      if (run.status === "SESSION_STATE_MISMATCH") {
+        await recordWorkerActivity(pool, run.tokenId, "AGENT_CHECK_FAILED", {
+          code: run.status, transactionSubmitted: false,
+        }, now);
+      }
+    }
     return Object.freeze({ ...run, reconciliation });
+  } catch (error) {
+    if (selectedMission) {
+      await recordWorkerActivity(pool, selectedMission.tokenId, "AGENT_CHECK_FAILED", {
+        code: workerErrorCode(error),
+      }, now);
+      await pool.query(`UPDATE broker_v2_agent_sessions SET updated_at = $1
+        WHERE session_id = $2`, [new Date(now).toISOString(), selectedMission.sessionId]);
+    }
+    throw error;
   } finally {
     if (leaseHeld) await lease.query("SELECT pg_advisory_unlock($1::integer, $2::integer)",
       [ROBINHOOD.chainId, 8004]);
@@ -388,12 +414,26 @@ export async function runScheduledPunkAgentWorker({
   }
 }
 
-export default async function handler() {
-  try { return new Response(JSON.stringify({ ok: true,
-    ...(await runScheduledPunkAgentWorker()) }), { status: 200,
+function workerErrorCode(error) {
+  return /^[A-Z][A-Z0-9_]{0,79}$/.test(error?.code ?? "")
+    ? error.code : "PUNK_AGENT_WORKER_FAILED";
+}
+
+export default async function handler(_request, { run = runScheduledPunkAgentWorker,
+  report = console.log } = {}) {
+  try {
+    const result = await run();
+    report(JSON.stringify({ event: "PUNK_AGENT_WORKER", status: result.status,
+      submitted: result.submitted === true, tokenId: result.tokenId,
+      reason: result.reason, reconciliationStatus: result.reconciliation?.status }));
+    return new Response(JSON.stringify({ ok: true,
+    ...result }), { status: 200,
     headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } }); }
-  catch (error) { return new Response(JSON.stringify({ ok: false,
-    code: error?.code ?? "PUNK_AGENT_WORKER_FAILED" }), { status: 503,
+  catch (error) {
+    const code = workerErrorCode(error);
+    report(JSON.stringify({ event: "PUNK_AGENT_WORKER_FAILED", code }));
+    return new Response(JSON.stringify({ ok: false,
+    code }), { status: 503,
     headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } }); }
 }
 
