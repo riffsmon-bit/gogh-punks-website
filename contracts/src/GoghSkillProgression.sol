@@ -95,6 +95,7 @@ contract GoghSkillProgression {
 
     function unlockSlot(uint256 tokenId) external {
         _requireOwner(tokenId);
+        _beforeUnlockSlot(tokenId);
         if (unlockedSlots(tokenId) >= slotCap) revert SlotUnavailable();
         _spend(tokenId);
         ++_additionalSlots[tokenId];
@@ -148,7 +149,7 @@ contract GoghSkillProgression {
         }
     }
 
-    function unlockedSlots(uint256 tokenId) public view returns (uint8) {
+    function unlockedSlots(uint256 tokenId) public view virtual returns (uint8) {
         return baseSlots + _additionalSlots[tokenId];
     }
 
@@ -169,4 +170,7 @@ contract GoghSkillProgression {
         --trainingCredits[tokenId];
         ++creditsSpent;
     }
+
+    /// @dev Additive extensions may require a fixed starting allocation before paid unlocks.
+    function _beforeUnlockSlot(uint256 tokenId) internal view virtual { }
 }

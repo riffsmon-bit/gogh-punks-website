@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { createPublicClient, createWalletClient, http, keccak256 } from 'viem';
 import { createProgressionReader, createSkillToolGate, manifestHash, instructionHash } from '../broker/src/v4/skill-forge/capability-resolver.mjs';
+import { allocationLeaf, buildAllocationTree } from '../broker/src/v4/skill-forge/rarity-allocation.mjs';
 
 if (process.argv.length !== 3 || process.argv[2] !== '--local-only') throw new Error('Requires --local-only');
 const artifact = async (file, name) => JSON.parse(await readFile(new URL(`../contracts/out/${file}/${name}.json`, import.meta.url), 'utf8'));
@@ -45,14 +46,21 @@ try {
   const nftArtifact = await artifact('GoghSkillForge.t.sol', 'SkillForgeMockPunks');
   const sourceArtifact = await artifact('GoghSkillForge.t.sol', 'LocalSkillTrainingSource');
   const registryArtifact = await artifact('GoghSkillRegistry.sol', 'GoghSkillRegistry');
-  const progressionArtifact = await artifact('GoghSkillProgression.sol', 'GoghSkillProgression');
+  const progressionArtifact = await artifact('GoghRaritySkillProgression.sol', 'GoghRaritySkillProgression');
   const collection = await deploy(nftArtifact, []);
   const registry = await deploy(registryArtifact, [alice]);
   const source = await deploy(sourceArtifact, [collection]);
-  const progression = await deploy(progressionArtifact, [collection, registry, source, 1, 4]);
+  const snapshotHash = keccak256('0x1234');
+  const allocation = { chainId: 31337, collection, snapshotHash, records: [{ tokenId: '93', startingSlots: 3 }, { tokenId: '812', startingSlots: 1 }] };
+  const tree = buildAllocationTree(allocation);
+  const progression = await deploy(progressionArtifact, [collection, registry, source, tree.root, snapshotHash]);
   await write(sourceArtifact, source, 'bind', [progression]);
   await write(nftArtifact, collection, 'mint', [alice, 93n]);
   await write(nftArtifact, collection, 'mint', [alice, 812n]);
+  assert.equal(await client.readContract({ address: progression, abi: progressionArtifact.abi, functionName: 'allocationLeaf', args: [93n, 3] }), allocationLeaf({ ...allocation, tokenId: '93', startingSlots: 3 }));
+  await write(progressionArtifact, progression, 'claimRaritySlots', [93n, 3, tree.proof('93')]);
+  assert.equal(await client.readContract({ address: progression, abi: progressionArtifact.abi, functionName: 'unlockedSlots', args: [93n] }), 3);
+  console.log('PASS JavaScript Merkle proof → Solidity claim; LOCAL fixture rarity only, no production allocation');
   const pack = { manifest: { skillId: 3, version: 1, chainId: 31337, capabilities: ['CONTRACT_READ'],
     description: 'LOCAL INTEGRATION FIXTURE — NOT A PRODUCTION SKILL' },
     instructions: 'Call only the approved read-only contract tool.', approved: true, status: 'READY' };

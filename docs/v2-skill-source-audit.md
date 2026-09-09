@@ -12,7 +12,7 @@ This is an evidence checkpoint, **not a completed Skill Forge release**. No exte
 - Two hosted external tool surfaces were initially probed: Emblem anonymous tool discovery worked; OpenSea initialization worked but unauthenticated data access was blocked. Subsequent owner-provided Keychain access enabled live OpenSea reads, documented below. Tool discovery is **not** successful end-to-end skill acceptance.
 - Zero externally implemented skills vendored, installed, or approved for production.
 - Three Gogh-native tool paths implemented: contract evidence, inline NFT metadata/sample ranking, and a restricted market read adapter. All three now have narrow live Robinhood evidence (see the September 9 authenticated follow-up below); this is not complete production acceptance.
-- **Zero READY production skills.** Capability registration, on-chain equipment enforcement, integration tests and production review remain outstanding. Do not show the candidate list as learnable skills.
+- **Zero READY production skills.** Additive on-chain equipment and shared research-tool gating are locally tested; live V2 registration, executor integration and production review remain outstanding. Do not show the candidate list as learnable production skills.
 
 ## Pinned sources
 
@@ -120,9 +120,9 @@ API: concrete feed/inscription routes exist in source. MCP: none established for
 
 | Gogh candidate | Status | Demonstrated | Still needed before READY | Wallet capability |
 |---|---|---|---|---|
-| Contract Detective | TESTING | Live Robinhood bytecode/hash, interface and EIP-1967 storage evidence at pinned block | Capability/loadout gate, broader proxy/source findings, integration acceptance | NONE |
-| Market Scout | TESTING | Restricted REST adapter passes fixtures; authenticated live read returned five Gogh listings on Robinhood | Freshness/order-validity tests and gated integration; no purchase capability | NONE |
-| Rarity Eye | TESTING | Live inline metadata retrieved for #93/#94/#95; sample frequencies and ranks computed | Complete collection snapshot, burned-ID handling, revealed-state and numeric-trait product decisions, gated integration | NONE |
+| Contract Detective | TESTING | Live Robinhood bytecode/hash, interface and EIP-1967 evidence; hashed package and local owner/equipment-gated real implementation | Broader proxy/source findings and deployed integration acceptance | NONE |
+| Market Scout | TESTING | Restricted REST adapter passes fixtures; authenticated live read returned five Gogh listings; local owner/equipment gate tested | Freshness/order-validity acceptance and deployed integration; no purchase capability | NONE |
+| Rarity Eye | TESTING | Live inline metadata for #93/#94/#95; sample ranks; local owner/equipment gate; separate complete frozen OpenSea rarity dataset | Full-collection native scoring/revealed-state decisions and deployed integration; OpenSea ranks do not validate the native sample algorithm | NONE |
 | Link Sniper | ADAPTING | Existing V2 normalizer and trusted-resolver boundary identified | Approved live link→contract→chain→mechanism→price→screen→simulation end-to-end proof | No execution by itself |
 | Mint Hunter | ADAPTING | Existing V2 screened zero-price SeaDrop builder/simulator identified | Exercise real test mint through full gated pipeline; prove equipment/policy/expiry/receipt behavior | Only existing bounded free-mint executor after authorization |
 
@@ -152,6 +152,8 @@ Each manifest must pin upstream commit and file hashes, local executable/instruc
 An external update creates a new candidate/version. Existing learned versions do not silently mutate. Security disable preserves learned history but immediately denies execution. This audit does not claim those registry/executor integration controls have already been deployed.
 
 ## Local artifact fingerprints and tests
+
+September 9 packaging follow-up: `broker/skills/{contract-detective,rarity-eye,market-scout}/v1` contains Gogh-authored instructions and manifests bound to the real tools below. No external code was vendored; upstream licenses were not assumed to permit copying. `research-runtime.mjs` verifies implementation SHA-256, supplies provider-neutral context through the shared capability gate, and rejects undeclared arguments. A missing API key removes the market tool. Default packages are unapproved TESTING and expose no tools even if a disposable registry fixture is READY. Test-only approval exercises actual read implementations against controlled RPC/API fixtures, including old-owner, unequipped and disabled-skill denial. This is not deployed end-to-end acceptance or a production promotion. Exact package hashes are recorded in the [handoff](v2-skill-forge-handoff.md).
 
 These are audit fingerprints, **not registry approval or learned-skill hashes**. A production package must additionally bind its manifest, instructions, dependency lock and runtime adapters. Tool prototype version: `0.1.0`.
 

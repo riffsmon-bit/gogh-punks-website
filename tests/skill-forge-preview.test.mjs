@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { request as httpRequest } from 'node:http';
 import { startPreview } from '../scripts/dev/skill-forge/preview-server.mjs';
 
-test('local Forge: contract snapshots, read-only HTTP and responsive browser', { timeout: 120000 }, async t => {
+test('local Forge: contract snapshots, guarded local training and responsive browser', { timeout: 120000 }, async t => {
   const preview = await startPreview();
   t.after(() => preview.close());
   await t.test('credits, learned/equipped distinction and real local events', async () => {
@@ -30,7 +30,7 @@ test('local Forge: contract snapshots, read-only HTTP and responsive browser', {
     assert.deepEqual(other.candidates.map(candidate => candidate.tokenId), [1, 7]);
     assert.equal(other.candidates[0].learnedCount, '2');
   });
-  await t.test('no mutation, arbitrary token, cross-origin or file access', async () => {
+  await t.test('data routes reject mutation, arbitrary tokens, cross-origin and file access', async () => {
     assert.equal((await fetch(`${preview.url}/api/forge?tokenId=1`, { method: 'POST' })).status, 405);
     assert.equal((await fetch(`${preview.url}/api/forge?tokenId=93`)).status, 400);
     assert.equal((await fetch(preview.url, { headers: { Origin: 'https://evil.example' } })).status, 403);
@@ -171,6 +171,19 @@ test('local Forge: contract snapshots, read-only HTTP and responsive browser', {
     await evaluate("document.querySelector('#close-picker').click(); document.querySelector('[data-punk=\"7\"]').click()");
     await until("document.querySelector('#status').textContent.includes('unavailable')");
     assert.equal(await evaluate("document.querySelector('#profile').hidden"), true);
+    await evaluate("window.fetch = window.realFetch; document.querySelector('[data-punk=\"1\"]').click()");
+    await until("document.querySelector('#profile').hidden === false");
+    await evaluate("document.querySelector('[data-skill=\"2\"] button').click()");
+    assert.equal(await evaluate("document.querySelector('#detail-action').disabled"), false);
+    await evaluate("document.querySelector('#detail-action').click()");
+    await until("document.querySelector('#status').textContent.includes('Confirmed learn')");
+    assert.equal(await evaluate("document.querySelectorAll('.skill.learned').length"), 3);
+    assert.equal(await evaluate("document.querySelector('#local-unlock').disabled"), true);
+    await evaluate("document.querySelector('[data-loadout-slot=\"1\"]').click()");
+    await evaluate("[...document.querySelectorAll('#detail-body button')].find(b=>b.textContent.includes('EQUIP SNIPER')).click()");
+    await until("document.querySelector('#status').textContent.includes('Confirmed equip')");
+    assert.match(await evaluate("document.querySelectorAll('.slot')[1].textContent"), /Sniper/);
+    assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true);
     assert.deepEqual(errors, []);
     console.log(`Browser screenshots: ${folder}/forge-{desktop,mobile}.png`);
   });

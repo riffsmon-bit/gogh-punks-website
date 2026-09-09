@@ -1,5 +1,6 @@
-// Isolated, read-only UI harness. Never connects to Robinhood or a browser wallet.
+// Isolated UI harness. Training writes reach only its own disposable Anvil, never a real wallet.
 import { spawn } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { createServer as netServer } from 'node:net';
 import { createServer } from 'node:http';
@@ -13,7 +14,7 @@ import { SLOT_POLICY } from '../../../broker/src/v4/skill-forge/slot-policy.mjs'
 export const catalog = [
   { id: 3, name: 'Contract Detective', mark: '01', status: 'TESTING', capability: 'CONTRACT_READ', bit: 1n, tools: ['inspect_contract'], description: 'Inspect code, interface support and proxy slots. Findings are evidence, not a security guarantee.', boundary: 'Read-only. No signing or spending authority.' },
   { id: 4, name: 'Rarity Eye', mark: '02', status: 'TESTING', capability: 'RARITY_READ', bit: 8n, tools: ['get_metadata', 'rank_trait_sample'], description: 'Compare trait frequencies in an explicit metadata sample. Not a whole-collection rarity rank.', boundary: 'Read-only. Sample coverage must remain visible.' },
-  { id: 8, name: 'Market Scout', mark: '03', status: 'BLOCKED', capability: 'MARKET_READ', bit: 4n, tools: ['get_market_listings'], description: 'Approved listing research wrapper. Successful authenticated live data retrieval is still required.', boundary: 'No purchases, offers, approvals or marketplace signing.' },
+  { id: 8, name: 'Market Scout', mark: '03', status: 'TESTING', capability: 'MARKET_READ', bit: 4n, tools: ['get_market_listings'], description: 'Restricted listing reader has retrieved live Gogh listings on Robinhood. Full gated acceptance is still required.', boundary: 'No purchases, offers, approvals or marketplace signing.' },
   { id: 2, name: 'Sniper', mark: '04', status: 'ADAPTING', capability: 'LINK_REVIEW', bit: 16n, tools: ['inspect_mint_link'], description: 'One skill, two planned missions: Mint Link or Floor Snipe. Choose your target and price in chat.', boundary: 'This fixture grants only link review. Neither minting nor marketplace buying is authorized by the mission picker. Floor Snipe needs a separately reviewed purchase capability.' },
   { id: 1, name: 'Mint Hunter', mark: '05', status: 'ADAPTING', capability: 'FREE_MINT', bit: 2n, tools: ['inspect_mint', 'simulate_mint', 'prepare_mint'], description: 'Prepare screened free mints. The equipped-skill execution path still needs end-to-end acceptance.', boundary: 'Owner policy, session, gas, reserve, expiry and simulation always apply. No live execution in this preview.' },
 ];
@@ -47,6 +48,8 @@ export async function startPreview({ port = 0 } = {}) {
     }
     if (!ready) throw new Error('Local Anvil unavailable');
     const [owner] = await client.request({ method: 'eth_accounts' });
+    const localTrainingNonce = randomBytes(32).toString('hex');
+    let mutationInFlight = false;
     const wallet = createWalletClient({ transport, account: owner });
     const receipt = async hash => {
       const result = await client.waitForTransactionReceipt({ hash });
@@ -121,7 +124,7 @@ export async function startPreview({ port = 0 } = {}) {
           canBurn: false, eligibility: 'BLOCKED', inventory: 'UNKNOWN',
           reason: 'Punk Wallet assets and unresolved activity have not been verified. Production sacrifice is locked.' });
       }
-      return { localOnly: true, chainId: 31337, tokenId, owner: currentOwner, collection, registry, progression, blockNumber: block.number, blockHash: block.hash, credits, slots, cap, learned, equipped, history, skills: previewLibrary(skills), candidates, forgeMinimumSupply: String(FORGE_MINIMUM_SUPPLY), productionReadyCount: 0, canBurn: false };
+      return { localOnly: true, localTrainingNonce, chainId: 31337, tokenId, owner: currentOwner, collection, registry, progression, blockNumber: block.number, blockHash: block.hash, credits, slots, cap, learned, equipped, history, skills: previewLibrary(skills), candidates, forgeMinimumSupply: String(FORGE_MINIMUM_SUPPLY), productionReadyCount: 0, canBurn: false };
     };
     const files = new Map([
       ['/', ['index.html', 'text/html']], ['/app.mjs', ['app.mjs', 'text/javascript']], ['/style.css', ['style.css', 'text/css']],
@@ -135,6 +138,41 @@ export async function startPreview({ port = 0 } = {}) {
       res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
       const expectedHost = `127.0.0.1:${server.address().port}`;
       if (req.headers.host !== expectedHost || (req.headers.origin && req.headers.origin !== `http://${expectedHost}`)) { res.writeHead(403); return res.end('Local preview only'); }
+      if (req.method === 'POST' && req.url === '/api/local-training') {
+        if (req.headers.origin !== `http://${expectedHost}` || req.headers['x-forge-nonce'] !== localTrainingNonce || req.headers['content-type'] !== 'application/json') { res.writeHead(403); return res.end('Local confirmation required'); }
+        if (mutationInFlight) { res.writeHead(409); return res.end('Local operation in progress'); }
+        mutationInFlight = true;
+        try {
+          let body = '';
+          for await (const chunk of req) { body += chunk.toString('utf8'); if (Buffer.byteLength(body) > 4096) throw new Error('REQUEST_TOO_LARGE'); }
+          const input = JSON.parse(body);
+          if (!input || Array.isArray(input) || Object.keys(input).some(key => !['tokenId', 'operation', 'key', 'slot', 'expectedBlock'].includes(key))
+            || ![1, 44, 7].includes(input.tokenId) || !['learn', 'unlock', 'equip', 'unequip'].includes(input.operation)
+            || !/^[0-9]+$/.test(input.expectedBlock)) throw new Error('INVALID_ACTION');
+          if (await client.getChainId() !== 31337 || String((await client.getBlock()).number) !== input.expectedBlock) throw new Error('STALE_LOCAL_STATE');
+          const currentOwner = await client.readContract({ address: collection, abi: nft.abi, functionName: 'ownerOf', args: [BigInt(input.tokenId)] });
+          if (currentOwner.toLowerCase() !== owner.toLowerCase()) throw new Error('OWNER_CHANGED');
+          let functionName, args;
+          if (input.operation === 'learn' || input.operation === 'equip') {
+            if (!skills.some(skill => [2, 3, 4].includes(skill.id) && skill.key === input.key)) throw new Error('FIXTURE_SKILL_UNAVAILABLE');
+          }
+          if (input.operation === 'equip' || input.operation === 'unequip') {
+            if (!Number.isInteger(input.slot) || input.slot < 0 || input.slot >= SLOT_POLICY.maxEquippedSkills) throw new Error('INVALID_SLOT');
+          }
+          if (input.operation === 'learn') { functionName = 'learnSkill'; args = [BigInt(input.tokenId), input.key]; }
+          if (input.operation === 'unlock') { functionName = 'unlockSlot'; args = [BigInt(input.tokenId)]; }
+          if (input.operation === 'equip') { functionName = 'equipSkill'; args = [BigInt(input.tokenId), input.slot, input.key]; }
+          if (input.operation === 'unequip') { functionName = 'unequipSkill'; args = [BigInt(input.tokenId), input.slot]; }
+          await client.simulateContract({ address: progression, abi: prog.abi, functionName, args, account: owner });
+          const result = await write(prog, progression, functionName, args);
+          let updated = null;
+          try { updated = await snapshot(input.tokenId); } catch { /* Confirmed receipt remains truthful even if the follow-up read fails. */ }
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          return res.end(json({ localOnly: true, chainId: 31337, productionAuthority: false, transactionHash: result.transactionHash, snapshot: updated }));
+        } catch {
+          res.writeHead(409); return res.end('Local action not confirmed. Refresh state before retrying. No production action exists.');
+        } finally { mutationInFlight = false; }
+      }
       if (req.method !== 'GET') { res.writeHead(405, { Allow: 'GET' }); return res.end('Read-only preview'); }
       try {
         const url = new URL(req.url, `http://${expectedHost}`);
@@ -150,6 +188,7 @@ export async function startPreview({ port = 0 } = {}) {
         res.writeHead(200, { 'Content-Type': file[1] }); res.end(body);
       } catch { if (!res.headersSent) res.writeHead(503); res.end('Local snapshot unavailable. No action was taken.'); }
     });
+    server.requestTimeout = 10000;
     await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); });
     return { url: `http://127.0.0.1:${server.address().port}`, close };
   } catch (error) { await close(); throw error; }
@@ -158,6 +197,6 @@ export async function startPreview({ port = 0 } = {}) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   if (process.argv[2] !== '--local-only' || process.argv.length > 4 || (process.argv[3] && !/^--port=\d{1,5}$/.test(process.argv[3]))) throw new Error('Requires --local-only, optionally --port=NUMBER');
   const preview = await startPreview({ port: process.argv[3] ? Number(process.argv[3].split('=')[1]) : 0 });
-  console.log(`Skill Forge local preview: ${preview.url}\nDisposable chain 31337. Read-only browser. No production wallet connection.`);
+  console.log(`Skill Forge local preview: ${preview.url}\nDisposable chain 31337. Local training only. No production wallet connection.`);
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, async () => { await preview.close(); process.exit(0); });
 }

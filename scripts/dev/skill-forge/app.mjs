@@ -5,6 +5,26 @@ const zero = `0x${'0'.repeat(64)}`;
 let request = 0;
 let selectedPunk;
 let skillFilter = 'all';
+let trainingBusy = false;
+async function localTraining(data, operation, extra = {}) {
+  if (trainingBusy || selectedPunk?.tokenId !== data.tokenId) return;
+  trainingBusy = true;
+  const sequence = request;
+  $('#status').textContent = `Confirming ${operation} on disposable local chain 31337…`;
+  $('#detail').close();
+  try {
+    const response = await fetch('/api/local-training', { method: 'POST', headers: { 'content-type': 'application/json', 'x-forge-nonce': data.localTrainingNonce }, body: JSON.stringify({ tokenId: data.tokenId, expectedBlock: data.blockNumber, operation, ...extra }) });
+    if (!response.ok) throw new Error('LOCAL_ACTION_NOT_CONFIRMED');
+    const result = await response.json();
+    if (result.localOnly !== true || result.chainId !== 31337 || result.productionAuthority !== false) throw new Error('INVALID_LOCAL_RECEIPT');
+    if (sequence !== request) return;
+    if (result.snapshot?.localOnly === true && result.snapshot.chainId === 31337 && result.snapshot.canBurn === false && result.snapshot.productionReadyCount === 0) render(result.snapshot);
+    else await load(data.tokenId);
+    $('#status').textContent = `Confirmed ${operation} for LOCAL Punk #${data.tokenId}. Test transaction ${result.transactionHash}. No production changes.`;
+  } catch {
+    if (sequence === request) { await load(data.tokenId); $('#status').textContent = 'Local action was not confirmed. State refreshed; inspect history before retrying. No production action exists.'; }
+  } finally { trainingBusy = false; }
+}
 function filterSkills() {
   const cards = [...$('#skills').children];
   for (const card of cards) card.hidden = !(skillFilter === 'all' || (skillFilter === 'learned' ? card.classList.contains('learned') : card.dataset.category === skillFilter));
@@ -61,6 +81,8 @@ $('#browse-sacrifice').addEventListener('click', async () => {
   }
 });
 function detail(title, kicker, paragraphs, fields) {
+  $('#detail-action').disabled = true; $('#detail-action').onclick = null;
+  $('#detail-action').textContent = 'PRODUCTION TRAINING DISABLED';
   $('#detail-title').textContent = title;
   $('#detail-kicker').textContent = kicker;
   const body = $('#detail-body'); body.replaceChildren();
@@ -79,6 +101,12 @@ function render(data) {
   let floor = $('#forge-floor');
   if (!floor) { floor = element('p', undefined, 'target-strip'); floor.id = 'forge-floor'; $('#training-title').after(floor); }
   floor.textContent = `FORGE SUPPLY FLOOR: ${Number(data.forgeMinimumSupply).toLocaleString('en-US')} PUNKS · not deployed. Live supply not checked in this preview. Direct collection burns are outside this guard.`;
+  let practice = $('#local-practice');
+  if (!practice) { practice = element('div', undefined, 'panel'); practice.id = 'local-practice'; $('#training-title').after(practice); }
+  const unlock = element('button', 'UNLOCK ONE SLOT · LOCAL TEST · 1 CREDIT'); unlock.type = 'button'; unlock.id = 'local-unlock';
+  unlock.disabled = BigInt(data.credits) < 1n || data.slots >= data.cap;
+  unlock.addEventListener('click', () => localTraining(data, 'unlock'));
+  practice.replaceChildren(element('h3', 'PRACTICE ON TEST PUNKS'), element('p', 'Local learning and loadout changes are real transactions on a disposable Anvil chain. No MetaMask, real NFT, real funds or production capability is involved. Learn a supported fixture from its detail card.'), unlock);
   $('#punk-label').textContent = `LOCAL PUNK #${data.tokenId}`;
   $('#portrait').src = `/art/${data.tokenId}.png`;
   $('#portrait').alt = `Gogh Punk #${data.tokenId} artwork used for local fixture`;
@@ -92,6 +120,26 @@ function render(data) {
     const locked = index >= data.slots;
     const node = element('div', undefined, `slot ${skill ? 'active' : locked ? 'locked' : ''}`);
     node.append(element('span', `SLOT 0${index + 1}`, 'slot-label'), element('strong', skill?.name || (locked ? 'LOCKED' : 'EMPTY SLOT')), element('small', skill ? 'Level 1 · local fixture' : locked ? 'Unlock with 1 credit · not live' : 'No active capability'));
+    if (!locked) {
+      const change = element('button', 'CHANGE · LOCAL'); change.type = 'button'; change.dataset.loadoutSlot = index;
+      change.addEventListener('click', () => {
+        detail(`LOCAL SLOT ${index + 1}`, 'LOADOUT PRACTICE · CHAIN 31337', ['Only already-learned test skills can be equipped. This does not authorize a live mint.'], []);
+        for (const learned of data.learned) {
+          const candidate = data.skills.find(item => item.key === learned.key);
+          if (!candidate) continue;
+          const choice = element('button', `EQUIP ${candidate.name.toUpperCase()} · LOCAL`); choice.type = 'button';
+          choice.disabled = data.equipped.includes(candidate.key);
+          choice.addEventListener('click', () => localTraining(data, 'equip', { slot: index, key: candidate.key }));
+          $('#detail-body').append(choice);
+        }
+        if (skill) {
+          const clear = element('button', 'UNEQUIP · LOCAL'); clear.type = 'button';
+          clear.addEventListener('click', () => localTraining(data, 'unequip', { slot: index })); $('#detail-body').append(clear);
+        }
+        if (!data.learned.length) $('#detail-body').append(element('p', 'No learned test skills yet.'));
+      });
+      node.append(change);
+    }
     return node;
   }));
   $('#skills').replaceChildren(...data.skills.map(skill => {
@@ -106,6 +154,11 @@ function render(data) {
       ['PROPOSED TOOLS', skill.tools.length ? skill.tools.join(' · ') : 'No approved tool mapping yet'], ['CAPABILITY', skill.capability], ['VERSION', skill.version ? `${skill.version} · disposable local fixture, not a registered production package` : 'Unregistered roadmap candidate'], ['MANIFEST HASH · LOCAL FIXTURE', skill.manifestHash ?? 'Not registered'], ['INSTRUCTION HASH · LOCAL FIXTURE', skill.instructionHash ?? 'Not registered'], ['SOURCE / EVIDENCE', skill.source], ['STILL REQUIRED', skill.missing], ['READINESS', 'No production learning or live tool execution. Local test readiness is not production acceptance.'],
       ]);
       if (skill.sourceUrl) { const source = element('a', 'INSPECT PINNED UPSTREAM SOURCE ↗'); source.href = skill.sourceUrl; source.target = '_blank'; source.rel = 'noopener noreferrer'; $('#detail-body').append(source); }
+      if (!learned && [2, 3, 4].includes(skill.id) && BigInt(data.credits) > 0n) {
+        $('#detail-action').disabled = false;
+        $('#detail-action').textContent = 'LEARN LOCAL FIXTURE · 1 TEST CREDIT';
+        $('#detail-action').onclick = () => localTraining(data, 'learn', { key: skill.key });
+      }
       if (skill.id === 2) {
         const model = sniperMissionPreview({ learned: Boolean(learned), equipped: data.equipped.includes(skill.key) });
         const section = element('section', undefined, 'sniper-options');

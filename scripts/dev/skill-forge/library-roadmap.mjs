@@ -33,6 +33,6 @@ export const roadmap = [
 export function previewLibrary(fixtures) {
   const categories = { 1: 'execution', 2: 'execution', 3: 'research', 4: 'research', 8: 'discovery' };
   return [...fixtures.map(skill => ({ ...skill, category: categories[skill.id], learnable: false, comingSoon: false,
-    source: skill.id === 8 ? 'OpenSea API source inspected; Gogh wrapper fixture-tested only.' : 'Gogh-native local fixture. See the source audit for demonstrated scope.',
+    source: skill.id === 8 ? 'OpenSea API source inspected; Gogh wrapper returned five live Robinhood listings. No purchase authority.' : 'Gogh-native local fixture. See the source audit for demonstrated scope.',
     missing: skill.id === 2 ? 'Full mint-link acceptance and separately reviewed marketplace-purchase integration. The two-mode picker adds no authority.' : 'Complete skill acceptance and production capability integration.' })), ...roadmap];
 }

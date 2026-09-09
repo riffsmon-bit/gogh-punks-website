@@ -1,0 +1,19 @@
+{
+  "schema": "GOGH_SKILL_PACKAGE_V1",
+  "skillId": 8,
+  "version": 1,
+  "chainId": 4663,
+  "name": "Market Scout",
+  "capabilities": ["MARKET_READ"],
+  "requiredMcpTools": ["get_market_listings"],
+  "requiredWalletCapabilities": [],
+  "requiredExecutorCapabilities": [],
+  "riskTier": 0,
+  "equipCost": 1,
+  "trainingCost": 1,
+  "maxSkillLevel": 1,
+  "implementation": "broker/src/v4/skill-forge/market-reader.mjs",
+  "implementationSha256": "28baf5dc5190efd2ef32ee9e6d11237da566376ae5b556cfc57ca5fdbc5130e9",
+  "sourceAudit": "docs/v2-skill-source-audit.md",
+  "walletAuthority": "NONE"
+}
