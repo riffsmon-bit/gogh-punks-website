@@ -1,4 +1,5 @@
 import { verifyOwnedPunkIds } from "./broker-v2-ownership.js";
+import { createForgeControl } from './broker-v2-forge.js';
 import { prepareAgentGasFunding, submitAgentGasFunding } from "./punk-agent-gas-funding.js";
 import { punkChatAction, agentChatStatus } from "./punk-chat-actions.js";
 import {
@@ -68,6 +69,7 @@ const REVIEW_MISSION_LEASE_KEY = "gogh-art-broker-review-mission-lease-v1";
 const REVIEW_MISSION_LEASE_MS = 15_000;
 const REVIEW_TAB_ID = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
 let reviewMissionTimer = null;
+let forgeControl = null;
 const one = (selector) => document.querySelector(selector);
 const all = (selector) => [...document.querySelectorAll(selector)];
 const set = (selector, value) => { const target = one(selector); if (target) target.textContent = String(value); };
@@ -986,6 +988,7 @@ async function runOwnerAssistedLiveMint() {
 }
 
 function renderRoster() {
+  forgeControl?.selectionChanged();
   const roster = one("[data-punk-roster]");
   roster.replaceChildren();
   set("[data-roster-count]", state.punks.length);
@@ -1164,6 +1167,7 @@ function renderActivity() {
 }
 
 function activateTab(name) {
+  if (name === 'forge') forgeControl?.selectionChanged();
   if (name === "fund") {
     one("[data-fund-gas-home]").append(one("[data-agent-gas-panel]"));
     one("[data-talk-gas-host]").hidden = true;
@@ -1456,13 +1460,17 @@ async function hydrateSelected(tab) {
     }
     if (tab === "collection") {
       const payload = await jsonRequest(`/api/v2/punks/${tokenId}/collection`);
+      if (state.selected?.tokenId !== tokenId) return;
       state.gallery = payload.holdings.map((holding) => [
         cleanImage(holding.artwork?.imageUrl),
         holding.artwork?.name ?? `${short(holding.collection)} #${holding.tokenId}`,
-        `${holding.provenance === "V1" ? "EARLIER ART BROKER" : "CURRENT ART BROKER"} · ${holding.acquisitionType}`,
-        `${holding.mintCostWei === "0" ? "FREE" : `${holding.mintCostWei} WEI`} · ${holding.custodyType === "PUNK_AGENT_ACCOUNT" ? "held by Punk Agent Account" : "held by Punk Wallet"} · acquired ${dateLabel(holding.acquiredAt)}`,
+        `${holding.provenance === "RECEIVED" ? "RECEIVED NFT" : holding.provenance === "V1" ? "EARLIER ART BROKER" : "CURRENT ART BROKER"} · ${holding.ownershipStatus === "LIVE_VERIFIED" ? "OWNERSHIP VERIFIED" : holding.acquisitionType}`,
+        `${holding.mintCostWei == null ? "ACQUISITION COST UNKNOWN" : holding.mintCostWei === "0" ? "FREE" : `${holding.mintCostWei} WEI`} · ${holding.custodyType === "PUNK_AGENT_ACCOUNT" ? "held by Punk Agent Account" : "held by Punk Wallet"}${holding.acquiredAt ? ` · acquired ${dateLabel(holding.acquiredAt)}` : ""}`,
       ]);
       renderGallery(); set("[data-gallery-count]", state.gallery.length);
+      const inventoryNote = document.createElement('p'); inventoryNote.className = 'panel-empty';
+      inventoryNote.textContent = `${payload.inventoryNote ?? ''}${payload.ownershipChecksUnavailable ? ` ${payload.ownershipChecksUnavailable} ownership checks unavailable; retry to refresh.` : ''}`;
+      one('[data-gallery-grid]').append(inventoryNote);
     }
     if (tab === "activity") {
       const payload = await jsonRequest(`/api/v2/punks/${tokenId}/activity`);
@@ -1787,6 +1795,11 @@ function setup() {
     if (!message || chatForm.hasAttribute("aria-busy")) return;
     addMessage("owner", message); input.value = "";
     const chatAction = punkChatAction(message);
+    if (chatAction?.kind === 'FORGE') {
+      activateTab('forge');
+      addMessage('punk', 'The Forge research lab is open. Sign in there to test available read-only tools. Learning, equipping and burning are not live yet.');
+      return;
+    }
     if (chatAction?.kind === "GAS" || chatAction?.kind === "STATUS") {
       const punk = state.selected;
       setChatBusy(true);
@@ -1801,7 +1814,7 @@ function setup() {
       } finally { setChatBusy(false); }
       return;
     }
-    if (/pause/i.test(message) || chatAction?.kind === "RECALL") {
+    if (chatAction?.kind === "RECALL") {
       if (selectedAgentAccount()?.mission?.status === "ACTIVE") {
         await recallSelectedReviewAgent();
         return;
@@ -2484,7 +2497,11 @@ function setup() {
     }
   }, 5_000);
   const requestedTab = new URLSearchParams(location.search).get("tab");
-  if (["talk", "strategy", "fund", "collection", "activity", "settings"].includes(requestedTab)) {
+  forgeControl = createForgeControl({ root: one('[data-v2-panel="forge"]'),
+    getSelection: () => state.selected ? { tokenId: String(state.selected.tokenId),
+      owner: state.wallet?.account ?? null, chainId: state.wallet?.chainId, preview: PREVIEW } : null,
+    ensureSession: ensureV2Session, request: jsonRequest });
+  if (["talk", "strategy", "fund", "collection", "activity", "forge", "settings"].includes(requestedTab)) {
     activateTab(requestedTab);
   }
 }
