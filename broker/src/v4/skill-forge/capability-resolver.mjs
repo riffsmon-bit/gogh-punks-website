@@ -122,7 +122,13 @@ export function createSkillToolGate({ readState, packages, implementations }) {
       if (!args || typeof args !== 'object' || Array.isArray(args)
         || args.tokenId !== undefined && String(args.tokenId) !== String(context.tokenId)
         || args.owner !== undefined && getAddress(args.owner) !== getAddress(context.owner)) throw new Error('TOOL_IDENTITY_MISMATCH');
-      return implementations[name]({ ...args, tokenId: context.tokenId, owner: context.owner }, context);
+      const result = await implementations[name]({ ...args, tokenId: context.tokenId, owner: context.owner }, context);
+      // Read-only providers may take long enough for a transfer, unequip or emergency disable.
+      // Never deliver their result using authority that disappeared while the call ran.
+      const after = await resolve({ tokenId, owner });
+      if (!after.effectiveMcpTools.includes(name)
+        || canonical(after.instructionPackages) !== canonical(context.instructionPackages)) throw new Error('SKILL_CONTEXT_CHANGED');
+      return result;
     },
   });
 }

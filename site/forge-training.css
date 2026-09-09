@@ -1,0 +1,16 @@
+.forge-training-stats{color:#d9ff43;font-weight:900;line-height:1.8}
+.forge-slots .forge-socket{min-width:0;gap:10px;height:auto;max-height:none;aspect-ratio:auto;justify-content:start;padding:14px 9px}
+.forge-socket.is-equipped{border-color:#68e8ff;background:radial-gradient(ellipse at top,#193842,#0b1117 75%)}
+.forge-socket img{width:100%;max-width:110px;aspect-ratio:1;object-fit:contain}
+.forge-socket strong{font-size:13px;overflow-wrap:anywhere;min-height:32px}
+.forge-socket button,.forge-socket select{width:100%;min-height:46px;font-size:10px;white-space:normal}
+.forge-socket select{background:#10151c;color:#f4f5ef;border:1px solid #303b49;padding:6px}
+.forge-training-tools{margin:30px 0;border:1px solid #303b49;padding:20px}.forge-training-tools button{margin:4px;max-width:100%}
+.forge-training-history{padding-left:20px}.forge-training-history li{border-bottom:1px solid #303b49;padding:14px 0}
+.forge-training-history small{display:block;overflow-wrap:anywhere;font-size:10px;color:#99a4b1}
+.forge-training-result{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}
+.forge-training-confirm{background:#10151c;color:#f4f5ef;border:1px solid #d9ff43;width:min(580px,calc(100vw - 28px));max-height:85vh;overflow:auto;padding:26px}
+.forge-training-confirm p{overflow-wrap:anywhere;line-height:1.6}.forge-training-confirm button{margin:4px;min-height:48px}
+.forge-training-confirm::backdrop{background:#000c}
+[data-v2-panel=forge]>h3{margin:28px 0 18px}
+@media(max-width:600px){.forge-slots{grid-template-columns:repeat(2,minmax(0,1fr))}.forge-training-tools{padding:12px}}

@@ -6,8 +6,9 @@ import { SKILL_ICON_SLUGS } from './skill-icons.mjs';
 import { createServer as netServer } from 'node:net';
 import { createServer } from 'node:http';
 import { pathToFileURL } from 'node:url';
-import { createPublicClient, createWalletClient, http, decodeEventLog } from 'viem';
-import { manifestHash, instructionHash } from '../../../broker/src/v4/skill-forge/capability-resolver.mjs';
+import { createPublicClient, createWalletClient, http, decodeEventLog, keccak256 } from 'viem';
+import { manifestHash, instructionHash, createProgressionReader } from '../../../broker/src/v4/skill-forge/capability-resolver.mjs';
+import { createResearchSkillRuntime } from '../../../broker/src/v4/skill-forge/research-runtime.mjs';
 import { previewLibrary } from './library-roadmap.mjs';
 import { FORGE_MINIMUM_SUPPLY } from '../../../broker/src/v4/skill-forge/supply-floor.mjs';
 import { SLOT_POLICY } from '../../../broker/src/v4/skill-forge/slot-policy.mjs';
@@ -23,7 +24,7 @@ const zero = `0x${'0'.repeat(64)}`;
 const artifact = async (file, name) => JSON.parse(await readFile(new URL(`../../../contracts/out/${file}/${name}.json`, import.meta.url), 'utf8'));
 const json = value => JSON.stringify(value, (_key, item) => typeof item === 'bigint' ? item.toString() : item);
 
-export async function startPreview({ port = 0 } = {}) {
+export async function startPreview({ port = 0, researchClient, controlCenterTraining = false } = {}) {
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('Invalid local preview port');
   const reservation = netServer();
   await new Promise(resolve => reservation.listen(0, '127.0.0.1', resolve));
@@ -68,7 +69,7 @@ export async function startPreview({ port = 0 } = {}) {
     const progression = await deploy(prog, [collection, registry, source, SLOT_POLICY.baseSlots, SLOT_POLICY.maxEquippedSkills]);
     await write(training, source, 'bind', [progression]);
     for (const id of [1, 44, 7, 1001, 1002, 1003, 1004, 1005]) await write(nft, collection, 'mint', [owner, BigInt(id)]);
-    const skills = [];
+    const skills = [], packages = [];
     for (const entry of catalog) {
       const manifest = { skillId: entry.id, version: 1, chainId: 31337, capabilities: [entry.capability], description: 'LOCAL FIXTURE ONLY — NOT PRODUCTION READY' };
       const hash = manifestHash(manifest), instructions = instructionHash(entry.description);
@@ -80,6 +81,7 @@ export async function startPreview({ port = 0 } = {}) {
         await write(reg, registry, 'setStatus', [key, 4, manifestHash({ localFixture: true, skillId: entry.id })]);
       }
       skills.push({ ...entry, key, version: 1, manifestHash: hash, instructionHash: instructions });
+      packages.push({ manifest, instructions: entry.description, approved: [2, 3, 4].includes(entry.id), status: [2, 3, 4].includes(entry.id) ? 'READY' : 'TESTING' });
     }
     for (const id of [1001, 1002, 1003, 1004]) {
       await write(nft, collection, 'approve', [source, BigInt(id)]);
@@ -92,8 +94,28 @@ export async function startPreview({ port = 0 } = {}) {
     await write(nft, collection, 'approve', [source, 1005n]);
     await write(training, source, 'sacrifice', [1005n, 7n]);
     await write(prog, progression, 'learnSkill', [7n, skills.find(skill => skill.id === 2).key]);
+    if (controlCenterTraining === true) {
+      // Disposable provenance for a fresh learn → equip → real research test, not an admin credit grant.
+      await write(nft, collection, 'mint', [owner, 2001n]);
+      await write(nft, collection, 'approve', [source, 2001n]);
+      await write(training, source, 'sacrifice', [2001n, 44n]);
+    }
+    const pinnedRead = createProgressionReader({ client, chainId: 31337, collection, registry, progression,
+      registryCodeHash: keccak256(await client.getCode({ address: registry })),
+      progressionCodeHash: keccak256(await client.getCode({ address: progression })) });
+    // An idle automining Anvil has no fresh blocks. Advance ONLY this owned disposable
+    // chain before reads; never relax the production resolver's freshness requirement.
+    const advanceLocalClock = async () => {
+      if (await client.getChainId() !== 31337) throw new Error('LOCAL_CHAIN_CHANGED');
+      const block = await client.getBlock();
+      if (Date.now() - Number(block.timestamp) * 1000 > 10_000) await client.request({ method: 'evm_mine' });
+    };
+    const readState = async tokenId => { await advanceLocalClock(); return pinnedRead(tokenId); };
+    const runtime = createResearchSkillRuntime({ readState, packages,
+      client: researchClient ?? createPublicClient({ transport: http('https://robinhood-rpc.publicnode.com', { timeout: 8000, retryCount: 0 }) }) });
     const snapshot = async tokenId => {
       if (![1, 44, 7].includes(tokenId)) throw new Error('Unknown fixture Punk');
+      await advanceLocalClock();
       const block = await client.getBlock();
       const read = (functionName, args = [BigInt(tokenId)]) => client.readContract({ address: progression, abi: prog.abi, functionName, args, blockNumber: block.number });
       const [credits, slots, count, cap, currentOwner] = await Promise.all([
@@ -125,9 +147,15 @@ export async function startPreview({ port = 0 } = {}) {
           canBurn: false, eligibility: 'BLOCKED', inventory: 'UNKNOWN',
           reason: 'Punk Wallet assets and unresolved activity have not been verified. Production sacrifice is locked.' });
       }
-      return { localOnly: true, localTrainingNonce, chainId: 31337, tokenId, owner: currentOwner, collection, registry, progression, blockNumber: block.number, blockHash: block.hash, credits, slots, cap, learned, equipped, history, skills: previewLibrary(skills), candidates, forgeMinimumSupply: String(FORGE_MINIMUM_SUPPLY), productionReadyCount: 0, canBurn: false };
+      const capabilityContext = await runtime.resolve({ tokenId, owner: currentOwner });
+      return { localOnly: true, localTrainingNonce, chainId: 31337, tokenId, owner: currentOwner, collection, registry, progression, blockNumber: block.number, blockHash: block.hash, credits, slots, cap, learned, equipped, history, skills: previewLibrary(skills), candidates, capabilityContext, forgeMinimumSupply: String(FORGE_MINIMUM_SUPPLY), productionReadyCount: 0, canBurn: false };
     };
     const files = new Map([
+      ['/control-center', ['control-center.html', 'text/html']],
+      ['/control-center.mjs', ['control-center.mjs', 'text/javascript']],
+      ...['broker-v2-forge.js', 'forge-training.js', 'forge-catalog.js'].map(name => [`/${name}`, [`../../../site/${name}`, 'text/javascript']]),
+      ['/broker-v2-forge.css', ['../../../site/broker-v2-forge.css', 'text/css']],
+      ['/forge-training.css', ['../../../site/forge-training.css', 'text/css']],
       ['/', ['index.html', 'text/html']], ['/app.mjs', ['app.mjs', 'text/javascript']], ['/style.css', ['style.css', 'text/css']],
       ['/picker.css', ['picker.css', 'text/css']],
       ['/sniper-missions.mjs', ['sniper-missions.mjs', 'text/javascript']],
@@ -141,6 +169,23 @@ export async function startPreview({ port = 0 } = {}) {
       res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
       const expectedHost = `127.0.0.1:${server.address().port}`;
       if (req.headers.host !== expectedHost || (req.headers.origin && req.headers.origin !== `http://${expectedHost}`)) { res.writeHead(403); return res.end('Local preview only'); }
+      if (req.method === 'POST' && req.url === '/api/local-tool') {
+        if (req.headers.origin !== `http://${expectedHost}` || req.headers['x-forge-nonce'] !== localTrainingNonce
+          || req.headers['content-type'] !== 'application/json') { res.writeHead(403); return res.end('Local confirmation required'); }
+        try {
+          let body = '';
+          for await (const chunk of req) { body += chunk.toString('utf8'); if (Buffer.byteLength(body) > 1024) throw new Error('TOO_LARGE'); }
+          const input = JSON.parse(body);
+          if (!input || Array.isArray(input) || Object.keys(input).some(k => !['tokenId', 'name'].includes(k))
+            || ![1, 44, 7].includes(input.tokenId) || !['inspect_contract', 'rank_trait_sample'].includes(input.name)) throw new Error('INVALID_TOOL');
+          const result = await runtime.call({ tokenId: input.tokenId, owner, name: input.name,
+            arguments: { contract: '0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6',
+              ...(input.name === 'rank_trait_sample' ? { tokenIds: ['93', '94', '95'], numericMode: 'categorical' } : {}) } });
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          return res.end(json({ localOnly: true, chainId: 31337, researchChainId: 4663, productionAuthority: false,
+            tokenId: input.tokenId, walletAuthority: 'NONE', result, snapshot: await snapshot(input.tokenId) }));
+        } catch { res.writeHead(409); return res.end('Tool denied or research unavailable. Refresh current owner and equipment. No production authority.'); }
+      }
       if (req.method === 'POST' && req.url === '/api/local-training') {
         if (req.headers.origin !== `http://${expectedHost}` || req.headers['x-forge-nonce'] !== localTrainingNonce || req.headers['content-type'] !== 'application/json') { res.writeHead(403); return res.end('Local confirmation required'); }
         if (mutationInFlight) { res.writeHead(409); return res.end('Local operation in progress'); }

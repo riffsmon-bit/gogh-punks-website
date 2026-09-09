@@ -76,3 +76,18 @@ test('canonical hashing is key-order stable but value-sensitive', () => {
   assert.notEqual(manifestHash({ a: 1 }), manifestHash({ a: 2 }));
   assert.throws(() => manifestHash({ a: undefined }), /NON_CANONICAL/);
 });
+
+for (const change of ['unequip', 'disable', 'transfer']) {
+  test(`research result is withheld if ${change} occurs during the provider call`, async () => {
+    const f = fixture(); f.state.blockTime = Date.now();
+    const gate = createSkillToolGate({ readState: async () => f.state, packages: [f.pack], implementations: {
+      inspect_contract: async () => {
+        if (change === 'unequip') f.state.equipped = [];
+        if (change === 'disable') f.item.available = false;
+        if (change === 'transfer') f.state.owner = other;
+        return 'do not deliver stale-owner result';
+      },
+    } });
+    await assert.rejects(gate.call({ tokenId: '93', owner, name: 'inspect_contract' }), /SKILL_CONTEXT_CHANGED|OWNER_CHANGED/);
+  });
+}
