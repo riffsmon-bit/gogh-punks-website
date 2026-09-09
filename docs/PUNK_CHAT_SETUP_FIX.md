@@ -27,6 +27,12 @@ The previously suggested phrase “total gas spending within 0.0005 ETH” descr
 ## Verification
 
 - 72 targeted tests passed, including full-handler duplicate pending/paused requests, no mutation on chat reuse, setup reopening only pending review, wrong owner/retired state rejection, transaction funding boundaries, strict signing/runtime checks and chat actions.
-- Syntax: 474 modules passed. Site: 7 pages, 16 previews and asset/secret checks passed.
+- Syntax: 475 modules passed in the final Netlify build. Site: 7 pages, 16 previews and asset/secret checks passed.
 - Chrome local preview: 1440, 390 and 375px, no horizontal overflow or runtime exceptions. Chat prefills exact amount without confirmation, moves the single component between Talk/Fund, and never auto-submits.
 - Live authenticated wallet/browser flow still requires the owner's test. No mint receipt or new mission activation is claimed.
+
+## Production release
+
+Final source: `712c648`, deployed from a tracked-source ZIP without pushing/merging main. Netlify build `6aa152afd9fe5e59728b95a5`, deploy `6aa152afd9fe5e59728b95a7`, published **2026-09-09 12:37:37 UTC**. The production API confirms this is the site's published deploy. Full cloud build passed all **127 deployment-gate tests** and function bundling. The earlier chat-only iteration was deploy `6aa152083de803d07d86f548`; pre-chat rollback target is `6aa14de56a373ea3e3c1f570`.
+
+Live read at block `58551895`: #93 Agent native balance `0.0005 ETH`, EntryPoint deposit `0 ETH`, session inactive. No additional funding is needed merely to retry mission review. Economic activation still belongs to the owner.
