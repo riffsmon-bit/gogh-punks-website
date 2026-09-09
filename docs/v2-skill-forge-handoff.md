@@ -1,5 +1,7 @@
 # Gogh Skill Forge — local implementation handoff
 
+Latest local continuation: [integration hardening](v2-forge-hardening-checkpoint.md) and [durable transaction review](v2-forge-transaction-review.md). The sections below preserve the earlier checkpoint, not a claim of current production completeness.
+
 Checkpoint: September 9, 2026. Branch `feat/gogh-skill-forge`, isolated worktree `/private/tmp/gogh-skill-forge`.
 
 **Local implementation and tests are ready to review; the full production product is not complete.** No push, production deployment, Netlify environment change, main-branch change, production skill registration, NFT burn or fund movement was performed by this checkpoint. Existing V2 agents are unchanged. Public burn controls remain locked.

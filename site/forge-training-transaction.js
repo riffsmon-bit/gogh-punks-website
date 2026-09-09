@@ -20,7 +20,8 @@ export function validateTrainingReview(review, state, action, now = Date.now()) 
     || !/^[0-9a-f]{64}$/.test(review.intentId) || !Number.isSafeInteger(review.expiresAt)
     || !Number.isSafeInteger(review.createdAt) || review.createdAt > now + 5000 || review.expiresAt < now
     || review.expiresAt - review.createdAt > 60_000 || review.expiresAt <= review.createdAt
-    || !tx || Object.keys(tx).sort().join(',') !== 'chainId,data,from,gas,gasPrice,to,value'
+    || !tx || Object.keys(tx).sort().join(',') !== 'chainId,data,from,gas,gasPrice,nonce,to,value'
+    || !/^0x(0|[1-9a-f][0-9a-f]{0,13})$/i.test(tx.nonce) || BigInt(tx.nonce) > BigInt(Number.MAX_SAFE_INTEGER)
     || tx.from?.toLowerCase() !== state.owner.toLowerCase() || tx.to?.toLowerCase() !== state.progression.toLowerCase()
     || tx.chainId !== '0x7a69' || tx.value !== '0x0'
     || tx.data?.toLowerCase() !== trainingCalldata({ tokenId: state.tokenId, ...action }).toLowerCase()

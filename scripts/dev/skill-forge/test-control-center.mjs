@@ -72,8 +72,17 @@ try {
   await until("document.querySelector('.forge-training-stats').textContent.includes('TEST PUNK #44')");
   assert.equal(await evaluate("document.querySelector('dialog').open"), false);
   assert.match(await evaluate("document.querySelector('.forge-training-stats').textContent"), /1 CREDIT.*0 LEARNED.*0\/1 EQUIPPED/);
+  preview.loseNextSubmissionHash();
   await click('REVIEW LEARN · 1 CREDIT'); await click('CONFIRM LOCAL TRANSACTION');
+  await until("document.querySelector('[role=status]').textContent.includes('SUBMISSION_UNKNOWN')");
+  assert.equal(await evaluate("document.querySelector('.forge-training-recovery').hidden"), false);
+  assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'recovery controls fit mobile');
+  const hashToRecover = await evaluate("fetch('/api/forge?tokenId=44').then(r=>r.json()).then(s=>s.history.find(e=>e.name==='SkillLearned').transactionHash)");
+  await evaluate(`document.querySelector('.forge-training-recovery input').value=${JSON.stringify(hashToRecover)}`);
+  await click('VERIFY EXISTING HASH · NO SEND');
   await until("document.querySelector('.forge-training-stats').textContent.includes('1 LEARNED')");
+  assert.equal(await evaluate("document.querySelector('.forge-training-recovery').hidden"), true);
+  assert.equal(await evaluate("fetch('/api/forge?tokenId=44').then(r=>r.json()).then(s=>s.history.filter(e=>e.name==='SkillLearned').length)"), 1);
   assert.equal(await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent==='INSPECT CONTRACT · UNEQUIPPED / LOCKED').disabled"), true);
   await evaluate("const choose=document.querySelector('.forge-socket select');choose.selectedIndex=1;document.querySelector('.forge-socket button').click()");
   await click('CONFIRM LOCAL TRANSACTION');
@@ -81,6 +90,33 @@ try {
   await click('INSPECT CONTRACT · RUN');
   await until("document.querySelector('[role=status]').textContent.includes('Research completed')");
   assert.match(await evaluate("document.querySelector('.forge-training-stats').textContent"), /0 CREDIT.*1 LEARNED.*1\/1 EQUIPPED/);
+  // Wallet/network identity changes matter even when the token ID stays the same.
+  await evaluate(`(async()=>{
+    const state=await (await fetch('/api/forge?tokenId=44')).json();
+    window.trainingOwner=state.owner;
+    window.trainingSelection={tokenId:44,owner:state.owner,chainId:31337,preview:true};
+    window.trainingCalls=[];
+    window.trainingRequest=async(url,opts)=>{trainingCalls.push(url);const r=await fetch(url,opts);if(!r.ok)throw Error(await r.text());return r.json();};
+    const {createTrainingControl}=await import('/forge-training.js');
+    window.identityControl=createTrainingControl({root:document.querySelector('[data-v2-panel=forge]'),
+      getSelection:()=>trainingSelection,request:(...args)=>trainingRequest(...args),localOnly:true});
+  })()`);
+  await until("document.querySelector('.forge-training-stats').textContent.includes('TEST PUNK #44')");
+  await click('UNEQUIP'); await until("document.querySelector('dialog').open");
+  await evaluate("trainingSelection={...trainingSelection,owner:'0x'+'6'.repeat(40)};identityControl.selectionChanged()");
+  await until("document.querySelector('[role=status]').textContent.includes('no longer controls')");
+  assert.equal(await evaluate("document.querySelector('dialog').open"), false);
+  assert.equal(await evaluate("trainingCalls.filter(p=>p.endsWith('/confirm')).length"), 0);
+  assert.equal(await evaluate("document.querySelector('.forge-training-stats').textContent"), '');
+  await evaluate("trainingSelection={...trainingSelection,owner:trainingOwner};identityControl.selectionChanged()");
+  await until("document.querySelector('.forge-training-stats').textContent.includes('TEST PUNK #44')");
+  await evaluate("window.liveRequest=trainingRequest;trainingRequest=(url,opts)=>url==='/api/local-tool'?new Promise(resolve=>window.releaseTrainingTool=resolve):liveRequest(url,opts)");
+  await click('INSPECT CONTRACT · RUN');
+  await until("typeof releaseTrainingTool==='function'");
+  await evaluate("trainingSelection={...trainingSelection,chainId:4663};identityControl.selectionChanged();releaseTrainingTool({result:'OLD OWNER RESULT'})");
+  await until("document.querySelector('[role=status]').textContent.includes('chain 31337')");
+  assert.equal(await evaluate("document.querySelector('.forge-training-result').textContent"), '');
+  assert.equal(await evaluate("document.querySelectorAll('.forge-socket').length"), 0);
   assert.deepEqual(errors, []);
-  console.log(`PASS shared V2 component: pending receipt + coordinator restart + browser reload without resend, confirm/cancel, learn, equip, gated live research, unequip, token switch, 1440/390/375px. Screenshots: ${folder}`);
+  console.log(`PASS shared V2 component: pending receipt + coordinator restart + browser reload without resend, lost-hash recovery, confirm/cancel, learn, equip, gated live research, unequip, token/owner/chain switch, stale response rejection, 1440/390/375px. Screenshots: ${folder}`);
 } finally { ws.close(); await fetch(`http://127.0.0.1:9227/json/close/${page.id}`); await preview.close(); }

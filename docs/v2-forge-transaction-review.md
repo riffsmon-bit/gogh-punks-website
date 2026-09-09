@@ -1,5 +1,7 @@
 # Training transaction review — local-only checkpoint
 
+Latest continuation: [nonce-bound recovery and integration hardening](v2-forge-hardening-checkpoint.md). That checkpoint adds `eth_getTransactionCount`, exact nonce review and read-only lost-hash recovery to the original boundary below.
+
 This extends the shared Control Center training prototype. It does **not** deploy production progression, enable burns, install wallet modules, or request the owner's real wallet signature.
 
 ## Prepared transaction boundary

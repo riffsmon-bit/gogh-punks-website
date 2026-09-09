@@ -73,8 +73,11 @@ test('local Forge: contract snapshots, guarded local training and responsive bro
       return result.result.value;
     };
     const until = async expression => {
-      for (let i = 0; i < 100; i++) { if (await evaluate(expression)) return; await new Promise(resolve => setTimeout(resolve, 50)); }
-      throw new Error(`DOM condition timed out: ${expression}`);
+      // Local simulation + journal + receipt reads can exceed five seconds while
+      // the full suite runs. Match the shared browser harness's bounded deadline.
+      for (let i = 0; i < 240; i++) { if (await evaluate(expression)) return; await new Promise(resolve => setTimeout(resolve, 100)); }
+      const status = await evaluate("document.querySelector('#status')?.textContent");
+      throw new Error(`DOM condition timed out: ${expression}; status: ${status}`);
     };
     await call('Page.enable'); await call('Runtime.enable');
     await call('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });

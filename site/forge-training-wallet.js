@@ -11,7 +11,7 @@ export function createTrainingWalletAdapter({ provider, readSnapshot }) {
     async submit({ review, snapshot, action }) {
       if (busy) throw Error('TRAINING_WALLET_BUSY');
       if (attempted.has(review?.intentId)) throw Error('TRAINING_WALLET_ALREADY_REQUESTED');
-      busy = true;
+      busy = true; let walletRequested = false;
       try {
         validateTrainingReview(review, snapshot, action);
         const before = binding(snapshot);
@@ -27,12 +27,20 @@ export function createTrainingWalletAdapter({ provider, readSnapshot }) {
         validateTrainingReview(review, fresh, action);
         await checkWallet();
         validateTrainingReview(review, fresh, action);
+        const nonce = await provider.request({ method: 'eth_getTransactionCount', params: [snapshot.owner, 'pending'] });
+        if (!/^0x[0-9a-f]+$/i.test(nonce) || BigInt(nonce) !== BigInt(review.transaction.nonce)) throw Error('TRAINING_WALLET_NONCE_CHANGED');
+        validateTrainingReview(review, fresh, action);
         // Deliberately one-shot even for rejection/transport failure; a new owner-reviewed
         // intent is required. This does not mean an error proved nothing was broadcast.
         attempted.add(review.intentId);
+        walletRequested = true;
         const transactionHash = await provider.request({ method: 'eth_sendTransaction', params: [{ ...review.transaction }] });
         if (!/^0x[0-9a-f]{64}$/i.test(transactionHash)) throw Error('TRAINING_WALLET_HASH_UNKNOWN');
         return { status: 'SUBMITTED', transactionHash };
+      } catch (error) {
+        // Only this adapter knows whether it invoked the send method. Never trust
+        // a provider-supplied claim that a failed send did not broadcast.
+        throw Object.assign(new Error(error.message), { code: error.code, noTransactionRequested: !walletRequested });
       } finally { busy = false; }
     },
   });

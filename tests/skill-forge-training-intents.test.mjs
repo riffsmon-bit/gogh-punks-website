@@ -14,7 +14,7 @@ import { DatabaseSync } from 'node:sqlite';
 const owner = `0x${'1'.repeat(40)}`, progression = `0x${'2'.repeat(40)}`, key = `0x${'3'.repeat(64)}`;
 const hash = `0x${'4'.repeat(64)}`, blockHash = `0x${'5'.repeat(64)}`, zero = `0x${'0'.repeat(64)}`;
 function fixture() {
-  const f = { now: 1000, sends: 0, chain: 31337, receiptAvailable: true,
+  const f = { now: 1000, sends: 0, chain: 31337, receiptAvailable: true, nonce: 0,
     state: { localOnly: true, chainId: 31337, canBurn: false, tokenId: 44, owner, progression, collection: owner, registry: progression,
       blockNumber: '10', credits: '1', slots: 1, cap: 7, learned: [], equipped: [zero] } };
   const abi = parseAbi(['event SkillLearned(uint256 indexed tokenId,bytes32 indexed key,uint8 level)']);
@@ -22,7 +22,8 @@ function fixture() {
     topics: encodeEventTopics({ abi, eventName: 'SkillLearned', args: { tokenId: 44n, key } }), data: encodeAbiParameters(parseAbiParameters('uint8'), [1]) }] };
   f.client = { getChainId: async () => f.chain, simulateContract: async () => ({}), estimateGas: async () => 100_000n, getGasPrice: async () => 1n,
     getTransactionReceipt: async () => { if (!f.receiptAvailable) throw Error('Not found'); return f.receipt; },
-    getTransaction: async () => ({ from: owner, to: progression, input: f.last.data, value: 0n, gas: 120_000n, gasPrice: 1n, ...f.transactionOverride }),
+    getTransactionCount: async () => f.nonce,
+    getTransaction: async () => ({ hash, from: owner, to: progression, input: f.last.data, value: 0n, gas: 120_000n, gasPrice: 1n, nonce: Number(BigInt(f.last.nonce)), ...f.transactionOverride }),
     getBlock: async () => ({ hash: f.canonicalHash ?? blockHash }) };
   f.makeManager = journal => createLocalTrainingIntents({ client: f.client, owner, progression, approvedKeys: [key], now: () => f.now, journal,
     readSnapshot: async () => structuredClone(f.state), sendTransaction: async tx => { f.sends++; f.last = tx; if (f.send) return f.send(); return hash; } });
@@ -71,6 +72,69 @@ test('two reviews cannot race the same Punk while its wallet request is pending'
   await assert.rejects(f.manager.confirm(b.intentId), /UNRESOLVED/);
   release(hash); await first; assert.equal(f.sends, 1);
 });
+test('reload recovery rechecks a previously confirmed receipt without resending', async () => {
+  const f = fixture(), review = await f.prepare();
+  await f.manager.confirm(review.intentId); f.receiptAvailable = false;
+  const recovered = await f.manager.recover(44);
+  assert.equal(recovered[0].status, 'SUBMITTED'); assert.equal(f.sends, 1);
+  await assert.rejects(f.prepare(), /UNRESOLVED/); assert.equal(f.sends, 1);
+});
+test('another wallet transaction invalidates a prepared account nonce without sending', async () => {
+  const f = fixture(), review = await f.prepare(); f.nonce = 1;
+  assert.equal((await f.manager.confirm(review.intentId)).status, 'INVALIDATED'); assert.equal(f.sends, 0);
+});
+test('wallet adapter preflight failure is invalidated, not an ambiguous broadcast', async () => {
+  const f = fixture(); f.now = Date.now(); const calls = [];
+  const adapter = createTrainingWalletAdapter({ readSnapshot: async () => structuredClone(f.state), provider: { request: async ({ method }) => {
+    calls.push(method); if (method === 'eth_chainId') return '0x7a69'; if (method === 'eth_accounts') return [owner];
+    if (method === 'eth_getTransactionCount') return '0x1'; throw Error('Send must never be reached');
+  } } });
+  f.manager = createLocalTrainingIntents({ client: f.client, owner, progression, approvedKeys: [key],
+    readSnapshot: async () => structuredClone(f.state), sendTransaction: async (_tx, context) => (await adapter.submit(context)).transactionHash });
+  const review = await f.prepare(); assert.equal((await f.manager.confirm(review.intentId)).status, 'INVALIDATED');
+  assert.equal(calls.includes('eth_sendTransaction'), false); await f.prepare();
+});
+test('provider cannot label a failed actual send as never requested', async () => {
+  const f = fixture(); f.now = Date.now(); const review = await f.prepare();
+  const adapter = createTrainingWalletAdapter({ readSnapshot: async () => structuredClone(f.state), provider: { request: async ({ method }) => {
+    if (method === 'eth_chainId') return '0x7a69'; if (method === 'eth_accounts') return [owner];
+    if (method === 'eth_getTransactionCount') return '0x0';
+    throw Object.assign(Error('Transport failed after sending'), { noTransactionRequested: true });
+  } } });
+  await assert.rejects(adapter.submit({ review, snapshot: f.state, action: { operation: 'learn', key } }), e => e.noTransactionRequested === false);
+});
+test('lost-hash recovery verifies the exact nonce-bound transaction and never requests a second send', async () => {
+  const f = fixture(), review = await f.prepare(); f.send = () => { throw Error('RESPONSE_LOST'); };
+  assert.equal((await f.manager.confirm(review.intentId)).status, 'SUBMISSION_UNKNOWN');
+  assert.equal((await f.manager.recoverHash(review.intentId, hash)).status, 'CONFIRMED');
+  assert.equal((await f.manager.recoverHash(review.intentId, hash)).status, 'CONFIRMED'); assert.equal(f.sends, 1);
+  await assert.rejects(f.manager.recoverHash(review.intentId, blockHash), /ALREADY_BOUND/);
+});
+for (const [name, override] of Object.entries({ nonce: { nonce: 100 }, sender: { from: progression },
+  target: { to: owner }, calldata: { input: '0x1234' }, value: { value: 1n }, hash: { hash: zero }, fee: { gasPrice: 100n } })) {
+  test(`lost-hash recovery rejects mismatched ${name} and retains the blocker`, async () => {
+    const f = fixture(), review = await f.prepare(); f.send = () => { throw Error('RESPONSE_LOST'); };
+    await f.manager.confirm(review.intentId); f.transactionOverride = override;
+    await assert.rejects(f.manager.recoverHash(review.intentId, hash), /UNVERIFIED/);
+    await assert.rejects(f.prepare(), /UNRESOLVED/); assert.equal(f.sends, 1);
+  });
+}
+test('recovery cannot submit a prepared review or attach a transaction for a changed owner', async () => {
+  const f = fixture(), review = await f.prepare();
+  await assert.rejects(f.manager.recoverHash(review.intentId, hash), /NOT_REQUIRED/); assert.equal(f.sends, 0);
+  f.send = () => { throw Error('RESPONSE_LOST'); }; await f.manager.confirm(review.intentId); f.state.owner = progression;
+  await assert.rejects(f.manager.recoverHash(review.intentId, hash), /OWNER_OR_DEPLOYMENT_CHANGED/); assert.equal(f.sends, 1);
+});
+test('a new review rechecks earlier receipts and cannot bypass a reorg by skipping recovery', async () => {
+  const f = fixture(), review = await f.prepare(); await f.manager.confirm(review.intentId);
+  f.receiptAvailable = false;
+  await assert.rejects(f.prepare(), /UNRESOLVED/); assert.equal(f.sends, 1);
+});
+test('confirmation rechecks earlier receipts even when the next review was already prepared', async () => {
+  const f = fixture(), first = await f.prepare(); await f.manager.confirm(first.intentId);
+  const second = await f.prepare(); f.receiptAvailable = false;
+  await assert.rejects(f.manager.confirm(second.intentId), /UNRESOLVED/); assert.equal(f.sends, 1);
+});
 test('wallet rejection is distinct from ambiguous submission; ambiguous reviews block further sends', async () => {
   for (const code of [4001, -32000]) {
     const f = fixture(), review = await f.prepare(); f.send = () => { throw Object.assign(Error('wallet error'), { code }); };
@@ -89,7 +153,7 @@ for (const wrong of ['event', 'calldata', 'canonicalBlock', 'fee']) test(`wrong 
   if (wrong === 'fee') f.receipt.effectiveGasPrice = 100n;
   assert.equal((await f.manager.confirm(review.intentId)).status, 'SUBMITTED'); assert.equal(f.sends, 1);
 });
-for (const scenario of ['success', 'chain', 'account', 'state', 'rejection']) test(`EIP-1193 wallet boundary: ${scenario}`, async () => {
+for (const scenario of ['success', 'chain', 'account', 'state', 'nonce', 'rejection']) test(`EIP-1193 wallet boundary: ${scenario}`, async () => {
   const f = fixture(); f.now = Date.now(); const review = await f.prepare(); const calls = [];
   const snapshot = structuredClone(f.state);
   const adapter = createTrainingWalletAdapter({ readSnapshot: async () => scenario === 'state' ? { ...snapshot, credits: '0' } : snapshot,
@@ -97,6 +161,7 @@ for (const scenario of ['success', 'chain', 'account', 'state', 'rejection']) te
       calls.push(request);
       if (request.method === 'eth_chainId') return scenario === 'chain' ? '0x1237' : '0x7a69';
       if (request.method === 'eth_accounts') return [scenario === 'account' ? progression : owner];
+      if (request.method === 'eth_getTransactionCount') return scenario === 'nonce' ? '0x1' : '0x0';
       if (request.method === 'eth_sendTransaction') { if (scenario === 'rejection') throw Object.assign(Error('Rejected'), { code: 4001 }); return hash; }
       throw Error('Unexpected wallet method');
     } } });
@@ -104,7 +169,7 @@ for (const scenario of ['success', 'chain', 'account', 'state', 'rejection']) te
   if (scenario === 'success') { assert.equal((await submit()).status, 'SUBMITTED'); assert.deepEqual(calls.at(-1).params, [review.transaction]); }
   else await assert.rejects(submit());
   assert.equal(calls.filter(c => c.method === 'eth_sendTransaction').length, ['success', 'rejection'].includes(scenario) ? 1 : 0);
-  assert.ok(calls.every(c => ['eth_chainId', 'eth_accounts', 'eth_sendTransaction'].includes(c.method)));
+  assert.ok(calls.every(c => ['eth_chainId', 'eth_accounts', 'eth_getTransactionCount', 'eth_sendTransaction'].includes(c.method)));
   if (['success', 'rejection'].includes(scenario)) { await assert.rejects(submit(), /ALREADY_REQUESTED/); assert.equal(calls.filter(c => c.method === 'eth_sendTransaction').length, 1); }
 });
 test('browser fixed ABI matches the contract ABI for all four permitted operations', () => {
@@ -173,6 +238,22 @@ test('same deployment journal supports concurrent status reads without stealing 
   assert.equal((await second.status(a.intentId)).status, 'RECOVERY_REQUIRED');
   await assert.rejects(second.confirm(b.intentId), /UNRESOLVED/);
   release(hash); assert.equal((await first).status, 'CONFIRMED'); assert.equal(f.sends, 1);
+});
+test('independent coordinators racing distinct reviews can broadcast only once for one Punk', async t => {
+  const j = await withJournal(t), f = fixture(); f.manager = f.makeManager(j.current);
+  const a = await f.prepare(), b = await f.prepare();
+  const otherStore = openTrainingJournal(j.options); t.after(() => otherStore.close());
+  const other = f.makeManager(otherStore);
+  const outcomes = await Promise.allSettled([f.manager.confirm(a.intentId), other.confirm(b.intentId)]);
+  assert.equal(f.sends, 1);
+  assert.ok(outcomes.some(o => o.status === 'fulfilled' && o.value.status === 'CONFIRMED'));
+  const entries = j.current.loadAll();
+  assert.equal(entries.filter(e => e.transactionHash).length, 1);
+});
+test('simultaneous same-intent confirmation with an asynchronous preflight broadcasts once', async () => {
+  const f = fixture(), review = await f.prepare();
+  const results = await Promise.all(Array.from({ length: 12 }, () => f.manager.confirm(review.intentId)));
+  assert.equal(f.sends, 1); assert.ok(results.some(r => r.status === 'CONFIRMED'));
 });
 for (const when of ['before_wallet', 'after_wallet']) test(`journal write failure ${when} stays fail-closed after recovery`, async t => {
   const j = await withJournal(t), f = fixture();

@@ -38,6 +38,8 @@ export function createLocalTrainingIntents({ client, owner, progression, approve
         const spec = action(saved.input, saved.state);
         if (encodeFunctionData({ abi: ABI, functionName: spec.functionName, args: spec.args }) !== saved.review.transaction.data
           || !eq(saved.review.transaction.to, progression) || saved.review.transaction.value !== '0x0'
+          || !/^0x(0|[1-9a-f][0-9a-f]{0,13})$/i.test(saved.review.transaction.nonce)
+          || BigInt(saved.review.transaction.nonce) > BigInt(Number.MAX_SAFE_INTEGER)
           || saved.digest !== fingerprint(saved.state)) throw Error('INVALID_RECOVERED_REVIEW');
         intents.set(saved.review.intentId, { ...saved, spec });
       }
@@ -71,6 +73,7 @@ export function createLocalTrainingIntents({ client, owner, progression, approve
   async function prepare(input) {
     refreshJournal();
     if (!input || ![1, 44, 7].includes(input.tokenId)) throw Error('INVALID_TEST_PUNK');
+    await auditRecordedReceipts(input.tokenId);
     if ([...intents.values()].some(entry => entry.input.tokenId === input.tokenId && unresolved(entry))) throw Error('TRAINING_TRANSACTION_UNRESOLVED');
     // Expired reviews can be discarded, but submitted hashes are retained for this process.
     if (!journal) for (const [id, entry] of intents) if (entry.status === 'PREPARED' && entry.expiresAt < now()) intents.delete(id);
@@ -80,14 +83,15 @@ export function createLocalTrainingIntents({ client, owner, progression, approve
     const call = { address: progression, abi: ABI, functionName: spec.functionName, args: spec.args, account: owner };
     await client.simulateContract(call);
     const data = encodeFunctionData(call);
-    const [estimate, gasPrice] = await Promise.all([client.estimateGas({ account: owner, to: progression, data, value: 0n }), client.getGasPrice()]);
+    const [estimate, gasPrice, nonce] = await Promise.all([client.estimateGas({ account: owner, to: progression, data, value: 0n }), client.getGasPrice(),
+      client.getTransactionCount({ address: owner, blockTag: 'pending' })]);
     const gas = (estimate * 120n + 99n) / 100n;
-    if (gas > 500_000n || gasPrice <= 0n) throw Error('LOCAL_GAS_BOUND_EXCEEDED');
+    if (gas > 500_000n || gasPrice <= 0n || !Number.isSafeInteger(nonce) || nonce < 0) throw Error('LOCAL_GAS_OR_NONCE_BOUND_EXCEEDED');
     const latest = await stateFor(input.tokenId);
     if (fingerprint(latest) !== fingerprint(state)) throw Error('STATE_CHANGED_DURING_PREPARATION');
     const intentId = randomBytes(32).toString('hex'), createdAt = now(), expiresAt = createdAt + lifetimeMs;
     const transaction = Object.freeze({ from: owner, to: progression, data, value: '0x0', chainId: '0x7a69',
-      gas: `0x${gas.toString(16)}`, gasPrice: `0x${gasPrice.toString(16)}` });
+      gas: `0x${gas.toString(16)}`, gasPrice: `0x${gasPrice.toString(16)}`, nonce: `0x${nonce.toString(16)}` });
     const review = Object.freeze({ intentId, localOnly: true, chainId: 31337, tokenId: input.tokenId,
       owner, progression, operation: input.operation, skillKey: input.key ?? null, slot: input.slot ?? null,
       creditCost: ['learn', 'unlock'].includes(input.operation) ? 1 : 0,
@@ -104,11 +108,9 @@ export function createLocalTrainingIntents({ client, owner, progression, approve
     catch { entry.status = 'SUBMITTED'; return outcome(entry); }
     const transaction = await client.getTransaction({ hash: entry.transactionHash });
     const canonical = await client.getBlock({ blockNumber: receipt.blockNumber });
+    verifyTransaction(entry, transaction, entry.transactionHash);
     if (!['success', 'reverted'].includes(receipt.status) || !eq(receipt.transactionHash, entry.transactionHash)
-      || !eq(canonical.hash, receipt.blockHash) || !eq(transaction.from, owner) || !eq(transaction.to, progression)
-      || transaction.input !== entry.review.transaction.data || transaction.value !== 0n
-      || typeof transaction.gas !== 'bigint' || typeof transaction.gasPrice !== 'bigint'
-      || transaction.gas > BigInt(entry.review.transaction.gas) || transaction.gasPrice > BigInt(entry.review.transaction.gasPrice)
+      || !eq(canonical.hash, receipt.blockHash)
       || typeof receipt.gasUsed !== 'bigint' || typeof receipt.effectiveGasPrice !== 'bigint'
       || receipt.gasUsed <= 0n || receipt.effectiveGasPrice <= 0n
       || receipt.gasUsed * receipt.effectiveGasPrice > BigInt(entry.review.maximumNetworkFeeWei)) throw Error('UNVERIFIED_TRAINING_RECEIPT');
@@ -128,6 +130,14 @@ export function createLocalTrainingIntents({ client, owner, progression, approve
     entry.status = 'CONFIRMED'; entry.blockHash = receipt.blockHash;
     return outcome(entry);
   }
+  function verifyTransaction(entry, transaction, hash) {
+    if (!eq(transaction.hash, hash) || !eq(transaction.from, owner) || !eq(transaction.to, progression)
+      || transaction.input !== entry.review.transaction.data || transaction.value !== 0n
+      || !Number.isSafeInteger(transaction.nonce) || BigInt(transaction.nonce) !== BigInt(entry.review.transaction.nonce)
+      || typeof transaction.gas !== 'bigint' || typeof transaction.gasPrice !== 'bigint'
+      || transaction.gas <= 0n || transaction.gasPrice <= 0n
+      || transaction.gas > BigInt(entry.review.transaction.gas) || transaction.gasPrice > BigInt(entry.review.transaction.gasPrice)) throw Error('UNVERIFIED_TRAINING_TRANSACTION');
+  }
   async function outcome(entry, status = entry.status) {
     if (!entry.busy || status === entry.status) persist(entry);
     let snapshot = null;
@@ -137,10 +147,16 @@ export function createLocalTrainingIntents({ client, owner, progression, approve
   }
   async function confirm(intentId) {
     refreshJournal();
-    const entry = intents.get(intentId); if (!entry) throw Error('UNKNOWN_TRAINING_REVIEW');
+    let entry = intents.get(intentId); if (!entry) throw Error('UNKNOWN_TRAINING_REVIEW');
     if (entry.busy) return outcome(entry, entry.transactionHash ? 'SUBMITTED' : 'AWAITING_WALLET');
     // Preserve ambiguity/rejection on retries; never turn UNKNOWN into a fresh review.
     if (!entry.transactionHash && entry.status !== 'PREPARED') return outcome(entry);
+    if (!entry.transactionHash) {
+      await auditRecordedReceipts(entry.input.tokenId);
+      entry = intents.get(intentId);
+      if (entry.busy) return outcome(entry, entry.transactionHash ? 'SUBMITTED' : 'AWAITING_WALLET');
+      if (!entry.transactionHash && entry.status !== 'PREPARED') return outcome(entry);
+    }
     if ([...intents.values()].some(other => other !== entry && other.input.tokenId === entry.input.tokenId && unresolved(other))) throw Error('TRAINING_TRANSACTION_UNRESOLVED');
     entry.busy = true;
     try {
@@ -154,6 +170,7 @@ export function createLocalTrainingIntents({ client, owner, progression, approve
       await client.simulateContract({ address: progression, abi: ABI, functionName: entry.spec.functionName, args: entry.spec.args, account: owner });
       if (now() > entry.expiresAt) throw Error('TRAINING_REVIEW_EXPIRED');
       await guard();
+      if (BigInt(await client.getTransactionCount({ address: owner, blockTag: 'pending' })) !== BigInt(entry.review.transaction.nonce)) throw Error('TRAINING_NONCE_CHANGED');
       entry.status = 'AWAITING_WALLET';
       persist(entry); // Must reach durable storage BEFORE any request that could broadcast.
       // Send exactly the reviewed zero-value transaction, not caller-supplied calldata.
@@ -167,7 +184,8 @@ export function createLocalTrainingIntents({ client, owner, progression, approve
         intentId, transactionHash: entry.transactionHash, snapshot: null };
       if (entry.transactionHash) { entry.status = 'SUBMITTED'; return outcome(entry); }
       // A signer/RPC failure without a hash can be ambiguous. Never retry this review.
-      entry.status = entry.status === 'AWAITING_WALLET' ? (error.code === 4001 ? 'REJECTED' : 'SUBMISSION_UNKNOWN') : 'INVALIDATED';
+      entry.status = entry.status === 'AWAITING_WALLET' && error.noTransactionRequested !== true
+        ? (error.code === 4001 ? 'REJECTED' : 'SUBMISSION_UNKNOWN') : 'INVALIDATED';
       return outcome(entry);
     } finally { entry.busy = false; }
   }
@@ -184,10 +202,40 @@ export function createLocalTrainingIntents({ client, owner, progression, approve
   }
   async function recover(tokenId) {
     refreshJournal(); await stateFor(tokenId);
+    await auditRecordedReceipts(tokenId);
     return [...intents.values()].filter(entry => entry.input.tokenId === tokenId
       && (unresolved(entry) || entry.transactionHash)).map(entry => ({ intentId: entry.review.intentId,
       tokenId, owner, progression, chainId: 31337, status: entry.status, transactionHash: entry.transactionHash,
       recoveryOnly: true }));
   }
-  return Object.freeze({ prepare, confirm, status, recover });
+  async function recoverHash(intentId, transactionHash) {
+    refreshJournal(); await guard();
+    if (!/^0x[0-9a-f]{64}$/i.test(transactionHash)) throw Error('INVALID_RECOVERY_HASH');
+    const entry = intents.get(intentId); if (!entry) throw Error('UNKNOWN_TRAINING_REVIEW');
+    await stateFor(entry.input.tokenId);
+    if (entry.busy) throw Error('TRAINING_REQUEST_IN_PROGRESS');
+    if (entry.transactionHash) {
+      if (!eq(entry.transactionHash, transactionHash)) throw Error('RECOVERY_HASH_ALREADY_BOUND');
+      return status(intentId);
+    }
+    if (!['CHECKING', 'AWAITING_WALLET', 'SUBMISSION_UNKNOWN'].includes(entry.status)) throw Error('TRAINING_RECOVERY_NOT_REQUIRED');
+    entry.busy = true;
+    try {
+      // Read only: a matching nonce binds this intent, not an older identical training
+      // transaction. No signer, nonce lookup fallback, replacement or broadcast here.
+      verifyTransaction(entry, await client.getTransaction({ hash: transactionHash }), transactionHash);
+      entry.transactionHash = transactionHash; entry.status = 'SUBMITTED'; persist(entry);
+      try { return await reconcile(entry); }
+      catch { entry.status = 'SUBMITTED'; return outcome(entry); }
+    } finally { entry.busy = false; }
+  }
+  async function auditRecordedReceipts(tokenId) {
+    // Local-only reconciliation: confirmed is not finalized. A disappeared receipt
+    // must relock training on reload or before a new send, not silently stay complete.
+    for (const entry of [...intents.values()]) {
+      if (entry.input.tokenId === tokenId && entry.transactionHash && !entry.busy) await status(entry.review.intentId);
+    }
+    refreshJournal();
+  }
+  return Object.freeze({ prepare, confirm, status, recover, recoverHash });
 }

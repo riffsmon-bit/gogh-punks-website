@@ -14,3 +14,6 @@
 .forge-training-confirm::backdrop{background:#000c}
 [data-v2-panel=forge]>h3{margin:28px 0 18px}
 @media(max-width:600px){.forge-slots{grid-template-columns:repeat(2,minmax(0,1fr))}.forge-training-tools{padding:12px}}
+.forge-training-recovery { padding: 16px; border: 1px solid #ff6b2c; margin: 12px 0; }
+.forge-training-recovery[hidden] { display: none; }
+.forge-training-recovery input { display: block; box-sizing: border-box; width: 100%; min-height: 44px; margin: 10px 0; background: #080d11; color: #f4f4ed; border: 1px solid #596878; padding: 10px; }

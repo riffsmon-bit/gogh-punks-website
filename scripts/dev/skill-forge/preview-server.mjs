@@ -165,18 +165,22 @@ export async function startPreview({ port = 0, researchClient, controlCenterTrai
     };
     const trainingWallet = createTrainingWalletAdapter({ provider: { request: args => client.request(args) }, readSnapshot: snapshot });
     const journalDirectory = await mkdtemp(join(tmpdir(), 'gogh-training-journal-'));
-    const journalOptions = { path: join(journalDirectory, 'intents.sqlite'), deploymentIdentity: manifestHash({ chainId: 31337,
+    const journalOptions = { path: join(journalDirectory, 'intents.sqlite'), deploymentIdentity: manifestHash({ trainingReviewVersion: 2, chainId: 31337,
       genesis: (await client.getBlock({ blockNumber: 0n })).hash, collection, registry, progression, owner,
       registryCode: keccak256(await client.getCode({ address: registry })), progressionCode: keccak256(await client.getCode({ address: progression })) }).slice(2) };
     journal = openTrainingJournal(journalOptions);
-    let receiptsVisible = true;
+    let receiptsVisible = true, loseSubmissionHash = false;
     const trainingClient = { ...client, getTransactionReceipt: args => {
       if (!receiptsVisible) throw Error('TEST_RECEIPT_VISIBILITY_DELAY');
       return client.getTransactionReceipt(args);
     } };
     const makeCoordinator = () => createLocalTrainingIntents({ client: trainingClient, owner, progression, readSnapshot: snapshot, journal,
       approvedKeys: skills.filter(s => [2, 3, 4].includes(s.id)).map(s => s.key),
-      sendTransaction: async (_transaction, context) => (await trainingWallet.submit(context)).transactionHash });
+      sendTransaction: async (_transaction, context) => {
+        const { transactionHash } = await trainingWallet.submit(context);
+        if (loseSubmissionHash) { loseSubmissionHash = false; throw Error('TEST_HASH_RESPONSE_LOST'); }
+        return transactionHash;
+      } });
     let trainingIntents = makeCoordinator();
     const files = new Map([
       ['/control-center', ['control-center.html', 'text/html']],
@@ -197,7 +201,7 @@ export async function startPreview({ port = 0, researchClient, controlCenterTrai
       res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
       const expectedHost = `127.0.0.1:${server.address().port}`;
       if (req.headers.host !== expectedHost || (req.headers.origin && req.headers.origin !== `http://${expectedHost}`)) { res.writeHead(403); return res.end('Local preview only'); }
-      if (req.method === 'POST' && ['/api/local-training/prepare', '/api/local-training/confirm', '/api/local-training/status', '/api/local-training/recover'].includes(req.url)) {
+      if (req.method === 'POST' && ['/api/local-training/prepare', '/api/local-training/confirm', '/api/local-training/status', '/api/local-training/recover', '/api/local-training/recover-hash'].includes(req.url)) {
         if (req.headers.origin !== `http://${expectedHost}` || req.headers['x-forge-nonce'] !== localTrainingNonce
           || req.headers['content-type'] !== 'application/json') { res.writeHead(403); return res.end('Local confirmation required'); }
         try {
@@ -210,6 +214,11 @@ export async function startPreview({ port = 0, researchClient, controlCenterTrai
             if (!input || Array.isArray(input) || Object.keys(input).length !== 1 || ![1, 44, 7].includes(input.tokenId)) throw Error('INVALID_RECOVERY');
             result = { localOnly: true, chainId: 31337, productionAuthority: false, tokenId: input.tokenId,
               owner, progression, records: await trainingIntents.recover(input.tokenId) };
+          }
+          else if (req.url.endsWith('/recover-hash')) {
+            if (!input || Array.isArray(input) || Object.keys(input).sort().join(',') !== 'intentId,transactionHash'
+              || !/^[0-9a-f]{64}$/.test(input.intentId)) throw Error('INVALID_RECOVERY');
+            result = await trainingIntents.recoverHash(input.intentId, input.transactionHash);
           }
           else {
             if (!input || Array.isArray(input) || Object.keys(input).length !== 1 || !/^[0-9a-f]{64}$/.test(input.intentId)) throw Error('INVALID_REVIEW');
@@ -295,6 +304,7 @@ export async function startPreview({ port = 0, researchClient, controlCenterTrai
       reopenCoordinator: () => { journal.close(); journal = openTrainingJournal(journalOptions); trainingIntents = makeCoordinator(); },
       journalPath: journalOptions.path,
       setReceiptVisibility: visible => { receiptsVisible = visible === true; },
+      loseNextSubmissionHash: () => { loseSubmissionHash = true; },
       roundTripFixture: async tokenId => {
         if (![1, 44, 7].includes(tokenId)) throw Error('INVALID_FIXTURE');
         const [, secondOwner] = await client.request({ method: 'eth_accounts' });
