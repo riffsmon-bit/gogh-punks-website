@@ -127,6 +127,12 @@ function selectedAgentAccount() {
 }
 
 function blockerLabel(value) {
+  const continuity = {
+    OWNERSHIP_CHANGED_SINCE_AUTHORIZATION: "Punk transferred since approval. Worker paused; review and authorize a new mission",
+    OWNERSHIP_HISTORY_WINDOW_EXCEEDED: "Ownership-history check limit reached. Worker paused; fresh mission approval is required",
+    OWNERSHIP_CONTINUITY_UNVERIFIED: "Ownership history could not be verified. This worker check did not submit a transaction",
+  };
+  if (Object.hasOwn(continuity, value)) return continuity[value];
   return String(value ?? "NOT_READY").replaceAll("_", " ");
 }
 

@@ -58,6 +58,7 @@ function missionFromRow(row, now) {
   const strategy = normalizePunkCollectingIntent(row.intent, now);
   return Object.freeze({ sessionId: row.session_id, tokenId: String(row.punk_token_id),
     account: row.punk_account, owner: row.owner_snapshot,
+    authorizationTransactionHash: row.authorization_transaction_hash,
     sessionGeneration: String(row.session_generation), strategyVersion: Number(row.strategy_version),
     strategyHash: row.strategy_hash, strategy });
 }
@@ -65,7 +66,7 @@ function missionFromRow(row, now) {
 async function loadMission(pool, now) {
   const result = await pool.query(`SELECT session.session_id::text, session.punk_token_id,
       session.punk_account, session.owner_snapshot, session.session_generation,
-      session.strategy_version, session.strategy_hash, strategy.intent
+      session.strategy_version, session.strategy_hash, session.authorization_transaction_hash, strategy.intent
     FROM broker_v2_agent_sessions session
     JOIN broker_v2_strategies strategy ON strategy.chain_id = session.chain_id
       AND strategy.collection_address = session.collection_address
@@ -391,7 +392,9 @@ export async function runScheduledPunkAgentWorker({
       // Rotate even when no mint matches so one Punk cannot monopolize the queue.
       await pool.query(`UPDATE broker_v2_agent_sessions SET updated_at = $1
         WHERE session_id = $2`, [new Date(now).toISOString(), selectedMission.sessionId]);
-      if (run.status === "SESSION_STATE_MISMATCH") {
+      if (["SESSION_STATE_MISMATCH", "OWNER_CHANGED", "SESSION_KEY_MISMATCH",
+        "OWNERSHIP_CHANGED_SINCE_AUTHORIZATION", "OWNERSHIP_HISTORY_WINDOW_EXCEEDED",
+        "OWNERSHIP_CONTINUITY_UNVERIFIED"].includes(run.status)) {
         await recordWorkerActivity(pool, run.tokenId, "AGENT_CHECK_FAILED", {
           code: run.status, transactionSubmitted: false,
         }, now);

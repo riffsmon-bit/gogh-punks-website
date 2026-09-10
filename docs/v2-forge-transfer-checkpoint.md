@@ -1,5 +1,7 @@
 # Forge ownership-transfer checkpoint — September 9, 2026
 
+Follow-up: [worker ownership-continuity mitigation](./punk-agent-ownership-continuity.md) is implemented and locally tested, not deployed. It reduces worker-side exposure but does NOT fix the already-signed-operation contract gap described below.
+
 Scope: disposable Anvil fixtures and Foundry's in-memory EVM only. No production RPC transaction, deployment, NFT transfer, burn, wallet signature or change to Punk #93. The owner's running practice preview is not used for these mutations.
 
 ## Progression lifecycle

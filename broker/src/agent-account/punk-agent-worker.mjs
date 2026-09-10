@@ -3,6 +3,7 @@ import {
   prepareSignedPunkAgentMint,
 } from "./punk-agent-mint-operation.mjs";
 import { punkAgentAccountReadiness } from "./punk-agent-account-manifest.mjs";
+import { verifyPunkAgentOwnershipContinuity } from "./punk-agent-ownership-continuity.mjs";
 import {
   readPunkAgentAccountRuntime,
   readPunkAgentBundlerReadiness,
@@ -40,9 +41,22 @@ export async function runPunkAgentMissionOnce({
   await readPunkAgentBundlerReadiness({ bundler });
   const mission = await loadMission({ now });
   if (!mission) return Object.freeze({ status: "IDLE", submitted: false });
-  const runtime = await readPunkAgentAccountRuntime({ client, deployment,
-    tokenId: mission.tokenId, expectedOwner: mission.owner,
-    expectedSessionKey: signer.address });
+  const blocked = async (error, reservation = null) => {
+    const code = ["OWNER_CHANGED", "OWNERSHIP_CHANGED_SINCE_AUTHORIZATION",
+      "OWNERSHIP_HISTORY_WINDOW_EXCEEDED", "SESSION_STATE_MISMATCH", "SESSION_KEY_MISMATCH"].includes(error?.code)
+      ? error.code : "OWNERSHIP_CONTINUITY_UNVERIFIED";
+    await markFailed({ mission, reservation, code,
+      terminal: ["OWNER_CHANGED", "OWNERSHIP_CHANGED_SINCE_AUTHORIZATION",
+        "OWNERSHIP_HISTORY_WINDOW_EXCEEDED", "SESSION_STATE_MISMATCH", "SESSION_KEY_MISMATCH"].includes(code), now });
+    return Object.freeze({ status: code, submitted: false, tokenId: mission.tokenId });
+  };
+  let runtime;
+  try {
+    runtime = await readPunkAgentAccountRuntime({ client, deployment,
+      tokenId: mission.tokenId, expectedOwner: mission.owner,
+      expectedSessionKey: signer.address });
+    await verifyPunkAgentOwnershipContinuity({ client, mission, runtime });
+  } catch (error) { return blocked(error); }
   if (!runtime.sessionActive || runtime.session.generation !== BigInt(mission.sessionGeneration)
     || runtime.account !== mission.account || mission.strategy.operatingMode !== "AUTONOMOUS") {
     await markFailed({ mission, code: "SESSION_STATE_MISMATCH", terminal: true, now });
@@ -59,6 +73,9 @@ export async function runPunkAgentMissionOnce({
     fail("STALE_EXECUTION_EVIDENCE", "candidate evidence is not fresh enough to sign");
   }
   const entryPointNonce = await readPunkAgentEntryPointNonce({ client, account: runtime.account });
+  // Candidate inspection can be slow. Recheck before the signer sees an operation.
+  try { await verifyPunkAgentOwnershipContinuity({ client, mission, runtime }); }
+  catch (error) { return blocked(error); }
   const prepared = await prepareSignedPunkAgentMint({ client, signer, runtime,
     opportunity: candidate.opportunity, strategyHash: mission.strategyHash,
     tokenId: candidate.tokenId, simulationInputHash: candidate.simulationInputHash,
@@ -68,6 +85,9 @@ export async function runPunkAgentMissionOnce({
   const reservation = await reserveOperation({ mission, runtime, candidate, prepared,
     gasEstimate, now });
   if (!reservation?.operationId) fail("RESERVATION_FAILED", "UserOperation was not reserved");
+  // Estimation/reservation is another race window. No submit after a detected transfer.
+  try { await verifyPunkAgentOwnershipContinuity({ client, mission, runtime }); }
+  catch (error) { return blocked(error, reservation); }
   try {
     const submitted = await submitPunkAgentUserOperation({ bundler,
       operation: prepared.operation, authorization: { ownerSessionActive: true,

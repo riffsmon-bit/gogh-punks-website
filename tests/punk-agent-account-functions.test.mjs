@@ -216,6 +216,7 @@ test("a no-match scan rotates the mission; failed scans record a public reason a
       if (sql.includes("SELECT session.session_id::text")) return { rows: [{
         session_id: "session-93", punk_token_id: 93, punk_account: PUNK_WALLET,
         owner_snapshot: OWNER, session_generation: "1", strategy_version: 1,
+        authorization_transaction_hash: `0x${"cd".repeat(32)}`,
         strategy_hash: `0x${"ab".repeat(32)}`, intent: defaultAskIntent({
           punkTokenId: "93", expectedOwner: OWNER, punkWallet: PUNK_WALLET,
         }, NOW),
@@ -230,6 +231,7 @@ test("a no-match scan rotates the mission; failed scans record a public reason a
       runMission: async ({ loadMission }) => {
         const mission = await loadMission();
         assert.equal(mission.tokenId, "93");
+        assert.equal(mission.authorizationTransactionHash, `0x${"cd".repeat(32)}`);
         if (failure) throw Object.assign(new Error("private RPC response"), { code: "RPC_UNAVAILABLE" });
         return { status: "NO_ELIGIBLE_MATCH", tokenId: "93", submitted: false };
       },
@@ -244,3 +246,35 @@ test("a no-match scan rotates the mission; failed scans record a public reason a
     assert.equal(released, true);
   }
 });
+
+for (const code of ["OWNERSHIP_CHANGED_SINCE_AUTHORIZATION", "OWNERSHIP_HISTORY_WINDOW_EXCEEDED", "OWNERSHIP_CONTINUITY_UNVERIFIED"]) {
+  test(`scheduled worker records ${code} and persists the appropriate pause`, async () => {
+    const writes = [], terminal = code !== "OWNERSHIP_CONTINUITY_UNVERIFIED";
+    const pool = { async query(sql, args = []) {
+      writes.push({ sql, args });
+      if (sql.includes("SELECT session.session_id::text")) return { rows: [{
+        session_id: "session-93", punk_token_id: 93, punk_account: PUNK_WALLET,
+        owner_snapshot: OWNER, session_generation: "1", strategy_version: 1,
+        authorization_transaction_hash: `0x${"cd".repeat(32)}`, strategy_hash: `0x${"ab".repeat(32)}`,
+        intent: defaultAskIntent({ punkTokenId: "93", expectedOwner: OWNER, punkWallet: PUNK_WALLET }, NOW),
+      }] };
+      return { rows: [] };
+    }, async connect() { return { async query(sql) {
+      return { rows: sql.includes("pg_try_advisory_lock") ? [{ acquired: true }] : [] };
+    }, release() {} }; } };
+    const result = await runScheduledPunkAgentWorker({ pool, now: NOW, manifest: deployment,
+      environment: { PUNK_AGENT_WORKER_ENABLED: "true" }, bundler: {}, signer: {},
+      client: { async getGasPrice() { return 1n; } },
+      runMission: async ({ loadMission, markFailed }) => {
+        const mission = await loadMission();
+        assert.equal(mission.authorizationTransactionHash, `0x${"cd".repeat(32)}`);
+        await markFailed({ mission, code, terminal, now: NOW });
+        return { status: code, tokenId: "93", submitted: false };
+      } });
+    assert.equal(result.status, code);
+    assert.equal(writes.some(({ sql }) => sql.includes("SET status = 'PAUSED'")), terminal);
+    const activity = writes.find(({ sql }) => sql.includes("INSERT INTO broker_v2_activity"));
+    assert.equal(activity.args[2], "AGENT_CHECK_FAILED");
+    assert.deepEqual(JSON.parse(activity.args[3]), { code, transactionSubmitted: false });
+  });
+}
