@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { V1_SHUTDOWN_AT_MS } from '../netlify/functions/_shared/broker-migration-state.mjs';
+const historicalClock = () => V1_SHUTDOWN_AT_MS - 60_000;
 
 import {
   automationV3PunkEnrollment, enrollAutomationV3Punk,
@@ -305,7 +307,7 @@ test("active Punk enrollment is idempotent and contains no signing authority", a
     tokenId: "1639", created: true, active: true,
     account: `0x${"A".repeat(40)}`, owner: `0x${"B".repeat(40)}`,
   };
-  const enrolled = await enrollAutomationV3Punk(punk, { database: {
+  const enrolled = await enrollAutomationV3Punk(punk, { now: historicalClock, database: {
     async query(sql, values) {
       calls.push({ sql, values });
       return { rows: [{ agent_address: values[4], agent_lane: values[5] }] };
@@ -319,7 +321,7 @@ test("active Punk enrollment is idempotent and contains no signing authority", a
   assert.doesNotMatch(calls[0].sql,
     /owner_snapshot = EXCLUDED\.owner_snapshot,\s*agent_address = EXCLUDED\.agent_address/);
   await assert.rejects(
-    () => enrollAutomationV3Punk({ ...punk, active: false }), /not active/,
+    () => enrollAutomationV3Punk({ ...punk, active: false }, { now: historicalClock }), /not active/,
   );
 });
 
@@ -330,6 +332,7 @@ test("V3 enrollment refuses to rewrite a sticky signer assignment", async () => 
   };
   let calls = 0;
   await assert.rejects(() => enrollAutomationV3Punk(punk, {
+    now: historicalClock,
     agentAddress: `0x${"c".repeat(40)}`, agentLane: 3,
     database: { async query() {
       calls += 1;
