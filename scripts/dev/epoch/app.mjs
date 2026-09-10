@@ -1,9 +1,13 @@
+import { createEpochControl } from '/broker-v2-epoch.js';
 const notice = document.querySelector('#notice');
+let selectedOwner = null;
 const request = async (path, options) => {
   const response = await fetch(path, options); const result = await response.json();
   if (!response.ok) throw Error(result.error); return result;
 };
 function render(state) {
+  selectedOwner = state.owner;
+  epochControl.invalidate();
   const stats = document.querySelector('#stats'); stats.replaceChildren();
   const owner = state.owner === state.alice ? 'ALICE' : state.owner === state.bob ? 'BOB' : state.owner;
   for (const [label, value] of [['OWNER', owner], ['RECEIPT', state.wrapped ? 'WRAPPED' : 'UNWRAPPED'], ['EPOCH', state.epoch],
@@ -15,6 +19,11 @@ function render(state) {
   const history = document.querySelector('#history'); history.replaceChildren();
   for (const row of state.history) { const li = document.createElement('li'); li.textContent = `${row.label} · block ${row.block} · ${row.hash}`; history.append(li); }
 }
+const epochControl = createEpochControl(document.querySelector('[data-epoch-control]'), {
+  getOwner: () => selectedOwner,
+  readRoster: () => request('/epoch/roster'),
+  readProfile: id => request(`/epoch/punks/${id}`),
+});
 const refresh = async () => render(await request('/state'));
 document.querySelector('#refresh').addEventListener('click', () => refresh().catch(error => { notice.textContent = error.message; notice.dataset.error = true; }));
 for (const button of document.querySelectorAll('[data-action]')) button.addEventListener('click', async () => {

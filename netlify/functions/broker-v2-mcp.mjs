@@ -23,7 +23,8 @@ function v2McpDependencies(pool, principal) {
     const result = await pool.query(`SELECT version, intent_hash, intent, state, expires_at
       FROM broker_v2_strategies WHERE chain_id = $1 AND collection_address = $2
         AND token_id = $3::numeric AND state IN ('ACTIVE', 'PAUSED')
-      ORDER BY version DESC LIMIT 1`, [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, tokenId]);
+        AND configured_by = $4 AND intent->>'expectedOwner' = $4
+      ORDER BY version DESC LIMIT 1`, [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, tokenId, principal.walletAddress]);
     return result.rows[0] ?? null;
   };
   return {
@@ -126,8 +127,9 @@ function v2McpDependencies(pool, principal) {
     },
     prepare_strategy_update: async (tokenId, intentHash) => {
       const row = await pool.query(`SELECT intent FROM broker_v2_strategies WHERE chain_id = $1
-        AND collection_address = $2 AND token_id = $3::numeric AND intent_hash = $4`,
-      [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, tokenId, intentHash]);
+        AND collection_address = $2 AND token_id = $3::numeric AND intent_hash = $4
+        AND configured_by = $5 AND intent->>'expectedOwner' = $5`,
+      [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, tokenId, intentHash, principal.walletAddress]);
       return { tokenId, intentHash, available: Boolean(row.rows[0]),
         activationApi: `/api/v2/punks/${tokenId}/strategy`, activated: false };
     },

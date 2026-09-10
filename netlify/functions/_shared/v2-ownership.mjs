@@ -1,4 +1,4 @@
-import { createPublicClient, defineChain, http, parseAbi } from "viem";
+import { createPublicClient, defineChain, http, parseAbi, parseAbiItem } from "viem";
 import { ROBINHOOD } from "../../../broker/src/config.mjs";
 import automationManifest from "../../../deployments/robinhood-automation-v3.json" with { type: "json" };
 import { PublicError } from "./http.mjs";
@@ -26,7 +26,7 @@ export async function readV2PunkAuthority(tokenId, { expectedOwner = null,
   }
   const normalizedExpected = expectedOwner === null ? null : normalizeWalletAddress(expectedOwner);
   if (expectedOwner !== null && !normalizedExpected) throw new PublicError(400, "INVALID_WALLET", "Choose a valid wallet.");
-  const blockNumber = await client.getBlockNumber();
+  const blockNumber = await client.getBlockNumber({ cacheTime: 0 });
   const [ownerValue, accountValue, createdValue] = await Promise.all([
     client.readContract({ address: ROBINHOOD.canonicalCollection, abi: OWNER_ABI,
       functionName: "ownerOf", args: [BigInt(tokenId)], blockNumber }),
@@ -53,4 +53,34 @@ export async function readV2PunkAuthority(tokenId, { expectedOwner = null,
   return Object.freeze({ chainId: ROBINHOOD.chainId,
     collection: ROBINHOOD.canonicalCollection, tokenId, owner, punkWallet, activated,
     blockNumber: blockNumber.toString(), nativeBalanceWei: nativeBalance.toString() });
+}
+
+// Legacy chat stays bound to ORIGINAL ownership, not wrapper receipt ownership.
+// Epoch profiles have a separate API; this does not expand legacy wallet authority.
+export async function readV2ChatAuthority(tokenId, { client = rpcClient(), ...options } = {}) {
+  const result = await readV2PunkAuthority(tokenId, { ...options, client });
+  const block = await client.getBlock({ blockNumber: BigInt(result.blockNumber) });
+  if (!/^0x[0-9a-f]{64}$/i.test(block?.hash ?? '') || String(block.number) !== result.blockNumber) {
+    throw new PublicError(503, 'OWNERSHIP_UNAVAILABLE', 'Ownership snapshot could not be verified.');
+  }
+  return { ...result, blockHash: block.hash };
+}
+
+export async function assertV2ChatAuthorityUnchanged(before, { client = rpcClient(), registry } = {}) {
+  const after = await readV2ChatAuthority(before.tokenId, { expectedOwner: before.owner, client, ...(registry ? { registry } : {}) });
+  const from = BigInt(before.blockNumber), to = BigInt(after.blockNumber);
+  const changed = () => { throw new PublicError(409, 'CHAT_AUTHORITY_CHANGED',
+    'Punk ownership changed while answering. Refresh and send a new message. No draft was saved.'); };
+  if (to < from || to - from > 1000n || after.punkWallet !== before.punkWallet) changed();
+  const canonicalBefore = await client.getBlock({ blockNumber: from });
+  if (canonicalBefore.hash !== before.blockHash) changed();
+  const event = parseAbiItem('event Transfer(address indexed from,address indexed to,uint256 indexed tokenId)');
+  // Include both boundary blocks conservatively. A transfer away AND BACK must
+  // invalidate an in-flight answer even when ownerOf returns the same address.
+  const logs = await client.getLogs({ address: ROBINHOOD.canonicalCollection, event,
+    args: { tokenId: BigInt(before.tokenId) }, fromBlock: from, toBlock: to, strict: true });
+  if (!Array.isArray(logs) || logs.length !== 0) changed();
+  const canonicalAfter = await client.getBlock({ blockNumber: to });
+  if (canonicalAfter.hash !== after.blockHash) changed();
+  return after;
 }

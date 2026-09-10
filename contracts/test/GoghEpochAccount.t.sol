@@ -117,6 +117,29 @@ contract GoghEpochAccountTest {
     bytes32 private hunter;
     bytes32 private rarityLeaf;
 
+    function testReceiptEnumerationFollowsTransfersAndRedemption() public {
+        require(wrapper.supportsInterface(0x780e9d63), "enumeration interface");
+        require(wrapper.totalSupply() == 1 && wrapper.balanceOf(alice) == 1);
+        require(wrapper.tokenOfOwnerByIndex(alice, 0) == ID && wrapper.tokenByIndex(0) == ID);
+        vm.startPrank(alice);
+        wrapper.transferFrom(alice, alice, ID);
+        require(wrapper.tokenOfOwnerByIndex(alice, 0) == ID && wrapper.balanceOf(alice) == 1);
+        wrapper.safeTransferFrom(alice, bob, ID);
+        vm.stopPrank();
+        require(wrapper.balanceOf(alice) == 0 && wrapper.balanceOf(bob) == 1);
+        require(wrapper.tokenOfOwnerByIndex(bob, 0) == ID && wrapper.totalSupply() == 1);
+        vm.prank(bob);
+        wrapper.unwrap(ID);
+        require(wrapper.totalSupply() == 0 && wrapper.balanceOf(bob) == 0);
+        require(punks.ownerOf(ID) == bob && epochs.epoch(ID) == 4);
+        vm.startPrank(bob);
+        punks.approve(address(wrapper), ID);
+        wrapper.wrap(ID);
+        vm.stopPrank();
+        require(wrapper.totalSupply() == 1 && wrapper.tokenOfOwnerByIndex(bob, 0) == ID);
+        require(epochs.epoch(ID) == 5 && !account.isAutonomousSessionActive());
+    }
+
     function setUp() public {
         vm.chainId(4663);
         vm.warp(1_800_000_000);

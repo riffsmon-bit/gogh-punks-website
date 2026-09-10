@@ -15,7 +15,7 @@ the mint's external calls reverts the entire mint.
 
 | Component | Responsibility |
 | --- | --- |
-| `GoghPunkSessionWrapper` | Original-Punk escrow, receipt transfers, owner-only redemption, effective owner resolution |
+| `GoghPunkSessionWrapper` | Original-Punk escrow, enumerable receipt transfers, owner-only redemption, effective owner resolution |
 | `GoghOwnershipEpochRegistry` | Immutable wrapper-only epoch writer; guardian can pause execution but cannot move assets or reset epochs |
 | `GoghEpochAgentAccount` | Existing free-mint policy checks plus epoch, custody, emergency-generation and equipped-skill checks |
 | `GoghEpochAccountRegistry` | New deterministic ERC-6551 accounts bound to the original collection and token ID |
@@ -23,6 +23,7 @@ the mint's external calls reverts the entire mint.
 | Epoch ownership reader | Verifies code hashes, immutable links, escrow and receipt ownership at a single block |
 | Worker epoch guard | Checks a verified authorization receipt and `SessionEpochBound` against current on-chain state before signing and submission |
 | Local rehearsal | Real disposable contract transactions, skill gate, mock EntryPoint, transfer/replay and recovery controls |
+| Receipt profile API and shared UI | Code-pinned receipt roster, owner-authenticated permanent progression, read-only enrollment blockers; no legacy spending controls |
 
 The original collection and all existing accounts retain their current code.
 The new account's address differs because ERC-6551 includes the implementation
@@ -48,8 +49,8 @@ notified mutable ownership registry. No validator setting is changed here.
 
 ### Real collection fork: operator registration is required
 
-At block **59110516**, hash
-`0x41d44162516f85c23657cf81dd1e1f5efd6c540e44392461d6f143d943563381`,
+At the latest repeated fork test, block **59361127**, hash
+`0xf882472b299c1d6156d3be04215deb415cb4bfe2ea8075af975a5777eb4cf2d9`,
 the collection used validator `0xA000027A9B2802E1ddf7000061001e5c005A0000`,
 security level **3**, and operator list **0**. Its runtime hash was
 `0xc7dfe8ae4da5613f6406eab346f0808ee2322316f44d186136c830a71491366c`.
@@ -133,6 +134,61 @@ the legacy manifest schema.
 Setup requires up to four account transactions (approve, wrap, create, authorize),
 in addition to whatever learning/equipping the owner has selected.
 
+## Receipt roster, profile and owner privacy checkpoint
+
+The new wrapper implements OpenZeppelin ERC721Enumerable. This permits complete
+receipt-owner enumeration without relying on the legacy index or scanning every
+original ID. Receipt `totalSupply` counts **wrapped receipts**, not surviving
+Gogh Punks; it must never replace the original collection's supply/burn-floor data.
+Enumeration is tested through self-transfer, safe transfer, redemption and rewrap.
+
+`broker/src/agent-account/punk-epoch-profile.mjs` verifies the trusted deployment
+schema, chain, deployed runtime hashes and immutable factory/wrapper/registry/
+progression/account bindings. Reads are pinned to one block and the block hash
+is rechecked. Ordinary chain advancement does not fail a read-only snapshot;
+a reorg does. The result is explicitly block-stamped, never authorization for
+a later transaction. Receipt IDs are bounded, unique and cross-checked against
+original escrow custody. Malformed progression and duplicate equipment fail closed.
+
+`netlify/functions/broker-v2-epoch.mjs` exposes only GET endpoints:
+
+- `/api/v2/epoch/roster?owner=ADDRESS`: public receipt IDs and provenance, no chat,
+  strategies, credentials or private notes. An undeployed manifest returns an
+  explicit disabled roster without needing RPC or database access.
+- `/api/v2/epoch/punks/TOKEN_ID`: wallet-login authentication **and** live
+  receipt-owner verification. Returns token-bound credits, learned levels,
+  slots/equipment, epoch, new account identity and session state.
+
+All mutation methods are rejected. Caller-selected deployment addresses/chains
+are rejected. Failure returns unavailable, not invented zero balances. The
+enrollment checklist always remains locked even in the all-ready local fixture:
+complete legacy inventory, revocation/migration receipts and production enrollment
+are still unimplemented prerequisites. There is no calldata/signing/broadcast
+path in this API and no training credit grant.
+
+The reusable `site/broker-v2-epoch.js` component is attached below the V2 Control
+Center, separately from its legacy Punk picker and wallet actions. It is also
+served by the local epoch rehearsal against the same reader and real disposable
+contracts. It clears old results on owner/chain changes or errors and discards
+late responses from a previous selection. Profile login may request a wallet
+sign-in signature; it never requests a transaction signature. A receipt does
+not imply direct control of the old Punk Wallet. The original wallet address
+is never silently replaced with the new epoch account.
+
+Legacy chat, profile and MCP strategy reads now filter the authenticated owner
+and the strategy's `expectedOwner`. The chat parser also rejects another owner's
+intent as context. Before persisting a reply/draft, chat rechecks original
+ownership, wallet identity, canonical blocks and Transfer logs over its bounded
+request window. A transfer away and back invalidates that in-flight answer.
+Chat remains owner-private; token progression remains token-specific.
+
+This is **not** receipt-owner conversational enrollment: existing chat and legacy
+economic routes intentionally still require original ownership. A dedicated
+epoch-bound conversation/strategy lane, indexed owner transitions, transfer-epoch
+isolation for saved drafts, and production enrollment controls must be completed
+before setting `wrappedOwnerIntegrationReady`. The read-only view does not toggle
+that flag or pause/rewrite any existing user's mission.
+
 ## Run the reviewable local flow
 
 From the feature worktree:
@@ -141,9 +197,12 @@ From the feature worktree:
 forge test --offline --match-contract 'GoghEpochAccountTest|GoghPunkAgentAccountTest|GoghSkillForgeTest|GoghRaritySkillProgressionTest' --fuzz-runs 1024
 node --test tests/epoch-ownership.test.mjs tests/skill-forge-capability-resolver.test.mjs tests/punk-agent-ownership-continuity.test.mjs
 node scripts/test-epoch-local.mjs --local-only
+node scripts/test-epoch-profile.mjs --local-only
+node --test tests/punk-epoch-api.test.mjs tests/art-broker-v2-chat-authority.test.mjs
 node scripts/test-epoch-wrapper-fork.mjs --fork-read-only
 node scripts/test-epoch-entrypoint.mjs --read-only-infrastructure
 node scripts/dev/epoch/server.mjs --local-only
+node scripts/dev/epoch/test-browser.mjs --local-only
 ```
 
 The server prints its loopback URL. It starts its own disposable Anvil process,
@@ -171,8 +230,8 @@ and its SenderCreator runtime from Public Node at one pinned block. It installs
 them only in a new, disposable Anvil world. Original Punks, credits and mint
 contracts in this test are fixtures; it does not modify the other fork or the UI session.
 
-The latest test passed at source block **59116046**, hash
-`0xb1d59b5b8e45eb33ba2baab85f03c6e8acd164d42d173b45a3bf21feeaaca52c`.
+The latest test passed at source block **59361058**, hash
+`0x056fd01d9caf4cbe78783194fc0e58a2b8541bfdd20c65ffc91cda0d9a168ebe`.
 EntryPoint runtime hash:
 `0xa4b1c865a4a45b99ebaaf4bd06e0036ad489eb521786f59765e4e6a3c0524b03`.
 SenderCreator: `0x449ED7C3e6Fee6a97311d4b55475DF59C44AdD33`, runtime hash
@@ -183,7 +242,7 @@ existing `createPunkAgentDirectRelay` with strictly local client injection.
 Both `handleOps` UserOperations emitted successful canonical receipt events and
 the expected NFTs were owned by the new account. Native funds plus EntryPoint
 deposit plus charged gas reconciled exactly. The observed **local simulated** gas
-charge for two operations was 3,385,493,533,550 wei; this is **not a live fee quote**.
+charge for two operations was 3,399,153,932,815 wei; this is **not a live fee quote**.
 Stale round-trip sessions, old generations, duplicate operations and unequipped
 minting were rejected. EntryPoint v0.8's `validAfter` boundary is exclusive; the
 test mines beyond it instead of weakening the signed time window.
@@ -194,22 +253,47 @@ production training, relay availability, or current live configuration.
 
 ## Verification results
 
-- Foundry: **67 passed**, zero failed/skipped, including 26 new epoch-account
-  cases and fuzz runs of 1,024. Legacy account/Forge/rarity regression suites pass.
+- Full Foundry suite: **215 passed**, zero failed/skipped across 20 suites,
+  including 27 epoch-account cases and fuzz runs of 1,024.
   The legacy round-trip-gap characterization deliberately remains present;
   passing that test does **not** mean legacy deployed accounts have been repaired.
-- JavaScript account + Forge regression suites: **248 passed**, zero failed/skipped,
-  including the additional enrollment-gate regression.
+- Full JavaScript suite: **1,374 passed**, zero failed/skipped, using
+  `node --test --test-concurrency=2 tests/*.test.mjs broker/test/*.test.mjs`.
+  Targeted account/Forge/V2 and browser runs also passed; overlapping runs are
+  not counted twice.
+- The initial complete JavaScript run exposed 13 pre-existing legacy tests using
+  wall-clock time after the September 5 V1 retirement. Historical-path fixtures
+  now supply explicit pre-cutoff clocks (or a test-scoped Date mock where no clock
+  injection exists). All assertions remain; no retirement/worker production code
+  was relaxed. A new post-cutoff regression checks six retired entrypoints and
+  proves they cannot touch databases, discovery, enrollment or execution.
+- Actual local-contract profile tests: transfer/round-trip persistence, current
+  owner, account identity, enumeration, 11 malformed/tampered snapshot failures,
+  normal block advancement and locked production enrollment all passed.
 - Disposable lifecycle: **54 confirmed local transactions**, two fixture mints.
 - Real-collection fork and actual EntryPoint/private-relay rehearsals: **passed**,
   zero production transactions.
 - Browser rehearsal: desktop 1440 px and mobile 390 px, no horizontal overflow
-  or browser exceptions; stale replay and foreign-origin POST rejected.
-- Changed Solidity formatting and high-severity lint: passed. Runtime sizes:
-  account 17,512 bytes; wrapper 6,571; progression 5,621; factory 1,661; epochs 782.
-  All are below the EVM deployed-code size limit. No main-site bundle changes
-  are required for the separate local rehearsal; production UI enrollment is
-  not advertised as wired or live.
+  or browser exceptions; stale replay and foreign-origin POST rejected. Shared
+  receipt roster/profile rendered correctly; delayed owner-switch responses
+  were discarded. Chrome uses its own disposable profile, never the owner's.
+- Syntax: **535 modules passed**. Site, broker and ABI checks passed.
+- Wallet bundle: **passed with a clean isolated lockfile install** (278 packages,
+  lifecycle scripts disabled, optional wallet packages included). The existing
+  shared dependency tree is incomplete: its esbuild executable was truncated
+  and several wallet packages were missing. It was not modified. The isolated
+  native esbuild 0.28.2 tarball matched the checked-in SHA-512 integrity before
+  execution. Identical wallet source/options produced the 4.1 MB browser bundle
+  (SHA-256 `d3ea35ea05b27b11a55d5f795aabebee16f54a64b2d26bea0b432a8d58734902`).
+  The generated bundle is available in this worktree's ignored build-output path.
+  Deployment/CI should use a complete clean dependency install, not the damaged
+  shared `node_modules` symlink. No dependencies were marked external to hide
+  resolution failures and no security settings were disabled.
+- Solidity formatting/build/size checks passed. High-severity lint exited 0 but
+  reported an existing `1 << bit` warning in `GoghSkillForge.t.sol:149`.
+  Runtime sizes: account 17,512 bytes; enumerable wrapper 7,846; progression 5,621;
+  factory 1,661; epochs 782. All are below the EVM deployed-code size limit.
+  No deployed manifest, production environment, real NFT or wallet was changed.
 
 ## Production review and canary boundary
 
@@ -225,8 +309,10 @@ Before real enrollment, complete the following concrete work:
 3. Add an owner-reviewed production enrollment flow, wallet inventory and legacy
    session revocation/migration receipts. Reconcile pending operations before
    wrapping. Never infer migration authority from holding a skill.
-4. Connect wrapped ownership to the production roster, owner authentication,
-   private chat and indexing. A receipt is a separate marketplace asset; an
+4. Promote the new read-only receipt roster/authenticated profile only after
+   deployment verification; connect epoch-bound private chat/strategies and
+   ownership indexing. The current stage deliberately does not route receipt
+   holders into legacy wallet controls. A receipt is a separate marketplace asset; an
    existing original-Punk listing cannot continue to sell an escrowed token.
 5. Choose and audit a real training source. Existing Forge burn-safety and
    1,111 supply-floor work stays separate. This implementation does not enable burns.

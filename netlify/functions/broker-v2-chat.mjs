@@ -8,7 +8,7 @@ import { PublicError, json, readJson, requireSameOrigin } from "./_shared/http.m
 import { createDatabaseBackedGoghIntelligence } from "./_shared/v2-ai-runtime.mjs";
 import { v2Failure } from "./_shared/v2-http.mjs";
 import { requireV2Session } from "./_shared/v2-session.mjs";
-import { readV2PunkAuthority } from "./_shared/v2-ownership.mjs";
+import { readV2ChatAuthority, assertV2ChatAuthorityUnchanged } from "./_shared/v2-ownership.mjs";
 
 function tokenIdFrom(request) {
   const match = new URL(request.url).pathname.match(/^\/api\/v2\/punks\/(\d+)\/chat$/);
@@ -32,6 +32,9 @@ function punkReply(confirmation) {
 
 export async function resolveV2PunkChat({ router, ownerMessage, currentIntent, tokenId,
   authority, owner, now = new Date(), context = {} }) {
+  if (currentIntent?.expectedOwner?.toLowerCase() !== owner.toLowerCase()) {
+    currentIntent = defaultAskIntent({ punkTokenId: tokenId, expectedOwner: owner, punkWallet: authority.punkWallet }, now);
+  }
   // An autonomous strategy is bound to the owner-approved Punk Agent Account, while ASK and
   // ASSIST use the canonical Punk Wallet returned by the ownership check. Keep chat grounded in
   // the strategy's exact custody account so an owner can refine an active autonomous mission.
@@ -75,7 +78,8 @@ export default async function handler(request) {
     requireSameOrigin(request);
     const tokenId = tokenIdFrom(request);
     const session = await requireV2Session(request, pool);
-    const authority = await readV2PunkAuthority(tokenId, { expectedOwner: session.walletAddress });
+    // readV2PunkAuthority remains canonical underneath this block-anchored chat read.
+    const authority = await readV2ChatAuthority(tokenId, { expectedOwner: session.walletAddress });
     const body = await readJson(request, 12_000);
     if (!body || typeof body !== "object" || Array.isArray(body)
       || Object.keys(body).length !== 1 || !Object.hasOwn(body, "message")) {
@@ -85,8 +89,9 @@ export default async function handler(request) {
     const latest = await pool.query(`SELECT intent FROM broker_v2_strategies
       WHERE chain_id = $1 AND collection_address = $2 AND token_id = $3::numeric
         AND state IN ('ACTIVE', 'PAUSED') AND expires_at > NOW()
+        AND configured_by = $4 AND intent->>'expectedOwner' = $4
       ORDER BY version DESC LIMIT 1`,
-    [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, tokenId]);
+    [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, tokenId, session.walletAddress]);
     const now = new Date();
     const currentIntent = latest.rows[0]?.intent ?? defaultAskIntent({ punkTokenId: tokenId,
       expectedOwner: session.walletAddress, punkWallet: authority.punkWallet }, now);
@@ -101,6 +106,7 @@ export default async function handler(request) {
       await client.query("BEGIN");
       const lock = (BigInt(ROBINHOOD.chainId) * 10_000n + BigInt(tokenId)).toString();
       await client.query("SELECT pg_advisory_xact_lock($1)", [lock]);
+      await assertV2ChatAuthorityUnchanged(authority);
       await client.query(`INSERT INTO broker_punks
         (chain_id, collection_address, token_id, account_address, account_version, owner_snapshot)
         VALUES ($1, $2, $3::numeric, $4, 3, $5)

@@ -2,6 +2,9 @@
 pragma solidity ^0.8.34;
 
 import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import {
+    ERC721Enumerable
+} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {
     IERC721Metadata
@@ -13,7 +16,7 @@ import { GoghOwnershipEpochRegistry } from "./GoghOwnershipEpochRegistry.sol";
 /// @notice Opt-in escrow of one original Punk per transferable receipt with the same ID.
 /// @dev New deployment; NOT an upgrade to original Punks or existing token-bound accounts.
 /// Owner-authorized wrap/unwrap only. No admin withdrawal or arbitrary external calls.
-contract GoghPunkSessionWrapper is ERC721, IERC721Receiver, ReentrancyGuard {
+contract GoghPunkSessionWrapper is ERC721Enumerable, IERC721Receiver, ReentrancyGuard {
     uint256 public constant CHAIN_ID = 4663;
     address public constant COLLECTION = 0xE0F92B3B0E6DeD3654177FE3809Cd300e5ffaDf6;
     IERC721 public constant underlying = IERC721(COLLECTION);

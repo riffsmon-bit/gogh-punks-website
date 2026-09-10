@@ -1,4 +1,5 @@
 import { verifyOwnedPunkIds } from "./broker-v2-ownership.js";
+import { createEpochControl } from "./broker-v2-epoch.js";
 import {
   fetchPunkWalletFundsGate, preflightPunkWalletFunds, readPunkWalletFundsState,
   submitPunkWalletFunds, waitForPunkWalletTransactionReceipt,
@@ -1659,6 +1660,18 @@ function applyOwnedPunks(punks) {
 
 function setup() {
   restoreReviewSessionState();
+  const epochRoot = one('[data-epoch-control]');
+  const epochControl = epochRoot ? createEpochControl(epochRoot, {
+    getOwner: () => !PREVIEW && state.wallet?.chainId === CHAIN_ID ? state.wallet.account : null,
+    readRoster: owner => jsonRequest(`/api/v2/epoch/roster?owner=${encodeURIComponent(owner)}`),
+    readProfile: async tokenId => {
+      const owner = state.wallet?.account;
+      await ensureV2Session();
+      if (owner !== state.wallet?.account || state.wallet?.chainId !== CHAIN_ID) throw Error('OWNER_CHANGED');
+      return jsonRequest(`/api/v2/epoch/punks/${tokenId}`);
+    },
+  }) : null;
+  void epochControl?.refresh();
   one("[data-preview-banner]").hidden = !PREVIEW && !REVIEW_HOST;
   if (REVIEW_HOST && !PREVIEW) {
     set("[data-review-title]", "PR REVIEW BUILD");
@@ -2292,9 +2305,11 @@ function setup() {
     const wallet = event.detail ?? {};
     const account = typeof wallet.account === "string" ? wallet.account.toLowerCase() : null;
     const previousAccount = state.wallet?.account ?? null;
+    const previousChain = state.wallet?.chainId;
     if (account !== previousAccount) state.agentAccounts.clear();
     const verifiedSameAccount = account && state.ownershipAccount === account;
     state.wallet = { ...wallet, account };
+    if (account !== previousAccount || wallet.chainId !== previousChain) epochControl?.invalidate();
     if (!account) {
       if (wallet.restoring || wallet.status === "pending") return;
       state.ownershipRequestId += 1; state.ownershipAccount = null;
