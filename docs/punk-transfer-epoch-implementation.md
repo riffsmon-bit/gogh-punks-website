@@ -88,6 +88,48 @@ validator or grants the wrapper arbitrary collection-wide transfer functions.
 
 ## Authority and recovery
 
+### Product requirement: no buyer claim or transfer setup
+
+Selling/transferring an enrolled Punk receipt must immediately give the buyer its
+existing account identity, assets held by that new account, remaining EntryPoint
+deposit, training credits, learned levels, rarity allocation, slots and equipment.
+These remain attached to the original token ID; they are not copied between owner
+records. There is no seller-side migration, buyer claim, account recreation,
+re-equipping, or separate synchronization transaction on each sale. Reads resolve
+current ownership directly. The application must refresh the new owner's view
+without treating a missing cached owner profile as an untrained Punk.
+
+The seller's session becomes invalid during the transfer. This does not erase
+progression or require the buyer to rebuild it. The buyer separately approves
+their own future spending only if they choose to start a mission. Seller-private
+chat and preferences never become transferable Punk state.
+
+`testFuzzSaleInheritsWholePunkWithoutBuyerSetup` covers direct, safe and approved
+marketplace-style receipt transfers. It checks all inherited state before the
+buyer sends any transaction, then proves immediate buyer control and rejection
+of the seller. It is not an OpenSea listing/settlement integration test.
+
+Important current constraint: a wrapped Punk is sold as its **receipt**, because
+the original sits in escrow. This is not yet the identical listing experience
+on the original Gogh Punks marketplace collection. Initial opt-in enrollment and
+receipt marketplace integration still require production review. Contract-to-
+contract calls alone cannot add a mutable transfer hook to the original immutable
+NFT. Do not hide this distinction or describe the complete production sale UI as
+finished.
+
+`testOriginalSaleAfterUnwrapKeepsProgressionButDoesNotEnableAutonomy` also verifies
+that selling the original after redemption preserves its token-ID training and
+account identity and immediately grants buyer loadout/recovery control. Such a
+sale does **not** enable autonomous execution while unwrapped. The skills follow
+the original ID; the wrapper is needed for the stronger session-epoch guarantee,
+not to copy or preserve the training.
+
+September 10 transfer-UX clarification checks: **43 targeted account/epoch
+contract tests passed** (both fuzz cases at 1,024 runs) and **24 owner/profile/chat
+JavaScript tests passed**. Only regression tests and this requirement were added;
+no new coordinator authority, production deployment, real transfer or burn was
+introduced by this checkpoint.
+
 While wrapped, canonical `ownerOf(originalId)` is the wrapper. Receipt ownership
 controls the new account and progression. When unwrapped, the epoch advances and
 autonomy stops. The new account resolves the original holder for owner-directed

@@ -465,6 +465,100 @@ contract GoghEpochAccountTest {
         wrapper.transferFrom(bob, alice, ID);
     }
 
+    /// @dev A sale is just an approved ERC721 transfer. There is no buyer claim,
+    /// migration, account recreation, synchronization transaction or re-equipping.
+    /// This covers the WRAPPED receipt; original-collection marketplace enrollment
+    /// is not claimed by a fixture transfer test.
+    function testFuzzSaleInheritsWholePunkWithoutBuyerSetup(uint8 route) public {
+        vm.prank(alice);
+        progression.claimRaritySlots(ID, 2, new bytes32[](0));
+        vm.deal(alice, 1 ether);
+        vm.prank(alice);
+        account.depositToEntryPoint{ value: 0.1 ether }();
+        (PackedUserOperation memory op, bytes32 hash) = _signed(_intent());
+        require(entryPoint.validate(account, op, hash, 0) != 1);
+        entryPoint.execute(address(account), op.callData);
+
+        address identity = address(account);
+        uint256 nativeBalance = identity.balance;
+        uint256 deposit = account.entryPointDeposit();
+        uint256 acquisitionNonce = account.acquisitionNonce();
+        uint64 oldGeneration = account.sessionGeneration();
+        require(account.isAutonomousSessionActive());
+        if (route % 3 == 0) {
+            vm.prank(alice);
+            wrapper.transferFrom(alice, bob, ID);
+        } else if (route % 3 == 1) {
+            vm.prank(alice);
+            wrapper.safeTransferFrom(alice, bob, ID);
+        } else {
+            vm.prank(alice);
+            wrapper.approve(marketplace, ID);
+            vm.prank(marketplace);
+            wrapper.safeTransferFrom(alice, bob, ID);
+        }
+
+        // No transaction from Bob has occurred. Everything below must already hold.
+        require(wrapper.ownerOf(ID) == bob && account.owner() == bob);
+        require(factory.account(ID) == identity && punks.ownerOf(ID) == address(wrapper));
+        require(progression.trainingCredits(ID) == 1 && progression.learnedCount(ID) == 1);
+        require(progression.learnedLevel(ID, hunter) == 1);
+        require(progression.claimedStartingSlots(ID) == 2 && progression.unlockedSlots(ID) == 2);
+        require(progression.equipped(ID, 0) == hunter && progression.equipped(ID, 1) == bytes32(0));
+        require(progression.effectiveCapabilities(ID) == 2);
+        require(identity.balance == nativeBalance && account.entryPointDeposit() == deposit);
+        require(art.ownerOf(700) == identity && account.acquisitionNonce() == acquisitionNonce);
+        require(wrapper.balanceOf(alice) == 0 && wrapper.tokenOfOwnerByIndex(bob, 0) == ID);
+        // Old authorization is invalidated, not silently rewritten to authorize Bob.
+        require(
+            !account.isAutonomousSessionActive() && account.sessionGeneration() == oldGeneration
+        );
+        require(account.autonomousSession().authorizingOwner == alice);
+        vm.expectRevert();
+        vm.prank(alice);
+        progression.unequipSkill(ID, 0);
+        vm.expectRevert();
+        vm.prank(alice);
+        account.withdrawEntryPointDeposit(1);
+        // The buyer can immediately use owner controls without enrollment or claiming.
+        vm.prank(bob);
+        account.withdrawEntryPointDeposit(1);
+        vm.prank(bob);
+        progression.unequipSkill(ID, 0);
+        require(
+            account.entryPointDeposit() == deposit - 1 && progression.equipped(ID, 0) == bytes32(0)
+        );
+        require(progression.learnedLevel(ID, hunter) == 1);
+    }
+
+    function testOriginalSaleAfterUnwrapKeepsProgressionButDoesNotEnableAutonomy() public {
+        vm.prank(alice);
+        progression.claimRaritySlots(ID, 2, new bytes32[](0));
+        vm.prank(alice);
+        wrapper.unwrap(ID);
+        vm.prank(alice);
+        punks.approve(marketplace, ID);
+        vm.prank(marketplace);
+        punks.safeTransferFrom(alice, bob, ID);
+        // Original token-ID state survives too; wrapping is not what stores the skills.
+        require(punks.ownerOf(ID) == bob && account.owner() == bob);
+        require(factory.account(ID) == address(account));
+        require(progression.trainingCredits(ID) == 1 && progression.learnedLevel(ID, hunter) == 1);
+        require(progression.unlockedSlots(ID) == 2 && progression.equipped(ID, 0) == hunter);
+        require(!wrapper.isWrapped(ID) && !account.isAutonomousSessionActive());
+        vm.expectRevert();
+        vm.prank(alice);
+        progression.unequipSkill(ID, 0);
+        vm.prank(bob);
+        progression.unequipSkill(ID, 0);
+        // Buyer controls the account and loadout, but original ownership alone is not
+        // permission to bypass the epoch model's wrapped-session requirement.
+        vm.prank(bob);
+        progression.equipSkill(ID, 0, hunter);
+        vm.expectRevert();
+        _configure(bob);
+    }
+
     function testOperatorSafeTransferAndSelfTransferAdvance() public {
         vm.prank(alice);
         wrapper.setApprovalForAll(marketplace, true);
