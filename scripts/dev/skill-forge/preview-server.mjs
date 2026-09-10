@@ -119,7 +119,7 @@ export async function startPreview({ port = 0, researchClient, controlCenterTrai
     const readState = async tokenId => { await advanceLocalClock(); return pinnedRead(tokenId); };
     const runtime = createResearchSkillRuntime({ readState, packages,
       client: researchClient ?? createPublicClient({ transport: http('https://robinhood-rpc.publicnode.com', { timeout: 8000, retryCount: 0 }) }) });
-    const snapshot = async tokenId => {
+    const snapshot = async (tokenId, readAttempt = 0) => {
       if (![1, 44, 7].includes(tokenId)) throw new Error('Unknown fixture Punk');
       await advanceLocalClock();
       const block = await client.getBlock();
@@ -154,6 +154,10 @@ export async function startPreview({ port = 0, researchClient, controlCenterTrai
           reason: 'Punk Wallet assets and unresolved activity have not been verified. Production sacrifice is locked.' });
       }
       const capabilityContext = await runtime.resolve({ tokenId, owner: currentOwner });
+      if (capabilityContext.blockHash !== block.hash) {
+        if (readAttempt === 0) return snapshot(tokenId, 1);
+        throw Error('LOCAL_SNAPSHOT_CHANGED_DURING_READ');
+      }
       // Full history is bounded here because this is our disposable test chain, not a
       // production RPC scan. Round-trip transfers must invalidate an earlier review.
       const transfers = await client.getLogs({ address: collection, event: parseAbiItem('event Transfer(address indexed from,address indexed to,uint256 indexed tokenId)'),
@@ -305,6 +309,7 @@ export async function startPreview({ port = 0, researchClient, controlCenterTrai
       journalPath: journalOptions.path,
       setReceiptVisibility: visible => { receiptsVisible = visible === true; },
       loseNextSubmissionHash: () => { loseSubmissionHash = true; },
+      mineFixtureBlock: () => client.request({ method: 'evm_mine' }),
       roundTripFixture: async tokenId => {
         if (![1, 44, 7].includes(tokenId)) throw Error('INVALID_FIXTURE');
         const [, secondOwner] = await client.request({ method: 'eth_accounts' });

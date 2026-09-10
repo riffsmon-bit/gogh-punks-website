@@ -28,11 +28,27 @@ try {
   await until("document.querySelector('[role=status]').textContent.includes('Research completed')");
   assert.match(await evaluate("document.querySelector('.forge-training-result').textContent"), /NOT_A_SECURITY_CLEARANCE/);
   // Learning requires a separate explicit confirmation; Cancel performs no write.
+  await preview.mineFixtureBlock(); // The visible snapshot is stale, as after idle time.
   await click('REVIEW LEARN · 1 CREDIT');
   await until("document.querySelector('dialog').open");
   assert.match(await evaluate("document.querySelector('dialog').textContent"), /ETH value: 0.*Estimated gas:.*Maximum test-network fee:/);
   assert.match(await evaluate("document.querySelector('dialog').textContent"), /Review expires:/);
   await click('CANCEL');
+  assert.match(await evaluate("document.querySelector('.forge-training-stats').textContent"), /1 CREDIT/);
+  // A block can also race the fresh read. Retry preparation once; never confirm it.
+  await evaluate("window.savedTrainingFetch=window.fetch;window.prepareCalls=0;window.fetch=(url,opts)=>{if(url==='/api/local-training/prepare'&&++prepareCalls===1)return Promise.resolve(new Response('STALE_REVIEW_STATE. Test-only race.',{status:409}));return savedTrainingFetch(url,opts)}");
+  await click('REVIEW LEARN · 1 CREDIT'); await until("document.querySelector('dialog').open");
+  assert.equal(await evaluate('prepareCalls'), 2);
+  await click('CANCEL');
+  await evaluate('window.fetch=window.savedTrainingFetch');
+  assert.match(await evaluate("document.querySelector('.forge-training-stats').textContent"), /1 CREDIT/);
+  await evaluate("window.prepareCalls=0;window.fetch=(url,opts)=>{if(url==='/api/local-training/prepare'){prepareCalls++;return Promise.resolve(new Response('STALE_REVIEW_STATE. Test-only repeated race.',{status:409}))}return savedTrainingFetch(url,opts)}");
+  await click('REVIEW LEARN · 1 CREDIT');
+  await until("document.querySelector('[role=status]').textContent.includes('Your loadout is refreshed')");
+  assert.equal(await evaluate('prepareCalls'), 2);
+  assert.equal(await evaluate("document.querySelectorAll('.forge-socket').length"), 7);
+  assert.equal(await evaluate("document.querySelector('dialog').open"), false);
+  await evaluate('window.fetch=window.savedTrainingFetch');
   assert.match(await evaluate("document.querySelector('.forge-training-stats').textContent"), /1 CREDIT/);
   preview.setReceiptVisibility(false);
   await click('REVIEW LEARN · 1 CREDIT'); await click('CONFIRM LOCAL TRANSACTION');

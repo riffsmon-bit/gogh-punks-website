@@ -148,15 +148,42 @@ export function createTrainingControl({ root, getSelection, request, localOnly }
   }
   async function review(operation, extra = {}) {
     if (busy || !data || pendingReviews.has(Number(selected))) return;
-    const captured = data, token = data.tokenId, ticket = sequence;
+    let captured = data; const token = data.tokenId, ticket = sequence;
     busy = true; render(); status.textContent = 'Preparing exact transaction and gas estimate. Nothing submitted.';
     let prepared;
     try {
-      prepared = validateTrainingReview(await request('/api/local-training/prepare', { method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-forge-nonce': captured.localTrainingNonce },
-        body: JSON.stringify({ tokenId: token, expectedBlock: captured.blockNumber, operation, ...extra }) }), captured, { operation, ...extra });
-      if (!isCurrent(ticket, token)) return;
-    } catch (e) { if (isCurrent(ticket, token)) { clear(); status.textContent = `${e.message} Refresh before reviewing again.`; } return; }
+      // Reading an idle local chain mines a fresh block. Never prepare against the
+      // block from a page the owner may have left open minutes/hours earlier.
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const fresh = validateTrainingSnapshot(await request(`/api/forge?tokenId=${token}`), token);
+        if (!isCurrent(ticket, token)) return;
+        if (['owner', 'collection', 'registry', 'progression'].some(k => fresh[k].toLowerCase() !== captured[k].toLowerCase())
+          || fresh.ownershipEpoch !== captured.ownershipEpoch) throw Error('Punk ownership or deployment changed. Review the refreshed state.');
+        captured = fresh; data = fresh;
+        try {
+          prepared = validateTrainingReview(await request('/api/local-training/prepare', { method: 'POST',
+            headers: { 'content-type': 'application/json', 'x-forge-nonce': captured.localTrainingNonce },
+            body: JSON.stringify({ tokenId: token, expectedBlock: captured.blockNumber, operation, ...extra }) }), captured, { operation, ...extra });
+          if (!isCurrent(ticket, token)) return;
+          break;
+        } catch (error) {
+          // Retry only preparation's explicit stale-block rejection, never a send.
+          if (attempt !== 0 || !/^STALE_REVIEW_STATE(?:\.|$)/.test(error.message)) throw error;
+          status.textContent = 'The local chain advanced. Refreshing your review; nothing submitted.';
+        }
+      }
+    } catch (e) {
+      if (isCurrent(ticket, token)) {
+        const recoveryTicket = sequence + 1;
+        await load();
+        if (sequence === recoveryTicket && String(getSelection()?.tokenId) === String(token) && identity(getSelection()) === selectedIdentity && data && !pendingReviews.has(Number(token))) {
+          status.textContent = /^STALE_REVIEW_STATE(?:\.|$)/.test(e.message)
+            ? 'The chain changed again. Your loadout is refreshed. Choose the action again; nothing was submitted.'
+            : `No transaction submitted. ${e.message}`;
+        }
+      }
+      return;
+    }
     finally { if (isCurrent(ticket, token)) { busy = false; render(); } }
     modal.replaceChildren(node('h3', `REVIEW ${operation.toUpperCase()} · TEST ONLY`),
       node('p', `Local Punk #${token} · chain 31337 · ${['learn', 'unlock'].includes(operation) ? 'cost: 1 training credit' : 'cost: 0 training credits'}`),
