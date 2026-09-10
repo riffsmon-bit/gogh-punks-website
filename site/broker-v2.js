@@ -1,5 +1,5 @@
 import { verifyOwnedPunkIds } from "./broker-v2-ownership.js";
-import { createEpochControl } from "./broker-v2-epoch.js";
+import { createOwnerRefresh } from "./broker-v2-owner-refresh.js";
 import {
   fetchPunkWalletFundsGate, preflightPunkWalletFunds, readPunkWalletFundsState,
   submitPunkWalletFunds, waitForPunkWalletTransactionReceipt,
@@ -975,6 +975,14 @@ function renderRoster() {
   set("[data-roster-count]", state.punks.length);
   one("[data-roster-empty]").hidden = state.punks.length > 0;
   one("[data-selected-stage]").hidden = state.punks.length === 0;
+  if (!state.selected) {
+    window.dispatchEvent(new CustomEvent('gogh:owner-snapshot', { detail: {
+      address: state.wallet?.account ?? null, tokenId: null,
+    } }));
+    window.dispatchEvent(new CustomEvent('gogh:punk-selected', { detail: {
+      owner: state.wallet?.account ?? null, tokenId: null,
+    } }));
+  }
   for (const punk of state.punks) {
     const button = document.createElement("button");
     button.type = "button"; button.className = "roster-slot"; button.setAttribute("role", "option");
@@ -1658,20 +1666,53 @@ function applyOwnedPunks(punks) {
   if (state.selected && activeTab) void hydrateSelected(activeTab);
 }
 
+function clearTransferredPunkReview() {
+  state.localStrategy = null; state.localSkill = null; state.lastInspection = null;
+  state.fundingPlan = null; state.wrappedPlan = null; state.withdrawalPlan = null;
+  state.withdrawalAsset = null; state.fundAgentAccount = false;
+  state.reviewMintOpportunityId = null; state.reviewMintArtifact = null; state.reviewMintPrepared = null;
+  for (const dialog of all('dialog[open]')) dialog.close();
+  all('[data-fund-confirm], [data-weth-confirm]').forEach(input => { input.checked = false; });
+  // Private conversation maps stay owner-scoped. Never attach the sold Punk's open
+  // transcript or unsigned review to whichever Punk is selected next.
+  one('[data-conversation]')?.replaceChildren();
+}
+
 function setup() {
   restoreReviewSessionState();
-  const epochRoot = one('[data-epoch-control]');
-  const epochControl = epochRoot ? createEpochControl(epochRoot, {
-    getOwner: () => !PREVIEW && state.wallet?.chainId === CHAIN_ID ? state.wallet.account : null,
-    readRoster: owner => jsonRequest(`/api/v2/epoch/roster?owner=${encodeURIComponent(owner)}`),
-    readProfile: async tokenId => {
-      const owner = state.wallet?.account;
-      await ensureV2Session();
-      if (owner !== state.wallet?.account || state.wallet?.chainId !== CHAIN_ID) throw Error('OWNER_CHANGED');
-      return jsonRequest(`/api/v2/epoch/punks/${tokenId}`);
+  const ownerRefresh = createOwnerRefresh({
+    getContext: () => ({ owner: PREVIEW ? null : state.wallet?.account, chainId: state.wallet?.chainId,
+      visible: !document.hidden, loading: Boolean(state.ownershipLoadingAccount) }),
+    getPunks: () => state.punks,
+    readOwned: fetchOwnedPunks,
+    onChanged: punks => {
+      const retained = new Set(punks.map(punk => punk.tokenId));
+      const removed = state.punks.filter(punk => !retained.has(punk.tokenId));
+      for (const punk of removed) {
+        state.agentAccounts.delete(punk.tokenId);
+        const key = reviewAgentKey(state.wallet.account, punk.tokenId);
+        state.reviewAgents.delete(key); state.reviewInspections.delete(key);
+      }
+      if (state.selected && !retained.has(state.selected.tokenId)) clearTransferredPunkReview();
+      state.ownershipAccount = state.wallet.account;
+      // Keep already-loaded balances/preferences for still-owned Punks; new purchases
+      // are hydrated from token-bound account state, never the seller's cached policy.
+      const prior = new Map(state.punks.map(punk => [punk.tokenId, punk]));
+      applyOwnedPunks(punks.map(punk => prior.get(punk.tokenId) ?? punk));
+      set('[data-ownership-sync]', 'Original NFT ownership refreshed automatically. No claim or migration needed.');
     },
-  }) : null;
-  void epochControl?.refresh();
+    onUnavailable: () => {
+      clearTransferredPunkReview(); state.agentAccounts.clear();
+      state.ownershipAccount = null; applyOwnedPunks([]);
+      set('[data-roster-count]', '—');
+      set('[data-ownership-sync]', 'Ownership could not be verified. Controls are hidden; retrying automatically.');
+    },
+  });
+  window.addEventListener('focus', () => void ownerRefresh.refresh());
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) void ownerRefresh.refresh();
+  });
+  window.setInterval(() => void ownerRefresh.refresh(), 30_000);
   one("[data-preview-banner]").hidden = !PREVIEW && !REVIEW_HOST;
   if (REVIEW_HOST && !PREVIEW) {
     set("[data-review-title]", "PR REVIEW BUILD");
@@ -2309,7 +2350,9 @@ function setup() {
     if (account !== previousAccount) state.agentAccounts.clear();
     const verifiedSameAccount = account && state.ownershipAccount === account;
     state.wallet = { ...wallet, account };
-    if (account !== previousAccount || wallet.chainId !== previousChain) epochControl?.invalidate();
+    if (account !== previousAccount || wallet.chainId !== previousChain) {
+      ownerRefresh.invalidate(); clearTransferredPunkReview();
+    }
     if (!account) {
       if (wallet.restoring || wallet.status === "pending") return;
       state.ownershipRequestId += 1; state.ownershipAccount = null;

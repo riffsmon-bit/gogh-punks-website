@@ -12,6 +12,13 @@ test('chat, profile and MCP strategy reads are scoped to the authenticated owner
     assert.match(source, /(?:session|principal).walletAddress/);
   }
 });
+test('buyer roster retains Punk progression but cannot inherit the seller active strategy pointer', async () => {
+  const source = await readFile(new URL('../netlify/functions/broker-v2-punks.mjs', import.meta.url), 'utf8');
+  assert.match(source, /strategy.configured_by = \$4 AND strategy.intent->>'expectedOwner' = \$4/);
+  assert.match(source, /strategy.version AS active_strategy_version/);
+  assert.match(source, /ownership.tokenIds, session.walletAddress/);
+  assert.match(source, /profile.broker_level/);
+});
 function rpc(overrides = {}) { return { getBlockNumber: async () => 101n,
   getBlock: async ({ blockNumber }) => ({ number: blockNumber, hash }),
   readContract: async ({ functionName }) => ({ ownerOf: owner, account, isAccountCreated: true })[functionName],

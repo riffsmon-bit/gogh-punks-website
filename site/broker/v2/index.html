@@ -10,7 +10,6 @@
     <link rel="stylesheet" href="/broker-v2.css" />
     <script src="/wallet.js?v=reown-10" type="module"></script>
     <script src="/broker-v2.js" type="module"></script>
-    <link rel="stylesheet" href="/broker-v2-epoch.css" />
   </head>
   <body data-v2-control-center>
     <a class="skip-link" href="#broker-main">Skip to selected Art Broker</a>
@@ -42,6 +41,7 @@
           <p><b data-roster-count>0</b> owned Punks</p>
         </div>
         <div class="punk-roster" data-punk-roster role="listbox" aria-label="Owned Gogh Punks"></div>
+        <p data-ownership-sync aria-live="polite">Your original Gogh Punk is the ownership key. This roster refreshes automatically after purchases and transfers.</p>
         <div class="roster-empty" data-roster-empty>
           <strong>Your brokers enter here.</strong>
           <span>Connect the wallet that holds your Gogh Punks. Ownership is checked on Robinhood Chain.</span>
@@ -235,7 +235,6 @@
         </div>
       </section>
 
-      <section class="epoch-control" data-epoch-control aria-label="Session receipt Punk profiles"></section>
       <section class="flywheel" aria-labelledby="flywheel-title">
         <header><span class="kicker">THE V2 LOOP</span><h2 id="flywheel-title">FUND IT. TALK TO IT. LET IT COLLECT.</h2></header>
         <ol><li><b>01</b><span>FUND</span></li><li><b>02</b><span>TALK</span></li><li><b>03</b><span>DEFINE TASTE</span></li><li><b>04</b><span>DISCOVER</span></li><li><b>05</b><span>SCREEN</span></li><li><b>06</b><span>COLLECT</span></li><li><b>07</b><span>REFINE</span></li></ol>

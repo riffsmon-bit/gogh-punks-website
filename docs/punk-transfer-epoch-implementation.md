@@ -1,5 +1,12 @@
 # Punk session wrapper and ownership epochs
 
+**SUPERSEDED AS THE PRODUCT PATH, September 10, 2026:** the user requires the
+original Gogh Punk NFT to remain the transferable ownership key, including sales
+on its existing marketplace collection. Do not deploy or enroll users into this
+wrapper to meet that requirement. This document and the wrapper tests remain an
+isolated research record. The main V2 receipt UI has been removed; see
+[original NFT inheritance](punk-original-nft-inheritance.md) for the current path.
+
 Implementation checkpoint: September 10, 2026. Branch `feat/punk-transfer-epoch`,
 worktree `/private/tmp/gogh-skill-forge`. This is a working local implementation
 and rehearsal, not a production deployment or an independent security audit.

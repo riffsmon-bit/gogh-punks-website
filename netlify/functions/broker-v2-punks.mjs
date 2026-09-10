@@ -13,7 +13,7 @@ export default async function handler(request) {
     const candidates = await indexedOwnerPunkIds(session.walletAddress, (...args) => pool.query(...args));
     const ownership = await liveOwnerPunkSnapshot(session.walletAddress, candidates);
     const profiles = ownership.tokenIds.length ? await pool.query(`SELECT punk.token_id::text,
-        punk.account_address, profile.broker_level, profile.active_strategy_version,
+        punk.account_address, profile.broker_level, strategy.version AS active_strategy_version,
         strategy.state AS strategy_state, strategy.intent->>'operatingMode' AS operating_mode
       FROM broker_punks AS punk LEFT JOIN broker_v2_profiles AS profile
         ON profile.chain_id = punk.chain_id AND profile.collection_address = punk.collection_address
@@ -21,9 +21,10 @@ export default async function handler(request) {
       LEFT JOIN broker_v2_strategies AS strategy ON strategy.chain_id = profile.chain_id
         AND strategy.collection_address = profile.collection_address
         AND strategy.token_id = profile.token_id AND strategy.version = profile.active_strategy_version
+        AND strategy.configured_by = $4 AND strategy.intent->>'expectedOwner' = $4
       WHERE punk.chain_id = $1 AND punk.collection_address = $2
         AND punk.token_id = ANY($3::numeric[])`,
-    [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, ownership.tokenIds]) : { rows: [] };
+    [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, ownership.tokenIds, session.walletAddress]) : { rows: [] };
     const byToken = new Map(profiles.rows.map((row) => [row.token_id, row]));
     return json({ ok: true, owner: session.walletAddress, chainId: ROBINHOOD.chainId,
       collection: ROBINHOOD.canonicalCollection, ownershipBlock: ownership.blockNumber.toString(),
