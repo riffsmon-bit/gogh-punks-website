@@ -55,7 +55,7 @@ export async function runPunkAgentMissionOnce({
     runtime = await readPunkAgentAccountRuntime({ client, deployment,
       tokenId: mission.tokenId, expectedOwner: mission.owner,
       expectedSessionKey: signer.address });
-    await verifyPunkAgentOwnershipContinuity({ client, mission, runtime });
+    await verifyPunkAgentOwnershipContinuity({ client, mission, runtime, deployment });
   } catch (error) { return blocked(error); }
   if (!runtime.sessionActive || runtime.session.generation !== BigInt(mission.sessionGeneration)
     || runtime.account !== mission.account || mission.strategy.operatingMode !== "AUTONOMOUS") {
@@ -74,7 +74,7 @@ export async function runPunkAgentMissionOnce({
   }
   const entryPointNonce = await readPunkAgentEntryPointNonce({ client, account: runtime.account });
   // Candidate inspection can be slow. Recheck before the signer sees an operation.
-  try { await verifyPunkAgentOwnershipContinuity({ client, mission, runtime }); }
+  try { await verifyPunkAgentOwnershipContinuity({ client, mission, runtime, deployment }); }
   catch (error) { return blocked(error); }
   const prepared = await prepareSignedPunkAgentMint({ client, signer, runtime,
     opportunity: candidate.opportunity, strategyHash: mission.strategyHash,
@@ -86,7 +86,7 @@ export async function runPunkAgentMissionOnce({
     gasEstimate, now });
   if (!reservation?.operationId) fail("RESERVATION_FAILED", "UserOperation was not reserved");
   // Estimation/reservation is another race window. No submit after a detected transfer.
-  try { await verifyPunkAgentOwnershipContinuity({ client, mission, runtime }); }
+  try { await verifyPunkAgentOwnershipContinuity({ client, mission, runtime, deployment }); }
   catch (error) { return blocked(error, reservation); }
   try {
     const submitted = await submitPunkAgentUserOperation({ bundler,

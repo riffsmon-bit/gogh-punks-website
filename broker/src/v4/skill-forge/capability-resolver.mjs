@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { encodeAbiParameters, getAddress, keccak256, parseAbi, parseAbiParameters } from 'viem';
+import { readEpochOwnership, validateEpochPins } from './epoch-ownership.mjs';
 
 export const SKILL_CAPABILITIES = Object.freeze({ CONTRACT_READ: 1n, FREE_MINT: 2n,
   MARKET_READ: 4n, RARITY_READ: 8n, LINK_REVIEW: 16n, SCHEDULED_MISSION: 32n,
@@ -34,9 +35,10 @@ const ABI = parseAbi([
 
 // Configuration MUST come from a reviewed deployment, never request/AI arguments.
 export function createProgressionReader({ client, chainId, collection, registry, progression,
-  registryCodeHash, progressionCodeHash }) {
+  registryCodeHash, progressionCodeHash, epochAuthority }) {
   if (!HASH.test(registryCodeHash) || !HASH.test(progressionCodeHash)) throw new Error('DEPLOYMENT_PINS_REQUIRED');
   collection = getAddress(collection); registry = getAddress(registry); progression = getAddress(progression);
+  if (epochAuthority) epochAuthority = validateEpochPins(epochAuthority);
   return async tokenId => {
     if (!/^(0|[1-9][0-9]{0,77})$/.test(String(tokenId))) throw new Error('INVALID_TOKEN_ID');
     if (await client.getChainId() !== chainId) throw new Error('WRONG_CHAIN');
@@ -49,7 +51,9 @@ export function createProgressionReader({ client, chainId, collection, registry,
     ]);
     if (getAddress(collectionRead) !== collection || getAddress(registryRead) !== registry
       || keccak256(registryCode ?? '0x') !== registryCodeHash || keccak256(progressionCode ?? '0x') !== progressionCodeHash) throw new Error('DEPLOYMENT_MISMATCH');
-    const [owner, slots, mask] = await Promise.all([read(collection, 'ownerOf', [BigInt(tokenId)]),
+    const authority = epochAuthority ? await readEpochOwnership({ client, blockNumber: block.number,
+      chainId, collection, progression, tokenId, config: epochAuthority }) : null;
+    const [owner, slots, mask] = await Promise.all([authority ? authority.owner : read(collection, 'ownerOf', [BigInt(tokenId)]),
       read(progression, 'unlockedSlots', [BigInt(tokenId)]), read(progression, 'effectiveCapabilities', [BigInt(tokenId)])]);
     if (!Number.isInteger(slots) || slots < 1 || slots > 32) throw new Error('INVALID_SLOTS');
     const equipped = [];
@@ -62,7 +66,7 @@ export function createProgressionReader({ client, chainId, collection, registry,
     }
     // Detect reorg during the multi-read snapshot; the execution layer must still recheck.
     if ((await client.getBlock({ blockNumber: block.number })).hash !== block.hash) throw new Error('REORG_DURING_READ');
-    return { chainId, collection, tokenId: String(tokenId), owner: getAddress(owner), slots, mask: String(mask), equipped,
+    return { ...authority, chainId, collection, tokenId: String(tokenId), owner: getAddress(owner), slots, mask: String(mask), equipped,
       blockNumber: String(block.number), blockHash: block.hash, blockTime: Number(block.timestamp) * 1000 };
   };
 }
@@ -101,6 +105,7 @@ export function resolvePunkCapabilities(state, { packages, owner, now = Date.now
       manifestHash: definition.manifestHash, instructionHash: definition.instructionHash });
   }
   return Object.freeze({ tokenId: state.tokenId, owner: state.owner, blockHash: state.blockHash,
+    ...(state.authorityEpoch ? { authorityEpoch: state.authorityEpoch } : {}),
     effectiveProtocolCapabilities: Object.freeze([...capabilities]), effectiveMcpTools: Object.freeze([...tools]),
     instructionPackages: Object.freeze(selected), walletAuthority: 'NONE',
     requiresSeparateEconomicAuthorization: true });
@@ -127,6 +132,7 @@ export function createSkillToolGate({ readState, packages, implementations }) {
       // Never deliver their result using authority that disappeared while the call ran.
       const after = await resolve({ tokenId, owner });
       if (!after.effectiveMcpTools.includes(name)
+        || after.authorityEpoch !== context.authorityEpoch
         || canonical(after.instructionPackages) !== canonical(context.instructionPackages)) throw new Error('SKILL_CONTEXT_CHANGED');
       return result;
     },

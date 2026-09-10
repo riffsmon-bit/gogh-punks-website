@@ -1,5 +1,7 @@
 import { decodeEventLog, parseAbi, parseAbiItem } from "viem";
 import { ROBINHOOD } from "../config.mjs";
+import { PUNK_AGENT_EPOCH_DEPLOYMENT_SCHEMA } from './punk-agent-account-manifest.mjs';
+import { verifyEpochSessionOwnership } from './punk-agent-epoch-authority.mjs';
 
 const CONFIGURED = parseAbiItem("event AutonomousSessionConfigured(uint64 indexed generation,address indexed owner,address indexed sessionKey,address adapter,address venue,address targetCollection,uint32 maxMintsPerDay,uint32 maxMintsTotal,uint48 validAfter,uint48 validUntil,uint256 maxGasCostWei,uint256 minimumNativeReserveWei)");
 const TRANSFER = parseAbiItem("event Transfer(address indexed from,address indexed to,uint256 indexed tokenId)");
@@ -18,8 +20,9 @@ function uint(value) {
 
 // Worker-side mitigation, NOT an on-chain transfer epoch. Does not revoke or sign.
 // Never use a cached current-owner address as proof that no round trip occurred.
-export async function verifyPunkAgentOwnershipContinuity({ client, mission, runtime }) {
+export async function verifyPunkAgentOwnershipContinuity({ client, mission, runtime, deployment }) {
   try {
+    const epochModel = deployment?.schema === PUNK_AGENT_EPOCH_DEPLOYMENT_SCHEMA;
     if (!HASH.test(mission?.authorizationTransactionHash) || !ADDRESS.test(mission?.owner)
       || !ADDRESS.test(mission?.account) || !same(runtime?.account, mission.account)
       || !same(runtime?.owner, mission.owner)) fail("OWNERSHIP_CONTINUITY_UNVERIFIED");
@@ -36,7 +39,7 @@ export async function verifyPunkAgentOwnershipContinuity({ client, mission, runt
     if (!Number.isSafeInteger(tipTime) || tipTime > Date.now() + 5_000 || Date.now() - tipTime > 30_000)
       fail("OWNERSHIP_CONTINUITY_UNVERIFIED");
     if (from > to) fail("OWNERSHIP_CONTINUITY_UNVERIFIED");
-    if (to - from + 1n > MAX_OWNERSHIP_HISTORY_BLOCKS) fail("OWNERSHIP_HISTORY_WINDOW_EXCEEDED");
+    if (!epochModel && to - from + 1n > MAX_OWNERSHIP_HISTORY_BLOCKS) fail("OWNERSHIP_HISTORY_WINDOW_EXCEEDED");
     const anchor = await client.getBlock({ blockNumber: from });
     if (!same(anchor?.hash, receipt.blockHash) || uint(anchor.number) !== from) fail("OWNERSHIP_CONTINUITY_UNVERIFIED");
     const events = receipt.logs.flatMap(log => {
@@ -47,8 +50,9 @@ export async function verifyPunkAgentOwnershipContinuity({ client, mission, runt
     if (events.length !== 1 || events[0].args.generation !== generation
       || !same(events[0].args.owner, mission.owner)
       || !same(events[0].args.sessionKey, runtime.session.sessionKey)) fail("OWNERSHIP_CONTINUITY_UNVERIFIED");
+    const epochState = epochModel ? await verifyEpochSessionOwnership({ client, deployment, mission, receipt, blockNumber: to }) : null;
     const [owner, liveGeneration, active] = await Promise.all([
-      client.readContract({ address: ROBINHOOD.canonicalCollection, abi: OWNER_ABI,
+      epochState ? epochState.owner : client.readContract({ address: ROBINHOOD.canonicalCollection, abi: OWNER_ABI,
         functionName: "ownerOf", args: [tokenId], blockNumber: to }),
       client.readContract({ address: mission.account, abi: SESSION_ABI,
         functionName: "sessionGeneration", blockNumber: to }),
@@ -59,7 +63,7 @@ export async function verifyPunkAgentOwnershipContinuity({ client, mission, runt
     if (uint(liveGeneration) !== generation || active !== true) fail("SESSION_STATE_MISMATCH");
     // Include the authorization block conservatively: even an earlier same-block
     // transfer requires authorization in a later block. Never infer log ordering.
-    for (let start = from; start <= to; start += PAGE) {
+    for (let start = from; !epochModel && start <= to; start += PAGE) {
       const end = start + PAGE - 1n < to ? start + PAGE - 1n : to;
       const logs = await client.getLogs({ address: ROBINHOOD.canonicalCollection,
         event: TRANSFER, args: { tokenId }, fromBlock: start, toBlock: end, strict: true });

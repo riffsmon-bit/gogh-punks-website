@@ -161,7 +161,7 @@ contract GoghSkillProgression {
         return _learned[tokenId][index];
     }
 
-    function _requireOwner(uint256 tokenId) private view {
+    function _requireOwner(uint256 tokenId) internal view virtual {
         if (collection.ownerOf(tokenId) != msg.sender) revert NotCurrentOwner();
     }
 

@@ -58,7 +58,7 @@ function fixture() {
   };
   f.roundTrip = () => { f.logs = [log(TRANSFER, { from: OWNER, to: OTHER, tokenId: 93n }, ROBINHOOD.canonicalCollection, 105n, hash("b")),
     log(TRANSFER, { from: OTHER, to: OWNER, tokenId: 93n }, ROBINHOOD.canonicalCollection, 106n, hash("b"))]; };
-  f.check = () => verifyPunkAgentOwnershipContinuity({ client: f.client, mission: f.mission, runtime: f.runtime });
+  f.check = () => verifyPunkAgentOwnershipContinuity({ client: f.client, mission: f.mission, runtime: f.runtime, deployment: f.manifest });
   f.candidate = { checkedAt: now.toISOString(), tokenId: "42", screeningInputHash: "screen", simulationInputHash: "sim",
     opportunity: { schema: "GOGH_NORMALIZED_OPPORTUNITY_V2", version: 2, opportunityId: "test:mint", chainId: 4663,
       collectionContract: addr("7"), mintContract: session.venue, adapter: session.adapter,
@@ -85,6 +85,60 @@ function fixture() {
     markSubmitted: async () => { f.recorded++; }, markFailed: async failure => { f.failures.push(failure); } });
   return f;
 }
+
+const BOUND = parseAbiItem('event SessionEpochBound(uint64 indexed generation,uint256 indexed epoch,uint256 securityGeneration)');
+function epochFixture() {
+  const f = fixture();
+  f.manifest.schema = 'GOGH_PUNK_EPOCH_ACCOUNT_DEPLOYMENT_V1';
+  Object.assign(f.manifest.configuration, { wrapperOperatorRegistrationConfirmed: true,
+    wrappedOwnerIntegrationReady: true, legacyEnrollmentReviewed: true });
+  const record = address => ({ ...f.manifest.contracts.GoghPunkAgentAccount, address });
+  f.manifest.epochAuthority = { wrapper: record(addr('8')), epochs: record(addr('9')), progression: record(addr('a')) };
+  f.epoch = 1n; f.authorizedEpoch = 1n; f.security = 0n;
+  const originalRead = f.client.readContract;
+  f.client.readContract = async query => {
+    const values = { AUTHORITY_MODEL: keccak256(new TextEncoder().encode('GOGH_WRAPPED_EPOCH_V1')),
+      wrapper: addr('8'), epochs: addr('9'), progression: addr('a'), authorizedEpoch: f.authorizedEpoch,
+      authorizedSecurityGeneration: 0n, COLLECTION: ROBINHOOD.canonicalCollection, CHAIN_ID: 4663n,
+      resolveOwner: f.owner, isWrapped: true, epoch: f.epoch, securityGeneration: f.security, executionPaused: false };
+    if (query.functionName === 'ownerOf') return query.address.toLowerCase() === ROBINHOOD.canonicalCollection.toLowerCase() ? addr('8') : f.owner;
+    return Object.hasOwn(values, query.functionName) ? values[query.functionName] : originalRead(query);
+  };
+  const receipt = f.receipt;
+  f.receipt = () => { const r = receipt(); r.logs.push(log(BOUND, { generation: f.session.generation,
+    epoch: f.authorizedEpoch, securityGeneration: 0n }, ACCOUNT, f.from, hash('a'))); return r; };
+  return f;
+}
+
+test('pinned epoch worker validates authorization event without polling original Transfer history', async () => {
+  const f = epochFixture(); const result = await f.run();
+  assert.equal(result.status, 'SUBMITTED'); assert.equal(f.signatures, 1); assert.equal(f.submissions, 1);
+  assert.equal(f.queries.length, 0);
+});
+for (const point of ['initial', 'candidate', 'estimate', 'reserve']) {
+  test(`epoch worker rejects round trip at ${point}`, async () => {
+    const f = epochFixture(); const change = () => { f.epoch = 3n; };
+    if (point === 'initial') change();
+    const result = await f.run({ [point]: change });
+    assert.equal(result.status, 'OWNERSHIP_CHANGED_SINCE_AUTHORIZATION'); assert.equal(f.submissions, 0);
+    assert.equal(f.signatures, ['estimate', 'reserve'].includes(point) ? 1 : 0);
+    assert.equal(f.failures[0].terminal, true);
+  });
+}
+test('epoch worker rejects missing binding event, tampered code pins and emergency generation change', async () => {
+  const missing = epochFixture(); const receipt = missing.receipt;
+  missing.receipt = () => ({ ...receipt(), logs: receipt().logs.slice(0, 1) });
+  await assert.rejects(missing.check(), { code: 'OWNERSHIP_CONTINUITY_UNVERIFIED' });
+  const tampered = epochFixture(); tampered.manifest.epochAuthority.wrapper.runtimeBytecodeHash = hash('f');
+  await assert.rejects(tampered.check(), { code: 'OWNERSHIP_CONTINUITY_UNVERIFIED' });
+  const paused = epochFixture(); paused.security = 2n;
+  await assert.rejects(paused.check(), { code: 'OWNERSHIP_CHANGED_SINCE_AUTHORIZATION' });
+});
+test('new epoch authorization works and does not inherit legacy history-window limits', async () => {
+  const f = epochFixture(); f.epoch = 3n; f.authorizedEpoch = 3n;
+  f.session.generation = 2n; f.mission.sessionGeneration = '2'; f.to = f.from + 40_001n;
+  assert.equal((await f.check()).verified, true);
+});
 
 test("canonical authorization and bounded continuous ownership are required", async () => {
   const f = fixture(), result = await f.check();

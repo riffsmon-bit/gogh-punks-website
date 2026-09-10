@@ -54,7 +54,7 @@ contract GoghRaritySkillProgression is GoghSkillProgression {
     function claimRaritySlots(uint256 tokenId, uint8 startingSlots, bytes32[] calldata proof)
         external
     {
-        if (collection.ownerOf(tokenId) != msg.sender) revert NotCurrentOwner();
+        _requireOwner(tokenId);
         if (claimedStartingSlots[tokenId] != 0) revert AlreadyClaimed();
         if (
             block.chainid != allocationChainId || startingSlots < 1 || startingSlots > 3
