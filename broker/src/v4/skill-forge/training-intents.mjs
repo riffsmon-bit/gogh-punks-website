@@ -23,12 +23,13 @@ export function createLocalTrainingIntents({ client, owner, progression, approve
   sendTransaction, now = Date.now, lifetimeMs = 60_000, journal = null }) {
   const intents = new Map();
   let journalFault = false;
+  let journalFailure = null;
   const persist = entry => {
     if (!journal) return;
-    try { journal.save(entry); } catch (error) { journalFault = true; throw error; }
+    try { journal.save(entry); } catch (error) { journalFault = true; journalFailure = error; throw error; }
   };
   const refreshJournal = () => {
-    if (journalFault) throw Error('TRAINING_JOURNAL_UNAVAILABLE');
+    if (journalFault) throw new Error('TRAINING_JOURNAL_UNAVAILABLE', { cause: journalFailure });
     if (!journal) return;
     try {
       for (const saved of journal.loadAll()) {
@@ -43,7 +44,7 @@ export function createLocalTrainingIntents({ client, owner, progression, approve
           || saved.digest !== fingerprint(saved.state)) throw Error('INVALID_RECOVERED_REVIEW');
         intents.set(saved.review.intentId, { ...saved, spec });
       }
-    } catch (error) { journalFault = true; throw error; }
+    } catch (error) { journalFault = true; journalFailure = error; throw error; }
   };
   const unresolved = entry => ['CHECKING', 'AWAITING_WALLET', 'SUBMITTED', 'SUBMISSION_UNKNOWN'].includes(entry.status);
   const guard = async () => { if (await client.getChainId() !== 31337) throw Error('LOCAL_CHAIN_REQUIRED'); };

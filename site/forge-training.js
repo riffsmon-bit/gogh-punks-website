@@ -57,7 +57,7 @@ export function validateTrainingRecovery(recovery, state) {
 }
 export function createTrainingControl({ root, getSelection, request, localOnly }) {
   if (localOnly !== true || window.location.hostname !== '127.0.0.1' || window.location.protocol !== 'http:') throw Error('Local training adapter is not available here');
-  let data = null, selected = null, selectedIdentity = null, sequence = 0, busy = false;
+  let data = null, selected = null, selectedIdentity = null, sequence = 0, busy = false, recoveryVerified = false;
   const pendingReviews = new Map();
   const status = node('p', 'Load a disposable test Punk.', 'forge-note'); status.setAttribute('role', 'status');
   const refresh = node('button', 'REFRESH CONTRACT STATE', 'filter-button'); refresh.type = 'button';
@@ -82,12 +82,12 @@ export function createTrainingControl({ root, getSelection, request, localOnly }
     node('h3', 'LEARN · THEN EQUIP'), library, tools, result, node('h3', 'CONFIRMED TRAINING HISTORY'), history, modal);
   const isCurrent = (ticket, token) => ticket === sequence && identity(getSelection()) === selectedIdentity && String(getSelection()?.tokenId) === String(token);
   function clear() { data = null; stats.textContent = ''; slots.replaceChildren(); library.replaceChildren(); tools.replaceChildren(); result.textContent = ''; history.replaceChildren(); if (modal.open) modal.close(); }
-  const button = (text, fn, disabled = false) => { const b = node('button', text, 'filter-button'); b.type = 'button'; b.disabled = disabled || busy || pendingReviews.has(Number(selected)); b.addEventListener('click', fn); return b; };
+  const button = (text, fn, disabled = false) => { const b = node('button', text, 'filter-button'); b.type = 'button'; b.disabled = disabled || busy || !recoveryVerified || pendingReviews.has(Number(selected)); b.addEventListener('click', fn); return b; };
   function render() {
     refresh.disabled = busy;
-    recheck.hidden = !pendingReviews.has(Number(selected)); recheck.disabled = busy;
+    recheck.hidden = !pendingReviews.has(Number(selected)); recheck.disabled = busy || !recoveryVerified;
     recoveryBox.hidden = !pendingReviews.has(Number(selected)) || Boolean(pendingReviews.get(Number(selected))?.transactionHash);
-    recoveryInput.disabled = busy; recoverButton.disabled = busy;
+    recoveryInput.disabled = busy || !recoveryVerified; recoverButton.disabled = busy || !recoveryVerified;
     if (!data) return;
     stats.textContent = `TEST PUNK #${data.tokenId} · ${data.credits} CREDIT(S) · ${data.learned.length} LEARNED · ${data.equipped.filter(k => !ZERO.test(k)).length}/${data.slots} EQUIPPED`;
     slots.replaceChildren(); library.replaceChildren(); tools.replaceChildren(); history.replaceChildren();
@@ -103,7 +103,7 @@ export function createTrainingControl({ root, getSelection, request, localOnly }
         select.append(node('option', 'Choose learned skill')); select.firstChild.value = '';
         for (const learned of data.learned) { const s = data.skills.find(x => x.key === learned.key); if (!s || data.equipped.includes(s.key)) continue;
           const option = node('option', s.name); option.value = s.key; select.append(option); }
-        select.disabled = busy || pendingReviews.has(Number(selected)) || select.options.length < 2;
+        select.disabled = busy || !recoveryVerified || pendingReviews.has(Number(selected)) || select.options.length < 2;
         slot.append(select, button('REVIEW EQUIP', () => select.value && review('equip', { slot: i, key: select.value }), select.disabled));
         if (skill) slot.append(button('UNEQUIP', () => review('unequip', { slot: i })));
       }
@@ -127,27 +127,39 @@ export function createTrainingControl({ root, getSelection, request, localOnly }
   }
   async function load() {
     const selection = getSelection(), token = selection?.tokenId; selected = token; selectedIdentity = identity(selection);
-    const ticket = ++sequence; busy = true; recoveryInput.value = ''; clear(); render();
+    const ticket = ++sequence; busy = true; recoveryVerified = false; recoveryInput.value = ''; clear(); render();
     status.textContent = 'Reading confirmed local contract state…';
     try {
       if (selection?.chainId !== 31337 || ![1, 44, 7].includes(Number(token))) throw Error('Select a disposable test Punk on chain 31337.');
       const next = validateTrainingSnapshot(await request(`/api/forge?tokenId=${token}`), token);
       if (selection.owner && selection.owner.toLowerCase() !== next.owner.toLowerCase()) throw Error('Selected owner no longer controls this test Punk.');
       if (!isCurrent(ticket, token)) return;
+      // A verified contract read may remain visible when recovery is unavailable.
+      // It is NOT permission to act: every control stays locked until recovery passes.
+      data = next;
       const recovery = await request('/api/local-training/recover', { method: 'POST',
         headers: { 'content-type': 'application/json', 'x-forge-nonce': next.localTrainingNonce }, body: JSON.stringify({ tokenId: Number(token) }) });
       if (!isCurrent(ticket, token)) return;
       validateTrainingRecovery(recovery, next);
+      recoveryVerified = true;
       pendingReviews.delete(Number(token));
       const pending = recovery.records.find(r => ['CHECKING', 'AWAITING_WALLET', 'SUBMITTED', 'SUBMISSION_UNKNOWN'].includes(r.status));
       if (pending) pendingReviews.set(Number(token), { prepared: { intentId: pending.intentId }, captured: next, transactionHash: pending.transactionHash });
       data = next; status.textContent = pending ? 'Recovered an unresolved training request. Recheck its receipt; new transactions stay locked.'
         : `Confirmed local snapshot at block ${data.blockNumber}. No production permissions.`;
-    } catch (e) { if (isCurrent(ticket, token)) { clear(); status.textContent = e.message; } }
+    } catch (e) { if (isCurrent(ticket, token)) {
+      recoveryVerified = false;
+      if (!data) clear();
+      status.textContent = data
+        ? /^TRAINING_JOURNAL_UNAVAILABLE(?:\.|$)/.test(e.message)
+          ? 'Contract snapshot loaded; the local training journal is locked. Training and tools stay locked until service recovery. Confirmed contract state is shown below.'
+          : `Contract snapshot loaded; transaction recovery unavailable. Training and tools stay locked. Refresh to retry. ${e.message}`
+        : e.message;
+    } }
     finally { if (isCurrent(ticket, token)) { busy = false; render(); } }
   }
   async function review(operation, extra = {}) {
-    if (busy || !data || pendingReviews.has(Number(selected))) return;
+    if (busy || !data || !recoveryVerified || pendingReviews.has(Number(selected))) return;
     let captured = data; const token = data.tokenId, ticket = sequence;
     busy = true; render(); status.textContent = 'Preparing exact transaction and gas estimate. Nothing submitted.';
     let prepared;
@@ -176,7 +188,7 @@ export function createTrainingControl({ root, getSelection, request, localOnly }
       if (isCurrent(ticket, token)) {
         const recoveryTicket = sequence + 1;
         await load();
-        if (sequence === recoveryTicket && String(getSelection()?.tokenId) === String(token) && identity(getSelection()) === selectedIdentity && data && !pendingReviews.has(Number(token))) {
+        if (sequence === recoveryTicket && String(getSelection()?.tokenId) === String(token) && identity(getSelection()) === selectedIdentity && data && recoveryVerified && !pendingReviews.has(Number(token))) {
           status.textContent = /^STALE_REVIEW_STATE(?:\.|$)/.test(e.message)
             ? 'The chain changed again. Your loadout is refreshed. Choose the action again; nothing was submitted.'
             : `No transaction submitted. ${e.message}`;
@@ -202,7 +214,7 @@ export function createTrainingControl({ root, getSelection, request, localOnly }
     modal.append(button('CANCEL', () => modal.close()), confirm); modal.showModal();
   }
   async function submitPrepared(token, ticket, reconcileOnly = false, recoveryHash = null) {
-      const pending = pendingReviews.get(token); if (busy || !pending) return;
+      const pending = pendingReviews.get(token); if (busy || !recoveryVerified || !pending) return;
       const { prepared, captured } = pending;
       busy = true; render(); status.textContent = reconcileOnly ? 'Checking the saved transaction receipt. No wallet request will be made.'
         : 'Rechecking owner and state; submitting the exact reviewed transaction…';
@@ -230,7 +242,7 @@ export function createTrainingControl({ root, getSelection, request, localOnly }
   }
   function clearViewAfterReceipt() { slots.replaceChildren(); library.replaceChildren(); tools.replaceChildren(); result.textContent = ''; history.replaceChildren(); if (!data) stats.textContent = ''; }
   async function runTool(name) {
-    if (busy || !data) return; const captured = data, ticket = sequence, token = data.tokenId;
+    if (busy || !data || !recoveryVerified) return; const captured = data, ticket = sequence, token = data.tokenId;
     busy = true; result.textContent = ''; render(); status.textContent = 'Checking equipment and running read-only research…';
     try { const response = await request('/api/local-tool', { method: 'POST', headers: { 'content-type': 'application/json', 'x-forge-nonce': captured.localTrainingNonce }, body: JSON.stringify({ tokenId: token, name }) });
       if (!isCurrent(ticket, token)) return;

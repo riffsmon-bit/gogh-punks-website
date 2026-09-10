@@ -23,6 +23,18 @@ try {
   await call('Runtime.enable'); await call('Page.enable');
   await until("document.querySelectorAll('.forge-socket').length===7");
   assert.match(await evaluate("document.querySelector('.forge-training-stats').textContent"), /1 CREDIT.*2 LEARNED.*1\/2 EQUIPPED/);
+  // Recovery outages must preserve verified read-only state, never enable actions.
+  await evaluate("window.recoveryTestFetch=window.fetch;window.recoveryTestPosts=[];window.fetch=(url,opts)=>{if(opts?.method==='POST')recoveryTestPosts.push(url);if(url==='/api/local-training/recover')return Promise.resolve(new Response('TRAINING_REVIEW_UNAVAILABLE',{status:409}));return recoveryTestFetch(url,opts)}");
+  await click('REFRESH CONTRACT STATE');
+  await until("document.querySelector('[role=status]').textContent.includes('transaction recovery unavailable')");
+  assert.equal(await evaluate("document.querySelectorAll('.forge-socket').length"), 7);
+  assert.match(await evaluate("document.querySelector('.forge-training-stats').textContent"), /1 CREDIT.*2 LEARNED.*1\/2 EQUIPPED/);
+  assert.equal(await evaluate("[...document.querySelectorAll('.forge-socket button,.forge-socket select,.forge-library button,.forge-training-tools button')].every(b=>b.disabled)"), true);
+  assert.equal(await evaluate("document.querySelector('.forge-training-history').children.length>0"), true);
+  assert.deepEqual(await evaluate('recoveryTestPosts'), ['/api/local-training/recover']);
+  await evaluate('window.fetch=window.recoveryTestFetch');
+  await click('REFRESH CONTRACT STATE');
+  await until("document.querySelector('[role=status]').textContent.includes('Confirmed local snapshot')");
   // Run real read-only research through the locally equipped fixture, not an ungated bench.
   await click('INSPECT CONTRACT · RUN');
   await until("document.querySelector('[role=status]').textContent.includes('Research completed')");

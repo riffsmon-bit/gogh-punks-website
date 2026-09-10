@@ -1,9 +1,9 @@
 // Isolated UI harness. Training writes reach only its own disposable Anvil, never a real wallet.
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { readFile, mkdtemp } from 'node:fs/promises';
+import { readFile, mkdtemp, lstat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, isAbsolute } from 'node:path';
 import { SKILL_ICON_SLUGS } from './skill-icons.mjs';
 import { createServer as netServer } from 'node:net';
 import { createServer } from 'node:http';
@@ -29,19 +29,30 @@ const zero = `0x${'0'.repeat(64)}`;
 const artifact = async (file, name) => JSON.parse(await readFile(new URL(`../../../contracts/out/${file}/${name}.json`, import.meta.url), 'utf8'));
 const json = value => JSON.stringify(value, (_key, item) => typeof item === 'bigint' ? item.toString() : item);
 
-export async function startPreview({ port = 0, researchClient, controlCenterTraining = false } = {}) {
+export async function startPreview({ port = 0, researchClient, controlCenterTraining = false, resume = null } = {}) {
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('Invalid local preview port');
-  const reservation = netServer();
-  await new Promise(resolve => reservation.listen(0, '127.0.0.1', resolve));
-  const rpcPort = reservation.address().port;
-  await new Promise(resolve => reservation.close(resolve));
-  const child = spawn('anvil', ['--silent', '--host', '127.0.0.1', '--port', String(rpcPort), '--chain-id', '31337'], { stdio: 'ignore' });
+  // Process-local recovery only. Never accepted from HTTP, a wallet or a URL flag.
+  if (resume && (controlCenterTraining !== true || !Number.isInteger(resume.rpcPort) || resume.rpcPort < 1 || resume.rpcPort > 65535
+    || !['owner', 'collection', 'registry', 'progression'].every(k => /^0x[0-9a-f]{40}$/i.test(resume[k]))
+    || typeof resume.journalPath !== 'string' || !isAbsolute(resume.journalPath))) throw Error('INVALID_LOCAL_RESUME');
+  if (resume) { const file = await lstat(resume.journalPath); if (!file.isFile() || file.isSymbolicLink()) throw Error('INVALID_LOCAL_JOURNAL'); }
+  let rpcPort = resume?.rpcPort, child = null;
+  if (!resume) {
+    const reservation = netServer();
+    await new Promise(resolve => reservation.listen(0, '127.0.0.1', resolve));
+    rpcPort = reservation.address().port;
+    await new Promise(resolve => reservation.close(resolve));
+    child = spawn('anvil', ['--silent', '--host', '127.0.0.1', '--port', String(rpcPort), '--chain-id', '31337'], { stdio: 'ignore' });
+  }
   let startupError, server, journal;
-  child.on('error', error => { startupError = error; });
-  const close = async () => {
+  child?.on('error', error => { startupError = error; });
+  const suspend = async () => {
     if (server?.listening) await new Promise(resolve => { server.close(resolve); server.closeAllConnections(); });
     if (journal) { journal.close(); journal = null; }
-    if (child.exitCode === null && !child.killed) child.kill('SIGTERM');
+  };
+  const close = async () => {
+    await suspend();
+    if (child && child.exitCode === null && !child.killed) child.kill('SIGTERM');
   };
   try {
     const transport = http(`http://127.0.0.1:${rpcPort}`, { timeout: 1000, retryCount: 0 });
@@ -49,13 +60,15 @@ export async function startPreview({ port = 0, researchClient, controlCenterTrai
     let ready;
     for (let i = 0; i < 80; i++) {
       if (startupError) throw startupError;
-      if (child.exitCode !== null) throw new Error('Local chain exited');
+      if (child && child.exitCode !== null) throw new Error('Local chain exited');
       try { ready = await client.getChainId() === 31337; } catch { }
       if (ready) break;
       await new Promise(resolve => setTimeout(resolve, 250));
     }
     if (!ready) throw new Error('Local Anvil unavailable');
+    if (resume && !/anvil/i.test(await client.request({ method: 'web3_clientVersion' }))) throw Error('LOCAL_ANVIL_REQUIRED');
     const [owner] = await client.request({ method: 'eth_accounts' });
+    if (resume && owner?.toLowerCase() !== resume.owner.toLowerCase()) throw Error('LOCAL_RESUME_OWNER_CHANGED');
     const localTrainingNonce = randomBytes(32).toString('hex');
     let mutationInFlight = false;
     const wallet = createWalletClient({ transport, account: owner });
@@ -70,41 +83,45 @@ export async function startPreview({ port = 0, researchClient, controlCenterTrai
     const training = await artifact('GoghSkillForge.t.sol', 'LocalSkillTrainingSource');
     const reg = await artifact('GoghSkillRegistry.sol', 'GoghSkillRegistry');
     const prog = await artifact('GoghSkillProgression.sol', 'GoghSkillProgression');
-    const collection = await deploy(nft, []), registry = await deploy(reg, [owner]);
-    const source = await deploy(training, [collection]);
-    const progression = await deploy(prog, [collection, registry, source, SLOT_POLICY.baseSlots, SLOT_POLICY.maxEquippedSkills]);
-    await write(training, source, 'bind', [progression]);
-    for (const id of [1, 44, 7, 1001, 1002, 1003, 1004, 1005]) await write(nft, collection, 'mint', [owner, BigInt(id)]);
+    const collection = resume?.collection ?? await deploy(nft, []), registry = resume?.registry ?? await deploy(reg, [owner]);
+    const source = resume ? null : await deploy(training, [collection]);
+    const progression = resume?.progression ?? await deploy(prog, [collection, registry, source, SLOT_POLICY.baseSlots, SLOT_POLICY.maxEquippedSkills]);
+    if (!resume) {
+      await write(training, source, 'bind', [progression]);
+      for (const id of [1, 44, 7, 1001, 1002, 1003, 1004, 1005]) await write(nft, collection, 'mint', [owner, BigInt(id)]);
+    }
     const skills = [], packages = [];
     for (const entry of catalog) {
       const manifest = { skillId: entry.id, version: 1, chainId: 31337, capabilities: [entry.capability], description: 'LOCAL FIXTURE ONLY — NOT PRODUCTION READY' };
       const hash = manifestHash(manifest), instructions = instructionHash(entry.description);
-      await write(reg, registry, 'register', [entry.id, 1, hash, instructions, zero, entry.bit, entry.id === 1 ? 1 : 0]);
+      if (!resume) await write(reg, registry, 'register', [entry.id, 1, hash, instructions, zero, entry.bit, entry.id === 1 ? 1 : 0]);
       const key = await client.readContract({ address: registry, abi: reg.abi, functionName: 'skillKey', args: [entry.id, 1] });
       // Only test definitions on this disposable chain receive fixture readiness.
-      if ([2, 3, 4].includes(entry.id)) {
+      if (!resume && [2, 3, 4].includes(entry.id)) {
         await write(reg, registry, 'setStatus', [key, 3, zero]);
         await write(reg, registry, 'setStatus', [key, 4, manifestHash({ localFixture: true, skillId: entry.id })]);
       }
       skills.push({ ...entry, key, version: 1, manifestHash: hash, instructionHash: instructions });
       packages.push({ manifest, instructions: entry.description, approved: [2, 3, 4].includes(entry.id), status: [2, 3, 4].includes(entry.id) ? 'READY' : 'TESTING' });
     }
-    for (const id of [1001, 1002, 1003, 1004]) {
-      await write(nft, collection, 'approve', [source, BigInt(id)]);
-      await write(training, source, 'sacrifice', [BigInt(id), 1n]);
-    }
-    await write(prog, progression, 'learnSkill', [1n, skills[0].key]);
-    await write(prog, progression, 'learnSkill', [1n, skills[1].key]);
-    await write(prog, progression, 'unlockSlot', [1n]);
-    await write(prog, progression, 'equipSkill', [1n, 0, skills[0].key]);
-    await write(nft, collection, 'approve', [source, 1005n]);
-    await write(training, source, 'sacrifice', [1005n, 7n]);
-    await write(prog, progression, 'learnSkill', [7n, skills.find(skill => skill.id === 2).key]);
-    if (controlCenterTraining === true) {
-      // Disposable provenance for a fresh learn → equip → real research test, not an admin credit grant.
-      await write(nft, collection, 'mint', [owner, 2001n]);
-      await write(nft, collection, 'approve', [source, 2001n]);
-      await write(training, source, 'sacrifice', [2001n, 44n]);
+    if (!resume) {
+      for (const id of [1001, 1002, 1003, 1004]) {
+        await write(nft, collection, 'approve', [source, BigInt(id)]);
+        await write(training, source, 'sacrifice', [BigInt(id), 1n]);
+      }
+      await write(prog, progression, 'learnSkill', [1n, skills[0].key]);
+      await write(prog, progression, 'learnSkill', [1n, skills[1].key]);
+      await write(prog, progression, 'unlockSlot', [1n]);
+      await write(prog, progression, 'equipSkill', [1n, 0, skills[0].key]);
+      await write(nft, collection, 'approve', [source, 1005n]);
+      await write(training, source, 'sacrifice', [1005n, 7n]);
+      await write(prog, progression, 'learnSkill', [7n, skills.find(skill => skill.id === 2).key]);
+      if (controlCenterTraining === true) {
+        // Disposable provenance for a fresh learn → equip → real research test, not an admin credit grant.
+        await write(nft, collection, 'mint', [owner, 2001n]);
+        await write(nft, collection, 'approve', [source, 2001n]);
+        await write(training, source, 'sacrifice', [2001n, 44n]);
+      }
     }
     const pinnedRead = createProgressionReader({ client, chainId: 31337, collection, registry, progression,
       registryCodeHash: keccak256(await client.getCode({ address: registry })),
@@ -168,8 +185,8 @@ export async function startPreview({ port = 0, researchClient, controlCenterTrai
       return { localOnly: true, localTrainingNonce, chainId: 31337, tokenId, owner: currentOwner, collection, registry, progression, ownershipEpoch, blockNumber: block.number, blockHash: block.hash, credits, slots, cap, learned, equipped, history, skills: previewLibrary(skills), candidates, capabilityContext, forgeMinimumSupply: String(FORGE_MINIMUM_SUPPLY), productionReadyCount: 0, canBurn: false };
     };
     const trainingWallet = createTrainingWalletAdapter({ provider: { request: args => client.request(args) }, readSnapshot: snapshot });
-    const journalDirectory = await mkdtemp(join(tmpdir(), 'gogh-training-journal-'));
-    const journalOptions = { path: join(journalDirectory, 'intents.sqlite'), deploymentIdentity: manifestHash({ trainingReviewVersion: 2, chainId: 31337,
+    const journalPath = resume?.journalPath ?? join(await mkdtemp(join(tmpdir(), 'gogh-training-journal-')), 'intents.sqlite');
+    const journalOptions = { path: journalPath, deploymentIdentity: manifestHash({ trainingReviewVersion: 2, chainId: 31337,
       genesis: (await client.getBlock({ blockNumber: 0n })).hash, collection, registry, progression, owner,
       registryCode: keccak256(await client.getCode({ address: registry })), progressionCode: keccak256(await client.getCode({ address: progression })) }).slice(2) };
     journal = openTrainingJournal(journalOptions);
@@ -186,6 +203,8 @@ export async function startPreview({ port = 0, researchClient, controlCenterTrai
         return transactionHash;
       } });
     let trainingIntents = makeCoordinator();
+    // Validate persisted intents and receipts before exposing the resumed service.
+    if (resume) for (const id of [1, 44, 7]) await trainingIntents.recover(id);
     const files = new Map([
       ['/control-center', ['control-center.html', 'text/html']],
       ['/control-center.mjs', ['control-center.mjs', 'text/javascript']],
@@ -230,7 +249,7 @@ export async function startPreview({ port = 0, researchClient, controlCenterTrai
           }
           res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(json(result));
         } catch (error) {
-          const safe = ['STALE_REVIEW_STATE', 'TRAINING_STATE_CHANGED', 'TRAINING_REVIEW_EXPIRED', 'TRAINING_REVIEW_CONSUMED', 'TRAINING_TRANSACTION_UNRESOLVED'];
+          const safe = ['STALE_REVIEW_STATE', 'TRAINING_STATE_CHANGED', 'TRAINING_REVIEW_EXPIRED', 'TRAINING_REVIEW_CONSUMED', 'TRAINING_TRANSACTION_UNRESOLVED', 'TRAINING_JOURNAL_UNAVAILABLE'];
           res.writeHead(409); return res.end(`${safe.includes(error.message) ? error.message : 'TRAINING_REVIEW_UNAVAILABLE'}. Inspect local transaction history before creating another review. No production action exists.`);
         }
       }
@@ -303,7 +322,8 @@ export async function startPreview({ port = 0, researchClient, controlCenterTrai
     });
     server.requestTimeout = 10000;
     await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); });
-    return { url: `http://127.0.0.1:${server.address().port}`, close,
+    return { url: `http://127.0.0.1:${server.address().port}`, close, suspend,
+      resumeConfig: { rpcPort, owner, collection, registry, progression, journalPath },
       // Test-only process-local hook: no HTTP route and no production deployment.
       reopenCoordinator: () => { journal.close(); journal = openTrainingJournal(journalOptions); trainingIntents = makeCoordinator(); },
       journalPath: journalOptions.path,

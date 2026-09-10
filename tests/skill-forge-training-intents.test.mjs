@@ -264,6 +264,7 @@ for (const when of ['before_wallet', 'after_wallet']) test(`journal write failur
   f.manager = f.makeManager(faultStore); const review = await f.prepare();
   assert.equal((await f.manager.confirm(review.intentId)).status, 'RECOVERY_REQUIRED');
   assert.equal(f.sends, when === 'before_wallet' ? 0 : 1);
+  await assert.rejects(f.manager.recover(1), error => error.message === 'TRAINING_JOURNAL_UNAVAILABLE' && error.cause?.message === 'DISK_FULL');
   f.manager = f.makeManager(j.reopen()); await assert.rejects(f.prepare(), /UNRESOLVED/);
   assert.equal((await f.manager.status(review.intentId)).status, 'RECOVERY_REQUIRED');
 });
