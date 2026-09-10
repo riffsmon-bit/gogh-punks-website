@@ -1,0 +1,39 @@
+{
+  "schema": "GOGH_FORGE_DURABLE_TRAINING_TEST_EVIDENCE_V1",
+  "date": "2026-09-10",
+  "scope": "ISOLATED_LOCAL_TESTS_ONLY",
+  "sourceSha256": {
+    "broker/src/v4/skill-forge/durable-training-review.mjs": "1fb050eb05f30562a00756094a457a5438d0c6854d808fc416e55bf1e2f7a100",
+    "broker/src/v4/skill-forge/postgres-training-store.mjs": "5a63fc509db4ba0c26d7a04dc1070eb026a229ead360d40d61fa8a039acbfd72",
+    "broker/src/v4/skill-forge/training-receipt-verifier.mjs": "2c87dca9c1c6c28f49c0b7e7bacf648233523c13e8d97f66e13abbcef210c7e1",
+    "netlify/database/migrations/20260910180000_stage_forge_training_intents.sql": "760a8786b82b07b110dfd40ed38b806a879dd4e027a22065765c4f8a35435795"
+  },
+  "tests": {
+    "focusedJavaScriptPassed": 76,
+    "fullJavaScriptPassed": 1556,
+    "fullJavaScriptFailed": 0,
+    "fullJavaScriptSkipped": 0,
+    "sqlEngine": "PostgreSQL 18.3 WASM / PGlite 0.5.8",
+    "sqlAssertionsPassed": 45,
+    "nativePostgresMultiSessionTested": false,
+    "postgresDiskCrashRecoveryTested": false,
+    "productionDatabaseRoleTested": false,
+    "focusedSolidityPassed": 34,
+    "solidityFuzzRuns": 1024,
+    "fullSoliditySuiteRerun": false,
+    "disposableChainAndDatabaseIntegration": "PASS",
+    "reviewedActionHashOnDisposable31337": "0x9d82e0cb3cd8a8e0380ebbbf239e7b8bd344e2197fc40b93c3834c1ada48ffaf",
+    "unknownSubmissionRecoveredWithoutResend": true,
+    "learnedSkillPersistsAfterFixtureTransfer": true,
+    "sellerPrivateReviewNotReturnedToBuyer": true,
+    "receiptFinalized": false
+  },
+  "publicChainTransactions": 0,
+  "productionDatabaseAccessed": false,
+  "productionMigrationApplied": false,
+  "productionEndpointConnected": false,
+  "productionTrainingAuthorized": false,
+  "productionBurnAuthorized": false,
+  "skillsPromotedToProductionReady": 0,
+  "practiceServersReset": false
+}
