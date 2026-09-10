@@ -7,6 +7,7 @@ import { join, resolve, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { decodeFunctionData, encodeAbiParameters, parseAbi } from 'viem';
+import { lockedOriginalForgeProfile } from '../broker/src/v4/skill-forge/original-punk-profile.mjs';
 if(process.argv.length!==3 || process.argv[2]!=='--local-only') throw Error('Requires --local-only');
 const ALICE=`0x${'1'.repeat(40)}`, BOB=`0x${'2'.repeat(40)}`;
 const COLLECTION='0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6';
@@ -15,6 +16,8 @@ const ownership=new Map([['93',ALICE],['119',BOB]]);
 const aggregate=parseAbi(['function aggregate3((address target,bool allowFailure,bytes callData)[] calls) payable returns((bool success,bytes returnData)[])']);
 const word=n=>`0x${BigInt(n).toString(16).padStart(64,'0')}`;
 let walletWrites=0;
+let connectedOwner=ALICE, forgeMode='locked', releaseForge=null, sessionReads=0;
+const skillHash=`0x${'7'.repeat(64)}`;
 const server=createServer(async(req,res)=>{
   const json=data=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify(data));};
   try {
@@ -47,6 +50,25 @@ const server=createServer(async(req,res)=>{
     if(url.pathname==='/api/broker/owner-punks') return json({ok:true,owner:url.searchParams.get('owner'),
       chainId:4663,collection:COLLECTION,candidateTokenIds:['93','119'],
       candidatePunks:[{tokenId:'93'},{tokenId:'119'}]});
+    if(url.pathname==='/api/v2/session' && req.method==='GET') {sessionReads++; return json({ok:true,walletAddress:connectedOwner});}
+    if(/^\/api\/v2\/punks\/\d+\/forge$/.test(url.pathname)) {
+      const tokenId=url.pathname.split('/')[4], owner=connectedOwner;
+      if(forgeMode==='error') {res.statusCode=503; return json({ok:false,message:'Fixture verification unavailable.'});}
+      const profile=forgeMode==='locked' ? lockedOriginalForgeProfile() : {
+        status:'VERIFIED_READ_ONLY',verified:true,ownership:'ORIGINAL_NFT',tokenId,owner,
+        collection:COLLECTION,registry:`0x${'3'.repeat(40)}`,progression:`0x${'4'.repeat(40)}`,
+        trainingCredits:'1',unlockedSlots:2,claimedStartingSlots:2,slotCap:7,
+        learnedSkills:[{key:skillHash,skillId:3,version:1,level:1,name:'Contract Detective',slug:'contract-detective',
+          packageVerified:true,status:'READY',available:true,disabled:false,deprecated:false,manifestHash:skillHash,instructionHash:skillHash}],
+        equippedSkills:[{slot:0,key:skillHash,level:1}],blockNumber:'100',blockHash:skillHash,blockTime:Date.now(),
+        canLearn:false,canEquip:false,canBurn:false,effectiveMcpTools:[],walletAuthority:'NONE',
+      };
+      if(forgeMode==='wrong-token') profile.tokenId='812';
+      if(forgeMode==='delayed') await new Promise(r=>{releaseForge=r;});
+      return json({ok:true,tokenId,owner,chainId:4663,mode:'READ_ONLY_RESEARCH_LAB',walletAuthority:'NONE',
+        canLearn:false,canEquip:false,canBurn:false,labAvailable:true,marketAvailable:false,profile,
+        ...(req.method==='POST'?{action:'inspect_contract',observedAt:new Date().toISOString(),result:{codeBytes:18470,blockNumber:'100'}}:{})});
+    }
     if(url.pathname.startsWith('/api/')) { res.statusCode=503; return json({ok:false,code:'LOCAL_READ_FIXTURE_ONLY'}); }
     // Do not load wallet SDKs or connect to external providers in this test.
     if(url.pathname==='/wallet.js') {res.setHeader('Content-Type','text/javascript');return res.end('export {};');}
@@ -103,6 +125,7 @@ try {
   assert.equal(await evaluate("document.querySelector('[data-conversation]').textContent.includes('STALE SOLD PUNK')"),false);
   assert.match(await evaluate("document.querySelector('[data-ownership-sync]').textContent"),/automatically/);
   // Buyer connects and receives the original Punk without a receipt or setup action.
+  connectedOwner=BOB;
   await evaluate(`window.dispatchEvent(new CustomEvent('gogh:wallet-state',{detail:{account:'${BOB}',chainId:4663,status:'owner'}}))`);
   await until("document.querySelector('[data-punk-token]').textContent === '93'");
   await evaluate("window.lastPunk='93';window.addEventListener('gogh:punk-selected',event=>{window.lastPunk=event.detail.tokenId;});");
@@ -112,16 +135,58 @@ try {
   ownership.set('93',BOB);
   await evaluate("window.testClock+=30000; window.dispatchEvent(new Event('focus'));");
   await until("!document.querySelector('[data-selected-stage]').hidden && window.lastPunk === '93'");
+  await evaluate("window.testClock=0;document.querySelector('[data-v2-tab=forge]').click();document.querySelector('[data-forge-connect]').click();");
+  await until("document.querySelector('[data-forge-status]').textContent.includes('OWNER VERIFIED')");
+  assert.equal(await evaluate("document.querySelectorAll('.forge-socket-unknown').length"),7);
+  assert.match(await evaluate("document.querySelector('[data-forge-profile-summary]').textContent"),/unknown—not zero/);
+  await evaluate("document.querySelector('.forge-skill button').click();");
+  await until("document.querySelector('[data-forge-report]').textContent.includes('Test completed—not a learned skill')");
+  assert.equal(await evaluate("document.querySelectorAll('.forge-socket-equipped').length"),0);
+  forgeMode='verified';
+  await evaluate("document.querySelector('[data-forge-connect]').click();");
+  await until("document.querySelectorAll('.forge-socket-equipped').length===1");
+  assert.equal(await evaluate("document.querySelectorAll('.forge-socket-empty').length"),1);
+  assert.equal(await evaluate("document.querySelectorAll('.forge-socket-locked').length"),5);
+  assert.equal(await evaluate("[...document.querySelectorAll('.forge-locked button')].every(b=>b.disabled)"),true);
+  for(const mode of ['wrong-token','error']) {
+    forgeMode=mode; await evaluate("document.querySelector('[data-forge-connect]').click();");
+    await until("document.querySelector('[data-forge-status]').textContent.includes('No training or wallet change')");
+    assert.equal(await evaluate("document.querySelectorAll('.forge-socket-equipped').length"),0,mode);
+    assert.equal(await evaluate("document.querySelectorAll('.forge-socket-unknown').length"),7,mode);
+  }
+  forgeMode='verified'; await evaluate("document.querySelector('[data-forge-connect]').click();");
+  await until("document.querySelectorAll('.forge-socket-equipped').length===1");
+  const sessionsBeforeRefresh=sessionReads; forgeMode='error';
+  await evaluate("window.testClock+=31000;window.dispatchEvent(new Event('focus'));");
+  await until("document.querySelectorAll('.forge-socket-unknown').length===7");
+  assert.equal(sessionReads,sessionsBeforeRefresh,'automatic refresh does not request wallet sign-in');
+  await evaluate("window.testClock=0;");
+  forgeMode='delayed'; await evaluate("document.querySelector('[data-forge-connect]').click();");
+  for(let i=0;i<100&&!releaseForge;i++) await new Promise(r=>setTimeout(r,50));
+  assert.ok(releaseForge,'delayed profile request reached server');
+  connectedOwner=ALICE;
+  await evaluate(`window.dispatchEvent(new CustomEvent('gogh:wallet-state',{detail:{account:'${ALICE}',chainId:4663,status:'owner'}}))`);
+  await until("document.querySelector('[data-punk-token]').textContent === '119'");
+  releaseForge(); releaseForge=null;
+  await new Promise(r=>setTimeout(r,250));
+  assert.equal(await evaluate("document.querySelectorAll('.forge-socket-equipped').length"),0,'old-owner delayed response withheld');
+  forgeMode='verified'; await evaluate("document.querySelector('[data-forge-connect]').click();");
+  await until("document.querySelectorAll('.forge-socket-equipped').length===1");
+  assert.match(await evaluate("document.querySelector('[data-forge-punk]').textContent"),/119/);
   const output=await mkdtemp(join(tmpdir(),'gogh-original-sale-review-'));
   for(const [name,width,height,mobile] of [['desktop',1440,1000,false],['mobile',390,844,true]]) {
     await call('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile});
     assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true,`${name} overflow`);
+    await evaluate("document.querySelector('[data-forge-profile-summary]').scrollIntoView({block:'center',behavior:'instant'});");
     const shot=await call('Page.captureScreenshot',{format:'png'});
     await writeFile(join(output,`${name}.png`),Buffer.from(shot.data,'base64'));
   }
   assert.equal(walletWrites,0); assert.deepEqual(errors,[]);
   console.log(JSON.stringify({result:'PASS',sameWalletPurchaseAndSale:true,staleReviewClosed:true,
-    buyerSeesOriginalPunk:true,wrappedReceiptUI:false,desktopAndMobile:true,walletWrites,browserExceptions:errors.length,screenshots:output},null,2));
+    buyerSeesOriginalPunk:true,wrappedReceiptUI:false,forgeMounted:true,forgeUnknownNotZero:true,
+    forgeProfileAndFailureRecovery:true,staleForgeResponseWithheld:true,forgeAutoRefreshWithoutSignIn:true,productionTrainingLocked:true,
+    desktopAndMobile:true,walletWrites,browserExceptions:errors.length,screenshots:output},null,2));
 } finally {
+  releaseForge?.();
   ws?.close();chrome?.kill('SIGTERM');await new Promise(r=>server.close(r));
 }

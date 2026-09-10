@@ -8,6 +8,7 @@
     <title>Art Broker V2 · Gogh Punks</title>
     <link rel="icon" href="/assets/favicon.png" type="image/png" />
     <link rel="stylesheet" href="/broker-v2.css" />
+    <link rel="stylesheet" href="/broker-v2-forge.css" />
     <script src="/wallet.js?v=reown-10" type="module"></script>
     <script src="/broker-v2.js" type="module"></script>
   </head>
@@ -80,7 +81,8 @@
           <button type="button" data-v2-tab="fund" aria-selected="false"><span>03</span>FUND</button>
           <button type="button" data-v2-tab="collection" aria-selected="false"><span>04</span>COLLECTION</button>
           <button type="button" data-v2-tab="activity" aria-selected="false"><span>05</span>ACTIVITY</button>
-          <button type="button" data-v2-tab="settings" aria-selected="false"><span>06</span>SETTINGS</button>
+          <button type="button" data-v2-tab="forge" aria-selected="false"><span>06</span>FORGE</button>
+          <button type="button" data-v2-tab="settings" aria-selected="false"><span>07</span>SETTINGS</button>
         </nav>
 
         <div class="panel-stack">
@@ -226,6 +228,18 @@
               <p class="mission-monitor-note">This displays discovery, screening, and simulation only. No mint transaction is submitted by the review agent.</p>
             </section>
             <ol class="activity-feed" data-activity-feed></ol>
+          </section>
+
+          <section class="broker-panel" data-v2-panel="forge" aria-labelledby="forge-title" hidden>
+            <header class="panel-header"><div><span class="kicker" data-forge-punk>SELECT YOUR PUNK</span><h2 id="forge-title">GOGH SKILL FORGE</h2></div><span class="mode-stamp">CONTROLLED RESEARCH LAB</span></header>
+            <div class="forge-banner"><strong>BUILT. NOT BORN.</strong><p>Your original Gogh Punk is the ownership key. Permanent training follows the token when it sells—no wrapper, buyer claim or re-equipping. Private chat and the seller’s spending permission do not transfer.</p></div>
+            <button class="filter-button" type="button" data-forge-connect>CHECK FORGE &amp; LOADOUT</button>
+            <p class="forge-note" data-forge-status role="status" aria-live="polite">Select a Punk and check Forge access.</p>
+            <section class="forge-loadout" aria-labelledby="forge-loadout-title"><span class="kicker" data-forge-profile-state>PERMANENT TRAINING · NOT VERIFIED</span><h3 id="forge-loadout-title">PUNK LOADOUT</h3><p class="forge-note" data-forge-profile-summary>Learned skills, credits and unlocked slots are unknown until verified. This is not a zero balance.</p><div class="forge-slots" data-forge-slots></div><p class="forge-note" data-forge-profile-note>Seven-slot design capacity. A learned icon never authorizes spending. Current owner policy still applies.</p></section>
+            <h3>RESEARCH TEST BENCH</h3><p class="forge-note">These diagnostic tests do not learn or equip a skill. Rarity Eye compares exactly three existing Gogh Punks, including the selected Punk. Sample ranks never change the frozen OpenSea rarity snapshot.</p>
+            <div class="forge-sample"><label>Selected Punk<input data-forge-sample-selected readonly></label><label>Sample Punk 2<input data-forge-sample-two inputmode="numeric" maxlength="4"></label><label>Sample Punk 3<input data-forge-sample-three inputmode="numeric" maxlength="4"></label></div>
+            <div class="forge-library" data-forge-library></div><div class="forge-report" data-forge-report role="region" aria-label="Research result" aria-live="polite"></div>
+            <div class="forge-locked"><h3>PERMANENT TRAINING IS LOCKED</h3><p>Research can be tested separately. A reviewed training source, pinned deployments and accepted skill registrations are still required for learn/equip transactions. Burning also requires verified asset safety and the 1,111 Forge supply floor. Unknown inventory blocks sacrifice; acknowledgement cannot bypass it.</p><button class="filter-button" disabled>LEARN · NOT LIVE</button><button class="filter-button" disabled>EQUIP · NOT LIVE</button><button class="filter-button" disabled>SACRIFICE · LOCKED</button></div>
           </section>
 
           <section class="broker-panel" data-v2-panel="settings" aria-labelledby="settings-title" hidden>

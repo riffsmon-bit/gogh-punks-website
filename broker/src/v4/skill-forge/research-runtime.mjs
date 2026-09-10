@@ -6,15 +6,15 @@ import { createMarketReader } from './market-reader.mjs';
 
 const PACKAGES = ['contract-detective', 'rarity-eye', 'market-scout'];
 const ROOT = new URL('../../../../', import.meta.url);
-export async function loadResearchSkillCatalog() {
+export async function loadResearchSkillCatalog({ root = ROOT } = {}) {
   return Promise.all(PACKAGES.map(async slug => {
-    const dir = new URL(`broker/skills/${slug}/v1/`, ROOT);
+    const dir = new URL(`broker/skills/${slug}/v1/`, root);
     const manifest = JSON.parse(await readFile(new URL('manifest.json', dir), 'utf8'));
     const instructions = await readFile(new URL('SKILL.md', dir), 'utf8');
     if (!['broker/src/v4/skill-forge/research-tools.mjs', 'broker/src/v4/skill-forge/market-reader.mjs'].includes(manifest.implementation)) throw new Error('UNREVIEWED_IMPLEMENTATION');
-    const digest = createHash('sha256').update(await readFile(new URL(manifest.implementation, ROOT))).digest('hex');
+    const digest = createHash('sha256').update(await readFile(new URL(manifest.implementation, root))).digest('hex');
     if (digest !== manifest.implementationSha256) throw new Error('IMPLEMENTATION_HASH_MISMATCH');
-    return Object.freeze({ manifest, instructions, status: 'TESTING', approved: false,
+    return Object.freeze({ slug, manifest, instructions, status: 'TESTING', approved: false,
       manifestHash: manifestHash(manifest), instructionHash: instructionHash(instructions) });
   }));
 }

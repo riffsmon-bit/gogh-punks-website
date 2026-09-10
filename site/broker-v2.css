@@ -140,7 +140,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .meter-track span { display: block; width: 67%; height: 100%; background: var(--acid); }
 .budget-meter small { color: var(--muted); }
 
-.broker-tabs { display: grid; grid-template-columns: repeat(6, 1fr); margin-top: 14px; border: 1px solid var(--line); }
+.broker-tabs { display: grid; grid-template-columns: repeat(7, 1fr); margin-top: 14px; border: 1px solid var(--line); }
 .broker-tabs button { min-height: 64px; padding: 9px; border: 0; border-right: 1px solid var(--line);
   color: var(--muted); background: var(--surface); cursor: pointer; font-size: .68rem; font-weight: 1000; letter-spacing: .08em; }
 .broker-tabs button:last-child { border-right: 0; }
@@ -446,7 +446,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   .hero-stats { grid-template-columns: 1fr 1fr; }
   .hero-stats div { padding: 10px; }
   .hero-stats dd { font-size: .74rem; }
-  .broker-tabs { position: fixed; bottom: 0; left: 0; right: 0; z-index: 30; grid-template-columns: repeat(6, minmax(68px, 1fr));
+  .broker-tabs { position: fixed; bottom: 0; left: 0; right: 0; z-index: 30; grid-template-columns: repeat(7, minmax(68px, 1fr));
     overflow-x: auto; margin: 0; border-left: 0; border-right: 0; background: var(--surface); }
   .broker-tabs button { min-height: 64px; min-width: 68px; font-size: .54rem; }
   .broker-panel { min-height: 0; padding: 20px 14px; }

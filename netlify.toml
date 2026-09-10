@@ -24,6 +24,9 @@
 [functions."broker-autonomy-v2-status"]
   included_files = ["deployments/robinhood-automation-v2.json", "deployments/robinhood.json", "broker/src/**/*.mjs", "netlify/functions/_shared/*.mjs"]
 
+[functions."broker-v2-forge"]
+  included_files = ["broker/skills/**", "broker/src/v4/skill-forge/*.mjs", "deployments/robinhood-skill-forge.json"]
+
 [functions."broker-autonomy-v3-status"]
   included_files = ["deployments/robinhood-automation-v3.json", "deployments/robinhood.json", "broker/src/**/*.mjs", "netlify/functions/_shared/*.mjs"]
 

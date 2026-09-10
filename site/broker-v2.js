@@ -1,5 +1,6 @@
 import { verifyOwnedPunkIds } from "./broker-v2-ownership.js";
 import { createOwnerRefresh } from "./broker-v2-owner-refresh.js";
+import { createForgeControl } from "./broker-v2-forge.js";
 import {
   fetchPunkWalletFundsGate, preflightPunkWalletFunds, readPunkWalletFundsState,
   submitPunkWalletFunds, waitForPunkWalletTransactionReceipt,
@@ -67,6 +68,7 @@ const REVIEW_MISSION_LEASE_KEY = "gogh-art-broker-review-mission-lease-v1";
 const REVIEW_MISSION_LEASE_MS = 15_000;
 const REVIEW_TAB_ID = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
 let reviewMissionTimer = null;
+let forgeControl = null;
 const one = (selector) => document.querySelector(selector);
 const all = (selector) => [...document.querySelectorAll(selector)];
 const set = (selector, value) => { const target = one(selector); if (target) target.textContent = String(value); };
@@ -1153,6 +1155,7 @@ function activateTab(name) {
   all("[data-v2-tab]").forEach((button) => button.setAttribute("aria-selected", String(button.dataset.v2Tab === name)));
   all("[data-v2-panel]").forEach((panel) => { panel.hidden = panel.dataset.v2Panel !== name; });
   if (name === "activity") renderActivity();
+  if (name === "forge") forgeControl?.selectionChanged();
   history.replaceState(null, "", `${location.pathname}?${new URLSearchParams({ ...(PREVIEW ? { preview: "1" } : {}), tab: name })}`);
   const reviewRead = REVIEW_HOST && ["fund", "collection"].includes(name);
   const productRead = !REVIEW_HOST && ["strategy", "fund", "collection", "activity"].includes(name);
@@ -2400,7 +2403,11 @@ function setup() {
     }
   }, 5_000);
   const requestedTab = new URLSearchParams(location.search).get("tab");
-  if (["talk", "strategy", "fund", "collection", "activity", "settings"].includes(requestedTab)) {
+  forgeControl = createForgeControl({ root: one('[data-v2-panel="forge"]'),
+    getSelection: () => state.selected ? { tokenId: String(state.selected.tokenId),
+      owner: state.wallet?.account ?? null, chainId: state.wallet?.chainId, preview: PREVIEW } : null,
+    ensureSession: ensureV2Session, request: jsonRequest });
+  if (["talk", "strategy", "fund", "collection", "activity", "forge", "settings"].includes(requestedTab)) {
     activateTab(requestedTab);
   }
 }
