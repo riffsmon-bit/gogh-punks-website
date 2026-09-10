@@ -1,5 +1,7 @@
 # Forge integration hardening — September 9, 2026
 
+Latest ownership-transfer follow-up: [transfer checkpoint](./v2-forge-transfer-checkpoint.md). Progression retention and new-owner control passed, but the account contract can revive a previous session after an away-and-back transfer. This was reproduced with an old signed mock mint and remains a core transfer-safety blocker; no production implementation was changed.
+
 Scope: isolated feature branches, disposable chain 31337, shared V2 browser components. No production deployment, wallet signature, NFT burn, fund movement or live mission mutation.
 
 ## Fixed in this pass

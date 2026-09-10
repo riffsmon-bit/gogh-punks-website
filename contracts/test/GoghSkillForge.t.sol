@@ -290,6 +290,77 @@ contract GoghSkillForgeTest {
         require(progression.equipped(1, 0) == hunter && progression.learnedLevel(1, next) == 0);
     }
 
+    function testDirectTransferPreservesFullLoadoutAndNewOwnerAuthority() public {
+        _assertTransferLifecycle(0);
+    }
+
+    function testSafeTransferPreservesFullLoadoutAndNewOwnerAuthority() public {
+        _assertTransferLifecycle(1);
+    }
+
+    function testApprovedOperatorTransferPreservesFullLoadoutAndNewOwnerAuthority() public {
+        _assertTransferLifecycle(2);
+    }
+
+    function _assertTransferLifecycle(uint8 route) private {
+        _learn(hunter, 2);
+        _learn(detective, 3);
+        _credit(4);
+        VM.prank(ALICE);
+        progression.unlockSlot(1);
+        VM.prank(ALICE);
+        progression.equipSkill(1, 0, hunter);
+        VM.prank(ALICE);
+        progression.equipSkill(1, 1, detective);
+        _credit(5);
+        uint256 created = progression.creditsCreated();
+        uint256 spent = progression.creditsSpent();
+        if (route == 0) {
+            VM.prank(ALICE);
+            collection.transferFrom(ALICE, BOB, 1);
+        } else if (route == 1) {
+            VM.prank(ALICE);
+            collection.safeTransferFrom(ALICE, BOB, 1);
+        } else {
+            VM.prank(ALICE);
+            collection.setApprovalForAll(MARKETPLACE, true);
+            VM.prank(MARKETPLACE);
+            collection.safeTransferFrom(ALICE, BOB, 1);
+        }
+        require(collection.ownerOf(1) == BOB);
+        require(progression.trainingCredits(1) == 1 && progression.unlockedSlots(1) == 2);
+        require(progression.learnedCount(1) == 2);
+        require(
+            progression.learnedKeyAt(1, 0) == hunter && progression.learnedKeyAt(1, 1) == detective
+        );
+        require(
+            progression.learnedLevel(1, hunter) == 1 && progression.learnedLevel(1, detective) == 1
+        );
+        require(progression.equipped(1, 0) == hunter && progression.equipped(1, 1) == detective);
+        require(progression.effectiveCapabilities(1) == 3);
+        require(progression.creditsCreated() == created && progression.creditsSpent() == spent);
+        VM.expectRevert(GoghSkillProgression.NotCurrentOwner.selector);
+        VM.prank(ALICE);
+        progression.unlockSlot(1);
+        VM.expectRevert(GoghSkillProgression.NotCurrentOwner.selector);
+        VM.prank(ALICE);
+        progression.unequipSkill(1, 0);
+        VM.expectRevert(GoghSkillProgression.NotCurrentOwner.selector);
+        VM.prank(MARKETPLACE);
+        progression.unequipSkill(1, 0);
+        VM.prank(BOB);
+        progression.unequipSkill(1, 0);
+        VM.expectRevert(GoghSkillProgression.NotCurrentOwner.selector);
+        VM.prank(ALICE);
+        progression.equipSkill(1, 0, hunter);
+        VM.prank(BOB);
+        progression.equipSkill(1, 0, hunter);
+        VM.prank(BOB);
+        progression.unlockSlot(1);
+        require(progression.trainingCredits(1) == 0 && progression.unlockedSlots(1) == 3);
+        require(progression.creditsSpent() == spent + 1);
+    }
+
     function testPrerequisitesAndTransitiveEmergencyDisable() public {
         bytes32 child = _registerReady(8, 1, detective, 8);
         bytes32 grandchild = _registerReady(9, 1, child, 16);
