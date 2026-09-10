@@ -40,5 +40,24 @@ test('shared V2 training gate: learned is not equipped; tool calls follow confir
   for (const altered of [{ chainId: 4663 }, { canBurn: true }, { localOnly: false }, { tokenId: 93 }, { productionReadyCount: 1 }]) {
     assert.throws(() => validateTrainingSnapshot({ ...state, ...altered }, 1), /Unverified/);
   }
-  for (const path of ['/control-center', '/broker-v2-forge.js', '/forge-training.js', '/forge-training.css']) assert.equal((await fetch(preview.url + path)).status, 200);
+  for (const path of ['/control-center', '/broker-v2-forge.js', '/forge-profile-view.js', '/forge-training.js', '/forge-training.css']) assert.equal((await fetch(preview.url + path)).status, 200);
+});
+
+test('shared training preview serves every transitive browser module import', { timeout: 60000 }, async t => {
+  const preview = await startPreview({ researchClient: fixtureClient }); t.after(() => preview.close());
+  const pending = ['/control-center.mjs'], seen = new Set();
+  while (pending.length) {
+    const path = pending.shift(); if (seen.has(path)) continue; seen.add(path);
+    const response = await fetch(preview.url + path);
+    assert.equal(response.status, 200, `missing module: ${path}`);
+    assert.match(response.headers.get('content-type'), /javascript/, path);
+    const source = await response.text();
+    for (const match of source.matchAll(/(?:from\s+|import\s*)['"]([^'"]+)['"]/g)) {
+      assert.match(match[1], /^(?:\/|\.\/|\.\.\/)/, 'No remote or unbundled module import');
+      const dependency = new URL(match[1], preview.url + path);
+      assert.equal(dependency.origin, preview.url); pending.push(dependency.pathname);
+    }
+  }
+  assert.ok(seen.has('/forge-profile-view.js'), 'shared Forge profile module included');
+  assert.ok(seen.has('/forge-training-transaction.js'), 'training review module included');
 });

@@ -208,7 +208,7 @@ export async function startPreview({ port = 0, researchClient, controlCenterTrai
     const files = new Map([
       ['/control-center', ['control-center.html', 'text/html']],
       ['/control-center.mjs', ['control-center.mjs', 'text/javascript']],
-      ...['broker-v2-forge.js', 'forge-training.js', 'forge-training-transaction.js', 'forge-catalog.js'].map(name => [`/${name}`, [`../../../site/${name}`, 'text/javascript']]),
+      ...['broker-v2-forge.js', 'forge-profile-view.js', 'forge-training.js', 'forge-training-transaction.js', 'forge-catalog.js'].map(name => [`/${name}`, [`../../../site/${name}`, 'text/javascript']]),
       ['/broker-v2-forge.css', ['../../../site/broker-v2-forge.css', 'text/css']],
       ['/forge-training.css', ['../../../site/forge-training.css', 'text/css']],
       ['/', ['index.html', 'text/html']], ['/app.mjs', ['app.mjs', 'text/javascript']], ['/style.css', ['style.css', 'text/css']],
