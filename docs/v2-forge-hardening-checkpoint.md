@@ -31,6 +31,10 @@ The shared installed esbuild 0.28.2 executable is truncated: 2,768,384 bytes, wi
 
 ## Remaining production gates
 
+Owner follow-up approved the recommended opt-in rollout policy. This records the product decision only; it does not enroll #93, activate production training or authorize a real burn.
+
+Follow-up smoke test on the existing chain-31337 preview passed: Test #1 equipped Rarity Eye, ran real read-only metadata research, unequipped it and verified tool denial. Its original loadout and credits were restored; Test #44 retains one unused mock-earned credit and no learned skills for owner practice. No new chain, browser profile or screenshot files were created for this smoke test.
+
 1. **Rollout choice:** immediate equipment enforcement disables untrained existing agents; silent grandfathering bypasses the rule. Recommended: explicit owner opt-in, leaving existing agents unchanged until enrollment. No policy has been activated or assumed.
 2. **Burn source and recovery:** parent burn can remove wallet authority. Complete empty-wallet proof or an approved recovery path is not established. Unknown assets and obligations remain blockers; acknowledgment cannot override them.
 3. **On-chain lifecycle:** local nonce recovery does not add deadlines or ownership epochs to the progression ABI. Delayed signatures and sell/buy-back lifecycle require reviewed core/on-chain handling.
