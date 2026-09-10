@@ -116,11 +116,14 @@ export function validateRegistryCanaryProposal(proposal, inputs) {
   return proposal;
 }
 
-export async function prepareRegistryCanaryLive({ client, inputs, guardian, now = Date.now() }) {
+export async function prepareRegistryCanaryLive({ client, inputs, guardian, now }) {
   if (await client.getChainId() !== 4663) throw Error('WRONG_CANARY_CHAIN');
   guardian = getAddress(guardian);
   const block = await client.getBlock({ blockTag: 'latest' });
-  if (!Number.isSafeInteger(now) || now < Number(block.timestamp) * 1000 || now - Number(block.timestamp) * 1000 > 60000) throw Error('STALE_CANARY_HEAD');
+  // Measure after the RPC completes: a newly mined block may be newer than the
+  // instant this function was entered. Explicit test clocks remain deterministic.
+  const observedNow = now ?? Date.now();
+  if (!Number.isSafeInteger(observedNow) || observedNow < Number(block.timestamp) * 1000 || observedNow - Number(block.timestamp) * 1000 > 60000) throw Error('STALE_CANARY_HEAD');
   const [code, guardianContext, nonce] = await Promise.all([
     client.getCode({ address: deployment.collection, blockNumber: block.number }),
     observeGuardian(client, guardian, block.number), client.getTransactionCount({ address: guardian, blockTag: 'pending' })]);

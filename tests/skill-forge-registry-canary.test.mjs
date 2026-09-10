@@ -64,6 +64,14 @@ test('receipt verifier rejects missing/duplicate receipts and a reorged anchor',
   await assert.rejects(verifyRegistryCanary({ client, inputs, proposal: p, transactionHashes: Array(8).fill(hash) }), /RECEIPT_SET/);
   await assert.rejects(verifyRegistryCanary({ client, inputs, proposal: p, transactionHashes: Array.from({ length: 8 }, (_, i) => `0x${String(i + 1).repeat(64)}`) }), /ANCHOR_REORG/);
 });
+test('live preparation measures freshness after the head RPC, not before a newly mined block', async t => {
+  let headReturned = false;
+  t.mock.method(Date, 'now', () => anchor.timestamp * 1000 - (headReturned ? 0 : 1000));
+  const client = { getChainId: async () => 4663,
+    getBlock: async () => { headReturned = true; return { number: 12345n, hash, timestamp: BigInt(anchor.timestamp) }; },
+    getCode: async ({ address }) => address.toLowerCase() === guardian ? '0x' : '0x6000', getTransactionCount: async () => 10 };
+  await assert.rejects(prepareRegistryCanaryLive({ client, inputs, guardian }), /COLLECTION_CODE_CHANGED/);
+});
 test('production canary tool contains no wallet, signer, key loading or broadcast path', async () => {
   const script = await readFile(new URL('../scripts/prepare-forge-registry-canary.mjs', import.meta.url), 'utf8');
   const verifier = await readFile(new URL('../scripts/verify-forge-registry-canary.mjs', import.meta.url), 'utf8');

@@ -1,6 +1,6 @@
 # Gogh Skill Forge — local implementation handoff
 
-Latest continuation: [registry-only canary preparation](v2-forge-registry-canary-checkpoint.md), following [reviewed-contract browser testing](v2-forge-reviewed-ui-checkpoint.md), [practice test link and reviewed training safeguards](v2-forge-reviewed-training-checkpoint.md), [original-NFT Forge integration and live-test boundary](v2-forge-original-nft-readiness.md), [integration hardening](v2-forge-hardening-checkpoint.md) and [durable transaction review](v2-forge-transaction-review.md). The sections below preserve the earlier checkpoint, not a claim of current production completeness.
+Latest continuation: [selected administrator and bounded fee review](v2-forge-administrator-review.md), following [registry-only canary preparation](v2-forge-registry-canary-checkpoint.md), [reviewed-contract browser testing](v2-forge-reviewed-ui-checkpoint.md), [practice test link and reviewed training safeguards](v2-forge-reviewed-training-checkpoint.md), [original-NFT Forge integration and live-test boundary](v2-forge-original-nft-readiness.md), [integration hardening](v2-forge-hardening-checkpoint.md) and [durable transaction review](v2-forge-transaction-review.md). The sections below preserve the earlier checkpoint, not a claim of current production completeness.
 
 Checkpoint: September 9, 2026. Branch `feat/gogh-skill-forge`, isolated worktree `/private/tmp/gogh-skill-forge`.
 
