@@ -1,11 +1,12 @@
 import { validateTrainingReview } from './forge-training-transaction.js';
 const binding = state => JSON.stringify([state.tokenId, state.owner?.toLowerCase(), state.collection?.toLowerCase(),
-  state.registry?.toLowerCase(), state.progression?.toLowerCase(), state.credits, state.slots, state.cap, state.learned, state.equipped, state.ownershipEpoch ?? null],
+  state.registry?.toLowerCase(), state.progression?.toLowerCase(), state.credits, state.slots, state.cap, state.learned, state.equipped, state.ownershipEpoch ?? null,
+  state.trainingGuard?.protocol ?? null, state.trainingGuard?.nonce ?? null, state.trainingGuard?.stateHash ?? null],
   (_key, value) => typeof value === 'bigint' ? value.toString() : value);
 
 // EIP-1193 boundary for a future explicit wallet button. Currently exercised only with
 // the disposable Anvil provider. Never connects, switches chain, requests accounts or signs on load.
-export function createTrainingWalletAdapter({ provider, readSnapshot }) {
+export function createTrainingWalletAdapter({ provider, readSnapshot, validateReview = validateTrainingReview }) {
   const attempted = new Set(); let busy = false;
   return Object.freeze({
     async submit({ review, snapshot, action }) {
@@ -13,7 +14,7 @@ export function createTrainingWalletAdapter({ provider, readSnapshot }) {
       if (attempted.has(review?.intentId)) throw Error('TRAINING_WALLET_ALREADY_REQUESTED');
       busy = true; let walletRequested = false;
       try {
-        validateTrainingReview(review, snapshot, action);
+        validateReview(review, snapshot, action);
         const before = binding(snapshot);
         const checkWallet = async () => {
           const [chain, accounts] = await Promise.all([
@@ -24,12 +25,12 @@ export function createTrainingWalletAdapter({ provider, readSnapshot }) {
         await checkWallet();
         const fresh = await readSnapshot(snapshot.tokenId);
         if (fresh.localOnly !== true || fresh.chainId !== 31337 || fresh.canBurn !== false || binding(fresh) !== before) throw Error('TRAINING_WALLET_STATE_CHANGED');
-        validateTrainingReview(review, fresh, action);
+        validateReview(review, fresh, action);
         await checkWallet();
-        validateTrainingReview(review, fresh, action);
+        validateReview(review, fresh, action);
         const nonce = await provider.request({ method: 'eth_getTransactionCount', params: [snapshot.owner, 'pending'] });
         if (!/^0x[0-9a-f]+$/i.test(nonce) || BigInt(nonce) !== BigInt(review.transaction.nonce)) throw Error('TRAINING_WALLET_NONCE_CHANGED');
-        validateTrainingReview(review, fresh, action);
+        validateReview(review, fresh, action);
         // Deliberately one-shot even for rejection/transport failure; a new owner-reviewed
         // intent is required. This does not mean an error proved nothing was broadcast.
         attempted.add(review.intentId);

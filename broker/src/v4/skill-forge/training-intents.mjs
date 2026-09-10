@@ -2,6 +2,8 @@ import { randomBytes, createHash } from 'node:crypto';
 import { parseAbi, encodeFunctionData, decodeEventLog } from 'viem';
 
 const ABI = parseAbi([
+  'function applyTrainingReview((uint256 tokenId,uint8 operation,bytes32 skillKey,uint8 slot,uint8 startingSlots,bytes32[] rarityProof,uint256 nonce,bytes32 stateHash,uint64 deadline) review)',
+  'event TrainingReviewApplied(uint256 indexed tokenId,uint256 indexed nonce,uint8 operation)',
   'function learnSkill(uint256 tokenId,bytes32 key)', 'function unlockSlot(uint256 tokenId)',
   'function equipSkill(uint256 tokenId,uint8 slot,bytes32 key)', 'function unequipSkill(uint256 tokenId,uint8 slot)',
   'event SkillLearned(uint256 indexed tokenId,bytes32 indexed key,uint8 level)',
@@ -15,12 +17,16 @@ const serialize = value => JSON.stringify(value, (_key, item) => typeof item ===
 const fingerprint = state => createHash('sha256').update(serialize([
   state.chainId, state.collection, state.registry, state.progression, state.tokenId, state.owner,
   state.credits, state.slots, state.cap, state.learned, state.equipped, state.ownershipEpoch ?? null,
+  ...(state.trainingGuard ? [state.trainingGuard.protocol, state.trainingGuard.nonce, state.trainingGuard.stateHash] : []),
 ])).digest('hex');
+const REVIEW_PROTOCOL = 'GOGH_ORIGINAL_PUNK_TRAINING_REVIEW_V1';
+const OPERATIONS = ['learn', 'unlock', 'equip', 'unequip'];
 
 // Only disposable deployments may instantiate this coordinator. No production sender exists.
 // Deployment addresses, owner, approved keys, reader and signer are trusted harness inputs.
 export function createLocalTrainingIntents({ client, owner, progression, approvedKeys, readSnapshot,
-  sendTransaction, now = Date.now, lifetimeMs = 60_000, journal = null }) {
+  sendTransaction, now = Date.now, lifetimeMs = 60_000, journal = null, reviewed = false }) {
+  if (typeof reviewed !== 'boolean' || !Number.isSafeInteger(lifetimeMs) || lifetimeMs < 1000 || lifetimeMs > 60_000) throw Error('INVALID_REVIEW_CONFIGURATION');
   const intents = new Map();
   let journalFault = false;
   let journalFailure = null;
@@ -36,7 +42,8 @@ export function createLocalTrainingIntents({ client, owner, progression, approve
         if (intents.get(saved.review.intentId)?.busy) continue;
         if (!eq(saved.review.owner, owner) || !eq(saved.review.progression, progression)
           || saved.review.chainId !== 31337 || saved.review.localOnly !== true || saved.review.productionAuthority !== false) throw Error('INVALID_RECOVERED_REVIEW');
-        const spec = action(saved.input, saved.state);
+        const spec = reviewedAction(saved.input, saved.state, saved.review.trainingGuard, saved.review.expiresAt);
+        if (saved.expiresAt !== saved.review.expiresAt) throw Error('INVALID_RECOVERED_REVIEW');
         if (encodeFunctionData({ abi: ABI, functionName: spec.functionName, args: spec.args }) !== saved.review.transaction.data
           || !eq(saved.review.transaction.to, progression) || saved.review.transaction.value !== '0x0'
           || !/^0x(0|[1-9a-f][0-9a-f]{0,13})$/i.test(saved.review.transaction.nonce)
@@ -52,6 +59,7 @@ export function createLocalTrainingIntents({ client, owner, progression, approve
     await guard(); const state = await readSnapshot(tokenId);
     if (state.localOnly !== true || state.chainId !== 31337 || state.canBurn !== false
       || String(state.tokenId) !== String(tokenId) || !eq(state.owner, owner) || !eq(state.progression, progression)) throw Error('OWNER_OR_DEPLOYMENT_CHANGED');
+    if (reviewed !== Boolean(state.trainingGuard)) throw Error('TRAINING_PROTOCOL_CHANGED');
     return state;
   }
   function action(input, state) {
@@ -71,6 +79,27 @@ export function createLocalTrainingIntents({ client, owner, progression, approve
           : ['unequipSkill', [BigInt(tokenId), slot], 'SkillUnequipped'];
     return { functionName: spec[0], args: spec[1], eventName: spec[2] };
   }
+  function reviewedAction(input, state, guard, expiresAt) {
+    const spec = action(input, state);
+    if (!reviewed) {
+      if (guard !== undefined || state.trainingGuard !== undefined) throw Error('TRAINING_PROTOCOL_CHANGED');
+      return spec;
+    }
+    const chainGuard = state.trainingGuard;
+    if (!guard || Object.keys(guard).sort().join(',') !== 'deadline,nonce,protocol,stateHash'
+      || guard.protocol !== REVIEW_PROTOCOL || chainGuard?.protocol !== REVIEW_PROTOCOL
+      || !/^(0|[1-9]\d{0,77})$/.test(guard.nonce) || guard.nonce !== String(chainGuard.nonce)
+      || BigInt(guard.nonce) >= 2n ** 256n || !/^0x[0-9a-f]{64}$/i.test(guard.stateHash)
+      || !eq(guard.stateHash, chainGuard.stateHash) || eq(guard.stateHash, ZERO)
+      || !/^\d{1,12}$/.test(guard.deadline) || !Number.isSafeInteger(expiresAt)
+      || BigInt(guard.deadline) * 1000n !== BigInt(expiresAt)
+      || !/^\d{1,12}$/.test(String(chainGuard.blockTimestamp))
+      || BigInt(guard.deadline) < BigInt(chainGuard.blockTimestamp)
+      || BigInt(guard.deadline) > BigInt(chainGuard.blockTimestamp) + 60n) throw Error('INVALID_TRAINING_GUARD');
+    return { ...spec, functionName: 'applyTrainingReview', args: [{ tokenId: BigInt(input.tokenId),
+      operation: OPERATIONS.indexOf(input.operation), skillKey: input.key ?? ZERO, slot: input.slot ?? 0,
+      startingSlots: 0, rarityProof: [], nonce: BigInt(guard.nonce), stateHash: guard.stateHash, deadline: BigInt(guard.deadline) }] };
+  }
   async function prepare(input) {
     refreshJournal();
     if (!input || ![1, 44, 7].includes(input.tokenId)) throw Error('INVALID_TEST_PUNK');
@@ -79,7 +108,18 @@ export function createLocalTrainingIntents({ client, owner, progression, approve
     // Expired reviews can be discarded, but submitted hashes are retained for this process.
     if (!journal) for (const [id, entry] of intents) if (entry.status === 'PREPARED' && entry.expiresAt < now()) intents.delete(id);
     if (intents.size >= (journal ? 4096 : 128)) throw Error('LOCAL_REVIEW_LIMIT');
-    const state = await stateFor(input.tokenId), spec = action(input, state);
+    const state = await stateFor(input.tokenId);
+    const createdAt = now();
+    let expiresAt = createdAt + lifetimeMs, trainingGuard;
+    if (reviewed) {
+      const timestamp = state.trainingGuard?.blockTimestamp;
+      if (!/^\d{1,12}$/.test(String(timestamp))) throw Error('INVALID_TRAINING_GUARD');
+      expiresAt = Math.min(Math.floor(expiresAt / 1000), Number(timestamp) + 60) * 1000;
+      if (expiresAt <= createdAt) throw Error('TRAINING_REVIEW_EXPIRED');
+      trainingGuard = { protocol: REVIEW_PROTOCOL, nonce: String(state.trainingGuard.nonce),
+        stateHash: state.trainingGuard.stateHash, deadline: String(expiresAt / 1000) };
+    }
+    const spec = reviewedAction(input, state, trainingGuard, expiresAt);
     if (String(state.blockNumber) !== input.expectedBlock) throw Error('STALE_REVIEW_STATE');
     const call = { address: progression, abi: ABI, functionName: spec.functionName, args: spec.args, account: owner };
     await client.simulateContract(call);
@@ -90,14 +130,14 @@ export function createLocalTrainingIntents({ client, owner, progression, approve
     if (gas > 500_000n || gasPrice <= 0n || !Number.isSafeInteger(nonce) || nonce < 0) throw Error('LOCAL_GAS_OR_NONCE_BOUND_EXCEEDED');
     const latest = await stateFor(input.tokenId);
     if (fingerprint(latest) !== fingerprint(state)) throw Error('STATE_CHANGED_DURING_PREPARATION');
-    const intentId = randomBytes(32).toString('hex'), createdAt = now(), expiresAt = createdAt + lifetimeMs;
+    const intentId = randomBytes(32).toString('hex');
     const transaction = Object.freeze({ from: owner, to: progression, data, value: '0x0', chainId: '0x7a69',
       gas: `0x${gas.toString(16)}`, gasPrice: `0x${gasPrice.toString(16)}`, nonce: `0x${nonce.toString(16)}` });
     const review = Object.freeze({ intentId, localOnly: true, chainId: 31337, tokenId: input.tokenId,
       owner, progression, operation: input.operation, skillKey: input.key ?? null, slot: input.slot ?? null,
       creditCost: ['learn', 'unlock'].includes(input.operation) ? 1 : 0,
       estimatedGas: estimate.toString(), maximumGas: gas.toString(), maximumNetworkFeeWei: (gas * gasPrice).toString(),
-      createdAt, expiresAt, transaction, productionAuthority: false });
+      createdAt, expiresAt, transaction, productionAuthority: false, ...(reviewed ? { trainingGuard } : {}) });
     const entry = { review, input: { ...input }, spec, state, digest: fingerprint(state), expiresAt, status: 'PREPARED', transactionHash: null };
     persist(entry); intents.set(intentId, entry);
     return review;
@@ -116,6 +156,17 @@ export function createLocalTrainingIntents({ client, owner, progression, approve
       || receipt.gasUsed <= 0n || receipt.effectiveGasPrice <= 0n
       || receipt.gasUsed * receipt.effectiveGasPrice > BigInt(entry.review.maximumNetworkFeeWei)) throw Error('UNVERIFIED_TRAINING_RECEIPT');
     if (receipt.status === 'reverted') { entry.status = 'REVERTED'; return outcome(entry); }
+    if (reviewed) {
+      const applied = receipt.logs.flatMap(log => {
+        if (!eq(log.address, progression)) return [];
+        try { const event = decodeEventLog({ abi: ABI, topics: log.topics, data: log.data });
+          return event.eventName === 'TrainingReviewApplied' ? [event] : [];
+        } catch { return []; }
+      });
+      if (applied.length !== 1 || applied[0].args.tokenId !== BigInt(entry.input.tokenId)
+        || applied[0].args.nonce !== BigInt(entry.review.trainingGuard.nonce)
+        || applied[0].args.operation !== OPERATIONS.indexOf(entry.input.operation)) throw Error('TRAINING_REVIEW_EVENT_MISMATCH');
+    }
     const events = receipt.logs.flatMap(log => {
       if (!eq(log.address, progression)) return [];
       try { const event = decodeEventLog({ abi: ABI, topics: log.topics, data: log.data });

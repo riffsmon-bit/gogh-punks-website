@@ -55,7 +55,8 @@ export function validateTrainingRecovery(recovery, state) {
     || recovery.records.filter(r => !['CONFIRMED', 'REVERTED'].includes(r.status)).length > 1) throw Error('Unverified training recovery');
   return recovery;
 }
-export function createTrainingControl({ root, getSelection, request, localOnly }) {
+export function createTrainingControl({ root, getSelection, request, localOnly,
+  validateReview = validateTrainingReview, validateSnapshot = validateTrainingSnapshot }) {
   if (localOnly !== true || window.location.hostname !== '127.0.0.1' || window.location.protocol !== 'http:') throw Error('Local training adapter is not available here');
   let data = null, selected = null, selectedIdentity = null, sequence = 0, busy = false, recoveryVerified = false;
   const pendingReviews = new Map();
@@ -131,7 +132,7 @@ export function createTrainingControl({ root, getSelection, request, localOnly }
     status.textContent = 'Reading confirmed local contract state…';
     try {
       if (selection?.chainId !== 31337 || ![1, 44, 7].includes(Number(token))) throw Error('Select a disposable test Punk on chain 31337.');
-      const next = validateTrainingSnapshot(await request(`/api/forge?tokenId=${token}`), token);
+      const next = validateSnapshot(await request(`/api/forge?tokenId=${token}`), token);
       if (selection.owner && selection.owner.toLowerCase() !== next.owner.toLowerCase()) throw Error('Selected owner no longer controls this test Punk.');
       if (!isCurrent(ticket, token)) return;
       // A verified contract read may remain visible when recovery is unavailable.
@@ -167,13 +168,13 @@ export function createTrainingControl({ root, getSelection, request, localOnly }
       // Reading an idle local chain mines a fresh block. Never prepare against the
       // block from a page the owner may have left open minutes/hours earlier.
       for (let attempt = 0; attempt < 2; attempt++) {
-        const fresh = validateTrainingSnapshot(await request(`/api/forge?tokenId=${token}`), token);
+        const fresh = validateSnapshot(await request(`/api/forge?tokenId=${token}`), token);
         if (!isCurrent(ticket, token)) return;
         if (['owner', 'collection', 'registry', 'progression'].some(k => fresh[k].toLowerCase() !== captured[k].toLowerCase())
           || fresh.ownershipEpoch !== captured.ownershipEpoch) throw Error('Punk ownership or deployment changed. Review the refreshed state.');
         captured = fresh; data = fresh;
         try {
-          prepared = validateTrainingReview(await request('/api/local-training/prepare', { method: 'POST',
+          prepared = validateReview(await request('/api/local-training/prepare', { method: 'POST',
             headers: { 'content-type': 'application/json', 'x-forge-nonce': captured.localTrainingNonce },
             body: JSON.stringify({ tokenId: token, expectedBlock: captured.blockNumber, operation, ...extra }) }), captured, { operation, ...extra });
           if (!isCurrent(ticket, token)) return;
@@ -204,6 +205,7 @@ export function createTrainingControl({ root, getSelection, request, localOnly }
       node('p', `ETH value: 0 · Estimated gas: ${prepared.estimatedGas} · Maximum test-network fee: ${prepared.maximumNetworkFeeWei} wei`),
       node('p', `Exact account nonce: ${BigInt(prepared.transaction.nonce)}`),
       node('p', `Review expires: ${new Date(prepared.expiresAt).toLocaleTimeString()}`),
+      ...(prepared.trainingGuard ? [node('p', `ON-CHAIN EXPIRY · Training nonce ${prepared.trainingGuard.nonce}. A late transaction reverts but may still cost test gas.`)] : []),
       node('p', 'This submits a disposable local transaction. No real Punk is burned.'));
     const confirm = button('CONFIRM LOCAL TRANSACTION', async () => {
       if (busy || !isCurrent(ticket, token) || data !== captured) { modal.close(); return; }
@@ -233,7 +235,7 @@ export function createTrainingControl({ root, getSelection, request, localOnly }
           status.textContent = `LOCAL TRANSACTION ${response.status}: ${response.transactionHash ?? 'no confirmed transaction hash'}. ${terminal ? 'Refresh state and prepare a new review.' : 'Recheck receipt; do not submit another transaction.'}`; return;
         }
         if (!HASH.test(response.transactionHash)) throw Error('Transaction receipt could not be verified');
-        const next = response.snapshot ? validateTrainingSnapshot(response.snapshot, token) : null;
+        const next = response.snapshot ? validateSnapshot(response.snapshot, token) : null;
         pendingReviews.delete(token);
         data = next; clearViewAfterReceipt();
         status.textContent = `LOCAL TRANSACTION CONFIRMED: ${response.transactionHash}${next ? '' : ' · Refresh to retrieve progression.'}`;
@@ -247,7 +249,7 @@ export function createTrainingControl({ root, getSelection, request, localOnly }
     try { const response = await request('/api/local-tool', { method: 'POST', headers: { 'content-type': 'application/json', 'x-forge-nonce': captured.localTrainingNonce }, body: JSON.stringify({ tokenId: token, name }) });
       if (!isCurrent(ticket, token)) return;
       if (response.localOnly !== true || response.chainId !== 31337 || response.productionAuthority !== false || response.tokenId !== token || response.walletAuthority !== 'NONE') throw Error('Unverified research response');
-      data = validateTrainingSnapshot(response.snapshot, token);
+      data = validateSnapshot(response.snapshot, token);
       result.textContent = JSON.stringify(response.result, null, 2); status.textContent = 'Research completed through the equipped-skill gate. Wallet authority: NONE.';
     } catch (e) { if (isCurrent(ticket, token)) { clear(); status.textContent = `${e.message} Refresh equipment before retrying.`; } }
     finally { if (isCurrent(ticket, token)) { busy = false; render(); } }

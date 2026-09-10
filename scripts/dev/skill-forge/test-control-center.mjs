@@ -4,9 +4,11 @@ import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { startPreview } from './preview-server.mjs';
-const preview = await startPreview({ controlCenterTraining: true });
+if (process.argv.length > 3 || process.argv[2] && process.argv[2] !== '--reviewed-only') throw Error('Unknown browser test mode');
+const reviewed = process.argv[2] === '--reviewed-only';
+const preview = await startPreview({ controlCenterTraining: true, reviewedTraining: reviewed });
 const origin = preview.url;
-const page = await (await fetch(`http://127.0.0.1:9227/json/new?${encodeURIComponent(origin + '/control-center')}`, { method: 'PUT' })).json();
+const page = await (await fetch(`http://127.0.0.1:9227/json/new?${encodeURIComponent(origin + '/control-center?testPunk=1')}`, { method: 'PUT' })).json();
 const ws = new WebSocket(page.webSocketDebuggerUrl);
 await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject; });
 let id = 0; const pending = new Map(), errors = [];
@@ -45,6 +47,7 @@ try {
   await until("document.querySelector('dialog').open");
   assert.match(await evaluate("document.querySelector('dialog').textContent"), /ETH value: 0.*Estimated gas:.*Maximum test-network fee:/);
   assert.match(await evaluate("document.querySelector('dialog').textContent"), /Review expires:/);
+  if (reviewed) assert.match(await evaluate("document.querySelector('dialog').textContent"), /ON-CHAIN EXPIRY/);
   await click('CANCEL');
   assert.match(await evaluate("document.querySelector('.forge-training-stats').textContent"), /1 CREDIT/);
   // A block can also race the fresh read. Retry preparation once; never confirm it.
@@ -126,8 +129,10 @@ try {
     window.trainingCalls=[];
     window.trainingRequest=async(url,opts)=>{trainingCalls.push(url);const r=await fetch(url,opts);if(!r.ok)throw Error(await r.text());return r.json();};
     const {createTrainingControl}=await import('/forge-training.js');
+    const guarded=${reviewed ? "await import('/forge-reviewed-training.js')" : 'null'};
     window.identityControl=createTrainingControl({root:document.querySelector('[data-v2-panel=forge]'),
-      getSelection:()=>trainingSelection,request:(...args)=>trainingRequest(...args),localOnly:true});
+      getSelection:()=>trainingSelection,request:(...args)=>trainingRequest(...args),localOnly:true,
+      ...(guarded?{validateReview:guarded.validateReviewedTrainingReview,validateSnapshot:guarded.validateReviewedTrainingSnapshot}:{})});
   })()`);
   await until("document.querySelector('.forge-training-stats').textContent.includes('TEST PUNK #44')");
   await click('UNEQUIP'); await until("document.querySelector('dialog').open");

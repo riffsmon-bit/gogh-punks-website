@@ -12,7 +12,8 @@ export function trainingCalldata({ tokenId, operation, key, slot }) {
 }
 export function validateTrainingReview(review, state, action, now = Date.now()) {
   const tx = review?.transaction;
-  if (!review || review.localOnly !== true || review.productionAuthority !== false || review.chainId !== 31337
+  if (!review || review.trainingGuard !== undefined || state.trainingGuard !== undefined
+    || review.localOnly !== true || review.productionAuthority !== false || review.chainId !== 31337
     || review.tokenId !== state.tokenId || review.owner?.toLowerCase() !== state.owner.toLowerCase()
     || review.progression?.toLowerCase() !== state.progression.toLowerCase() || review.operation !== action.operation
     || review.skillKey !== (action.key ?? null) || review.slot !== (action.slot ?? null)
