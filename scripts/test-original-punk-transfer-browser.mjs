@@ -23,11 +23,15 @@ const word=n=>`0x${BigInt(n).toString(16).padStart(64,'0')}`;
 let walletWrites=0;
 let connectedOwner=ALICE, forgeMode='locked', releaseForge=null, sessionReads=0;
 let chatDraft=null, chatRequests=0;
+let serveRealWallet=true,walletSdkRequests=0;
 const skillHash=keccak256(encodeAbiParameters([{type:'uint32'},{type:'uint16'}],[3,1]));
 const server=createServer(async(req,res)=>{
   const json=data=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify(data));};
   try {
     const url=new URL(req.url,'http://localhost');
+    if(url.pathname==='/reown-wallet-app.js'||url.pathname==='/api/broker/wallet-config'){
+      walletSdkRequests++;res.statusCode=503;return json({ok:false,code:'NO_AUTOMATIC_WALLET_SDK'});
+    }
     if(url.pathname==='/fixture-training-panel') {res.setHeader('Content-Type','text/html');return res.end('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="/broker-v2.css"><link rel="stylesheet" href="/broker-v2-forge.css"></head><body><main style="max-width:1100px;margin:auto;padding:16px"><p>DISPOSABLE BROWSER FIXTURE · NO REAL WALLET</p><section class="forge-locked" data-forge-training id="training-fixture"></section></main></body></html>');}
     if(url.pathname==='/fixture-rpc' && req.method==='POST') {
       let body=''; for await(const chunk of req) body+=chunk;
@@ -90,7 +94,7 @@ const server=createServer(async(req,res)=>{
     }
     if(url.pathname.startsWith('/api/')) { res.statusCode=503; return json({ok:false,code:'LOCAL_READ_FIXTURE_ONLY'}); }
     // Do not load wallet SDKs or connect to external providers in this test.
-    if(url.pathname==='/wallet.js') {res.setHeader('Content-Type','text/javascript');return res.end('export {};');}
+    if(url.pathname==='/wallet.js' && !serveRealWallet) {res.setHeader('Content-Type','text/javascript');return res.end('export {};');}
     const path=resolve(root,`.${url.pathname.endsWith('/')?`${url.pathname}index.html`:url.pathname}`);
     if(!path.startsWith(`${root}/`)) {res.statusCode=403;return res.end();}
     const type={'.html':'text/html','.js':'text/javascript','.css':'text/css','.png':'image/png','.woff2':'font/woff2'}[extname(path)];
@@ -119,18 +123,32 @@ try {
   let id=0;const pending=new Map(),errors=[];
   ws.onmessage=({data})=>{const msg=JSON.parse(data);if(msg.method==='Runtime.exceptionThrown')errors.push(msg.params.exceptionDetails.text);
     const task=pending.get(msg.id);if(task){pending.delete(msg.id);msg.error?task.reject(Error(JSON.stringify(msg.error))):task.resolve(msg.result);}};
-  const call=(method,params={})=>new Promise((resolve,reject)=>{const next=++id;pending.set(next,{resolve,reject});ws.send(JSON.stringify({id:next,method,params}));});
+  const call=(method,params={})=>new Promise((resolve,reject)=>{const next=++id;
+    const timer=setTimeout(()=>{pending.delete(next);reject(Error(`CDP_TIMEOUT ${method}`));},15000);
+    pending.set(next,{resolve:value=>{clearTimeout(timer);resolve(value);},reject:error=>{clearTimeout(timer);reject(error);}});
+    ws.send(JSON.stringify({id:next,method,params}));});
   const evaluate=async expression=>{const r=await call('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});
     if(r.exceptionDetails)throw Error(JSON.stringify(r.exceptionDetails));return r.result.value;};
   const until=async expression=>{for(let i=0;i<200;i++){if(await evaluate(expression))return;await new Promise(r=>setTimeout(r,100));}throw Error(`DOM_TIMEOUT ${expression}`);};
   await call('Runtime.enable'); await call('Page.enable');
   await call('Page.addScriptToEvaluateOnNewDocument',{source:`
     window.testClock=0; const realNow=Date.now.bind(Date); Date.now=()=>realNow()+testClock;
+    window.observedWalletEvents=0;window.addEventListener('gogh:wallet-state',()=>{window.observedWalletEvents++;});
     window.__GOGH_WALLET_PROVIDER__={request:async args=>{
       const r=await fetch('/fixture-rpc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(args)});
       if(!r.ok)throw Error('LOCAL_RPC_ONLY');return r.json();}};
   `});
   await call('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
+  // Actual wallet.js on a first visit: the empty-roster notification must not
+  // bounce between wallet and broker. No AppKit import, RPC or wallet prompt.
+  await call('Page.navigate',{url:`${url}/broker/v2/?tab=talk`});
+  await until("document.readyState==='complete' && window.__GOGH_WALLET_SNAPSHOT__");
+  const initialEvents=await evaluate('window.observedWalletEvents');
+  await evaluate("for(let i=0;i<5;i++)window.dispatchEvent(new CustomEvent('gogh:punk-selected',{detail:{owner:null,tokenId:null}}));");
+  assert.equal(await evaluate('window.observedWalletEvents'),initialEvents,'empty selection does not echo wallet events');
+  assert.ok(initialEvents<5);assert.equal(walletSdkRequests,0);assert.equal(walletWrites,0);
+  assert.equal(await evaluate("document.querySelector('[data-selected-stage]').hidden"),true);
+  serveRealWallet=false;
   await call('Page.navigate',{url:`${url}/broker/v2/`});
   await until("document.querySelector('[data-punk-roster]') && document.readyState === 'complete'");
   await evaluate(`window.dispatchEvent(new CustomEvent('gogh:wallet-state',{detail:{account:'${ALICE}',chainId:4663,status:'owner'}}))`);
@@ -344,6 +362,7 @@ try {
   assert.equal(await evaluate("document.querySelector('#training-fixture').textContent.includes('View equipped research result')"),false,'loadout change clears stale research');
   assert.equal(walletWrites,0); assert.deepEqual(errors,[]);
   console.log(JSON.stringify({result:'PASS',sameWalletPurchaseAndSale:true,staleReviewClosed:true,
+    actualWalletComponentStartup:true,disconnectedStartupDoesNotLoop:true,firstVisitWalletSdkRequests:walletSdkRequests,
     fullProductionChatParserUsed:true,chatMintGasReserveInputsPreserved:true,emptyGasRetainsMission:true,
     gasSourceAndAmountFilledInTalk:true,savedMissionReviewResumes:true,
     enabledTrainingPanelReviewAndRecovery:true,trainingComponentRemountDoesNotResend:true,simulatedTrainingWalletRequests:2,

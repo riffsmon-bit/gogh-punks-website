@@ -35,6 +35,14 @@ The full-page test now explicitly exercises:
 5. Desktop/mobile rendering, original-NFT purchase/sale refresh, and clearing stale
    seller chat, gas confirmation and Forge responses.
 
+The final hosted check caught an additional preview startup regression. An empty
+roster notified the wallet of a null selection; the wallet re-emitted its unchanged
+state, causing the roster to notify it again. This could freeze the disconnected
+page before Talk loaded. Both wallet adapters now ignore unchanged selections while
+still publishing actual owner/token changes and selection clearing. Browser coverage
+now first loads the actual wallet component on a fresh visit, before the disposable
+owner/RPC scenarios. The earlier fixture-only wallet test did not exercise this path.
+
 ## Training implementation added behind the release gate
 
 - Owner-authenticated review, one-shot claim, unsent cancellation and transaction-hash
@@ -84,7 +92,8 @@ Evidence from this continuation is under `docs/review/2026-09-11/completion/`.
   fresh reviewed calldata accepted with the unused nonce. Two reviewed fixture
   transactions and one fixture transfer; zero public-chain transactions.
 - Full broker browser: chat/mint/gas/mission review and ownership changes on desktop
-  and mobile. Separate enabled-panel fixture exercises exact wallet review, pending
+  and mobile, plus actual disconnected wallet startup without an event loop, SDK
+  load or wallet prompt. Separate enabled-panel fixture exercises exact wallet review, pending
   recovery, component remount and wallet rejection without another send. Its two
   wallet calls are simulated EIP-1193 calls, not chain transactions.
 - Equipped research: unreleased/authentication/owner/package/tool gates, bounded

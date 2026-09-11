@@ -68,6 +68,12 @@ withhold unverified data and capabilities.
 
 ## Current evidence
 
+The final September 11 hosted check also exposed a disconnected-startup event loop
+between the empty roster and wallet selection listeners. Unchanged selections are
+now ignored by both wallet adapters; real selection changes still publish. The full
+browser check now includes the actual wallet module on a first visit, followed by
+the owner/RPC fixtures. See the continuation evidence below for the final results.
+
 - 63 focused Solidity tests passed, with 1,024 fuzz runs where applicable.
 - The merged full-page browser check passed desktop/mobile layout, same-wallet
   purchase/sale refresh, stale private-review and gas-confirmation clearing, Forge

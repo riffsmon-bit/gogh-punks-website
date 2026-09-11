@@ -1,10 +1,10 @@
 {
   "reviewDate": "2026-09-11",
-  "sourceBaseCommit": "d8e8a102d8431d7e04999b35a5add91008b80eef",
+  "sourceBaseCommit": "a74ba2c007e15ff77d24334545688032ee9a4a9c",
   "fullJavaScriptSuite": {
     "result": "PASS",
-    "tests": 1671,
-    "pass": 1671,
+    "tests": 1673,
+    "pass": 1673,
     "fail": 0,
     "cancelled": 0,
     "skipped": 0
@@ -33,7 +33,7 @@
     "cancelled": 0,
     "skipped": 0
   },
-  "finalChangeValidation": "After the full suite, the expired PREPARED hold query was corrected and verified by 13 store tests and the final native PostgreSQL suite (66 assertions).",
+  "finalChangeValidation": "Full JavaScript suite rerun after the disconnected-wallet startup fix. Full browser check includes actual wallet.js on a first visit, then production chat and gas flows with disposable RPC/auth fixtures.",
   "nativePostgres": "native-postgres.json",
   "disposableAnvil": "disposable-chain.json",
   "fullBrokerBrowser": "full-broker-browser.json",
@@ -50,5 +50,13 @@
   "publicChainTransactions": 0,
   "productionDatabaseChanged": false,
   "productionDeployed": false,
-  "fullReviewUrl": "https://deploy-preview-47.preview.goghpunks.xyz/broker/v2/?tab=talk"
+  "fullReviewUrl": "https://deploy-preview-47.preview.goghpunks.xyz/broker/v2/?tab=talk",
+  "walletSelectionRegression": {
+    "result": "PASS",
+    "tests": 26,
+    "pass": 26,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0
+  }
 }
