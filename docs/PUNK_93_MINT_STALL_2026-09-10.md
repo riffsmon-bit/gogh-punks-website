@@ -52,6 +52,9 @@ daily/collection protections, delayed receipt reconciliation, other Punks,
 owner-assisted history, failed operations, and UTC rollover. The dependency
 version also satisfies the existing Netlify database package's optional peer.
 
-Targeted worker, account runtime, mint-operation, UserOperation, collecting-policy,
-and UI tests pass. Site, syntax, and broker validation pass. Production access in
-this investigation was read-only; no deployment or new mint is claimed.
+After a clean `npm ci`, 91 targeted worker, account runtime, mint-operation,
+UserOperation, collecting-policy, funding, chat, and UI tests pass.
+`npm run site:deploy-check` also passes: wallet bundle, site and broker validation,
+syntax checks for 489 JavaScript modules, and all 127 deployment-gate tests.
+Production access in this investigation was read-only; no deployment or new mint
+is claimed.
