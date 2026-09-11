@@ -1,0 +1,54 @@
+{
+  "reviewDate": "2026-09-11",
+  "sourceBaseCommit": "d8e8a102d8431d7e04999b35a5add91008b80eef",
+  "fullJavaScriptSuite": {
+    "result": "PASS",
+    "tests": 1671,
+    "pass": 1671,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0
+  },
+  "siteDeployGate": {
+    "result": "PASS",
+    "tests": 127,
+    "pass": 127,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0
+  },
+  "finalStoreRegression": {
+    "result": "PASS",
+    "tests": 13,
+    "pass": 13,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0
+  },
+  "equippedResearchApiAndRuntime": {
+    "result": "PASS",
+    "tests": 11,
+    "pass": 11,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0
+  },
+  "finalChangeValidation": "After the full suite, the expired PREPARED hold query was corrected and verified by 13 store tests and the final native PostgreSQL suite (66 assertions).",
+  "nativePostgres": "native-postgres.json",
+  "disposableAnvil": "disposable-chain.json",
+  "fullBrokerBrowser": "full-broker-browser.json",
+  "solidity": {
+    "changedInContinuation": false,
+    "priorFullTestsPassed": 234,
+    "fuzzRuns": 1024
+  },
+  "release": {
+    "status": "UNDEPLOYED",
+    "productionTrainingAuthorized": false,
+    "productionBurnAuthorized": false
+  },
+  "publicChainTransactions": 0,
+  "productionDatabaseChanged": false,
+  "productionDeployed": false,
+  "fullReviewUrl": "https://deploy-preview-47.preview.goghpunks.xyz/broker/v2/?tab=talk"
+}

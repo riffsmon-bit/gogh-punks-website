@@ -29,7 +29,7 @@ function stable(value) {
 }
 
 // Persistence validation only. This does NOT verify a deployment, ownership, a skill,
-// simulation or a release authorization. Only a future trusted coordinator may do that.
+// simulation or a release authorization. The trusted coordinator performs those checks.
 export function serializeDurableTrainingReview(review) {
   object(review, ['schema', 'chainId', 'collection', 'progression', 'deploymentHash', 'owner',
     'tokenId', 'action', 'guard', 'anchor', 'transaction']);

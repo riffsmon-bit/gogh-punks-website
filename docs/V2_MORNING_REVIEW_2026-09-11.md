@@ -1,5 +1,9 @@
 # V2 and Forge morning review — September 11
 
+**Latest continuation:** [full broker, chat/gas verification and training recovery](V2_REVIEW_CANDIDATE_2026-09-11.md).
+Start the current hosted review in [Talk](https://deploy-preview-47.preview.goghpunks.xyz/broker/v2/?tab=talk).
+The #44 local link below tests only the Forge; it does not replace the full V2 broker.
+
 The combined V2/Forge preview is working. The #93 mint-session fix is included.
 The contract review package is prepared, but live Forge training is **not ready for
 production**: its burn-backed credit source and parts of the durable transaction

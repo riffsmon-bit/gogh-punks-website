@@ -41,11 +41,12 @@ authorize deployment. See [the morning review](V2_MORNING_REVIEW_2026-09-11.md).
 The detailed baseline is [the durable training checkpoint](v2-forge-durable-training-checkpoint.md).
 The remaining items are concrete implementation and acceptance work:
 
-1. PostgreSQL concurrency, restart and restricted-role validation; reviewed migration
-   application. Memory-engine tests do not establish deployed database durability.
-2. Canonical finality, unresolved/replaced nonce recovery and reservation release.
-3. Authenticated production review/confirm/recovery endpoints and owner-wallet UI,
-   with original-NFT continuity checks throughout.
+1. Native PostgreSQL concurrency, crash/restart and restricted-role checks now pass.
+   Reviewed production migration application and role/credential provisioning remain.
+2. Two-provider RPC-finalized settlement, consumed-nonce recovery and finalized
+   on-chain review expiry now release reservations. Independent L1 finality is not claimed.
+3. Authenticated review/claim/recovery endpoints and wallet UI are implemented behind
+   the undeployed release artifact. Production owner-wallet acceptance remains.
 4. A production training source, registry acceptance and enforcement of equipped
    capabilities. No research skill is promoted to production READY by this merge.
 5. Administrator security review, a fresh fee ceiling and deployment/configuration
@@ -80,3 +81,6 @@ withhold unverified data and capabilities.
 
 No production release, training-contract deployment, real mint or real burn was
 performed as part of preparing this candidate.
+
+The [September 11 continuation](V2_REVIEW_CANDIDATE_2026-09-11.md) adds full-broker
+chat/gas browser coverage, native database evidence and the gated training coordinator.

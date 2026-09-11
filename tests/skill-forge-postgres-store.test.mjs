@@ -3,6 +3,7 @@ import test from 'node:test';
 import { createPostgresTrainingStore } from '../broker/src/v4/skill-forge/postgres-training-store.mjs';
 import { serializeDurableTrainingReview, trainingDigest, durableTrainingTransaction } from '../broker/src/v4/skill-forge/durable-training-review.mjs';
 import { durableReviewFixture, TRAINING_STORE_BINDING, fixtureHash } from './fixtures/durable-training-review.mjs';
+import { settlementFixture } from './fixtures/training-settlement.mjs';
 
 // Protocol/failure-injection mock, NOT a SQL engine. The separate SQL suite executes
 // the migration, triggers and constraints using PostgreSQL (WASM or native).
@@ -13,7 +14,7 @@ function fixture({ commitAcknowledgementLost = false, queryFailure = null, rollb
     chain_id: review.chainId, collection_address: review.collection, progression_address: review.progression,
     deployment_hash: review.deploymentHash, owner_address: review.owner, token_text: review.tokenId,
     nonce_text: review.transaction.nonce, review_json: serialized, review_hash: trainingDigest(serialized),
-    status: 'PREPARED', revision: 0, transaction_hash: null, observation: null, expired: false,
+    status: 'PREPARED', revision: 0, transaction_hash: null, observation: null, settlement: null, expired: false,
     expires_at: new Date(Number(review.guard.deadline) * 1000) };
   const calls = []; let released = 0; let committed = false; let baseline;
   const pool = { async connect() { return {
@@ -40,7 +41,7 @@ function fixture({ commitAcknowledgementLost = false, queryFailure = null, rollb
       if (sql.startsWith('UPDATE broker_forge_training_intents')) {
         assert.equal(values[0], row.intent_id); assert.equal(values[1], row.revision);
         row = { ...row, revision: row.revision + 1, status: values[2], transaction_hash: values[3],
-          observation: values[4] ? JSON.parse(values[4]) : null };
+          observation: values[4] ? JSON.parse(values[4]) : null, settlement: values[5] ? JSON.parse(values[5]) : null };
         return { rows: [structuredClone(row)] };
       }
       return { rows: [] };
@@ -48,7 +49,8 @@ function fixture({ commitAcknowledgementLost = false, queryFailure = null, rollb
   }; } };
   const store = createPostgresTrainingStore({ pool, deployment: TRAINING_STORE_BINDING });
   const scope = { intentId: row.intent_id, owner: review.owner, tokenId: review.tokenId };
-  return { store, pool, scope, review, calls, get row() { return row; }, get released() { return released; }, get committed() { return committed; } };
+  return { store, pool, scope, review, calls, loseNextCommit() { commitAcknowledgementLost = true; },
+    get row() { return row; }, get released() { return released; }, get committed() { return committed; } };
 }
 
 test('claim only returns after a committed durable wallet reservation', async () => {
@@ -154,4 +156,39 @@ test('inclusion and reorg never grant credits or clear unresolved training', asy
   assert.equal(reorg.holdsTraining, true);
   assert.equal(Object.hasOwn(reorg, 'credits'), false);
   assert.equal(f.calls.some(c => /trainingCredits|learnedSkills|training_credits/.test(c.sql)), false);
+});
+
+test('settlement commits a terminal record, retains receipt provenance and cannot be rewritten', async () => {
+  const f=fixture(); await f.store.claim(f.scope,0,f.row.review_hash);
+  const observed={...durableTrainingTransaction(f.review),hash:fixtureHash('e')};
+  const bound=await f.store.bindVerifiedTransaction(f.scope,1,observed);
+  const proof=settlementFixture(f.review);
+  const done=await f.store.recordVerifiedSettlement(f.scope,bound.revision,proof);
+  assert.equal(done.status,'SETTLED_SUCCESS'); assert.equal(done.holdsTraining,false);
+  assert.equal(f.calls.at(-1).sql,'COMMIT'); assert.equal(done.settlement.evidenceHash,proof.evidenceHash);
+  assert.equal((await f.store.recordVerifiedSettlement(f.scope,0,{...proof})).revision,done.revision);
+  await assert.rejects(()=>f.store.recordVerifiedSettlement(f.scope,done.revision,
+    settlementFixture(f.review,{finalizedBlockNumber:'151'})),/ALREADY_RECORDED/);
+  await assert.rejects(()=>f.store.recordVerifiedSettlement(f.scope,done.revision,
+    settlementFixture({...f.review,tokenId:'94'})),/UNVERIFIED/);
+});
+
+test('only a requested review with a consumed nonce may settle without a transaction hash', async () => {
+  const f=fixture(),proof=settlementFixture(f.review,{status:'NONCE_CONSUMED',transactionHash:null});
+  await assert.rejects(()=>f.store.recordVerifiedSettlement(f.scope,0,proof),/INVALID_TRAINING_SETTLEMENT_TRANSITION/);
+  await f.store.claim(f.scope,0,f.row.review_hash);
+  const result=await f.store.recordVerifiedSettlement(f.scope,1,proof);
+  assert.equal(result.status,'NONCE_CONSUMED'); assert.equal(result.holdsTraining,false);
+  assert.equal(result.transactionHash,null); assert.equal(result.observation,null);
+});
+
+test('lost settlement COMMIT acknowledgement is idempotently recoverable without reopening the review', async () => {
+  const f=fixture(); await f.store.claim(f.scope,0,f.row.review_hash);
+  const proof=settlementFixture(f.review,{status:'NONCE_CONSUMED',transactionHash:null});
+  f.loseNextCommit();
+  await assert.rejects(()=>f.store.recordVerifiedSettlement(f.scope,1,proof),/COMMIT_ACK_LOST/);
+  assert.equal(f.row.status,'NONCE_CONSUMED');
+  const first=await f.store.get(f.scope);
+  assert.equal((await f.store.recordVerifiedSettlement(f.scope,1,proof)).revision,first.revision);
+  assert.equal((await f.store.claim(f.scope,first.revision,f.row.review_hash)).claimed,false);
 });

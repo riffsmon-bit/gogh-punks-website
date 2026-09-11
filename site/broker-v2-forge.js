@@ -1,15 +1,18 @@
 import { FORGE_CATALOG } from './forge-catalog.js';
 import { createTrainingControl } from './forge-training.js';
 import { validateForgeProfile, forgeSlotView } from './forge-profile-view.js';
+import { createDurableTrainingPanel } from './forge-durable-training-panel.js';
 const el = (tag, text, cls) => { const node = document.createElement(tag); if (text != null) node.textContent = text; if (cls) node.className = cls; return node; };
 export function createForgeControl({ root, getSelection, ensureSession, request, trainingAdapter }) {
   if (trainingAdapter) return createTrainingControl({ root, getSelection, request: trainingAdapter.request, localOnly: trainingAdapter.localOnly });
+  const training = createDurableTrainingPanel({ root: root.querySelector('[data-forge-training]'),getSelection,ensureSession,request });
   let key = '', snapshot = null, busy = false, sequence = 0, lastCheck = 0;
   const status = root.querySelector('[data-forge-status]');
   const report = root.querySelector('[data-forge-report]');
   const connect = root.querySelector('[data-forge-connect]');
   const context = () => { const s = getSelection(); return s ? `${s.owner}:${s.tokenId}:${s.chainId}:${s.preview}` : ''; };
   function selectionChanged() {
+    training?.selectionChanged();
     const current = context(); if (current === key) return;
     key = current; ++sequence; busy = false; snapshot = null; report.replaceChildren();
     const s = getSelection();
@@ -102,6 +105,7 @@ export function createForgeControl({ root, getSelection, ensureSession, request,
   const timer = window.setInterval(refreshIfVisible, 30_000);
   selectionChanged(); render();
   return { selectionChanged, destroy() {
+    training?.destroy();
     ++sequence; window.clearInterval(timer); window.removeEventListener('gogh:owner-snapshot', selectionChanged);
     window.removeEventListener('focus', refreshIfVisible); document.removeEventListener('visibilitychange', refreshIfVisible);
   } };

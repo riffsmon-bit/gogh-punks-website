@@ -4,8 +4,10 @@ import { readFile } from 'node:fs/promises';
 import { createPostgresTrainingStore } from '../../../broker/src/v4/skill-forge/postgres-training-store.mjs';
 import { durableTrainingTransaction, serializeDurableTrainingReview, trainingDigest } from '../../../broker/src/v4/skill-forge/durable-training-review.mjs';
 import { durableReviewFixture, TRAINING_STORE_BINDING, TRAINING_STORE_OWNER, fixtureHash } from '../../../tests/fixtures/durable-training-review.mjs';
+import { settlementFixture } from '../../../tests/fixtures/training-settlement.mjs';
 
 const migration = new URL('../../../netlify/database/migrations/20260910180000_stage_forge_training_intents.sql', import.meta.url);
+const settlementMigration = new URL('../../../netlify/database/migrations/20260911140000_settle_forge_training_intents.sql', import.meta.url);
 const requestKey = () => randomBytes(32).toString('hex');
 const scope = record => ({ intentId: record.intentId, owner: record.review.owner, tokenId: record.review.tokenId });
 
@@ -13,6 +15,7 @@ const scope = record => ({ intentId: record.intentId, owner: record.review.owner
 // The caller owns setup/teardown and reports whether the engine is native or WASM.
 export async function runTrainingStoreSqlSuite({ pool, exec, query }) {
   await exec(await readFile(migration, 'utf8'));
+  await exec(await readFile(settlementMigration, 'utf8'));
   let assertions = 0;
   const check = (value, message) => { assert.ok(value, message); assertions++; };
   const rejects = async (call, pattern) => { await assert.rejects(call, pattern); assertions++; };
@@ -87,6 +90,58 @@ export async function runTrainingStoreSqlSuite({ pool, exec, query }) {
   check(history.rows.some(x => x.status === 'REORGED') && history.rows.filter(x => x.status === 'INCLUDED_SUCCESS').length === 2,
     'receipt provenance survives reorg and reinclusion');
 
+  const proof=settlementFixture(one.review);
+  const settled=await store.recordVerifiedSettlement(scope(one),reincluded.revision,proof);
+  check(settled.status==='SETTLED_SUCCESS' && !settled.holdsTraining,'only bound settlement releases a completed token');
+  check(!(await nextStore.hasUnresolvedTraining(one.review.tokenId)),'buyer sees released hold without private seller data');
+  check((await secondWorker.recordVerifiedSettlement(scope(one),0,{...proof})).revision===settled.revision,
+    'settlement replay is idempotent across workers');
+  check((await query('SELECT settlement FROM broker_forge_training_intent_events WHERE intent_id=$1 AND revision=$2',
+    [one.intentId,settled.revision])).rows[0].settlement.evidenceHash===proof.evidenceHash,'terminal audit retains the settlement proof');
+  check((await query('SELECT * FROM broker_forge_training_reconciliation_jobs WHERE intent_id=$1',[one.intentId])).rows.length===0,
+    'settlement atomically removes the reconciliation job');
+  await rejects(()=>store.recordVerifiedSettlement(scope(one),settled.revision,
+    settlementFixture(one.review,{finalizedBlockNumber:'151'})),/ALREADY_RECORDED/);
+  const purchased=await nextStore.prepare({requestKey:requestKey(),review:newOwnerReview});
+  check(purchased.review.owner===otherOwner,'a buyer can prepare after the old nonce settles');
+
+  const jobs=[];
+  for(let i=0;i<2;i++) {
+    const prepared=await store.prepare(fixture());
+    jobs.push((await store.claim(scope(prepared),0,prepared.reviewHash)).record);
+  }
+  const leases=await Promise.all([store.claimPendingReconciliation({limit:1}),secondWorker.claimPendingReconciliation({limit:1})]);
+  check(leases.every(lease=>lease.records.length===1) && leases[0].records[0].intentId!==leases[1].records[0].intentId,
+    'parallel workers acquire disjoint durable leases');
+  check((await store.claimPendingReconciliation({limit:20})).records.length===0,'leased work cannot be claimed twice');
+  const leased=leases[0].records[0];
+  check(!(await store.finishReconciliation({intentId:leased.intentId,leaseToken:leases[1].leaseToken,result:'WRONG_LEASE'})),
+    'wrong lease token cannot reschedule another worker');
+  await query("UPDATE broker_forge_training_reconciliation_jobs SET lease_until=clock_timestamp()-INTERVAL '1 second' WHERE intent_id=$1",[leased.intentId]);
+  const reclaimed=await secondWorker.claimPendingReconciliation({limit:1});
+  check(reclaimed.records[0].intentId===leased.intentId && reclaimed.leaseToken!==leases[0].leaseToken,
+    'a crashed worker lease can be reclaimed');
+  check(!(await store.finishReconciliation({intentId:leased.intentId,leaseToken:leases[0].leaseToken,result:'STALE_WORKER'})),
+    'stale worker cannot overwrite a reclaimed lease');
+  const consumed=await store.recordVerifiedSettlement(scope(leased),leased.revision,
+    settlementFixture(leased.review,{status:'NONCE_CONSUMED',transactionHash:null}));
+  check(consumed.status==='NONCE_CONSUMED' && !consumed.holdsTraining,'lost hash closes with consumed-nonce evidence and no skill claim');
+  check(!(await store.finishReconciliation({intentId:leased.intentId,leaseToken:reclaimed.leaseToken,result:'ALREADY_RESOLVED'})),
+    'terminal job removal is safe for an in-flight worker');
+  check(await store.finishReconciliation({intentId:leases[1].records[0].intentId,leaseToken:leases[1].leaseToken,
+    result:'WAITING_FOR_FINALIZED_NONCE',delaySeconds:30}),'pending work is rescheduled without touching intent revision');
+  check((await store.claimPendingReconciliation({limit:20})).records.length===0,'deferred work does not starve newer due jobs');
+
+  const abandoned=await store.prepare(fixture());
+  const abandonedClaim=await store.claim(scope(abandoned),0,abandoned.reviewHash);
+  const ended=await store.recordVerifiedSettlement(scope(abandoned),abandonedClaim.record.revision,
+    settlementFixture(abandoned.review,{status:'REVIEW_EXPIRED',transactionHash:null}));
+  check(ended.status==='REVIEW_EXPIRED' && !ended.holdsTraining,'finalized contract expiry releases an unused wallet nonce');
+  check(!(await store.hasUnresolvedTraining(abandoned.review.tokenId)),'expired reviewed call cannot retain a token hold');
+  const fresh=await store.prepare({requestKey:requestKey(),review:abandoned.review});
+  check(fresh.review.transaction.nonce===abandoned.review.transaction.nonce,'fresh explicit review may reuse the unused nonce');
+  await store.cancelPrepared(scope(fresh),fresh.revision);
+
   const cancellable = await store.prepare(fixture());
   const cancelled = await store.cancelPrepared(scope(cancellable), 0);
   check(cancelled.status === 'CANCELLED' && !cancelled.holdsTraining, 'only unsent review can be cancelled');
@@ -101,6 +156,15 @@ export async function runTrainingStoreSqlSuite({ pool, exec, query }) {
   const soon = fixture(); soon.review.guard.deadline = String(Math.floor(Date.now() / 1000) + 2);
   const expiring = await store.prepare(soon);
   await new Promise(resolve => setTimeout(resolve, Math.max(0, Number(soon.review.guard.deadline) * 1000 - Date.now()) + 50));
+  check(!(await nextStore.hasUnresolvedTraining(expiring.review.tokenId)),
+    'an expired unsent seller review does not trap a buyer without the seller journal');
+  const buyerTime=Math.floor(Date.now()/1000);
+  const buyerDraft={...soon.review,owner:otherOwner,guard:{...soon.review.guard,deadline:String(buyerTime+20)},
+    anchor:{...soon.review.anchor,timestamp:String(buyerTime)}};
+  const buyerPrepared=await store.prepare({requestKey:requestKey(),review:buyerDraft});
+  check(buyerPrepared.review.owner===otherOwner && (await store.get(scope(expiring))).status==='EXPIRED',
+    'a fresh buyer review atomically expires the old unsent hold without taking its private review');
+  await store.cancelPrepared(scope(buyerPrepared),buyerPrepared.revision);
   const expired = await store.claim(scope(expiring), 0, expiring.reviewHash);
   check(!expired.claimed && expired.record.status === 'EXPIRED', 'database time expires an unsent review');
   check(!(await store.hasUnresolvedTraining(expiring.review.tokenId)), 'unsent expiry releases token hold');
