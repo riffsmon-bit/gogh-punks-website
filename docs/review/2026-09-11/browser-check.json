@@ -1,0 +1,27 @@
+{
+  "status": "PASS",
+  "checks": [
+    {
+      "name": "hosted-forge",
+      "url": "https://deploy-preview-47.preview.goghpunks.xyz/broker/v2/?preview=1&tab=forge",
+      "title": "Art Broker V2 · Gogh Punks",
+      "summary": "Learned skills, credits and unlocked slots are unknown—not zero.",
+      "body": "Skip to selected Art Broker\nGOGH PUNKS\nART BROKER V2\nWallet disconnected · no automatic signatures or transactions\nConnect wallet\nLOCAL PRODUCT PREVIEW\nSimulated broker data. No strategy, signature, transaction, deployment, or AI request leaves this computer.\nCHARACTER ROSTER\nSELECT YOUR ART BROKER\n\n3 OWNED PUNKS\n\n#119\nASK\n#546\nASSIST\n#810\nASK\n\nYour original Gogh Punk is the ownership key. This roster refreshes automatically after purchases and transfers.\n\n119\nREADY\nYOUR SELECTED BROKER\nGOGH PUNK\n#119\n\nSharp eyes. Stranger taste. Owner rules always win.\n\nMODE\nASK\nWALLET\n0x1190…1190\nBALANCE\n0.0300 ETH\nCOLLECTION\n27 PIECES\nART BUDGET\n0.0200 ETH AVAILABLE\n0.0100 ETH protected reserve\n01\nTALK\n02\nSTRATEGY\n03\nFUND\n04\nCOLLECTION\n05\nACTIVITY\n06\nFORGE\n07\nSETTINGS\nPUNK #119\nGOGH SKILL FORGE\nCONTROLLED RESEARCH LAB\nBUILT. NOT BORN.\n\nYour original Gogh Punk is the ownership key. Permanent training follows the token when it sells—no wrapper, buyer claim or re-equipping. Private chat and the seller’s spending permission do not transfer.\n\nCHECK FORGE & LOADOUT\n\nDesign preview only. Live research requires the real owner wallet.\n\nPERMANENT TRAINING · NOT VERIFIED\nPUNK LOADOUT\n\nLearned skills, credits and unlocked slots are unknown—not zero.\n\nSLOT 1\n—\nNOT VERIFIED\nSLOT 2\n—\nNOT VERIFIED\nSLOT 3\n—\nNOT VERIFIED\nSLOT 4\n—\nNOT VERIFIED\nSLOT 5\n—\nNOT VERIFIED\nSLOT 6\n—\nNOT VERIFIED\nSLOT 7\n—\nNOT VERIFIED\n\nRecheck to verify permanent progression. No equipment authority is assumed.\n\nRESEARCH TEST BENCH\n\nTh",
+      "overflow": false,
+      "mobileOverflow": false
+    },
+    {
+      "name": "reviewed-training",
+      "url": "http://127.0.0.1:64342/control-center?testPunk=44",
+      "title": "Gogh Forge · Local Control Center",
+      "summary": "TEST PUNK #44 · 1 CREDIT(S) · 0 LEARNED · 0/1 EQUIPPED",
+      "body": "ON-CHAIN REVIEW TEST · CHAIN 31337 · NOT YOUR REAL PUNKS\nGOGH PUNKS\nSKILL FORGE\nDISPOSABLE CONTRACTS\nSELECT YOUR TEST PUNK\nTEST #1\nTEST #44\nTEST #7\nSTART HERE · TEST CHECKLIST\n\nDISPOSABLE CHAIN 31337 · No MetaMask, real Punk, production skill or production ETH. Burn stays locked.\n\nREFRESH CONTRACT STATE\n\nConfirmed local snapshot at block 47. No production permissions.\n\nTEST PUNK #44 · 1 CREDIT(S) · 0 LEARNED · 0/1 EQUIPPED\n\nPUNK LOADOUT · LOCAL CONTRACT\nSLOT 1\nEMPTY\nChoose learned skill\nREVIEW EQUIP\nSLOT 2\nLOCKED\nUNLOCK · 1 CREDIT\nSLOT 3\nLOCKED\nUNLOCK · 1 CREDIT\nSLOT 4\nLOCKED\nUNLOCK · 1 CREDIT\nSLOT 5\nLOCKED\nUNLOCK · 1 CREDIT\nSLOT 6\nLOCKED\nUNLOCK · 1 CREDIT\nSLOT 7\nLOCKED\nUNLOCK · 1 CREDIT\nLEARN · THEN EQUIP\nContract Detective\n\nLocal fixture · 1 training credit. Learning does not equip.\n\nREVIEW LEARN · 1 CREDIT\nRarity Eye\n\nLocal fixture · 1 training credit. Learning does not equip.\n\nREVIEW LEARN · 1 CREDIT\nSniper\n\nLocal fixture · 1 training credit. Learning does not equip.\n\nREVIEW LEARN · 1 CREDIT\nEQUIPPED TOOL ACCESS\n\nFresh contract-backed gate. Research targets the real Gogh collection on Robinhood; training remains local.\n\nINSPECT CONTRACT · UNEQUIPPED / LOCKEDRANK TRAIT SAMPLE · UNEQUIPPED / LOCKED\n\nSniper has no implemented execution tool here. A learned icon never grants minting or purchasing.\n\nCONFIRMED TRAINING HISTORY\nTraining Credit Earned · block 45\n0x1574d928095aeb3a7ea253f2befcd2fdfe096b0ab3ae09a0a7c9a14db7379141\nTraining Review Applied · block 15\n0xb39322dbfe47c98",
+      "overflow": false,
+      "mobileOverflow": false
+    }
+  ],
+  "browserExceptions": [],
+  "failedAssets": [],
+  "output": "/var/folders/4m/68pfyqlj18v5bncgqqhf2n580000gn/T/gogh-morning-review-iDBhmR",
+  "walletActions": 0
+}

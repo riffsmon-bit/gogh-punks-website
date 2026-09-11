@@ -1,0 +1,375 @@
+{
+  "schemaVersion": "GOGH_FORGE_BUILD_REVIEW_V1",
+  "status": "PREPARED_WITH_BLOCKERS",
+  "chainId": 4663,
+  "originalCollection": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+  "ownership": "ORIGINAL_NFT",
+  "contracts": [
+    {
+      "name": "GoghSkillRegistry",
+      "status": "COMPILED_REVIEW_ONLY",
+      "artifact": "contracts/out/GoghSkillRegistry.sol/GoghSkillRegistry.json",
+      "runtimeBytes": 3175,
+      "compiler": "0.8.34+commit.80d5c536",
+      "settings": {
+        "remappings": [
+          "@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/"
+        ],
+        "optimizer": {
+          "enabled": true,
+          "runs": 500
+        },
+        "metadata": {
+          "bytecodeHash": "none"
+        },
+        "compilationTarget": {
+          "contracts/src/GoghSkillRegistry.sol": "GoghSkillRegistry"
+        },
+        "evmVersion": "cancun",
+        "libraries": {},
+        "viaIR": true
+      },
+      "sourceHashes": {
+        "contracts/src/GoghSkillRegistry.sol": "0xbcc09f5ad15b0c461a22cf1d660e0b494c4ef76af10e51fb20512d7b341f25ea",
+        "node_modules/@openzeppelin/contracts/access/Ownable.sol": "0xff6d0bb2e285473e5311d9d3caacb525ae3538a80758c10649a4d61029b017bb",
+        "node_modules/@openzeppelin/contracts/access/Ownable2Step.sol": "0xdcad8898fda432696597752e8ec361b87d85c82cb258115427af006dacf7128c",
+        "node_modules/@openzeppelin/contracts/utils/Context.sol": "0x493033a8d1b176a037b2cc6a04dad01a5c157722049bbecf632ca876224dd4b2"
+      },
+      "metadataHash": "0xc2131cee908e71c5e037f3e6e43c1054958642467ad27224697a11a9c85d4623",
+      "creationBytecodeHash": "0x2add372eefc5a5f3da4480b4788c482be91ec2b240faf0dbef46da7272e854ec",
+      "runtimeTemplateHash": "0x6a061b9d291e4402e32f93e7815cb2fe2242e725fe4052740f2be0a78049d3c3",
+      "runtimeHashRequiresConstructorImmutables": false,
+      "constructorInputs": [
+        {
+          "name": "guardian",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "separateDeployment": true,
+      "canBroadcast": false
+    },
+    {
+      "name": "GoghReviewedSkillProgression",
+      "status": "COMPILED_REVIEW_ONLY",
+      "artifact": "contracts/out/GoghReviewedSkillProgression.sol/GoghReviewedSkillProgression.json",
+      "runtimeBytes": 8080,
+      "compiler": "0.8.34+commit.80d5c536",
+      "settings": {
+        "remappings": [
+          "@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/"
+        ],
+        "optimizer": {
+          "enabled": true,
+          "runs": 500
+        },
+        "metadata": {
+          "bytecodeHash": "none"
+        },
+        "compilationTarget": {
+          "contracts/src/GoghReviewedSkillProgression.sol": "GoghReviewedSkillProgression"
+        },
+        "evmVersion": "cancun",
+        "libraries": {},
+        "viaIR": true
+      },
+      "sourceHashes": {
+        "contracts/src/GoghRaritySkillProgression.sol": "0xc162e1c695cd97ae46fd3b25821eba8a904387b37639881d15b50e759570019c",
+        "contracts/src/GoghReviewedSkillProgression.sol": "0xd612539d5c5179e92fb8b50e172dc3f0c6430f6d3756711c1f4c9961f22e7e0b",
+        "contracts/src/GoghSkillProgression.sol": "0x3ac02d443d16e778f2499104c46f55cebb44083e430e4ddf92b6f555f9bf0825",
+        "contracts/src/GoghSkillRegistry.sol": "0xbcc09f5ad15b0c461a22cf1d660e0b494c4ef76af10e51fb20512d7b341f25ea",
+        "node_modules/@openzeppelin/contracts/access/Ownable.sol": "0xff6d0bb2e285473e5311d9d3caacb525ae3538a80758c10649a4d61029b017bb",
+        "node_modules/@openzeppelin/contracts/access/Ownable2Step.sol": "0xdcad8898fda432696597752e8ec361b87d85c82cb258115427af006dacf7128c",
+        "node_modules/@openzeppelin/contracts/token/ERC721/IERC721.sol": "0xf78f05f3b8c9f75570e85300d7b4600d7f6f6a198449273f31d44c1641adb46f",
+        "node_modules/@openzeppelin/contracts/utils/Context.sol": "0x493033a8d1b176a037b2cc6a04dad01a5c157722049bbecf632ca876224dd4b2",
+        "node_modules/@openzeppelin/contracts/utils/cryptography/Hashes.sol": "0x8cbd338f083224b4b6f0ff42cbda641a0a6c31ffcdca197452b97fe4d0918269",
+        "node_modules/@openzeppelin/contracts/utils/cryptography/MerkleProof.sol": "0x5e27273c7ebdbcfe7d2bad2866feb635a49db139abfe5643bdeacec4a0880225",
+        "node_modules/@openzeppelin/contracts/utils/introspection/IERC165.sol": "0x8891738ffe910f0cf2da09566928589bf5d63f4524dd734fd9cedbac3274dd5c"
+      },
+      "metadataHash": "0x377aae3bf82d1bdfe84af000555a4da61164cd722ad50f8b4321df6f3d01dd32",
+      "creationBytecodeHash": "0x5af6ea025e15c78881a9e5dd50bc99c933822a7337042ddc1f1f9b966933a284",
+      "runtimeTemplateHash": "0x2c97392617a549284a44fb5cbc7da78c156df23171be497a17e6f0a223d4c689",
+      "runtimeHashRequiresConstructorImmutables": true,
+      "constructorInputs": [
+        {
+          "name": "collection_",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "registry_",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "trainingSource_",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "root_",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        },
+        {
+          "name": "snapshotHash_",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        }
+      ],
+      "separateDeployment": true,
+      "canBroadcast": false
+    },
+    {
+      "name": "GoghRaritySkillProgression",
+      "status": "INHERITED_OR_INTERNAL_LIBRARY_NO_SEPARATE_DEPLOYMENT",
+      "artifact": "contracts/out/GoghRaritySkillProgression.sol/GoghRaritySkillProgression.json",
+      "runtimeBytes": 5543,
+      "compiler": "0.8.34+commit.80d5c536",
+      "settings": {
+        "remappings": [
+          "@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/"
+        ],
+        "optimizer": {
+          "enabled": true,
+          "runs": 500
+        },
+        "metadata": {
+          "bytecodeHash": "none"
+        },
+        "compilationTarget": {
+          "contracts/src/GoghRaritySkillProgression.sol": "GoghRaritySkillProgression"
+        },
+        "evmVersion": "cancun",
+        "libraries": {},
+        "viaIR": true
+      },
+      "sourceHashes": {
+        "contracts/src/GoghRaritySkillProgression.sol": "0xc162e1c695cd97ae46fd3b25821eba8a904387b37639881d15b50e759570019c",
+        "contracts/src/GoghSkillProgression.sol": "0x3ac02d443d16e778f2499104c46f55cebb44083e430e4ddf92b6f555f9bf0825",
+        "contracts/src/GoghSkillRegistry.sol": "0xbcc09f5ad15b0c461a22cf1d660e0b494c4ef76af10e51fb20512d7b341f25ea",
+        "node_modules/@openzeppelin/contracts/access/Ownable.sol": "0xff6d0bb2e285473e5311d9d3caacb525ae3538a80758c10649a4d61029b017bb",
+        "node_modules/@openzeppelin/contracts/access/Ownable2Step.sol": "0xdcad8898fda432696597752e8ec361b87d85c82cb258115427af006dacf7128c",
+        "node_modules/@openzeppelin/contracts/token/ERC721/IERC721.sol": "0xf78f05f3b8c9f75570e85300d7b4600d7f6f6a198449273f31d44c1641adb46f",
+        "node_modules/@openzeppelin/contracts/utils/Context.sol": "0x493033a8d1b176a037b2cc6a04dad01a5c157722049bbecf632ca876224dd4b2",
+        "node_modules/@openzeppelin/contracts/utils/cryptography/Hashes.sol": "0x8cbd338f083224b4b6f0ff42cbda641a0a6c31ffcdca197452b97fe4d0918269",
+        "node_modules/@openzeppelin/contracts/utils/cryptography/MerkleProof.sol": "0x5e27273c7ebdbcfe7d2bad2866feb635a49db139abfe5643bdeacec4a0880225",
+        "node_modules/@openzeppelin/contracts/utils/introspection/IERC165.sol": "0x8891738ffe910f0cf2da09566928589bf5d63f4524dd734fd9cedbac3274dd5c"
+      },
+      "metadataHash": "0xee9980257931636b12977ddbcd99982820797c6af55ed5f496a42fcaa280ba7e",
+      "creationBytecodeHash": "0x5fd929418da9ef5c969ccf07001c98f616499a1f195989c3c5a24e5543045785",
+      "runtimeTemplateHash": "0x71746e356a30be6a3aa6d6ae6690fba9dbb8ee973183acffd96a2070ebd49410",
+      "runtimeHashRequiresConstructorImmutables": true,
+      "constructorInputs": [
+        {
+          "name": "collection_",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "registry_",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "trainingSource_",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "root_",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        },
+        {
+          "name": "snapshotHash_",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        }
+      ],
+      "separateDeployment": false,
+      "canBroadcast": false
+    },
+    {
+      "name": "GoghSkillProgression",
+      "status": "INHERITED_OR_INTERNAL_LIBRARY_NO_SEPARATE_DEPLOYMENT",
+      "artifact": "contracts/out/GoghSkillProgression.sol/GoghSkillProgression.json",
+      "runtimeBytes": 4328,
+      "compiler": "0.8.34+commit.80d5c536",
+      "settings": {
+        "remappings": [
+          "@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/"
+        ],
+        "optimizer": {
+          "enabled": true,
+          "runs": 500
+        },
+        "metadata": {
+          "bytecodeHash": "none"
+        },
+        "compilationTarget": {
+          "contracts/src/GoghSkillProgression.sol": "GoghSkillProgression"
+        },
+        "evmVersion": "cancun",
+        "libraries": {},
+        "viaIR": true
+      },
+      "sourceHashes": {
+        "contracts/src/GoghSkillProgression.sol": "0x3ac02d443d16e778f2499104c46f55cebb44083e430e4ddf92b6f555f9bf0825",
+        "contracts/src/GoghSkillRegistry.sol": "0xbcc09f5ad15b0c461a22cf1d660e0b494c4ef76af10e51fb20512d7b341f25ea",
+        "node_modules/@openzeppelin/contracts/access/Ownable.sol": "0xff6d0bb2e285473e5311d9d3caacb525ae3538a80758c10649a4d61029b017bb",
+        "node_modules/@openzeppelin/contracts/access/Ownable2Step.sol": "0xdcad8898fda432696597752e8ec361b87d85c82cb258115427af006dacf7128c",
+        "node_modules/@openzeppelin/contracts/token/ERC721/IERC721.sol": "0xf78f05f3b8c9f75570e85300d7b4600d7f6f6a198449273f31d44c1641adb46f",
+        "node_modules/@openzeppelin/contracts/utils/Context.sol": "0x493033a8d1b176a037b2cc6a04dad01a5c157722049bbecf632ca876224dd4b2",
+        "node_modules/@openzeppelin/contracts/utils/introspection/IERC165.sol": "0x8891738ffe910f0cf2da09566928589bf5d63f4524dd734fd9cedbac3274dd5c"
+      },
+      "metadataHash": "0xe89389e48cd7a502c1fbe8d65f9bf3d58faa59a1627d055c944da93eb7b5d46b",
+      "creationBytecodeHash": "0xe976fac5213e5b3079dc620561db9f3b97ab17e8ab716bdb199a7939bb6246a5",
+      "runtimeTemplateHash": "0xe5692cbdad4f4de2a2b20bca18f90f65838419e929d189be3c16edf808d27e9d",
+      "runtimeHashRequiresConstructorImmutables": true,
+      "constructorInputs": [
+        {
+          "name": "collection_",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "registry_",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "trainingSource_",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "baseSlots_",
+          "type": "uint8",
+          "internalType": "uint8"
+        },
+        {
+          "name": "slotCap_",
+          "type": "uint8",
+          "internalType": "uint8"
+        }
+      ],
+      "separateDeployment": false,
+      "canBroadcast": false
+    },
+    {
+      "name": "GoghForgeSupplyPolicy",
+      "status": "INHERITED_OR_INTERNAL_LIBRARY_NO_SEPARATE_DEPLOYMENT",
+      "artifact": "contracts/out/GoghForgeSupplyPolicy.sol/GoghForgeSupplyPolicy.json",
+      "runtimeBytes": 16,
+      "compiler": "0.8.34+commit.80d5c536",
+      "settings": {
+        "remappings": [
+          "@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/"
+        ],
+        "optimizer": {
+          "enabled": true,
+          "runs": 500
+        },
+        "metadata": {
+          "bytecodeHash": "none"
+        },
+        "compilationTarget": {
+          "contracts/src/GoghForgeSupplyPolicy.sol": "GoghForgeSupplyPolicy"
+        },
+        "evmVersion": "cancun",
+        "libraries": {},
+        "viaIR": true
+      },
+      "sourceHashes": {
+        "contracts/src/GoghForgeSupplyPolicy.sol": "0xa089e847213f715dc69569e6949fcc9d7b3d0c3e4f162103473dc67adb93891a"
+      },
+      "metadataHash": "0x55434450d3bbe837dbf3d36f69e1f72f7ea08747e4adeae7cbe2aeb03f806eae",
+      "creationBytecodeHash": "0x7da2dd20234443a589e988f032508ae31374ced98919dd742cb9ba2f42ed38fa",
+      "runtimeTemplateHash": "0x68f22a46a6ed2802192f5b6093f0fb55367ebca13cd0284d2115cb67d3644a5f",
+      "runtimeHashRequiresConstructorImmutables": false,
+      "constructorInputs": [],
+      "separateDeployment": false,
+      "canBroadcast": false
+    }
+  ],
+  "registryPins": {
+    "compiler": "0.8.34+commit.80d5c536",
+    "metadataHash": "0xc2131cee908e71c5e037f3e6e43c1054958642467ad27224697a11a9c85d4623",
+    "creationCodeHash": "0x2add372eefc5a5f3da4480b4788c482be91ec2b240faf0dbef46da7272e854ec",
+    "runtimeCodeHash": "0x6a061b9d291e4402e32f93e7815cb2fe2242e725fe4052740f2be0a78049d3c3",
+    "definitions": [
+      {
+        "slug": "contract-detective",
+        "skillId": 3,
+        "version": 1,
+        "key": "0x1a7bb5f14ab81288db8a451245c3aa880c3696e9f2aae4ca3e72171416f9a837",
+        "manifestHash": "0x80695d48a12865c2c633b4977cd8f24dd598dd8808eae5ebf733052f8091ba24",
+        "instructionHash": "0x1e283e611d6f72e8fa34d1412a5cbef8dd4d936f0138a5f18fdf519bafc93252",
+        "implementationHash": "0x53322cbbcfa71c34e210548e9e10db99ab0da63dc39516ad1a144024b3c39c98",
+        "capabilities": "1",
+        "riskTier": 0,
+        "status": "TESTING",
+        "walletAuthority": "NONE"
+      },
+      {
+        "slug": "rarity-eye",
+        "skillId": 4,
+        "version": 1,
+        "key": "0x2109a1600733ac7484f1358fcf5a116586a8e66b993ae96f479098fffbb7b1c1",
+        "manifestHash": "0x9f17224444ef8938c9d998754a6be4c9dce2029c5e6e6a5f918effdc276c0d26",
+        "instructionHash": "0x7f7baae864b35a8230361de2ac3a6abda099669a6659e3d76e5bdf105bf859f0",
+        "implementationHash": "0x53322cbbcfa71c34e210548e9e10db99ab0da63dc39516ad1a144024b3c39c98",
+        "capabilities": "8",
+        "riskTier": 0,
+        "status": "TESTING",
+        "walletAuthority": "NONE"
+      },
+      {
+        "slug": "market-scout",
+        "skillId": 8,
+        "version": 1,
+        "key": "0x5be308fd3ddc8decbc42d85408afb0c0251ed92e2b556457406fea9a0376cf34",
+        "manifestHash": "0x558793169f07ac6af696cb2ad2f1d2a2678cc29b03fe9887586fb6a0fb0948e3",
+        "instructionHash": "0x002f585d2764331cd2fbbe96b12a382143e8f698d066d2929993c84acff43cce",
+        "implementationHash": "0x28baf5dc5190efd2ef32ee9e6d11237da566376ae5b556cfc57ca5fdbc5130e9",
+        "capabilities": "4",
+        "riskTier": 0,
+        "status": "TESTING",
+        "walletAuthority": "NONE"
+      }
+    ]
+  },
+  "progressionConstructorPlan": {
+    "collection_": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+    "registry_": {
+      "status": "REQUIRES_VERIFIED_PUBLIC_REGISTRY_ADDRESS"
+    },
+    "trainingSource_": {
+      "status": "BLOCKED_PRODUCTION_SOURCE_UNIMPLEMENTED_AND_UNREVIEWED"
+    },
+    "root_": "0xf291febce8dc49ed133d39028f9b20061ea60c51d2e318096f122707dc558b97",
+    "snapshotHash_": "0x8a492f7dbb1ea8fe2ca51a134ffb6a9d4003bd6e9aa7cb87b121de43a40430de"
+  },
+  "productionTrainingSource": {
+    "status": "UNIMPLEMENTED",
+    "artifact": null,
+    "address": null,
+    "requiredProperties": [
+      "Verify current control of sacrifice and target original Punks.",
+      "Resolve asset recovery for every persistent account before parent burn.",
+      "Enforce the 1111 circulating-supply floor around the atomic sacrifice.",
+      "Issue exactly one credit once, only after the same atomic operation burns the sacrifice.",
+      "Reject pending obligations, incomplete evidence, duplicate sacrifice and reentrancy."
+    ]
+  },
+  "omittedDeployments": {
+    "wrapperAndEpochContracts": "Superseded by the original-NFT ownership decision.",
+    "baseProgressionContracts": "Inherited into GoghReviewedSkillProgression; do not deploy three competing progression stores.",
+    "supplyPolicy": "Internal library only; its presence does not implement a production burn source."
+  },
+  "productionTrainingAuthorized": false,
+  "productionBurnAuthorized": false,
+  "canBroadcast": false,
+  "note": "Build/source pins and constructor plan only. Unknown dependencies have no encoded deployment transaction or placeholder address. Runtime templates with immutables are not deployed runtime hashes."
+}

@@ -30,9 +30,11 @@ is isolated from the owner's older, modified checkout.
 | Tue Sep 15 | Fix acceptance failures, freeze the candidate, verify the hosted build and monitoring. Resolve any missing owner-operated wallet steps. |
 | Wed Sep 16 | Release only the accepted scope; report actual enabled capabilities and remaining gates. |
 
-The baseline candidate is reliable V2 minting with the new Forge research/loadout
-surface. The requested launch scope for live Forge learning/equipping and real-Punk
-burns is still being clarified; neither is assumed approved or finished.
+The owner requested the complete V2/Forge work and undeployed contracts be prepared
+for morning review. The integrated candidate includes V2 minting and the new Forge
+research/loadout surface. Live training and burns still require the implementation
+and acceptance work below; preparing their review does not make them finished or
+authorize deployment. See [the morning review](V2_MORNING_REVIEW_2026-09-11.md).
 
 ## Live Forge release dependencies
 
