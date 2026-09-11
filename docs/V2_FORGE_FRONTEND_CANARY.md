@@ -20,7 +20,7 @@ Research implementations and their original unit tests were carried unchanged fr
 - 87 targeted tests passed covering Forge auth/action boundaries, research, chat, collection verification and agent execution safeguards.
 - `node scripts/dev/test-forge-control-center.mjs` passed against local V2 at port 64340 and a separate headless Chrome at port 9227: tab routing, 13 icons, three guarded test buttons, late-response rejection, safe failures, and 1440/390/375px layouts.
 - Live local Contract Detective and three-Punk Rarity Eye reads succeeded. Local OpenSea probing cannot verify the production secret: Netlify masks its value.
-- The hosted build runs `scripts/forge-live-read-check.mjs` when a canary owner is configured, testing all three implementations using the actual protected build environment. It logs only public counts/status and fails safely on missing or rejected data. This is not proof of the owner's browser sign-in; that final UI step remains owner-operated.
+- The production build runs `scripts/forge-live-read-check.mjs` when a canary owner is configured, testing all three implementations using the actual protected build environment. It logs only public counts/status and fails safely on missing or rejected data. Deploy previews run the application deployment gate independently of provider availability; their successful build is not live-research acceptance. This is not proof of the owner's browser sign-in; that final UI step remains owner-operated.
 
 ## Other fixes included in this working release
 

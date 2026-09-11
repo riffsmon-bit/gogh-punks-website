@@ -53,6 +53,7 @@ function requireEvent(name, contractArtifact, eventName, expectedInputs) {
 
 const account = artifact("GoghPunkAccountV1.sol", "GoghPunkAccountV1");
 const autonomousAccount = artifact("GoghPunkAgentAccount.sol", "GoghPunkAgentAccount");
+const reviewedTraining = artifact("GoghReviewedSkillProgression.sol", "GoghReviewedSkillProgression");
 const registry = artifact("GoghPunkAccountRegistry.sol", "GoghPunkAccountRegistry");
 const policy = artifact("BrokerPolicyModule.sol", "BrokerPolicyModule");
 const agents = artifact("ArtAgentRegistry.sol", "ArtAgentRegistry");
@@ -97,6 +98,18 @@ requireFunctions("GoghPunkAgentAccount", autonomousAccount, [
   "depositToEntryPoint",
   "withdrawEntryPointDeposit",
 ]);
+requireFunctions("GoghReviewedSkillProgression", reviewedTraining, [
+  "applyTrainingReview", "invalidateTrainingReviews", "trainingReviewNonce", "trainingReviewStateHash",
+  "trainingCredits", "learnedLevel", "equipped", "unlockedSlots", "claimRaritySlots",
+]);
+if (reviewedTraining.abi.some(item => item.stateMutability === "payable" || ["receive", "fallback"].includes(item.type))) {
+  throw new Error("Reviewed progression cannot accept ETH or expose a fallback");
+}
+requireEvent("GoghReviewedSkillProgression", reviewedTraining, "TrainingReviewApplied", [
+  { name: "tokenId", type: "uint256", indexed: true },
+  { name: "nonce", type: "uint256", indexed: true },
+  { name: "operation", type: "uint8", indexed: false },
+]);
 requireEvent("GoghPunkAgentAccount", autonomousAccount, "SessionAcquisitionExecuted", [
   { name: "generation", type: "uint64", indexed: true },
   { name: "opportunityId", type: "bytes32", indexed: true },
@@ -132,6 +145,7 @@ requireFunctions("ArtAdapterRegistry", adapters, [
 const sizes = {
   GoghPunkAccountV1: requireDeployableSize("GoghPunkAccountV1", account),
   GoghPunkAgentAccount: requireDeployableSize("GoghPunkAgentAccount", autonomousAccount),
+  GoghReviewedSkillProgression: requireDeployableSize("GoghReviewedSkillProgression", reviewedTraining),
   GoghPunkAccountRegistry: requireDeployableSize("GoghPunkAccountRegistry", registry),
   BrokerPolicyModule: requireDeployableSize("BrokerPolicyModule", policy),
   ArtAgentRegistry: requireDeployableSize("ArtAgentRegistry", agents),

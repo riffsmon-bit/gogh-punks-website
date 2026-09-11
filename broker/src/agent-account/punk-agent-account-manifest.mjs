@@ -4,6 +4,7 @@ import { ENTRY_POINT_V08 } from "./punk-agent-account-setup.mjs";
 
 export const PUNK_AGENT_ACCOUNT_DEPLOYMENT_SCHEMA =
   "GOGH_PUNK_AGENT_ACCOUNT_DEPLOYMENT_V1";
+export const PUNK_AGENT_EPOCH_DEPLOYMENT_SCHEMA = "GOGH_PUNK_EPOCH_ACCOUNT_DEPLOYMENT_V1";
 export const PUNK_AGENT_ACCOUNT_DEPLOYMENT_STATUSES = Object.freeze([
   "UNDEPLOYED", "DEPLOYED",
 ]);
@@ -15,6 +16,9 @@ const DEPLOYED_CONTRACTS = Object.freeze([
 const CONFIGURATION_GATES = Object.freeze([
   "sourceVerified", "adapterRegistrationConfirmed", "bundlerConfigured",
   "sessionSignerConfigured", "receiptReconciliationEnabled", "workerEnabled",
+]);
+const EPOCH_CONFIGURATION_GATES = Object.freeze([
+  "wrapperOperatorRegistrationConfirmed", "wrappedOwnerIntegrationReady", "legacyEnrollmentReviewed",
 ]);
 
 function fail(code, message) {
@@ -67,11 +71,14 @@ function contractRecord(value, name) {
 }
 
 export function normalizePunkAgentAccountDeployment(value) {
+  const epochModel = value?.schema === PUNK_AGENT_EPOCH_DEPLOYMENT_SCHEMA;
+  const configurationGates = [...CONFIGURATION_GATES, ...(epochModel ? EPOCH_CONFIGURATION_GATES : [])];
   exactKeys(value, [
     "schema", "version", "status", "chainId", "network", "canonicalCollection",
     "entryPoint", "contracts", "reusedContracts", "configuration", "authorization", "notes",
+    ...(epochModel ? ["epochAuthority"] : []),
   ], "manifest");
-  if (value.schema !== PUNK_AGENT_ACCOUNT_DEPLOYMENT_SCHEMA || value.version !== 1
+  if ((!epochModel && value.schema !== PUNK_AGENT_ACCOUNT_DEPLOYMENT_SCHEMA) || value.version !== 1
     || !PUNK_AGENT_ACCOUNT_DEPLOYMENT_STATUSES.includes(value.status)
     || value.chainId !== 4663 || value.network !== "Robinhood Chain"
     || address(value.canonicalCollection, "canonicalCollection").toLowerCase() !== COLLECTION
@@ -84,8 +91,8 @@ export function normalizePunkAgentAccountDeployment(value) {
   ], "reusedContracts");
   const reusedContracts = Object.freeze(Object.fromEntries(Object.entries(value.reusedContracts)
     .map(([name, item]) => [name, address(item, `reusedContracts.${name}`)])));
-  exactKeys(value.configuration, CONFIGURATION_GATES, "configuration");
-  if (CONFIGURATION_GATES.some((gate) => typeof value.configuration[gate] !== "boolean")) {
+  exactKeys(value.configuration, configurationGates, "configuration");
+  if (configurationGates.some((gate) => typeof value.configuration[gate] !== "boolean")) {
     fail("INVALID_MANIFEST", "deployment configuration gates must be boolean");
   }
   exactKeys(value.authorization, [
@@ -101,6 +108,16 @@ export function normalizePunkAgentAccountDeployment(value) {
     const record = value.contracts[name];
     contracts[name] = record === null ? null : contractRecord(record, name);
   }
+  let epochAuthority;
+  if (epochModel) {
+    exactKeys(value.epochAuthority, ["wrapper", "epochs", "progression"], "epochAuthority");
+    epochAuthority = Object.freeze(Object.fromEntries(Object.entries(value.epochAuthority).map(([name, record]) => {
+      if (value.status === "UNDEPLOYED" && record !== null || value.status === "DEPLOYED" && record === null) {
+        fail("INVALID_MANIFEST", "epoch authority deployment evidence is incomplete");
+      }
+      return [name, record === null ? null : contractRecord(record, `epochAuthority.${name}`)];
+    })));
+  }
   if (value.status === "UNDEPLOYED") {
     if (Object.values(contracts).some(Boolean)
       || Object.values(value.configuration).some(Boolean)
@@ -112,7 +129,7 @@ export function normalizePunkAgentAccountDeployment(value) {
     || !value.authorization.deploymentAuthorized) {
     fail("INVALID_MANIFEST", "deployed manifest lacks verified contract evidence");
   }
-  return Object.freeze({ ...value, canonicalCollection: getAddress(value.canonicalCollection),
+  return Object.freeze({ ...value, ...(epochModel ? { epochAuthority } : {}), canonicalCollection: getAddress(value.canonicalCollection),
     entryPoint: getAddress(value.entryPoint), contracts: Object.freeze(contracts),
     reusedContracts, configuration: Object.freeze({ ...value.configuration }),
     authorization: Object.freeze({ ...value.authorization }) });
@@ -122,7 +139,7 @@ export function punkAgentAccountReadiness(value) {
   const manifest = normalizePunkAgentAccountDeployment(value);
   const blockers = [];
   if (manifest.status !== "DEPLOYED") blockers.push("CONTRACTS_NOT_DEPLOYED");
-  for (const gate of CONFIGURATION_GATES) {
+  for (const gate of Object.keys(manifest.configuration)) {
     if (!manifest.configuration[gate]) blockers.push(gate.replaceAll(/([A-Z])/g, "_$1").toUpperCase());
   }
   if (!manifest.authorization.automaticSubmissionEnabled) {
@@ -130,12 +147,14 @@ export function punkAgentAccountReadiness(value) {
   }
   const setupBlockers = blockers.filter((blocker) => [
     "CONTRACTS_NOT_DEPLOYED", "SOURCE_VERIFIED", "ADAPTER_REGISTRATION_CONFIRMED",
+    "WRAPPER_OPERATOR_REGISTRATION_CONFIRMED", "WRAPPED_OWNER_INTEGRATION_READY", "LEGACY_ENROLLMENT_REVIEWED",
   ].includes(blocker));
   return Object.freeze({ ready: blockers.length === 0,
     automaticExecutionReady: blockers.length === 0,
     ownerSetupReady: setupBlockers.length === 0, status: manifest.status,
     setupBlockers: Object.freeze(setupBlockers),
-    blockers: Object.freeze(blockers), maximumOwnerTransactions: 2,
+    blockers: Object.freeze(blockers), maximumOwnerTransactions: manifest.schema === PUNK_AGENT_EPOCH_DEPLOYMENT_SCHEMA ? 4 : 2,
+    ...(manifest.schema === PUNK_AGENT_EPOCH_DEPLOYMENT_SCHEMA ? { requiresWrapping: true } : {}),
     walletPopupRequiredPerMint: false,
     accountRegistry: manifest.contracts.GoghPunkAgentAccountRegistry?.address ?? null,
     accountImplementation: manifest.contracts.GoghPunkAgentAccount?.address ?? null,

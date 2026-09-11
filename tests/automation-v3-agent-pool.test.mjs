@@ -186,7 +186,9 @@ test("every lane has a distinct key variable and scheduled invocation", async ()
   assert.match(priority, /schedule:\s*"\* \* \* \* \*"/);
 });
 
-test("a scheduled lane passes only its own signer binding to the worker", async () => {
+test("a scheduled lane passes only its own signer binding to the worker", async (t) => {
+  // Historical routing fixture; the current production retirement gate stays intact.
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-09-05T21:59:00Z') });
   const calls = [];
   const result = await runScheduledAutomationV3Lane(5, {
     environment: { ...environment(), CONTEXT: "production" },

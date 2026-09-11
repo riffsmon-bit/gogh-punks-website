@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { V1_SHUTDOWN_AT_MS } from '../netlify/functions/_shared/broker-migration-state.mjs';
 
 import { encodeFunctionData, keccak256 } from "viem";
 
@@ -141,6 +142,7 @@ test("owner-paid endpoint prepares only an active exact Punk and never submits s
   let workerOptions;
   const environment = { CONTEXT: "deploy-preview" };
   const ready = await prepareOwnerPaidAutomationV3({ tokenId: "93" }, {
+    now: () => V1_SHUTDOWN_AT_MS - 60_000,
     environment,
     readPunk: async () => ({ tokenId: "93", created: true, active: true }),
     runWorker: async (receivedEnvironment, options) => {
@@ -156,6 +158,7 @@ test("owner-paid endpoint prepares only an active exact Punk and never submits s
   });
 
   await assert.rejects(() => prepareOwnerPaidAutomationV3({ tokenId: "94" }, {
+    now: () => V1_SHUTDOWN_AT_MS - 60_000,
     readPunk: async () => ({ tokenId: "94", created: false, active: false }),
   }), (error) => error.code === "PUNK_AUTOMATION_INACTIVE");
 });

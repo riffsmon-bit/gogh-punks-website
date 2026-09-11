@@ -1,7 +1,10 @@
 import { FORGE_CATALOG } from './forge-catalog.js';
+import { createTrainingControl } from './forge-training.js';
+import { validateForgeProfile, forgeSlotView } from './forge-profile-view.js';
 const el = (tag, text, cls) => { const node = document.createElement(tag); if (text != null) node.textContent = text; if (cls) node.className = cls; return node; };
-export function createForgeControl({ root, getSelection, ensureSession, request }) {
-  let key = '', snapshot = null, busy = false, sequence = 0;
+export function createForgeControl({ root, getSelection, ensureSession, request, trainingAdapter }) {
+  if (trainingAdapter) return createTrainingControl({ root, getSelection, request: trainingAdapter.request, localOnly: trainingAdapter.localOnly });
+  let key = '', snapshot = null, busy = false, sequence = 0, lastCheck = 0;
   const status = root.querySelector('[data-forge-status]');
   const report = root.querySelector('[data-forge-report]');
   const connect = root.querySelector('[data-forge-connect]');
@@ -19,11 +22,22 @@ export function createForgeControl({ root, getSelection, ensureSession, request 
   }
   function render() {
     const s = getSelection(); connect.disabled = busy || !s || s.preview || s.chainId !== 4663;
-    connect.textContent = busy ? 'CHECKING…' : snapshot ? 'RECHECK OWNER & LAB' : 'CONNECT RESEARCH LAB';
+    connect.textContent = busy ? 'CHECKING…' : snapshot ? 'RECHECK OWNER & FORGE' : 'CHECK FORGE & LOADOUT';
     const slots = root.querySelector('[data-forge-slots]'); slots.replaceChildren();
-    for (let i = 0; i < 7; i++) {
-      const slot = el('div', null, 'forge-socket');
-      slot.append(el('span', `SLOT ${i + 1}`), el('b', '—'), el('small', 'NOT CONNECTED')); slots.append(slot);
+    const profile = snapshot?.profile;
+    const set = (selector, text) => { const node = root.querySelector(selector); if (node) node.textContent = text; };
+    set('[data-forge-profile-state]', profile?.verified ? 'ON-CHAIN LOADOUT · READ ONLY' : 'PERMANENT TRAINING · NOT VERIFIED');
+    set('[data-forge-profile-summary]', profile?.verified
+      ? `${profile.trainingCredits} TRAINING CREDIT(S) · ${profile.learnedSkills.length} LEARNED · ${profile.equippedSkills.length}/${profile.unlockedSlots} EQUIPPED`
+      : 'Learned skills, credits and unlocked slots are unknown—not zero.');
+    set('[data-forge-profile-note]', profile?.verified ? `Verified at block ${profile.blockNumber}. Training follows the original token. No transaction capability is granted by this view.`
+      : profile?.note ?? 'Recheck to verify permanent progression. No equipment authority is assumed.');
+    for (const item of forgeSlotView(profile)) {
+      const slot = el('div', null, `forge-socket forge-socket-${item.state.toLowerCase()}`);
+      slot.append(el('span', `SLOT ${item.slot + 1}`));
+      const icon = item.skill?.packageVerified && FORGE_CATALOG.find(s => s.id === item.skill.slug);
+      if (icon) { const img = el('img'); img.src = icon.image; img.alt = ''; img.width = 80; img.height = 80; slot.append(img); }
+      slot.append(el('b', item.title), el('small', item.detail)); slots.append(slot);
     }
     const grid = root.querySelector('[data-forge-library]'); grid.replaceChildren();
     for (const skill of FORGE_CATALOG) {
@@ -40,15 +54,17 @@ export function createForgeControl({ root, getSelection, ensureSession, request 
     if (payload.tokenId !== selected.tokenId || payload.owner?.toLowerCase() !== selected.owner?.toLowerCase()
       || payload.chainId !== 4663 || payload.mode !== 'READ_ONLY_RESEARCH_LAB' || payload.walletAuthority !== 'NONE'
       || payload.canBurn !== false || payload.canLearn !== false || payload.canEquip !== false) throw new Error('Forge response could not be verified.');
+    validateForgeProfile(payload.profile, selected);
     return payload;
   }
-  async function run(action = null) {
+  async function run(action = null, { authenticate = true } = {}) {
     selectionChanged(); if (busy) return;
     const selected = getSelection(); if (!selected || selected.preview || selected.chainId !== 4663) return;
     const ticket = ++sequence, original = key;
-    busy = true; report.replaceChildren(); status.textContent = 'Checking your current-owner sign-in. No transaction will be requested.'; render();
+    busy = true; lastCheck = Date.now(); if (authenticate || action) report.replaceChildren();
+    status.textContent = authenticate ? 'Checking your current-owner sign-in. No transaction will be requested.' : 'Refreshing verified Forge state. No wallet prompt will be requested.'; render();
     try {
-      await ensureSession();
+      if (authenticate) await ensureSession();
       if (ticket !== sequence || original !== context()) return;
       const options = action ? { method: 'POST', headers: { 'content-type': 'application/json' }, timeoutMs: 45000,
         body: JSON.stringify({ action, ...(action === 'rank_trait_sample' ? { sampleTokenIds: [selected.tokenId,
@@ -68,11 +84,25 @@ export function createForgeControl({ root, getSelection, ensureSession, request 
         report.append(details, el('p', 'Test completed—not a learned skill. Training credits and loadout remain unchanged.'));
       }
     } catch (error) {
-      if (ticket === sequence && original === context()) status.textContent = `${error.message} No training or wallet change was made.`;
+      if (ticket === sequence && original === context()) {
+        snapshot = null; report.replaceChildren();
+        status.textContent = `${error.message} No training or wallet change was made.`;
+      }
     } finally { if (ticket === sequence && original === context()) { busy = false; render(); } }
   }
   connect.addEventListener('click', () => run());
   window.addEventListener('gogh:owner-snapshot', selectionChanged);
+  // Only refresh an already opened, authenticated bench. Never cause surprise SIWE
+  // or wallet requests while idle, switching Punks, focusing a tab or reconnecting.
+  const refreshIfVisible = () => {
+    if (snapshot && !busy && !root.hidden && !document.hidden && Date.now() - lastCheck >= 30_000) void run(null, { authenticate: false });
+  };
+  window.addEventListener('focus', refreshIfVisible);
+  document.addEventListener('visibilitychange', refreshIfVisible);
+  const timer = window.setInterval(refreshIfVisible, 30_000);
   selectionChanged(); render();
-  return { selectionChanged };
+  return { selectionChanged, destroy() {
+    ++sequence; window.clearInterval(timer); window.removeEventListener('gogh:owner-snapshot', selectionChanged);
+    window.removeEventListener('focus', refreshIfVisible); document.removeEventListener('visibilitychange', refreshIfVisible);
+  } };
 }

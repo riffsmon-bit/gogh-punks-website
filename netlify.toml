@@ -8,6 +8,11 @@
 [build.environment]
   NODE_VERSION = "24"
 
+[context.deploy-preview]
+  # UI previews retain the complete deployment gate. Provider availability is
+  # checked for production acceptance; an RPC outage must not hide the preview.
+  command = "npm run site:deploy-check"
+
 [context.production.environment]
   # Read-only display enrichment is deliberately enabled only in production.
   # The scheduled worker still skips unless OPENSEA_API_KEY is configured.
@@ -23,6 +28,9 @@
 # used by production. These are public source artifacts, never secrets.
 [functions."broker-autonomy-v2-status"]
   included_files = ["deployments/robinhood-automation-v2.json", "deployments/robinhood.json", "broker/src/**/*.mjs", "netlify/functions/_shared/*.mjs"]
+
+[functions."broker-v2-forge"]
+  included_files = ["broker/skills/**", "broker/src/v4/skill-forge/*.mjs", "deployments/robinhood-skill-forge.json"]
 
 [functions."broker-autonomy-v3-status"]
   included_files = ["deployments/robinhood-automation-v3.json", "deployments/robinhood.json", "broker/src/**/*.mjs", "netlify/functions/_shared/*.mjs"]

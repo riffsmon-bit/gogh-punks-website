@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { handleV2Chat, persistV2ChatDraft } from "../netlify/functions/broker-v2-chat.mjs";
 import { defaultAskIntent } from "../broker/src/v4/collecting-intent.mjs";
+import { PublicError } from "../netlify/functions/_shared/http.mjs";
 
 const owner = `0x${"1".repeat(40)}`, punkWallet = `0x${"2".repeat(40)}`;
 process.env.SITE_URL = "https://goghpunks.xyz";
@@ -55,11 +56,32 @@ for (const state of ["PAUSED", "PENDING_OWNER_CONFIRMATION"]) {
     }), { pool: { connect: async () => client, query: async (sql, args) => {
       assert.match(sql, /configured_by = \$4/); assert.equal(args[3], owner); return { rows: [{ intent }] };
     } }, requireSession: async () => ({ walletAddress: owner }), readAuthority: async () => authority,
+    checkAuthority: async value => { assert.equal(value, authority); queries.push('CONTINUITY_CHECKED'); },
     createIntelligence: () => ({ router: { run: async () => { throw Error("AI must not be needed"); } } }),
     });
     const body = await response.json(); assert.equal(response.status, 200);
     assert.equal(body.draft.version, 6); assert.equal(body.economicPermissionsActivated, false);
     assert.ok(queries.includes("COMMIT")); assert.ok(queries.some(q => q.includes("pg_advisory_xact_lock")));
+    assert.ok(queries.indexOf('CONTINUITY_CHECKED') < queries.findIndex(q => q.includes('INSERT INTO broker_punks')));
     assert.equal(queries.some(q => q.includes("INSERT INTO broker_v2_strategies")), false);
   });
 }
+
+test('ownership change during chat rolls back before saving a reused mission or private conversation', async () => {
+  const queries = [];
+  const intent = { ...defaultAskIntent({ punkTokenId: '93', expectedOwner: owner, punkWallet }),
+    operatingMode: 'AUTONOMOUS', totalMintLimit: 1, dailyMintLimit: 1 };
+  const client = { release() {}, query: async sql => { queries.push(sql); return { rows: [] }; } };
+  const response = await handleV2Chat(new Request('https://goghpunks.xyz/api/v2/punks/93/chat', {
+    method: 'POST', headers: { origin: 'https://goghpunks.xyz', 'content-type': 'application/json' },
+    body: JSON.stringify({ message: 'Find and mint one eligible free NFT.' }),
+  }), { pool: { connect: async () => client, query: async () => ({ rows: [{ intent }] }) },
+    requireSession: async () => ({ walletAddress: owner }), readAuthority: async () => authority,
+    checkAuthority: async () => { throw new PublicError(409, 'CHAT_AUTHORITY_CHANGED', 'Punk transferred.'); },
+    createIntelligence: () => ({ router: { run: async () => { throw Error('Unexpected AI call'); } } }),
+  });
+  assert.equal(response.status, 409);
+  assert.equal((await response.json()).code, 'CHAT_AUTHORITY_CHANGED');
+  assert.ok(queries.includes('ROLLBACK'));
+  assert.equal(queries.some(sql => /INSERT|UPDATE|COMMIT/.test(sql)), false);
+});

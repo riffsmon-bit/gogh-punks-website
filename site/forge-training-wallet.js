@@ -1,0 +1,48 @@
+import { validateTrainingReview } from './forge-training-transaction.js';
+const binding = state => JSON.stringify([state.tokenId, state.owner?.toLowerCase(), state.collection?.toLowerCase(),
+  state.registry?.toLowerCase(), state.progression?.toLowerCase(), state.credits, state.slots, state.cap, state.learned, state.equipped, state.ownershipEpoch ?? null,
+  state.trainingGuard?.protocol ?? null, state.trainingGuard?.nonce ?? null, state.trainingGuard?.stateHash ?? null],
+  (_key, value) => typeof value === 'bigint' ? value.toString() : value);
+
+// EIP-1193 boundary for a future explicit wallet button. Currently exercised only with
+// the disposable Anvil provider. Never connects, switches chain, requests accounts or signs on load.
+export function createTrainingWalletAdapter({ provider, readSnapshot, validateReview = validateTrainingReview }) {
+  const attempted = new Set(); let busy = false;
+  return Object.freeze({
+    async submit({ review, snapshot, action }) {
+      if (busy) throw Error('TRAINING_WALLET_BUSY');
+      if (attempted.has(review?.intentId)) throw Error('TRAINING_WALLET_ALREADY_REQUESTED');
+      busy = true; let walletRequested = false;
+      try {
+        validateReview(review, snapshot, action);
+        const before = binding(snapshot);
+        const checkWallet = async () => {
+          const [chain, accounts] = await Promise.all([
+            provider.request({ method: 'eth_chainId' }), provider.request({ method: 'eth_accounts' }),
+          ]);
+          if (chain !== '0x7a69' || !Array.isArray(accounts) || accounts[0]?.toLowerCase() !== snapshot.owner.toLowerCase()) throw Error('TRAINING_WALLET_CONTEXT_CHANGED');
+        };
+        await checkWallet();
+        const fresh = await readSnapshot(snapshot.tokenId);
+        if (fresh.localOnly !== true || fresh.chainId !== 31337 || fresh.canBurn !== false || binding(fresh) !== before) throw Error('TRAINING_WALLET_STATE_CHANGED');
+        validateReview(review, fresh, action);
+        await checkWallet();
+        validateReview(review, fresh, action);
+        const nonce = await provider.request({ method: 'eth_getTransactionCount', params: [snapshot.owner, 'pending'] });
+        if (!/^0x[0-9a-f]+$/i.test(nonce) || BigInt(nonce) !== BigInt(review.transaction.nonce)) throw Error('TRAINING_WALLET_NONCE_CHANGED');
+        validateReview(review, fresh, action);
+        // Deliberately one-shot even for rejection/transport failure; a new owner-reviewed
+        // intent is required. This does not mean an error proved nothing was broadcast.
+        attempted.add(review.intentId);
+        walletRequested = true;
+        const transactionHash = await provider.request({ method: 'eth_sendTransaction', params: [{ ...review.transaction }] });
+        if (!/^0x[0-9a-f]{64}$/i.test(transactionHash)) throw Error('TRAINING_WALLET_HASH_UNKNOWN');
+        return { status: 'SUBMITTED', transactionHash };
+      } catch (error) {
+        // Only this adapter knows whether it invoked the send method. Never trust
+        // a provider-supplied claim that a failed send did not broadcast.
+        throw Object.assign(new Error(error.message), { code: error.code, noTransactionRequested: !walletRequested });
+      } finally { busy = false; }
+    },
+  });
+}
