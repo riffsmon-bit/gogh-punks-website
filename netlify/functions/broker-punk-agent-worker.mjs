@@ -8,6 +8,8 @@ import { createConfiguredPunkAgentBundler, createPunkAgentSessionSigner,
   "../../broker/src/agent-account/punk-agent-account-runtime.mjs";
 import { runPunkAgentMissionOnce } from
   "../../broker/src/agent-account/punk-agent-worker.mjs";
+import { readPunkAgentMissionUsage } from
+  "../../broker/src/agent-account/punk-agent-mission-usage.mjs";
 import { punkAgentAccountReadiness } from
   "../../broker/src/agent-account/punk-agent-account-manifest.mjs";
 import { normalizePunkCollectingIntent } from
@@ -79,30 +81,6 @@ async function loadMission(pool, now) {
   return result.rows[0] ? missionFromRow(result.rows[0], now) : null;
 }
 
-async function usage(pool, mission, opportunityId, now) {
-  const result = await pool.query(`SELECT
-      COUNT(*) FILTER (WHERE activity.occurred_at >= date_trunc('day', $1::timestamptz
-        AT TIME ZONE 'UTC') AT TIME ZONE 'UTC')::integer AS daily,
-      COUNT(*)::integer AS total,
-      COUNT(*) FILTER (WHERE activity.opportunity_id = $2)::integer AS opportunity
-    FROM broker_v2_activity activity WHERE activity.chain_id = $3
-      AND activity.punk_token_id = $4::numeric AND activity.activity_type = 'COLLECTED'`,
-  [new Date(now).toISOString(), opportunityId, ROBINHOOD.chainId, mission.tokenId]);
-  const pending = await pool.query(`SELECT COUNT(*)::integer AS total,
-      COUNT(*) FILTER (WHERE operation.created_at >= date_trunc('day', $1::timestamptz
-        AT TIME ZONE 'UTC') AT TIME ZONE 'UTC')::integer AS daily,
-      COUNT(*) FILTER (WHERE operation.opportunity_id = $2)::integer AS opportunity
-    FROM broker_v2_agent_user_operations operation
-    JOIN broker_v2_agent_sessions session ON session.session_id = operation.session_id
-    WHERE session.chain_id = $3 AND session.punk_token_id = $4::numeric
-      AND operation.state IN ('SIGNED', 'SUBMITTED', 'RECONCILIATION_REQUIRED')`,
-  [new Date(now).toISOString(), opportunityId, ROBINHOOD.chainId, mission.tokenId]);
-  const collected = result.rows[0] ?? {}; const open = pending.rows[0] ?? {};
-  return Object.freeze({ dailyMints: Number(collected.daily ?? 0) + Number(open.daily ?? 0),
-    totalMints: Number(collected.total ?? 0) + Number(open.total ?? 0),
-    opportunityMints: Number(collected.opportunity ?? 0) + Number(open.opportunity ?? 0) });
-}
-
 async function loadCandidate(pool, client, mission, runtime, now, observation = null) {
   const results = await pool.query(`SELECT opportunity.normalized,
       screening.input_hash AS screening_input_hash, screening.checked_at
@@ -114,7 +92,11 @@ async function loadCandidate(pool, client, mission, runtime, now, observation = 
       AND (opportunity.expires_at IS NULL OR opportunity.expires_at > $2)
     ORDER BY opportunity.updated_at DESC LIMIT 12`,
   [ROBINHOOD.chainId, new Date(now).toISOString()]);
-  const observed = { opportunitiesChecked: results.rows.length, liveSimulationsPassed: 0 };
+  const observed = { opportunitiesChecked: results.rows.length, liveSimulationsPassed: 0,
+    rejectionCounts: {} };
+  const reject = (code) => {
+    observed.rejectionCounts[code] = (observed.rejectionCounts[code] ?? 0) + 1;
+  };
   const balance = await client.getBalance({ address: runtime.account });
   for (const row of results.rows) {
     let simulation;
@@ -122,17 +104,20 @@ async function loadCandidate(pool, client, mission, runtime, now, observation = 
       simulation = await simulateOwnerAssistedSeaDropMint({ client,
         authority: { owner: mission.owner, punkWallet: runtime.account, activated: true },
         opportunity: normalizeV2Opportunity(row.normalized, now), now });
-    } catch { continue; }
+    } catch (error) { reject(workerErrorCode(error)); continue; }
     observed.liveSimulationsPassed += 1;
     const candidate = normalizeV2Opportunity({ ...row.normalized, simulationStatus: "PASSED",
       estimatedGasCostWei: simulation.evidence.estimatedGasWei,
       expectedNftReceiver: runtime.account, updatedAt: new Date(now).toISOString() }, now);
-    const counts = await usage(pool, mission, candidate.opportunityId, now);
+    const counts = await readPunkAgentMissionUsage(pool, mission, candidate.opportunityId, now);
     const match = matchV2Opportunity(mission.strategy, candidate, {
       currentOwner: mission.owner, punkWallet: runtime.account,
       punkWalletBalanceWei: balance.toString(), ...counts,
     }, now);
-    if (!match.automaticExecutionCandidate) continue;
+    if (!match.automaticExecutionCandidate) {
+      for (const reason of match.reasons) reject(reason);
+      continue;
+    }
     if (observation) Object.assign(observation, observed);
     return Object.freeze({ opportunity: candidate,
       tokenId: simulation.evidence.expectedTokenId,

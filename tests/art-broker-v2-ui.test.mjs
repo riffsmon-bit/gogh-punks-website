@@ -1,9 +1,25 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { runInNewContext } from "node:vm";
 
 const htmlUrl = new URL("../site/broker/v2/index.html", import.meta.url);
 const cssUrl = new URL("../site/broker-v2.css", import.meta.url);
+
+test("scouting activity explains policy rejection and tolerates historical entries", async () => {
+  const script = await readFile(new URL("../site/broker-v2.js", import.meta.url), "utf8");
+  const source = script.slice(script.indexOf("function describeMatchBlocker("),
+    script.indexOf("function previewData("))
+    + script.slice(script.indexOf("function activityDetail("), script.indexOf("function renderActivity("));
+  const describe = runInNewContext(`${source}\nactivityDetail`);
+  const detail = { opportunitiesChecked: 3, liveSimulationsPassed: 3,
+    rejectionCounts: { TOTAL_LIMIT_REACHED: 3 } };
+  assert.match(describe({ type: "AGENT_SCOUTED", detail }),
+    /3 live simulations passed.*Blocked because your mission mint limit is reached/);
+  assert.doesNotMatch(describe({ type: "AGENT_SCOUTED", detail: {
+    opportunitiesChecked: 3, liveSimulationsPassed: 3,
+  } }), /Blocked because|undefined/);
+});
 
 test("V2 Control Center exposes the complete selected-Punk action architecture", async () => {
   const html = await readFile(htmlUrl, "utf8");

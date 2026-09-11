@@ -1124,7 +1124,10 @@ function activityDetail(entry) {
   const detail = entry.detail;
   if (typeof detail === "string") return detail;
   if (entry.type === "AGENT_SCOUTED") {
-    return `Checked ${detail?.opportunitiesChecked ?? 0} screened candidates · ${detail?.liveSimulationsPassed ?? 0} live simulations passed. No eligible mint; nothing submitted.`;
+    const reasons = Object.keys(detail?.rejectionCounts ?? {});
+    const explanation = reasons.length
+      ? ` Blocked because ${describeMatchBlocker({ blockingReasons: reasons })}.` : "";
+    return `Checked ${detail?.opportunitiesChecked ?? 0} screened candidates · ${detail?.liveSimulationsPassed ?? 0} live simulations passed. No eligible mint; nothing submitted.${explanation}`;
   }
   if (entry.type === "AGENT_CHECK_FAILED") {
     return `Check could not complete: ${blockerLabel(detail?.code ?? "CHECK_FAILED")}. Mint progress has not been increased.`;

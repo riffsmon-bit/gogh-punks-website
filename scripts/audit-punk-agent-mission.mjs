@@ -1,5 +1,6 @@
 import pg from "pg";
 import { execFileSync } from "node:child_process";
+import { readPunkAgentMissionUsage } from "../broker/src/agent-account/punk-agent-mission-usage.mjs";
 
 // Read-only production diagnostic. Credentials are supplied by the environment;
 // never print connection strings, signed operations, or session key material.
@@ -38,9 +39,14 @@ try {
   const queue = await pool.query(`SELECT screening_status, COUNT(*)::integer AS count,
     MAX(updated_at) AS latest_update FROM broker_v2_opportunities
     WHERE chain_id = 4663 GROUP BY screening_status`);
+  const missionUsage = session.rows[0] ? await readPunkAgentMissionUsage(pool, {
+    tokenId, sessionId: session.rows[0].session_id,
+  }, null, new Date()) : null;
   console.log(JSON.stringify({ readOnly: true, tokenId, checkedAt: new Date().toISOString(),
     session: session.rows[0] ?? null, activity: activity.rows,
-    operations: operations.rows, queue: queue.rows }, null, 2));
+    operations: operations.rows, queue: queue.rows,
+    missionUsage: missionUsage ? { dailyMints: missionUsage.dailyMints,
+      totalMints: missionUsage.totalMints } : null }, null, 2));
 } catch (error) {
   console.error(JSON.stringify({ ok: false, code: error.code ?? "AUDIT_FAILED" }));
   process.exitCode = 1;
