@@ -1,5 +1,9 @@
 # Credit-source decision: permanent retirement or literal burn
 
+**Deferred beyond the September 16 release.** The owner confirmed that training and
+burns can follow reliable V2 minting and Forge research/loadouts. This proposal is
+retained for that later work; it is not a pending approval blocking V2 minting.
+
 The tested learning/equipping flow can be completed independently of this choice.
 The choice affects how a real original Punk earns a training credit.
 

@@ -1,92 +1,83 @@
 # V2 release target: September 16, 2026
 
-Target: Wednesday, September 16, America/Detroit. This is the requested release
-target, not a claim that production acceptance is complete.
+The owner confirmed the Wednesday, September 16 target (America/Detroit):
+**reliable V2 minting, agent gas funding, mission setup/chat, and Forge research/loadouts**.
+Permanent training, credit earning and burns can follow. Their unresolved design or
+production provisioning must not hold up the independent V2 minting release.
 
-## Integrated candidate
+The failed preview was the **Netlify / GitHub PR preview**, not the local #44
+training fixture. Start review at [the complete broker in Talk](https://deploy-preview-47.preview.goghpunks.xyz/broker/v2/?tab=talk).
 
-PR #47 combines the live production source (`0daf269`), the #93 session-usage fix
-(`8f9ff08`) and the newest original-NFT Forge work (`22ba691`). It preserves the
-live gas-funding, chat review reuse and collection/history flows. The working tree
-is isolated from the owner's older, modified checkout.
+## Candidate and release boundary
 
-- Mint limits count prior confirmations and pending operations against the correct
-  session. Daily and per-opportunity duplicate protection still spans sessions.
-- Scout activity explains why candidates were rejected. #93's historical mint
-  must not exhaust its newer one-mint mission.
-- The new Forge includes research, verified loadout display, original-NFT ownership
-  refresh and disposable reviewed learning/equipping tests. Original-NFT transfer
-  carries account/Forge state; private chat and unsigned seller reviews stay private.
-- Production training remains disabled. The immutable account's away-and-back
-  ownership limitation still requires the worker's canonical transfer-history guard.
+PR #47 integrates production source `0daf269`, the #93 session fix `8f9ff08`, and
+the original-NFT Forge. The verified application revision is `c0a6b3c`.
 
-## Work toward the target
+- Keep production's natural-language mint rules, agent gas funding, saved-mission
+  review, account/session setup, collection and activity together in the full broker.
+- Confirmed and pending mint totals use their authorizing mission session. Daily
+  and per-opportunity protections still span sessions; prior-session mints must not
+  exhaust a new one-mint mission. Scout activity explains rejected candidates.
+- Fix the disconnected-startup feedback loop so the PR preview loads before a
+  wallet is connected. Purchases/transfers refresh original-NFT ownership and clear
+  seller-private chat, gas confirmations and unsigned reviews.
+- Release Forge read-only research and verified original-NFT loadout functionality.
+  Diagnostics do not claim learned/equipped capabilities or wallet spending authority.
+  Unknown loadout data is not zero, and a placeholder is not live acceptance.
+- Leave permanent learning, slot purchases, credit issuance and sacrifice/burn
+  execution disabled. The existing gated implementation can remain prepared for a
+  later release; it is not part of Wednesday's launch requirement.
+
+## Acceptance required for Wednesday
+
+[The acceptance checklist](V2_SEPT16_ACCEPTANCE.md) records the concrete checks and
+remaining evidence. Local fixtures and hosted page loading do not establish a live
+mint receipt or production worker readiness.
 
 | Date | Required result |
 | --- | --- |
-| Sep 10–11 | Restore and verify the combined hosted preview; complete merge regression checks; record remaining live-release blockers. |
-| Sep 12–13 | Exercise the full V2 owner journey: connect, select, fund gas, create/reuse a review, activate, scout, explain rejections, collect and withdraw. Verify failures and ownership changes on desktop/mobile. |
-| Mon Sep 14 | Produce the release candidate and concrete production rollout/rollback review. Complete controlled live acceptance of the #93 fix after deployment authorization, including session usage and canonical receipts. |
-| Tue Sep 15 | Fix acceptance failures, freeze the candidate, verify the hosted build and monitoring. Resolve any missing owner-operated wallet steps. |
-| Wed Sep 16 | Release only the accepted scope; report actual enabled capabilities and remaining gates. |
+| Sep 11 | Confirm scope, publish a working full-broker PR preview and preserve production chat/gas behavior. |
+| Sep 12–13 | Exercise connect/select, both gas funding sources, chat-to-review, mission activation/scouting, receipts, collection and failure recovery. Verify research and real loadout state with owner/transfer checks. |
+| Mon Sep 14 | Prepare rollout/rollback for this scope and complete controlled live mint acceptance, including #93 session accounting and canonical receipts. |
+| Tue Sep 15 | Resolve acceptance failures, freeze the accepted candidate and check the hosted build/worker health. |
+| Wed Sep 16 | Release the accepted V2 minting and Forge research/loadout scope; report actual enabled capabilities. |
 
-The owner requested the complete V2/Forge work and undeployed contracts be prepared
-for morning review. The integrated candidate includes V2 minting and the new Forge
-research/loadout surface. Live training and burns still require the implementation
-and acceptance work below; preparing their review does not make them finished or
-authorize deployment. See [the morning review](V2_MORNING_REVIEW_2026-09-11.md).
+The verified loadout implementation still needs a deployed, pinned backing state.
+The current read manifest has null registry/progression/source addresses. That is
+an open **loadout acceptance item**, separate from enabling permanent training or
+burns. Do not replace it with a mock source, assume an empty loadout, or silently
+change the original-NFT progression design to bypass deployment work.
 
-## Live Forge release dependencies
+## Deferred training and burns
 
-The detailed baseline is [the durable training checkpoint](v2-forge-durable-training-checkpoint.md).
-The remaining items are concrete implementation and acceptance work:
+The credit-source/recovery choice, live training migrations and restricted roles,
+training-contract enablement, paid credit/slot/learning actions and first-sacrifice
+acceptance belong to a later release. The owner has deferred these capabilities;
+there is no need to resolve the burn-versus-retirement choice to proceed with V2
+minting or independent research. Prepared work remains documented in
+[V2_REVIEW_CANDIDATE_2026-09-11.md](V2_REVIEW_CANDIDATE_2026-09-11.md),
+[V2_FORGE_DATABASE_ROLLOUT.md](V2_FORGE_DATABASE_ROLLOUT.md) and
+[V2_FORGE_SACRIFICE_DECISION.md](V2_FORGE_SACRIFICE_DECISION.md).
 
-1. Native PostgreSQL concurrency, crash/restart and restricted-role checks now pass.
-   Reviewed production migration application and role/credential provisioning remain.
-2. Two-provider RPC-finalized settlement, consumed-nonce recovery and finalized
-   on-chain review expiry now release reservations. Independent L1 finality is not claimed.
-3. Authenticated review/claim/recovery endpoints and wallet UI are implemented behind
-   the undeployed release artifact. Production owner-wallet acceptance remains.
-4. A production training source, registry acceptance and enforcement of equipped
-   capabilities. No research skill is promoted to production READY by this merge.
-5. Administrator security review, a fresh fee ceiling and deployment/configuration
-   authorization before live contract changes.
-6. For real burns: complete account asset inventory/recovery, guarded 1,111 supply
-   floor, exact transaction review and a separately approved first burn. Funded #93
-   remains excluded while its recovery inventory is incomplete.
+## Preview corrections and current evidence
 
-## Preview failure and correction
+The earlier Netlify build failed when the live research canary returned
+`PROVIDER_READ_UNAVAILABLE`. PR previews now retain the full application deployment
+gate without depending on that live provider check; production retains the canary.
+The final hosted check additionally caught the empty-roster/wallet event loop.
+Both wallet adapters now ignore unchanged selections while publishing real changes.
 
-Netlify deploy `6aa369aa1af589000823a99a` passed `site:deploy-check`, then the
-read-only Forge canary failed with `PROVIDER_READ_UNAVAILABLE` after its contract
-inspection succeeded. The failed provider read prevented the preview from publishing.
+- 1,673 JavaScript tests passed, with zero failures or skips.
+- `site:deploy-check` passed, including 127 deployment tests; 26 wallet regressions passed.
+- Full broker browser checks passed actual disconnected wallet startup, chat mint/gas
+  inputs, saved-mission reuse, ownership changes and Forge recovery on desktop/mobile.
+- Netlify deploy `6aa40fdbcae45900088f4a6f` (`c0a6b3c`) passed hosted Talk/Forge
+  checks with no browser exceptions, failed assets or wallet actions.
+- Prior complete Solidity verification passed 234 tests with 1,024 fuzz runs where
+  applicable. The continuation changed no Solidity.
+- Native PostgreSQL and disposable-chain training checks also passed; those are
+  preparation for the deferred training release, not Wednesday's acceptance gate.
 
-Deploy previews now run the full application deployment gate independently of live
-provider availability. Production retains the live research canary. This change does
-not establish provider health or enable training; authenticated runtime failures still
-withhold unverified data and capabilities.
-
-## Current evidence
-
-The final September 11 hosted check also exposed a disconnected-startup event loop
-between the empty roster and wallet selection listeners. Unchanged selections are
-now ignored by both wallet adapters; real selection changes still publish. The full
-browser check now includes the actual wallet module on a first visit, followed by
-the owner/RPC fixtures. See the continuation evidence below for the final results.
-
-- 63 focused Solidity tests passed, with 1,024 fuzz runs where applicable.
-- The merged full-page browser check passed desktop/mobile layout, same-wallet
-  purchase/sale refresh, stale private-review and gas-confirmation clearing, Forge
-  loading/failure recovery and late-response rejection. Zero wallet writes and
-  zero browser exceptions.
-- `site:deploy-check` passed, including its 127 deployment-gate tests.
-- All 1,600 JavaScript tests passed, with zero failures or skips.
-- The disposable-chain profile integration passed learning/equipping and retention
-  across original-NFT transfer, denied the seller and required zero buyer setup
-  transactions. No public transaction was submitted.
-
-No production release, training-contract deployment, real mint or real burn was
-performed as part of preparing this candidate.
-
-The [September 11 continuation](V2_REVIEW_CANDIDATE_2026-09-11.md) adds full-broker
-chat/gas browser coverage, native database evidence and the gated training coordinator.
+No production release, production database change, real mint, contract deployment
+or real burn was performed in preparing this candidate. The #93 worker fix remains
+in the PR until the production rollout and live receipt acceptance are completed.

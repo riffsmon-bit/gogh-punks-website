@@ -43,7 +43,7 @@ still publishing actual owner/token changes and selection clearing. Browser cove
 now first loads the actual wallet component on a fresh visit, before the disposable
 owner/RPC scenarios. The earlier fixture-only wallet test did not exercise this path.
 
-## Training implementation added behind the release gate
+## Prepared for the later training release
 
 - Owner-authenticated review, one-shot claim, unsent cancellation and transaction-hash
   recovery at `/api/v2/punks/:tokenId/forge/training`.
@@ -119,21 +119,23 @@ source archive after verifying SHA-256
 `c1575341fa7bd40f5274ea465b34390f4dc64cdd0770af327005caaeb9f6b7ed`.
 No global database service was installed.
 
-## Still required for live release
+## Wednesday scope and remaining acceptance
 
-1. Resolve [the sacrifice/recovery contract decision](V2_FORGE_SACRIFICE_DECISION.md).
-   Literal burn removes the immutable Punk accounts' owner; a permanently retired
-   original token with asset recovery has different supply semantics. The proposal
-   has not been accepted and no production credit source has been substituted.
-2. Implement/review the selected source, deploy the reviewed progression/registry,
-   accept skill registrations, attest exact runtimes and obtain a fresh fee review.
-3. Apply the staged database migrations and provision restricted production roles
-   and credentials using [the provisioning review](V2_FORGE_DATABASE_ROLLOUT.md).
-   Local role tests do not establish production configuration.
-4. Complete real owner-wallet acceptance, including the equipped research-tool route,
-   and explicitly scope deployment/enablement. The live Forge research endpoint
-   remains diagnostic; this change does not promote research skills to READY.
-5. Release the #93 fix to the live worker and verify current-session usage and actual
-   canonical receipts. The branch fix is present; production has not been updated.
+The owner has confirmed **reliable V2 minting, agent gas funding, mission setup/chat,
+and Forge research/loadouts** for September 16. Training and burns can follow.
+See [the scoped release target](V2_RELEASE_TARGET_2026-09-16.md) and
+[acceptance checklist](V2_SEPT16_ACCEPTANCE.md).
 
-This is a tested review candidate, **not a completed live Forge deployment**.
+For Wednesday, complete production worker/receipt acceptance of the #93 fix,
+owner-wallet acceptance of gas funding and mission activation, and independent
+research/loadout acceptance. The current read manifest is still undeployed: a
+verified loadout needs its actual pinned backing state. An unknown/placeholder
+profile does not satisfy live loadout acceptance.
+
+The sacrifice/recovery choice, production training source and enablement, staged
+training migrations/roles and first burn belong to the later training release.
+Their unresolved status does not block independent V2 minting or research work.
+The prepared code stays gated; this scope decision does not deploy a contract,
+grant a credit, promote a research skill to READY or change production settings.
+
+This is a tested review candidate, not a completed production rollout.
