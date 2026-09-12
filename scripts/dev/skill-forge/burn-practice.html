@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gogh Forge · Burn-to-training practice</title>
+<link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/broker-v2-forge.css"><link rel="stylesheet" href="/forge-training.css"><link rel="stylesheet" href="/burn-practice.css"></head>
+<body><div class="preview-banner">DISPOSABLE PRACTICE · CHAIN 31337 · THESE ARE TEST PUNKS</div>
+<header><a class="brand" href="/burn-practice">GOGH PUNKS <span>SKILL FORGE</span></a></header>
+<main><p class="eyebrow">01 / BURN REVIEW → 02 / LEARN → 03 / EQUIP</p>
+<h1>One Punk ends.<br>Another learns.</h1>
+<p>Rehearse burning Test Punk #7 to give Test Punk #44 one training credit. Learning Contract Detective costs that credit and requires its own confirmation.</p>
+<p>Your earlier #44 practice session uses a different server and chain. This page starts with a fresh #44.</p>
+<section class="punk-pair" aria-label="Both Punks in this review">
+<article><img src="/art/7.png" alt="Artwork representing disposable Test Punk #7"><div><p class="eyebrow">BURN PERMANENTLY</p><h2>Test Punk #7</h2><p>The source NFT is destroyed.</p></div></article>
+<article><img src="/art/44.png" alt="Artwork representing disposable Test Punk #44"><div><p class="eyebrow">RECEIVE TRAINING</p><h2>Test Punk #44</h2><p>+1 credit · Contract Detective, level 0 → 1 after learning.</p></div></article></section>
+<section class="burn-warning" aria-labelledby="access-warning"><h2 id="access-warning">Burning can remove access to the Punk’s wallets.</h2>
+<p>Check the source Punk’s V1, V2 and V3 wallets and Agent Account. Withdraw ETH, WETH, NFTs, other tokens and Agent gas deposits; stop missions, revoke sessions, and resolve pending transactions and offers before a real burn.</p>
+<p>The wallet contracts remain at their addresses. Losing the parent NFT can remove your access to assets left behind or sent there later. Assets do not move to the Punk receiving training. An inventory cannot prove that every possible asset is absent.</p>
+<p>This rehearsal uses four fresh mock wallets with native-balance reads. It does not inspect production tokens, approvals, missions or EntryPoint deposits.</p></section>
+<section aria-labelledby="wallet-heading"><h2 id="wallet-heading">Test #7 wallet review</h2><div id="burn-wallets" class="burn-wallets"></div></section>
+<section class="burn-step"><h2>Review the exact burn</h2><p id="burn-supply"></p>
+<p>Setup approved only disposable NFT #7 for the local source contract. The burn and the one-credit award happen in one transaction. Learning and equipping remain separate.</p>
+<button id="prepare-burn" type="button" disabled>REVIEW TEST #7 BURN</button><button id="refresh-burn" type="button">REFRESH / RECHECK RECEIPT</button>
+<p id="burn-status" role="status" aria-live="polite">Reading this practice chain…</p></section>
+<section id="next-training" hidden><h2>Train Test Punk #44</h2><p>The burn receipt is confirmed. Review Learn for Contract Detective below, then equip it separately. Learning alone does not equip a skill.</p><section data-v2-panel="forge"></section></section>
+<dialog id="burn-dialog" aria-labelledby="burn-review-title"><h2 id="burn-review-title">Burn Test #7 → train Test #44</h2>
+<div class="burn-review-pair"><figure><img src="/art/7.png" alt="Test Punk #7 to burn"><figcaption>BURN TEST #7</figcaption></figure><figure><img src="/art/44.png" alt="Test Punk #44 to receive training"><figcaption>TRAIN TEST #44</figcaption></figure></div>
+<p>Permanent NFT loss. Test #7’s wallet addresses remain, but owner access is lost after burning. Remaining and later-deposited assets can become inaccessible. Nothing moves to Test #44.</p>
+<p>Test #44 receives 1 credit. Contract Detective: level 0 → 1, cost 1 credit, through a separate learning review. This burn does not learn or equip the skill.</p>
+<p id="burn-fee"></p><p id="burn-expiry"></p><details><summary>Exact local transaction</summary><pre id="burn-transaction"></pre></details>
+<label for="burn-typed">Type BURN 7 to confirm the source Punk</label><input id="burn-typed" autocomplete="off" spellcheck="false">
+<label class="ack"><input id="burn-ack" type="checkbox"> I understand the NFT is permanently destroyed and access to its wallets can be lost, including assets sent later.</label>
+<div class="burn-actions"><button id="confirm-burn" type="button" disabled>BURN TEST #7 · GIVE TEST #44 1 CREDIT</button><button id="cancel-burn" type="button">CANCEL BURN REVIEW</button></div>
+</dialog></main><script type="module" src="/burn-practice-ui.mjs"></script></body></html>

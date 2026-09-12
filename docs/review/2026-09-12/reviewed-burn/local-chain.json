@@ -1,0 +1,23 @@
+{
+  "status": "PASS",
+  "environment": "NEW_DISPOSABLE_ANVIL",
+  "productionTransactions": 0,
+  "sourceTokenId": "7",
+  "targetTokenId": "44",
+  "contract": "GoghReviewedBurnSource",
+  "approvalTransaction": "0x0d79b7044fbb6e6c6fc6c77a3694ae888447ce83c1f9c5cc87d19a839d022831",
+  "burnTransaction": "0x06126300cdfe7bb7a890b9f391a4d5b018f570da897cb048cd9087c8fc4b3a2d",
+  "tokenSpecificApproval": true,
+  "approvalDoesNotCredit": true,
+  "exactBrowserEncoding": true,
+  "sourceAndTargetRoundTripRejected": true,
+  "operatorApprovalRejected": true,
+  "cancellationInvalidates": true,
+  "globalPauseChecked": true,
+  "alteredReceiptRejected": true,
+  "missingReceiptPending": true,
+  "exactCreditEvents": true,
+  "previousPracticeReset": false,
+  "productionAuthority": false,
+  "walletInventoryReviewed": false
+}

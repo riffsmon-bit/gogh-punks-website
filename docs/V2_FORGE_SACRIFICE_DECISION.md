@@ -1,5 +1,14 @@
 # Credit-source decision: owner-approved literal burn
 
+**September 12 implementation:** the [reviewed source checkpoint](v2-forge-reviewed-burn-source-checkpoint.md)
+adds the contract candidate, unsigned individual-approval/burn reviews, Transfer-history
+checks and receipt verification. Production deployment and wallet/lifecycle integration
+remain pending; this does not enable a live burn.
+
+**Local continuation:** the [burn-to-training practice checkpoint](v2-forge-burn-practice-checkpoint.md)
+provides an isolated Test #7 → Test #44 review and confirmed local transactions.
+It is a disposable fixture; the production gaps below remain.
+
 **Latest owner direction, September 11, 2026:** an owner chooses one of their other
 Punks to burn permanently to increase a selected Punk's skill. The user approves the
 specific burn and checks the sacrificed Punk's wallets before confirmation. This

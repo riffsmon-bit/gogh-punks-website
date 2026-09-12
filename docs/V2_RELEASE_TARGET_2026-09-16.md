@@ -1,5 +1,11 @@
 # V2 release target: September 16, 2026
 
+**September 12:** the owner reaffirmed a next-week launch and requested a complete
+live test guide. The [guide is prepared](LIVE_OWNER_TEST_GUIDE_2026-09-16.md).
+The [burn-source candidate](v2-forge-reviewed-burn-source-checkpoint.md) now passes
+contract and local integration checks, while production burn integration remains
+open. Until a scope change is confirmed, retain the release boundary below.
+
 The owner confirmed the Wednesday, September 16 target (America/Detroit):
 **reliable V2 minting, agent gas funding, mission setup/chat, and Forge research/loadouts**.
 Permanent training, credit earning and burns can follow. Their unresolved design or

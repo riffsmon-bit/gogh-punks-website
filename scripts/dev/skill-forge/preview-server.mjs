@@ -19,6 +19,7 @@ import { previewLibrary } from './library-roadmap.mjs';
 import { FORGE_MINIMUM_SUPPLY } from '../../../broker/src/v4/skill-forge/supply-floor.mjs';
 import { SLOT_POLICY } from '../../../broker/src/v4/skill-forge/slot-policy.mjs';
 import { buildAllocationTree } from '../../../broker/src/v4/skill-forge/rarity-allocation.mjs';
+import { createBurnPractice } from './burn-practice.mjs';
 
 export const catalog = [
   { id: 3, name: 'Contract Detective', mark: '01', status: 'TESTING', capability: 'CONTRACT_READ', bit: 1n, tools: ['inspect_contract'], description: 'Inspect code, interface support and proxy slots. Findings are evidence, not a security guarantee.', boundary: 'Read-only. No signing or spending authority.' },
@@ -31,8 +32,9 @@ const zero = `0x${'0'.repeat(64)}`;
 const artifact = async (file, name) => JSON.parse(await readFile(new URL(`../../../contracts/out/${file}/${name}.json`, import.meta.url), 'utf8'));
 const json = value => JSON.stringify(value, (_key, item) => typeof item === 'bigint' ? item.toString() : item);
 
-export async function startPreview({ port = 0, researchClient, controlCenterTraining = false, resume = null, reviewedTraining = false } = {}) {
+export async function startPreview({ port = 0, researchClient, controlCenterTraining = false, resume = null, reviewedTraining = false, burnPractice = false } = {}) {
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('Invalid local preview port');
+  if (typeof burnPractice !== 'boolean' || burnPractice && (!reviewedTraining || resume)) throw Error('NEW_REVIEWED_PRACTICE_CHAIN_REQUIRED');
   if (typeof reviewedTraining !== 'boolean' || reviewedTraining && controlCenterTraining !== true
     || resume && (resume.reviewedTraining ?? false) !== reviewedTraining) throw Error('INVALID_LOCAL_TRAINING_PROTOCOL');
   // Process-local recovery only. Never accepted from HTTP, a wallet or a URL flag.
@@ -83,8 +85,8 @@ export async function startPreview({ port = 0, researchClient, controlCenterTrai
     };
     const deploy = async (a, args) => (await receipt(await wallet.deployContract({ abi: a.abi, bytecode: a.bytecode.object, args, chain: null }))).contractAddress;
     const write = async (a, address, functionName, args) => receipt(await wallet.writeContract({ abi: a.abi, address, functionName, args, chain: null }));
-    const nft = await artifact('GoghSkillForge.t.sol', 'SkillForgeMockPunks');
-    const training = await artifact('GoghSkillForge.t.sol', 'LocalSkillTrainingSource');
+    const nft = burnPractice ? await artifact('LocalReviewedBurn.sol', 'LocalBurnPunks') : await artifact('GoghSkillForge.t.sol', 'SkillForgeMockPunks');
+    const training = burnPractice ? await artifact('LocalReviewedBurn.sol', 'LocalReviewedBurnSource') : await artifact('GoghSkillForge.t.sol', 'LocalSkillTrainingSource');
     const reg = await artifact('GoghSkillRegistry.sol', 'GoghSkillRegistry');
     const prog = reviewedTraining ? await artifact('GoghReviewedSkillProgression.sol', 'GoghReviewedSkillProgression')
       : await artifact('GoghSkillProgression.sol', 'GoghSkillProgression');
@@ -126,7 +128,16 @@ export async function startPreview({ port = 0, researchClient, controlCenterTrai
       skills.push({ ...entry, key, version: 1, manifestHash: hash, instructionHash: instructions });
       packages.push({ manifest, instructions: entry.description, approved: [2, 3, 4].includes(entry.id), status: [2, 3, 4].includes(entry.id) ? 'READY' : 'TESTING' });
     }
-    if (!resume) {
+    const burnWallets = [];
+    if (burnPractice) {
+      // Real fixture supply: 1,111 reserve NFTs plus the eight named fixtures.
+      for (let first = 3000; first < 4111; first += 100) await write(nft, collection, 'mintReserve', [owner, BigInt(first), BigInt(Math.min(100, 4111 - first))]);
+      const mockWallet = await artifact('LocalReviewedBurn.sol', 'LocalBurnWallet');
+      for (const role of ['V1', 'V2', 'V3', 'Agent']) burnWallets.push({ role: `${role} role · mock wallet`, address: await deploy(mockWallet, [collection, 7n]) });
+      // Single fixture-token approval during setup, disclosed in the review. No operator-wide approval.
+      await write(nft, collection, 'approve', [source, 7n]);
+    }
+    if (!resume && !burnPractice) {
       for (const id of [1001, 1002, 1003, 1004]) {
         await write(nft, collection, 'approve', [source, BigInt(id)]);
         await write(training, source, 'sacrifice', [BigInt(id), 1n]);
@@ -235,12 +246,18 @@ export async function startPreview({ port = 0, researchClient, controlCenterTrai
         return transactionHash;
       } });
     let trainingIntents = makeCoordinator();
+    const burn = burnPractice ? createBurnPractice({ client: trainingClient, wallet, owner, collection, source, progression, wallets: burnWallets, snapshot }) : null;
     // Validate persisted intents and receipts before exposing the resumed service.
     if (resume) for (const id of [1, 44, 7]) await trainingIntents.recover(id);
     const files = new Map([
       ['/control-center', ['control-center.html', 'text/html']],
       ['/control-center.mjs', ['control-center.mjs', 'text/javascript']],
       ['/reviewed-control-center.mjs', ['reviewed-control-center.mjs', 'text/javascript']],
+      ...(burnPractice ? [
+        ['/burn-practice', ['burn-practice.html', 'text/html']],
+        ['/burn-practice-ui.mjs', ['burn-practice-ui.mjs', 'text/javascript']],
+        ['/burn-practice.css', ['burn-practice.css', 'text/css']],
+      ] : []),
       ...['broker-v2-forge.js', 'forge-profile-view.js', 'forge-training.js', 'forge-training-transaction.js', 'forge-reviewed-training.js', 'forge-reviewed-calldata.js', 'forge-catalog.js', 'forge-durable-training-panel.js', 'forge-durable-wallet.js', 'forge-training-release.js', 'keccak256.js'].map(name => [`/${name}`, [`../../../site/${name}`, 'text/javascript']]),
       ['/broker-v2-forge.css', ['../../../site/broker-v2-forge.css', 'text/css']],
       ['/forge-training.css', ['../../../site/forge-training.css', 'text/css']],
@@ -257,6 +274,26 @@ export async function startPreview({ port = 0, researchClient, controlCenterTrai
       res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
       const expectedHost = `127.0.0.1:${server.address().port}`;
       if (req.headers.host !== expectedHost || (req.headers.origin && req.headers.origin !== `http://${expectedHost}`)) { res.writeHead(403); return res.end('Local preview only'); }
+      if (burn && req.url.startsWith('/api/burn-practice')) {
+        try {
+          let result;
+          if (req.method === 'GET' && req.url === '/api/burn-practice') result = { ...await burn.snapshot(), localTrainingNonce };
+          else if (req.method === 'POST' && ['/api/burn-practice/prepare', '/api/burn-practice/confirm', '/api/burn-practice/cancel', '/api/burn-practice/status'].includes(req.url)) {
+            if (req.headers.origin !== `http://${expectedHost}` || req.headers['x-forge-nonce'] !== localTrainingNonce
+              || req.headers['content-type'] !== 'application/json') { res.writeHead(403); return res.end('Local confirmation required'); }
+            let body = '';
+            for await (const chunk of req) { body += chunk.toString('utf8'); if (Buffer.byteLength(body) > 1024) throw Error('REQUEST_TOO_LARGE'); }
+            const input = JSON.parse(body);
+            const action = req.url.split('/').at(-1);
+            if (action === 'status' && (!input || Array.isArray(input) || Object.keys(input).length)) throw Error('INVALID_STATUS');
+            result = await burn[action](input);
+          } else { res.writeHead(405); return res.end('Unsupported practice action'); }
+          res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(json(result));
+        } catch (error) {
+          const message = /^[A-Z_]+$/.test(error.message) ? error.message : 'PRACTICE_REVIEW_UNAVAILABLE';
+          res.writeHead(409); return res.end(`${message}. Refresh to inspect the existing review; a send is never retried automatically.`);
+        }
+      }
       if (req.method === 'POST' && ['/api/local-training/prepare', '/api/local-training/confirm', '/api/local-training/status', '/api/local-training/recover', '/api/local-training/recover-hash'].includes(req.url)) {
         if (req.headers.origin !== `http://${expectedHost}` || req.headers['x-forge-nonce'] !== localTrainingNonce
           || req.headers['content-type'] !== 'application/json') { res.writeHead(403); return res.end('Local confirmation required'); }

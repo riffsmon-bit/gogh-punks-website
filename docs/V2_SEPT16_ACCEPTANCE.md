@@ -3,6 +3,12 @@
 Owner-confirmed scope: agent gas funding, mission setup/chat, reliable V2 minting,
 Forge research and loadouts. Training and burns are deferred.
 
+September 12: the owner requested a complete test guide for the live release and
+reaffirmed the next-week launch target. Use the prepared
+[live owner test guide](LIVE_OWNER_TEST_GUIDE_2026-09-16.md) for steps, expected
+results and evidence. Its unexecuted live cases remain open. Until the owner
+confirms a scope change, the September 16 scope above remains the release target.
+
 September 11 additions: the owner requested directed-mint, floor-sweep and WETH
 collection-offer testing, with collections chosen by each user. See the
 [acquisition test report](V2_DIRECTED_ACQUISITION_TESTS_2026-09-11.md). These are

@@ -1,0 +1,22 @@
+{
+  "status": "PASS",
+  "preview": "http://127.0.0.1:64343/burn-practice",
+  "sourceTokenId": 7,
+  "recipientTokenId": 44,
+  "chainId": 31337,
+  "existingRegressionTests": 109,
+  "newReceiptTests": 12,
+  "deploymentTests": 127,
+  "localChainIntegration": "PASS",
+  "browser": "PASS",
+  "solidityFixtureBuild": "PASS",
+  "freshUserPreview": {
+    "sourceExists": true,
+    "credits": "0",
+    "supply": "1119",
+    "review": null
+  },
+  "publicChainTransactions": 0,
+  "productionManifestChanged": false,
+  "originalPracticeRestarted": false
+}

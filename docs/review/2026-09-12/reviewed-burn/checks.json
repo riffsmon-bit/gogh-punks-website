@@ -1,0 +1,30 @@
+{
+  "status": "PASS",
+  "date": "2026-09-12",
+  "sourceHashes": {
+    "contracts/src/GoghReviewedBurnSource.sol": "be5a2a678e7e9902fb3eb7f80ffba5e70c86a2a2bd6e47164bec7c33f838eb55",
+    "broker/src/v4/skill-forge/reviewed-burn.mjs": "32061b647ea46d3eeab24582216a01ed5d6e189b9a3aaf5409f04f0932471363",
+    "site/forge-burn-calldata.js": "3df3f5d5f2bf6abd662c8cfb97fe6fd1ff824c4d4ee9a081eea738212903c6b8"
+  },
+  "runtimeBytes": 4550,
+  "fullJavaScriptTests": 1741,
+  "fullContractTests": 260,
+  "contractFuzzRuns": 1024,
+  "newBurnContractTests": 26,
+  "newBrowserCalldataTests": 12,
+  "localIntegration": "local-chain.json",
+  "liveTestGuide": "../../../LIVE_OWNER_TEST_GUIDE_2026-09-16.md",
+  "preservedPractice": {
+    "url": "http://127.0.0.1:64343/burn-practice",
+    "tokenId": 44,
+    "credits": "0",
+    "slots": 2,
+    "learnedCount": 0
+  },
+  "productionManifestStatus": "UNDEPLOYED",
+  "productionBurnEnabled": false,
+  "productionTrainingEnabled": false,
+  "publicTransactions": 0,
+  "deploymentTests": 127,
+  "siteDeployGate": "PASS"
+}
