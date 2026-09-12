@@ -1,6 +1,7 @@
 import { getDatabase } from "@netlify/database";
 import { ROBINHOOD } from "../../broker/src/config.mjs";
-import { defaultAskIntent } from "../../broker/src/v4/collecting-intent.mjs";
+import { collectingIntentConfirmation, defaultAskIntent, normalizePunkCollectingIntent } from
+  "../../broker/src/v4/collecting-intent.mjs";
 import { answerPunkConversation, isPunkConversationMessage } from
   "../../broker/src/v4/ai/punk-chat.mjs";
 import { draftStrategyFromConversation } from "../../broker/src/v4/intent-draft.mjs";
@@ -37,8 +38,9 @@ export async function resolveV2PunkChat({ router, ownerMessage, currentIntent, t
     currentIntent = defaultAskIntent({ punkTokenId: tokenId, expectedOwner: owner, punkWallet: authority.punkWallet }, now);
   }
   // An autonomous strategy is bound to the owner-approved Punk Agent Account, while ASK and
-  // ASSIST use the canonical Punk Wallet returned by the ownership check. Keep chat grounded in
-  // the strategy's exact custody account so an owner can refine an active autonomous mission.
+  // ASSIST use the canonical Punk Wallet returned by the ownership check. Parse
+  // against the existing strategy first so changing modes preserves its limits.
+  // Bind the resulting ASK/ASSIST draft below before hashing it for owner review.
   const strategyWallet = currentIntent?.punkWallet ?? authority.punkWallet;
   const livePunkState = authority.nativeBalanceWei === undefined
     || strategyWallet !== authority.punkWallet ? null : {
@@ -69,9 +71,12 @@ export async function resolveV2PunkChat({ router, ownerMessage, currentIntent, t
       providerAvailable: true });
   }
   if (!interpreted.changes.length) return conversation(interpreted.intent);
-  return Object.freeze({ responseKind: "STRATEGY_DRAFT", reply: punkReply(interpreted.confirmation),
-    draft: { state: interpreted.status, intent: interpreted.intent,
-      intentHash: interpreted.confirmation.intentHash, confirmation: interpreted.confirmation,
+  const intent = interpreted.intent.operatingMode === "AUTONOMOUS" ? interpreted.intent
+    : normalizePunkCollectingIntent({ ...interpreted.intent, punkWallet: authority.punkWallet }, now);
+  const confirmation = collectingIntentConfirmation(intent, now);
+  return Object.freeze({ responseKind: "STRATEGY_DRAFT", reply: punkReply(confirmation),
+    draft: { state: interpreted.status, intent,
+      intentHash: confirmation.intentHash, confirmation,
       provider: { provider: "DETERMINISTIC_REVIEW_PARSER", modelId: null } },
     provider: { provider: "DETERMINISTIC_REVIEW_PARSER", registryKey: null },
     providerAvailable: true });

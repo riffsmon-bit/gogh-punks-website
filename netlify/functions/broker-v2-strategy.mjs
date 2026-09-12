@@ -1,10 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
 import { getDatabase } from "@netlify/database";
 import { getAddress } from "viem";
-import { createSiweMessage, generateSiweNonce } from "viem/siwe";
+import { createSiweMessage, generateSiweNonce, parseSiweMessage } from "viem/siwe";
 import { ROBINHOOD } from "../../broker/src/config.mjs";
 import { normalizePunkCollectingIntent } from "../../broker/src/v4/collecting-intent.mjs";
-import { getSiteUrl } from "./_shared/config.mjs";
 import { PublicError, json, readJson, requireSameOrigin } from "./_shared/http.mjs";
 import { isV2DeployPreviewUrl, requireV2DeployPreview } from "./_shared/v2-review.mjs";
 import { v2Failure } from "./_shared/v2-http.mjs";
@@ -18,9 +17,10 @@ const INTENT_HASH = /^0x[0-9a-f]{64}$/;
 export function requireV2StrategyOrigin(request) {
   if (isV2DeployPreviewUrl(request)) {
     requireV2DeployPreview(request);
-    return;
+    return new URL(request.url).origin;
   }
   requireSameOrigin(request);
+  return request.headers.get("origin");
 }
 
 function tokenIdFrom(request) {
@@ -54,10 +54,10 @@ async function current(pool, tokenId) {
   return strategyView(result.rows[0]);
 }
 
-async function prepare(pool, tokenId, session, body) {
+async function prepare(pool, tokenId, session, body, { readAuthority, siteUrl }) {
   exact(body, ["action", "intentHash"]);
   if (!INTENT_HASH.test(body.intentHash)) throw new PublicError(400, "INVALID_INTENT_HASH", "Choose a valid strategy draft.");
-  const authority = await readV2PunkAuthority(tokenId, { expectedOwner: session.walletAddress });
+  const authority = await readAuthority(tokenId, { expectedOwner: session.walletAddress });
   const result = await pool.query(`SELECT intent_hash, intent, expires_at, configured_by, state
     FROM broker_v2_strategies WHERE chain_id = $1 AND collection_address = $2
       AND token_id = $3::numeric AND intent_hash = $4 LIMIT 1`,
@@ -77,7 +77,6 @@ async function prepare(pool, tokenId, session, body) {
     "Autonomous execution cannot be activated with the current deployed Punk Wallet boundary.");
   const challengeId = randomUUID(); const now = new Date();
   const expirationTime = new Date(now.getTime() + CHALLENGE_SECONDS * 1_000);
-  const siteUrl = getSiteUrl();
   const message = createSiweMessage({ address: getAddress(session.walletAddress),
     chainId: ROBINHOOD.chainId, domain: new URL(siteUrl).host, expirationTime, issuedAt: now,
     nonce: generateSiweNonce(), requestId: challengeId,
@@ -92,13 +91,13 @@ async function prepare(pool, tokenId, session, body) {
     expiresAt: expirationTime.toISOString(), authorityBlock: authority.blockNumber });
 }
 
-async function complete(pool, tokenId, session, body) {
+async function complete(pool, tokenId, session, body, { readAuthority, verifySignature, siteUrl }) {
   exact(body, ["action", "challengeId", "signature"]);
   if (typeof body.challengeId !== "string" || !/^[0-9a-f-]{36}$/.test(body.challengeId)
     || typeof body.signature !== "string" || !/^0x[0-9a-fA-F]{130}$/.test(body.signature)) {
     throw new PublicError(400, "INVALID_STRATEGY_PROOF", "The strategy confirmation is invalid.");
   }
-  const authority = await readV2PunkAuthority(tokenId, { expectedOwner: session.walletAddress });
+  const authority = await readAuthority(tokenId, { expectedOwner: session.walletAddress });
   const client = await pool.connect();
   let activated;
   try {
@@ -112,7 +111,11 @@ async function complete(pool, tokenId, session, body) {
       || new Date(challenge.expires_at).getTime() <= Date.now()) {
       throw new PublicError(409, "STRATEGY_CHALLENGE_EXPIRED", "The strategy confirmation expired.");
     }
-    await verifyWalletSignature({ walletAddress: session.walletAddress,
+    const signed = parseSiweMessage(challenge.message);
+    if (signed.domain !== new URL(siteUrl).host || signed.uri !== `${siteUrl}/broker/v2/`) {
+      throw new PublicError(403, "STRATEGY_ORIGIN_MISMATCH", "Review and sign the strategy again on this broker page.");
+    }
+    await verifySignature({ walletAddress: session.walletAddress,
       message: challenge.message, signature: body.signature });
     const strategyResult = await client.query(`SELECT version, intent_hash, intent, state,
         expires_at, created_at, activated_at FROM broker_v2_strategies
@@ -159,9 +162,9 @@ async function complete(pool, tokenId, session, body) {
   return activated;
 }
 
-async function pause(pool, tokenId, session, body) {
+async function pause(pool, tokenId, session, body, { readAuthority }) {
   exact(body, ["action"]);
-  await readV2PunkAuthority(tokenId, { expectedOwner: session.walletAddress });
+  await readAuthority(tokenId, { expectedOwner: session.walletAddress });
   const result = await pool.query(`UPDATE broker_v2_strategies SET state = 'PAUSED'
     WHERE chain_id = $1 AND collection_address = $2 AND token_id = $3::numeric
       AND state = 'ACTIVE' RETURNING version, intent_hash, intent, state, expires_at,
@@ -170,26 +173,31 @@ async function pause(pool, tokenId, session, body) {
   return strategyView(result.rows[0]);
 }
 
-export default async function handler(request) {
-  const pool = getDatabase().pool;
+export async function handleV2Strategy(request, { pool, requireSession = requireV2Session,
+  readAuthority = readV2PunkAuthority, verifySignature = verifyWalletSignature } = {}) {
   try {
     const tokenId = tokenIdFrom(request);
-    const session = await requireV2Session(request, pool);
+    const session = await requireSession(request, pool);
     if (request.method === "GET") {
-      await readV2PunkAuthority(tokenId, { expectedOwner: session.walletAddress });
+      await readAuthority(tokenId, { expectedOwner: session.walletAddress });
       return json({ ok: true, tokenId, strategy: await current(pool, tokenId) });
     }
     if (request.method !== "POST") return json({ ok: false, code: "METHOD_NOT_ALLOWED" }, 405);
-    requireV2StrategyOrigin(request);
+    const siteUrl = requireV2StrategyOrigin(request);
+    const dependencies = { readAuthority, verifySignature, siteUrl };
     const body = await readJson(request, 20_000);
     if (body.action === "prepare_activation") return json({ ok: true,
-      challenge: await prepare(pool, tokenId, session, body), strategyActivated: false });
+      challenge: await prepare(pool, tokenId, session, body, dependencies), strategyActivated: false });
     if (body.action === "complete_activation") return json({ ok: true,
-      strategy: await complete(pool, tokenId, session, body), strategyActivated: true });
+      strategy: await complete(pool, tokenId, session, body, dependencies), strategyActivated: true });
     if (body.action === "pause") return json({ ok: true,
-      strategy: await pause(pool, tokenId, session, body), strategyActivated: false });
+      strategy: await pause(pool, tokenId, session, body, dependencies), strategyActivated: false });
     throw new PublicError(400, "INVALID_ACTION", "Choose a supported strategy action.");
   } catch (error) { return v2Failure(error); }
+}
+
+export default async function handler(request) {
+  return handleV2Strategy(request, { pool: getDatabase().pool });
 }
 
 export const config = { path: "/api/v2/punks/:tokenId/strategy", rateLimit: {
