@@ -59,7 +59,7 @@ applied to any database.
 
 | Provider | Adapter | Current protocol | Structured output | Local tests | Production configuration |
 | --- | --- | --- | --- | --- | --- |
-| Gemini | `GeminiArtBrokerProvider` | Interactions API | response JSON Schema | pass | free-tier model + key required |
+| Gemini | `GeminiArtBrokerProvider` | stateless generateContent via the configured Google/Netlify base URL | response JSON Schema | pass | configured model + direct or Netlify-injected credential |
 | OpenAI | `OpenAIArtBrokerProvider` | Responses API | strict JSON Schema | pass | model + key required |
 | Anthropic | `AnthropicArtBrokerProvider` | Messages API | `output_config.format` | pass | model + key required |
 | xAI | `XAIArtBrokerProvider` | Responses API | strict JSON Schema | pass | model + key required |
