@@ -4,6 +4,7 @@ import { createOwnerRefresh } from "./broker-v2-owner-refresh.js";
 import { prepareAgentGasFunding, submitAgentGasFunding } from "./punk-agent-gas-funding.js";
 import { punkChatAction, agentChatStatus } from "./punk-chat-actions.js";
 import { createPunkRecall } from "./punk-agent-recall.js";
+import { mountBrokerPromptLibrary } from "./broker-prompt-library.js";
 import {
   fetchPunkWalletFundsGate, preflightPunkWalletFunds, readPunkWalletFundsState,
   submitPunkWalletFunds, waitForPunkWalletTransactionReceipt,
@@ -1962,6 +1963,16 @@ function setup() {
   }));
   const chatForm = one("[data-chat-form]");
   const chatInput = one("#punk-prompt");
+  const openPromptPanel = (panel) => {
+    if (panel === "link") {
+      activateTab("talk"); one("[data-link-form]").hidden = false; one("#mint-link").focus();
+    } else {
+      activateTab(panel);
+      const heading = one(`[data-v2-panel="${panel}"] h2`);
+      heading?.setAttribute("tabindex", "-1"); heading?.focus();
+    }
+  };
+  mountBrokerPromptLibrary({ root: one("[data-prompt-library]"), input: chatInput, openPanel: openPromptPanel });
   const chatButton = chatForm.querySelector("button[type=submit]");
   const setChatBusy = (busy) => {
     chatForm.toggleAttribute("aria-busy", busy); chatButton.disabled = busy;
@@ -1986,6 +1997,10 @@ function setup() {
     if (!message || chatForm.hasAttribute("aria-busy")) return;
     addMessage("owner", message); input.value = "";
     const chatAction = punkChatAction(message);
+    if (chatAction?.kind === "NAVIGATE") {
+      openPromptPanel(chatAction.panel);
+      return;
+    }
     if (chatAction?.kind === 'FORGE') {
       activateTab('forge');
       addMessage('punk', 'The Forge research lab is open. Sign in there to test available read-only tools. Learning, equipping and burning are not live yet.');
@@ -2059,6 +2074,15 @@ function setup() {
           setChatBusy(false); return;
         }
         draft = payload.draft; reply = payload.reply;
+        if (payload.responseKind === "SKILL_DRAFT") {
+          const skill = normalizeReviewSkill(payload.skillDraft);
+          if (skill.punkTokenId !== punk.tokenId || skill.expectedOwner !== owner
+            || skill.punkWallet !== punk.account.toLowerCase() || skill.state !== "DRAFT") {
+            throw new Error("The skill draft no longer matches this Punk and owner.");
+          }
+          setChatBusy(false); addMessage("punk", reply); showSkillConfirmation(skill);
+          return;
+        }
         if (payload.responseKind === "CONVERSATION") {
           set("[data-intelligence-status]", payload.providerAvailable
             ? `GOGH INTELLIGENCE · ${payload.provider.provider}`

@@ -11,6 +11,29 @@ const input = { tokenId: "93", owner, authority, draft: {
   confirmation: { intentHash: `0x${"a".repeat(64)}` },
   intent: { expiration: "2026-10-01T00:00:00Z" },
 } };
+test("production teaching returns a bound skill draft and records chat without activating a skill or mission", async () => {
+  const queries = [];
+  const client = { release() {}, query: async sql => {
+    queries.push(sql);
+    return { rows: sql.includes("SELECT conversation_id") ? [{ conversation_id: "conversation" }] : [] };
+  } };
+  const response = await handleV2Chat(new Request("https://goghpunks.xyz/api/v2/punks/93/chat", {
+    method: "POST", headers: { origin: "https://goghpunks.xyz", "content-type": "application/json" },
+    body: JSON.stringify({ message: "Teach yourself to rank small pixel collections and explain the screening result." }),
+  }), { pool: { connect: async () => client, query: async () => ({ rows: [] }) },
+    requireSession: async () => ({ walletAddress: owner }), readAuthority: async () => authority,
+    checkAuthority: async value => { assert.equal(value, authority); queries.push("CONTINUITY_CHECKED"); },
+    createIntelligence: () => ({ router: { run: () => { throw Error("must not call a model"); } } }),
+  });
+  const body = await response.json();
+  assert.equal(response.status, 200); assert.equal(body.responseKind, "SKILL_DRAFT");
+  assert.equal(body.draft, null); assert.equal(body.skillDraft.state, "DRAFT");
+  assert.equal(body.skillDraft.expectedOwner, owner); assert.equal(body.skillDraft.punkWallet, punkWallet);
+  assert.equal(body.economicPermissionsActivated, false);
+  assert.ok(queries.includes("CONTINUITY_CHECKED")); assert.ok(queries.includes("COMMIT"));
+  assert.ok(queries.some(sql => sql.includes("INSERT INTO broker_v2_conversation_messages")));
+  assert.ok(queries.every(sql => !/INSERT INTO broker_v2_(?:punk_skills|strategies)/.test(sql)));
+});
 for (const state of ["PENDING_OWNER_CONFIRMATION", "PAUSED"]) {
   test(`same ${state} review is reused without changing authority`, async () => {
     const queries = [];

@@ -142,6 +142,21 @@
               </section>
               <p>Browser-persistent review intelligence only. SEND PUNK OUT keeps scouting Robinhood NFT opportunities every minute until its unique-match target is reached or it is paused, while this preview remains open in at least one tab. ASK never prepares a transaction. ASSIST may prepare one exact owner-approved live canary, but only MetaMask can submit it.</p>
             </section>
+            <details class="prompt-library" data-prompt-library>
+              <summary>EXAMPLE PROMPTS <span>Find a mission or action</span></summary>
+              <div class="prompt-library-body">
+                <label for="broker-prompt-choice">WHAT WOULD YOU LIKE TO DO?</label>
+                <select id="broker-prompt-choice" data-prompt-choice aria-describedby="broker-prompt-library-help"></select>
+                <p id="broker-prompt-library-help">Choose an example to edit before sending. Amounts are examples; review your limits before approving a mission.</p>
+                <article class="prompt-example" aria-live="polite">
+                  <header><h3 data-prompt-title></h3><span data-prompt-status></span></header>
+                  <blockquote data-prompt-example></blockquote>
+                  <p data-prompt-note></p>
+                  <div><button type="button" class="primary-button" data-use-prompt>USE EXAMPLE</button><button type="button" class="outline-button" data-prompt-open-panel hidden></button></div>
+                </article>
+                <p class="prompt-feedback" data-prompt-feedback role="status"></p>
+              </div>
+            </details>
             <form class="chat-composer" data-chat-form>
               <label class="sr-only" for="punk-prompt">Tell your Punk what art you want</label>
               <textarea id="punk-prompt" name="message" rows="2" maxlength="4000" aria-describedby="punk-prompt-help" aria-keyshortcuts="Enter" placeholder="Tell your Punk what you're looking for..."></textarea>

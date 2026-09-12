@@ -5,6 +5,7 @@ import { collectingIntentConfirmation, defaultAskIntent, normalizePunkCollecting
 import { answerPunkConversation, isPunkConversationMessage } from
   "../../broker/src/v4/ai/punk-chat.mjs";
 import { draftStrategyFromConversation } from "../../broker/src/v4/intent-draft.mjs";
+import { draftPunkSkillFromConversation, isTeachPunkSkillMessage } from "../../broker/src/v4/punk-skill.mjs";
 import { acquisitionRequest, acquisitionClarification, readIndexedDirectedTarget } from
   "../../broker/src/v4/acquisition-request.mjs";
 import { PublicError, json, readJson } from "./_shared/http.mjs";
@@ -36,6 +37,18 @@ function punkReply(confirmation) {
 
 export async function resolveV2PunkChat({ router, ownerMessage, currentIntent, tokenId,
   authority, owner, now = new Date(), context = {}, targetContract = null }) {
+  if (isTeachPunkSkillMessage(ownerMessage)) {
+    let skillDraft;
+    try {
+      skillDraft = draftPunkSkillFromConversation({ message: ownerMessage,
+        punkTokenId: tokenId, expectedOwner: owner, punkWallet: authority.punkWallet, now });
+    } catch {
+      throw new PublicError(400, "INVALID_SKILL", "Describe a read-only scouting skill. Skills cannot change wallet authority or bypass your collecting rules.");
+    }
+    return Object.freeze({ responseKind: "SKILL_DRAFT", draft: null, skillDraft,
+      reply: "Review this scouting skill before adding it to your playbook. It grants no spending authority and does not spend a Forge training credit.",
+      provider: { provider: "DETERMINISTIC_SKILL_COMPILER", registryKey: null }, providerAvailable: true });
+  }
   if (currentIntent?.expectedOwner?.toLowerCase() !== owner.toLowerCase()) {
     currentIntent = defaultAskIntent({ punkTokenId: tokenId, expectedOwner: owner, punkWallet: authority.punkWallet }, now);
   }
@@ -197,6 +210,7 @@ export async function handleV2Chat(request, { pool, requireSession = requireV2Se
       reply: resolved.reply, provider: resolved.provider,
       providerAvailable: resolved.providerAvailable,
       draft: resolved.draft ? { ...resolved.draft, version } : null,
+      ...(resolved.skillDraft ? { skillDraft: resolved.skillDraft } : {}),
       economicPermissionsActivated: false });
   } catch (error) { return v2Failure(error); }
 }
