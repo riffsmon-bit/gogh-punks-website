@@ -38,8 +38,12 @@ choosing session revocation or strategy pause, and confirms the revocation recei
 before announcing success. Connected local-browser tests cover both phrases,
 stale cached status, duplicate clicks, wallet rejection and failed receipt/status
 reads. These use a simulated wallet and send no public transactions.
-General AI conversation remains blocked by a missing production `GEMINI_API_KEY`
-(Functions scope); the model setting alone does not configure a credential.
+Netlify supplies the Gemini key and gateway URL at runtime. These injected values
+do not appear in the ordinary environment-variable listing. The Gemini adapter
+must use `GOOGLE_GEMINI_BASE_URL`, bound to `NETLIFY_AI_GATEWAY_URL`, rather than
+sending Netlify's credential directly to Google. The earlier missing-key diagnosis
+was incorrect. The private operator connection check verifies both real chat and
+structured model responses, including database usage recording, without a wallet.
 Recall, status and gas quick calls do not require a model provider.
 
 The owner-confirmed Wednesday target is chat, gas funding, missions/minting,

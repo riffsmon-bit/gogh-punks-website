@@ -3,18 +3,6 @@ import {
   exactHttpsEndpoint, providerJsonRequest, providerResult, providerSecret, strictSchema,
 } from "./provider.mjs";
 
-function outputText(payload) {
-  if (!Array.isArray(payload?.steps)) return null;
-  const parts = [];
-  for (const step of payload.steps) {
-    if (step?.type !== "model_output" || !Array.isArray(step.content)) continue;
-    for (const content of step.content) {
-      if (content?.type === "text" && typeof content.text === "string") parts.push(content.text);
-    }
-  }
-  return parts.length ? parts.join("") : null;
-}
-
 function generatedText(payload) {
   const parts = payload?.candidates?.[0]?.content?.parts;
   if (!Array.isArray(parts)) return null;
@@ -23,24 +11,51 @@ function generatedText(payload) {
   return text || null;
 }
 
+function geminiBaseUrl(environment) {
+  const direct = "https://generativelanguage.googleapis.com";
+  const configured = environment.GOOGLE_GEMINI_BASE_URL;
+  if (configured === undefined) return direct;
+  const normalize = value => {
+    if (typeof value !== "string" || !value || value !== value.trim()) {
+      throw new TypeError("Gemini base URL is invalid");
+    }
+    const url = new URL(value);
+    if (url.protocol !== "https:" || url.username || url.password || url.port
+      || url.search || url.hash || !["/", "/.netlify/ai", "/.netlify/ai/"].includes(url.pathname)
+      || value !== url.href && `${value}/` !== url.href) {
+      throw new TypeError("Gemini base URL is invalid");
+    }
+    return url.href.replace(/\/$/, "");
+  };
+  const base = normalize(configured);
+  if (base === direct) return base;
+  // Netlify injects both values into Functions. Bind the provider URL to that
+  // platform gateway, rather than accepting an arbitrary credential destination.
+  if (!base.endsWith("/.netlify/ai")
+    || base !== normalize(environment.NETLIFY_AI_GATEWAY_URL)) {
+    throw new TypeError("Gemini base URL does not match the Netlify AI Gateway");
+  }
+  return base;
+}
+
 export class GeminiArtBrokerProvider extends ArtBrokerAIProvider {
   constructor({ modelId, fetchImpl = fetch, environment = process.env, timeoutMs = 20_000,
-    endpoint = "https://generativelanguage.googleapis.com/v1beta/interactions" }) {
+    endpoint }) {
     super("GEMINI");
     if (typeof modelId !== "string" || !modelId.trim() || modelId.length > 160) {
       throw new TypeError("model ID is invalid");
     }
     this.modelId = modelId.trim(); this.fetchImpl = fetchImpl;
     this.environment = environment; this.timeoutMs = timeoutMs;
-    this.endpoint = exactHttpsEndpoint(endpoint, "https://generativelanguage.googleapis.com",
-      "/v1beta/interactions");
+    const base = geminiBaseUrl(environment);
+    const { origin, pathname } = new URL(base);
+    const prefix = pathname === "/" ? "" : pathname;
     if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$/.test(this.modelId)) {
       throw new TypeError("model ID is invalid");
     }
-    this.chatEndpoint = exactHttpsEndpoint(
-      `https://generativelanguage.googleapis.com/v1beta/models/${this.modelId}:generateContent`,
-      "https://generativelanguage.googleapis.com",
-      `/v1beta/models/${this.modelId}:generateContent`);
+    this.endpoint = exactHttpsEndpoint(
+      endpoint ?? `${base}/v1beta/models/${this.modelId}:generateContent`, origin,
+      `${prefix}/v1beta/models/${this.modelId}:generateContent`);
   }
 
   getCapabilities() {
@@ -66,45 +81,23 @@ export class GeminiArtBrokerProvider extends ArtBrokerAIProvider {
       "instructions", 12_000);
     const prompt = boundedPrompt(input?.prompt);
     const secret = providerSecret(this.environment, "GEMINI_API_KEY");
-    if (task === "CHAT") {
-      const body = {
-        system_instruction: { parts: [{ text: instructions }] },
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: { maxOutputTokens,
-          thinkingConfig: { thinkingLevel: "low" } },
-      };
-      const { payload, latencyMs } = await providerJsonRequest({ fetchImpl: this.fetchImpl,
-        url: this.chatEndpoint, timeoutMs: this.timeoutMs,
-        headers: { "x-goog-api-key": secret, "content-type": "application/json" }, body });
-      const text = generatedText(payload);
-      if (typeof text !== "string") {
-        throw new ArtBrokerProviderError("INVALID_PROVIDER_RESPONSE",
-          "Gemini returned no usable output.");
-      }
-      return providerResult({ provider: this.provider, modelId: this.modelId, task, text,
-        structured: false, requestId: payload.responseId, latencyMs,
-        usage: { inputTokens: payload.usageMetadata?.promptTokenCount,
-          outputTokens: payload.usageMetadata?.candidatesTokenCount,
-          cachedInputTokens: payload.usageMetadata?.cachedContentTokenCount } });
-    }
-    const body = { model: this.modelId, store: false,
-      system_instruction: instructions,
-      input: prompt,
-      generation_config: { max_output_tokens: maxOutputTokens, thinking_level: "low" },
+    const body = {
+      system_instruction: { parts: [{ text: instructions }] },
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: { maxOutputTokens, thinkingConfig: { thinkingLevel: "low" },
+        ...(schema ? { responseMimeType: "application/json", responseJsonSchema: schema } : {}) },
     };
-    if (schema) body.response_format = { type: "text", mime_type: "application/json", schema };
     const { payload, latencyMs } = await providerJsonRequest({ fetchImpl: this.fetchImpl,
       url: this.endpoint, timeoutMs: this.timeoutMs,
       headers: { "x-goog-api-key": secret, "content-type": "application/json" }, body });
-    const text = outputText(payload);
-    if (typeof text !== "string" || !["completed", "incomplete"].includes(payload?.status)) {
-      throw new ArtBrokerProviderError("INVALID_PROVIDER_RESPONSE",
-        "Gemini returned no usable output.");
+    const text = generatedText(payload);
+    if (typeof text !== "string") {
+      throw new ArtBrokerProviderError("INVALID_PROVIDER_RESPONSE", "Gemini returned no usable output.");
     }
     return providerResult({ provider: this.provider, modelId: this.modelId, task, text,
-      structured: Boolean(schema), requestId: payload.id, latencyMs,
-      usage: { inputTokens: payload.usage?.total_input_tokens,
-        outputTokens: payload.usage?.total_output_tokens,
-        cachedInputTokens: payload.usage?.total_cached_tokens } });
+      structured: Boolean(schema), requestId: payload.responseId, latencyMs,
+      usage: { inputTokens: payload.usageMetadata?.promptTokenCount,
+        outputTokens: payload.usageMetadata?.candidatesTokenCount,
+        cachedInputTokens: payload.usageMetadata?.cachedContentTokenCount } });
   }
 }

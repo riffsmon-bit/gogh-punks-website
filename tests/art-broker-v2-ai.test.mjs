@@ -48,23 +48,24 @@ test("OpenAI adapter uses server-side Responses structured output without storin
   assert.equal(JSON.stringify(result).includes("server-only-openai-key"), false);
 });
 
-test("Gemini adapter uses the stateless Interactions API and free-tier registry path", async () => {
+test("Gemini structured output uses the stateless generateContent JSON schema request", async () => {
   let request;
   const provider = new GeminiArtBrokerProvider({ modelId: "gemini-3.8-flash",
     environment: { GEMINI_API_KEY: "server-only-gemini-key" },
     fetchImpl: async (url, options) => {
       request = { url, options };
-      return response({ id: "int_1", status: "completed", steps: [{ type: "model_output",
-        content: [{ type: "text", text: '{"answer":"PIXEL_ART"}' }] }],
-      usage: { total_input_tokens: 9, total_output_tokens: 4, total_cached_tokens: 0 } });
+      return response({ responseId: "resp_1", candidates: [{ content: { parts: [
+        { text: '{"answer":"PIXEL_ART"}' }] } }],
+      usageMetadata: { promptTokenCount: 9, candidatesTokenCount: 4, cachedContentTokenCount: 0 } });
     } });
   const result = await provider.classifyArt({ prompt: "classify it", schema: SCHEMA });
   const body = JSON.parse(request.options.body);
-  assert.equal(request.url, "https://generativelanguage.googleapis.com/v1beta/interactions");
+  assert.equal(request.url, "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent");
   assert.equal(request.options.headers["x-goog-api-key"], "server-only-gemini-key");
-  assert.equal(body.store, false);
-  assert.equal(body.generation_config.thinking_level, "low");
-  assert.equal(body.response_format.mime_type, "application/json");
+  assert.equal(body.generationConfig.thinkingConfig.thinkingLevel, "low");
+  assert.equal(body.generationConfig.responseMimeType, "application/json");
+  assert.deepEqual(body.generationConfig.responseJsonSchema, SCHEMA);
+  assert.equal(Object.hasOwn(body, "previous_interaction_id"), false);
   assert.deepEqual(result.value, { answer: "PIXEL_ART" });
   assert.equal(JSON.stringify(result).includes("server-only-gemini-key"), false);
 });
@@ -88,6 +89,50 @@ test("Gemini chat uses the broadly supported stateless generateContent endpoint"
   assert.equal(body.generationConfig.thinkingConfig.thinkingLevel, "low");
   assert.equal(result.text, "Hood afternoon.");
   assert.equal(result.usage.inputTokens, 8);
+});
+
+test("Gemini uses Netlify's injected gateway for chat and structured requests", async () => {
+  const gateway = "https://gogh-punks.netlify.app/.netlify/ai/";
+  for (const chat of [true, false]) {
+    let request;
+    const provider = new GeminiArtBrokerProvider({ modelId: "gemini-3.8-flash",
+      environment: { GEMINI_API_KEY: "netlify-runtime-only-key",
+        GOOGLE_GEMINI_BASE_URL: gateway, NETLIFY_AI_GATEWAY_URL: gateway },
+      fetchImpl: async (url, options) => {
+        request = { url, options };
+        return response(chat
+          ? { candidates: [{ content: { parts: [{ text: "Hello from your Punk." }] } }] }
+          : { candidates: [{ content: { parts: [{ text: '{"answer":"PIXEL_ART"}' }] } }] });
+      } });
+    const result = await provider.invoke(chat ? "CHAT" : "CLASSIFY_ART",
+      { prompt: "classify it", ...(chat ? {} : { schema: SCHEMA }) });
+    assert.equal(request.url, `${gateway}v1beta/models/gemini-3.8-flash:generateContent`);
+    assert.equal(request.options.headers["x-goog-api-key"], "netlify-runtime-only-key");
+    assert.equal(request.options.redirect, "error");
+    assert.equal(JSON.stringify(result).includes("netlify-runtime-only-key"), false);
+    if (!chat) assert.deepEqual(result.value, { answer: "PIXEL_ART" });
+  }
+});
+
+test("Gemini rejects a base URL that could send the credential outside the configured gateway", () => {
+  const gateway = "https://gogh-punks.netlify.app/.netlify/ai/";
+  for (const base of ["https://attacker.example/.netlify/ai/", "http://gogh-punks.netlify.app/.netlify/ai/",
+    "https://user:pass@gogh-punks.netlify.app/.netlify/ai/", `${gateway}?key=leak`, `${gateway}#fragment`,
+    "https://gogh-punks.netlify.app/other", "https://gogh-punks.netlify.app:8443/.netlify/ai/",
+    "https://gogh-punks.netlify.app/bad/../.netlify/ai/", "", " "]) {
+    assert.throws(() => new GeminiArtBrokerProvider({ modelId: "gemini-3.8-flash",
+      environment: { GEMINI_API_KEY: "netlify-runtime-only-key", GOOGLE_GEMINI_BASE_URL: base,
+        NETLIFY_AI_GATEWAY_URL: gateway } }));
+  }
+  assert.throws(() => new GeminiArtBrokerProvider({ modelId: "gemini-3.8-flash",
+    environment: { GOOGLE_GEMINI_BASE_URL: gateway } }));
+});
+
+test("an explicitly configured direct Google base remains supported", () => {
+  const provider = new GeminiArtBrokerProvider({ modelId: "gemini-3.8-flash",
+    environment: { GOOGLE_GEMINI_BASE_URL: "https://generativelanguage.googleapis.com/" } });
+  assert.equal(provider.endpoint,
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent");
 });
 
 test("Claude adapter uses Messages output_config and current version header", async () => {
