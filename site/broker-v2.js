@@ -3,6 +3,7 @@ import { createForgeControl } from './broker-v2-forge.js';
 import { createOwnerRefresh } from "./broker-v2-owner-refresh.js";
 import { prepareAgentGasFunding, submitAgentGasFunding } from "./punk-agent-gas-funding.js";
 import { punkChatAction, agentChatStatus } from "./punk-chat-actions.js";
+import { createPunkRecall } from "./punk-agent-recall.js";
 import {
   fetchPunkWalletFundsGate, preflightPunkWalletFunds, readPunkWalletFundsState,
   submitPunkWalletFunds, waitForPunkWalletTransactionReceipt,
@@ -69,6 +70,7 @@ const REVIEW_BROWSER_STORAGE_KEY = "gogh-art-broker-review-browser-v2";
 const REVIEW_MISSION_LEASE_KEY = "gogh-art-broker-review-mission-lease-v1";
 const REVIEW_MISSION_LEASE_MS = 15_000;
 const REVIEW_TAB_ID = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+const punkRecall = createPunkRecall();
 let reviewMissionTimer = null;
 let forgeControl = null;
 const one = (selector) => document.querySelector(selector);
@@ -638,8 +640,10 @@ function renderReviewAgent() {
   const liveMission = serverMission;
   const runBusy = runButton.dataset.busy === "true" || testButton.dataset.busy === "true";
   runButton.disabled = runBusy || !agent || agent.status !== "ACTIVE";
-  recallButton.hidden = agent?.status !== "SCOUTING" && liveMission?.status !== "ACTIVE";
-  recallButton.disabled = recallButton.hidden;
+  recallButton.hidden = agent?.status !== "SCOUTING"
+    && !["ACTIVE", "PAUSED", "INACTIVE", "EXPIRED"].includes(liveMission?.status)
+    && selectedAgentAccount()?.runtime?.sessionActive !== true;
+  recallButton.disabled = recallButton.hidden || punkRecall.busy;
   testButton.disabled = runBusy || !agent || agent.status !== "ACTIVE";
   runButton.textContent = runBusy || agent?.status === "SCOUTING" ? "PUNK IS OUT…"
     : agent?.status === "RETURNED" ? "MISSION COMPLETE" : "SEND PUNK OUT";
@@ -793,53 +797,67 @@ function scheduleSelectedReviewMissionCheck() {
   }, delay);
 }
 
-async function recallSelectedReviewAgent() {
-  const live = selectedAgentAccount();
-  if (live?.mission?.status === "ACTIVE" && !PREVIEW) {
-    const button = one("[data-review-agent-recall]");
-    button.disabled = true; button.textContent = "PREPARING RECALL…";
-    try {
-      await ensureV2Session();
-      const owner = state.wallet.account; const tokenId = String(state.selected.tokenId);
-      const prepared = await jsonRequest("/api/v2/agent-account/recall", { method: "POST",
-        headers: { "content-type": "application/json" }, body: JSON.stringify({
-          action: "prepare", owner, tokenId,
-        }) });
-      const provider = window.__GOGH_WALLET_PROVIDER__;
-      if (!provider?.request) throw new Error("Wallet provider unavailable.");
-      button.textContent = "CONFIRM IN WALLET";
-      const hash = await provider.request({ method: "eth_sendTransaction", params: [{
-        from: owner, to: prepared.transaction.to, value: "0x0",
-        data: prepared.transaction.data,
-      }] });
-      await waitForPunkWalletTransactionReceipt(provider, hash);
-      await jsonRequest("/api/v2/agent-account/recall", { method: "POST",
-        headers: { "content-type": "application/json" }, body: JSON.stringify({
-          action: "confirm", owner, tokenId, transactionHash: hash,
-        }) });
-      state.agentAccounts.delete(tokenId);
-      await loadAgentAccountStatus();
-      await hydrateSelected("activity");
-      state.selected.mode = "PAUSED"; renderSelected();
-      addMessage("punk", "I’M BACK. THE MISSION SESSION IS REVOKED ON CHAIN, THE SERVER WORKER CANNOT SUBMIT FOR ME, AND THE RECALL IS RECORDED IN ACTIVITY.");
-    } catch (error) {
-      addMessage("punk", `${error?.message ?? "Recall stopped."} If a transaction was submitted, check its receipt before retrying.`);
-    } finally { button.textContent = "CALL PUNK BACK"; renderReviewAgent(); }
-    return;
-  }
+function pauseSelectedBrowserReview() {
   const key = selectedReviewKey(); const agent = selectedReviewAgent();
-  if (!key || agent?.status !== "SCOUTING") return;
+  if (!key || !agent || !["ACTIVE", "SCOUTING"].includes(agent.status)) {
+    throw new Error("No active browser review strategy to pause.");
+  }
   if (reviewMissionTimer !== null) window.clearTimeout(reviewMissionTimer);
   reviewMissionTimer = null;
-  const recalled = pauseReviewAgent(agent);
-  setReviewAgent(key, recalled);
+  setReviewAgent(key, pauseReviewAgent(agent));
   setReviewMissionPhase(key, "PAUSED");
   releaseReviewMissionLease(key);
-  state.selected.mode = "PAUSED";
-  renderSelected();
-  addReviewActivity("CALLED BACK", "PUNK CALLED BACK BY OWNER",
-    `${recalled.mission.foundContracts.length}/${recalled.mission.targetMatches} mission matches · scouting stopped · no transaction submitted`);
-  addMessage("punk", "I’M BACK. SCOUTING HAS STOPPED, THE MISSION TIMER IS OFF, AND NOTHING WAS SUBMITTED.");
+  addReviewActivity("PAUSED", "REVIEW AGENT PAUSED", "Browser review only · no production strategy changed");
+  return { ok: true, strategy: { state: "PAUSED" } };
+}
+
+async function recallSelectedReviewAgent() {
+  if (punkRecall.busy) return;
+  const punk = state.selected, owner = state.wallet?.account;
+  const tokenId = String(punk?.tokenId ?? "");
+  const provider = window.__GOGH_WALLET_PROVIDER__;
+  const isCurrent = () => state.selected === punk && state.wallet?.account === owner
+    && state.wallet?.chainId === CHAIN_ID && window.__GOGH_WALLET_PROVIDER__ === provider;
+  const button = one("[data-review-agent-recall]");
+  button.disabled = true; button.textContent = "CHECKING LIVE MISSION…";
+  try {
+    let result;
+    if (PREVIEW) {
+      pauseSelectedBrowserReview();
+      result = { status: "PAUSED" };
+    } else {
+      result = await punkRecall.run({ owner, tokenId, isCurrent, provider,
+        readStatus: () => loadAgentAccountStatus({ authenticate: true }),
+        request: (path, body) => REVIEW_HOST && body.action === "pause"
+          ? pauseSelectedBrowserReview()
+          : jsonRequest(path, { method: "POST", headers: { "content-type": "application/json" },
+            body: JSON.stringify(body) }),
+        waitForReceipt: waitForPunkWalletTransactionReceipt,
+        onWallet: () => {
+          button.textContent = "CONFIRM IN WALLET";
+          addMessage("punk", `Confirm the recall for Punk #${tokenId} in your wallet. This revokes its mission session. It stays paused until you authorize a new mission.`);
+        },
+        onSubmitted: hash => {
+          if (isCurrent()) addMessage("punk", `Punk #${tokenId} recall submitted: ${hash}. Waiting for its receipt and mission confirmation.`);
+        },
+      });
+    }
+    if (!isCurrent() || result.status === "BUSY") return;
+    punk.mode = "PAUSED"; renderSelected();
+    addMessage("punk", result.status === "REVOKED"
+      ? "I’M BACK. The mission session is revoked on chain and the strategy is paused. Any transaction already submitted still needs its receipt checked. I’ll stay paused until you authorize a new mission."
+      : PREVIEW || REVIEW_HOST
+        ? "PAUSED IN THIS REVIEW BROWSER. I will not evaluate new opportunities until you confirm another strategy."
+        : "PAUSED. No new collection can be prepared under this strategy. I’ll stay paused until you authorize a new mission.");
+    if (!PREVIEW) {
+      state.agentAccounts.delete(tokenId);
+      await loadAgentAccountStatus();
+      if (isCurrent()) await hydrateSelected("activity");
+    }
+  } catch (error) {
+    if (isCurrent()) addMessage("punk", `${error?.message ?? "Recall stopped."} Recall is not confirmed.${error?.transactionHash
+      ? ` Transaction: ${error.transactionHash}. Check this receipt before retrying.` : ""}`);
+  } finally { button.textContent = "CALL PUNK BACK"; renderReviewAgent(); }
 }
 
 async function sendReviewAgentOut({ testMode = false, continueMission = false } = {}) {
@@ -1988,32 +2006,9 @@ function setup() {
       return;
     }
     if (chatAction?.kind === "RECALL") {
-      if (selectedAgentAccount()?.mission?.status === "ACTIVE") {
-        await recallSelectedReviewAgent();
-        return;
-      }
-      if (PREVIEW || REVIEW_HOST) {
-        const key = selectedReviewKey(); const agent = selectedReviewAgent();
-        if (!key || !agent || !["ACTIVE", "SCOUTING"].includes(agent.status)) {
-          addMessage("punk", "NO ACTIVE REVIEW STRATEGY TO PAUSE. Production remains unchanged.");
-          return;
-        }
-        setReviewAgent(key, pauseReviewAgent(agent));
-        releaseReviewMissionLease(key);
-        scheduleSelectedReviewMissionCheck();
-        state.selected.mode = "PAUSED"; renderSelected();
-        addReviewActivity("PAUSED", "REVIEW AGENT PAUSED",
-          "Browser review only · no production strategy changed");
-        addMessage("punk", "PAUSED IN THIS REVIEW BROWSER. I will not evaluate new opportunities until you confirm another strategy.");
-      }
-      else {
-        try {
-          await ensureV2Session();
-          await jsonRequest(`/api/v2/punks/${state.selected.tokenId}/strategy`, { method: "POST",
-            headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "pause" }) });
-          state.selected.mode = "PAUSED"; renderSelected(); addMessage("punk", "PAUSED. No new collection can be prepared under this strategy.");
-        } catch (error) { addMessage("punk", `${error?.message ?? "Pause failed."} No permissions were broadened.`); }
-      }
+      setChatBusy(true);
+      try { await recallSelectedReviewAgent(); }
+      finally { setChatBusy(false); }
       return;
     }
     if (/\bshow\b.*\b(?:found|discover(?:y|ies|ed)?)\b/i.test(message)) {

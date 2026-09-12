@@ -194,7 +194,7 @@ function fallbackReply(message, intent, inspection, strategyStatus, punkState, r
   if (/\b(?:hello|hey|hi|how are you|thanks|thank you)\b/.test(text)) {
     return "Ready when you are. Tell me what art you like, ask about my rules, or send me a link to inspect.";
   }
-  return "I can answer questions about my collecting strategy, reviewed links, opportunities, balances, and collection. A model provider is not configured in this preview yet, so I won’t invent an answer outside that evidence.";
+  return "I couldn’t reach the conversation service. You can still check my status, review gas funding, or call me back using the quick calls. Try your question again shortly.";
 }
 
 export function isPunkConversationMessage(value) {

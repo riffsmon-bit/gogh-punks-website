@@ -32,6 +32,16 @@ Registry acceptance and two-provider finalized deployment verification are compl
 Use the latest published version recorded with your test run; the core release
 reference above remains the starting version for the broker corrections.
 
+The September 12 recall correction recognizes `ok recall please` and the Pause
+quick call's `Pause for tonight.` It refreshes authenticated mission state before
+choosing session revocation or strategy pause, and confirms the revocation receipt
+before announcing success. Connected local-browser tests cover both phrases,
+stale cached status, duplicate clicks, wallet rejection and failed receipt/status
+reads. These use a simulated wallet and send no public transactions.
+General AI conversation remains blocked by a missing production `GEMINI_API_KEY`
+(Functions scope); the model setting alone does not configure a credential.
+Recall, status and gas quick calls do not require a model provider.
+
 The owner-confirmed Wednesday target is chat, gas funding, missions/minting,
 Forge research/loadouts and burn-to-training. Paid minting, floor purchases and collection offers
 have separate implementation and acceptance work.
@@ -140,8 +150,11 @@ mission. A working preview button does not demonstrate unattended production wor
 
 ## 5. Stop a mission and check session accounting
 
-1. With a separately reviewed active mission, use the account's recall/revoke
-   action and complete its owner confirmation. Verify the session is inactive.
+1. With a separately reviewed active mission, send `ok recall please` or click
+   **Pause** and send `Pause for tonight.` Reject the wallet request once: chat
+   must say recall is unconfirmed. Retry and confirm the exact Agent Account's
+   session revocation. Verify its receipt and inactive session. A temporary RPC
+   failure must not announce success or silently pause only the strategy.
 2. Wait through a worker check. It must not initiate a new mint for that revoked
    session. An already-submitted transaction still needs receipt reconciliation.
 3. If you choose to run another one-mint mission, check that its session count
@@ -151,6 +164,8 @@ mission. A working preview button does not demonstrate unattended production wor
 Record the old and new session identities and transaction links. This is the live
 acceptance case for the Punk #93 session-count correction; prior old-version mints
 are not evidence that the released correction works.
+“For tonight” does not schedule an automatic restart. A new mission requires a
+new owner authorization. Keep the submitted hash if receipt confirmation fails.
 
 ## 6. Collection, missing artwork and NFT withdrawal
 

@@ -21,6 +21,20 @@ test("status never turns unverified balance/session into a funded or active clai
   assert.match(text, /0\.0005 ETH/); assert.match(text, /0\/1 confirmed mints/);
   assert.match(text, /does not mean a transaction is currently being submitted/);
 });
+test("recall recognizes the owner's wording and the site's Pause quick call", async () => {
+  const html = await readFile(new URL("../site/broker/v2/index.html", import.meta.url), "utf8");
+  const suggestion = html.match(/data-suggestion="([^"]+)"[^>]*>Pause<\/button>/)?.[1];
+  assert.equal(suggestion, "Pause for tonight.");
+  for (const message of [suggestion, "ok recall please", "recall", "Recall my agent!",
+    "Okay, please recall my Punk.", "Please pause my mission for tonight.", "Call my Punk back, please."]) {
+    assert.deepEqual(punkChatAction(message), { kind: "RECALL" }, message);
+  }
+  for (const message of ["don't pause", "do not recall", "what happens if I pause?", "can you recall?",
+    "I recall liking pixel art", "recall my strategy", "pause tomorrow", "pause and send my ETH",
+    "\"Pause for tonight.\"", "okay don't pause", "recall please and mint another", "don't stop minting"]) {
+    assert.equal(punkChatAction(message), null, message);
+  }
+});
 test("a cumulative gas budget is not silently interpreted as per-mint authority", async () => {
   const owner = `0x${"1".repeat(40)}`, wallet = `0x${"2".repeat(40)}`;
   const result = await resolveV2PunkChat({ router: {}, ownerMessage: "Find and mint one free NFT, keep total gas spending within 0.0005 ETH.",
