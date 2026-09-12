@@ -113,9 +113,9 @@ export async function inspectForgeStack({ client, plan, build, blockNumber, pend
   const expected = { deployment: [a.registry, a.progression, a.trainingSource], registry: [],
     trainingSource: [p.collection, p.collectionCodeHash, a.deployment],
     progression: [p.collection, a.registry, a.trainingSource, 1, 7, p.allocationRoot, p.snapshotHash, plan.chainId] };
-  const codeHashes = {};
-  for (const role of Object.keys(NAMES)) codeHashes[`${role}CodeHash`] = assertForgeRuntime(build.artifacts[role],
-    await client.getCode({ address: a[role], blockNumber }), expected[role]);
+  const codeHashes = Object.fromEntries(await Promise.all(Object.keys(NAMES).map(async role =>
+    [`${role}CodeHash`, assertForgeRuntime(build.artifacts[role],
+      await client.getCode({ address: a[role], blockNumber }), expected[role])])));
   const checks = [
     ['deployment', 'registry', a.registry], ['deployment', 'progression', a.progression], ['deployment', 'trainingSource', a.trainingSource],
     ['registry', 'owner', pendingGuardian ? a.deployment : plan.administrator],

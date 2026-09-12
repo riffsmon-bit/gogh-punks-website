@@ -1,4 +1,4 @@
-import { getAddress, keccak256, parseAbi, zeroAddress } from 'viem';
+import { createPublicClient, getAddress, http, keccak256, parseAbi, zeroAddress } from 'viem';
 import core from '../../../../deployments/robinhood.json' with { type: 'json' };
 import v2 from '../../../../deployments/robinhood-automation-v2.json' with { type: 'json' };
 import v3 from '../../../../deployments/robinhood-automation-v3.json' with { type: 'json' };
@@ -27,6 +27,26 @@ const WALLETS = [
   ['AGENT', agent.contracts.GoghPunkAgentAccountRegistry, agent.contracts.GoghPunkAgentAccount],
 ];
 
+// Dedicated read-only transports. Batching preserves each JSON-RPC request's
+// exact block, result and error; it does not combine evidence between providers.
+// Deployment/wallet transaction preflights keep their existing transports.
+export function createLiveBurnPairClients({ fetchFn = fetch } = {}) {
+  return ['https://robinhood-rpc.publicnode.com', 'https://rpc.mainnet.chain.robinhood.com'].map(url =>
+    createPublicClient({ cacheTime: 0, transport: http(url, {
+      fetchFn, batch: { batchSize: 20, wait: 5 }, timeout: 8000, retryCount: 1, retryDelay: 150,
+    }) }));
+}
+
+// Share only work currently in progress. A completed result is never cached for
+// the next click, including after an error, a transfer or a deployment change.
+export function createLiveBurnPairReader(read) {
+  let pending;
+  return () => {
+    if (!pending) pending = Promise.resolve().then(read).finally(() => { pending = null; });
+    return pending;
+  };
+}
+
 export function validateBurnTestSelection(value) {
   valid(value && Object.keys(value).sort().join() === 'chainId,collection,owner,schema,sourceTokenId,targetTokenId'
     && value.schema === 'GOGH_BURN_TEST_SELECTION_V1' && value.chainId === 4663
@@ -46,18 +66,21 @@ export async function readLiveBurnPair({ clients, selection: input, plan = null,
     valid(same(plan.administrator, selection.owner) && same(plan.pins.collection, selection.collection), 'BURN_PAIR_DEPLOYMENT_CHANGED');
   }
   const heads = await Promise.all(clients.map(async client => {
-    valid(await client.getChainId() === 4663, 'BURN_PAIR_CHAIN_CHANGED');
-    return client.getBlock({ blockTag: 'latest' });
+    const [chainId, block] = await Promise.all([client.getChainId(), client.getBlock({ blockTag: 'latest' })]);
+    valid(chainId === 4663, 'BURN_PAIR_CHAIN_CHANGED');
+    return block;
   }));
   const head = heads.reduce((a, b) => a.number < b.number ? a : b);
   valid(typeof head.number === 'bigint' && hash(head.hash)
     && heads.every(b => typeof b.number === 'bigint' && b.number - head.number <= 120n)
     && Math.abs(now() / 1000 - Number(head.timestamp)) <= 30, 'BURN_PAIR_STALE_HEAD');
   const observations = await Promise.all(clients.map(async client => {
-    const canonical = await client.getBlock({ blockNumber: head.number });
+    const [canonical, collectionCode] = await Promise.all([
+      client.getBlock({ blockNumber: head.number }), client.getCode({ address: selection.collection, blockNumber: head.number }),
+    ]);
     valid(same(canonical.hash, head.hash) && canonical.timestamp === head.timestamp, 'BURN_PAIR_PROVIDERS_DISAGREE');
     const read = (address, functionName, args = []) => client.readContract({ address, abi: ABI, functionName, args, blockNumber: head.number });
-    valid(keccak256(await client.getCode({ address: selection.collection, blockNumber: head.number }) ?? '0x') === release.collectionCodeHash,
+    valid(keccak256(collectionCode ?? '0x') === release.collectionCodeHash,
       'BURN_PAIR_COLLECTION_CHANGED');
     const [sourceOwner, targetOwner, supply, approved] = await Promise.all([
       read(selection.collection, 'ownerOf', [BigInt(selection.sourceTokenId)]),
@@ -65,7 +88,7 @@ export async function readLiveBurnPair({ clients, selection: input, plan = null,
       read(selection.collection, 'totalSupply'), read(selection.collection, 'getApproved', [BigInt(selection.sourceTokenId)]),
     ]);
     valid(same(sourceOwner, selection.owner) && same(targetOwner, selection.owner), 'BURN_PAIR_OWNER_CHANGED');
-    const walletPairs = await Promise.all(WALLETS.map(async ([role, registry, implementation]) => {
+    const [walletPairs, forge] = await Promise.all([Promise.all(WALLETS.map(async ([role, registry, implementation]) => {
       await Promise.all([registry, implementation].map(async record => {
         valid(keccak256(await client.getCode({ address: record.address, blockNumber: head.number }) ?? '0x') === record.runtimeBytecodeHash,
           'BURN_PAIR_WALLET_INFRASTRUCTURE_CHANGED');
@@ -78,27 +101,28 @@ export async function readLiveBurnPair({ clients, selection: input, plan = null,
           read(WETH, 'balanceOf', [address]), read(agent.entryPoint, 'balanceOf', [address]),
         ]);
         const deployed = Boolean(code && code !== '0x');
-        const walletOwner = deployed ? await read(address, 'owner') : null;
+        const [walletOwner, sessionActive] = await Promise.all([
+          deployed ? read(address, 'owner') : null,
+          role === 'AGENT' ? deployed && read(address, 'isAutonomousSessionActive') : null,
+        ]);
         valid(!deployed || same(walletOwner, selection.owner), 'BURN_PAIR_WALLET_OWNER_CHANGED');
-        const sessionActive = role === 'AGENT' ? deployed && await read(address, 'isAutonomousSessionActive') : null;
         return { role, address: getAddress(address), deployed, nativeWei: String(nativeWei), wethWei: String(wethWei),
           entryPointDepositWei: String(entryPointDepositWei), agentSessionActive: sessionActive,
           nftInventory: 'UNKNOWN', otherTokenInventory: 'UNKNOWN' };
       }));
-    }));
-    const sourceWallets = walletPairs.map(pair => pair[0]), targetWallets = walletPairs.map(pair => pair[1]);
-    let forge = null;
-    if (plan) {
-      const pendingOwner = await read(plan.addresses.registry, 'pendingOwner');
-      const pendingGuardian = same(pendingOwner, selection.owner);
-      const codeHashes = await inspectForgeStack({ client, plan, build, blockNumber: head.number, pendingGuardian });
-      const [credits, learnedCount] = await Promise.all([
+    })), (async () => {
+      if (!plan) return null;
+      const [pendingOwner, credits, learnedCount] = await Promise.all([
+        read(plan.addresses.registry, 'pendingOwner'),
         read(plan.addresses.progression, 'trainingCredits', [BigInt(selection.targetTokenId)]),
         read(plan.addresses.progression, 'learnedCount', [BigInt(selection.targetTokenId)]),
       ]);
-      forge = { addresses: plan.addresses, codeHashes, registryAcceptancePending: pendingGuardian, paused: true,
+      const pendingGuardian = same(pendingOwner, selection.owner);
+      const codeHashes = await inspectForgeStack({ client, plan, build, blockNumber: head.number, pendingGuardian });
+      return { addresses: plan.addresses, codeHashes, registryAcceptancePending: pendingGuardian, paused: true,
         targetCredits: String(credits), targetLearnedCount: String(learnedCount), finalizedDeploymentVerified: false };
-    }
+    })()]);
+    const sourceWallets = walletPairs.map(pair => pair[0]), targetWallets = walletPairs.map(pair => pair[1]);
     valid(same((await client.getBlock({ blockNumber: head.number })).hash, head.hash), 'BURN_PAIR_REORG');
     return { sourceOwner: getAddress(sourceOwner), targetOwner: getAddress(targetOwner), supply: String(supply),
       sourceApproval: getAddress(approved), sourceWallets, targetWallets, forge };

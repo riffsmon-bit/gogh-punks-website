@@ -14,6 +14,12 @@ owners, all four source wallets, the recipient's Agent-session state and its
 training-credit baseline through both RPCs. This is a read-only preflight; missing
 inventory, operational and production-integration checks stay explicit blockers.
 
+The September 12 preflight update batches live reads and shares concurrent checks
+without caching completed snapshots. If a network check cannot return fresh data,
+the page clears the old results. Wait for it to finish, then use **Check selected
+Punks live** again. A successful read may still list the outstanding burn setup
+checks; it does not grant burn approval.
+
 1. Click **Connect wallet** and select the existing administrator,
    `0xC7f55cE6A7dF9A79cc4A643a5081230F890c7AA6`. Switch to Robinhood if prompted.
    Connecting requests accounts; it does not deploy, sign in, approve or burn.

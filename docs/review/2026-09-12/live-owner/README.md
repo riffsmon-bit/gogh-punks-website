@@ -92,3 +92,32 @@ source/recipient and wallet-access-loss review. Both ownership and all current
 checks must be refreshed. The public collection still contains #1753; no burn or
 training transaction was requested in this session. The #44 practice servers
 remain intact on their disposable chains.
+
+## September 12 preflight reliability fix
+
+The owner saw a `BURN_PAIR_STALE_HEAD` failure before a later retry returned a
+valid blocked report. The old path made 182 separate HTTP requests and waited for
+the wallet section before starting Forge verification. Dedicated diagnostic
+clients now batch up to 20 JSON-RPC reads per HTTP request; independent wallet
+and Forge checks overlap. Concurrent page requests share only the in-progress
+read. Completed results and errors are never cached for the next click.
+
+[Four consecutive live samples](preflight-reliability/live-reads.json) performed
+the same 182 logical reads in 24 HTTP requests and finished in 7.3–8.7 seconds,
+with snapshots 7.6–8.8 seconds old at completion. These measurements do not promise
+fixed latency: an earlier repeated API check returned `LIVE_READ_UNAVAILABLE`,
+and its cause was not reproduced. The final diagnostic transport retries a
+transient RPC failure once, retaining the provider, method and exact block.
+Persistent failures and individual contract-read errors remain errors. The
+30-second snapshot limit and 35-second browser timeout remain in place.
+
+Validation: 40 focused tests passed, including out-of-order batched responses,
+exact block/provider preservation, retry exhaustion, per-read failures and
+concurrent-click behavior. The disposable-chain owner browser regression passed
+both actual local transactions and lost-response/restart recovery. The updated
+[live browser check](preflight-reliability/pair-browser-checks.json) passed at
+1440 and 375 pixels, verified the real #1753/#93 baseline, and confirmed that a
+failed read clears prior results. It made no wallet requests or public
+transactions. The public deployment journal was preserved and registry
+acceptance remains pending. Inventory, operational review and production burn
+integration remain required; this diagnostic fix does not enable burns.

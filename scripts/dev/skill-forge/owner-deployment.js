@@ -12,7 +12,7 @@ const explanations = {
   FORGE_WALLET_ALREADY_REQUESTED: 'This transaction already reached the wallet. Recover its receipt instead of submitting again.',
   LIVE_READ_UNAVAILABLE: 'A live RPC read is unavailable. Recheck shortly; nothing was resent.',
   BURN_PAIR_OWNER_CHANGED: 'Ownership of one of the selected Punks changed. Both must belong to the reviewed owner.',
-  BURN_PAIR_STALE_HEAD: 'The live snapshot is too old. Run the checks again.',
+  BURN_PAIR_STALE_HEAD: 'The network check took too long to return fresh data. Run the checks again.',
   BURN_PAIR_PROVIDERS_DISAGREE: 'The two RPCs disagree. A live preflight is unavailable until their results agree.',
   BURN_PAIR_REORG: 'The recorded block changed. Run the checks again.',
   BURN_PAIR_WALLET_INFRASTRUCTURE_CHANGED: 'A wallet contract differs from its recorded deployment. Review the deployment before continuing.',
