@@ -6,7 +6,13 @@ a completed burn review or a burn transaction.
 
 **Latest setup:** registry acceptance also succeeded. Both original receipts are
 verified and saved in [accepted setup progress](accepted-setup-progress.json).
-The owner now controls the registry; it remains paused. Revision 15 recorded
+The owner now controls the registry; it remains paused. The full stack passed
+[two-provider finalized verification](finalized-deployment.json) at block
+`61353065`, hash `0xa00c32abe3e9faed08c912c2a56c3279da9fdf2b3d1652271ebc2ee26a040fea`.
+The read manifest adopts those verified addresses as `READ_ONLY_CANARY`; the
+training manifest is `PAUSED`, with no allowed owners or enabled skills.
+
+For historical context, revision 15 recorded
 `FORGE_DEPLOYMENT_FINALITY_PENDING`. After finality advanced, revision 16 instead
 reported `FORGE_ARCHIVE_STATE_UNAVAILABLE`: both public endpoints could return
 finalized block headers but could not serve the corresponding contract state.
@@ -45,10 +51,15 @@ used owner nonce `1948`. The ownership-transfer event located the original hash;
 the recovery endpoint verified the saved review and receipt through both RPCs.
 No acceptance transaction was resent.
 
-Finalized historical reads during this session were unavailable: PublicNode
-required an archive token and the other public endpoint reported missing
-historical metadata. Current anchored reads succeeded. Finalized verification
-remains required; current reads do not substitute for it.
+The original providers could verify the old transactions and finalized headers
+but could not serve finalized contract state. The verifier now supports a separate
+pair of state providers. BlockReq and dRPC returned the original collection and
+all four expected runtimes, immutable bindings, accepted administration and paused
+registry state at the exact finalized hash. Both original providers still verify
+transaction identity, receipts, review anchors and canonical headers. State reads
+serialize and retry explicit rate-limit errors with bounded backoff; they never
+substitute latest state or omit a failed provider. Provider identities are saved
+with the verification. No public transaction was sent by these checks.
 
 ## Punk #1753 observations
 

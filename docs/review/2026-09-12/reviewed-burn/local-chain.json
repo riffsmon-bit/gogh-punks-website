@@ -6,7 +6,7 @@
   "targetTokenId": "44",
   "contract": "GoghReviewedBurnSource",
   "approvalTransaction": "0x040888a0c006bf90ae180c40e471b09c8311f0cc366893d47e238b8c6ff3642d",
-  "burnTransaction": "0x5b0ef1c8a0baaf8eaa795e286723626e855995e8ac12e6d388607e0d990ed2a9",
+  "burnTransaction": "0xbdeed5d0f05ab2eef25ff97dbe4a8e8862f1b98026acee07f9d27cf4ab0a4446",
   "tokenSpecificApproval": true,
   "approvalDoesNotCredit": true,
   "exactBrowserEncoding": true,
@@ -23,11 +23,11 @@
   "atomicDeployment": {
     "schema": "GOGH_ATOMIC_FORGE_DEPLOYMENT_EVIDENCE_V1",
     "status": "VERIFIED_PAUSED_FORGE",
-    "planHash": "0x839f1262cc8464768ded204ac2926a22f5c56fc3f3ec8e594f172bc5d1bd18a8",
+    "planHash": "0x39cd6256c88cd19dff6965590dc29effd07c2f9d1aa047abffbb5876d5ed35e7",
     "chainId": 31337,
     "localFixture": true,
     "blockNumber": "3",
-    "blockHash": "0x0e6c2b48ec181c50fdf73e0201739a8a03bfbadb374fcc7a20d225f3be5610ce",
+    "blockHash": "0xbf200d1052516bec57e6dff0adc05c99099f594b4eb76d08442b6b5d2e5a17aa",
     "addresses": {
       "deployment": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
       "registry": "0xCafac3dD18aC6c6e92c921884f9E4176737C052c",
@@ -51,7 +51,7 @@
     "finality": "DISPOSABLE_CHAIN_ONLY",
     "productionTrainingAuthorized": false,
     "productionBurnAuthorized": false,
-    "evidenceHash": "0xbbde715f2c8f3d3c659be92a8aae707e469e424fae8b2ac2004b455cc4f6e152"
+    "evidenceHash": "0xa2968598e3889b4b8c2445a772352806c80de8c6adde4bbd1539034f70462e60"
   },
   "deploymentCorruptionCasesRejected": 11,
   "localEvidenceCannotBecomePublicManifest": true,

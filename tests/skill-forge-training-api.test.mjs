@@ -16,16 +16,25 @@ function fixture(){const calls=[];const record={intentId:'11111111-1111-4111-811
       claim:async(...args)=>{calls.push(['claim',...args]);return {claimed:false,record};},
       mutate:async(...args)=>{calls.push(['mutate',...args]);return record;},
     }})};return {calls,deps,record};}
-test('unreleased production route and scheduled worker never open databases or clients',async()=>{
+test('paused production route and an undeployed scheduled worker never open databases or clients',async()=>{
   const runtimeFactory=()=>{throw Error('MUST_NOT_RUN');};
   const response=await handleForgeTraining(request({},'GET'),{runtimeFactory,sessionPool:runtimeFactory});
   assert.equal(response.status,503);assert.equal((await response.json()).code,'FORGE_TRAINING_NOT_RELEASED');
-  assert.equal((await runForgeTrainingReconciliation({runtimeFactory})).skipped,true);
+  assert.equal((await runForgeTrainingReconciliation({runtimeFactory,releaseReader:()=>({status:'UNDEPLOYED'})})).skipped,true);
+});
+test('paused workers still attempt receipt recovery and report missing restricted credentials',async()=>{
+  let called=0;
+  const result=await runForgeTrainingReconciliation({releaseReader:()=>({status:'PAUSED'}),
+    runtimeFactory:()=>{called++;throw Error('FORGE_TRAINING_DATABASE_UNAVAILABLE');}});
+  assert.equal(called,1);assert.equal(result.skipped,true);assert.equal(result.reason,'FORGE_TRAINING_DATABASE_UNAVAILABLE');
 });
 test('release flags alone cannot enable training and local fixtures cannot become production artifacts',()=>{
-  assert.equal(validateTrainingRelease(artifact).status,'UNDEPLOYED');
+  assert.equal(validateTrainingRelease(artifact).status,'PAUSED');
+  assert.equal(artifact.productionTrainingAuthorized,false); assert.deepEqual(artifact.allowedOwners,[]);
+  const undeployed={...artifact,status:'UNDEPLOYED',registry:null,registryCodeHash:null,
+    progression:null,progressionCodeHash:null,trainingSource:null,trainingSourceCodeHash:null};
   for(const change of [{productionTrainingAuthorized:true},{productionBurnAuthorized:true},{status:'OWNER_CANARY'},
-    {chainId:31337},{allocationRoot:HASH},{registry:OWNER},{allowedOwners:[OWNER]},{status:'READY'}])assert.throws(()=>validateTrainingRelease({...artifact,...change}));
+    {chainId:31337},{allocationRoot:HASH},{registry:OWNER},{allowedOwners:[OWNER]},{status:'READY'}])assert.throws(()=>validateTrainingRelease({...undeployed,...change}));
 });
 test('prepare takes its owner/token from the session and path and performs the origin check',async()=>{
   const f=fixture(),body={operation:'prepare',action:{operation:'equip',skillKey:HASH,slot:0},requestKey:'a'.repeat(64)};

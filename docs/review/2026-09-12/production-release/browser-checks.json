@@ -1,0 +1,111 @@
+{
+  "status": "PASS",
+  "origin": "https://goghpunks.xyz",
+  "checkedAt": "2026-09-12T19:44:25.186Z",
+  "mode": "REAL_HOST_DISCONNECTED_NO_PREVIEW_FIXTURES",
+  "observations": [
+    {
+      "width": 1440,
+      "tab": "talk",
+      "scroll": 1440,
+      "wallet": "Wallet disconnected · no automatic signatures or transactions",
+      "previewHidden": true
+    },
+    {
+      "width": 1440,
+      "tab": "strategy",
+      "scroll": 1440,
+      "wallet": "Wallet disconnected · no automatic signatures or transactions",
+      "previewHidden": true
+    },
+    {
+      "width": 1440,
+      "tab": "fund",
+      "scroll": 1440,
+      "wallet": "Wallet disconnected · no automatic signatures or transactions",
+      "previewHidden": true
+    },
+    {
+      "width": 1440,
+      "tab": "collection",
+      "scroll": 1440,
+      "wallet": "Wallet disconnected · no automatic signatures or transactions",
+      "previewHidden": true
+    },
+    {
+      "width": 1440,
+      "tab": "activity",
+      "scroll": 1440,
+      "wallet": "Wallet disconnected · no automatic signatures or transactions",
+      "previewHidden": true
+    },
+    {
+      "width": 1440,
+      "tab": "forge",
+      "scroll": 1440,
+      "wallet": "Wallet disconnected · no automatic signatures or transactions",
+      "previewHidden": true
+    },
+    {
+      "width": 1440,
+      "tab": "settings",
+      "scroll": 1440,
+      "wallet": "Wallet disconnected · no automatic signatures or transactions",
+      "previewHidden": true
+    },
+    {
+      "width": 375,
+      "tab": "talk",
+      "scroll": 375,
+      "wallet": "Wallet disconnected · no automatic signatures or transactions",
+      "previewHidden": true
+    },
+    {
+      "width": 375,
+      "tab": "strategy",
+      "scroll": 375,
+      "wallet": "Wallet disconnected · no automatic signatures or transactions",
+      "previewHidden": true
+    },
+    {
+      "width": 375,
+      "tab": "fund",
+      "scroll": 375,
+      "wallet": "Wallet disconnected · no automatic signatures or transactions",
+      "previewHidden": true
+    },
+    {
+      "width": 375,
+      "tab": "collection",
+      "scroll": 375,
+      "wallet": "Wallet disconnected · no automatic signatures or transactions",
+      "previewHidden": true
+    },
+    {
+      "width": 375,
+      "tab": "activity",
+      "scroll": 375,
+      "wallet": "Wallet disconnected · no automatic signatures or transactions",
+      "previewHidden": true
+    },
+    {
+      "width": 375,
+      "tab": "forge",
+      "scroll": 375,
+      "wallet": "Wallet disconnected · no automatic signatures or transactions",
+      "previewHidden": true
+    },
+    {
+      "width": 375,
+      "tab": "settings",
+      "scroll": 375,
+      "wallet": "Wallet disconnected · no automatic signatures or transactions",
+      "previewHidden": true
+    }
+  ],
+  "walletMethods": [],
+  "browserErrors": [],
+  "failedResources": [],
+  "mutationRequests": [],
+  "publicTransactions": 0
+}

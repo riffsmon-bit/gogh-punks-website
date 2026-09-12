@@ -35,6 +35,10 @@ test('disagreement on canonical block identity prevents a preflight result',asyn
 test('RPC failures stay failures instead of becoming empty inventories',async()=>{
   await assert.rejects(run([client(),client()]),/UNEXPECTED_STATE_READ/);
 });
+test('a finalized-deployment claim requires its validated deployment plan',async()=>{
+  await assert.rejects(readLiveBurnPair({clients:[client(),client()],selection,
+    deploymentEvidence:{status:'VERIFIED_PAUSED_FORGE'}}),/BURN_PAIR_DEPLOYMENT_CHANGED/);
+});
 
 test('batched read transports preserve provider identity, block pins and out-of-order RPC results',async()=>{
   const requests=[];

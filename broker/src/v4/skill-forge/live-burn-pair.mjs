@@ -4,7 +4,7 @@ import v2 from '../../../../deployments/robinhood-automation-v2.json' with { typ
 import v3 from '../../../../deployments/robinhood-automation-v3.json' with { type: 'json' };
 import agent from '../../../../deployments/robinhood-punk-agent-account.json' with { type: 'json' };
 import release from '../../../../deployments/robinhood-skill-forge.json' with { type: 'json' };
-import { inspectForgeStack, validateForgeDeploymentPlan } from './forge-deployment.mjs';
+import { forgeManifestCandidates, inspectForgeStack, validateForgeDeploymentPlan } from './forge-deployment.mjs';
 
 const valid = (value, code) => { if (!value) throw Error(code); };
 const same = (a, b) => typeof a === 'string' && typeof b === 'string' && a.toLowerCase() === b.toLowerCase();
@@ -58,12 +58,16 @@ export function validateBurnTestSelection(value) {
 
 // Setup diagnostics only: no calldata, signer, token approval, credit expenditure
 // or burn authority. Unknown inventories and off-chain obligations stay unknown.
-export async function readLiveBurnPair({ clients, selection: input, plan = null, build = null, now = Date.now }) {
+export async function readLiveBurnPair({ clients, selection: input, plan = null, build = null, deploymentEvidence = null, now = Date.now }) {
   const selection = validateBurnTestSelection(input);
   valid(Array.isArray(clients) && clients.length === 2 && clients[0] !== clients[1], 'BURN_PAIR_RPC_PAIR_REQUIRED');
   if (plan) {
     validateForgeDeploymentPlan(plan, build);
     valid(same(plan.administrator, selection.owner) && same(plan.pins.collection, selection.collection), 'BURN_PAIR_DEPLOYMENT_CHANGED');
+  }
+  if (deploymentEvidence) {
+    valid(plan, 'BURN_PAIR_DEPLOYMENT_CHANGED');
+    forgeManifestCandidates({ plan, build, evidence: deploymentEvidence });
   }
   const heads = await Promise.all(clients.map(async client => {
     const [chainId, block] = await Promise.all([client.getChainId(), client.getBlock({ blockTag: 'latest' })]);
@@ -79,6 +83,11 @@ export async function readLiveBurnPair({ clients, selection: input, plan = null,
       client.getBlock({ blockNumber: head.number }), client.getCode({ address: selection.collection, blockNumber: head.number }),
     ]);
     valid(same(canonical.hash, head.hash) && canonical.timestamp === head.timestamp, 'BURN_PAIR_PROVIDERS_DISAGREE');
+    if (deploymentEvidence) {
+      valid(BigInt(deploymentEvidence.blockNumber) <= head.number, 'BURN_PAIR_DEPLOYMENT_CHANGED');
+      const finalized = await client.getBlock({ blockNumber: BigInt(deploymentEvidence.blockNumber) });
+      valid(same(finalized.hash, deploymentEvidence.blockHash), 'BURN_PAIR_DEPLOYMENT_CHANGED');
+    }
     const read = (address, functionName, args = []) => client.readContract({ address, abi: ABI, functionName, args, blockNumber: head.number });
     valid(keccak256(collectionCode ?? '0x') === release.collectionCodeHash,
       'BURN_PAIR_COLLECTION_CHANGED');
@@ -120,7 +129,9 @@ export async function readLiveBurnPair({ clients, selection: input, plan = null,
       const pendingGuardian = same(pendingOwner, selection.owner);
       const codeHashes = await inspectForgeStack({ client, plan, build, blockNumber: head.number, pendingGuardian });
       return { addresses: plan.addresses, codeHashes, registryAcceptancePending: pendingGuardian, paused: true,
-        targetCredits: String(credits), targetLearnedCount: String(learnedCount), finalizedDeploymentVerified: false };
+        targetCredits: String(credits), targetLearnedCount: String(learnedCount), finalizedDeploymentVerified: Boolean(deploymentEvidence),
+        ...(deploymentEvidence ? { deploymentVerificationBlockNumber: deploymentEvidence.blockNumber,
+          deploymentVerificationBlockHash: deploymentEvidence.blockHash } : {}) };
     })()]);
     const sourceWallets = walletPairs.map(pair => pair[0]), targetWallets = walletPairs.map(pair => pair[1]);
     valid(same((await client.getBlock({ blockNumber: head.number })).hash, head.hash), 'BURN_PAIR_REORG');

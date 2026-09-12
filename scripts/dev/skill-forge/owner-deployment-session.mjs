@@ -19,7 +19,7 @@ function verificationFailure(error, stage) {
     : ['FORGE_RPC_UNAVAILABLE', 'FORGE_ARCHIVE_STATE_UNAVAILABLE'].includes(code) ? 'UNAVAILABLE' : 'FAILED' };
 }
 
-export function openOwnerDeploymentSession({ path, clients, endpoints, build, administrator, localFixture = false, pins = null, now = Date.now }) {
+export function openOwnerDeploymentSession({ path, clients, endpoints, stateClients = clients, stateEndpoints = endpoints, build, administrator, localFixture = false, pins = null, now = Date.now }) {
   valid(clients.length === (localFixture ? 1 : 2), 'FORGE_DEPLOYMENT_RPC_PAIR_REQUIRED');
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   valid(!existsSync(path) || lstatSync(path).isFile() && !lstatSync(path).isSymbolicLink(), 'INVALID_OWNER_DEPLOYMENT_JOURNAL');
@@ -144,10 +144,11 @@ export function openOwnerDeploymentSession({ path, clients, endpoints, build, ad
     }
     if (!state.verification && state.steps.every(step => step.status === 'INCLUDED')) {
       try {
-        state.evidence = await verifyForgeDeployment({ clients, build, plan: state.packet.plan,
+        state.evidence = await verifyForgeDeployment({ clients, stateClients, build, plan: state.packet.plan,
           transactionHashes: state.steps.map(step => step.transactionHash), acceptanceReview: state.steps[1].review, localFixture });
         if (!localFixture) state.candidates = forgeManifestCandidates({ plan: state.packet.plan, evidence: state.evidence, build });
-        state.verification = { status: 'VERIFIED', stage: 'FINALIZED_DEPLOYMENT', code: null };
+        state.verification = { status: 'VERIFIED', stage: 'FINALIZED_DEPLOYMENT', code: null,
+          receiptEndpoints: endpoints, stateEndpoints };
       } catch (error) {
         state.evidence = null; state.candidates = null;
         state.verification = verificationFailure(error, 'FINALIZED_DEPLOYMENT');

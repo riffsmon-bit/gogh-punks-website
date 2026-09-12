@@ -175,15 +175,16 @@ export function assertForgeDeploymentTransaction({ plan, index, transaction: tx,
   return step;
 }
 
-export async function verifyForgeDeployment({ clients, plan, build, transactionHashes, localFixture = false, acceptanceReview = null }) {
+export async function verifyForgeDeployment({ clients, stateClients = clients, plan, build, transactionHashes, localFixture = false, acceptanceReview = null }) {
   validateForgeDeploymentPlan(plan, build, { localFixture });
   valid(Array.isArray(clients) && clients.length === (localFixture ? 1 : 2)
+    && Array.isArray(stateClients) && stateClients.length === clients.length
     && Array.isArray(transactionHashes) && transactionHashes.length === 2
     && transactionHashes.every(h => HASH.test(h)) && !same(...transactionHashes), 'INVALID_FORGE_DEPLOYMENT_RECEIPTS');
   const heads = await Promise.all(clients.map(client => client.getBlock({ blockTag: localFixture ? 'latest' : 'finalized' })));
   const final = heads.reduce((a, b) => a.number < b.number ? a : b);
   const observations = [];
-  for (const client of clients) {
+  for (const [providerIndex, client] of clients.entries()) {
     valid(await client.getChainId() === plan.chainId, 'FORGE_DEPLOYMENT_WRONG_CHAIN');
     const anchor = await client.getBlock({ blockNumber: BigInt(plan.anchor.number) });
     valid(same(anchor.hash, plan.anchor.hash) && Number(anchor.timestamp) === plan.anchor.timestamp, 'FORGE_DEPLOYMENT_ANCHOR_CHANGED');
@@ -214,7 +215,14 @@ export async function verifyForgeDeployment({ clients, plan, build, transactionH
       previousBlock = receipt.blockNumber; previousIndex = receipt.transactionIndex;
       fees.push(String(receipt.gasUsed * receipt.effectiveGasPrice));
     }
-    const codeHashes = await inspectForgeStack({ client, plan, build, blockNumber: final.number });
+    // Receipt/header providers may prune state. An independent pair of state
+    // providers must read this same finalized block, never latest or a fallback.
+    const stateClient = stateClients[providerIndex];
+    const stateBlock = await stateClient.getBlock({ blockNumber: final.number });
+    valid(stateBlock.number === final.number && same(stateBlock.hash, final.hash)
+      && stateBlock.timestamp === final.timestamp, 'FORGE_FINALIZED_PROVIDERS_DISAGREE');
+    const codeHashes = await inspectForgeStack({ client: stateClient, plan, build, blockNumber: final.number });
+    valid(same((await stateClient.getBlock({ blockNumber: final.number })).hash, final.hash), 'FORGE_DEPLOYMENT_REORG');
     valid(same((await client.getBlock({ blockNumber: final.number })).hash, final.hash), 'FORGE_DEPLOYMENT_REORG');
     observations.push({ codeHashes, fees });
   }

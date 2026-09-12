@@ -1,6 +1,7 @@
 import { readFile, stat } from 'node:fs/promises';
 import { createPublicClient, http } from 'viem';
 import { loadForgeDeploymentBuild, verifyForgeDeployment, forgeManifestCandidates } from '../broker/src/v4/skill-forge/forge-deployment.mjs';
+import { createFinalizedStateClients, finalizedStateEndpoints } from './dev/skill-forge/finalized-state-clients.mjs';
 
 const args = process.argv.slice(2);
 if (args.length !== 3 || args[0] !== '--live-readonly' || !args[1].startsWith('--plan=')
@@ -15,9 +16,9 @@ try {
   const clients = ['https://robinhood-rpc.publicnode.com', 'https://rpc.mainnet.chain.robinhood.com'].map(url =>
     createPublicClient({ transport: http(url, { timeout: 15000, retryCount: 0 }), cacheTime: 0 }));
   const build = await loadForgeDeploymentBuild();
-  const evidence = await verifyForgeDeployment({ clients, plan, build, acceptanceReview, transactionHashes: args[2].slice('--transactions='.length).split(',') });
+  const evidence = await verifyForgeDeployment({ clients, stateClients: createFinalizedStateClients(), plan, build, acceptanceReview, transactionHashes: args[2].slice('--transactions='.length).split(',') });
   console.log(JSON.stringify({ evidence, manifestCandidates: forgeManifestCandidates({ plan, evidence, build }),
-    publicTransactions: 0, manifestsWritten: false }, null, 2));
+    stateEndpoints: finalizedStateEndpoints, publicTransactions: 0, manifestsWritten: false }, null, 2));
 } catch (error) {
   console.error(JSON.stringify({ status: 'BLOCKED', code: /^[A-Z_]+$/.test(error.message) ? error.message : 'FORGE_PUBLIC_DEPLOYMENT_UNVERIFIED',
     publicTransactions: 0, manifestsWritten: false })); process.exitCode = 1;

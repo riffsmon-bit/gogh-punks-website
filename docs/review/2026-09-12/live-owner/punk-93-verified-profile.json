@@ -1,0 +1,29 @@
+{
+  "tokenId": "93",
+  "owner": "0xC7f55cE6A7dF9A79cc4A643a5081230F890c7AA6",
+  "profile": {
+    "status": "VERIFIED_READ_ONLY",
+    "ownership": "ORIGINAL_NFT",
+    "verified": true,
+    "tokenId": "93",
+    "owner": "0xC7f55cE6A7dF9A79cc4A643a5081230F890c7AA6",
+    "collection": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+    "registry": "0xc2a1bd47fbc0fe33e53c85f130be53591c898e83",
+    "progression": "0x08ada19edf9c387dc07a181069a1848c66ca2da4",
+    "trainingCredits": "0",
+    "learnedSkills": [],
+    "equippedSkills": [],
+    "unlockedSlots": 1,
+    "claimedStartingSlots": 0,
+    "slotCap": 7,
+    "blockNumber": "61369169",
+    "blockHash": "0x4f25815ec64276c141f332b3a3699158efa4e3c615d0a0b52c52a8a0974cdbc4",
+    "blockTime": 1789242919000,
+    "effectiveMcpTools": [],
+    "walletAuthority": "NONE",
+    "canLearn": false,
+    "canEquip": false,
+    "canBurn": false,
+    "note": "Confirmed token-bound progression. Read-only canary; training transactions and burns are locked."
+  }
+}
