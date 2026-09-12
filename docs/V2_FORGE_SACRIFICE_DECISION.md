@@ -1,4 +1,10 @@
-# Credit-source decision: permanent retirement or literal burn
+# Credit-source decision: keep literal burns disabled
+
+**Owner decision, September 11, 2026: keep literal burns disabled for now.**
+Production sacrifice and burn-based credit issuance stay locked while wallet
+recovery is redesigned. The recovery-vault alternative below has not been selected
+or authorized. No contract, credit, NFT transfer or production setting changes from
+recording this decision.
 
 **Deferred beyond the September 16 release.** The owner confirmed that training and
 burns can follow reliable V2 minting and Forge research/loadouts. This proposal is
@@ -19,7 +25,7 @@ arbitrary future deposits. A warning, signature or empty native balance does not
 implement post-burn recovery. This is why a production credit source cannot safely
 be produced by replacing a mock burn call with the collection's real burn call.
 
-## Concrete alternative for approval: permanent retirement with recovery
+## Deferred alternative: permanent retirement with recovery
 
 1. The current owner selects a sacrifice and a distinct, still-active training Punk.
 2. Both must be owned by that caller at the same transaction boundary. The sacrifice
@@ -47,7 +53,7 @@ account runtimes, and an explicit rule for who remains the recovery beneficiary.
 The current burn-only `awardTrainingCredit` must not silently accept a vault-held
 token. No manifest or transaction authority changes merely from this document.
 
-## If literal burns are retained
+## Current direction
 
 Keep production sacrifice/credit issuance disabled while a different account recovery
 architecture is designed and accepted. Continue shipping the research interface and

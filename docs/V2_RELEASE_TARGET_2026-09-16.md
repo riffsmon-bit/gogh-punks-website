@@ -50,6 +50,10 @@ change the original-NFT progression design to bypass deployment work.
 
 ## Deferred training and burns
 
+The owner explicitly chose to **keep literal burns disabled for now**. Production
+sacrifice and burn-based credit issuance stay locked; a recovery vault was not
+selected. This decision does not delay independent V2 minting or research testing.
+
 The credit-source/recovery choice, live training migrations and restricted roles,
 training-contract enablement, paid credit/slot/learning actions and first-sacrifice
 acceptance belong to a later release. The owner has deferred these capabilities;

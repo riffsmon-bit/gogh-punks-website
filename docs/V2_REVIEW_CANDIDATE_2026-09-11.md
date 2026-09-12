@@ -134,6 +134,8 @@ profile does not satisfy live loadout acceptance.
 
 The sacrifice/recovery choice, production training source and enablement, staged
 training migrations/roles and first burn belong to the later training release.
+The owner has now explicitly chosen to keep literal burns disabled for now; the
+recovery-vault proposal remains unselected and no sacrifice credits are enabled.
 Their unresolved status does not block independent V2 minting or research work.
 The prepared code stays gated; this scope decision does not deploy a contract,
 grant a credit, promote a research skill to READY or change production settings.

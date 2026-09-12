@@ -8,6 +8,15 @@ using the owner wallet and selected original Punk. The #44 localhost page is onl
 a disposable training fixture. Hosted `preview=1` is a visual fixture whose local
 chat endpoint is not served by Netlify.
 
+Chat, mission review and gas setup can be tested in the full owner-connected
+preview now. The server mint worker does not automatically run on a PR preview:
+[Netlify schedules functions only on published deploys](https://docs.netlify.com/build/functions/scheduled-functions/).
+A controlled manual worker invocation is supported by Netlify, but requires the
+intended environment, mission and transaction scope to be checked first. Opening
+the PR page and waiting is not a test of unattended server mint execution. The #93
+fix has not yet been released to the production worker or proven by a new live mint
+receipt. Verified production loadouts also remain pending their backing contracts.
+
 | Required behavior | Evidence already recorded | Production acceptance still needed |
 | --- | --- | --- |
 | Full broker loads before connecting; selecting/changing a Punk refreshes ownership | Actual-wallet startup and desktop/mobile hosted checks pass; empty-selection loop fixed | Recheck the accepted deployed revision with the owner wallet |
