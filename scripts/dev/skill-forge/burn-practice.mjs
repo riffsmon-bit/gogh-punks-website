@@ -12,8 +12,9 @@ const serial = value => JSON.stringify(value, (_key, item) => typeof item === 'b
 const exact = (input, keys) => input && !Array.isArray(input) && Object.keys(input).sort().join(',') === keys.sort().join(',');
 
 // Instantiated only by a new loopback Anvil harness. No RPC, signer or recipient HTTP overrides.
-export function createBurnPractice({ client, wallet, owner, collection, source, progression, wallets, snapshot, now = Date.now }) {
+export function createBurnPractice({ client, wallet, owner, collection, source, progression, wallets, snapshot, reviewedPreparation = null, now = Date.now }) {
   let record = null;
+  let preparedBurn = null;
   let preparing = false;
   const read = (functionName, args = [], blockNumber) => client.readContract({ address: collection, abi: collectionAbi, functionName, args, blockNumber });
   const guard = async () => {
@@ -50,9 +51,10 @@ export function createBurnPractice({ client, wallet, owner, collection, source, 
     preparing = true;
     try {
       const before = await state(); eligible(before);
-      const deadline = Math.min(Math.floor(now() / 1000) + 60, Number(before.blockTimestamp) + 60);
+      const candidate = reviewedPreparation ? await reviewedPreparation.prepare({ owner, sourceTokenId: '7', targetTokenId: '44', action: 'BURN' }) : null;
+      const deadline = candidate ? Number(candidate.burn.deadline) : Math.min(Math.floor(now() / 1000) + 60, Number(before.blockTimestamp) + 60);
       if (deadline * 1000 <= now()) throw Error('REVIEW_EXPIRED');
-      const data = encodeFunctionData({ abi: burnAbi, functionName: 'sacrifice', args: [7n, 44n, before.targetState,
+      const data = candidate?.transaction.data ?? encodeFunctionData({ abi: burnAbi, functionName: 'sacrifice', args: [7n, 44n, before.targetState,
         BigInt(before.sourceEpoch), BigInt(before.targetEpoch), BigInt(deadline)] });
       const call = { account: owner, to: source, data, value: 0n };
       await client.call(call);
@@ -64,10 +66,12 @@ export function createBurnPractice({ client, wallet, owner, collection, source, 
       const review = { intentId: randomBytes(32).toString('hex'), ...before, deadline,
         creditGain: 1, nextSkill: 'Contract Detective', nextSkillCost: 1,
         currentSkillLevel: 0, resultingSkillLevel: 1,
-        maximumNetworkFeeWei: String(gas * gasPrice),
-        transaction: { from: owner, to: source, data, value: '0x0', chainId: '0x7a69',
+        maximumNetworkFeeWei: candidate?.maximumNetworkFeeWei ?? String(gas * gasPrice),
+        contract: candidate ? 'GoghReviewedBurnSource' : 'LocalReviewedBurnSource',
+        transaction: candidate?.transaction ?? { from: owner, to: source, data, value: '0x0', chainId: '0x7a69',
           nonce: `0x${nonce.toString(16)}`, gas: `0x${gas.toString(16)}`, gasPrice: `0x${gasPrice.toString(16)}` } };
       record = { status: 'PREPARED', review, transactionHash: null };
+      preparedBurn = candidate;
       return record;
     } finally { preparing = false; }
   }
@@ -80,6 +84,11 @@ export function createBurnPractice({ client, wallet, owner, collection, source, 
     // Never retry a send. A missing/reorganized receipt keeps the review unresolved.
     entry.status = 'SUBMITTED';
     try {
+      if (reviewedPreparation) {
+        const verified = await reviewedPreparation.verifyReceipt(preparedBurn, entry.transactionHash);
+        if (verified.status === 'REVERTED') { entry.status = 'REVERTED'; return entry; }
+        if (verified.status !== 'CONFIRMED') return entry;
+      }
       const receipt = await client.getTransactionReceipt({ hash: entry.transactionHash });
       const block = await client.getBlock({ blockNumber: receipt.blockNumber });
       const transaction = await client.getTransaction({ hash: entry.transactionHash });
@@ -115,6 +124,7 @@ export function createBurnPractice({ client, wallet, owner, collection, source, 
       if (now() > record.review.deadline * 1000) throw Error('REVIEW_EXPIRED');
       const latest = await state(); eligible(latest);
       if (fingerprint(latest) !== fingerprint(record.review)) throw Error('REVIEW_STATE_CHANGED');
+      if (reviewedPreparation) await reviewedPreparation.recheck(preparedBurn);
       const transaction = record.review.transaction;
       const [nonce, latestNonce, balance] = await Promise.all([client.getTransactionCount({ address: owner, blockTag: 'pending' }),
         client.getTransactionCount({ address: owner, blockTag: 'latest' }), client.getBalance({ address: owner })]);

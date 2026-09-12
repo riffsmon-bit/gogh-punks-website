@@ -18,12 +18,10 @@ while pursuing recovery. The recovery-vault alternative was not selected.
 The requested flow is prepared below; it is not enabled in production. No real
 burn, credit issuance, contract deployment or wallet transaction was performed.
 
-**Deferred beyond the September 16 release.** The owner confirmed that training and
-burns can follow reliable V2 minting and Forge research/loadouts. This proposal is
-retained for that later work; it is not a pending approval blocking V2 minting.
-
-The tested learning/equipping flow can be completed independently. This decision
-defines the later original-Punk credit source and irreversible confirmation.
+**Required for September 16.** On September 12 the owner explicitly included
+burn-to-training in next week's launch and requested that the contracts be built,
+deployed, connected and tested. This supersedes the earlier launch deferral.
+Contract and integration readiness remain required before live execution.
 
 ## Required owner flow
 

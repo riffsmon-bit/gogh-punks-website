@@ -8,7 +8,7 @@ import { startPreview } from './dev/skill-forge/preview-server.mjs';
 if (process.argv.length !== 3 || process.argv[2] !== '--local-only') throw Error('Requires --local-only');
 const preview = await startPreview({ controlCenterTraining: true, reviewedTraining: true, burnPractice: true });
 const profile = await mkdtemp(join(tmpdir(), 'gogh-burn-practice-chrome-'));
-const output = new URL('../docs/review/2026-09-11/burn-practice/', import.meta.url);
+const output = new URL('../docs/review/2026-09-12/atomic-forge/', import.meta.url);
 let chrome, ws;
 try {
   await mkdir(output, { recursive: true });

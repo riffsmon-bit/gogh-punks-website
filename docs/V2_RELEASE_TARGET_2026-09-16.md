@@ -4,12 +4,15 @@
 live test guide. The [guide is prepared](LIVE_OWNER_TEST_GUIDE_2026-09-16.md).
 The [burn-source candidate](v2-forge-reviewed-burn-source-checkpoint.md) now passes
 contract and local integration checks, while production burn integration remains
-open. Until a scope change is confirmed, retain the release boundary below.
+open. The owner explicitly included burn-to-training in the September 16 launch.
+This supersedes the earlier training/burn deferral.
+The [connected-contract checkpoint](V2_FORGE_CONTRACT_DEPLOYMENT.md) records atomic
+deployment, application test wiring and the remaining owner-wallet deployment step.
 
 The owner confirmed the Wednesday, September 16 target (America/Detroit):
-**reliable V2 minting, agent gas funding, mission setup/chat, and Forge research/loadouts**.
-Permanent training, credit earning and burns can follow. Their unresolved design or
-production provisioning must not hold up the independent V2 minting release.
+**reliable V2 minting, agent gas funding, mission setup/chat, Forge research/loadouts,
+and owner-reviewed burn-to-training**. Contract deployment, wallet review, durable
+transaction recovery and live burn/training acceptance are now launch requirements.
 
 The failed preview was the **Netlify / GitHub PR preview**, not the local #44
 training fixture. Start review at [the complete broker in Talk](https://deploy-preview-47.preview.goghpunks.xyz/broker/v2/?tab=talk).
@@ -30,9 +33,9 @@ the original-NFT Forge. The verified application revision is `c0a6b3c`.
 - Release Forge read-only research and verified original-NFT loadout functionality.
   Diagnostics do not claim learned/equipped capabilities or wallet spending authority.
   Unknown loadout data is not zero, and a placeholder is not live acceptance.
-- Leave permanent learning, slot purchases, credit issuance and sacrifice/burn
-  execution disabled. The existing gated implementation can remain prepared for a
-  later release; it is not part of Wednesday's launch requirement.
+- Include owner-reviewed literal burn, exactly-once credit issuance, permanent
+  learning, slot unlocks and equip/unequip. Keep runtime gates closed until the
+  deployed stack, complete wallet review and transaction recovery pass acceptance.
 
 ## Acceptance required for Wednesday
 
@@ -43,10 +46,10 @@ mint receipt or production worker readiness.
 | Date | Required result |
 | --- | --- |
 | Sep 11 | Confirm scope, publish a working full-broker PR preview and preserve production chat/gas behavior. |
-| Sep 12–13 | Exercise connect/select, both gas funding sources, chat-to-review, mission activation/scouting, receipts, collection and failure recovery. Verify research and real loadout state with owner/transfer checks. |
-| Mon Sep 14 | Prepare rollout/rollback for this scope and complete controlled live mint acceptance, including #93 session accounting and canonical receipts. |
+| Sep 12–13 | Exercise connect/select, both gas funding sources, chat-to-review, mission activation/scouting, receipts, collection and failure recovery. Deploy/rehearse the connected Forge contracts; test burn, credit, training and wallet recovery alongside research/loadouts. |
+| Mon Sep 14 | Prepare rollout/rollback for this scope and complete controlled live mint acceptance, including #93 session accounting, controlled owner-selected burn/training and canonical receipts. |
 | Tue Sep 15 | Resolve acceptance failures, freeze the accepted candidate and check the hosted build/worker health. |
-| Wed Sep 16 | Release the accepted V2 minting and Forge research/loadout scope; report actual enabled capabilities. |
+| Wed Sep 16 | Release the accepted V2 broker and Forge burn-to-training scope; report actual enabled capabilities. |
 
 The verified loadout implementation still needs a deployed, pinned backing state.
 The current read manifest has null registry/progression/source addresses. That is
@@ -54,23 +57,24 @@ an open **loadout acceptance item**, separate from enabling permanent training o
 burns. Do not replace it with a mock source, assume an empty loadout, or silently
 change the original-NFT progression design to bypass deployment work.
 
-## Deferred training and burns
+## Burn-to-training launch requirement
 
-The latest September 11 direction is **owner-approved literal burn after wallet
-review**: select one owned Punk to burn and a different owned Punk to receive a
-skill upgrade. This supersedes the earlier product decision to keep literal burns
-disabled pending recovery design. A recovery vault was not selected. Production
-execution remains disabled because the real source and transaction flow are
-unfinished; this does not delay independent V2 minting or research testing.
+The September 12 owner decision includes literal burning in next week's launch.
+An owner selects a source Punk and a different owned recipient, reviews all source
+wallets, withdraws known assets and confirms the permanent loss of the NFT and its
+wallet access. No recovery vault was selected. Burning earns one credit atomically;
+learning, slot unlocks and equipping remain separate exact reviews.
 
-The credit-source/recovery choice, live training migrations and restricted roles,
-training-contract enablement, paid credit/slot/learning actions and first-sacrifice
-acceptance belong to a later release. The owner has deferred these capabilities;
-there is no need to resolve the burn-versus-retirement choice to proceed with V2
-minting or independent research. Prepared work remains documented in
-[V2_REVIEW_CANDIDATE_2026-09-11.md](V2_REVIEW_CANDIDATE_2026-09-11.md),
-[V2_FORGE_DATABASE_ROLLOUT.md](V2_FORGE_DATABASE_ROLLOUT.md) and
-[V2_FORGE_SACRIFICE_DECISION.md](V2_FORGE_SACRIFICE_DECISION.md).
+The remaining critical path is the deployed/pinned registry, reviewed progression
+and burn source; production wallet/inventory and mission cleanup; durable approval
+and burn recovery with independent finalized receipt checks; restricted database
+roles; hosted desktop/mobile acceptance; and the owner's explicitly selected first
+live burn/training. Independent broker testing continues while these are completed.
+Local fixture success does not satisfy these live requirements.
+
+See [the burn decision](V2_FORGE_SACRIFICE_DECISION.md),
+[contract checkpoint](v2-forge-reviewed-burn-source-checkpoint.md) and
+[database rollout](V2_FORGE_DATABASE_ROLLOUT.md).
 
 ## Preview corrections and current evidence
 
@@ -89,7 +93,7 @@ Both wallet adapters now ignore unchanged selections while publishing real chang
 - Prior complete Solidity verification passed 234 tests with 1,024 fuzz runs where
   applicable. The continuation changed no Solidity.
 - Native PostgreSQL and disposable-chain training checks also passed; those are
-  preparation for the deferred training release, not Wednesday's acceptance gate.
+  preparation for the now-required training release; live acceptance remains open.
 
 No production release, production database change, real mint, contract deployment
 or real burn was performed in preparing this candidate. The #93 worker fix remains

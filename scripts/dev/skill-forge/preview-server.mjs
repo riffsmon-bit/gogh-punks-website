@@ -20,6 +20,7 @@ import { FORGE_MINIMUM_SUPPLY } from '../../../broker/src/v4/skill-forge/supply-
 import { SLOT_POLICY } from '../../../broker/src/v4/skill-forge/slot-policy.mjs';
 import { buildAllocationTree } from '../../../broker/src/v4/skill-forge/rarity-allocation.mjs';
 import { createBurnPractice } from './burn-practice.mjs';
+import { createReviewedBurnPreparation } from '../../../broker/src/v4/skill-forge/reviewed-burn.mjs';
 
 export const catalog = [
   { id: 3, name: 'Contract Detective', mark: '01', status: 'TESTING', capability: 'CONTRACT_READ', bit: 1n, tools: ['inspect_contract'], description: 'Inspect code, interface support and proxy slots. Findings are evidence, not a security guarantee.', boundary: 'Read-only. No signing or spending authority.' },
@@ -86,15 +87,27 @@ export async function startPreview({ port = 0, researchClient, controlCenterTrai
     const deploy = async (a, args) => (await receipt(await wallet.deployContract({ abi: a.abi, bytecode: a.bytecode.object, args, chain: null }))).contractAddress;
     const write = async (a, address, functionName, args) => receipt(await wallet.writeContract({ abi: a.abi, address, functionName, args, chain: null }));
     const nft = burnPractice ? await artifact('LocalReviewedBurn.sol', 'LocalBurnPunks') : await artifact('GoghSkillForge.t.sol', 'SkillForgeMockPunks');
-    const training = burnPractice ? await artifact('LocalReviewedBurn.sol', 'LocalReviewedBurnSource') : await artifact('GoghSkillForge.t.sol', 'LocalSkillTrainingSource');
+    const training = burnPractice ? await artifact('GoghReviewedBurnSource.sol', 'GoghReviewedBurnSource') : await artifact('GoghSkillForge.t.sol', 'LocalSkillTrainingSource');
     const reg = await artifact('GoghSkillRegistry.sol', 'GoghSkillRegistry');
     const prog = reviewedTraining ? await artifact('GoghReviewedSkillProgression.sol', 'GoghReviewedSkillProgression')
       : await artifact('GoghSkillProgression.sol', 'GoghSkillProgression');
-    const collection = resume?.collection ?? await deploy(nft, []), registry = resume?.registry ?? await deploy(reg, [owner]);
-    const source = resume ? null : await deploy(training, [collection]);
+    const collection = resume?.collection ?? await deploy(nft, []);
     const allocation = reviewedTraining ? buildAllocationTree({ chainId: 31337, collection,
       snapshotHash: keccak256('0x2222'), records: [1, 44, 7].map(tokenId => ({ tokenId: String(tokenId), startingSlots: 1 })) }) : null;
-    const progression = resume?.progression ?? await deploy(prog, reviewedTraining
+    let stack = null;
+    if (burnPractice) {
+      const bundle = await artifact('GoghForgeDeployment.sol', 'GoghForgeDeployment');
+      const deployed = await deploy(bundle, [31337n, collection, keccak256(await client.getCode({ address: collection })), owner, allocation.root, keccak256('0x2222')]);
+      const addresses = await Promise.all(['registry', 'progression', 'trainingSource'].map(functionName => client.readContract({ address: deployed, abi: bundle.abi, functionName })));
+      stack = { registry: addresses[0], progression: addresses[1], source: addresses[2] };
+      if (!await client.readContract({ address: stack.registry, abi: reg.abi, functionName: 'globallyDisabled' })) throw Error('NEW_FORGE_MUST_START_PAUSED');
+      await write(reg, stack.registry, 'acceptOwnership', []);
+      // Fixture-only activation on this newly owned Anvil; never an HTTP switch.
+      await write(reg, stack.registry, 'setEmergencyControls', [false, 0n]);
+    }
+    const registry = stack?.registry ?? resume?.registry ?? await deploy(reg, [owner]);
+    const source = stack?.source ?? (resume ? null : await deploy(training, [collection]));
+    const progression = stack?.progression ?? resume?.progression ?? await deploy(prog, reviewedTraining
       ? [collection, registry, source, allocation.root, keccak256('0x2222')]
       : [collection, registry, source, SLOT_POLICY.baseSlots, SLOT_POLICY.maxEquippedSkills]);
     const fixtureTraining = async (functionName, args) => {
@@ -110,7 +123,7 @@ export async function startPreview({ port = 0, researchClient, controlCenterTrai
         deadline: (await client.getBlock()).timestamp + 60n }]);
     };
     if (!resume) {
-      await write(training, source, 'bind', [progression]);
+      if (!stack) await write(training, source, 'bind', [progression]);
       for (const id of [1, 44, 7, 1001, 1002, 1003, 1004, 1005]) await write(nft, collection, 'mint', [owner, BigInt(id)]);
       if (reviewedTraining) for (const id of [1n, 44n, 7n]) await fixtureTraining('claimRaritySlots', [id]);
     }
@@ -164,7 +177,13 @@ export async function startPreview({ port = 0, researchClient, controlCenterTrai
     const advanceLocalClock = async () => {
       if (await client.getChainId() !== 31337) throw new Error('LOCAL_CHAIN_CHANGED');
       const block = await client.getBlock();
-      if (Date.now() - Number(block.timestamp) * 1000 > 10_000) await client.request({ method: 'evm_mine' });
+      if (Date.now() - Number(block.timestamp) * 1000 > 10_000) {
+        // Snapshot/revert expiry tests can leave Anvil's timestamp offset behind
+        // wall time. Set the next local timestamp once, so nested reads do not
+        // keep mining different anchors while catching up one second at a time.
+        await client.request({ method: 'evm_setNextBlockTimestamp', params: [Math.floor(Date.now() / 1000)] });
+        await client.request({ method: 'evm_mine' });
+      }
     };
     const readState = async tokenId => { await advanceLocalClock(); return pinnedRead(tokenId); };
     const runtime = createResearchSkillRuntime({ readState, packages,
@@ -246,7 +265,13 @@ export async function startPreview({ port = 0, researchClient, controlCenterTrai
         return transactionHash;
       } });
     let trainingIntents = makeCoordinator();
-    const burn = burnPractice ? createBurnPractice({ client: trainingClient, wallet, owner, collection, source, progression, wallets: burnWallets, snapshot }) : null;
+    let reviewedPreparation = null;
+    if (burnPractice) {
+      const deployment = { chainId: 31337, collection, registry, progression, burnSource: source, feeCeilingWei: '1000000000000000' };
+      for (const role of ['collection', 'registry', 'progression', 'burnSource']) deployment[`${role}CodeHash`] = keccak256(await client.getCode({ address: deployment[role] }));
+      reviewedPreparation = createReviewedBurnPreparation({ client: trainingClient, deployment });
+    }
+    const burn = burnPractice ? createBurnPractice({ client: trainingClient, wallet, owner, collection, source, progression, wallets: burnWallets, snapshot, reviewedPreparation }) : null;
     // Validate persisted intents and receipts before exposing the resumed service.
     if (resume) for (const id of [1, 44, 7]) await trainingIntents.recover(id);
     const files = new Map([

@@ -6,6 +6,9 @@ import { createServer } from 'node:net';
 import { createPublicClient, createWalletClient, http, keccak256, zeroAddress } from 'viem';
 import { createReviewedBurnPreparation } from '../broker/src/v4/skill-forge/reviewed-burn.mjs';
 import { encodeBurnReviewCancellation } from '../site/forge-burn-calldata.js';
+import { encodeReviewedTrainingCall } from '../site/forge-reviewed-calldata.js';
+import { loadForgeDeploymentBuild, buildForgeDeploymentPlan, verifyForgeDeployment, forgeManifestCandidates } from '../broker/src/v4/skill-forge/forge-deployment.mjs';
+import { createProgressionReader } from '../broker/src/v4/skill-forge/capability-resolver.mjs';
 
 if (process.argv.length !== 3 || process.argv[2] !== '--local-only') throw Error('Requires --local-only');
 const artifact = async (file, name) => JSON.parse(await readFile(new URL(`../contracts/out/${file}/${name}.json`, import.meta.url), 'utf8'));
@@ -34,9 +37,44 @@ try {
   const sourceArtifact = await artifact('GoghReviewedBurnSource.sol', 'GoghReviewedBurnSource');
   const reg = await artifact('GoghSkillRegistry.sol', 'GoghSkillRegistry');
   const prog = await artifact('GoghReviewedSkillProgression.sol', 'GoghReviewedSkillProgression');
-  const collection = await deploy(nft, []), burnSource = await deploy(sourceArtifact, [collection]), registry = await deploy(reg, [owner]);
-  const progression = await deploy(prog, [collection, registry, burnSource, keccak256('0x1234'), keccak256('0x5678')]);
-  await write(sourceArtifact, burnSource, 'bindProgression', [progression]);
+  const collection = await deploy(nft, []);
+  const build = await loadForgeDeploymentBuild(), anchor = await client.getBlock();
+  const plan = buildForgeDeploymentPlan({ build, administrator: owner, localFixture: true, chainId: 31337,
+    nonce: String(await client.getTransactionCount({ address: owner })),
+    anchor: { number: String(anchor.number), hash: anchor.hash, timestamp: Number(anchor.timestamp) },
+    pins: { collection, collectionCodeHash: keccak256(await client.getCode({ address: collection })), allocationRoot: keccak256('0x1234'), snapshotHash: keccak256('0x5678') } });
+  const deploymentHashes = [];
+  for (const [i, tx] of plan.transactions.entries()) {
+    const hash = await wallet.sendTransaction({ account: owner, chain: null, ...(tx.to ? { to: tx.to } : {}),
+      data: tx.data, value: 0n, nonce: Number(tx.nonce), type: 'eip1559', gas: BigInt(plan.gasLimits[i]),
+      maxFeePerGas: BigInt(plan.maxFeePerGas), maxPriorityFeePerGas: 0n });
+    await receipt(hash); deploymentHashes.push(hash);
+  }
+  const stackEvidence = await verifyForgeDeployment({ clients: [client], plan, build, transactionHashes: deploymentHashes, localFixture: true });
+  assert.equal(stackEvidence.status, 'VERIFIED_PAUSED_FORGE');
+  assert.throws(() => forgeManifestCandidates({ plan, evidence: stackEvidence, build }), /FORGE_DEPLOYMENT_ENVIRONMENT_MISMATCH/);
+  const { trainingSource: burnSource, registry, progression } = plan.addresses;
+  for (const fault of ['calldata', 'value', 'fee', 'nonce', 'chain', 'reverted', 'block', 'runtime', 'immutable', 'owner', 'unpaused']) {
+    const badClient = { ...client,
+      getTransaction: async args => { const tx = await client.getTransaction(args); return { ...tx,
+        ...(fault === 'calldata' ? { input: '0x1234' } : fault === 'value' ? { value: 1n }
+          : fault === 'fee' ? { maxFeePerGas: BigInt(plan.maxFeePerGas) + 1n }
+          : fault === 'nonce' ? { nonce: tx.nonce + 1 } : fault === 'chain' ? { chainId: 1 } : {}) }; },
+      getTransactionReceipt: async args => { const r = await client.getTransactionReceipt(args); return { ...r,
+        ...(fault === 'reverted' ? { status: 'reverted' } : fault === 'block' ? { blockHash: keccak256('0xdead') } : {}) }; },
+      getCode: async args => { const code = await client.getCode(args);
+        if (args.address.toLowerCase() !== burnSource.toLowerCase()) return code;
+        if (fault === 'runtime') return `0x00${code.slice(4)}`;
+        if (fault === 'immutable') { const ref = Object.values(build.artifacts.trainingSource.deployedBytecode.immutableReferences)[0][0];
+          const at = 2 + ref.start * 2; return `${code.slice(0, at)}${'0'.repeat(64)}${code.slice(at + 64)}`; }
+        return code; },
+      readContract: async args => fault === 'owner' && args.functionName === 'owner' ? buyer
+        : fault === 'unpaused' && args.functionName === 'globallyDisabled' ? false : client.readContract(args),
+    };
+    await assert.rejects(verifyForgeDeployment({ clients: [badClient], plan, build, transactionHashes: deploymentHashes, localFixture: true }), /FORGE_/);
+  }
+  // Only this disposable Anvil is activated; the actual deployment begins paused.
+  await write(reg, registry, 'setEmergencyControls', [false, 0n]);
   for (let first = 1; first < 1121; first += 100) await write(nft, collection, 'mintReserve', [owner, BigInt(first), BigInt(Math.min(100, 1121 - first))]);
   const deployment = { chainId: 31337, collection, burnSource, registry, progression, feeCeilingWei: '1000000000000000' };
   for (const role of ['collection', 'burnSource', 'registry', 'progression']) deployment[`${role}CodeHash`] = keccak256(await client.getCode({ address: deployment[role] }));
@@ -101,12 +139,39 @@ try {
   assert.equal(await client.readContract({ address: progression, abi: prog.abi, functionName: 'trainingCredits', args: [44n] }), 1n);
   await assert.rejects(client.readContract({ address: collection, abi: nft.abi, functionName: 'ownerOf', args: [7n] }));
   assert.notEqual(await client.readContract({ address: collection, abi: nft.abi, functionName: 'ownerOf', args: [44n] }), zeroAddress);
+  const zero = `0x${'0'.repeat(64)}`, packageHash = keccak256('0x1234');
+  await write(reg, registry, 'register', [3, 1, packageHash, packageHash, zero, 1n, 0]);
+  const key = await client.readContract({ address: registry, abi: reg.abi, functionName: 'skillKey', args: [3, 1] });
+  await write(reg, registry, 'setStatus', [key, 3, zero]);
+  await write(reg, registry, 'setStatus', [key, 4, packageHash]);
+  const readProgression = (functionName, args = [44n]) => client.readContract({ address: progression, abi: prog.abi, functionName, args });
+  const train = async operation => {
+    const review = { tokenId: '44', operation, skillKey: ['learn', 'equip'].includes(operation) ? key : zero, slot: 0,
+      nonce: String(await readProgression('trainingReviewNonce')), stateHash: await readProgression('trainingReviewStateHash'),
+      deadline: String((await client.getBlock()).timestamp + 60n) };
+    return receipt(await wallet.sendTransaction({ to: progression, data: encodeReviewedTrainingCall(review), value: 0n, chain: null }));
+  };
+  await train('learn');
+  assert.equal(await readProgression('trainingCredits'), 0n);
+  assert.equal(await readProgression('learnedLevel', [44n, key]), 1);
+  assert.equal(await readProgression('effectiveCapabilities'), 0n);
+  await train('equip'); assert.equal(await readProgression('effectiveCapabilities'), 1n);
+  const readLoadout = createProgressionReader({ client, chainId: 31337, collection, registry, progression,
+    registryCodeHash: deployment.registryCodeHash, progressionCodeHash: deployment.progressionCodeHash });
+  assert.equal((await readLoadout('44')).equipped[0].key, key);
+  await train('unequip'); assert.equal(await readProgression('effectiveCapabilities'), 0n);
+  assert.equal(await readProgression('learnedCount'), 1n);
   const evidence = { status: 'PASS', environment: 'NEW_DISPOSABLE_ANVIL', productionTransactions: 0,
     sourceTokenId: '7', targetTokenId: '44', contract: 'GoghReviewedBurnSource', approvalTransaction: approvedHash,
     burnTransaction: burnedHash, tokenSpecificApproval: true, approvalDoesNotCredit: true, exactBrowserEncoding: true,
     sourceAndTargetRoundTripRejected: true, operatorApprovalRejected: true, cancellationInvalidates: true,
     globalPauseChecked: true, alteredReceiptRejected: true, missingReceiptPending: true, exactCreditEvents: true,
     previousPracticeReset: false, productionAuthority: false, walletInventoryReviewed: false };
+  evidence.atomicDeployment = stackEvidence;
+  evidence.deploymentCorruptionCasesRejected = 11;
+  evidence.localEvidenceCannotBecomePublicManifest = true;
+  evidence.burnCreditLearnEquipUnequip = true;
+  evidence.actualLoadoutReader = true;
   const folder = new URL('../docs/review/2026-09-12/reviewed-burn/', import.meta.url);
   await mkdir(folder, { recursive: true }); await writeFile(new URL('local-chain.json', folder), JSON.stringify(evidence, null, 2) + '\n');
   console.log(JSON.stringify(evidence, null, 2));

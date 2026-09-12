@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createPublicClient, createWalletClient, http, parseAbi, toFunctionSelector, zeroAddress } from 'viem';
 import { startPreview } from './dev/skill-forge/preview-server.mjs';
+import { encodeReviewedBurnCall } from '../site/forge-burn-calldata.js';
 
 if (process.argv.length !== 3 || process.argv[2] !== '--local-only') throw Error('Requires --local-only');
 const preview = await startPreview({ controlCenterTraining: true, reviewedTraining: true, burnPractice: true });
@@ -35,6 +36,8 @@ try {
   await post('prepare', { sourceTokenId: 7, targetTokenId: 44 }, 403, { origin: 'https://example.com' });
   await post('prepare', { sourceTokenId: 7, targetTokenId: 44 }, 403, { 'x-forge-nonce': 'wrong' });
   let record = await prepare();
+  assert.equal(record.review.contract, 'GoghReviewedBurnSource');
+  assert.ok(record.review.transaction.data.startsWith('0xab806ca2'));
   await post('confirm', { ...confirmation(record), typedConfirmation: 'BURN 44' }, 409);
   await post('confirm', { ...confirmation(record), acknowledgeAccessLoss: false }, 409);
   await post('confirm', { ...confirmation(record), transaction: record.review.transaction }, 409);
@@ -45,17 +48,19 @@ try {
   record = await prepare();
   const beforeExpiry = await checkpoint();
   await client.request({ method: 'evm_increaseTime', params: [61] }); await client.request({ method: 'evm_mine' });
-  await assert.rejects(callBurn(record), /REVIEW_EXPIRED/);
+  await assert.rejects(callBurn(record), new RegExp(toFunctionSelector('ReviewExpired()')));
   await post('confirm', confirmation(record), 409);
   await restore(beforeExpiry);
 
   record = await prepare();
   await preview.roundTripFixture(44);
-  await assert.rejects(callBurn(record), /OWNERSHIP_CHANGED/);
+  // The original NFT has no synchronous transfer hook. Its recipient round trip
+  // is detectable by the review service, while the on-chain owners still match.
+  await callBurn(record);
   await post('confirm', confirmation(record), 409);
   record = await prepare();
   await preview.roundTripFixture(7);
-  await assert.rejects(callBurn(record), /OWNERSHIP_CHANGED/);
+  await assert.rejects(callBurn(record), new RegExp(toFunctionSelector('TokenSpecificApprovalRequired()')));
   await post('confirm', confirmation(record), 409);
   await write('approve', [state.source, 7n]);
 
@@ -68,7 +73,11 @@ try {
   const beforeFloor = await checkpoint();
   for (let id = 3000n; id < 3008n; id++) await write('burn', [id]);
   assert.equal(await client.readContract({ address: state.collection, abi: nftAbi, functionName: 'totalSupply' }), 1111n);
-  await assert.rejects(callBurn(record), new RegExp(toFunctionSelector('SupplyFloorReached()')));
+  await assert.rejects(callBurn(record), new RegExp(toFunctionSelector('ReviewStateChanged()')));
+  const floorState = await client.readContract({ address: state.source, abi: parseAbi(['function burnReviewStateHash(uint256,uint256) view returns(bytes32)']),
+    functionName: 'burnReviewStateHash', args: [7n, 44n] });
+  const floorData = encodeReviewedBurnCall({ sourceTokenId: '7', targetTokenId: '44', nonce: '0', stateHash: floorState, deadline: String(record.review.deadline) });
+  await assert.rejects(client.call({ account: state.owner, to: state.source, data: floorData }), new RegExp(toFunctionSelector('SupplyFloorReached()')));
   assert.match(await post('confirm', confirmation(record), 409), /SUPPLY_FLOOR_REACHED/);
   assert.equal((await get()).credits, '0');
   await restore(beforeFloor);
@@ -125,7 +134,8 @@ try {
   target = await (await fetch(`${preview.url}/api/forge?tokenId=44`)).json();
   assert.equal(target.equipped[0], key);
   console.log(JSON.stringify({ result: 'PASS', source: 7, recipient: 44, chain: 'DISPOSABLE_31337',
-    prepareAndCancelNoWrites: true, explicitConfirmation: true, expiryAndOwnershipEpochs: true,
+    contract: 'GoghReviewedBurnSource', atomicStackDeployment: true,
+    prepareAndCancelNoWrites: true, explicitConfirmation: true, expiryAndTransferRechecks: true,
     supplyFloor: true, walletDustBlocks: true, approvalFailureAtomic: true, concurrentBurnSends: 1,
     receiptRecovery: true, burnTransaction: confirmed.transactionHash, exactlyOneCredit: true,
     separateLearnAndEquip: true, postBurnWalletAccessLost: true, publicChainTransactions: 0 }, null, 2));

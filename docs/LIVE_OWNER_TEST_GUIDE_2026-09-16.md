@@ -3,12 +3,12 @@
 **Prepared September 12. This is the test guide for the live release; it is not a
 claim that the new release or burn-to-training is already live.** Before the first
 run, fill in the released version and enabled features below. Run the core broker
-checks first. Run later-feature checks only when those features are explicitly
-listed as enabled in that release.
+checks first, then complete the required burn-to-training cases after its live
+enablement. Missing burn-to-training is an open launch failure, not a deferred pass.
+Run optional purchase/offer cases only when explicitly released.
 
-The currently agreed Wednesday target is chat, gas funding, missions/minting and
-Forge research/loadouts. Whether burn-to-training must also launch next week is
-being confirmed with the owner. Paid minting, floor purchases and collection offers
+The owner-confirmed Wednesday target is chat, gas funding, missions/minting,
+Forge research/loadouts and burn-to-training. Paid minting, floor purchases and collection offers
 have separate implementation and acceptance work.
 
 ## Your test setup
@@ -190,7 +190,7 @@ to test the interface.
 seller authority or private data. Record exactly which wallet generations and
 mission types were exercised.
 
-## 10. Burn-to-training — only after its separate live enablement
+## 10. Burn-to-training — required launch acceptance
 
 Do not run a real burn merely because this guide exists. This case starts only
 after the release explicitly enables the reviewed burn source and you personally

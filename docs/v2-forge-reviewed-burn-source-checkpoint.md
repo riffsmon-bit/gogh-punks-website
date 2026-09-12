@@ -1,8 +1,13 @@
 # Reviewed original-Punk burn source — September 12 checkpoint
 
+**Connected stack continuation:** [the deployment checkpoint](V2_FORGE_CONTRACT_DEPLOYMENT.md)
+adds atomic paused deployment, runtime/receipt attestation, manifest candidates
+and actual-source wiring in new browser practice instances. Public deployment and
+production burn integration remain open.
+
 The approved disposable review now has a contract candidate and an unsigned
-approval/burn preparation library. This is implementation evidence for the later
-training release, not a deployed or enabled production burn flow.
+approval/burn preparation library. This is implementation evidence for the
+September 16 training release; it is not a deployed or enabled production burn flow.
 
 The existing live local practice was preserved. Its confirmed Test #7 burn awarded
 Test #44 one credit; the owner spent that credit to unlock its second slot. That
@@ -105,8 +110,8 @@ authority flags. There is no production burn endpoint or public wallet sender fo
 this candidate. Production wallet inventory/recovery integration, durable burn
 intents and nonce/hash recovery, independent finalized receipt reconciliation,
 source mission/lifecycle cleanup, deployment verification and owner-operated live
-acceptance are still required. The currently agreed September 16 broker scope can
-be accepted independently; making burns a launch requirement is a scope change.
+acceptance are still required. The owner explicitly made burn-to-training a September 16 launch requirement
+on September 12; these items now belong to the release critical path.
 
 The owner requested a guide for the complete live product. It is prepared in
 [the live owner test guide](LIVE_OWNER_TEST_GUIDE_2026-09-16.md), with expected

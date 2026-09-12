@@ -1,13 +1,14 @@
-# September 16 acceptance: V2 minting and Forge research/loadouts
+# September 16 acceptance: V2 broker and Forge burn-to-training
 
 Owner-confirmed scope: agent gas funding, mission setup/chat, reliable V2 minting,
-Forge research and loadouts. Training and burns are deferred.
+Forge research/loadouts and owner-reviewed burn-to-training. The September 12
+owner decision supersedes the earlier deferral.
 
 September 12: the owner requested a complete test guide for the live release and
 reaffirmed the next-week launch target. Use the prepared
 [live owner test guide](LIVE_OWNER_TEST_GUIDE_2026-09-16.md) for steps, expected
-results and evidence. Its unexecuted live cases remain open. Until the owner
-confirms a scope change, the September 16 scope above remains the release target.
+results and evidence. Its unexecuted live cases remain open. Burn-to-training is
+required for September 16, including contract deployment and transaction recovery.
 
 September 11 additions: the owner requested directed-mint, floor-sweep and WETH
 collection-offer testing, with collections chosen by each user. See the
@@ -48,6 +49,7 @@ receipt. Verified production loadouts also remain pending their backing contract
 | Scouting reports progress and candidate rejection reasons | Candidate rejection display and worker tests pass | Observe the active worker; verify unavailable/rejected opportunities produce accurate status |
 | A confirmed mint appears in collection/activity and remains recoverable | Existing receipt, collection and withdrawal tests pass | Owner-controlled mint/collection/withdrawal journey against the deployed contracts |
 | Forge research reads real data with original-owner checks | Inspection, rarity and market adapters plus authority/continuity tests pass | Verify intended owner access, provider/market credentials and real read results; never label diagnostics as learned skills |
+| Burn-to-training destroys the selected source and awards exactly one recipient credit; learning/equipping use separate reviewed actions | Candidate contracts and isolated approval/burn receipts pass | Deploy and pin the complete stack, integrate source wallet recovery and mission shutdown, durable approval/burn intents and finalized reconciliation, then owner-selected live burn/learn/equip on desktop/mobile |
 | Forge loadout reflects original-NFT state and changes owner correctly | Reader, transfer, stale-result and disposable-chain tests pass | Deploy/attest the required backing state and verify slots/learned/equipped values. Current null deployment pins and unknown placeholders do not pass |
 
 Use one bounded mint mission for receipt acceptance: explicitly review its target,
