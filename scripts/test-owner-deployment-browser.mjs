@@ -23,7 +23,11 @@ try{
   const nft=JSON.parse(await readFile(new URL('../contracts/out/LocalReviewedBurn.sol/LocalBurnPunks.json',import.meta.url),'utf8'));
   const receipt=await client.waitForTransactionReceipt({hash:await wallet.deployContract({abi:nft.abi,bytecode:nft.bytecode.object,args:[],chain:null})});assert.equal(receipt.status,'success');
   const pins={collection:receipt.contractAddress,collectionCodeHash:keccak256(await client.getCode({address:receipt.contractAddress})),allocationRoot:keccak256('0x1234'),snapshotHash:keccak256('0x5678')};
-  const build=await loadForgeDeploymentBuild(),settings={path:join(dir,'journal.sqlite'),clients:[client],endpoints:['OWNED_ANVIL'],build,administrator:owner,localFixture:true,pins};
+  let unavailableHash=null;
+  const recoveryClient={...client,getTransaction:args=>{
+    if(args.hash===unavailableHash)throw Error('Simulated upstream lookup outage');return client.getTransaction(args);
+  }};
+  const build=await loadForgeDeploymentBuild(),settings={path:join(dir,'journal.sqlite'),clients:[recoveryClient],endpoints:['OWNED_ANVIL'],build,administrator:owner,localFixture:true,pins};
   session=openOwnerDeploymentSession(settings);
   const serverSettings={session,build,administrator:owner,client,localFixture:true,pins,port:0};server=await startOwnerDeploymentServer(serverSettings);
   const browserProfile=join(dir,'chrome');
@@ -41,7 +45,7 @@ try{
       try{
         if(['eth_accounts','eth_requestAccounts'].includes(request.method))result=[selected];
         else{assert.ok(['eth_chainId','eth_getTransactionCount','eth_getCode','eth_estimateGas','eth_call','eth_sendTransaction'].includes(request.method));result=await client.request(request);}
-        if(request.method==='eth_sendTransaction'){sent.push(result);if(dropNextHash){dropNextHash=false;throw Error('TEST_WALLET_HASH_RESPONSE_LOST');}}
+        if(request.method==='eth_sendTransaction'){sent.push(result);if(dropNextHash){dropNextHash=false;throw Error('TEST_WALLET_HASH_RESPONSE_LOST');}unavailableHash=result;}
       }catch(e){error=e.message;}
       await evaluate(`window.finishOwnerTestRpc(${JSON.stringify({id:requestId,result,error})})`);
     }
@@ -65,18 +69,40 @@ try{
   const oldPort=Number(new URL(server.url).port);await server.close();session.close();session=openOwnerDeploymentSession(settings);
   server=await startOwnerDeploymentServer({...serverSettings,session,port:oldPort});await call('Page.reload');await until("document.getElementById('deploy-status').textContent.includes('Wallet requested')");
   assert.equal(sent.length,1);assert.equal(await evaluate("document.getElementById('deploy').disabled"),true);
+  await click('recheck');await until("document.getElementById('status').textContent.includes('no saved transaction hash')");
+  assert.equal(sent.length,1);
   await evaluate(`document.getElementById('recover-hash').value=${JSON.stringify(sent[0])}`);await click('recover');await until("document.getElementById('deploy-status').textContent.includes('Receipt verified')");
   await click('connect');await until("!document.getElementById('prepare-acceptance').disabled");
   // A separate disposable transaction changes the owner nonce before acceptance.
   await client.waitForTransactionReceipt({hash:await wallet.sendTransaction({to:owner,value:0n,chain:null})});
   await click('prepare-acceptance');await until("!document.getElementById('accept').disabled");
   const continued=session.snapshot();assert.ok(BigInt(continued.steps[1].review.transaction.nonce)>BigInt(continued.packet.plan.transactions[1].nonce));
-  await click('accept');await until("document.getElementById('accept-status').textContent.includes('Receipt verified')");assert.equal(sent.length,2);
+  // Lose the hash report before HTTP delivery, then fail its RPC verification.
+  // The browser cache recovers the first loss; the journal survives the second.
+  await evaluate("{const original=window.fetch;let drop=true;window.fetch=(url,init)=>{if(drop&&String(url)==='/api/action'&&JSON.parse(init.body).operation==='recover'){drop=false;return Promise.reject(Error('TEST_HASH_REPORT_OFFLINE'));}return original(url,init);};}");
+  await click('accept');await until("document.getElementById('status').textContent.includes('TEST_HASH_REPORT_OFFLINE')");assert.equal(sent.length,2);
+  assert.equal(session.snapshot().steps[1].reportedTransactionHash,null);
+  await click('recheck');await until("document.getElementById('status').textContent.includes('An RPC read failed')");
+  assert.equal(session.snapshot().steps[1].reportedTransactionHash,sent[1]);assert.equal(session.snapshot().steps[1].transactionHash,null);
+  assert.equal(session.snapshot().verification.status,'UNAVAILABLE');assert.equal(session.snapshot().evidence,null);
+  assert.equal(await evaluate("document.getElementById('accept').disabled"),true);
+  await evaluate("document.getElementById('accept-status').scrollIntoView({block:'start'})");
+  const recoveryShot=await call('Page.captureScreenshot',{format:'png'});
+  await writeFile(new URL('recovery-pending-375.png',output),Buffer.from(recoveryShot.data,'base64'));
+  await server.close();session.close();session=openOwnerDeploymentSession(settings);
+  server=await startOwnerDeploymentServer({...serverSettings,session,port:oldPort});await call('Page.reload');
+  await until("document.getElementById('accept-status').textContent.includes('Reported transaction hash saved')");
+  assert.equal(sent.length,2);unavailableHash=null;
   await click('recheck');await until("document.getElementById('finality').textContent.includes('Disposable deployment verified')");
   assert.equal(session.snapshot().evidence.status,'VERIFIED_PAUSED_FORGE');assert.equal(session.snapshot().evidence.localFixture,true);assert.equal(session.snapshot().candidates,null);
+  unavailableHash=sent[1];await click('recheck');await until("document.getElementById('status').textContent.includes('An RPC read failed')");
+  assert.equal(session.snapshot().evidence,null);assert.equal(session.snapshot().candidates,null);
+  unavailableHash=null;await click('recheck');await until("document.getElementById('finality').textContent.includes('Disposable deployment verified')");
   await call('Page.reload');await until("document.getElementById('accept-status').textContent.includes('Receipt verified')");assert.equal(sent.length,2);assert.deepEqual(errors,[]);
   const evidence={status:'PASS',environment:'NEW_DISPOSABLE_ANVIL_AND_BROWSER',wrongOwnerBlocked:true,explicitWalletButtons:true,committedClaimBeforeWallet:true,
     lostWalletHashRecovered:true,serverRestartRecovered:true,reloadDoesNotResend:true,nonceChangedBeforeAcceptance:true,
+    lostHashReportRecoveredOnRecheck:true,rpcFailureHashPersisted:true,pendingHashRecoveredAfterRestart:true,
+    missingHashNotReportedAsFinality:true,failedRefreshClearsVerifiedEvidence:true,
     bothTransactionsVerified:true,registryStillPaused:true,publicManifestsNotCreated:true,widths:[1440,390,375],walletRequests:sent.length,publicTransactions:0,browserErrors:errors};
   await writeFile(new URL('browser-checks.json',output),JSON.stringify(evidence,null,2)+'\n');console.log(JSON.stringify(evidence,null,2));
 }finally{ws?.close();chrome?.kill('SIGTERM');if(server)await server.close();session?.close();anvil.kill('SIGTERM');

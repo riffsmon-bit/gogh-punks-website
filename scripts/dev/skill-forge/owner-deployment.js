@@ -1,4 +1,5 @@
 import { createDeploymentWallet } from '/deployment-wallet.js';
+import { deploymentReceiptStatus } from '/deployment-status.js';
 const $ = id => document.getElementById(id);
 let state, config, csrf, provider, connected = false, busy = false, walletEpoch = 0;
 const same = (a,b) => typeof a === 'string' && typeof b === 'string' && a.toLowerCase() === b.toLowerCase();
@@ -18,6 +19,8 @@ const explanations = {
   BURN_PAIR_WALLET_INFRASTRUCTURE_CHANGED: 'A wallet contract differs from its recorded deployment. Review the deployment before continuing.',
 };
 function describe(step) {
+  if (step.reportedTransactionHash && !step.transactionHash)
+    return `Reported transaction hash saved · verification pending · ${step.reportedTransactionHash}`;
   const labels = { READY:'Not submitted', WALLET_REQUESTED:'Wallet requested · recover the original transaction if the result was lost',
     SUBMITTED:'Submitted · awaiting verified receipt', INCLUDED:'Receipt verified on both RPCs', REVERTED:'Transaction reverted', NONCE_CONSUMED:'Previous nonce resolved without this action' };
   return `${labels[step.status] ?? step.status}${step.transactionHash ? ` · ${step.transactionHash}` : ''}`;
@@ -46,8 +49,7 @@ function render() {
   $('accept').disabled=busy || !connected || first.status!=='INCLUDED' || second.status!=='READY' || !second.review || Date.now()>second.review.expiresAt*1000-15000;
   $('accept-status').textContent=describe(second); $('accept-status').className='address';
   $('recheck').disabled=busy || !plan; $('recover').disabled=busy || !plan; $('resolve').disabled=busy || !plan;
-  $('finality').textContent=state.evidence ? (config.localFixture ? 'Disposable deployment verified on this test chain. Registry paused.' : 'Live deployment verified at a finalized block by both RPCs. Registry paused. You can now read your Punk’s real progression state.')
-    : state.steps.every(s=>s.status==='INCLUDED') ? 'Both receipts are included. Recheck for finalized deployment verification.' : 'Complete the two wallet transactions, then verify their receipts.';
+  $('finality').textContent=deploymentReceiptStatus(state,config).text;
   $('profile-controls').hidden=!state.candidates;
   const pair = config.burnTestSelection;
   $('burn-test').hidden=!pair;
@@ -57,7 +59,21 @@ function render() {
     $('read-burn-pair').disabled=busy;
   }
 }
-async function refresh(){ const response=await fetch('/api/state'); if(!response.ok)throw Error('LIVE_READ_UNAVAILABLE'); const payload=await response.json();state=payload.state;config=payload.config;csrf=payload.csrf;render(); }
+function hashKey(index) { return `gogh-forge-returned-hash:${index===0?state.packet.plan.planHash:state.steps[1].review.reviewHash}:${index}`; }
+function savedHash(index) {
+  if (!state.packet || index===1&&!state.steps[1].review) return null;
+  try { const value=localStorage.getItem(hashKey(index));return /^0x[0-9a-f]{64}$/i.test(value??'')?value:null; } catch { return null; }
+}
+function receiptMessage() { const status=deploymentReceiptStatus(state,config);message(status.text,status.error); }
+async function refresh(){
+  const response=await fetch('/api/state'); if(!response.ok)throw Error('LIVE_READ_UNAVAILABLE');
+  const payload=await response.json();state=payload.state;config=payload.config;csrf=payload.csrf;render();
+  if(!$('recover-hash').value)for(const index of [1,0]) {
+    if(!['WALLET_REQUESTED','SUBMITTED'].includes(state.steps[index].status))continue;
+    const hash=state.steps[index].reportedTransactionHash??state.steps[index].transactionHash??savedHash(index);
+    $('recover-step').value=String(index);if(hash)$('recover-hash').value=hash;break;
+  }
+}
 async function action(operation, fields={}) {
   const response=await fetch('/api/action',{method:'POST',headers:{'content-type':'application/json','x-forge-nonce':csrf},body:JSON.stringify({operation,revision:state.revision,...fields})});
   const payload=await response.json();if(!response.ok)throw Error(payload.error);state=payload.state;render();return state;
@@ -92,14 +108,22 @@ async function submit(index){
   const result=await sender.submit({state,config,index});state=result.state;
   // Keep the hash in the browser as well as the committed server journal, even
   // if the next HTTP request or RPC lookup is temporarily unavailable.
-  localStorage.setItem(`gogh-forge-hash:${state.packet.plan.planHash}:${index}`,result.transactionHash);
   $('recover-step').value=String(index);$('recover-hash').value=result.transactionHash;
+  // A browser-storage failure must not skip the server's durable hash report.
+  try { localStorage.setItem(hashKey(index),result.transactionHash); } catch { /* The visible hash and server recovery remain available. */ }
   message('Transaction submitted. Verifying its original receipt…');await action('recover',{index,transactionHash:result.transactionHash});
-  message(index===0?'Deployment receipt checked. Review registry acceptance next.':'Registry acceptance checked. Recheck receipts for finalized verification.');
+  if(index===0&&state.steps[0].status==='INCLUDED'&&!state.verification)message('Deployment receipt checked. Review registry acceptance next.');
+  else receiptMessage();
 }
 $('deploy').onclick=()=>task(()=>submit(0));$('accept').onclick=()=>task(()=>submit(1));
-$('recheck').onclick=()=>task(async()=>{message('Rechecking the original receipts…');await action('recheck');message(state.evidence?'Live deployment verified. Read your Punk’s live state below.':'Receipt state refreshed. If finality is pending, recheck shortly.');});
-$('recover').onclick=()=>task(async()=>{await action('recover',{index:Number($('recover-step').value),transactionHash:$('recover-hash').value.trim()});message('Original transaction recovered.');});
+$('recheck').onclick=()=>task(async()=>{
+  message('Rechecking the original receipts…');await refresh();let recovered=false;
+  for(const index of [0,1])if(state.steps[index].status==='WALLET_REQUESTED'&&!state.steps[index].transactionHash&&!state.steps[index].reportedTransactionHash) {
+    const hash=savedHash(index);if(hash){await action('recover',{index,transactionHash:hash});recovered=true;}
+  }
+  if(!recovered)await action('recheck');receiptMessage();
+});
+$('recover').onclick=()=>task(async()=>{await action('recover',{index:Number($('recover-step').value),transactionHash:$('recover-hash').value.trim()});receiptMessage();});
 $('resolve').onclick=()=>task(async()=>{await action('resolve-nonce',{index:Number($('recover-step').value)});message('The previous nonce is conclusively resolved. A fresh review is available.');});
 $('read-profile').onclick=()=>task(async()=>{const response=await fetch(`/api/profile?tokenId=${encodeURIComponent($('punk-id').value)}`),result=await response.json();if(!response.ok)throw Error(result.error);$('profile').textContent=JSON.stringify(result,null,2);message('Read real on-chain progression. No wallet transaction was requested.');});
 $('read-burn-pair').onclick=()=>task(async()=>{
@@ -127,5 +151,5 @@ $('read-burn-pair').onclick=()=>task(async()=>{
     message('Selected Punks checked. No approval, burn or training transaction was requested.');
   }catch(error){$('burn-pair-status').textContent='Live preflight unavailable. Previous results were cleared; burn remains unavailable.';throw error;}
 });
-await refresh();message('Connect your owner wallet to start live setup.');
+await refresh();if(state.packet)receiptMessage();else message('Connect your owner wallet to start live setup.');
 setInterval(()=>{if(!busy)refresh().catch(()=>{});},15000);

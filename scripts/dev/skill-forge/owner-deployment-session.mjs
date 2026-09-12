@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { chmodSync, existsSync, lstatSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { keccak256 } from 'viem';
+import { keccak256, TransactionReceiptNotFoundError } from 'viem';
 import { prepareForgeDeployment } from '../../../broker/src/v4/skill-forge/forge-deployment-preparation.mjs';
 import { assertForgeDeploymentTransaction, buildForgeAcceptanceReview, forgeDeploymentStep, forgeManifestCandidates,
   inspectForgeStack, validateForgeAcceptanceReview, validateForgeDeploymentPlan, verifyForgeDeployment } from '../../../broker/src/v4/skill-forge/forge-deployment.mjs';
@@ -9,8 +9,15 @@ import { assertForgeDeploymentTransaction, buildForgeAcceptanceReview, forgeDepl
 const same = (a, b) => typeof a === 'string' && typeof b === 'string' && a.toLowerCase() === b.toLowerCase();
 const valid = (value, code) => { if (!value) throw Error(code); };
 const hex = value => `0x${BigInt(value).toString(16)}`;
-const emptyStep = () => ({ status: 'READY', transactionHash: null, review: null, inclusion: null });
-const empty = () => ({ packet: null, steps: [emptyStep(), emptyStep()], evidence: null, candidates: null });
+const emptyStep = () => ({ status: 'READY', transactionHash: null, reportedTransactionHash: null, review: null, inclusion: null });
+const empty = () => ({ packet: null, steps: [emptyStep(), emptyStep()], evidence: null, candidates: null, verification: null });
+
+function verificationFailure(error, stage) {
+  const archive = /archive requests require|metadata is not found|missing trie node/i.test(`${error.message ?? ''} ${error.details ?? ''}`);
+  const code = archive ? 'FORGE_ARCHIVE_STATE_UNAVAILABLE' : /^[A-Z_]+$/.test(error.message) ? error.message : 'FORGE_RPC_UNAVAILABLE';
+  return { stage, code, status: code === 'FORGE_DEPLOYMENT_FINALITY_PENDING' ? 'PENDING'
+    : ['FORGE_RPC_UNAVAILABLE', 'FORGE_ARCHIVE_STATE_UNAVAILABLE'].includes(code) ? 'UNAVAILABLE' : 'FAILED' };
+}
 
 export function openOwnerDeploymentSession({ path, clients, endpoints, build, administrator, localFixture = false, pins = null, now = Date.now }) {
   valid(clients.length === (localFixture ? 1 : 2), 'FORGE_DEPLOYMENT_RPC_PAIR_REQUIRED');
@@ -61,16 +68,27 @@ export function openOwnerDeploymentSession({ path, clients, endpoints, build, ad
     return head;
   }
   async function inspectReceipt(state, index) {
-    const entry = state.steps[index], hash = entry.transactionHash;
+    const entry = state.steps[index], hash = entry.transactionHash ?? entry.reportedTransactionHash;
     if (!hash) return entry;
     const step = stepFor(state, index), observations = [];
-    for (const client of clients) {
+    // A reported hash is only a recovery hint until both providers bind its
+    // original transaction to this saved review. It cannot authorize a resend.
+    const transactions = await Promise.all(clients.map(async client => {
       valid(await client.getChainId() === state.packet.plan.chainId, 'FORGE_DEPLOYMENT_WRONG_CHAIN');
+      const tx = await client.getTransaction({ hash });
+      valid(same(tx.hash, hash), 'FORGE_TRANSACTION_HASH_CHANGED');
+      assertForgeDeploymentTransaction({ plan: state.packet.plan, index, transaction: tx, acceptanceReview: state.steps[1].review });
+      return tx;
+    }));
+    const submitted = { ...entry, transactionHash: hash, reportedTransactionHash: hash };
+    for (const [i, client] of clients.entries()) {
       let receipt;
       try { receipt = await client.getTransactionReceipt({ hash }); }
-      catch { return { ...entry, status: 'SUBMITTED', inclusion: null }; }
-      const tx = await client.getTransaction({ hash });
-      assertForgeDeploymentTransaction({ plan: state.packet.plan, index, transaction: tx, acceptanceReview: state.steps[1].review });
+      catch (error) {
+        if (error instanceof TransactionReceiptNotFoundError) return { ...submitted, status: 'SUBMITTED', inclusion: null };
+        throw error;
+      }
+      const tx = transactions[i];
       const block = await client.getBlock({ blockNumber: receipt.blockNumber });
       valid(same(hash, tx.hash) && same(hash, receipt.transactionHash) && same(tx.blockHash, block.hash)
         && same(receipt.blockHash, block.hash) && tx.blockNumber === receipt.blockNumber
@@ -84,7 +102,7 @@ export function openOwnerDeploymentSession({ path, clients, endpoints, build, ad
       valid(same((await client.getBlock({ blockNumber: block.number })).hash, block.hash), 'FORGE_DEPLOYMENT_REORG');
     }
     valid(observations.every(o => JSON.stringify(o) === JSON.stringify(observations[0])), 'FORGE_DEPLOYMENT_PROVIDERS_DISAGREE');
-    return { ...entry, status: observations[0].status === 'success' ? 'INCLUDED' : 'REVERTED', inclusion: observations[0] };
+    return { ...submitted, status: observations[0].status === 'success' ? 'INCLUDED' : 'REVERTED', inclusion: observations[0] };
   }
   async function preflight(state, index) {
     const plan = state.packet.plan, step = stepFor(state, index), tx = step.transaction;
@@ -119,14 +137,21 @@ export function openOwnerDeploymentSession({ path, clients, endpoints, build, ad
     return transactionFor(state, index);
   }
   async function reconcile(state) {
-    for (let index = 0; index < 2; index++) state.steps[index] = await inspectReceipt(state, index);
-    state.evidence = null; state.candidates = null;
-    if (state.steps.every(step => step.status === 'INCLUDED')) {
+    state.evidence = null; state.candidates = null; state.verification = null;
+    for (let index = 0; index < 2; index++) {
+      try { state.steps[index] = await inspectReceipt(state, index); }
+      catch (error) { state.verification ??= { ...verificationFailure(error, 'RECEIPTS'), index }; }
+    }
+    if (!state.verification && state.steps.every(step => step.status === 'INCLUDED')) {
       try {
         state.evidence = await verifyForgeDeployment({ clients, build, plan: state.packet.plan,
           transactionHashes: state.steps.map(step => step.transactionHash), acceptanceReview: state.steps[1].review, localFixture });
         if (!localFixture) state.candidates = forgeManifestCandidates({ plan: state.packet.plan, evidence: state.evidence, build });
-      } catch { /* Included receipts retain their hashes while finality is unavailable. */ }
+        state.verification = { status: 'VERIFIED', stage: 'FINALIZED_DEPLOYMENT', code: null };
+      } catch (error) {
+        state.evidence = null; state.candidates = null;
+        state.verification = verificationFailure(error, 'FINALIZED_DEPLOYMENT');
+      }
     }
     return save(state);
   }
@@ -167,12 +192,11 @@ export function openOwnerDeploymentSession({ path, clients, endpoints, build, ad
       if (operation === 'recover') {
         valid(/^0x[0-9a-f]{64}$/i.test(input.transactionHash) && ['WALLET_REQUESTED', 'SUBMITTED', 'INCLUDED', 'REVERTED'].includes(state.steps[index].status), 'FORGE_TRANSACTION_RECOVERY_REQUIRED');
         valid(!state.steps[index].transactionHash || same(state.steps[index].transactionHash, input.transactionHash), 'FORGE_TRANSACTION_HASH_CHANGED');
-        for (const client of clients) {
-          const transaction = await client.getTransaction({ hash: input.transactionHash });
-          valid(same(transaction.hash, input.transactionHash), 'FORGE_TRANSACTION_HASH_CHANGED');
-          assertForgeDeploymentTransaction({ plan: state.packet.plan, index, transaction, acceptanceReview: state.steps[1].review });
-        }
-        state.steps[index].transactionHash = input.transactionHash; state.steps[index].status = 'SUBMITTED';
+        // Commit the unverified wallet/recovery report BEFORE any RPC lookup.
+        // An outage or restart must not lose the only available hash. A bad hint
+        // may be corrected, but an already verified transaction hash cannot change.
+        state.steps[index].reportedTransactionHash = input.transactionHash;
+        state.evidence = null; state.candidates = null; state.verification = null;
         state = save(state); return reconcile(state);
       }
       if (operation === 'resolve-nonce') {

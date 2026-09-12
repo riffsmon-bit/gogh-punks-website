@@ -16,6 +16,7 @@ export async function startOwnerDeploymentServer({ session, build, administrator
   const csrf = randomBytes(32).toString('hex');
   const paths = { '/': ['owner-deployment.html', 'text/html'], '/owner-deployment.js': ['owner-deployment.js', 'text/javascript'],
     '/owner-deployment.css': ['owner-deployment.css', 'text/css'], '/deployment-wallet.js': ['../../../site/forge-deployment-wallet.js', 'text/javascript'],
+    '/deployment-status.js': ['../../../site/forge-deployment-status.js', 'text/javascript'],
     '/keccak256.js': ['../../../site/keccak256.js', 'text/javascript'] };
   let origin;
   const server = createServer(async (request, response) => {

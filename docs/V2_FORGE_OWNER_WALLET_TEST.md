@@ -5,8 +5,10 @@ owner-wallet connection to Robinhood Chain (4663). Ports 64343 and 64344 remain
 separate disposable practice chains.
 
 **September 12 live progress:** the first deployment transaction succeeded and
-its original receipt was recovered through both RPCs. Continue with registry
-acceptance in step 4 using the existing journal. See the
+its original receipt was recovered through both RPCs. Registry acceptance has
+also succeeded and its original receipt is saved. Continue with **Recheck
+transaction receipts** using the existing journal; do not submit either setup
+transaction again. See the
 [public setup record](review/2026-09-12/live-owner/README.md) for the transaction,
 addresses and remaining verification. The selected pair is **burn #1753 → credit
 #93**. No burn has been requested. Use **Check selected Punks live** to read both
@@ -55,6 +57,13 @@ If the hash response was lost, copy the original hash from wallet activity into
 verifies the original sender, destination, calldata, nonce, fees and chain through
 both RPCs. It does not resend. The page also saves any returned hash in browser
 storage before asking the server to verify it.
+
+The server saves a reported hash before its first RPC lookup and verifies it
+against the exact review before trusting it. If that lookup is unavailable,
+**Recheck transaction receipts** resumes verification from the saved hash after
+a reload or server restart. It can also recover a hash saved by this browser if
+the original HTTP report failed. An entirely missing hash needs wallet activity;
+the page now says this explicitly instead of suggesting it is awaiting finality.
 
 If the wallet transaction was canceled or replaced on chain, **Check canceled /
 replaced nonce** requires finalized nonce consumption and verifies that the

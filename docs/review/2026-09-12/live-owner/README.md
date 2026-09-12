@@ -4,6 +4,13 @@ The owner selected **burn Punk #1753 → credit Punk #93** on September 12.
 The pair is stored in `ops/forge-burn-test-selection.json`. This selection is not
 a completed burn review or a burn transaction.
 
+**Latest setup:** registry acceptance also succeeded. Both original receipts are
+verified and saved in [accepted setup progress](accepted-setup-progress.json).
+The owner now controls the registry; it remains paused. Revision 15 recorded
+`FORGE_DEPLOYMENT_FINALITY_PENDING`. After finality advanced, revision 16 instead
+reported `FORGE_ARCHIVE_STATE_UNAVAILABLE`: both public endpoints could return
+finalized block headers but could not serve the corresponding contract state.
+
 ## Actual public transaction
 
 The first owner-wallet request deployed the paused Forge on Robinhood Chain:
@@ -28,6 +35,15 @@ the unsigned acceptance review. At capture, acceptance was still `READY` and no
 finalized evidence or production manifest candidates existed. Resume from the
 existing journal at **http://127.0.0.1:64345/**. Do not redeploy or remove the
 journal. Refresh the acceptance review if it expires before the wallet request.
+
+The subsequent acceptance transaction is
+`0xf6b336551c7600337dfefce865b4a96886cdc349da05dd2381a993e9df197d2d`,
+successfully included at block `61337498`, hash
+`0xc7b77085a3cfd940f0a028aa0caa86a0ad198c004e5797ce4756673304682fa3`.
+Its exact zero-value call to registry `0xc2A1Bd47fbc0FE33E53c85f130be53591c898E83`
+used owner nonce `1948`. The ownership-transfer event located the original hash;
+the recovery endpoint verified the saved review and receipt through both RPCs.
+No acceptance transaction was resent.
 
 Finalized historical reads during this session were unavailable: PublicNode
 required an archive token and the other public endpoint reported missing
@@ -54,7 +70,10 @@ remains required; current reads do not substitute for it.
 | Agent | `0x56dF53299941890500D44aBA31dCB376b92E1b65` |
 
 [Discovery results](punk-1753-discovery.json) record HTTP 401 from the NFT index
-for all four wallets. NFT and other-token coverage remains incomplete. A read-only
+for all four wallets. These diagnostic responses do not establish that the hosted
+OpenSea credential is invalid: Netlify's environment APIs currently return masked
+values, including single-variable reads. Hosted checks must use the actual
+injected credential. NFT and other-token coverage remains incomplete. A read-only
 transaction against production Supabase found no #1753 records in the listed
 legacy jobs, priority sessions, gas balances/deposits/usage/refunds, reconciliation,
 activity, diagnostics and Punk-state tables. These queries do not cover the
@@ -121,3 +140,55 @@ failed read clears prior results. It made no wallet requests or public
 transactions. The public deployment journal was preserved and registry
 acceptance remains pending. Inventory, operational review and production burn
 integration remain required; this diagnostic fix does not enable burns.
+
+## Acceptance hash recovery fix
+
+The next live failure exposed a persistence gap: recovery tried both RPC lookups
+before saving a returned hash. An outage left the journal at `WALLET_REQUESTED`,
+and the generic recheck message incorrectly suggested only finality was pending.
+
+Recovery now commits `reportedTransactionHash` before any lookup. This field is
+an unverified hint; it does not establish submission, inclusion or authority.
+Both providers must verify the original transaction against the saved review
+before it becomes `transactionHash`. A wrong unverified hint can be corrected;
+an already verified hash cannot change, and no path reopens the wallet request.
+Recheck can also report a hash retained in browser storage if its original HTTP
+delivery failed. Browser keys bind the specific review, not just the setup plan.
+
+The page distinguishes a missing hash, unavailable RPC reads, a failed check,
+pending inclusion and pending finality. Failed refreshes clear deployment evidence
+and manifest candidates while preserving recovery data. Historical-read failures
+are displayed instead of being silently described as pending finality.
+
+All 48 focused tests passed. The expanded
+[disposable browser test](../owner-wallet/browser-checks.json) completed both
+local transactions while injecting a lost wallet response, a lost HTTP hash
+report, an RPC lookup failure, two server restarts and an outage after successful
+verification. It recovered without further wallet submissions and retained no
+verified deployment evidence during the injected outage. The
+[phone capture](../owner-wallet/recovery-pending-375.png) shows the saved hash and
+unavailable verification. No public transaction was sent by these tests.
+
+## Deployment simulation and regression
+
+The owner requested simulation followed by deployment and live fine-tuning. The
+complete regression passed: **1,789 JavaScript tests**, **267 contract tests**
+(1,024 fuzz runs), and **127 website deployment tests**, plus build, formatting,
+syntax, site/assets/secret checks, high-severity lint and ABI/contract-size checks.
+Native PostgreSQL role, contention and crash/restart recovery tests also passed
+on a new private cluster. The original-Punk burn integration passed on a fresh
+disposable chain.
+
+[The selected-pair fork](../atomic-forge/selected-pair-fork.json) copied the already
+deployed Forge and the real original collection at block `61347964`. On that
+private copy only, it approved #1753, burned it, awarded exactly one credit to #93,
+then learned, equipped and unequipped a fixture research skill and verified the
+actual profile reader. Closing public reads confirmed both original NFTs still
+belonged to the owner. This exercises contract behavior, not production inventory,
+mission cleanup or durable burn service readiness.
+
+Reproduce the selected-pair simulation with:
+
+```sh
+node scripts/test-forge-stack-fork.mjs --fork-deployed-selection
+```

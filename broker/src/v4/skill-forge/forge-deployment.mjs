@@ -199,7 +199,7 @@ export async function verifyForgeDeployment({ clients, plan, build, transactionH
       valid(same(reviewAnchor.hash, step.anchor.hash), 'FORGE_DEPLOYMENT_ANCHOR_CHANGED');
       valid(receipt.status === 'success' && same(receipt.transactionHash, hash) && same(tx.hash, hash)
         && same(receipt.blockHash, mined.hash) && same(tx.blockHash, mined.hash) && tx.blockNumber === receipt.blockNumber
-        && receipt.blockNumber > reviewAnchor.number && receipt.blockNumber <= final.number
+        && receipt.blockNumber > reviewAnchor.number
         && (receipt.blockNumber > previousBlock || receipt.blockNumber === previousBlock && receipt.transactionIndex > previousIndex)
         && same(tx.from, expected.from) && same(receipt.from, expected.from)
         && (index === 0 ? tx.to === null && same(receipt.contractAddress, plan.addresses.deployment) : same(tx.to, expected.to))
@@ -210,6 +210,7 @@ export async function verifyForgeDeployment({ clients, plan, build, transactionH
         && receipt.gasUsed <= tx.gas && receipt.effectiveGasPrice <= tx.maxFeePerGas
         && Number.isSafeInteger(receipt.transactionIndex) && receipt.transactionIndex >= 0 && tx.transactionIndex === receipt.transactionIndex
         && receipt.gasUsed > 0n && receipt.effectiveGasPrice > 0n, 'FORGE_DEPLOYMENT_RECEIPT_MISMATCH');
+      valid(receipt.blockNumber <= final.number, 'FORGE_DEPLOYMENT_FINALITY_PENDING');
       previousBlock = receipt.blockNumber; previousIndex = receipt.transactionIndex;
       fees.push(String(receipt.gasUsed * receipt.effectiveGasPrice));
     }
