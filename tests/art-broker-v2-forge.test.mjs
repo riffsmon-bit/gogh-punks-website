@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { handleForge } from '../netlify/functions/broker-v2-forge.mjs';
 import { PublicError } from '../netlify/functions/_shared/http.mjs';
 import { punkChatAction } from '../site/punk-chat-actions.js';
+import { keccak256 } from 'viem';
+import deployment from '../deployments/robinhood-skill-forge.json' with { type: 'json' };
 
 test('Forge chat navigation preserves recall negation and question handling', () => {
   assert.deepEqual(punkChatAction('Open the Forge'), { kind: 'FORGE' });
@@ -15,6 +17,8 @@ const owner = `0x${'1'.repeat(40)}`, wallet = `0x${'2'.repeat(40)}`;
 const req = body => new Request('https://goghpunks.xyz/api/v2/punks/93/forge', body === undefined ? {} : {
   method: 'POST', headers: { origin: 'https://goghpunks.xyz', 'content-type': 'application/json' }, body: JSON.stringify(body) });
 const deps = () => ({ pool: { query() { throw Error('No database mutation allowed'); } },
+  manifest: { ...deployment, status: 'UNDEPLOYED', registry: null, registryCodeHash: null,
+    progression: null, progressionCodeHash: null, trainingSource: null, trainingSourceCodeHash: null },
   sessionReader: async () => ({ walletAddress: owner }), authorityReader: async (id, opts) => {
     assert.equal(id, '93'); assert.equal(opts.expectedOwner, owner); return { tokenId: id, owner, punkWallet: wallet }; },
   continuityReader: async before => { assert.equal(before.owner, owner); },
@@ -26,6 +30,31 @@ test('authenticated Forge read returns locked deployment and unknown progress, w
   assert.equal(d.profile.status, 'NOT_DEPLOYED'); assert.equal(d.trainingCredits, null); assert.equal(d.unlockedSlots, null);
   assert.equal(d.canBurn, false); assert.equal(d.canEquip, false); assert.equal(d.canLearn, false);
   assert.equal(d.productionReadyCount, 0); assert.equal(d.catalog.filter(s => s.test).length, 3);
+});
+test('authenticated deployed profile returns verified credits and slots, and failed state reads return no profile', async () => {
+  const d = deps(), code = Object.fromEntries(['collection', 'registry', 'progression', 'trainingSource']
+    .map((role, index) => [deployment[role], `0x0${index + 1}`]));
+  d.manifest = { ...deployment, ...Object.fromEntries(Object.entries(code).map(([address, bytes]) => {
+    const role = ['collection', 'registry', 'progression', 'trainingSource'].find(role => deployment[role] === address);
+    return [`${role}CodeHash`, keccak256(bytes)];
+  })) };
+  d.packageLoader = async () => [];
+  const values = { collection: deployment.collection, registry: deployment.registry, ownerOf: owner,
+    unlockedSlots: 1, effectiveCapabilities: 0n, equipped: `0x${'0'.repeat(64)}`,
+    trainingSource: deployment.trainingSource, baseSlots: 1, slotCap: 7, trainingCredits: 0n,
+    learnedCount: 0n, claimedStartingSlots: 0, allocationRoot: deployment.allocationRoot,
+    snapshotHash: deployment.snapshotHash, allocationChainId: 4663n };
+  const client = { getChainId: async () => 4663,
+    getBlock: async () => ({ number: 100n, hash: `0x${'a'.repeat(64)}`, timestamp: BigInt(Math.floor(Date.now()/1000)) }),
+    getCode: async ({address,blockNumber}) => { assert.equal(blockNumber,100n);return code[address.toLowerCase()]; },
+    readContract: async ({functionName,blockNumber}) => { assert.equal(blockNumber,100n);assert.ok(Object.hasOwn(values,functionName));return values[functionName]; } };
+  d.clientFactory = () => client;
+  const response = await handleForge(req(), d), body = await response.json();
+  assert.equal(response.status,200);assert.equal(body.profile.status,'VERIFIED_READ_ONLY');
+  assert.equal(body.trainingCredits,'0');assert.equal(body.unlockedSlots,1);
+  assert.deepEqual(body.learnedSkills,[]);assert.deepEqual(body.equippedSkills,[]);assert.equal(body.canBurn,false);
+  client.getCode = async () => { throw Error('PROVIDER_UNAVAILABLE'); };
+  const failed = await handleForge(req(), d);assert.equal(failed.status,503);assert.equal((await failed.json()).profile,undefined);
 });
 test('research is a separate owner-canary diagnostic and rechecks transfer continuity before returning', async () => {
   const d = deps(); let checks = 0;

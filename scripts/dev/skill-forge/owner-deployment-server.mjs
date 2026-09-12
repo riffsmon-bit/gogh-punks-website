@@ -11,7 +11,7 @@ export async function startOwnerDeploymentServer({ session, build, administrator
   const readBurnPair = createLiveBurnPairReader(() => {
     const state = session.snapshot();
     return readLiveBurnPair({ clients, selection: burnSelection, build,
-      plan: state.steps[0].status === 'INCLUDED' ? state.packet.plan : null });
+      plan: state.steps[0].status === 'INCLUDED' ? state.packet.plan : null, deploymentEvidence: state.evidence });
   });
   const csrf = randomBytes(32).toString('hex');
   const paths = { '/': ['owner-deployment.html', 'text/html'], '/owner-deployment.js': ['owner-deployment.js', 'text/javascript'],

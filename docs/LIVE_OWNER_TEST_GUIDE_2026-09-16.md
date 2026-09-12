@@ -1,11 +1,36 @@
 # Gogh Punks live test guide — September 16 release
 
-**Prepared September 12. This is the test guide for the live release; it is not a
-claim that the new release or burn-to-training is already live.** Before the first
-run, fill in the released version and enabled features below. Run the core broker
+**Core broker release published September 12 at 3:43 PM America/Detroit.** Open
+[the live broker](https://goghpunks.xyz/broker/v2/?tab=talk). The core release commit is
+`78c01ca6a2bc7c8e86994333bfaf9ca69a18a584` (PR #47); Netlify deployment
+`6aa5aade39f94100087a8215`. Burn-to-training is not yet enabled. Run the core broker
 checks first, then complete the required burn-to-training cases after its live
 enablement. Missing burn-to-training is an open launch failure, not a deferred pass.
 Run optional purchase/offer cases only when explicitly released.
+
+The release passed 1,789 JavaScript tests, 267 contract tests, 127 deployment
+checks, and the native PostgreSQL recovery suite (66 assertions). The actual
+deployed Forge contracts also passed a disposable fork simulation for
+**#1753 → #93**: approve, burn, award one credit, learn, equip and unequip.
+Those fork transactions did not change the public NFTs.
+
+Live checks passed on the production host at 1440px and 375px: disconnected load,
+tab selection, no horizontal overflow, no browser errors, no failed site resources,
+and no wallet or mutation requests. Served HTML and JavaScript matched the reviewed
+build. Netlify's hosted checks also passed real contract inspection, a three-token
+rarity sample and five live market listings using its injected credentials.
+Private Forge profiles require sign-in, and unreleased training returns
+`FORGE_TRAINING_NOT_RELEASED`. These checks do not replace the connected wallet,
+actual mint, training, and recovery cases below. The two training-intent migrations
+are applied; restricted request/worker credentials and burn integration remain
+release requirements.
+
+The finalized Forge follow-up connects the verified registry, progression and
+burn-source addresses for read-only profiles. The owner console read #93 at block
+`61369169`: zero credits, one unlocked slot, and no learned or equipped skills.
+Registry acceptance and two-provider finalized deployment verification are complete.
+Use the latest published version recorded with your test run; the core release
+reference above remains the starting version for the broker corrections.
 
 The owner-confirmed Wednesday target is chat, gas funding, missions/minting,
 Forge research/loadouts and burn-to-training. Paid minting, floor purchases and collection offers
@@ -20,8 +45,8 @@ the production integrations and explicit capability enablement.
 
 | Item | Record before testing |
 | --- | --- |
-| Live URL | The published broker URL supplied with the release; open Talk without `preview=1` |
-| Release | Commit/version and publish time supplied with the release |
+| Live URL | https://goghpunks.xyz/broker/v2/?tab=talk; no `preview=1` |
+| Release | `78c01ca6a2bc7c8e86994333bfaf9ca69a18a584`, September 12, 3:43 PM America/Detroit |
 | Enabled features | Exact list from the release note; mark the others NOT RELEASED |
 | Network | Robinhood Chain, chain ID 4663 |
 | Devices | Your normal desktop browser/wallet and your phone/wallet browser |

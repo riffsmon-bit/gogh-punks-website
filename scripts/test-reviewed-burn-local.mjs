@@ -52,6 +52,25 @@ try {
   }
   const stackEvidence = await verifyForgeDeployment({ clients: [client], plan, build, transactionHashes: deploymentHashes, localFixture: true });
   assert.equal(stackEvidence.status, 'VERIFIED_PAUSED_FORGE');
+  const prunedReceiptClient = { ...client, getCode: async () => { throw Error('STATE_PRUNED'); },
+    readContract: async () => { throw Error('STATE_PRUNED'); } };
+  const separated = { clients: [prunedReceiptClient], stateClients: [client], plan, build,
+    transactionHashes: deploymentHashes, localFixture: true };
+  assert.deepEqual(await verifyForgeDeployment(separated), stackEvidence);
+  await assert.rejects(verifyForgeDeployment({ ...separated, stateClients: [] }), /INVALID_FORGE_DEPLOYMENT_RECEIPTS/);
+  for (const fault of ['hash', 'number', 'timestamp', 'chain', 'unavailable', 'reorg']) {
+    let stateHeaders = 0;
+    const stateClient = { ...client,
+      getChainId: async () => fault === 'chain' ? 1 : client.getChainId(),
+      getBlock: async args => { const block = await client.getBlock(args); stateHeaders++;
+        if (fault === 'unavailable') throw Error('STATE_PRUNED');
+        return { ...block,
+          ...(fault === 'hash' || fault === 'reorg' && stateHeaders > 1 ? { hash: keccak256('0xdead') } : {}),
+          ...(fault === 'number' ? { number: block.number + 1n } : {}),
+          ...(fault === 'timestamp' ? { timestamp: block.timestamp + 1n } : {}) }; },
+    };
+    await assert.rejects(verifyForgeDeployment({ ...separated, stateClients: [stateClient] }), /FORGE_|STATE_PRUNED/);
+  }
   assert.throws(() => forgeManifestCandidates({ plan, evidence: stackEvidence, build }), /FORGE_DEPLOYMENT_ENVIRONMENT_MISMATCH/);
   const { trainingSource: burnSource, registry, progression } = plan.addresses;
   for (const fault of ['calldata', 'value', 'fee', 'nonce', 'chain', 'reverted', 'block', 'runtime', 'immutable', 'owner', 'unpaused']) {

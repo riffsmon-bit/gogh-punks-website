@@ -7,6 +7,7 @@ import { validateAdministratorSelection } from '../../../broker/src/v4/skill-for
 import { openOwnerDeploymentSession } from './owner-deployment-session.mjs';
 import { startOwnerDeploymentServer } from './owner-deployment-server.mjs';
 import { createLiveBurnPairClients } from '../../../broker/src/v4/skill-forge/live-burn-pair.mjs';
+import { createFinalizedStateClients, finalizedStateEndpoints } from './finalized-state-clients.mjs';
 
 if (process.argv.length !== 3 || process.argv[2] !== '--live-owner-wallet') throw Error('Requires --live-owner-wallet; only your browser wallet can send transactions');
 const build = await loadForgeDeploymentBuild();
@@ -15,8 +16,11 @@ const { administrator } = validateAdministratorSelection(selection);
 const burnTestSelection = JSON.parse(await readFile(new URL('../../../ops/forge-burn-test-selection.json', import.meta.url), 'utf8'));
 const endpoints = ['https://robinhood-rpc.publicnode.com', 'https://rpc.mainnet.chain.robinhood.com'];
 const clients = endpoints.map(url => createPublicClient({ transport: http(url, { timeout: 15000, retryCount: 0 }), cacheTime: 0 }));
+// Public header/receipt services prune historical contract state. These separate
+// providers serve finalized state; verification binds all reads to the same hash.
+const stateEndpoints = finalizedStateEndpoints, stateClients = createFinalizedStateClients();
 const journal = join(homedir(), '.gogh-punks', 'forge-deployment.sqlite');
-const session = openOwnerDeploymentSession({ path: journal, build, administrator, clients, endpoints });
+const session = openOwnerDeploymentSession({ path: journal, build, administrator, clients, endpoints, stateClients, stateEndpoints });
 const server = await startOwnerDeploymentServer({ session, build, administrator, client: clients[0],
   clients: createLiveBurnPairClients(), burnTestSelection });
 console.log(JSON.stringify({ url: server.url, network: 'LIVE_ROBINHOOD_4663', administrator, journal,

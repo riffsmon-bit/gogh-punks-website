@@ -6,8 +6,11 @@ separate disposable practice chains.
 
 **September 12 live progress:** the first deployment transaction succeeded and
 its original receipt was recovered through both RPCs. Registry acceptance has
-also succeeded and its original receipt is saved. Continue with **Recheck
-transaction receipts** using the existing journal; do not submit either setup
+also succeeded and its original receipt is saved. The complete stack now passed
+two-provider finalized verification at block `61353065`, with separate state
+providers serving the same finalized block as the receipt/header providers.
+Continue with **Read live Forge state** for #93; **Recheck transaction receipts**
+can repeat verification using the existing journal. Do not submit either setup
 transaction again. See the
 [public setup record](review/2026-09-12/live-owner/README.md) for the transaction,
 addresses and remaining verification. The selected pair is **burn #1753 → credit

@@ -1,0 +1,9 @@
+{
+  "deploy": "6aa5aade39f94100087a8215",
+  "linesRead": 400,
+  "checks": [
+    "FORGE_LIVE_CONTRACT_PASS: block=61361286, bytes=18470, authority=NONE",
+    "FORGE_LIVE_RARITY_PASS: sample=3, scope=SAMPLE_ONLY, authority=NONE",
+    "FORGE_LIVE_MARKET_PASS: listings=5, chain=4663, authority=NONE"
+  ]
+}

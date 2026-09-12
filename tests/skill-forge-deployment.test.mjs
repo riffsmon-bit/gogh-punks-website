@@ -3,11 +3,22 @@ import assert from 'node:assert/strict';
 import { decodeAbiParameters, encodeDeployData, getContractAddress, keccak256 } from 'viem';
 import { loadForgeDeploymentBuild, buildForgeDeploymentPlan, validateForgeDeploymentPlan, assertForgeRuntime,
   forgeManifestCandidates } from '../broker/src/v4/skill-forge/forge-deployment.mjs';
+import publicVerification from '../docs/review/2026-09-12/live-owner/finalized-deployment.json' with { type: 'json' };
+import acceptedSetup from '../docs/review/2026-09-12/live-owner/accepted-setup-progress.json' with { type: 'json' };
+import readDeployment from '../deployments/robinhood-skill-forge.json' with { type: 'json' };
+import trainingDeployment from '../deployments/robinhood-forge-training.json' with { type: 'json' };
 
 const build = await loadForgeDeploymentBuild();
 const address = n => `0x${n.repeat(40)}`, hash = n => `0x${n.repeat(64)}`;
 const inputs = { build, administrator: address('1'), nonce: '10', anchor: { number: '50', hash: hash('a'), timestamp: 1800000000 } };
 const plan = () => buildForgeDeploymentPlan(inputs);
+
+test('committed read-only addresses and paused training pins match the finalized public deployment evidence', () => {
+  const candidates = forgeManifestCandidates({ plan: acceptedSetup.packet.plan, build, evidence: publicVerification.evidence });
+  assert.deepEqual(readDeployment, candidates.read); assert.deepEqual(trainingDeployment, candidates.training);
+  assert.equal(publicVerification.evidence.finality, 'TWO_RPC_FINALIZED');
+  assert.equal(publicVerification.publicTransactions, 0);
+});
 
 test('one creation binds the exact chain, original NFT, guardian and frozen rarity pins', () => {
   const p = plan(), initcode = build.artifacts.deployment.bytecode.object;

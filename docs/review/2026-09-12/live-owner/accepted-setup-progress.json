@@ -1,5 +1,5 @@
 {
-  "revision": 16,
+  "revision": 17,
   "packet": {
     "status": "PREPARED_PAUSED_FORGE_DEPLOYMENT",
     "observedAt": "2026-09-12T17:43:59.965Z",
@@ -157,11 +157,97 @@
       "reportedTransactionHash": "0xf6b336551c7600337dfefce865b4a96886cdc349da05dd2381a993e9df197d2d"
     }
   ],
-  "evidence": null,
-  "candidates": null,
+  "evidence": {
+    "schema": "GOGH_ATOMIC_FORGE_DEPLOYMENT_EVIDENCE_V1",
+    "status": "VERIFIED_PAUSED_FORGE",
+    "planHash": "0x8cfc3a90a62c833d1298612195ad9b34dc639b3fdb8163f811906f48ba960419",
+    "chainId": 4663,
+    "localFixture": false,
+    "blockNumber": "61356803",
+    "blockHash": "0x80f5484905dbf34b30932013bff96bbe9190da246283876582f0914d15229688",
+    "addresses": {
+      "deployment": "0xF03A7331ACc83Bdba0e257221Daf8f4ee35d955B",
+      "registry": "0xc2A1Bd47fbc0FE33E53c85f130be53591c898E83",
+      "trainingSource": "0x7e4d6DB6c96C7B09c78F49760D9EEdb5dd4e1533",
+      "progression": "0x08ADa19EDf9c387dc07A181069a1848C66cA2dA4"
+    },
+    "codeHashes": {
+      "deploymentCodeHash": "0xc1217de9159139e225ea12c7e68a60a692c30c0aea533052110ebe609e8c0880",
+      "registryCodeHash": "0x6a061b9d291e4402e32f93e7815cb2fe2242e725fe4052740f2be0a78049d3c3",
+      "progressionCodeHash": "0x1e4a242384f6081dddc5b7bb0020b247d0107082edb14e9d4368a8f346dcd51d",
+      "trainingSourceCodeHash": "0x001996450268878eca44c4d13b6d3aea3cc68b6ee89280ecc62d9d6b6606742e"
+    },
+    "transactionHashes": [
+      "0x3aad374cdff38b2523d929a67941ef890993809e4a50d2e5a4067490324fb2e7",
+      "0xf6b336551c7600337dfefce865b4a96886cdc349da05dd2381a993e9df197d2d"
+    ],
+    "observedFeesWei": [
+      "372119333880000",
+      "2736948042000"
+    ],
+    "finality": "TWO_RPC_FINALIZED",
+    "productionTrainingAuthorized": false,
+    "productionBurnAuthorized": false,
+    "acceptanceReviewHash": "0x7f9a0b516e7f65aa3119b80d1c46244d3cd29507377f4538583c0eba71cb37a7",
+    "evidenceHash": "0x3f757fc66a3d3331eb50387d0ffe1d6c7aca31c4dafd670777e3fb913c5870c5"
+  },
+  "candidates": {
+    "read": {
+      "schemaVersion": "GOGH_ORIGINAL_PUNK_FORGE_READ_V1",
+      "status": "READ_ONLY_CANARY",
+      "chainId": 4663,
+      "collection": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+      "collectionCodeHash": "0x3222e4925f77909e6370e17fe071d2774d43e191f6bc72c3a97c97209c6e2e93",
+      "ownership": "ORIGINAL_NFT",
+      "registry": "0xc2a1bd47fbc0fe33e53c85f130be53591c898e83",
+      "registryCodeHash": "0x6a061b9d291e4402e32f93e7815cb2fe2242e725fe4052740f2be0a78049d3c3",
+      "progression": "0x08ada19edf9c387dc07a181069a1848c66ca2da4",
+      "progressionCodeHash": "0x1e4a242384f6081dddc5b7bb0020b247d0107082edb14e9d4368a8f346dcd51d",
+      "trainingSource": "0x7e4d6db6c96c7b09c78f49760d9eedb5dd4e1533",
+      "trainingSourceCodeHash": "0x001996450268878eca44c4d13b6d3aea3cc68b6ee89280ecc62d9d6b6606742e",
+      "allocationRoot": "0xf291febce8dc49ed133d39028f9b20061ea60c51d2e318096f122707dc558b97",
+      "snapshotHash": "0x8a492f7dbb1ea8fe2ca51a134ffb6a9d4003bd6e9aa7cb87b121de43a40430de",
+      "slotCap": 7,
+      "forgeSupplyFloor": 1111,
+      "productionTrainingAuthorized": false,
+      "productionBurnAuthorized": false,
+      "note": "Verified connected Forge stack. Registry paused; training and burns await integration acceptance."
+    },
+    "training": {
+      "schema": "GOGH_FORGE_TRAINING_RELEASE_V1",
+      "status": "PAUSED",
+      "chainId": 4663,
+      "collection": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+      "collectionCodeHash": "0x3222e4925f77909e6370e17fe071d2774d43e191f6bc72c3a97c97209c6e2e93",
+      "registry": "0xc2a1bd47fbc0fe33e53c85f130be53591c898e83",
+      "registryCodeHash": "0x6a061b9d291e4402e32f93e7815cb2fe2242e725fe4052740f2be0a78049d3c3",
+      "progression": "0x08ada19edf9c387dc07a181069a1848c66ca2da4",
+      "progressionCodeHash": "0x1e4a242384f6081dddc5b7bb0020b247d0107082edb14e9d4368a8f346dcd51d",
+      "trainingSource": "0x7e4d6db6c96c7b09c78f49760d9eedb5dd4e1533",
+      "trainingSourceCodeHash": "0x001996450268878eca44c4d13b6d3aea3cc68b6ee89280ecc62d9d6b6606742e",
+      "allocationRoot": "0xf291febce8dc49ed133d39028f9b20061ea60c51d2e318096f122707dc558b97",
+      "snapshotHash": "0x8a492f7dbb1ea8fe2ca51a134ffb6a9d4003bd6e9aa7cb87b121de43a40430de",
+      "allowedOwners": [],
+      "skills": [],
+      "feeCeilingWei": "1000000000000000",
+      "productionTrainingAuthorized": false,
+      "productionBurnAuthorized": false
+    },
+    "evidenceHash": "0x3f757fc66a3d3331eb50387d0ffe1d6c7aca31c4dafd670777e3fb913c5870c5",
+    "productionTrainingAuthorized": false,
+    "productionBurnAuthorized": false
+  },
   "verification": {
+    "status": "VERIFIED",
     "stage": "FINALIZED_DEPLOYMENT",
-    "code": "FORGE_ARCHIVE_STATE_UNAVAILABLE",
-    "status": "UNAVAILABLE"
+    "code": null,
+    "receiptEndpoints": [
+      "https://robinhood-rpc.publicnode.com",
+      "https://rpc.mainnet.chain.robinhood.com"
+    ],
+    "stateEndpoints": [
+      "https://robinhood-mainnet-rpc.blockreq.com/v1/rpc/public",
+      "https://robinhood.drpc.org"
+    ]
   }
 }

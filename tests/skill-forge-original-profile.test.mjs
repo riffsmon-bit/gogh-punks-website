@@ -7,6 +7,8 @@ import { manifestHash, instructionHash, skillKey } from '../broker/src/v4/skill-
 import { validateForgeProfile, forgeSlotView } from '../site/forge-profile-view.js';
 const ALICE = `0x${'1'.repeat(40)}`, BOB = `0x${'2'.repeat(40)}`, HASH = `0x${'a'.repeat(64)}`, ZERO = `0x${'0'.repeat(64)}`;
 const KEY = skillKey(3, 1);
+const undeployed = { ...deployment, status: 'UNDEPLOYED', registry: null, registryCodeHash: null,
+  progression: null, progressionCodeHash: null, trainingSource: null, trainingSourceCodeHash: null };
 function fixture() {
   const pack = { slug: 'contract-detective', manifest: { skillId: 3, version: 1, name: 'Contract Detective',
     chainId: 4663, capabilities: ['CONTRACT_READ'] }, instructions: 'Read only.', status: 'TESTING', approved: false };
@@ -28,9 +30,11 @@ function fixture() {
     readContract: async ({ functionName, blockNumber }) => { assert.equal(blockNumber, 100n); assert.ok(Object.hasOwn(values, functionName), functionName); return values[functionName]; } };
   return { config, pack, values, block, code, client, read: () => createOriginalForgeProfileReader({ client, deployment: config, packages: [pack] }) };
 }
-test('committed release has no live training source, write authorization or fabricated progress', async () => {
+test('committed read release keeps writes locked, and undeployed profiles never fabricate progress', async () => {
   validateOriginalForgeDeployment(deployment);
-  const profile = await createOriginalForgeProfileReader({ deployment, client: new Proxy({}, { get() { throw Error('No RPC expected'); } }) })({ tokenId: '93', owner: ALICE });
+  assert.equal(deployment.status, 'READ_ONLY_CANARY');
+  assert.equal(deployment.productionTrainingAuthorized, false); assert.equal(deployment.productionBurnAuthorized, false);
+  const profile = await createOriginalForgeProfileReader({ deployment: undeployed, client: new Proxy({}, { get() { throw Error('No RPC expected'); } }) })({ tokenId: '93', owner: ALICE });
   assert.deepEqual(profile, lockedOriginalForgeProfile()); assert.equal(profile.trainingCredits, null);
   assert.equal(forgeSlotView(validateForgeProfile(profile, { tokenId: '93', owner: ALICE })).filter(s => s.state === 'UNKNOWN').length, 7);
 });
@@ -82,7 +86,7 @@ test('no runtime flag, wrapper, partial pins, or write manifest can enable origi
   for (const patch of [{ status: 'LIVE' }, { ownership: 'WRAPPED_NFT' }, { epochAuthority: {} },
     { registry: ALICE }, { productionBurnAuthorized: true }, { productionTrainingAuthorized: true },
     { slotCap: 10 }, { forgeSupplyFloor: 1000 }, { status: 'READ_ONLY_CANARY' }]) {
-    assert.throws(() => validateOriginalForgeDeployment({ ...deployment, ...patch }));
+    assert.throws(() => validateOriginalForgeDeployment({ ...undeployed, ...patch }));
   }
 });
 test('frontend rejects foreign, stale, contradictory and unlearned loadouts', async () => {
