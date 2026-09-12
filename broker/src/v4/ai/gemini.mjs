@@ -23,24 +23,53 @@ function generatedText(payload) {
   return text || null;
 }
 
+function geminiBaseUrl(environment) {
+  const direct = "https://generativelanguage.googleapis.com";
+  const configured = environment.GOOGLE_GEMINI_BASE_URL;
+  if (configured === undefined) return direct;
+  const normalize = value => {
+    if (typeof value !== "string" || !value || value !== value.trim()) {
+      throw new TypeError("Gemini base URL is invalid");
+    }
+    const url = new URL(value);
+    if (url.protocol !== "https:" || url.username || url.password || url.port
+      || url.search || url.hash || !["/", "/.netlify/ai", "/.netlify/ai/"].includes(url.pathname)
+      || value !== url.href && `${value}/` !== url.href) {
+      throw new TypeError("Gemini base URL is invalid");
+    }
+    return url.href.replace(/\/$/, "");
+  };
+  const base = normalize(configured);
+  if (base === direct) return base;
+  // Netlify injects both values into Functions. Bind the provider URL to that
+  // platform gateway, rather than accepting an arbitrary credential destination.
+  if (!base.endsWith("/.netlify/ai")
+    || base !== normalize(environment.NETLIFY_AI_GATEWAY_URL)) {
+    throw new TypeError("Gemini base URL does not match the Netlify AI Gateway");
+  }
+  return base;
+}
+
 export class GeminiArtBrokerProvider extends ArtBrokerAIProvider {
   constructor({ modelId, fetchImpl = fetch, environment = process.env, timeoutMs = 20_000,
-    endpoint = "https://generativelanguage.googleapis.com/v1beta/interactions" }) {
+    endpoint }) {
     super("GEMINI");
     if (typeof modelId !== "string" || !modelId.trim() || modelId.length > 160) {
       throw new TypeError("model ID is invalid");
     }
     this.modelId = modelId.trim(); this.fetchImpl = fetchImpl;
     this.environment = environment; this.timeoutMs = timeoutMs;
-    this.endpoint = exactHttpsEndpoint(endpoint, "https://generativelanguage.googleapis.com",
-      "/v1beta/interactions");
+    const base = geminiBaseUrl(environment);
+    const { origin, pathname } = new URL(base);
+    const prefix = pathname === "/" ? "" : pathname;
+    this.endpoint = exactHttpsEndpoint(endpoint ?? `${base}/v1beta/interactions`, origin,
+      `${prefix}/v1beta/interactions`);
     if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$/.test(this.modelId)) {
       throw new TypeError("model ID is invalid");
     }
     this.chatEndpoint = exactHttpsEndpoint(
-      `https://generativelanguage.googleapis.com/v1beta/models/${this.modelId}:generateContent`,
-      "https://generativelanguage.googleapis.com",
-      `/v1beta/models/${this.modelId}:generateContent`);
+      `${base}/v1beta/models/${this.modelId}:generateContent`, origin,
+      `${prefix}/v1beta/models/${this.modelId}:generateContent`);
   }
 
   getCapabilities() {

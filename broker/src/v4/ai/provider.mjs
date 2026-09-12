@@ -67,6 +67,7 @@ export async function providerJsonRequest({ fetchImpl, url, headers, body, timeo
   try {
     const response = await fetchImpl(url, {
       method: "POST", headers, body: JSON.stringify(body), signal: controller.signal,
+      redirect: "error",
     });
     const declared = Number(response.headers?.get?.("content-length") ?? 0);
     if (Number.isFinite(declared) && declared > 2_000_000) {
