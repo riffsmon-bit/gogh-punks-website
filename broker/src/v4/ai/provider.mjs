@@ -5,11 +5,14 @@ export const ART_BROKER_AI_TASKS = Object.freeze([
 ]);
 
 export class ArtBrokerProviderError extends Error {
-  constructor(code, message, { retryable = false, cause } = {}) {
+  constructor(code, message, { retryable = false, cause, httpStatus } = {}) {
     super(message, { cause });
     this.name = "ArtBrokerProviderError";
     this.code = code;
     this.retryable = retryable;
+    if (Number.isInteger(httpStatus) && httpStatus >= 400 && httpStatus <= 599) {
+      this.httpStatus = httpStatus;
+    }
   }
 }
 
@@ -84,7 +87,7 @@ export async function providerJsonRequest({ fetchImpl, url, headers, body, timeo
     if (!response.ok) {
       const retryable = response.status === 408 || response.status === 429 || response.status >= 500;
       throw new ArtBrokerProviderError("PROVIDER_REQUEST_FAILED",
-        "The intelligence provider could not complete the request.", { retryable });
+        "The intelligence provider could not complete the request.", { retryable, httpStatus: response.status });
     }
     return { payload, latencyMs: Math.round(performance.now() - startedAt) };
   } catch (error) {

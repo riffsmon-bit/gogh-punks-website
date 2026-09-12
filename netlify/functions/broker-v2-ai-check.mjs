@@ -4,6 +4,7 @@ import { createDatabaseBackedGoghIntelligence } from "./_shared/v2-ai-runtime.mj
 import { v2Failure } from "./_shared/v2-http.mjs";
 import { verifyAdminBearer } from "./_shared/v2-session.mjs";
 import { requireV2StrategyOrigin } from "./broker-v2-strategy.mjs";
+import { ArtBrokerProviderError } from "../../broker/src/v4/ai/provider.mjs";
 
 const schema = Object.freeze({ type: "object", additionalProperties: false,
   properties: { answer: { type: "string", enum: ["PIXEL_ART"] } }, required: ["answer"] });
@@ -35,10 +36,16 @@ export async function handleV2AiCheck(request, { environment = process.env,
       const result = probe.status === "fulfilled" ? probe.value : null;
       const verified = Boolean(result && (index === 0
         ? result.text?.trim() === "GOGH_CONNECTION_OK" : result.value?.answer === "PIXEL_ART"));
+      const providerError = probe.status === "rejected" && probe.reason instanceof ArtBrokerProviderError
+        ? probe.reason : null;
+      const safeCodes = ["PROVIDER_REQUEST_FAILED", "PROVIDER_TIMEOUT", "PROVIDER_UNAVAILABLE",
+        "INVALID_PROVIDER_RESPONSE", "INVALID_STRUCTURED_OUTPUT", "PROVIDER_RESPONSE_TOO_LARGE"];
       return { kind: index === 0 ? "CHAT" : "STRUCTURED_OUTPUT", verified,
         provider: result?.provider ?? null,
+        ...(providerError?.httpStatus ? { httpStatus: providerError.httpStatus } : {}),
         code: verified ? "PASS" : probe.status === "rejected"
-          ? "PROVIDER_OR_USAGE_CHECK_FAILED" : "INVALID_PROBE_RESPONSE" };
+          ? safeCodes.includes(providerError?.code) ? providerError.code : "PROVIDER_OR_USAGE_CHECK_FAILED"
+          : "INVALID_PROBE_RESPONSE" };
     });
     const ok = checks.every(check => check.verified);
     return json({ ok, code: ok ? "AI_CONNECTION_VERIFIED" : "AI_CONNECTION_CHECK_FAILED",

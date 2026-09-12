@@ -63,7 +63,8 @@ test("Gemini structured output uses the stateless generateContent JSON schema re
   assert.equal(request.url, "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent");
   assert.equal(request.options.headers["x-goog-api-key"], "server-only-gemini-key");
   assert.equal(body.generationConfig.thinkingConfig.thinkingLevel, "low");
-  assert.deepEqual(body.generationConfig.responseFormat.text, { mimeType: "application/json", schema: SCHEMA });
+  assert.equal(body.generationConfig.responseMimeType, "application/json");
+  assert.deepEqual(body.generationConfig.responseJsonSchema, SCHEMA);
   assert.equal(Object.hasOwn(body, "previous_interaction_id"), false);
   assert.deepEqual(result.value, { answer: "PIXEL_ART" });
   assert.equal(JSON.stringify(result).includes("server-only-gemini-key"), false);

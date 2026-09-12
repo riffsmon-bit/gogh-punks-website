@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test, { after } from "node:test";
 import { handleV2AiCheck } from "../netlify/functions/broker-v2-ai-check.mjs";
+import { ArtBrokerProviderError } from "../broker/src/v4/ai/provider.mjs";
 
 const secret = "connection-check-only-test-credential";
 const originalSiteUrl = process.env.SITE_URL;
@@ -55,4 +56,17 @@ test("provider or usage-recording failure remains unverified and never exposes i
   const body = await response.json();
   assert.equal(response.status, 503); assert.equal(body.checks[0].verified, true);
   assert.equal(body.checks[1].verified, false); assert.equal(JSON.stringify(body).includes(secret), false);
+});
+
+test("provider diagnostics expose only an approved code and HTTP status", async () => {
+  const response = await handleV2AiCheck(request(), { environment,
+    createRuntime: () => ({ router: { run: async () => {
+      throw new ArtBrokerProviderError("PROVIDER_REQUEST_FAILED", `upstream error ${secret}`,
+        { httpStatus: 400, cause: Error(secret) });
+    } } }) });
+  const body = await response.json();
+  assert.equal(response.status, 503);
+  assert.equal(body.checks[0].code, "PROVIDER_REQUEST_FAILED");
+  assert.equal(body.checks[0].httpStatus, 400);
+  assert.equal(JSON.stringify(body).includes(secret), false);
 });

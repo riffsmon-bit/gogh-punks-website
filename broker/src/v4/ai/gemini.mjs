@@ -85,7 +85,7 @@ export class GeminiArtBrokerProvider extends ArtBrokerAIProvider {
       system_instruction: { parts: [{ text: instructions }] },
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       generationConfig: { maxOutputTokens, thinkingConfig: { thinkingLevel: "low" },
-        ...(schema ? { responseFormat: { text: { mimeType: "application/json", schema } } } : {}) },
+        ...(schema ? { responseMimeType: "application/json", responseJsonSchema: schema } : {}) },
     };
     const { payload, latencyMs } = await providerJsonRequest({ fetchImpl: this.fetchImpl,
       url: this.endpoint, timeoutMs: this.timeoutMs,
