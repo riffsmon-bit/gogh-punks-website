@@ -23,7 +23,9 @@ const word=n=>`0x${BigInt(n).toString(16).padStart(64,'0')}`;
 let walletWrites=0;
 let connectedOwner=ALICE, forgeMode='locked', releaseForge=null, sessionReads=0;
 let chatDraft=null, chatRequests=0;
-let serveRealWallet=true,walletSdkRequests=0;
+let serveRealWallet=true,walletSdkRequests=0,reviewHostFixture=false;
+let sessionMode='required',walletSignIns=0,agentMode='active';
+const hasSession=req=>sessionMode==='auto'||req.headers.cookie?.includes('gogh_v2_session=local_fixture');
 const skillHash=keccak256(encodeAbiParameters([{type:'uint32'},{type:'uint16'}],[3,1]));
 const server=createServer(async(req,res)=>{
   const json=data=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify(data));};
@@ -36,6 +38,7 @@ const server=createServer(async(req,res)=>{
     if(url.pathname==='/fixture-rpc' && req.method==='POST') {
       let body=''; for await(const chunk of req) body+=chunk;
       const {method,params}=JSON.parse(body);
+      if(method==='personal_sign') {walletSignIns++;assert.equal(params[1],ALICE);return json(`0x${'1'.repeat(130)}`);}
       if(method==='eth_blockNumber') return json('0xabc');
       if(method==='eth_chainId') return json('0x1237');
       if(method==='eth_getBalance') return json('0x0');
@@ -61,10 +64,21 @@ const server=createServer(async(req,res)=>{
     if(url.pathname==='/api/broker/owner-punks') return json({ok:true,owner:url.searchParams.get('owner'),
       chainId:4663,collection:COLLECTION,candidateTokenIds:['93','119'],
       candidatePunks:[{tokenId:'93'},{tokenId:'119'}]});
-    if(url.pathname==='/api/v2/session' && req.method==='GET') {sessionReads++; return json({ok:true,walletAddress:connectedOwner});}
-    if(/^\/api\/v2\/punks\/\d+\/agent-account$/.test(url.pathname)) return json({ok:true,
-      runtime:{account:`0x${'3'.repeat(40)}`,accountCreated:true,nativeBalance:'0',entryPointDeposit:'0',sessionActive:false},
-      readiness:{setupAvailable:true,automaticExecutionReady:false,blockers:['AGENT_GAS_UNFUNDED']},mission:null,skills:[]});
+    if(url.pathname==='/api/v2/session') {
+      if(req.method==='GET') {sessionReads++;if(!hasSession(req)){res.statusCode=401;return json({ok:false,code:'V2_SESSION_REQUIRED',message:'Sign in with your wallet.'});}return json({ok:true,walletAddress:connectedOwner});}
+      let body='';for await(const chunk of req)body+=chunk;const input=JSON.parse(body);
+      if(input.action==='prepare')return json({ok:true,challenge:{challengeId:'local-fixture',message:'Sign in to this local fixture. No transaction.'}});
+      assert.equal(input.action,'complete');assert.equal(input.walletAddress,ALICE);assert.equal(walletSignIns,1);
+      res.setHeader('Set-Cookie','gogh_v2_session=local_fixture; HttpOnly; SameSite=Strict; Path=/api/v2');
+      return json({ok:true,walletAddress:connectedOwner});
+    }
+    if(/^\/api\/v2\/punks\/\d+\/agent-account$/.test(url.pathname)) {
+      if(!hasSession(req)){res.statusCode=401;return json({ok:false,code:'V2_SESSION_REQUIRED',message:'Sign in with your wallet.'});}
+      return json({ok:true,
+        runtime:{account:`0x${'3'.repeat(40)}`,accountCreated:true,nativeBalance:'0',entryPointDeposit:'0',sessionActive:agentMode==='active'},
+        readiness:{setupAvailable:agentMode!=='blocked',automaticExecutionReady:false,blockers:agentMode==='blocked'?['SESSION_SIGNER_NOT_CONFIGURED']:['AGENT_GAS_UNFUNDED']},
+        mission:agentMode==='active'?{status:'ACTIVE',totalLimit:1,completedMints:0}:null,skills:[]});
+    }
     if(/^\/api\/v2\/punks\/\d+\/chat$/.test(url.pathname) && req.method==='POST') {
       let body='';for await(const chunk of req)body+=chunk;
       const input=JSON.parse(body);chatRequests++;
@@ -99,7 +113,11 @@ const server=createServer(async(req,res)=>{
     if(!path.startsWith(`${root}/`)) {res.statusCode=403;return res.end();}
     const type={'.html':'text/html','.js':'text/javascript','.css':'text/css','.png':'image/png','.woff2':'font/woff2'}[extname(path)];
     if(type) res.setHeader('Content-Type',type);
-    res.end(await readFile(path));
+    let content=await readFile(path);
+    // Exercise the PR hostname branches while all traffic stays on this local
+    // fixture server. No real preview backend, owner or wallet is contacted.
+    if(url.pathname==='/broker-v2.js' && reviewHostFixture)content=content.toString().replace(/^const REVIEW_HOST = .*;$/m,'const REVIEW_HOST = true;');
+    res.end(content);
   } catch {res.statusCode=404;res.end();}
 });
 await new Promise(r=>server.listen(0,'127.0.0.1',r));
@@ -148,12 +166,37 @@ try {
   assert.equal(await evaluate('window.observedWalletEvents'),initialEvents,'empty selection does not echo wallet events');
   assert.ok(initialEvents<5);assert.equal(walletSdkRequests,0);assert.equal(walletWrites,0);
   assert.equal(await evaluate("document.querySelector('[data-selected-stage]').hidden"),true);
-  serveRealWallet=false;
+  serveRealWallet=false;reviewHostFixture=true;
   await call('Page.navigate',{url:`${url}/broker/v2/`});
   await until("document.querySelector('[data-punk-roster]') && document.readyState === 'complete'");
   await evaluate(`window.dispatchEvent(new CustomEvent('gogh:wallet-state',{detail:{account:'${ALICE}',chainId:4663,status:'owner'}}))`);
   await until("document.querySelector('[data-punk-token]').textContent === '93' && !document.querySelector('[data-selected-stage]').hidden");
   const output=await mkdtemp(join(tmpdir(),'gogh-original-sale-review-'));
+  await until("document.querySelector('[data-open-agent-readiness]').textContent==='SIGN IN & CHECK AUTONOMY'");
+  assert.equal(walletSignIns,0,'connecting alone never prompts for a signature');
+  assert.match(await evaluate("document.querySelector('[data-autonomous-mode-detail]').textContent"),/Wallet connected.*preview/);
+  assert.equal(await evaluate("document.querySelector('[data-review-agent-console]').hidden"),true,'old Punk Pipeline is absent from normal PR Talk');
+  assert.equal(await evaluate("document.querySelector('[data-review-strategy-state]').hidden"),true);
+  await evaluate("document.querySelector('[data-open-agent-readiness]').click();");
+  await until("!document.querySelector('[data-open-agent-readiness]').disabled && !document.querySelector('[data-operating-mode][value=AUTONOMOUS]').disabled");
+  assert.equal(walletSignIns,1);assert.equal(walletWrites,0);
+  assert.match(await evaluate("document.querySelector('[data-welcome-message]').textContent"),/OWNER-APPROVED MISSION: 0\/1/);
+  assert.equal(await evaluate("document.querySelector('[data-talk-gas-host]').hidden"),true,'sign-in does not open/reset the funding form');
+  for(const [name,width,height,mobile] of [['desktop',1440,1000,false],['mobile',390,844,true]]) {
+    await call('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile});
+    await evaluate("document.querySelector('[data-talk-mode-control]').scrollIntoView({block:'center',behavior:'instant'});");
+    assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true);
+    await writeFile(join(output,`autonomy-signed-in-${name}.png`),Buffer.from((await call('Page.captureScreenshot',{format:'png'})).data,'base64'));
+  }
+  agentMode='blocked';
+  await evaluate("document.querySelector('[data-open-agent-readiness]').click();");
+  await until("document.querySelector('[data-autonomous-mode-detail]').textContent.includes('SESSION SIGNER NOT CONFIGURED')");
+  assert.equal(await evaluate("document.querySelector('[data-operating-mode][value=AUTONOMOUS]').disabled"),true,'sign-in does not bypass real infrastructure blockers');
+  agentMode='empty';sessionMode='auto';
+  await evaluate("document.querySelector('[data-open-agent-readiness]').click();");
+  await until("!document.querySelector('[data-open-agent-readiness]').disabled && !document.querySelector('[data-operating-mode][value=AUTONOMOUS]').disabled");
+  await call('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
+
   const sendChat=async message=>{
     await evaluate(`document.querySelector('[data-v2-tab=talk]').click();document.querySelector('#punk-prompt').value=${JSON.stringify(message)};document.querySelector('[data-chat-form]').requestSubmit();`);
     await until("!document.querySelector('[data-chat-form]').hasAttribute('aria-busy')");
@@ -363,7 +406,10 @@ try {
   assert.equal(walletWrites,0); assert.deepEqual(errors,[]);
   console.log(JSON.stringify({result:'PASS',sameWalletPurchaseAndSale:true,staleReviewClosed:true,
     actualWalletComponentStartup:true,disconnectedStartupDoesNotLoop:true,firstVisitWalletSdkRequests:walletSdkRequests,
-    fullProductionChatParserUsed:true,chatMintGasReserveInputsPreserved:true,emptyGasRetainsMission:true,
+    fullProductionChatParserUsed:true,previewHostBranchesExercised:true,
+    previewSignInCookieVerified:true,existingAutonomousMissionRestored:true,oldPipelineHidden:true,
+    signInDoesNotBypassInfrastructure:true,simulatedLoginSignatures:walletSignIns,
+    chatMintGasReserveInputsPreserved:true,emptyGasRetainsMission:true,
     gasSourceAndAmountFilledInTalk:true,savedMissionReviewResumes:true,
     enabledTrainingPanelReviewAndRecovery:true,trainingComponentRemountDoesNotResend:true,simulatedTrainingWalletRequests:2,
     learnedAloneDoesNotEnableResearch:true,equippedResearchRequiresExplicitClick:true,unequippingClearsResearchResult:true,

@@ -1,0 +1,177 @@
+{
+  "observedAt": "2026-09-12T02:14:13.385Z",
+  "main": "bff04fb7461b1171b770abdb55f094f6680d6b67",
+  "assets": [
+    {
+      "site": "production",
+      "path": "broker-v2.js",
+      "status": 200,
+      "matches": {
+        "origin/main": false,
+        "0daf269": true,
+        "HEAD": false
+      },
+      "sha256": "6cc1413c485cd42720c567ee0d880f68e6fa142ddb382e26ea1e3bdf58dbbdc8"
+    },
+    {
+      "site": "production",
+      "path": "punk-chat-actions.js",
+      "status": 200,
+      "matches": {
+        "origin/main": false,
+        "0daf269": true,
+        "HEAD": true
+      },
+      "sha256": "d147f17eadd47cbd8581443ce18cf6979973522ec8b9c4429061718ac3bf6d8b"
+    },
+    {
+      "site": "production",
+      "path": "punk-agent-gas-funding.js",
+      "status": 200,
+      "matches": {
+        "origin/main": false,
+        "0daf269": true,
+        "HEAD": true
+      },
+      "sha256": "bef487e968c07d8607e29fd8ca8a7da53887d5a5e33612d9344ccfd547a85754"
+    },
+    {
+      "site": "preview",
+      "path": "broker-v2.js",
+      "status": 200,
+      "matches": {
+        "origin/main": false,
+        "0daf269": false,
+        "HEAD": true
+      },
+      "sha256": "d8983623b8a9486cdf77d70d79134bc6207c35734e654af76c0efbaffe59c169"
+    },
+    {
+      "site": "preview",
+      "path": "punk-chat-actions.js",
+      "status": 200,
+      "matches": {
+        "origin/main": false,
+        "0daf269": true,
+        "HEAD": true
+      },
+      "sha256": "d147f17eadd47cbd8581443ce18cf6979973522ec8b9c4429061718ac3bf6d8b"
+    },
+    {
+      "site": "preview",
+      "path": "punk-agent-gas-funding.js",
+      "status": 200,
+      "matches": {
+        "origin/main": false,
+        "0daf269": true,
+        "HEAD": true
+      },
+      "sha256": "bef487e968c07d8607e29fd8ca8a7da53887d5a5e33612d9344ccfd547a85754"
+    }
+  ],
+  "status": [
+    {
+      "site": "production",
+      "path": "/api/v2/session",
+      "http": 401,
+      "code": "V2_SESSION_REQUIRED",
+      "message": "Sign in with your wallet."
+    },
+    {
+      "site": "production",
+      "path": "/api/v2/punks/93/agent-account",
+      "http": 401,
+      "code": "V2_SESSION_REQUIRED",
+      "message": "Sign in with your wallet."
+    },
+    {
+      "site": "preview",
+      "path": "/api/v2/session",
+      "http": 401,
+      "code": "V2_SESSION_REQUIRED",
+      "message": "Sign in with your wallet."
+    },
+    {
+      "site": "preview",
+      "path": "/api/v2/punks/93/agent-account",
+      "http": 401,
+      "code": "V2_SESSION_REQUIRED",
+      "message": "Sign in with your wallet."
+    }
+  ],
+  "code": [
+    {
+      "file": "deployments/robinhood-punk-agent-account.json",
+      "productionMatchesPreview": true
+    },
+    {
+      "file": "netlify/functions/broker-v2-session.mjs",
+      "productionMatchesPreview": true
+    },
+    {
+      "file": "netlify/functions/_shared/v2-session.mjs",
+      "productionMatchesPreview": true
+    },
+    {
+      "file": "netlify/functions/broker-v2-agent-account.mjs",
+      "productionMatchesPreview": true
+    }
+  ],
+  "environments": [
+    {
+      "key": "SITE_URL",
+      "productionConfigured": true,
+      "previewConfigured": false,
+      "same": false
+    },
+    {
+      "key": "RPC_URL",
+      "productionConfigured": true,
+      "previewConfigured": true,
+      "same": true
+    },
+    {
+      "key": "PUNK_AGENT_WORKER_ENABLED",
+      "productionConfigured": true,
+      "previewConfigured": false,
+      "same": false
+    },
+    {
+      "key": "PUNK_AGENT_SESSION_PRIVATE_KEY",
+      "productionConfigured": true,
+      "previewConfigured": false,
+      "same": false
+    },
+    {
+      "key": "PUNK_AGENT_SESSION_ADDRESS",
+      "productionConfigured": true,
+      "previewConfigured": false,
+      "same": false
+    },
+    {
+      "key": "PUNK_AGENT_BUNDLER_MODE",
+      "productionConfigured": true,
+      "previewConfigured": false,
+      "same": false
+    },
+    {
+      "key": "PUNK_AGENT_DIRECT_RELAY_RPC_URL",
+      "productionConfigured": true,
+      "previewConfigured": false,
+      "same": false
+    },
+    {
+      "key": "BACKGROUND_RPC_ALLOWED_TASKS",
+      "productionConfigured": true,
+      "previewConfigured": false,
+      "same": false
+    },
+    {
+      "key": "GOGH_V2_REVIEW_AI_ENABLED",
+      "productionConfigured": true,
+      "previewConfigured": true,
+      "same": true
+    }
+  ],
+  "privateValuesRecorded": false
+}

@@ -39,8 +39,9 @@ test("old-owner, active, and retired rows are not silently revived", async () =>
     assert.equal(calls, 1);
   }
 });
+for (const origin of ["https://goghpunks.xyz", "https://deploy-preview-47.preview.goghpunks.xyz", "https://deploy-preview-47--gogh-punks.netlify.app"])
 for (const state of ["PAUSED", "PENDING_OWNER_CONFIRMATION"]) {
-  test(`full chat handler returns HTTP 200 for duplicate ${state} mission`, async () => {
+  test(`full chat handler on ${origin} returns HTTP 200 for duplicate ${state} mission`, async () => {
     const intent = { ...defaultAskIntent({ punkTokenId: "93", expectedOwner: owner, punkWallet }),
       operatingMode: "AUTONOMOUS", totalMintLimit: 1, dailyMintLimit: 1 };
     const queries = [];
@@ -50,8 +51,8 @@ for (const state of ["PAUSED", "PENDING_OWNER_CONFIRMATION"]) {
       if (sql.includes("SELECT version, state, configured_by")) return { rows: [{ version: "6", state, configured_by: owner }] };
       return { rows: [] };
     } };
-    const response = await handleV2Chat(new Request("https://goghpunks.xyz/api/v2/punks/93/chat", {
-      method: "POST", headers: { origin: "https://goghpunks.xyz", "content-type": "application/json" },
+    const response = await handleV2Chat(new Request(`${origin}/api/v2/punks/93/chat`, {
+      method: "POST", headers: { origin, "content-type": "application/json" },
       body: JSON.stringify({ message: "Find and mint one eligible free NFT." }),
     }), { pool: { connect: async () => client, query: async (sql, args) => {
       assert.match(sql, /configured_by = \$4/); assert.equal(args[3], owner); return { rows: [{ intent }] };

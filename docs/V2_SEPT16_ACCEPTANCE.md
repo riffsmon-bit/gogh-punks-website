@@ -8,8 +8,12 @@ using the owner wallet and selected original Punk. The #44 localhost page is onl
 a disposable training fixture. Hosted `preview=1` is a visual fixture whose local
 chat endpoint is not served by Netlify.
 
-Chat, mission review and gas setup can be tested in the full owner-connected
-preview now. The server mint worker does not automatically run on a PR preview:
+Production already runs owner-authorized autonomous missions. PR #47 is fixing
+that existing product; autonomy is not an undeployed feature. The September 11
+[production/preview comparison](V2_PREVIEW_PRODUCTION_PARITY_2026-09-11.md) found
+old preview-only chat/Pipeline behavior and missing preview worker, signer and
+relay settings. The code now shares the authenticated production chat path, but
+preview execution configuration remains separate from production. The server mint worker does not automatically run on a PR preview:
 [Netlify schedules functions only on published deploys](https://docs.netlify.com/build/functions/scheduled-functions/).
 A controlled manual worker invocation is supported by Netlify, but requires the
 intended environment, mission and transaction scope to be checked first. Opening

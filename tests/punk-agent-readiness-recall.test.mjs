@@ -79,7 +79,7 @@ test("inactive session does not bypass infrastructure and database setup blocker
 });
 test("UI does not label service failures as sign-in failures or display a fake zero balance", async () => {
   const source = await readFile(new URL("../site/broker-v2.js", import.meta.url), "utf8");
-  assert.match(source, /\["V2_SESSION_REQUIRED", "V2_SESSION_EXPIRED"\]\.includes\(status.code\)/);
+  assert.match(source, /\["V2_SESSION_REQUIRED", "V2_SESSION_EXPIRED"\]\.includes\(status\?\.code\)/);
   assert.match(source, /signInRequired \? "SIGN-IN REQUIRED" : "READINESS UNAVAILABLE"/);
   assert.match(source, /set\("\[data-agent-account-balance\]", "NOT VERIFIED"\)/);
 });

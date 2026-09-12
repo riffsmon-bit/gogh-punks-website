@@ -4,7 +4,8 @@ import { defaultAskIntent } from "../../broker/src/v4/collecting-intent.mjs";
 import { answerPunkConversation, isPunkConversationMessage } from
   "../../broker/src/v4/ai/punk-chat.mjs";
 import { draftStrategyFromConversation } from "../../broker/src/v4/intent-draft.mjs";
-import { PublicError, json, readJson, requireSameOrigin } from "./_shared/http.mjs";
+import { PublicError, json, readJson } from "./_shared/http.mjs";
+import { requireV2OwnerOrigin } from "./_shared/v2-review.mjs";
 import { createDatabaseBackedGoghIntelligence } from "./_shared/v2-ai-runtime.mjs";
 import { v2Failure } from "./_shared/v2-http.mjs";
 import { requireV2Session } from "./_shared/v2-session.mjs";
@@ -112,7 +113,7 @@ export async function handleV2Chat(request, { pool, requireSession = requireV2Se
   createIntelligence = createDatabaseBackedGoghIntelligence } = {}) {
   if (request.method !== "POST") return json({ ok: false, code: "METHOD_NOT_ALLOWED" }, 405);
   try {
-    requireSameOrigin(request);
+    requireV2OwnerOrigin(request);
     const tokenId = tokenIdFrom(request);
     const session = await requireSession(request, pool);
     const authority = await readAuthority(tokenId, { expectedOwner: session.walletAddress });

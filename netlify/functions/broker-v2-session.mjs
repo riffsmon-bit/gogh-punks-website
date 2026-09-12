@@ -14,11 +14,12 @@ function exact(value, fields) {
 }
 
 export function requireV2SessionOrigin(request) {
-  if (isV2DeployPreview(request)) return;
+  if (isV2DeployPreview(request)) return new URL(request.url).origin;
   if (isV2DeployPreviewUrl(request)) {
     throw new PublicError(403, "ORIGIN_REJECTED", "The request origin was rejected.");
   }
   requireSameOrigin(request);
+  return request.headers.get("origin");
 }
 
 export default async function handler(request) {
@@ -30,16 +31,16 @@ export default async function handler(request) {
         expiresAt: session.expiresAt });
     }
     if (request.method !== "POST") return json({ ok: false, code: "METHOD_NOT_ALLOWED" }, 405);
-    requireV2SessionOrigin(request);
+    const siteUrl = requireV2SessionOrigin(request);
     const body = await readJson(request, 16_384);
     if (body.action === "prepare") {
       exact(body, ["action", "walletAddress"]);
       return json({ ok: true, action: "SIGN_IN",
-        challenge: await prepareV2Session(pool, body.walletAddress) });
+        challenge: await prepareV2Session(pool, body.walletAddress, new Date(), siteUrl) });
     }
     if (body.action === "complete") {
       exact(body, ["action", "challengeId", "walletAddress", "signature"]);
-      const session = await completeV2Session(pool, body);
+      const session = await completeV2Session(pool, body, new Date(), siteUrl);
       return json({ ok: true, authenticated: true, walletAddress: session.walletAddress,
         expiresAt: session.expiresAt }, 200, { "set-cookie": session.cookie });
     }
