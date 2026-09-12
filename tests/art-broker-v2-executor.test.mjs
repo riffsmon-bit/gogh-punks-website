@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { StatelessV2Executor } from "../broker/src/v4/executor.mjs";
+import { resolveV2PunkChat } from "../netlify/functions/broker-v2-chat.mjs";
 
 const OWNER = "0x1111111111111111111111111111111111111111";
 const WALLET = "0x2222222222222222222222222222222222222222";
@@ -78,6 +79,21 @@ test("ASSIST prepares known-safe calldata for explicit owner approval and never 
   assert.equal(output.status, "OWNER_APPROVAL_REQUIRED");
   assert.deepEqual(output.transaction, { to: MINT, valueWei: "0", data: "0x12345678" });
   assert.equal(output.productionAuthorized, false);
+});
+
+test("a directed chat mission cannot prepare another collection through the shared mint adapter", async () => {
+  const { draft } = await resolveV2PunkChat({ router: {},
+    ownerMessage: `Mint one free NFT only from ${MINT}. Use Assist mode.`,
+    currentIntent: intent("ASK"), tokenId: "119", authority: { punkWallet: WALLET }, owner: OWNER, now: NOW });
+  const { value, attemptStore } = executor();
+  const input = { intent: draft.intent, opportunity: opportunity(), strategyVersion: 8,
+    accountNonce: "1", usage: { dailyMints: 0, totalMints: 0 } };
+  await assert.rejects(value.prepare({ ...input, opportunity: { ...opportunity(), collectionContract: ADAPTER } }),
+    (error) => error.code === "POLICY_REJECTED" && /CONTRACT_NOT_ALLOWED/.test(error.message));
+  assert.equal(attemptStore.values.size, 0);
+  const prepared = await value.prepare(input);
+  assert.equal(prepared.status, "OWNER_APPROVAL_REQUIRED");
+  assert.equal(prepared.submitted, false);
 });
 
 test("AUTONOMOUS fails at the deployed self-funded gas boundary before transaction building", async () => {

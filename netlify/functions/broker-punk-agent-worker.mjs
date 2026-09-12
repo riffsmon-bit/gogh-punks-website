@@ -65,7 +65,7 @@ function missionFromRow(row, now) {
     strategyHash: row.strategy_hash, strategy });
 }
 
-async function loadMission(pool, now) {
+async function loadMission(pool, now, scope = null) {
   const result = await pool.query(`SELECT session.session_id::text, session.punk_token_id,
       session.punk_account, session.owner_snapshot, session.session_generation,
       session.strategy_version, session.strategy_hash, session.authorization_transaction_hash, strategy.intent
@@ -77,8 +77,11 @@ async function loadMission(pool, now) {
     WHERE session.status = 'ACTIVE' AND session.valid_after <= $1
       AND session.valid_until > $1 AND strategy.state = 'ACTIVE'
       AND strategy.expires_at > $1
+      AND ($2::uuid IS NULL OR session.session_id = $2::uuid)
+      AND ($3::numeric IS NULL OR session.punk_token_id = $3::numeric)
+      AND ($4::text IS NULL OR session.owner_snapshot = $4::text)
     ORDER BY session.updated_at ASC, session.punk_token_id ASC LIMIT 1`,
-  [new Date(now).toISOString()]);
+  [new Date(now).toISOString(), scope?.sessionId ?? null, scope?.tokenId ?? null, scope?.owner ?? null]);
   return result.rows[0] ? missionFromRow(result.rows[0], now) : null;
 }
 
@@ -223,7 +226,7 @@ async function recordWorkerActivity(pool, tokenId, activityType, detail, now) {
     tokenId, activityType, JSON.stringify(detail), new Date(now).toISOString()]);
 }
 
-async function reconcileOne(pool, client, bundler, now) {
+async function reconcileOne(pool, client, bundler, now, scope = null) {
   const result = await pool.query(`SELECT operation.operation_id::text,
       operation.attempt_id::text, operation.user_operation_hash, operation.opportunity_id,
       operation.opportunity_hash, operation.expected_collection, operation.expected_token_id,
@@ -233,7 +236,11 @@ async function reconcileOne(pool, client, bundler, now) {
     FROM broker_v2_agent_user_operations operation
     JOIN broker_v2_agent_sessions session ON session.session_id = operation.session_id
     WHERE operation.state IN ('SUBMITTED', 'RECONCILIATION_REQUIRED')
-    ORDER BY operation.submitted_at ASC LIMIT 1`);
+      AND ($1::uuid IS NULL OR session.session_id = $1::uuid)
+      AND ($2::numeric IS NULL OR session.punk_token_id = $2::numeric)
+      AND ($3::text IS NULL OR session.owner_snapshot = $3::text)
+    ORDER BY operation.submitted_at ASC LIMIT 1`,
+  [scope?.sessionId ?? null, scope?.tokenId ?? null, scope?.owner ?? null]);
   const row = result.rows[0];
   if (!row) return null;
   const receipt = await readPunkAgentUserOperationReceipt({ bundler,
@@ -325,7 +332,15 @@ export async function runScheduledPunkAgentWorker({
   pool = getDatabase().pool, client = null, environment = process.env,
   manifest = deployment, now = new Date(), bundler = null, signer = null,
   runMission = runPunkAgentMissionOnce,
+  missionScope = null,
 } = {}) {
+  if (missionScope !== null && (!missionScope || typeof missionScope !== "object"
+    || Object.keys(missionScope).length !== 3
+    || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(missionScope.sessionId ?? "")
+    || !/^(?:0|[1-9]\d{0,3})$/.test(missionScope.tokenId ?? "")
+    || !/^0x[0-9a-f]{40}$/.test(missionScope.owner ?? ""))) {
+    throw new TypeError("Invalid mission scope");
+  }
   if (environment.PUNK_AGENT_WORKER_ENABLED !== "true") {
     return Object.freeze({ status: "DISABLED", submitted: false });
   }
@@ -346,7 +361,7 @@ export async function runScheduledPunkAgentWorker({
     const liveBundler = bundler ?? createConfiguredPunkAgentBundler(environment);
     const liveClient = client ?? createClient();
     const liveSigner = signer ?? createPunkAgentSessionSigner(environment);
-    const reconciliation = await reconcileOne(pool, liveClient, liveBundler, now);
+    const reconciliation = await reconcileOne(pool, liveClient, liveBundler, now, missionScope);
     if (reconciliation?.status === "PENDING") return Object.freeze({
       status: "RECONCILIATION_PENDING", submitted: false, reconciliation });
     const gas = await gasEnvelope(liveClient, environment);
@@ -354,7 +369,7 @@ export async function runScheduledPunkAgentWorker({
     const run = await runMission({ deployment: manifest, client: liveClient,
       bundler: liveBundler, signer: liveSigner, gas, now,
       loadMission: async () => {
-        selectedMission = await loadMission(pool, now);
+        selectedMission = await loadMission(pool, now, missionScope);
         return selectedMission;
       },
       loadCandidate: ({ mission, runtime }) => loadCandidate(

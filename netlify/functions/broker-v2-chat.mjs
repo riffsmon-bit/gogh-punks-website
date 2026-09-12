@@ -5,6 +5,8 @@ import { collectingIntentConfirmation, defaultAskIntent, normalizePunkCollecting
 import { answerPunkConversation, isPunkConversationMessage } from
   "../../broker/src/v4/ai/punk-chat.mjs";
 import { draftStrategyFromConversation } from "../../broker/src/v4/intent-draft.mjs";
+import { acquisitionRequest, acquisitionClarification, readIndexedDirectedTarget } from
+  "../../broker/src/v4/acquisition-request.mjs";
 import { PublicError, json, readJson } from "./_shared/http.mjs";
 import { requireV2OwnerOrigin } from "./_shared/v2-review.mjs";
 import { createDatabaseBackedGoghIntelligence } from "./_shared/v2-ai-runtime.mjs";
@@ -33,7 +35,7 @@ function punkReply(confirmation) {
 }
 
 export async function resolveV2PunkChat({ router, ownerMessage, currentIntent, tokenId,
-  authority, owner, now = new Date(), context = {} }) {
+  authority, owner, now = new Date(), context = {}, targetContract = null }) {
   if (currentIntent?.expectedOwner?.toLowerCase() !== owner.toLowerCase()) {
     currentIntent = defaultAskIntent({ punkTokenId: tokenId, expectedOwner: owner, punkWallet: authority.punkWallet }, now);
   }
@@ -55,6 +57,10 @@ export async function resolveV2PunkChat({ router, ownerMessage, currentIntent, t
       provider: { provider: answer.provider, registryKey: answer.registryKey },
       providerAvailable: answer.providerAvailable });
   };
+  const acquisition = acquisitionRequest(ownerMessage);
+  if (acquisition?.blocked) return Object.freeze({ responseKind: "CLARIFICATION_REQUIRED", draft: null,
+    reply: acquisitionClarification(acquisition.blocked),
+    provider: { provider: "DETERMINISTIC_REVIEW_PARSER", registryKey: null }, providerAvailable: true });
   if (isPunkConversationMessage(ownerMessage)) return conversation();
   if (/\btotal\s+gas\b|\bgas\s+(?:spend(?:ing)?|budget)\s+(?:total|overall|for (?:the|this) mission)\b/i.test(ownerMessage)) {
     return Object.freeze({ responseKind: "CLARIFICATION_REQUIRED", draft: null,
@@ -62,11 +68,12 @@ export async function resolveV2PunkChat({ router, ownerMessage, currentIntent, t
       provider: { provider: "DETERMINISTIC_REVIEW_PARSER", registryKey: null }, providerAvailable: true });
   }
   const interpreted = draftStrategyFromConversation({ message: ownerMessage, punkTokenId: tokenId,
-    expectedOwner: owner, punkWallet: strategyWallet, currentIntent }, now);
+    expectedOwner: owner, punkWallet: strategyWallet, currentIntent, targetContract }, now);
   if (interpreted.ambiguous.length) {
     const fields = interpreted.ambiguous.map((field) => field.replaceAll("_", " "));
     return Object.freeze({ responseKind: "CLARIFICATION_REQUIRED",
-      reply: `I NEED ONE DETAIL: give me an exact ${fields.join(" and ").toLowerCase()} before I change or activate anything.`,
+      reply: acquisitionClarification(interpreted.ambiguous[0])
+        ?? `I NEED ONE DETAIL: give me an exact ${fields.join(" and ").toLowerCase()} before I change or activate anything.`,
       draft: null, provider: { provider: "DETERMINISTIC_REVIEW_PARSER", registryKey: null },
       providerAvailable: true });
   }
@@ -74,7 +81,8 @@ export async function resolveV2PunkChat({ router, ownerMessage, currentIntent, t
   const intent = interpreted.intent.operatingMode === "AUTONOMOUS" ? interpreted.intent
     : normalizePunkCollectingIntent({ ...interpreted.intent, punkWallet: authority.punkWallet }, now);
   const confirmation = collectingIntentConfirmation(intent, now);
-  return Object.freeze({ responseKind: "STRATEGY_DRAFT", reply: punkReply(confirmation),
+  return Object.freeze({ responseKind: "STRATEGY_DRAFT", reply: punkReply(confirmation)
+    + (intent.allowedContracts.length ? ` ONLY FROM: ${intent.allowedContracts.join(", ")}.` : ""),
     draft: { state: interpreted.status, intent,
       intentHash: confirmation.intentHash, confirmation,
       provider: { provider: "DETERMINISTIC_REVIEW_PARSER", modelId: null } },
@@ -138,8 +146,9 @@ export async function handleV2Chat(request, { pool, requireSession = requireV2Se
     const currentIntent = latest.rows[0]?.intent ?? defaultAskIntent({ punkTokenId: tokenId,
       expectedOwner: session.walletAddress, punkWallet: authority.punkWallet }, now);
     const intelligence = createIntelligence(pool);
+    const targetContract = await readIndexedDirectedTarget(pool, acquisitionRequest(ownerMessage));
     const resolved = await resolveV2PunkChat({ router: intelligence.router, ownerMessage,
-      currentIntent, tokenId, authority, owner: session.walletAddress, now,
+      currentIntent, tokenId, authority, owner: session.walletAddress, now, targetContract,
       context: { ownerFingerprint: session.walletAddress, punkTokenId: tokenId } });
     const client = await pool.connect();
     let version;

@@ -210,6 +210,17 @@ function renderAgentAccount() {
   const modes = all('[data-operating-mode][value="AUTONOMOUS"]');
   const modeLabels = all("[data-autonomous-mode]");
   const setupAvailable = status?.readiness?.setupAvailable === true;
+  const runButton = one("[data-run-agent-mission]");
+  if (runButton) {
+    runButton.hidden = status?.worker?.manualRunEnabled !== true;
+    runButton.disabled = runButton.hasAttribute("aria-busy")
+      || status?.readiness?.manualExecutionReady !== true || !status?.mission?.sessionId;
+    const note = one("[data-agent-mission-run-status]");
+    if (note) {
+      note.hidden = runButton.hidden;
+      if (!runButton.hasAttribute("aria-busy")) note.textContent = "Preview missions run when you click this button. One check may mint under your existing approved limits.";
+    }
+  }
   renderAgentGasFunding(status);
   const active = status?.mission?.status === "ACTIVE";
   const available = !authenticating && (setupAvailable || active);
@@ -255,8 +266,8 @@ function renderAgentAccount() {
     ? `${ethFromWei(status.runtime.nativeBalance)} ETH` : "0 ETH");
   set("[data-agent-account-mission]", status.mission
     ? `${status.mission.status} · ${status.mission.totalLimit} MAX` : "NOT AUTHORIZED");
-  set("[data-agent-account-worker]", status.readiness?.automaticExecutionReady
-    ? "LIVE" : "LOCKED");
+  set("[data-agent-account-worker]", status.readiness?.manualExecutionReady
+    ? "READY · RUN ONE CHECK" : status.readiness?.automaticExecutionReady ? "LIVE" : "LOCKED");
   if (fundButton) fundButton.hidden = status.runtime?.accountCreated !== true;
 }
 
@@ -1708,7 +1719,7 @@ function showConfirmation(draft) {
         intent.requiresSocial && (intent.preferredSocialPlatforms.join(" + ") || "SOCIAL")]
         .filter(Boolean).join(" + "),
     target: intent.allowedContracts?.length === 1
-      ? short(intent.allowedContracts[0]) : "ALL ROBINHOOD NFTS",
+      ? intent.allowedContracts[0] : "ALL ROBINHOOD NFTS",
     free: intent.mintMode === "FREE_ONLY",
   } : draft;
   const values = [
@@ -1726,7 +1737,11 @@ function showConfirmation(draft) {
   }
   const activate = one("[data-activate-strategy]");
   const activateAndSend = one("[data-activate-send-strategy]");
-  const autonomousAvailable = selectedAgentAccount()?.readiness?.setupAvailable === true;
+  const accountStatus = selectedAgentAccount();
+  const autonomousAvailable = accountStatus?.readiness?.setupAvailable === true;
+  const setupBlockers = (accountStatus?.readiness?.blockers ?? [])
+    .filter(value => !["ACCOUNT_NOT_ACTIVATED", "SESSION_NOT_AUTHORIZED", "AGENT_GAS_UNFUNDED"].includes(value))
+    .map(blockerLabel).join(" · ");
   const activationLocked = view.mode === "AUTONOMOUS" && !autonomousAvailable
     || draft.state === "NEEDS_CLARIFICATION";
   activate.disabled = activationLocked;
@@ -1737,7 +1752,7 @@ function showConfirmation(draft) {
   activateAndSend.disabled = activationLocked;
   set("[data-strategy-activation-status]", activationLocked
     ? view.mode === "AUTONOMOUS"
-      ? "Punk Agent Account infrastructure is not ready. No wallet request can be made."
+      ? `Autonomous setup unavailable: ${accountStatus?.error || setupBlockers || "readiness not verified"}. Use Check Autonomous Readiness to retry.`
       : "This draft cannot be activated. Edit it before continuing."
     : "Ready for owner confirmation. No wallet request has been made.");
   const dialog = one("[data-confirmation-dialog]");
@@ -1875,6 +1890,36 @@ function setup() {
   });
   one("[data-open-agent-readiness]").addEventListener("click", () => {
     void loadAgentAccountStatus({ authenticate: true });
+  });
+  one("[data-run-agent-mission]").addEventListener("click", async (event) => {
+    const button = event.currentTarget, punk = state.selected, owner = state.wallet?.account;
+    const sessionId = selectedAgentAccount()?.mission?.sessionId;
+    if (button.disabled || button.hasAttribute("aria-busy") || !punk || !sessionId) return;
+    button.setAttribute("aria-busy", "true"); button.disabled = true;
+    const current = () => state.selected === punk && state.wallet?.account === owner;
+    set("[data-agent-mission-run-status]", "Checking this approved mission once…");
+    try {
+      await ensureV2Session();
+      if (!current()) return;
+      const result = await jsonRequest(`/api/v2/punks/${punk.tokenId}/agent-account/run`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId }), timeoutMs: 60_000,
+      });
+      if (!current()) return;
+      const outcome = result.submitted ? "Mint submitted under your approved mission. Check Activity for its receipt."
+        : result.status === "NO_ELIGIBLE_MATCH" ? "One check completed. No mint passed every approved rule. Check Activity for the reasons."
+          : `Mission check: ${blockerLabel(result.status)}. Check Activity for the latest result.`;
+      set("[data-agent-mission-run-status]", outcome); addMessage("punk", outcome);
+      await loadAgentAccountStatus({ authenticate: false });
+    } catch (error) {
+      if (current()) {
+        const message = `${error?.message ?? "Mission check could not finish."} Check Activity before retrying; a pending transaction must be reconciled first.`;
+        set("[data-agent-mission-run-status]", message); addMessage("punk", message);
+      }
+    } finally {
+      button.removeAttribute("aria-busy");
+      button.disabled = !current() || selectedAgentAccount()?.readiness?.manualExecutionReady !== true;
+    }
   });
   one("[data-resume-chat-mission]").addEventListener("click", async () => {
     const punk = state.selected, draft = state.localStrategy;

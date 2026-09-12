@@ -25,6 +25,8 @@ let connectedOwner=ALICE, forgeMode='locked', releaseForge=null, sessionReads=0;
 let chatDraft=null, chatRequests=0;
 let serveRealWallet=true,walletSdkRequests=0,reviewHostFixture=false;
 let sessionMode='required',walletSignIns=0,agentMode='active';
+let manualRuns=0;
+const manualSessionId='11111111-1111-4111-8111-111111111111';
 const hasSession=req=>sessionMode==='auto'||req.headers.cookie?.includes('gogh_v2_session=local_fixture');
 const skillHash=keccak256(encodeAbiParameters([{type:'uint32'},{type:'uint16'}],[3,1]));
 const server=createServer(async(req,res)=>{
@@ -75,9 +77,16 @@ const server=createServer(async(req,res)=>{
     if(/^\/api\/v2\/punks\/\d+\/agent-account$/.test(url.pathname)) {
       if(!hasSession(req)){res.statusCode=401;return json({ok:false,code:'V2_SESSION_REQUIRED',message:'Sign in with your wallet.'});}
       return json({ok:true,
-        runtime:{account:`0x${'3'.repeat(40)}`,accountCreated:true,nativeBalance:'0',entryPointDeposit:'0',sessionActive:agentMode==='active'},
-        readiness:{setupAvailable:agentMode!=='blocked',automaticExecutionReady:false,blockers:agentMode==='blocked'?['SESSION_SIGNER_NOT_CONFIGURED']:['AGENT_GAS_UNFUNDED']},
-        mission:agentMode==='active'?{status:'ACTIVE',totalLimit:1,completedMints:0}:null,skills:[]});
+        runtime:{account:`0x${'3'.repeat(40)}`,accountCreated:true,nativeBalance:agentMode==='active'?'500000000000000':'0',entryPointDeposit:'0',sessionActive:agentMode==='active'},
+        readiness:{setupAvailable:agentMode!=='blocked',automaticExecutionReady:false,manualExecutionReady:agentMode==='active',blockers:agentMode==='blocked'?['SESSION_SIGNER_NOT_CONFIGURED']:['AGENT_GAS_UNFUNDED']},
+        worker:{mode:'MANUAL',manualRunEnabled:true},
+        mission:agentMode==='active'?{sessionId:manualSessionId,status:'ACTIVE',totalLimit:1,completedMints:0}:null,skills:[]});
+    }
+    if(url.pathname==='/api/v2/punks/93/agent-account/run' && req.method==='POST'){
+      assert.ok(hasSession(req));let body='';for await(const chunk of req)body+=chunk;
+      assert.deepEqual(JSON.parse(body),{sessionId:manualSessionId});manualRuns++;
+      await new Promise(resolve=>setTimeout(resolve,50));
+      return json({ok:true,tokenId:'93',sessionId:manualSessionId,status:'NO_ELIGIBLE_MATCH',submitted:false});
     }
     if(/^\/api\/v2\/punks\/\d+\/chat$/.test(url.pathname) && req.method==='POST') {
       let body='';for await(const chunk of req)body+=chunk;
@@ -180,6 +189,10 @@ try {
   await evaluate("document.querySelector('[data-open-agent-readiness]').click();");
   await until("!document.querySelector('[data-open-agent-readiness]').disabled && !document.querySelector('[data-operating-mode][value=AUTONOMOUS]').disabled");
   assert.equal(walletSignIns,1);assert.equal(walletWrites,0);
+  await evaluate("document.querySelector('[data-run-agent-mission]').click();document.querySelector('[data-run-agent-mission]').click();");
+  await until("!document.querySelector('[data-run-agent-mission]').hasAttribute('aria-busy')");
+  assert.equal(manualRuns,1,'one owner click performs one scoped check; duplicate clicks do not run another');
+  assert.equal(walletWrites,0);
   assert.match(await evaluate("document.querySelector('[data-welcome-message]').textContent"),/OWNER-APPROVED MISSION: 0\/1/);
   assert.equal(await evaluate("document.querySelector('[data-talk-gas-host]').hidden"),true,'sign-in does not open/reset the funding form');
   for(const [name,width,height,mobile] of [['desktop',1440,1000,false],['mobile',390,844,true]]) {
@@ -192,6 +205,7 @@ try {
   await evaluate("document.querySelector('[data-open-agent-readiness]').click();");
   await until("document.querySelector('[data-autonomous-mode-detail]').textContent.includes('SESSION SIGNER NOT CONFIGURED')");
   assert.equal(await evaluate("document.querySelector('[data-operating-mode][value=AUTONOMOUS]').disabled"),true,'sign-in does not bypass real infrastructure blockers');
+  assert.equal(await evaluate("document.querySelector('[data-run-agent-mission]').disabled"),true);
   agentMode='empty';sessionMode='auto';
   await evaluate("document.querySelector('[data-open-agent-readiness]').click();");
   await until("!document.querySelector('[data-open-agent-readiness]').disabled && !document.querySelector('[data-operating-mode][value=AUTONOMOUS]').disabled");
@@ -236,6 +250,21 @@ try {
   assert.equal(Object.fromEntries(missionReview)['MODE'],'AUTONOMOUS');
   assert.equal(Object.fromEntries(missionReview)['STATUS'],'PENDING OWNER CONFIRMATION');
   await writeFile(join(output,'chat-mission-mobile.png'),Buffer.from((await call('Page.captureScreenshot',{format:'png'})).data,'base64'));
+  await evaluate("document.querySelector('[data-confirmation-dialog]').close();");
+  for(const message of [
+    'Sweep 2 NFTs from https://opensea.io/collection/lilbeet up to 0.002 ETH total. Use Assist mode.',
+    'Make a 0.001 WETH collection offer on https://opensea.io/collection/lilbeet for 1 NFT for 24 hours. Use Assist mode.',
+    'Mint one free NFT from https://opensea.io/collection/unknown-fixture. Use Assist mode.',
+  ]) {
+    await sendChat(message);
+    assert.equal(chatDraft,null,'unsupported acquisition must not open a generic mint draft');
+    assert.equal(await evaluate("document.querySelector('[data-confirmation-dialog]').open"),false);
+    assert.equal(walletWrites,0);
+  }
+  await sendChat(`Mint one free NFT only from 0x${'5'.repeat(40)}. Use Assist mode.`);
+  assert.deepEqual(chatDraft.intent.allowedContracts,[`0x${'5'.repeat(40)}`]);
+  assert.equal(await evaluate("document.querySelector('[data-confirmation-dialog]').open"),true);
+  assert.match(await evaluate("document.querySelector('[data-confirmation-grid]').textContent"),/0x5555555555555555555555555555555555555555/);
   await evaluate("document.querySelector('[data-confirmation-dialog]').close();");
   await call('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
   assert.equal(await evaluate("document.querySelectorAll('[data-epoch-control]').length"),0);

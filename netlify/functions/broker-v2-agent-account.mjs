@@ -137,9 +137,12 @@ export async function handleV2AgentAccount(request, {
       }));
     } catch { databaseReady = false; }
     const background = backgroundRpcDecision(environment, "PUNK_AGENT_WORKER");
+    const preview = ["deploy-preview", "branch-deploy"].includes(environment.CONTEXT);
     const worker = Object.freeze({ enabled: environment.PUNK_AGENT_WORKER_ENABLED === "true"
       && background.enabled, reason: environment.PUNK_AGENT_WORKER_ENABLED !== "true"
-      ? "WORKER_DISABLED" : background.reason });
+      ? "WORKER_DISABLED" : background.reason,
+      mode: preview ? "MANUAL" : "SCHEDULED",
+      manualRunEnabled: preview && environment.PUNK_AGENT_PREVIEW_RUN_ENABLED === "true" });
     const blockers = [...new Set([
       ...readiness.blockers,
       ...(databaseReady ? [] : ["AGENT_DATABASE_NOT_READY"]),
@@ -154,7 +157,8 @@ export async function handleV2AgentAccount(request, {
     ])];
     return json({ ok: true, tokenId, productName: "Punk Agent Account",
       owner: session.walletAddress, readiness: { ...readiness,
-        ready: blockers.length === 0, automaticExecutionReady: blockers.length === 0,
+        ready: blockers.length === 0, automaticExecutionReady: blockers.length === 0 && !preview,
+        manualExecutionReady: blockers.length === 0 && worker.manualRunEnabled,
         setupAvailable: readiness.ready && databaseReady && signerConfigured && bundler.ready
           && sessionKeyMatches,
         databaseReady, blockers }, signer: { configured: signerConfigured, address: signerAddress },

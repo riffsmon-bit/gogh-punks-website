@@ -31,7 +31,7 @@ progress, awaits a fresh check, and ignores stale responses. Login messages name
 the actual approved host; completion rejects a challenge from another host. A
 login signature alone never grants mint authority.
 
-## Environment difference still open
+## Environment baseline before the September 11 late-evening fix
 
 Read-only Netlify function-context comparison found these configured in production
 and absent in deploy-preview:
@@ -45,8 +45,8 @@ and absent in deploy-preview:
 - `BACKGROUND_RPC_ALLOWED_TASKS`
 
 `RPC_URL` and `GOGH_V2_REVIEW_AI_ENABLED` were present and equal in both contexts.
-Secret values were neither printed nor recorded. No credentials or worker settings
-were copied to previews. The account-status endpoint can show the existing mission
+At this earlier checkpoint, secret values were neither printed nor recorded and no
+credentials or worker settings had been copied to previews. The account-status endpoint can show the existing mission
 after owner sign-in, but setup/execution readiness must still report these missing
 services accurately. Preview database contents and the owner's authenticated live
 status require direct acceptance; no production session cookie was reused.
@@ -74,3 +74,37 @@ Validation result: 1,686 JavaScript tests passed; 37 focused auth/chat tests pas
 127 deployment tests passed; full Chrome owner/sign-in/chat/gas/Forge fixture
 passed without browser exceptions or public wallet transactions. See
 `review/2026-09-11/completion/autonomy-parity-checks.json`.
+
+## Preview setup and one-mission execution prepared at 03:16 UTC September 12
+
+The missing signer/relay configuration was applied only to Netlify's branch context
+`fix/punk-93-mint-stall`. Existing production values and secret metadata were
+preserved and checked after the update. The existing session signer was loaded
+from the project's Keychain entry directly into the function-only secret setting;
+no private value was printed or written to a file. The branch allows only the
+PUNK_AGENT_WORKER background task. This does not configure every PR preview.
+Sanitized evidence: `review/2026-09-11/completion/preview-autonomy-configuration.json`.
+
+Netlify does not run scheduled functions on PR previews. The preview therefore
+provides **RUN ONE MISSION CHECK** after owner sign-in and a ready active session.
+Each click invokes the existing worker for exactly the selected owner, Punk and
+session. A check can submit a mint within that already signed mission. It does not
+create a mission or change limits. Pending operations reconcile before another
+attempt; the existing worker lease, on-chain owner/session checks, simulation,
+gas controls and receipt rules remain authoritative. Production retains scheduling.
+See [Netlify scheduled functions](https://docs.netlify.com/build/functions/scheduled-functions/)
+and [branch environment contexts](https://docs.netlify.com/build/environment-variables/overview/).
+
+The endpoint rejects production/cross-origin requests, missing login, wrong current
+owner, another Punk's session, revoked/expired sessions and unexpected body fields.
+Its SQL scopes both mission selection and pending receipt reconciliation. The UI
+prevents double clicks and shows failures without declaring an unknown transaction
+unsent. Missing infrastructure now produces specific setup messages.
+
+Updated validation: **1,717 JavaScript tests and 127 deployment tests passed**.
+The full Chrome harness passed its manual-check, auth, chat, gas, owner transition,
+directed-target and Forge cases with zero browser exceptions or public wallet
+writes. Database-backed tests exercise actual scoped SQL with two active Punks and
+pending operations. Local mocks do not prove a public mint. No worker was invoked
+against a public chain in this preparation. The intended owner's live sign-in,
+readiness, mission and canonical receipt remain the final acceptance steps.

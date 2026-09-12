@@ -3,6 +3,17 @@
 Owner-confirmed scope: agent gas funding, mission setup/chat, reliable V2 minting,
 Forge research and loadouts. Training and burns are deferred.
 
+September 11 additions: the owner requested directed-mint, floor-sweep and WETH
+collection-offer testing, with collections chosen by each user. See the
+[acquisition test report](V2_DIRECTED_ACQUISITION_TESTS_2026-09-11.md). These are
+separate acceptance cases; working autonomous free minting does not demonstrate
+marketplace execution. Lilbeet was selected as a test target and is already sold out.
+
+The owner subsequently clarified a literal burn of one owned Punk to improve a
+different owned Punk's skill, with wallet review and explicit confirmation. That
+supersedes the earlier recovery-vault decision; the prepared flow is in the
+[burn decision](V2_FORGE_SACRIFICE_DECISION.md). It does not enable live burns.
+
 Review the [full Netlify PR preview](https://deploy-preview-47.preview.goghpunks.xyz/broker/v2/?tab=talk)
 using the owner wallet and selected original Punk. The #44 localhost page is only
 a disposable training fixture. Hosted `preview=1` is a visual fixture whose local

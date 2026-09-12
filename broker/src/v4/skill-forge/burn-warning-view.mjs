@@ -9,9 +9,13 @@ export function renderBurnWarning(container, snapshot, { onReviewWallet = () => 
   container.setAttribute('role', 'region');
   container.setAttribute('aria-label', 'Permanent sacrifice safety');
   container.append(element('h2', 'PERMANENT SACRIFICE — BLOCKED'));
+  const tokenLabel = value => /^(0|[1-9][0-9]{0,77})$/.test(String(value)) ? `#${value}` : 'not selected';
+  container.append(element('p', `Punk to burn permanently: ${tokenLabel(snapshot?.punkToBurn)}. Punk to receive training: ${tokenLabel(snapshot?.punkToTrain)}.`));
   const warning = element('p', report.warning);
   warning.setAttribute('role', 'alert');
   container.append(warning);
+  container.append(element('p', 'Check every wallet belonging to the Punk you will burn. Withdraw ETH, WETH, NFTs, other tokens and Agent gas deposits first. Stop its missions and wait for pending transactions to finish.'));
+  container.append(element('p', 'Burning the Punk does not destroy its ERC-6551 wallet contracts. They remain at their addresses, but losing the parent NFT can remove your access. Assets left behind or sent there later are not moved to the Punk receiving training.'));
   container.append(element('p', `Forge minimum remaining supply: 1,111. Supply headroom: ${report.supply.headroom ?? 'unknown'}. This is not burn authorization.`));
   for (const wallet of snapshot?.wallets ?? []) {
     const card = element('section', '');

@@ -46,6 +46,12 @@ Require deny-only global capability/adapter/version switches checked at resoluti
 
 Required future local UX: select burn/target Punks; display all asset/state evidence; review/withdraw safely; recheck; show irreversible loss and no asset migration; require exact `BURN <id>` text only after safety eligibility; sign narrowly scoped transaction; finalize credit only after receipt/reorg policy. Never mint credits from a chat message, optimistic UI event, or transaction submission alone.
 
-## Production blocker
+## Production implementation gap (updated September 11)
 
-There is no demonstrated complete asset-empty proof or recovery design for all current accounts. Therefore the requested guarantee of never stranding assets is not yet satisfied. Public burn enablement remains prohibited. Local mock burn/credit contracts can be tested without claiming this blocker is solved. Production source/approval/deployment and irreversible-burn authority need separate review and explicit authorization.
+The latest owner direction accepts an owner-approved literal burn after wallet review,
+as recorded in [the current decision](V2_FORGE_SACRIFICE_DECISION.md). It supersedes
+the earlier requirement to keep burns disabled while designing post-burn recovery.
+There is still no proof that every possible asset is absent, and the UI must explain
+loss of access to remaining or later-deposited assets. The real burn source and
+transaction integration remain unfinished; local mock credits are not production
+implementation evidence. No actual burn is authorized by this design discussion.

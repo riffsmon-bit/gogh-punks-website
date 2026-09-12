@@ -50,9 +50,12 @@ change the original-NFT progression design to bypass deployment work.
 
 ## Deferred training and burns
 
-The owner explicitly chose to **keep literal burns disabled for now**. Production
-sacrifice and burn-based credit issuance stay locked; a recovery vault was not
-selected. This decision does not delay independent V2 minting or research testing.
+The latest September 11 direction is **owner-approved literal burn after wallet
+review**: select one owned Punk to burn and a different owned Punk to receive a
+skill upgrade. This supersedes the earlier product decision to keep literal burns
+disabled pending recovery design. A recovery vault was not selected. Production
+execution remains disabled because the real source and transaction flow are
+unfinished; this does not delay independent V2 minting or research testing.
 
 The credit-source/recovery choice, live training migrations and restricted roles,
 training-contract enablement, paid credit/slot/learning actions and first-sacrifice
