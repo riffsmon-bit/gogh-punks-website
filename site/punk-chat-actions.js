@@ -1,6 +1,15 @@
 // Navigation/review intents only. Chat text can never authorize a transaction.
 export function punkChatAction(message) {
   const text = String(message ?? "").trim();
+  const navigation = [
+    ["fund", /^(?:open|show(?: me)?) (?:my |the )?(?:wallet|funding|fund panel|weth controls)[.!]*$/i],
+    ["collection", /^(?:open|show(?: me)?) (?:my |the )?collection[.!]*$/i],
+    ["activity", /^(?:open|show(?: me)?) (?:my |the )?activity[.!]*$/i],
+    ["strategy", /^(?:open|show(?: me)?) (?:my |the )?strategy[.!]*$/i],
+    ["settings", /^(?:open|show(?: me)?) (?:my |the )?settings[.!]*$/i],
+    ["link", /^open (?:the )?link check[.!]*$/i],
+  ].find(([, pattern]) => pattern.test(text));
+  if (navigation) return { kind: "NAVIGATE", panel: navigation[0] };
   if (/^(?:please\s+)?(?:open|show(?: me)?) (?:the |my )?(?:forge|skill forge|skills|loadout)[.!?]*$/i.test(text)) return { kind: 'FORGE' };
   if (/^(?:please\s+)?(?:check (?:my |your |the )?(?:gas|balance|mission|status|readiness)|(?:what(?:'s| is)|show me) (?:your |my |the )?(?:status|gas balance|mission status)|are you (?:out|minting|scanning)(?: right now)?)[?.!]*$/i.test(text)) {
     return { kind: "STATUS" };

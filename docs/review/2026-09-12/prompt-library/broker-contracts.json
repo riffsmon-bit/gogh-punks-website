@@ -1,0 +1,212 @@
+{
+  "schemaVersion": "GOGH_V2_CONTRACT_AUDIT_V1",
+  "status": "PASS",
+  "observedAt": "2026-09-12T23:15:49.632Z",
+  "chainId": 4663,
+  "providers": [
+    "https://robinhood-rpc.publicnode.com",
+    "https://rpc.mainnet.chain.robinhood.com"
+  ],
+  "anchor": {
+    "number": "61487566",
+    "hash": "0xe39ff0f24da37f23c81f73a79ce759bb42148e336ec56c24e4aa1058336b761c",
+    "timestamp": 1789254946
+  },
+  "collection": {
+    "address": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+    "runtimeHash": "0x3222e4925f77909e6370e17fe071d2774d43e191f6bc72c3a97c97209c6e2e93",
+    "verified": true
+  },
+  "contracts": [
+    {
+      "manifest": "robinhood.json",
+      "name": "ArtAdapterRegistry",
+      "address": "0x421D51709Fe21736a35fFa2a86B157Df1b030EE2",
+      "status": "DEPLOYED_CODE_VERIFIED",
+      "expectedRuntimeHash": "0x62a299587d51870717e2c1f4603d53386b5813cd74fb7d2bac949323b8564532",
+      "observedRuntimeHashes": [
+        "0x62a299587d51870717e2c1f4603d53386b5813cd74fb7d2bac949323b8564532",
+        "0x62a299587d51870717e2c1f4603d53386b5813cd74fb7d2bac949323b8564532"
+      ],
+      "recordedDeploymentTransaction": "0xbf910e427f1e70ee1cba72c92f3867e63159cfebd6931a4fc19cf1a01a9a0188"
+    },
+    {
+      "manifest": "robinhood.json",
+      "name": "ArtAgentRegistry",
+      "address": "0xbffbccd20E796e0f3E745B274De60EF17a485Dde",
+      "status": "DEPLOYED_CODE_VERIFIED",
+      "expectedRuntimeHash": "0x3915ea566fa7b6fb11769f2b3109f69a4b65142e5140cc574b063cb608ff76b0",
+      "observedRuntimeHashes": [
+        "0x3915ea566fa7b6fb11769f2b3109f69a4b65142e5140cc574b063cb608ff76b0",
+        "0x3915ea566fa7b6fb11769f2b3109f69a4b65142e5140cc574b063cb608ff76b0"
+      ],
+      "recordedDeploymentTransaction": "0x3557c76ce0bd9be8b6bab5ddec252dcfccbb9da39ce539a22d5b8383df4e2495"
+    },
+    {
+      "manifest": "robinhood.json",
+      "name": "BrokerPolicyModule",
+      "address": "0x1EAf71Aa4C82ad649322EacaBefE4B6378cE9F27",
+      "status": "DEPLOYED_CODE_VERIFIED",
+      "expectedRuntimeHash": "0xfcf5a11d6b906b9c587bc80cd3bd13b91064a19120eb5b8d08c897439830edb5",
+      "observedRuntimeHashes": [
+        "0xfcf5a11d6b906b9c587bc80cd3bd13b91064a19120eb5b8d08c897439830edb5",
+        "0xfcf5a11d6b906b9c587bc80cd3bd13b91064a19120eb5b8d08c897439830edb5"
+      ],
+      "recordedDeploymentTransaction": "0x0560fba8f5380332a6ca38365ecee6d61469e2d946aa412e296a3d328937cc18"
+    },
+    {
+      "manifest": "robinhood.json",
+      "name": "GoghPunkAccountRegistry",
+      "address": "0xDca07046B4f95e79bbb421C97949473E75dFFc65",
+      "status": "DEPLOYED_CODE_VERIFIED",
+      "expectedRuntimeHash": "0x0fdfc176153e405b65f817cc0a4e84a8c5f5faa83d0d44708e9b163075935990",
+      "observedRuntimeHashes": [
+        "0x0fdfc176153e405b65f817cc0a4e84a8c5f5faa83d0d44708e9b163075935990",
+        "0x0fdfc176153e405b65f817cc0a4e84a8c5f5faa83d0d44708e9b163075935990"
+      ],
+      "recordedDeploymentTransaction": "0x22232930886fd0106b788face8375430b44b2767cbcf33e3f46d9d58c133be7f"
+    },
+    {
+      "manifest": "robinhood.json",
+      "name": "GoghPunkAccountV1",
+      "address": "0x9fF5c4171613DE51b5D51C87675D3Fbc84581E43",
+      "status": "DEPLOYED_CODE_VERIFIED",
+      "expectedRuntimeHash": "0x4068ac32a4f440309796c9ec1230c4557b21441226d7a0c0a6e45ba8e55d60bc",
+      "observedRuntimeHashes": [
+        "0x4068ac32a4f440309796c9ec1230c4557b21441226d7a0c0a6e45ba8e55d60bc",
+        "0x4068ac32a4f440309796c9ec1230c4557b21441226d7a0c0a6e45ba8e55d60bc"
+      ],
+      "recordedDeploymentTransaction": "0x1fc8b2cbefe5d15e3cc4f17580de23c69b54804200eaf6141e72d7f609f723ad"
+    },
+    {
+      "manifest": "robinhood-automation-v2.json",
+      "name": "AutomatedSeaDropFreeMintAdapter",
+      "address": "0x70e8b0361b36bab3b398ab9dD0D9E370A70912b2",
+      "status": "DEPLOYED_CODE_VERIFIED",
+      "expectedRuntimeHash": "0xd5499d9f14a603562db1c7038f58b95f00c07db67276ffb281e5bd4dc24a5b96",
+      "observedRuntimeHashes": [
+        "0xd5499d9f14a603562db1c7038f58b95f00c07db67276ffb281e5bd4dc24a5b96",
+        "0xd5499d9f14a603562db1c7038f58b95f00c07db67276ffb281e5bd4dc24a5b96"
+      ],
+      "recordedDeploymentTransaction": "0x2b5e25fec719fcd7e972773bdc8425552b3e6520b19176e30babcd392746af90"
+    },
+    {
+      "manifest": "robinhood-automation-v2.json",
+      "name": "BrokerPolicyModuleV2",
+      "address": "0x4a80F21513C788884B4935edC27d119D059c0a9B",
+      "status": "DEPLOYED_CODE_VERIFIED",
+      "expectedRuntimeHash": "0xce3d889d61861b294fa18ebcfd39c5e1ea7c2e8e2c97ddf0d7382cc77603fd16",
+      "observedRuntimeHashes": [
+        "0xce3d889d61861b294fa18ebcfd39c5e1ea7c2e8e2c97ddf0d7382cc77603fd16",
+        "0xce3d889d61861b294fa18ebcfd39c5e1ea7c2e8e2c97ddf0d7382cc77603fd16"
+      ],
+      "recordedDeploymentTransaction": "0x4d30fd95c7b99fa574a10f1cd969560ce4a683fe2828cadec75d50350376eafb"
+    },
+    {
+      "manifest": "robinhood-automation-v2.json",
+      "name": "GoghPunkAccountRegistryV2",
+      "address": "0x00E7D2A869cc6a8f61A4cE11A66A8874db1F78e3",
+      "status": "DEPLOYED_CODE_VERIFIED",
+      "expectedRuntimeHash": "0xd77d8085c97dd9175bbaee60c96eb699b15d6cfbbc2f44ec42238719b8db0df0",
+      "observedRuntimeHashes": [
+        "0xd77d8085c97dd9175bbaee60c96eb699b15d6cfbbc2f44ec42238719b8db0df0",
+        "0xd77d8085c97dd9175bbaee60c96eb699b15d6cfbbc2f44ec42238719b8db0df0"
+      ],
+      "recordedDeploymentTransaction": "0x9bcb825d89617ebfb4bf43204fff2084b8576e4e3660246834ccf4b93c07eeed"
+    },
+    {
+      "manifest": "robinhood-automation-v2.json",
+      "name": "GoghPunkAccountV2",
+      "address": "0xa2f76E063f50178FCe534E50E40a6Daab83F4eAd",
+      "status": "DEPLOYED_CODE_VERIFIED",
+      "expectedRuntimeHash": "0x8edb02b5173bbdad95cdf90ff654b2c4de2358d96d7f71dee7728eee020659c7",
+      "observedRuntimeHashes": [
+        "0x8edb02b5173bbdad95cdf90ff654b2c4de2358d96d7f71dee7728eee020659c7",
+        "0x8edb02b5173bbdad95cdf90ff654b2c4de2358d96d7f71dee7728eee020659c7"
+      ],
+      "recordedDeploymentTransaction": "0xd02bc0729db0c5fd3850762096722019408bbd84a0d41c222db9babed292e52b"
+    },
+    {
+      "manifest": "robinhood-automation-v3.json",
+      "name": "AutomatedSeaDropStudioFreeMintAdapter",
+      "address": "0xD4316dfbCFa3f51F1a9De77aAA5D9E6eDf848777",
+      "status": "DEPLOYED_CODE_VERIFIED",
+      "expectedRuntimeHash": "0x8e99aa5602225a4aadcccc2ee4e0e5c42477ed40b5d927ee964e81d204b8b56b",
+      "observedRuntimeHashes": [
+        "0x8e99aa5602225a4aadcccc2ee4e0e5c42477ed40b5d927ee964e81d204b8b56b",
+        "0x8e99aa5602225a4aadcccc2ee4e0e5c42477ed40b5d927ee964e81d204b8b56b"
+      ],
+      "recordedDeploymentTransaction": "0xbcb8b95c4e8652112e65dbda6a28bd2abf3f4f6ea88de0d2df3592ee5bbfabe5"
+    },
+    {
+      "manifest": "robinhood-automation-v3.json",
+      "name": "BrokerPolicyModuleV3",
+      "address": "0x555A0533B2575F765Fe7A8c7BcF604120e76e1cd",
+      "status": "DEPLOYED_CODE_VERIFIED",
+      "expectedRuntimeHash": "0x6b6e2ca26fb3c02bb620b05a21799b17f4d93a1c4d8b2af5ee83724c0b3cd88d",
+      "observedRuntimeHashes": [
+        "0x6b6e2ca26fb3c02bb620b05a21799b17f4d93a1c4d8b2af5ee83724c0b3cd88d",
+        "0x6b6e2ca26fb3c02bb620b05a21799b17f4d93a1c4d8b2af5ee83724c0b3cd88d"
+      ],
+      "recordedDeploymentTransaction": "0x454182730eda3720385c473f7753f02d2837132d36f75db43fe50737a6458519"
+    },
+    {
+      "manifest": "robinhood-automation-v3.json",
+      "name": "GoghPunkAccountRegistryV3",
+      "address": "0x7d4f654cD95104dc22c64Fc8C70937F32FcbAc52",
+      "status": "DEPLOYED_CODE_VERIFIED",
+      "expectedRuntimeHash": "0x6aa5390e63f46d3712dad94040d41b8051d8d6c273c7bfb28ac7308bae63c645",
+      "observedRuntimeHashes": [
+        "0x6aa5390e63f46d3712dad94040d41b8051d8d6c273c7bfb28ac7308bae63c645",
+        "0x6aa5390e63f46d3712dad94040d41b8051d8d6c273c7bfb28ac7308bae63c645"
+      ],
+      "recordedDeploymentTransaction": "0x26f9853bbbc878bb370497bf74c0bd765af954ba39b8104778600b9638eeb7fd"
+    },
+    {
+      "manifest": "robinhood-automation-v3.json",
+      "name": "GoghPunkAccountV3",
+      "address": "0xb24199845ca42966E755B2DaD7C8a9A490AfEB13",
+      "status": "DEPLOYED_CODE_VERIFIED",
+      "expectedRuntimeHash": "0x63b26b5f3bce8b3adb52d1c1d9c9067c9c24cc63e5c961a6d9e399dbf4396520",
+      "observedRuntimeHashes": [
+        "0x63b26b5f3bce8b3adb52d1c1d9c9067c9c24cc63e5c961a6d9e399dbf4396520",
+        "0x63b26b5f3bce8b3adb52d1c1d9c9067c9c24cc63e5c961a6d9e399dbf4396520"
+      ],
+      "recordedDeploymentTransaction": "0x7313a0178df8a72da93f57c6a19c04fe6653819c12335f9e67873801a33e14b3"
+    },
+    {
+      "manifest": "robinhood-punk-agent-account.json",
+      "name": "GoghPunkAgentAccount",
+      "address": "0xfdb26c2Ec70956227728414fF4ab7A5eda64D13b",
+      "status": "DEPLOYED_CODE_VERIFIED",
+      "expectedRuntimeHash": "0x7d37d360014ce94902655062605b8318581097df100ab2573be52904afa6badc",
+      "observedRuntimeHashes": [
+        "0x7d37d360014ce94902655062605b8318581097df100ab2573be52904afa6badc",
+        "0x7d37d360014ce94902655062605b8318581097df100ab2573be52904afa6badc"
+      ],
+      "recordedDeploymentTransaction": "0x407fba2f11ddbf9dd1816f1bc66a79546539e93fcbc1ece6278f2ad8184fa42e"
+    },
+    {
+      "manifest": "robinhood-punk-agent-account.json",
+      "name": "GoghPunkAgentAccountRegistry",
+      "address": "0x3253adc3bBd5B0010C1Bf9cE8def26b7e0DB5844",
+      "status": "DEPLOYED_CODE_VERIFIED",
+      "expectedRuntimeHash": "0x5a1001edb812b6ec2e233cbba6db4b7c680d0832453927696cf1ef623fff8e22",
+      "observedRuntimeHashes": [
+        "0x5a1001edb812b6ec2e233cbba6db4b7c680d0832453927696cf1ef623fff8e22",
+        "0x5a1001edb812b6ec2e233cbba6db4b7c680d0832453927696cf1ef623fff8e22"
+      ],
+      "recordedDeploymentTransaction": "0x6d47a0b68230b21d24452084dab93a29b2d02f15562c571b0b1b188d7c26220a"
+    }
+  ],
+  "forge": {
+    "status": "READ_ONLY_CANARY",
+    "registry": "0xc2a1bd47fbc0fe33e53c85f130be53591c898e83",
+    "progression": "0x08ada19edf9c387dc07a181069a1848c66ca2da4",
+    "trainingSource": "0x7e4d6db6c96c7b09c78f49760d9eedb5dd4e1533",
+    "productionTrainingAuthorized": false,
+    "productionBurnAuthorized": false
+  },
+  "publicTransactions": 0,
+  "limitations": "Current runtime hashes checked against recorded manifests on two RPC endpoints at one canonical block. Deployment receipts and explorer source verification were not repeated; this is not an independent security audit."
+}

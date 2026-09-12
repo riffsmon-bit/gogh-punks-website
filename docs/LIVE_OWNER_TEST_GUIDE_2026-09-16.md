@@ -52,6 +52,18 @@ have separate implementation and acceptance work.
 
 ## Your test setup
 
+In **Talk**, open **EXAMPLE PROMPTS** above the message composer. The menu covers
+33 missions and actions. Choose an entry to see its availability and instructions;
+**USE EXAMPLE** fills the composer without sending. Replace highlighted collection
+or URL placeholders and edit example amounts before sending. **OPEN FUND**,
+**OPEN COLLECTION**, and the other shortcuts open existing controls.
+
+Burning, permanent training, floor sweeps, WETH bids and paid mints are marked
+**NOT LIVE**. A saved prompt or a deployed contract does not make those actions
+available. See [current contract and feature status](LIVE_FEATURE_STATUS_2026-09-12.md)
+for the deployment evidence and remaining work. The read-only playbook teaching
+example opens a skill review; it does not spend permanent Forge credits.
+
 For the current contract setup stage, use [the live owner-wallet steps](V2_FORGE_OWNER_WALLET_TEST.md)
 at http://127.0.0.1:64345/. That page sends real deployment/registry-acceptance
 transactions through your wallet. The full release tests below still require

@@ -1,0 +1,36 @@
+{
+  "status": "PASS",
+  "checkedAt": "2026-09-12T23:16:48.704Z",
+  "block": "61488140",
+  "providers": [
+    "https://robinhood-rpc.publicnode.com",
+    "https://rpc.mainnet.chain.robinhood.com"
+  ],
+  "blockHash": "0x9baa37ba462b9ad1f9ba4ba475c9caaaa92cba139497f285c90b7da1fbb81c17",
+  "code": [
+    {
+      "role": "registry",
+      "address": "0xc2a1bd47fbc0fe33e53c85f130be53591c898e83",
+      "verified": true
+    },
+    {
+      "role": "progression",
+      "address": "0x08ada19edf9c387dc07a181069a1848c66ca2da4",
+      "verified": true
+    },
+    {
+      "role": "trainingSource",
+      "address": "0x7e4d6db6c96c7b09c78f49760d9eedb5dd4e1533",
+      "verified": true
+    }
+  ],
+  "paused": true,
+  "skillCount": "0",
+  "owner": "0xC7f55cE6A7dF9A79cc4A643a5081230F890c7AA6",
+  "pendingOwner": "0x0000000000000000000000000000000000000000",
+  "credits93": "0",
+  "supply": "4295",
+  "sourceOwner": "0xC7f55cE6A7dF9A79cc4A643a5081230F890c7AA6",
+  "targetOwner": "0xC7f55cE6A7dF9A79cc4A643a5081230F890c7AA6",
+  "publicTransactions": 0
+}
