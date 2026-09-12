@@ -175,10 +175,10 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .talk-layout { display: grid; grid-template-columns: 1fr 240px; gap: 18px; }
 .conversation { min-height: 230px; max-height: 420px; overflow-y: auto; padding: 20px; border: 1px solid var(--line); background: var(--ink); }
 .message { display: flex; gap: 12px; margin-bottom: 15px; }
-.message img { width: 44px; height: 44px; object-fit: cover; image-rendering: pixelated; border: 1px solid var(--line-strong); }
-.message div { max-width: 680px; padding: 12px 14px; background: var(--surface-raised); }
+.message img { flex-shrink: 0; width: 44px; height: 44px; object-fit: cover; image-rendering: pixelated; border: 1px solid var(--line-strong); }
+.message div { min-width: 0; max-width: 680px; padding: 12px 14px; background: var(--surface-raised); }
 .message b { color: var(--cyan); font-size: .62rem; letter-spacing: .1em; }
-.message p { margin: 5px 0 0; line-height: 1.5; white-space: pre-line; }
+.message p { margin: 5px 0 0; line-height: 1.5; white-space: pre-line; overflow-wrap: anywhere; }
 .owner-message { justify-content: flex-end; }
 .owner-message div { background: var(--surface-soft); }
 .owner-message b { color: var(--acid); }

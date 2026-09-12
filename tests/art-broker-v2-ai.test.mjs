@@ -260,3 +260,15 @@ test("Punk conversation gives an honest useful fallback when no model is configu
     message: "Who are you?", intent, punkTokenId: "93", now: NOW });
   assert.match(identity.reply, /Gogh Punk #93/);
 });
+
+test("a conversation outage does not claim production is an unconfigured preview", async () => {
+  const intent = defaultAskIntent({ punkTokenId: "93", expectedOwner: OWNER,
+    punkWallet: PUNK_WALLET }, NOW);
+  const response = await answerPunkConversation({ router: { run: async () => {
+    throw new Error("provider timeout");
+  } }, message: "Tell me something unexpected", intent, punkTokenId: "93", now: NOW });
+  assert.equal(response.providerAvailable, false);
+  assert.match(response.reply, /couldn’t reach the conversation service/);
+  assert.match(response.reply, /quick calls/);
+  assert.doesNotMatch(response.reply, /preview|not configured|provider timeout|paused/i);
+});

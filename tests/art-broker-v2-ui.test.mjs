@@ -125,7 +125,8 @@ test("funding exposes hardened ETH funding and canonical WETH wrap submission", 
   assert.match(script, /waitForPunkWalletTransactionReceipt/);
   assert.match(script, /api\/v2\/agent-account\/setup/);
   assert.match(script, /api\/v2\/agent-account\/receipt/);
-  assert.match(script, /api\/v2\/agent-account\/recall/);
+  assert.match(script, /punkRecall\.run\(/);
+  assert.match(script, /readStatus: \(\) => loadAgentAccountStatus\(\{ authenticate: true \}\)/);
   assert.match(script, /Punk Agent Account gas/);
   assert.doesNotMatch(script, /readOwnerPolicyState|fetchOwnerPolicyGate/);
   assert.match(script, /if \(state\.selected && activeTab\) void hydrateSelected\(activeTab\)/);
@@ -194,7 +195,7 @@ test("the hosted PR review runs bounded tab agents while owner transactions stay
   assert.match(script, /dispatchAfterActivation/);
   assert.match(script, /recordReviewMissionRun/);
   assert.match(script, /function recallSelectedReviewAgent\(\)/);
-  assert.match(script, /PUNK CALLED BACK BY OWNER/);
+  assert.match(script, /REVIEW AGENT PAUSED/);
   assert.match(script, /selectedReviewAgent\(\)\?\.status !== "SCOUTING"/);
   assert.match(script, /reviewMissionTimer = null/);
   assert.match(script, /releaseReviewMissionLease\(key\)/);

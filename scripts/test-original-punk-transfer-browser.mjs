@@ -26,6 +26,9 @@ let chatDraft=null, chatRequests=0;
 let serveRealWallet=true,walletSdkRequests=0,reviewHostFixture=false;
 let sessionMode='required',walletSignIns=0,agentMode='active';
 let manualRuns=0;
+let recallFixture=false, recallRejected=false, recallReceiptFails=false;
+let recallWalletRequests=0, recallPrepares=0, recallConfirms=0, strategyPauses=0;
+const recallHash=`0x${'5'.repeat(64)}`;
 const manualSessionId='11111111-1111-4111-8111-111111111111';
 const hasSession=req=>sessionMode==='auto'||req.headers.cookie?.includes('gogh_v2_session=local_fixture');
 const skillHash=keccak256(encodeAbiParameters([{type:'uint32'},{type:'uint16'}],[3,1]));
@@ -43,6 +46,18 @@ const server=createServer(async(req,res)=>{
       if(method==='personal_sign') {walletSignIns++;assert.equal(params[1],ALICE);return json(`0x${'1'.repeat(130)}`);}
       if(method==='eth_blockNumber') return json('0xabc');
       if(method==='eth_chainId') return json('0x1237');
+      if(method==='eth_accounts') return json([connectedOwner]);
+      if(recallFixture && method==='eth_sendTransaction') {
+        recallWalletRequests++;
+        assert.deepEqual(params,[{from:ALICE,to:`0x${'3'.repeat(40)}`,value:'0x0',data:toFunctionSelector('revokeAutonomousSession()')}]);
+        if(recallRejected){res.statusCode=400;return json({error:'Fixture wallet rejected recall'});}
+        return json(recallHash);
+      }
+      if(recallFixture && method==='eth_getTransactionReceipt') {
+        assert.deepEqual(params,[recallHash]);
+        if(recallReceiptFails){res.statusCode=503;return json({error:'Fixture receipt unavailable'});}
+        return json({transactionHash:recallHash,blockNumber:'0xabc',status:'0x1'});
+      }
       if(method==='eth_getBalance') return json('0x0');
       if(method==='eth_call') {
         const call=params[0], data=call.data;
@@ -76,11 +91,27 @@ const server=createServer(async(req,res)=>{
     }
     if(/^\/api\/v2\/punks\/\d+\/agent-account$/.test(url.pathname)) {
       if(!hasSession(req)){res.statusCode=401;return json({ok:false,code:'V2_SESSION_REQUIRED',message:'Sign in with your wallet.'});}
-      return json({ok:true,
+      if(agentMode==='unavailable'){res.statusCode=503;return json({ok:false,code:'RPC_UNAVAILABLE',message:'Fixture RPC unavailable'});}
+      return json({ok:true,tokenId:url.pathname.split('/')[4],owner:connectedOwner,
         runtime:{account:`0x${'3'.repeat(40)}`,accountCreated:true,nativeBalance:agentMode==='active'?'500000000000000':'0',entryPointDeposit:'0',sessionActive:agentMode==='active'},
-        readiness:{setupAvailable:agentMode!=='blocked',automaticExecutionReady:false,manualExecutionReady:agentMode==='active',blockers:agentMode==='blocked'?['SESSION_SIGNER_NOT_CONFIGURED']:['AGENT_GAS_UNFUNDED']},
+        readiness:{databaseReady:true,setupAvailable:agentMode!=='blocked',automaticExecutionReady:false,manualExecutionReady:agentMode==='active',blockers:agentMode==='blocked'?['SESSION_SIGNER_NOT_CONFIGURED']:['AGENT_GAS_UNFUNDED']},
         worker:{mode:'MANUAL',manualRunEnabled:true},
         mission:agentMode==='active'?{sessionId:manualSessionId,status:'ACTIVE',totalLimit:1,completedMints:0}:null,skills:[]});
+    }
+    if(recallFixture && url.pathname==='/api/v2/agent-account/recall') {
+      let body='';for await(const chunk of req)body+=chunk;const input=JSON.parse(body);
+      assert.equal(input.owner,ALICE);assert.equal(input.tokenId,'93');
+      if(input.action==='prepare') {
+        recallPrepares++;await new Promise(r=>setTimeout(r,50));
+        return json({ok:true,tokenId:'93',sessionId:manualSessionId,
+          transaction:{from:ALICE,to:`0x${'3'.repeat(40)}`,value:'0x0',data:toFunctionSelector('revokeAutonomousSession()')}});
+      }
+      assert.equal(input.action,'confirm');assert.equal(input.transactionHash,recallHash);
+      recallConfirms++;agentMode='recalled';
+      return json({ok:true,tokenId:'93',sessionId:manualSessionId,status:'REVOKED',strategyPaused:true,transactionHash:recallHash});
+    }
+    if(recallFixture && url.pathname==='/api/v2/punks/93/strategy' && req.method==='POST') {
+      strategyPauses++;return json({ok:true,strategy:{state:'PAUSED'}});
     }
     if(url.pathname==='/api/v2/punks/93/agent-account/run' && req.method==='POST'){
       assert.ok(hasSession(req));let body='';for await(const chunk of req)body+=chunk;
@@ -163,7 +194,7 @@ try {
     window.observedWalletEvents=0;window.addEventListener('gogh:wallet-state',()=>{window.observedWalletEvents++;});
     window.__GOGH_WALLET_PROVIDER__={request:async args=>{
       const r=await fetch('/fixture-rpc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(args)});
-      if(!r.ok)throw Error('LOCAL_RPC_ONLY');return r.json();}};
+      const value=await r.json();if(!r.ok)throw Error(value.error??'LOCAL_RPC_ONLY');return value;}};
   `});
   await call('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
   // Actual wallet.js on a first visit: the empty-roster notification must not
@@ -432,6 +463,50 @@ try {
   await until("document.querySelector('#training-fixture').textContent.includes('Training settled.') && [...document.querySelectorAll('#training-fixture button')].some(b=>b.textContent==='RECHECK TRAINING'&&!b.disabled)");
   assert.equal(await evaluate("document.querySelector('#training-fixture').textContent.includes('RUN EQUIPPED RESEARCH')"),false);
   assert.equal(await evaluate("document.querySelector('#training-fixture').textContent.includes('View equipped research result')"),false,'loadout change clears stale research');
+  // Exercise the actual production chat branches in a connected local browser.
+  // Wallet requests terminate at fixture-rpc; none reach a public chain.
+  recallFixture=true;reviewHostFixture=false;connectedOwner=ALICE;
+  ownership.set('93',ALICE);ownership.set('119',BOB);sessionMode='auto';
+  const recallPage=async()=>{
+    await call('Page.navigate',{url:`${url}/broker/v2/?tab=talk`});
+    await until("document.readyState==='complete' && document.querySelector('[data-chat-form]')");
+    await evaluate(`window.dispatchEvent(new CustomEvent('gogh:wallet-state',{detail:{account:'${ALICE}',chainId:4663,status:'owner'}}))`);
+    await until("document.querySelector('[data-punk-token]').textContent==='93' && !document.querySelector('[data-selected-stage]').hidden");
+    await evaluate("document.querySelector('[data-open-agent-readiness]').click()");
+    await until("!document.querySelector('[data-open-agent-readiness]').disabled");
+  };
+  const lastReply=()=>evaluate("document.querySelector('[data-conversation]').lastElementChild.textContent");
+  const chatsBeforeRecall=chatRequests;
+  agentMode='empty';await recallPage();agentMode='active'; // Deliberately stale cached status.
+  await sendChat('ok recall please');
+  assert.match(await lastReply(),/mission session is revoked on chain/);
+  assert.equal(recallWalletRequests,1);assert.equal(recallConfirms,1);assert.equal(strategyPauses,0);
+  agentMode='active';await recallPage();
+  await evaluate("document.querySelector('[data-suggestion=\"Pause for tonight.\"]').click();document.querySelector('[data-chat-form]').requestSubmit();document.querySelector('[data-chat-form]').requestSubmit();document.querySelector('[data-review-agent-recall]').click()");
+  await until("!document.querySelector('[data-chat-form]').hasAttribute('aria-busy')");
+  assert.match(await lastReply(),/stay paused until you authorize a new mission/);
+  assert.equal(recallWalletRequests,2);assert.equal(recallPrepares,2);assert.equal(recallConfirms,2);
+  assert.equal(chatRequests,chatsBeforeRecall,'recall bypasses the conversation model');
+  for(const [name,width,height,mobile] of [['desktop',1440,1000,false],['mobile',390,844,true]]){
+    await call('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile});
+    await evaluate("document.querySelector('#punk-prompt').scrollIntoView({block:'end',behavior:'instant'})");
+    assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true,`recall ${name} overflow`);
+    assert.equal(await evaluate("document.querySelector('[data-conversation]').scrollWidth<=document.querySelector('[data-conversation]').clientWidth"),true,`recall ${name} transaction hash is clipped`);
+    await writeFile(join(output,`recall-confirmed-${name}.png`),Buffer.from((await call('Page.captureScreenshot',{format:'png'})).data,'base64'));
+  }
+  agentMode='active';await recallPage();recallRejected=true;
+  await sendChat('Pause for tonight.');
+  assert.match(await lastReply(),/Fixture wallet rejected recall.*Recall is not confirmed/);
+  assert.equal(recallConfirms,2);recallRejected=false;
+  agentMode='active';await recallPage();recallReceiptFails=true;
+  await sendChat('recall');
+  assert.match(await lastReply(),/Recall is not confirmed/);assert.ok((await lastReply()).includes(recallHash));
+  assert.equal(recallConfirms,2);recallReceiptFails=false;
+  agentMode='active';await recallPage();agentMode='unavailable';
+  const promptsBeforeFailure=recallWalletRequests;
+  await sendChat('Pause for tonight.');
+  assert.match(await lastReply(),/Recall is not confirmed/);
+  assert.equal(recallWalletRequests,promptsBeforeFailure);assert.equal(strategyPauses,0);
   assert.equal(walletWrites,0); assert.deepEqual(errors,[]);
   console.log(JSON.stringify({result:'PASS',sameWalletPurchaseAndSale:true,staleReviewClosed:true,
     actualWalletComponentStartup:true,disconnectedStartupDoesNotLoop:true,firstVisitWalletSdkRequests:walletSdkRequests,
@@ -444,6 +519,9 @@ try {
     learnedAloneDoesNotEnableResearch:true,equippedResearchRequiresExplicitClick:true,unequippingClearsResearchResult:true,
     buyerSeesOriginalPunk:true,wrappedReceiptUI:false,forgeMounted:true,forgeUnknownNotZero:true,
     forgeProfileAndFailureRecovery:true,staleForgeResponseWithheld:true,forgeAutoRefreshWithoutSignIn:true,productionTrainingLocked:true,
+    productionRecallChatAndQuickCall:true,staleRecallStatusRefreshed:true,duplicateRecallPrevented:true,
+    recallRejectionAndReceiptFailureRemainUnconfirmed:true,recallReadFailureDoesNotPauseStrategy:true,
+    simulatedRecallWalletRequests:recallWalletRequests,confirmedFixtureRecalls:recallConfirms,publicTransactions:0,
     desktopAndMobile:true,walletWrites,browserExceptions:errors.length,screenshots:output},null,2));
 } finally {
   releaseForge?.();
