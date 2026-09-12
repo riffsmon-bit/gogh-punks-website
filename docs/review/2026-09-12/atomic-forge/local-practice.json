@@ -1,0 +1,21 @@
+{
+  "result": "PASS",
+  "source": 7,
+  "recipient": 44,
+  "chain": "DISPOSABLE_31337",
+  "contract": "GoghReviewedBurnSource",
+  "atomicStackDeployment": true,
+  "prepareAndCancelNoWrites": true,
+  "explicitConfirmation": true,
+  "expiryAndTransferRechecks": true,
+  "supplyFloor": true,
+  "walletDustBlocks": true,
+  "approvalFailureAtomic": true,
+  "concurrentBurnSends": 1,
+  "receiptRecovery": true,
+  "burnTransaction": "0xf6af56ae383a5a40b504342e2469c9413879a1e932ab8e7bff54e075e9527dfa",
+  "exactlyOneCredit": true,
+  "separateLearnAndEquip": true,
+  "postBurnWalletAccessLost": true,
+  "publicChainTransactions": 0
+}

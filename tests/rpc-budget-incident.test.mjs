@@ -3,13 +3,17 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
-  backgroundRpcDecision,
+  backgroundRpcDecision as liveBackgroundRpcDecision,
 } from "../netlify/functions/_shared/background-rpc-policy.mjs";
 import {
   incrementalSeaDropCollections,
 } from "../scripts/run-automated-seadrop-v3-worker.mjs";
 
 const COLLECTION = "0x1111111111111111111111111111111111111111";
+// This suite exercises the historical migration/allowlist branches, not today's
+// permanent retirement gate (covered separately at and after the exact cutoff).
+const backgroundRpcDecision = (environment, task) => liveBackgroundRpcDecision(environment, task,
+  { now: Date.parse('2026-09-05T21:59:00Z') });
 
 test("deploy previews and the emergency switch suppress autonomous background RPC", () => {
   assert.deepEqual(backgroundRpcDecision({ CONTEXT: "deploy-preview" }, "WORKER"), {

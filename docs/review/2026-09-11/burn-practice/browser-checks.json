@@ -1,0 +1,20 @@
+{
+  "result": "PASS",
+  "desktopAndMobileWidths": [
+    1440,
+    390,
+    375
+  ],
+  "bothPunksAndImages": true,
+  "walletAccessWarning": true,
+  "typedSourceAndAcknowledgmentRequired": true,
+  "cancellationNoCredit": true,
+  "pendingReceiptHidesTraining": true,
+  "reloadDoesNotResend": true,
+  "receiptRecovery": true,
+  "separateLearningConfirmation": true,
+  "learnedNotEquipped": true,
+  "browserErrors": [],
+  "realWalletRequests": 0,
+  "publicChainTransactions": 0
+}

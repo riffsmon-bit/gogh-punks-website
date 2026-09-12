@@ -1,0 +1,104 @@
+{
+  "tokenId": "1753",
+  "observedAt": "2026-09-12T17:52:25.700Z",
+  "scope": "Discovery and operational read-only checks, not burn authorization",
+  "observations": [
+    {
+      "source": "OPENSEA_INDEX_ONLY",
+      "observedAt": "2026-09-12T17:52:24.566Z",
+      "wallets": [
+        {
+          "role": "V1",
+          "status": 401
+        },
+        {
+          "role": "V2",
+          "status": 401
+        },
+        {
+          "role": "V3",
+          "status": 401
+        },
+        {
+          "role": "AGENT",
+          "status": 401
+        }
+      ]
+    },
+    {
+      "source": "PRODUCTION_SUPABASE",
+      "observedAt": "2026-09-12T17:52:25.699Z",
+      "readOnly": true,
+      "observations": [
+        {
+          "table": "gogh_broker_agent_activity",
+          "rows": [
+            {
+              "count": "0"
+            }
+          ]
+        },
+        {
+          "table": "gogh_broker_diagnostics",
+          "rows": [
+            {
+              "count": "0"
+            }
+          ]
+        },
+        {
+          "table": "gogh_broker_legacy_reconciliation_entries",
+          "rows": [
+            {
+              "count": "0"
+            }
+          ]
+        },
+        {
+          "table": "gogh_broker_punk_agent_gas_accounts",
+          "rows": [
+            {
+              "count": "0"
+            }
+          ]
+        },
+        {
+          "table": "gogh_broker_punk_agent_gas_deposits",
+          "rows": [
+            {
+              "count": "0"
+            }
+          ]
+        },
+        {
+          "table": "gogh_broker_punk_agent_gas_refunds",
+          "rows": []
+        },
+        {
+          "table": "gogh_broker_punk_agent_gas_usage",
+          "rows": [
+            {
+              "count": "0"
+            }
+          ]
+        },
+        {
+          "table": "gogh_broker_punk_jobs",
+          "rows": []
+        },
+        {
+          "table": "gogh_broker_punk_priority_sessions",
+          "rows": []
+        },
+        {
+          "table": "gogh_broker_punk_state",
+          "rows": [
+            {
+              "count": "0"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

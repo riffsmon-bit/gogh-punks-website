@@ -11,6 +11,14 @@ const currentIntent = defaultAskIntent({ punkTokenId: "93", expectedOwner: OWNER
   punkWallet: WALLET }, NOW);
 const authority = { punkWallet: WALLET, nativeBalanceWei: "200000000000000", activated: true };
 
+test('chat never inherits another owner\'s private strategy', async () => {
+  const result = await resolveV2PunkChat({ router: {}, ownerMessage: 'Find one free mint',
+    currentIntent: { ...currentIntent, expectedOwner: '0x3333333333333333333333333333333333333333',
+      totalMintLimit: 99, operatingMode: 'AUTONOMOUS' }, tokenId: '93', authority, owner: OWNER, now: NOW });
+  assert.equal(result.draft.intent.expectedOwner, OWNER);
+  assert.equal(result.draft.intent.operatingMode, 'ASK');
+});
+
 test("production chat routes a natural mint mission through the deterministic parser", async () => {
   const result = await resolveV2PunkChat({ router: { run: async () => {
     throw new Error("mission commands must not require an AI provider");

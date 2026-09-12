@@ -1,0 +1,141 @@
+{
+  "schema": "GOGH_BURN_SOURCE_INITIAL_READ_V1",
+  "observedAt": "2026-09-12T17:48:51.194Z",
+  "tokenId": "1753",
+  "recipient": null,
+  "scope": "Current anchored observations; not finalized and not burn authorization",
+  "reads": [
+    {
+      "url": "https://robinhood-rpc.publicnode.com",
+      "anchor": {
+        "number": "61294328",
+        "hash": "0x236adf1b0d2ccd80b1898d002849dfc061f57db5c268582c0f7b455ed5ed0aa1"
+      },
+      "owner": "0xC7f55cE6A7dF9A79cc4A643a5081230F890c7AA6",
+      "supply": "4295",
+      "approved": "0x0000000000000000000000000000000000000000",
+      "nonce": 1948,
+      "pendingNonce": 1948,
+      "deploymentCodeBytes": 267,
+      "wallets": [
+        {
+          "role": "V1",
+          "address": "0x0533A1172567E0E28a443f32DB78fA990371F6bE",
+          "registry": "0xDca07046B4f95e79bbb421C97949473E75dFFc65",
+          "registryRuntimeVerified": true,
+          "codeBytes": 0,
+          "nativeWei": "0",
+          "wethWei": "0",
+          "entryPointDepositWei": "0",
+          "nfts": "NOT_YET_CHECKED",
+          "otherTokens": "NOT_YET_CHECKED"
+        },
+        {
+          "role": "V2",
+          "address": "0xA50EE88b8F1bFa8a08A7ECFe743930A5cf4dEc96",
+          "registry": "0x00E7D2A869cc6a8f61A4cE11A66A8874db1F78e3",
+          "registryRuntimeVerified": true,
+          "codeBytes": 0,
+          "nativeWei": "0",
+          "wethWei": "0",
+          "entryPointDepositWei": "0",
+          "nfts": "NOT_YET_CHECKED",
+          "otherTokens": "NOT_YET_CHECKED"
+        },
+        {
+          "role": "V3",
+          "address": "0xC735bbAaF79295a27cb66AC84bDc926a125602E2",
+          "registry": "0x7d4f654cD95104dc22c64Fc8C70937F32FcbAc52",
+          "registryRuntimeVerified": true,
+          "codeBytes": 0,
+          "nativeWei": "0",
+          "wethWei": "0",
+          "entryPointDepositWei": "0",
+          "nfts": "NOT_YET_CHECKED",
+          "otherTokens": "NOT_YET_CHECKED"
+        },
+        {
+          "role": "AGENT",
+          "address": "0x56dF53299941890500D44aBA31dCB376b92E1b65",
+          "registry": "0x3253adc3bBd5B0010C1Bf9cE8def26b7e0DB5844",
+          "registryRuntimeVerified": true,
+          "codeBytes": 0,
+          "nativeWei": "0",
+          "wethWei": "0",
+          "entryPointDepositWei": "0",
+          "nfts": "NOT_YET_CHECKED",
+          "otherTokens": "NOT_YET_CHECKED"
+        }
+      ]
+    },
+    {
+      "url": "https://rpc.mainnet.chain.robinhood.com",
+      "anchor": {
+        "number": "61294328",
+        "hash": "0x236adf1b0d2ccd80b1898d002849dfc061f57db5c268582c0f7b455ed5ed0aa1"
+      },
+      "owner": "0xC7f55cE6A7dF9A79cc4A643a5081230F890c7AA6",
+      "supply": "4295",
+      "approved": "0x0000000000000000000000000000000000000000",
+      "nonce": 1948,
+      "pendingNonce": 1948,
+      "deploymentCodeBytes": 267,
+      "wallets": [
+        {
+          "role": "V1",
+          "address": "0x0533A1172567E0E28a443f32DB78fA990371F6bE",
+          "registry": "0xDca07046B4f95e79bbb421C97949473E75dFFc65",
+          "registryRuntimeVerified": true,
+          "codeBytes": 0,
+          "nativeWei": "0",
+          "wethWei": "0",
+          "entryPointDepositWei": "0",
+          "nfts": "NOT_YET_CHECKED",
+          "otherTokens": "NOT_YET_CHECKED"
+        },
+        {
+          "role": "V2",
+          "address": "0xA50EE88b8F1bFa8a08A7ECFe743930A5cf4dEc96",
+          "registry": "0x00E7D2A869cc6a8f61A4cE11A66A8874db1F78e3",
+          "registryRuntimeVerified": true,
+          "codeBytes": 0,
+          "nativeWei": "0",
+          "wethWei": "0",
+          "entryPointDepositWei": "0",
+          "nfts": "NOT_YET_CHECKED",
+          "otherTokens": "NOT_YET_CHECKED"
+        },
+        {
+          "role": "V3",
+          "address": "0xC735bbAaF79295a27cb66AC84bDc926a125602E2",
+          "registry": "0x7d4f654cD95104dc22c64Fc8C70937F32FcbAc52",
+          "registryRuntimeVerified": true,
+          "codeBytes": 0,
+          "nativeWei": "0",
+          "wethWei": "0",
+          "entryPointDepositWei": "0",
+          "nfts": "NOT_YET_CHECKED",
+          "otherTokens": "NOT_YET_CHECKED"
+        },
+        {
+          "role": "AGENT",
+          "address": "0x56dF53299941890500D44aBA31dCB376b92E1b65",
+          "registry": "0x3253adc3bBd5B0010C1Bf9cE8def26b7e0DB5844",
+          "registryRuntimeVerified": true,
+          "codeBytes": 0,
+          "nativeWei": "0",
+          "wethWei": "0",
+          "entryPointDepositWei": "0",
+          "nfts": "NOT_YET_CHECKED",
+          "otherTokens": "NOT_YET_CHECKED"
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "NFT and other token inventory incomplete",
+    "Operational missions and obligations not yet checked",
+    "Recipient not selected",
+    "Deployment request has no recorded transaction hash"
+  ]
+}

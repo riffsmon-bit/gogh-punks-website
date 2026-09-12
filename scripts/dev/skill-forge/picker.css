@@ -1,0 +1,31 @@
+#browse-sacrifice{width:100%;border-color:var(--orange);color:var(--orange);background:transparent}
+#sacrifice-picker{max-width:820px}
+#close-picker{position:absolute;right:10px;top:10px;font-size:18px}
+#picker-title{font-size:52px}
+#sacrifice-picker .target-strip{border:1px solid var(--lime);background:#20271a;padding:14px;color:var(--lime);font-weight:900}
+#picker-status{color:var(--cyan);font-size:11px}
+#sacrifice-candidates{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:22px 0}
+.sacrifice-card{border:1px solid var(--line);padding:18px;background:var(--ink);display:grid;grid-template-columns:64px 1fr;gap:14px;align-items:center}
+.sacrifice-card>img{width:64px;height:64px;image-rendering:pixelated;border:1px solid var(--line)}
+.sacrifice-card h3{font-size:25px;margin-bottom:9px}
+.sacrifice-card .skill-status{font-size:8px;line-height:1.7;display:block}
+.sacrifice-card dl{grid-column:1/-1;border:0;border-top:1px solid var(--line);padding:14px 0 0;margin:0}
+.sacrifice-card dt{color:var(--muted);font-size:9px;text-transform:uppercase}
+.sacrifice-card dd{margin:0 0 10px;font-size:12px}
+.sacrifice-card button{grid-column:1/-1;width:100%;color:var(--orange);border-color:#734938}
+.sacrifice-card button[aria-pressed=true]{border-color:var(--cyan);color:var(--cyan);background:#102129}
+#candidate-review{border-top:2px solid var(--orange);padding-top:24px;outline:none}
+#candidate-review h3{font-size:29px;line-height:1.15}
+#candidate-review>button{width:100%}
+#leave-review{margin-top:12px;color:var(--cyan);border-color:var(--cyan)}
+.sniper-options{border:1px solid var(--cyan);padding:18px;margin-bottom:24px;background:#102129}
+.sniper-options>button{width:100%;margin:6px 0}
+.sniper-options [aria-pressed=true]{color:var(--ink);background:var(--lime);border-color:var(--lime)}
+.sniper-prompt:not(:empty){border-top:1px solid var(--line);margin-top:18px;padding-top:18px}
+.skill-filters{display:flex;gap:8px;flex-wrap:wrap;margin:20px 0 10px}
+.skill-filters [aria-pressed=true]{color:var(--ink);background:var(--lime);border-color:var(--lime)}
+#skill-count{margin-bottom:20px}
+#forge-floor{border:1px solid var(--lime);padding:12px;color:var(--lime);font-size:11px}
+.skill-top{gap:12px}.skill-status{text-align:right;line-height:1.5}
+#detail-body>a{display:block;font-size:11px;color:var(--cyan);padding:16px 0;overflow-wrap:anywhere}
+@media(max-width:600px){#sacrifice-candidates{grid-template-columns:1fr}#picker-title{font-size:36px}.sacrifice-card{padding:16px}#candidate-review h3{font-size:25px}}

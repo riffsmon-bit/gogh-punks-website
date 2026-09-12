@@ -1,0 +1,70 @@
+{
+  "schema": "GOGH_LIVE_PREFLIGHT_RELIABILITY_CHECK_V1",
+  "selection": {
+    "sourceTokenId": "1753",
+    "targetTokenId": "93"
+  },
+  "readOnly": true,
+  "publicTransactions": 0,
+  "maximumSnapshotAgeMs": 30000,
+  "browserTimeoutMs": 35000,
+  "samples": [
+    {
+      "status": "PASS",
+      "anchor": {
+        "number": "61331460",
+        "hash": "0xe242eb49be8f66f27f95ab0b88b1c6f6fbcc7df2044b231f0b1fdf2d845f9eb8",
+        "timestamp": "1789239083",
+        "finalized": false
+      },
+      "ageMs": 8112,
+      "elapsedMs": 7721,
+      "httpRequests": 24,
+      "rpcRequests": 182,
+      "errors": []
+    },
+    {
+      "status": "PASS",
+      "anchor": {
+        "number": "61331538",
+        "hash": "0x533d81e92ab7822809ff1ce572c0cdf34eb122d989531c609a3cf7e555c46a05",
+        "timestamp": "1789239091",
+        "finalized": false
+      },
+      "ageMs": 8821,
+      "elapsedMs": 8707,
+      "httpRequests": 24,
+      "rpcRequests": 182,
+      "errors": []
+    },
+    {
+      "status": "PASS",
+      "anchor": {
+        "number": "61331622",
+        "hash": "0x75b311f76757b383a8f661ed89670a0710d14b5807f4895ba69b634fef7181ba",
+        "timestamp": "1789239099",
+        "finalized": false
+      },
+      "ageMs": 8150,
+      "elapsedMs": 7328,
+      "httpRequests": 24,
+      "rpcRequests": 182,
+      "errors": []
+    },
+    {
+      "status": "PASS",
+      "anchor": {
+        "number": "61331698",
+        "hash": "0x53982abda2c94efe4ffd45b3cc54091dcd81218b9231797a43e108293cdf4801",
+        "timestamp": "1789239107",
+        "finalized": false
+      },
+      "ageMs": 7561,
+      "elapsedMs": 7293,
+      "httpRequests": 24,
+      "rpcRequests": 182,
+      "errors": []
+    }
+  ],
+  "note": "Four consecutive diagnostic samples after batching and concurrency changes, before adding the single transient-failure retry. Earlier API repetitions included one generic LIVE_READ_UNAVAILABLE error whose cause was not reproduced. Latency varies; fewer HTTP requests is measured, not a guaranteed latency improvement."
+}

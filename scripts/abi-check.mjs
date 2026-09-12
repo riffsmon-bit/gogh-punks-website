@@ -53,6 +53,9 @@ function requireEvent(name, contractArtifact, eventName, expectedInputs) {
 
 const account = artifact("GoghPunkAccountV1.sol", "GoghPunkAccountV1");
 const autonomousAccount = artifact("GoghPunkAgentAccount.sol", "GoghPunkAgentAccount");
+const reviewedTraining = artifact("GoghReviewedSkillProgression.sol", "GoghReviewedSkillProgression");
+const reviewedBurn = artifact("GoghReviewedBurnSource.sol", "GoghReviewedBurnSource");
+const forgeDeployment = artifact("GoghForgeDeployment.sol", "GoghForgeDeployment");
 const registry = artifact("GoghPunkAccountRegistry.sol", "GoghPunkAccountRegistry");
 const policy = artifact("BrokerPolicyModule.sol", "BrokerPolicyModule");
 const agents = artifact("ArtAgentRegistry.sol", "ArtAgentRegistry");
@@ -97,6 +100,38 @@ requireFunctions("GoghPunkAgentAccount", autonomousAccount, [
   "depositToEntryPoint",
   "withdrawEntryPointDeposit",
 ]);
+requireFunctions("GoghReviewedSkillProgression", reviewedTraining, [
+  "applyTrainingReview", "invalidateTrainingReviews", "trainingReviewNonce", "trainingReviewStateHash",
+  "trainingCredits", "learnedLevel", "equipped", "unlockedSlots", "claimRaritySlots",
+]);
+if (reviewedTraining.abi.some(item => item.stateMutability === "payable" || ["receive", "fallback"].includes(item.type))) {
+  throw new Error("Reviewed progression cannot accept ETH or expose a fallback");
+}
+requireEvent("GoghReviewedSkillProgression", reviewedTraining, "TrainingReviewApplied", [
+  { name: "tokenId", type: "uint256", indexed: true },
+  { name: "nonce", type: "uint256", indexed: true },
+  { name: "operation", type: "uint8", indexed: false },
+]);
+requireFunctions("GoghReviewedBurnSource", reviewedBurn, [
+  "bindProgression", "burnReviewStateHash", "burnReviewNonce", "applyBurnReview", "invalidateBurnReviews",
+]);
+if (JSON.stringify([...functions(forgeDeployment)].sort()) !== JSON.stringify(['progression', 'registry', 'trainingSource'])
+  || forgeDeployment.abi.some(item => ['receive', 'fallback'].includes(item.type) || item.stateMutability === 'payable'
+    || item.type === 'function' && item.stateMutability !== 'view')
+  || (forgeDeployment.bytecode.object.length - 2) / 2 + 6 * 32 >= 49152) {
+  throw new Error('Atomic Forge deployment must fit EIP-3860 and expose only its three deployment getters');
+}
+if (reviewedBurn.abi.some(item => item.stateMutability === "payable" || ["receive", "fallback"].includes(item.type)
+  || ["execute", "setApprovalForAll", "upgradeTo", "withdraw"].includes(item.name))) {
+  throw new Error("Reviewed burn source cannot accept ETH or expose general wallet authority");
+}
+requireEvent("GoghReviewedBurnSource", reviewedBurn, "PunkBurnReviewed", [
+  { name: "sourceTokenId", type: "uint256", indexed: true },
+  { name: "targetTokenId", type: "uint256", indexed: true },
+  { name: "owner", type: "address", indexed: true },
+  { name: "nonce", type: "uint256", indexed: false },
+  { name: "stateHash", type: "bytes32", indexed: false },
+]);
 requireEvent("GoghPunkAgentAccount", autonomousAccount, "SessionAcquisitionExecuted", [
   { name: "generation", type: "uint64", indexed: true },
   { name: "opportunityId", type: "bytes32", indexed: true },
@@ -132,6 +167,9 @@ requireFunctions("ArtAdapterRegistry", adapters, [
 const sizes = {
   GoghPunkAccountV1: requireDeployableSize("GoghPunkAccountV1", account),
   GoghPunkAgentAccount: requireDeployableSize("GoghPunkAgentAccount", autonomousAccount),
+  GoghReviewedSkillProgression: requireDeployableSize("GoghReviewedSkillProgression", reviewedTraining),
+  GoghReviewedBurnSource: requireDeployableSize("GoghReviewedBurnSource", reviewedBurn),
+  GoghForgeDeployment: requireDeployableSize("GoghForgeDeployment", forgeDeployment),
   GoghPunkAccountRegistry: requireDeployableSize("GoghPunkAccountRegistry", registry),
   BrokerPolicyModule: requireDeployableSize("BrokerPolicyModule", policy),
   ArtAgentRegistry: requireDeployableSize("ArtAgentRegistry", agents),

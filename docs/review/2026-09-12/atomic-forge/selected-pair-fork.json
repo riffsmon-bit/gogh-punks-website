@@ -1,0 +1,34 @@
+{
+  "status": "PASS",
+  "environment": "NEW_DISPOSABLE_FORK_NOT_PUBLIC_CHAIN",
+  "chainId": 4663,
+  "publicAnchor": {
+    "number": "61347964",
+    "hash": "0x9acc4cf1e2a9a97956061e54e1e3422f35fa57dee010d5e951a7b8a4180e66ad"
+  },
+  "copiedCollectionCodeHash": "0x3222e4925f77909e6370e17fe071d2774d43e191f6bc72c3a97c97209c6e2e93",
+  "copiedSourceTokenId": "1753",
+  "copiedRecipientTokenId": "93",
+  "copySupplyBefore": "4295",
+  "copiedExistingPublicDeployment": true,
+  "addresses": {
+    "deployment": "0xF03A7331ACc83Bdba0e257221Daf8f4ee35d955B",
+    "registry": "0xc2A1Bd47fbc0FE33E53c85f130be53591c898E83",
+    "trainingSource": "0x7e4d6DB6c96C7B09c78F49760D9EEdb5dd4e1533",
+    "progression": "0x08ADa19EDf9c387dc07A181069a1848C66cA2dA4"
+  },
+  "connectedStackRuntimeVerified": true,
+  "startsPaused": true,
+  "atomicDeploymentHashesOnFork": [],
+  "approvalHashOnFork": "0x836d43e166196b32a88a898c9c6bb0fa85b3e266b7916a064810741bf9a89d09",
+  "burnHashOnFork": "0xf929dc3a4ba1a01d93d2e05b8d3b31c9d403e69b645231cd2447806edbc61773",
+  "approvalDoesNotCredit": true,
+  "exactlyOneCredit": true,
+  "burnLearnEquipUnequip": true,
+  "actualProductionProfileReader": true,
+  "publicOriginalsStillOwned": true,
+  "publicTransactions": 0,
+  "manifestsWritten": false,
+  "previousPracticeReset": false,
+  "note": "This fork does not exercise production asset recovery or lifecycle cleanup. The public source NFT was not burned. Fork receipts cannot establish a public deployment."
+}

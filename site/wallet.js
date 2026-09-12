@@ -312,9 +312,12 @@ export function setupReadOnlyWallet({ windowObject, documentObject } = {}) {
     const address = normalizeWalletAddress(detail.owner);
     const tokenId = typeof detail.tokenId === "string" && /^(0|[1-9]\d*)$/.test(detail.tokenId)
       ? detail.tokenId : null;
-    state.owner = address && tokenId
+    const nextOwner = address && tokenId
       ? { address, tokenId, source: "selection" }
       : null;
+    if (state.owner?.address === nextOwner?.address && state.owner?.tokenId === nextOwner?.tokenId
+      && state.owner?.source === nextOwner?.source) return;
+    state.owner = nextOwner;
     render();
   }
 
@@ -716,7 +719,12 @@ export async function setupReownWallet({ windowObject, documentObject, fetchFunc
     const address = normalizeWalletAddress(detail.address ?? detail.owner);
     const tokenId = typeof detail.tokenId === "string" && /^(0|[1-9]\d*)$/.test(detail.tokenId)
       ? detail.tokenId : null;
-    state.owner = address && tokenId ? { address, tokenId, source: "selection" } : null;
+    const nextOwner = address && tokenId ? { address, tokenId, source: "selection" } : null;
+    // The broker also refreshes its roster on wallet-state events. Echoing an
+    // unchanged selection (especially null) would recursively refresh both UIs.
+    if (state.owner?.address === nextOwner?.address && state.owner?.tokenId === nextOwner?.tokenId
+      && state.owner?.source === nextOwner?.source) return;
+    state.owner = nextOwner;
     render();
   }
 

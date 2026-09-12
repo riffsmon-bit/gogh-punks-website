@@ -8,6 +8,7 @@
     <title>Art Broker V2 · Gogh Punks</title>
     <link rel="icon" href="/assets/favicon.png" type="image/png" />
     <link rel="stylesheet" href="/broker-v2.css" />
+    <link rel="stylesheet" href="/broker-v2-forge.css" />
     <script src="/wallet.js?v=reown-10" type="module"></script>
     <script src="/broker-v2.js" type="module"></script>
   </head>
@@ -41,6 +42,7 @@
           <p><b data-roster-count>0</b> owned Punks</p>
         </div>
         <div class="punk-roster" data-punk-roster role="listbox" aria-label="Owned Gogh Punks"></div>
+        <p data-ownership-sync aria-live="polite">Your original Gogh Punk is the ownership key. This roster refreshes automatically after purchases and transfers.</p>
         <div class="roster-empty" data-roster-empty>
           <strong>Your brokers enter here.</strong>
           <span>Connect the wallet that holds your Gogh Punks. Ownership is checked on Robinhood Chain.</span>
@@ -79,7 +81,8 @@
           <button type="button" data-v2-tab="fund" aria-selected="false"><span>03</span>FUND</button>
           <button type="button" data-v2-tab="collection" aria-selected="false"><span>04</span>COLLECTION</button>
           <button type="button" data-v2-tab="activity" aria-selected="false"><span>05</span>ACTIVITY</button>
-          <button type="button" data-v2-tab="settings" aria-selected="false"><span>06</span>SETTINGS</button>
+          <button type="button" data-v2-tab="forge" aria-selected="false"><span>06</span>FORGE</button>
+          <button type="button" data-v2-tab="settings" aria-selected="false"><span>07</span>SETTINGS</button>
         </nav>
 
         <div class="panel-stack">
@@ -89,7 +92,7 @@
               <span class="intelligence-chip" data-intelligence-status><i></i>GOGH INTELLIGENCE · AUTO</span>
             </header>
             <div class="talk-mode-control" data-talk-mode-control>
-              <div><span>OPERATING MODE</span><small>Choose here, then review the chat draft before anything changes.</small></div>
+              <div><span>OPERATING MODE</span><small>Choose here, then review the chat draft before anything changes.</small><button class="outline-button" type="button" data-open-agent-readiness>CHECK AUTONOMOUS READINESS</button><button class="outline-button" type="button" data-run-agent-mission hidden>RUN ONE MISSION CHECK</button><small data-agent-mission-run-status hidden aria-live="polite"></small></div>
               <fieldset><legend class="sr-only">Operating mode for this Punk</legend>
                 <label><input type="radio" name="talk-mode" value="ASK" data-operating-mode checked /><span><b>ASK</b><small>Recommend</small></span></label>
                 <label><input type="radio" name="talk-mode" value="ASSIST" data-operating-mode /><span><b>ASSIST</b><small>Prepare</small></span></label>
@@ -109,10 +112,13 @@
                 <button type="button" data-suggestion="I want weird experimental art. No PFPs.">Tune my taste</button>
                 <button type="button" data-show-link>Check a link</button>
                 <button type="button" data-suggestion="Show me what you found today.">Show discoveries</button>
+                <button type="button" data-suggestion="Check my gas">Check gas / status</button>
+                <button type="button" data-suggestion="Fund gas">Fund gas here</button>
                 <button type="button" data-suggestion="Teach yourself to rank small pixel collections and explain the screening result.">Teach a skill</button>
                 <button type="button" data-suggestion="Pause for tonight.">Pause</button>
               </aside>
             </div>
+            <div data-talk-gas-host hidden></div>
             <form class="link-composer" data-link-form hidden>
               <label for="mint-link">PASTE A MINT LINK</label>
               <div><input id="mint-link" name="url" type="url" inputmode="url" autocomplete="off" placeholder="https://opensea.io/collection/..." /><button type="submit">CHECK LINK</button></div>
@@ -164,6 +170,21 @@
 
           <section class="broker-panel" data-v2-panel="fund" aria-labelledby="fund-title" hidden>
             <header class="panel-header"><div><span class="kicker">POWER BAR</span><h2 id="fund-title">FUND YOUR PUNK</h2></div><span class="custody-chip">DIRECT · NON-CUSTODIAL</span></header>
+            <div data-fund-gas-home><section class="wrapped-funding" data-agent-gas-panel aria-labelledby="agent-gas-title">
+              <header><div><span class="kicker">AUTONOMOUS MINTING · SEPARATE GAS BALANCE</span><h3 id="agent-gas-title">AGENT GAS FUND</h3></div><button class="outline-button" type="button" data-agent-gas-recheck>RECHECK / SIGN IN</button></header>
+              <p>Your Punk Wallet ETH is separate from its Agent Account gas. Move existing Punk ETH below, or add ETH from your connected wallet. No hosted-agent prepayment or project custody.</p>
+              <dl class="fund-breakdown"><div><dt>PUNK WALLET ETH</dt><dd data-agent-gas-punk-balance>CHECKING…</dd></div><div><dt>AGENT ACCOUNT ETH</dt><dd data-agent-gas-native>NOT VERIFIED</dd></div><div><dt>ENTRYPOINT GAS DEPOSIT</dt><dd data-agent-gas-deposit>NOT VERIFIED</dd></div><div><dt>AGENT DESTINATION</dt><dd><code data-agent-gas-destination>NOT VERIFIED</code></dd></div></dl>
+              <p data-agent-gas-readiness aria-live="polite">Recheck readiness to verify this Punk's Agent Account. Funding does not activate a mission.</p>
+              <form class="wrapped-form" data-agent-gas-form>
+                <label for="agent-gas-source">FUNDING SOURCE<select id="agent-gas-source" name="source"><option value="PUNK">USE PUNK WALLET ETH</option><option value="OWNER">ADD ETH FROM MY WALLET</option></select></label>
+                <label for="agent-gas-amount">AMOUNT IN ETH<input id="agent-gas-amount" name="amount" inputmode="decimal" autocomplete="off" placeholder="0.0005" /></label>
+                <button type="submit">REVIEW &amp; SIMULATE</button>
+              </form>
+              <label class="transaction-confirm"><input type="checkbox" data-agent-gas-confirm /><span>I reviewed the source, amount and selected Punk. My connected wallet pays this transfer's network fee. A second step opens MetaMask.</span></label>
+              <p data-agent-gas-result aria-live="polite">Only the amount you approve moves. Punk-funded transfers preserve the current protected reserve. Then approve a separate mission in Talk.</p>
+              <a class="transaction-link" data-agent-gas-transaction href="#" target="_blank" rel="noopener noreferrer" hidden>VIEW GAS FUNDING TRANSACTION ↗</a>
+              <button class="outline-button" type="button" data-resume-chat-mission hidden>REVIEW SAVED MISSION</button>
+            </section></div>
             <div class="fund-layout">
               <div class="balance-readout"><span data-fund-balance-label>CURRENT PUNK WALLET BALANCE</span><strong data-fund-balance>0.0300</strong><em>ETH</em></div>
               <dl class="fund-breakdown"><div><dt>PROTECTED RESERVE</dt><dd data-fund-reserve>0.0100 ETH</dd></div><div><dt>AVAILABLE ART BUDGET</dt><dd data-fund-available>0.0200 ETH</dd></div><div><dt>DESTINATION</dt><dd><code data-fund-wallet>0x0000…0000</code></dd></div></dl>
@@ -225,6 +246,18 @@
               <p class="mission-monitor-note">This displays discovery, screening, and simulation only. No mint transaction is submitted by the review agent.</p>
             </section>
             <ol class="activity-feed" data-activity-feed></ol>
+          </section>
+
+          <section class="broker-panel" data-v2-panel="forge" aria-labelledby="forge-title" hidden>
+            <header class="panel-header"><div><span class="kicker" data-forge-punk>SELECT YOUR PUNK</span><h2 id="forge-title">GOGH SKILL FORGE</h2></div><span class="mode-stamp">CONTROLLED RESEARCH LAB</span></header>
+            <div class="forge-banner"><strong>BUILT. NOT BORN.</strong><p>Your original Gogh Punk is the ownership key. Permanent training follows the token when it sells—no wrapper, buyer claim or re-equipping. Private chat and the seller’s spending permission do not transfer.</p></div>
+            <button class="filter-button" type="button" data-forge-connect>CHECK FORGE &amp; LOADOUT</button>
+            <p class="forge-note" data-forge-status role="status" aria-live="polite">Select a Punk and check Forge access.</p>
+            <section class="forge-loadout" aria-labelledby="forge-loadout-title"><span class="kicker" data-forge-profile-state>PERMANENT TRAINING · NOT VERIFIED</span><h3 id="forge-loadout-title">PUNK LOADOUT</h3><p class="forge-note" data-forge-profile-summary>Learned skills, credits and unlocked slots are unknown until verified. This is not a zero balance.</p><div class="forge-slots" data-forge-slots></div><p class="forge-note" data-forge-profile-note>Seven-slot design capacity. A learned icon never authorizes spending. Current owner policy still applies.</p></section>
+            <h3>RESEARCH TEST BENCH</h3><p class="forge-note">These diagnostic tests do not learn or equip a skill. Rarity Eye compares exactly three existing Gogh Punks, including the selected Punk. Sample ranks never change the frozen OpenSea rarity snapshot.</p>
+            <div class="forge-sample"><label>Selected Punk<input data-forge-sample-selected readonly></label><label>Sample Punk 2<input data-forge-sample-two inputmode="numeric" maxlength="4"></label><label>Sample Punk 3<input data-forge-sample-three inputmode="numeric" maxlength="4"></label></div>
+            <div class="forge-library" data-forge-library></div><div class="forge-report" data-forge-report role="region" aria-label="Research result" aria-live="polite"></div>
+            <div class="forge-locked" data-forge-training><h3>PERMANENT TRAINING IS LOCKED</h3><p>Live training contracts are awaiting deployment. Mint missions and gas controls remain available in Talk.</p><button class="filter-button" disabled>LEARN · NOT LIVE</button><button class="filter-button" disabled>EQUIP · NOT LIVE</button><button class="filter-button" disabled>SACRIFICE · LOCKED</button></div>
           </section>
 
           <section class="broker-panel" data-v2-panel="settings" aria-labelledby="settings-title" hidden>

@@ -1,0 +1,58 @@
+{
+  "observedAt": "2026-09-12T02:59:05.220Z",
+  "sourceUrl": "https://opensea.io/collection/lilbeet",
+  "readOnly": true,
+  "publicTransactions": 0,
+  "results": [
+    {
+      "status": "fulfilled",
+      "value": {
+        "provider": "https://rpc.mainnet.chain.robinhood.com",
+        "chainId": 4663,
+        "blockNumber": "60769335",
+        "blockHash": "0x57f47896b9b28c3436b5a8685b0169c2a35ef3983a32a93af660c3a718fae851",
+        "blockTimestamp": "1789181943",
+        "collection": "0xd1cda9e06764161772bc7840a1af6a0140557824",
+        "codeHash": "0x69e7a7158f30acb817dc83a4e21af19a216c3a2ae57db423599ca82f321e3041",
+        "name": "LILBEET",
+        "totalSupply": "6337",
+        "currentTotalMinted": "6337",
+        "maxSupply": "6337",
+        "publicDrop": {
+          "mintPrice": "0",
+          "startTime": 1788625800,
+          "endTime": 1788712200,
+          "maxTotalMintableByWallet": 1,
+          "feeBps": 1000,
+          "restrictFeeRecipients": true
+        },
+        "soldOut": true
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "provider": "https://robinhood-chain.gateway.tenderly.co",
+        "chainId": 4663,
+        "blockNumber": "60769335",
+        "blockHash": "0x57f47896b9b28c3436b5a8685b0169c2a35ef3983a32a93af660c3a718fae851",
+        "blockTimestamp": "1789181943",
+        "collection": "0xd1cda9e06764161772bc7840a1af6a0140557824",
+        "codeHash": "0x69e7a7158f30acb817dc83a4e21af19a216c3a2ae57db423599ca82f321e3041",
+        "name": "LILBEET",
+        "totalSupply": "6337",
+        "currentTotalMinted": "6337",
+        "maxSupply": "6337",
+        "publicDrop": {
+          "mintPrice": "0",
+          "startTime": 1788625800,
+          "endTime": 1788712200,
+          "maxTotalMintableByWallet": 1,
+          "feeBps": 1000,
+          "restrictFeeRecipients": true
+        },
+        "soldOut": true
+      }
+    }
+  ]
+}

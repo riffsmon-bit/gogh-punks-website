@@ -231,7 +231,7 @@ contract GoghPunkAgentAccount is
             chainId == ROBINHOOD_CHAIN_ID && chainId == block.chainid && tokenContract == GOGH_PUNKS;
     }
 
-    function owner() public view returns (address currentOwner) {
+    function owner() public view virtual returns (address currentOwner) {
         if (!isCanonicalGoghPunkAccount()) return address(0);
         (, address tokenContract, uint256 tokenId) = token();
         try IERC721(tokenContract).ownerOf(tokenId) returns (address tokenOwner) {
@@ -243,7 +243,7 @@ contract GoghPunkAgentAccount is
         return _session;
     }
 
-    function isAutonomousSessionActive() public view returns (bool) {
+    function isAutonomousSessionActive() public view virtual returns (bool) {
         AutonomousSession memory session = _session;
         address currentOwner = owner();
         return currentOwner != address(0) && session.sessionKey != address(0)
@@ -253,7 +253,8 @@ contract GoghPunkAgentAccount is
     }
 
     function configureAutonomousSession(AutonomousSessionConfig calldata config)
-        external
+        public
+        virtual
         onlyTokenOwner
     {
         if (
@@ -363,7 +364,14 @@ contract GoghPunkAgentAccount is
     function executeSessionAcquisition(
         GoghBrokerTypes.AcquisitionIntent calldata intent,
         bytes calldata adapterData
-    ) external onlyAccount onlyEntryPoint nonReentrantExecution returns (bytes memory result) {
+    )
+        public
+        virtual
+        onlyAccount
+        onlyEntryPoint
+        nonReentrantExecution
+        returns (bytes memory result)
+    {
         _validateSessionIntent(intent, adapterData);
         AutonomousSession storage session = _session;
         uint32 today = uint32(block.timestamp / 1 days);
@@ -656,7 +664,7 @@ contract GoghPunkAgentAccount is
         }
     }
 
-    function _ownershipCycleOrExcessiveDepth(address candidate) private view returns (bool) {
+    function _ownershipCycleOrExcessiveDepth(address candidate) internal view returns (bool) {
         address cursor = candidate;
         for (uint256 depth; depth < MAX_OWNER_RESOLUTION_DEPTH; ++depth) {
             if (cursor == address(this)) return true;

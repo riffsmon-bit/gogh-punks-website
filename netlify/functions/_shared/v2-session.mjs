@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { getAddress } from "viem";
-import { createSiweMessage, generateSiweNonce } from "viem/siwe";
+import { createSiweMessage, generateSiweNonce, parseSiweMessage } from "viem/siwe";
 import { ROBINHOOD } from "../../../broker/src/config.mjs";
 import { getSiteUrl } from "./config.mjs";
 import { PublicError } from "./http.mjs";
@@ -27,13 +27,12 @@ function sessionCookie(token, maximumAge = SESSION_SECONDS) {
   return `${SESSION_COOKIE}=${encodeURIComponent(token)}; HttpOnly; Secure; SameSite=Strict; Path=/api/v2; Max-Age=${maximumAge}`;
 }
 
-export async function prepareV2Session(pool, walletValue, now = new Date()) {
+export async function prepareV2Session(pool, walletValue, now = new Date(), siteUrl = getSiteUrl()) {
   const walletAddress = normalizeWalletAddress(walletValue);
   if (!walletAddress) throw new PublicError(400, "INVALID_WALLET", "Choose a valid wallet address.");
   const challengeId = randomUUID();
   const issuedAt = new Date(now);
   const expirationTime = new Date(issuedAt.getTime() + CHALLENGE_SECONDS * 1_000);
-  const siteUrl = getSiteUrl();
   const message = createSiweMessage({ address: getAddress(walletAddress), chainId: ROBINHOOD.chainId,
     domain: new URL(siteUrl).host, expirationTime, issuedAt, nonce: generateSiweNonce(),
     requestId: challengeId, resources: [`${siteUrl}/broker/v2/`],
@@ -47,7 +46,7 @@ export async function prepareV2Session(pool, walletValue, now = new Date()) {
 }
 
 export async function completeV2Session(pool, { challengeId, walletAddress: walletValue, signature },
-  now = new Date()) {
+  now = new Date(), siteUrl = getSiteUrl()) {
   const walletAddress = normalizeWalletAddress(walletValue);
   if (!walletAddress || typeof challengeId !== "string" || !/^[0-9a-f-]{36}$/.test(challengeId)
     || typeof signature !== "string" || !/^0x[0-9a-fA-F]{130}$/.test(signature)) {
@@ -63,6 +62,10 @@ export async function completeV2Session(pool, { challengeId, walletAddress: wall
       || challenge.wallet_address !== walletAddress
       || new Date(challenge.expires_at).getTime() <= new Date(now).getTime()) {
       throw new PublicError(409, "SESSION_CHALLENGE_EXPIRED", "The sign-in request expired.");
+    }
+    const signed = parseSiweMessage(challenge.message);
+    if (signed.domain !== new URL(siteUrl).host || signed.uri !== `${siteUrl}/broker/v2/`) {
+      throw new PublicError(403, "SESSION_ORIGIN_MISMATCH", "Sign in again on this broker page.");
     }
     await verifyWalletSignature({ walletAddress, message: challenge.message, signature });
     const token = randomBytes(32).toString("base64url");

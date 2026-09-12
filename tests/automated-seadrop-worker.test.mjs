@@ -60,7 +60,7 @@ test("hosted worker is disabled by default and requires the exact published sign
       BROKER_AUTOMATION_V2_ENABLED: "true",
       BROKER_AUTOMATION_V2_AGENT_PRIVATE_KEY:
         "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
-    }),
+    }, { now: () => Date.parse('2026-09-05T21:59:00Z') }),
     /signer address mismatch/,
   );
 });

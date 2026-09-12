@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { V1_SHUTDOWN_AT_MS } from '../netlify/functions/_shared/broker-migration-state.mjs';
+const historicalClock = () => V1_SHUTDOWN_AT_MS - 60_000;
 
 import { runAllAutomationV3, runSelectedAutomationV3 } from
   "../netlify/functions/broker-autonomy-v3-run.mjs";
@@ -21,6 +23,7 @@ test("manual V3 run scopes the existing worker to one active Punk", async () => 
   const calls = [];
   const enrollments = [];
   const result = await runSelectedAutomationV3({ tokenId: "1797" }, {
+    now: historicalClock,
     readPunk: async (tokenId) => ({
       tokenId, created: true, active: true,
       account: `0x${"1".repeat(40)}`, owner: `0x${"2".repeat(40)}`,
@@ -49,6 +52,7 @@ test("manual V3 run rejects ambiguity and inactive authority", async () => {
   await assert.rejects(() => runSelectedAutomationV3({ tokenId: "1797", extra: true }, {}),
     /valid Punk/);
   await assert.rejects(() => runSelectedAutomationV3({ tokenId: "1797" }, {
+    now: historicalClock,
     readPunk: async (tokenId) => ({ tokenId, created: true, active: false }),
     enroll: async () => assert.fail("inactive Punk must not be enrolled"),
   }), /not currently authorized/);
@@ -57,6 +61,7 @@ test("manual V3 run rejects ambiguity and inactive authority", async () => {
 test("all-Punk manual scan uses the fair scheduled roster without parallel signer nonces", async () => {
   const calls = [];
   const result = await runAllAutomationV3({ all: true }, {
+    now: historicalClock,
     runOnce: async (options) => {
       calls.push(options);
       return { status: "MINT_CONFIRMED", submitted: 1, tokenId: "94",
@@ -83,6 +88,7 @@ test("worker runner holds one global lock and preserves the scoped Punk", async 
   const records = [];
   const punkRecords = [];
   const result = await runAutomationV3Once({
+    now: historicalClock,
     environment: { BROKER_AUTOMATION_V3_WORKER_RELEASE: "a".repeat(40) },
     database,
     requestedTokenId: "1797",
@@ -111,6 +117,7 @@ test("worker runner fails closed when another run holds the lock", async () => {
     release() {},
   };
   const result = await runAutomationV3Once({
+    now: historicalClock,
     database: { connect: async () => client },
     worker: async () => { called = true; },
   });
@@ -137,6 +144,7 @@ test("worker runner records scoped Punk evidence when a global stage fails", asy
     },
   });
   await assert.rejects(() => runAutomationV3Once({
+    now: historicalClock,
     environment: { BROKER_AUTOMATION_V3_WORKER_RELEASE: "a".repeat(40) },
     database: { connect: async () => client },
     worker: async () => { throw error; },
@@ -160,6 +168,7 @@ test("scheduled runner retains a four-minute lease to deduplicate repeated deliv
     release() { queries.push(["release"]); },
   };
   const result = await runAutomationV3Once({
+    now: historicalClock,
     database: { connect: async () => client },
     leaseMilliseconds: 240_000,
     retainLease: true,

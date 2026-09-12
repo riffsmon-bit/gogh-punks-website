@@ -1,9 +1,25 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { runInNewContext } from "node:vm";
 
 const htmlUrl = new URL("../site/broker/v2/index.html", import.meta.url);
 const cssUrl = new URL("../site/broker-v2.css", import.meta.url);
+
+test("scouting activity explains policy rejection and tolerates historical entries", async () => {
+  const script = await readFile(new URL("../site/broker-v2.js", import.meta.url), "utf8");
+  const source = script.slice(script.indexOf("function describeMatchBlocker("),
+    script.indexOf("function previewData("))
+    + script.slice(script.indexOf("function activityDetail("), script.indexOf("function renderActivity("));
+  const describe = runInNewContext(`${source}\nactivityDetail`);
+  const detail = { opportunitiesChecked: 3, liveSimulationsPassed: 3,
+    rejectionCounts: { TOTAL_LIMIT_REACHED: 3 } };
+  assert.match(describe({ type: "AGENT_SCOUTED", detail }),
+    /3 live simulations passed.*Blocked because your mission mint limit is reached/);
+  assert.doesNotMatch(describe({ type: "AGENT_SCOUTED", detail: {
+    opportunitiesChecked: 3, liveSimulationsPassed: 3,
+  } }), /Blocked because|undefined/);
+});
 
 test("V2 Control Center exposes the complete selected-Punk action architecture", async () => {
   const html = await readFile(htmlUrl, "utf8");
@@ -148,7 +164,7 @@ test("the hosted PR review runs bounded tab agents while owner transactions stay
     readFile(new URL("../site/broker-v2.js", import.meta.url), "utf8"),
   ]);
   assert.match(html, /data-review-title/);
-  assert.match(script, /api\/v2\/review\/chat/);
+  assert.doesNotMatch(script, /api\/v2\/review\/chat/);
   assert.match(script, /api\/v2\/review\/inspect-url/);
   assert.match(html, /data-review-agent-console/);
   assert.match(html, /SEND PUNK OUT/);
@@ -184,7 +200,7 @@ test("the hosted PR review runs bounded tab agents while owner transactions stay
   assert.match(script, /releaseReviewMissionLease\(key\)/);
   assert.match(script, /REVIEW_MISSION_POLL_MS = 60_000/);
   assert.match(script, /if \(dispatchAfterActivation\) await sendReviewAgentOut\(\)/);
-  assert.match(script, /selectedReviewAgent\(\)\?\.intent/);
+  assert.match(script, /serverMission\?\.intent \?\? agent\?\.intent/);
   assert.match(script, /Your signed strategy is active, but only MetaMask can approve a mint/);
   assert.match(script, /MetaMask should be open now\. Sign the free strategy-activation message/);
   assert.match(script, /ACTIVATION STOPPED/);
@@ -210,10 +226,10 @@ test("the hosted PR review runs bounded tab agents while owner transactions stay
   assert.match(script, /STRATEGY DRAFT CREATED/);
   assert.match(script, /SIMULATION PASSED/);
   assert.match(script, /SUBMIT IN METAMASK/);
-  assert.match(script, /GOGH INTELLIGENCE · REVIEW PARSER/);
+  assert.doesNotMatch(script, /GOGH INTELLIGENCE · REVIEW PARSER|AUTO · REVIEW CHAT/);
   assert.match(html, /TAUGHT SKILLS/);
   assert.match(html, /TEACH THIS PUNK/);
-  assert.match(script, /responseKind === "SKILL_DRAFT"/);
+  assert.doesNotMatch(script, /jsonRequest\("\/api\/v2\/review\/chat"/);
   assert.match(script, /activateReviewSkill/);
   assert.match(script, /reviewSkills: new Map\(\)/);
   assert.match(script, /policy and all safety gates still win/i);
@@ -226,7 +242,7 @@ test("link checks show progress and ground conversational follow-up questions", 
   assert.match(script, /button\.disabled = true/);
   assert.match(script, /state\.lastInspection = inspection/);
   assert.match(script, /state\.localStrategy = null; state\.localSkill = null; state\.lastInspection = null/);
-  assert.match(script, /const inspection = state\.lastInspection/);
+  assert.match(script, /const reviewSurface = PREVIEW;/);
   assert.match(script, /GOGH INTELLIGENCE · SAFE FALLBACK/);
   assert.match(script, /The review service timed out\. Try again/);
   assert.match(script, /No transaction was prepared/);

@@ -8,6 +8,8 @@ import { createConfiguredPunkAgentBundler, createPunkAgentSessionSigner,
   "../../broker/src/agent-account/punk-agent-account-runtime.mjs";
 import { runPunkAgentMissionOnce } from
   "../../broker/src/agent-account/punk-agent-worker.mjs";
+import { readPunkAgentMissionUsage } from
+  "../../broker/src/agent-account/punk-agent-mission-usage.mjs";
 import { punkAgentAccountReadiness } from
   "../../broker/src/agent-account/punk-agent-account-manifest.mjs";
 import { normalizePunkCollectingIntent } from
@@ -58,14 +60,15 @@ function missionFromRow(row, now) {
   const strategy = normalizePunkCollectingIntent(row.intent, now);
   return Object.freeze({ sessionId: row.session_id, tokenId: String(row.punk_token_id),
     account: row.punk_account, owner: row.owner_snapshot,
+    authorizationTransactionHash: row.authorization_transaction_hash,
     sessionGeneration: String(row.session_generation), strategyVersion: Number(row.strategy_version),
     strategyHash: row.strategy_hash, strategy });
 }
 
-async function loadMission(pool, now) {
+async function loadMission(pool, now, scope = null) {
   const result = await pool.query(`SELECT session.session_id::text, session.punk_token_id,
       session.punk_account, session.owner_snapshot, session.session_generation,
-      session.strategy_version, session.strategy_hash, strategy.intent
+      session.strategy_version, session.strategy_hash, session.authorization_transaction_hash, strategy.intent
     FROM broker_v2_agent_sessions session
     JOIN broker_v2_strategies strategy ON strategy.chain_id = session.chain_id
       AND strategy.collection_address = session.collection_address
@@ -74,33 +77,12 @@ async function loadMission(pool, now) {
     WHERE session.status = 'ACTIVE' AND session.valid_after <= $1
       AND session.valid_until > $1 AND strategy.state = 'ACTIVE'
       AND strategy.expires_at > $1
+      AND ($2::uuid IS NULL OR session.session_id = $2::uuid)
+      AND ($3::numeric IS NULL OR session.punk_token_id = $3::numeric)
+      AND ($4::text IS NULL OR session.owner_snapshot = $4::text)
     ORDER BY session.updated_at ASC, session.punk_token_id ASC LIMIT 1`,
-  [new Date(now).toISOString()]);
+  [new Date(now).toISOString(), scope?.sessionId ?? null, scope?.tokenId ?? null, scope?.owner ?? null]);
   return result.rows[0] ? missionFromRow(result.rows[0], now) : null;
-}
-
-async function usage(pool, mission, opportunityId, now) {
-  const result = await pool.query(`SELECT
-      COUNT(*) FILTER (WHERE activity.occurred_at >= date_trunc('day', $1::timestamptz
-        AT TIME ZONE 'UTC') AT TIME ZONE 'UTC')::integer AS daily,
-      COUNT(*)::integer AS total,
-      COUNT(*) FILTER (WHERE activity.opportunity_id = $2)::integer AS opportunity
-    FROM broker_v2_activity activity WHERE activity.chain_id = $3
-      AND activity.punk_token_id = $4::numeric AND activity.activity_type = 'COLLECTED'`,
-  [new Date(now).toISOString(), opportunityId, ROBINHOOD.chainId, mission.tokenId]);
-  const pending = await pool.query(`SELECT COUNT(*)::integer AS total,
-      COUNT(*) FILTER (WHERE operation.created_at >= date_trunc('day', $1::timestamptz
-        AT TIME ZONE 'UTC') AT TIME ZONE 'UTC')::integer AS daily,
-      COUNT(*) FILTER (WHERE operation.opportunity_id = $2)::integer AS opportunity
-    FROM broker_v2_agent_user_operations operation
-    JOIN broker_v2_agent_sessions session ON session.session_id = operation.session_id
-    WHERE session.chain_id = $3 AND session.punk_token_id = $4::numeric
-      AND operation.state IN ('SIGNED', 'SUBMITTED', 'RECONCILIATION_REQUIRED')`,
-  [new Date(now).toISOString(), opportunityId, ROBINHOOD.chainId, mission.tokenId]);
-  const collected = result.rows[0] ?? {}; const open = pending.rows[0] ?? {};
-  return Object.freeze({ dailyMints: Number(collected.daily ?? 0) + Number(open.daily ?? 0),
-    totalMints: Number(collected.total ?? 0) + Number(open.total ?? 0),
-    opportunityMints: Number(collected.opportunity ?? 0) + Number(open.opportunity ?? 0) });
 }
 
 async function loadCandidate(pool, client, mission, runtime, now, observation = null) {
@@ -114,7 +96,11 @@ async function loadCandidate(pool, client, mission, runtime, now, observation = 
       AND (opportunity.expires_at IS NULL OR opportunity.expires_at > $2)
     ORDER BY opportunity.updated_at DESC LIMIT 12`,
   [ROBINHOOD.chainId, new Date(now).toISOString()]);
-  const observed = { opportunitiesChecked: results.rows.length, liveSimulationsPassed: 0 };
+  const observed = { opportunitiesChecked: results.rows.length, liveSimulationsPassed: 0,
+    rejectionCounts: {} };
+  const reject = (code) => {
+    observed.rejectionCounts[code] = (observed.rejectionCounts[code] ?? 0) + 1;
+  };
   const balance = await client.getBalance({ address: runtime.account });
   for (const row of results.rows) {
     let simulation;
@@ -122,17 +108,20 @@ async function loadCandidate(pool, client, mission, runtime, now, observation = 
       simulation = await simulateOwnerAssistedSeaDropMint({ client,
         authority: { owner: mission.owner, punkWallet: runtime.account, activated: true },
         opportunity: normalizeV2Opportunity(row.normalized, now), now });
-    } catch { continue; }
+    } catch (error) { reject(workerErrorCode(error)); continue; }
     observed.liveSimulationsPassed += 1;
     const candidate = normalizeV2Opportunity({ ...row.normalized, simulationStatus: "PASSED",
       estimatedGasCostWei: simulation.evidence.estimatedGasWei,
       expectedNftReceiver: runtime.account, updatedAt: new Date(now).toISOString() }, now);
-    const counts = await usage(pool, mission, candidate.opportunityId, now);
+    const counts = await readPunkAgentMissionUsage(pool, mission, candidate.opportunityId, now);
     const match = matchV2Opportunity(mission.strategy, candidate, {
       currentOwner: mission.owner, punkWallet: runtime.account,
       punkWalletBalanceWei: balance.toString(), ...counts,
     }, now);
-    if (!match.automaticExecutionCandidate) continue;
+    if (!match.automaticExecutionCandidate) {
+      for (const reason of match.reasons) reject(reason);
+      continue;
+    }
     if (observation) Object.assign(observation, observed);
     return Object.freeze({ opportunity: candidate,
       tokenId: simulation.evidence.expectedTokenId,
@@ -237,7 +226,7 @@ async function recordWorkerActivity(pool, tokenId, activityType, detail, now) {
     tokenId, activityType, JSON.stringify(detail), new Date(now).toISOString()]);
 }
 
-async function reconcileOne(pool, client, bundler, now) {
+async function reconcileOne(pool, client, bundler, now, scope = null) {
   const result = await pool.query(`SELECT operation.operation_id::text,
       operation.attempt_id::text, operation.user_operation_hash, operation.opportunity_id,
       operation.opportunity_hash, operation.expected_collection, operation.expected_token_id,
@@ -247,7 +236,11 @@ async function reconcileOne(pool, client, bundler, now) {
     FROM broker_v2_agent_user_operations operation
     JOIN broker_v2_agent_sessions session ON session.session_id = operation.session_id
     WHERE operation.state IN ('SUBMITTED', 'RECONCILIATION_REQUIRED')
-    ORDER BY operation.submitted_at ASC LIMIT 1`);
+      AND ($1::uuid IS NULL OR session.session_id = $1::uuid)
+      AND ($2::numeric IS NULL OR session.punk_token_id = $2::numeric)
+      AND ($3::text IS NULL OR session.owner_snapshot = $3::text)
+    ORDER BY operation.submitted_at ASC LIMIT 1`,
+  [scope?.sessionId ?? null, scope?.tokenId ?? null, scope?.owner ?? null]);
   const row = result.rows[0];
   if (!row) return null;
   const receipt = await readPunkAgentUserOperationReceipt({ bundler,
@@ -339,7 +332,15 @@ export async function runScheduledPunkAgentWorker({
   pool = getDatabase().pool, client = null, environment = process.env,
   manifest = deployment, now = new Date(), bundler = null, signer = null,
   runMission = runPunkAgentMissionOnce,
+  missionScope = null,
 } = {}) {
+  if (missionScope !== null && (!missionScope || typeof missionScope !== "object"
+    || Object.keys(missionScope).length !== 3
+    || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(missionScope.sessionId ?? "")
+    || !/^(?:0|[1-9]\d{0,3})$/.test(missionScope.tokenId ?? "")
+    || !/^0x[0-9a-f]{40}$/.test(missionScope.owner ?? ""))) {
+    throw new TypeError("Invalid mission scope");
+  }
   if (environment.PUNK_AGENT_WORKER_ENABLED !== "true") {
     return Object.freeze({ status: "DISABLED", submitted: false });
   }
@@ -360,7 +361,7 @@ export async function runScheduledPunkAgentWorker({
     const liveBundler = bundler ?? createConfiguredPunkAgentBundler(environment);
     const liveClient = client ?? createClient();
     const liveSigner = signer ?? createPunkAgentSessionSigner(environment);
-    const reconciliation = await reconcileOne(pool, liveClient, liveBundler, now);
+    const reconciliation = await reconcileOne(pool, liveClient, liveBundler, now, missionScope);
     if (reconciliation?.status === "PENDING") return Object.freeze({
       status: "RECONCILIATION_PENDING", submitted: false, reconciliation });
     const gas = await gasEnvelope(liveClient, environment);
@@ -368,7 +369,7 @@ export async function runScheduledPunkAgentWorker({
     const run = await runMission({ deployment: manifest, client: liveClient,
       bundler: liveBundler, signer: liveSigner, gas, now,
       loadMission: async () => {
-        selectedMission = await loadMission(pool, now);
+        selectedMission = await loadMission(pool, now, missionScope);
         return selectedMission;
       },
       loadCandidate: ({ mission, runtime }) => loadCandidate(
@@ -391,7 +392,9 @@ export async function runScheduledPunkAgentWorker({
       // Rotate even when no mint matches so one Punk cannot monopolize the queue.
       await pool.query(`UPDATE broker_v2_agent_sessions SET updated_at = $1
         WHERE session_id = $2`, [new Date(now).toISOString(), selectedMission.sessionId]);
-      if (run.status === "SESSION_STATE_MISMATCH") {
+      if (["SESSION_STATE_MISMATCH", "OWNER_CHANGED", "SESSION_KEY_MISMATCH",
+        "OWNERSHIP_CHANGED_SINCE_AUTHORIZATION", "OWNERSHIP_HISTORY_WINDOW_EXCEEDED",
+        "OWNERSHIP_CONTINUITY_UNVERIFIED"].includes(run.status)) {
         await recordWorkerActivity(pool, run.tokenId, "AGENT_CHECK_FAILED", {
           code: run.status, transactionSubmitted: false,
         }, now);

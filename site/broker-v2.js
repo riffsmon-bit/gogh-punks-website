@@ -1,4 +1,8 @@
 import { verifyOwnedPunkIds } from "./broker-v2-ownership.js";
+import { createForgeControl } from './broker-v2-forge.js';
+import { createOwnerRefresh } from "./broker-v2-owner-refresh.js";
+import { prepareAgentGasFunding, submitAgentGasFunding } from "./punk-agent-gas-funding.js";
+import { punkChatAction, agentChatStatus } from "./punk-chat-actions.js";
 import {
   fetchPunkWalletFundsGate, preflightPunkWalletFunds, readPunkWalletFundsState,
   submitPunkWalletFunds, waitForPunkWalletTransactionReceipt,
@@ -50,14 +54,14 @@ const state = { wallet: null, punks: [], selected: null, localStrategy: null, lo
   gallery: [], activity: [], hydratedTokenId: null, lastInspection: null,
   ownershipAccount: null, ownershipLoadingAccount: null, ownershipRequestId: 0,
   balanceRequestId: 0, galleryTokenId: null, galleryLoadingTokenId: null,
-  fundingPlan: null, wrappedPlan: null, withdrawalAsset: null,
+  fundingPlan: null, gasFundingPlan: null, gasFundingBusy: false, wrappedPlan: null, withdrawalAsset: null,
   withdrawalAmount: "1", withdrawalPlan: null, withdrawalBusy: false,
   reviewAgents: new Map(), reviewInspections: new Map(), reviewActivities: new Map(),
   reviewRuns: new Map(), reviewConversations: new Map(), reviewSkills: new Map(),
   reviewMissionPhases: new Map(), reviewDiscoveryBackoffs: new Map(),
   reviewMissionInFlight: new Set(), reviewMintOpportunityId: null,
   reviewMintArtifact: null, reviewMintPrepared: null, reviewMintBusy: false,
-  agentAccounts: new Map(), agentAccountLoading: new Set(), fundAgentAccount: false };
+  agentAccounts: new Map(), agentAccountLoading: new Map(), fundAgentAccount: false };
 const REVIEW_MISSION_POLL_MS = 60_000;
 const REVIEW_DISCOVERY_BACKOFF_MS = 5 * 60_000;
 const REVIEW_SESSION_STORAGE_KEY = "gogh-art-broker-review-session-v1";
@@ -66,6 +70,7 @@ const REVIEW_MISSION_LEASE_KEY = "gogh-art-broker-review-mission-lease-v1";
 const REVIEW_MISSION_LEASE_MS = 15_000;
 const REVIEW_TAB_ID = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
 let reviewMissionTimer = null;
+let forgeControl = null;
 const one = (selector) => document.querySelector(selector);
 const all = (selector) => [...document.querySelectorAll(selector)];
 const set = (selector, value) => { const target = one(selector); if (target) target.textContent = String(value); };
@@ -127,6 +132,12 @@ function selectedAgentAccount() {
 }
 
 function blockerLabel(value) {
+  const continuity = {
+    OWNERSHIP_CHANGED_SINCE_AUTHORIZATION: "Punk transferred since approval. Worker paused; review and authorize a new mission",
+    OWNERSHIP_HISTORY_WINDOW_EXCEEDED: "Ownership-history check limit reached. Worker paused; fresh mission approval is required",
+    OWNERSHIP_CONTINUITY_UNVERIFIED: "Ownership history could not be verified. This worker check did not submit a transaction",
+  };
+  if (Object.hasOwn(continuity, value)) return continuity[value];
   return String(value ?? "NOT_READY").replaceAll("_", " ");
 }
 
@@ -134,55 +145,111 @@ async function loadAgentAccountStatus({ authenticate = false } = {}) {
   if (PREVIEW || !state.selected?.tokenId || !state.wallet?.account
     || state.wallet.chainId !== CHAIN_ID) return null;
   const tokenId = String(state.selected.tokenId);
-  if (state.agentAccountLoading.has(tokenId)) return state.agentAccounts.get(tokenId) ?? null;
-  state.agentAccountLoading.add(tokenId);
-  try {
-    if (authenticate) await ensureV2Session();
-    const status = await jsonRequest(`/api/v2/punks/${tokenId}/agent-account`);
-    state.agentAccounts.set(tokenId, status);
-    if (Array.isArray(status.skills) && state.selected?.account) {
-      const key = selectedReviewKey();
-      if (key) state.reviewSkills.set(key, Object.freeze(status.skills.map((skill) =>
-        Object.freeze({ ...skill, punkWallet: state.selected.account }))));
+  const owner = state.wallet.account;
+  const pending = state.agentAccountLoading.get(tokenId);
+  // An explicit sign-in supersedes an unsigned background read. Other callers
+  // await the current read instead of consuming an old cached failure.
+  if (pending && (!authenticate || pending.authenticate)) return pending.promise;
+  const request = { authenticate, message: "Checking your wallet sign-in…", promise: null };
+  state.agentAccountLoading.set(tokenId, request);
+  const isCurrent = () => state.agentAccountLoading.get(tokenId) === request
+    && state.wallet?.account === owner && state.wallet.chainId === CHAIN_ID
+    && state.punks.some(punk => String(punk.tokenId) === tokenId);
+  request.promise = Promise.resolve().then(async () => {
+    try {
+      if (authenticate) await ensureV2Session(message => {
+        if (!isCurrent()) return;
+        request.message = message; renderAgentAccount();
+      });
+      if (!isCurrent()) return null;
+      request.message = "Checking autonomous readiness…";
+      if (authenticate) renderAgentAccount();
+      const status = await jsonRequest(`/api/v2/punks/${tokenId}/agent-account`);
+      if (!isCurrent()) return null;
+      state.agentAccounts.set(tokenId, status);
+      if (Array.isArray(status.skills) && state.selected?.tokenId === tokenId && state.selected?.account) {
+        const key = selectedReviewKey();
+        if (key) state.reviewSkills.set(key, Object.freeze(status.skills.map((skill) =>
+          Object.freeze({ ...skill, punkWallet: state.selected.account }))));
+      }
+      if (state.selected?.tokenId === tokenId) {
+        renderReviewAgent(); renderMissionMonitor(); renderWelcomeMessage();
+      }
+      return status;
+    } catch (error) {
+      if (!isCurrent()) return null;
+      state.agentAccounts.set(tokenId, { error: error?.message ?? "Readiness unavailable.",
+        code: error?.code ?? "READINESS_UNAVAILABLE" });
+      return null;
+    } finally {
+      if (state.agentAccountLoading.get(tokenId) === request) {
+        state.agentAccountLoading.delete(tokenId);
+        if (state.selected?.tokenId === tokenId) renderAgentAccount();
+      }
     }
-    if (state.selected?.tokenId === tokenId) {
-      renderReviewAgent(); renderMissionMonitor(); renderWelcomeMessage();
-    }
-    return status;
-  } catch (error) {
-    state.agentAccounts.set(tokenId, { error: error?.message ?? "Readiness unavailable.",
-      code: error?.code ?? "READINESS_UNAVAILABLE" });
-    if (state.selected?.tokenId === tokenId) renderAgentAccount();
-    return null;
-  } finally { state.agentAccountLoading.delete(tokenId); }
+  });
+  if (authenticate) renderAgentAccount();
+  return request.promise;
 }
 
 function renderAgentAccount() {
   const status = selectedAgentAccount();
+  const pending = state.agentAccountLoading.get(String(state.selected?.tokenId));
+  const authenticating = pending?.authenticate === true;
+  const signInRequired = ["V2_SESSION_REQUIRED", "V2_SESSION_EXPIRED"].includes(status?.code);
+  const readinessButton = one("[data-open-agent-readiness]");
+  if (readinessButton) {
+    readinessButton.disabled = authenticating;
+    readinessButton.textContent = authenticating ? "CHECKING…"
+      : signInRequired ? "SIGN IN & CHECK AUTONOMY" : "CHECK AUTONOMOUS READINESS";
+  }
+  const recheckButton = one("[data-agent-gas-recheck]");
+  if (recheckButton) recheckButton.disabled = authenticating;
   const fundButton = one("[data-fund-agent-account]");
   if (fundButton) fundButton.hidden = true;
   const modes = all('[data-operating-mode][value="AUTONOMOUS"]');
   const modeLabels = all("[data-autonomous-mode]");
   const setupAvailable = status?.readiness?.setupAvailable === true;
+  const runButton = one("[data-run-agent-mission]");
+  if (runButton) {
+    runButton.hidden = status?.worker?.manualRunEnabled !== true;
+    runButton.disabled = runButton.hasAttribute("aria-busy")
+      || status?.readiness?.manualExecutionReady !== true || !status?.mission?.sessionId;
+    const note = one("[data-agent-mission-run-status]");
+    if (note) {
+      note.hidden = runButton.hidden;
+      if (!runButton.hasAttribute("aria-busy")) note.textContent = "Preview missions run when you click this button. One check may mint under your existing approved limits.";
+    }
+  }
+  renderAgentGasFunding(status);
   const active = status?.mission?.status === "ACTIVE";
-  const available = setupAvailable || active;
+  const available = !authenticating && (setupAvailable || active);
   modes.forEach((mode) => { mode.disabled = !available; });
   modeLabels.forEach((label) => { label.classList.toggle("mode-locked", !available); });
-  setAll("[data-autonomous-mode-label]", available ? "AUTONOMOUS · PUNK AGENT ACCOUNT" : "AUTONOMOUS · LOCKED");
-  setAll("[data-autonomous-mode-detail]", active
+  setAll("[data-autonomous-mode-label]", authenticating ? "AUTONOMOUS · CHECKING"
+    : signInRequired ? "AUTONOMOUS · SIGN IN"
+      : available ? "AUTONOMOUS · PUNK AGENT ACCOUNT" : "AUTONOMOUS · LOCKED");
+  setAll("[data-autonomous-mode-detail]", authenticating ? pending.message
+    : signInRequired ? `Wallet connected. Sign in to this ${REVIEW_HOST ? "preview" : "broker"} to check autonomous readiness. No transaction is required.`
+    : active
     ? "Owner-approved mission session is active. Per-mint wallet popups are not required."
     : setupAvailable ? "Ready for up to two owner-approved setup transactions."
-      : "Waiting for verified contracts, worker, signer, bundler, and database readiness.");
+      : status?.error ? `Readiness check failed: ${status.error}`
+        : status ? `Blocked: ${(status.readiness?.blockers ?? []).map(blockerLabel).join(" · ") || "readiness unavailable"}. Check autonomous readiness.`
+          : "Readiness not verified. Use CHECK AUTONOMOUS READINESS.");
   if (!status) {
     set("[data-agent-account-status]", "CHECKING READINESS");
     return;
   }
   if (status.error) {
-    set("[data-agent-account-status]", "SIGN-IN REQUIRED");
-    set("[data-agent-account-detail]", `${status.error} Open a mission draft to sign in and recheck.`);
+    set("[data-agent-account-status]", signInRequired ? "SIGN-IN REQUIRED" : "READINESS UNAVAILABLE");
+    set("[data-agent-account-detail]", signInRequired
+      ? `${status.error} Use Check Autonomous Readiness to sign in and recheck.`
+      : `${status.error} Recheck readiness. No deposit or mission signature can resolve a service error.`);
     set("[data-agent-account-address]", "NOT CONFIRMED");
-    set("[data-agent-account-mission]", "NOT AUTHORIZED");
-    set("[data-agent-account-worker]", "LOCKED");
+    set("[data-agent-account-balance]", "NOT VERIFIED");
+    set("[data-agent-account-mission]", "NOT VERIFIED");
+    set("[data-agent-account-worker]", "NOT VERIFIED");
     return;
   }
   const blockers = status.readiness?.blockers ?? [];
@@ -199,9 +266,23 @@ function renderAgentAccount() {
     ? `${ethFromWei(status.runtime.nativeBalance)} ETH` : "0 ETH");
   set("[data-agent-account-mission]", status.mission
     ? `${status.mission.status} · ${status.mission.totalLimit} MAX` : "NOT AUTHORIZED");
-  set("[data-agent-account-worker]", status.readiness?.automaticExecutionReady
-    ? "LIVE" : "LOCKED");
+  set("[data-agent-account-worker]", status.readiness?.manualExecutionReady
+    ? "READY · RUN ONE CHECK" : status.readiness?.automaticExecutionReady ? "LIVE" : "LOCKED");
   if (fundButton) fundButton.hidden = status.runtime?.accountCreated !== true;
+}
+
+function renderAgentGasFunding(status = selectedAgentAccount()) {
+  const runtime = status?.runtime;
+  const verified = runtime?.accountCreated === true && !status?.error;
+  set("[data-agent-gas-punk-balance]", state.selected?.balanceLoaded === false
+    ? "CHECKING…" : `${state.selected?.balanceEth ?? "—"} ETH`);
+  set("[data-agent-gas-native]", verified && runtime.nativeBalance != null ? `${ethFromWei(runtime.nativeBalance)} ETH` : "NOT VERIFIED");
+  set("[data-agent-gas-deposit]", verified && runtime.entryPointDeposit != null ? `${ethFromWei(runtime.entryPointDeposit)} ETH` : "NOT VERIFIED");
+  set("[data-agent-gas-destination]", verified ? runtime.account : "NOT VERIFIED");
+  set("[data-agent-gas-readiness]", status?.error
+    ? `READINESS UNAVAILABLE · ${status.error} Use RECHECK / SIGN IN; gas funding and mission activation are separate.`
+    : !status ? "Readiness has not been verified. Use RECHECK / SIGN IN."
+      : `AUTONOMOUS ${status.readiness?.setupAvailable ? "SETUP AVAILABLE" : "LOCKED"} · ${(status.readiness?.blockers ?? []).map(blockerLabel).join(" · ") || "No reported blockers"}. Funding does not activate a mission.`);
 }
 
 function selectedReviewRun() {
@@ -394,7 +475,17 @@ function hoodGreeting(now = new Date()) {
 }
 
 function renderWelcomeMessage() {
-  const target = one("[data-welcome-message]");
+  let target = one("[data-welcome-message]");
+  if (!target && state.selected) {
+    const article = document.createElement("article"); article.className = "message punk-message";
+    const image = document.createElement("img"); image.src = cleanImage(state.selected.image);
+    image.alt = ""; image.dataset.chatAvatar = "";
+    const copy = document.createElement("div"), label = document.createElement("b");
+    const token = document.createElement("span"); token.dataset.chatToken = "";
+    token.textContent = state.selected.tokenId; label.append("PUNK #", token);
+    target = document.createElement("p"); target.dataset.welcomeMessage = "";
+    copy.append(label, target); article.append(image, copy); one("[data-conversation]").prepend(article);
+  }
   if (!target) return;
   const greeting = hoodGreeting();
   const agent = selectedReviewAgent();
@@ -493,15 +584,16 @@ function renderMissionMonitor() {
 
 function renderReviewAgent() {
   renderAgentAccount();
-  const reviewSurface = PREVIEW || REVIEW_HOST;
+  const agent = selectedReviewAgent();
+  const serverMission = selectedAgentAccount()?.mission ?? null;
+  renderWelcomeMessage();
+  renderStrategySummary(agent, serverMission);
+  const reviewSurface = PREVIEW;
   const consolePanel = one("[data-review-agent-console]");
   const strategyState = one("[data-review-strategy-state]");
   if (consolePanel) consolePanel.hidden = !reviewSurface;
   if (strategyState) strategyState.hidden = !reviewSurface;
   if (!reviewSurface) return;
-  renderWelcomeMessage();
-  const agent = selectedReviewAgent();
-  const serverMission = selectedAgentAccount()?.mission ?? null;
   const run = selectedReviewRun();
   const pipeline = reviewInspectionPipeline(state.lastInspection);
   set("[data-review-agent-status]", serverMission?.status === "ACTIVE"
@@ -591,7 +683,10 @@ function renderReviewAgent() {
     ? `${agent.mode} rules are remembered for this Punk in this browser. ${agent.status === "SCOUTING" ? "Mission is out scouting. " : ""}Authority: NONE.`
     : serverMission ? `Autonomous limits are persisted and owner-authorized on chain. ${serverMission.completedMints}/${serverMission.totalLimit} mints complete.`
       : "Confirm a strategy draft to start this Punk in the review browser profile.");
-  const intent = agent?.intent ?? serverMission?.intent ?? null;
+}
+
+function renderStrategySummary(agent, serverMission) {
+  const intent = serverMission?.intent ?? agent?.intent ?? null;
   if (!intent) {
     set("[data-strategy-name]", "NOT CONFIGURED");
     set("[data-strategy-price]", "FREE ONLY");
@@ -603,7 +698,7 @@ function renderReviewAgent() {
     const tastes = one("[data-strategy-tastes]"); tastes.replaceChildren();
     const empty = document.createElement("span");
     empty.textContent = "Talk to your Punk to define explicit preferences."; tastes.append(empty);
-    all("[data-operating-mode]").forEach((input) => { input.checked = input.value === "ASK"; });
+    all("[data-operating-mode]").forEach((input) => { input.checked = input.value === (serverMission?.status === "ACTIVE" ? "AUTONOMOUS" : "ASK"); });
     return;
   }
   set("[data-strategy-name]", intent.preferences.prefer.length
@@ -963,11 +1058,20 @@ async function runOwnerAssistedLiveMint() {
 }
 
 function renderRoster() {
+  forgeControl?.selectionChanged();
   const roster = one("[data-punk-roster]");
   roster.replaceChildren();
   set("[data-roster-count]", state.punks.length);
   one("[data-roster-empty]").hidden = state.punks.length > 0;
   one("[data-selected-stage]").hidden = state.punks.length === 0;
+  if (!state.selected) {
+    window.dispatchEvent(new CustomEvent('gogh:owner-snapshot', { detail: {
+      address: state.wallet?.account ?? null, tokenId: null,
+    } }));
+    window.dispatchEvent(new CustomEvent('gogh:punk-selected', { detail: {
+      owner: state.wallet?.account ?? null, tokenId: null,
+    } }));
+  }
   for (const punk of state.punks) {
     const button = document.createElement("button");
     button.type = "button"; button.className = "roster-slot"; button.setAttribute("role", "option");
@@ -1041,6 +1145,12 @@ function selectPunk(tokenId) {
   state.lastInspection = key ? state.reviewInspections.get(key) ?? null : null;
   state.hydratedTokenId = null; state.galleryTokenId = null; state.galleryLoadingTokenId = null;
   state.fundingPlan = null; state.wrappedPlan = null; state.withdrawalAsset = null;
+  state.gasFundingPlan = null;
+  one("[data-agent-gas-confirm]").checked = false;
+  one("[data-resume-chat-mission]").hidden = true;
+  one("[data-agent-gas-form] button").textContent = "REVIEW & SIMULATE";
+  one("[data-agent-gas-transaction]").hidden = true;
+  set("[data-agent-gas-result]", "Review this Punk's source and gas amount. No funds move until MetaMask approval.");
   state.fundAgentAccount = false;
   state.reviewMintOpportunityId = null; state.reviewMintArtifact = null;
   state.reviewMintPrepared = null; state.reviewMintBusy = false;
@@ -1092,7 +1202,10 @@ function activityDetail(entry) {
   const detail = entry.detail;
   if (typeof detail === "string") return detail;
   if (entry.type === "AGENT_SCOUTED") {
-    return `Checked ${detail?.opportunitiesChecked ?? 0} screened candidates · ${detail?.liveSimulationsPassed ?? 0} live simulations passed. No eligible mint; nothing submitted.`;
+    const reasons = Object.keys(detail?.rejectionCounts ?? {});
+    const explanation = reasons.length
+      ? ` Blocked because ${describeMatchBlocker({ blockingReasons: reasons })}.` : "";
+    return `Checked ${detail?.opportunitiesChecked ?? 0} screened candidates · ${detail?.liveSimulationsPassed ?? 0} live simulations passed. No eligible mint; nothing submitted.${explanation}`;
   }
   if (entry.type === "AGENT_CHECK_FAILED") {
     return `Check could not complete: ${blockerLabel(detail?.code ?? "CHECK_FAILED")}. Mint progress has not been increased.`;
@@ -1135,15 +1248,40 @@ function renderActivity() {
 }
 
 function activateTab(name) {
+  if (name === 'forge') forgeControl?.selectionChanged();
+  if (name === "fund") {
+    one("[data-fund-gas-home]").append(one("[data-agent-gas-panel]"));
+    one("[data-talk-gas-host]").hidden = true;
+  }
   all("[data-v2-tab]").forEach((button) => button.setAttribute("aria-selected", String(button.dataset.v2Tab === name)));
   all("[data-v2-panel]").forEach((panel) => { panel.hidden = panel.dataset.v2Panel !== name; });
   if (name === "activity") renderActivity();
+  if (name === "forge") forgeControl?.selectionChanged();
   history.replaceState(null, "", `${location.pathname}?${new URLSearchParams({ ...(PREVIEW ? { preview: "1" } : {}), tab: name })}`);
-  const reviewRead = REVIEW_HOST && ["fund", "collection"].includes(name);
+  const reviewRead = REVIEW_HOST && ["fund", "collection", "activity"].includes(name);
   const productRead = !REVIEW_HOST && ["strategy", "fund", "collection", "activity"].includes(name);
   if (!PREVIEW && (reviewRead || productRead)) {
     void hydrateSelected(name);
   }
+}
+
+async function openChatGasReview(action = {}) {
+  const punk = state.selected;
+  if (!punk || state.gasFundingBusy) return;
+  state.gasFundingPlan = null;
+  one("[data-agent-gas-confirm]").checked = false;
+  one("[data-agent-gas-form] button[type=submit]").textContent = "REVIEW & SIMULATE";
+  one("[data-agent-gas-transaction]").hidden = true;
+  one("#agent-gas-amount").value = action.amount ?? "";
+  one("#agent-gas-source").value = action.source ?? "PUNK";
+  set("[data-agent-gas-result]", "Review the exact source and amount below. Nothing is sent by chat; simulation and your separate MetaMask confirmation are required.");
+  const host = one("[data-talk-gas-host]");
+  host.append(one("[data-agent-gas-panel]")); host.hidden = false;
+  one("[data-resume-chat-mission]").hidden = !state.localStrategy;
+  activateTab("talk");
+  host.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  await loadAgentAccountStatus({ authenticate: true });
+  if (state.selected === punk) renderAgentAccount();
 }
 
 function ethFromWei(value) {
@@ -1404,13 +1542,17 @@ async function hydrateSelected(tab) {
     }
     if (tab === "collection") {
       const payload = await jsonRequest(`/api/v2/punks/${tokenId}/collection`);
+      if (state.selected?.tokenId !== tokenId) return;
       state.gallery = payload.holdings.map((holding) => [
         cleanImage(holding.artwork?.imageUrl),
         holding.artwork?.name ?? `${short(holding.collection)} #${holding.tokenId}`,
-        `${holding.provenance === "V1" ? "EARLIER ART BROKER" : "CURRENT ART BROKER"} · ${holding.acquisitionType}`,
-        `${holding.mintCostWei === "0" ? "FREE" : `${holding.mintCostWei} WEI`} · ${holding.custodyType === "PUNK_AGENT_ACCOUNT" ? "held by Punk Agent Account" : "held by Punk Wallet"} · acquired ${dateLabel(holding.acquiredAt)}`,
+        `${holding.provenance === "RECEIVED" ? "RECEIVED NFT" : holding.provenance === "V1" ? "EARLIER ART BROKER" : "CURRENT ART BROKER"} · ${holding.ownershipStatus === "LIVE_VERIFIED" ? "OWNERSHIP VERIFIED" : holding.acquisitionType}`,
+        `${holding.mintCostWei == null ? "ACQUISITION COST UNKNOWN" : holding.mintCostWei === "0" ? "FREE" : `${holding.mintCostWei} WEI`} · ${holding.custodyType === "PUNK_AGENT_ACCOUNT" ? "held by Punk Agent Account" : "held by Punk Wallet"}${holding.acquiredAt ? ` · acquired ${dateLabel(holding.acquiredAt)}` : ""}`,
       ]);
       renderGallery(); set("[data-gallery-count]", state.gallery.length);
+      const inventoryNote = document.createElement('p'); inventoryNote.className = 'panel-empty';
+      inventoryNote.textContent = `${payload.inventoryNote ?? ''}${payload.ownershipChecksUnavailable ? ` ${payload.ownershipChecksUnavailable} ownership checks unavailable; retry to refresh.` : ''}`;
+      one('[data-gallery-grid]').append(inventoryNote);
     }
     if (tab === "activity") {
       const payload = await jsonRequest(`/api/v2/punks/${tokenId}/activity`);
@@ -1469,30 +1611,47 @@ async function jsonRequest(path, options = {}) {
 
 async function ensureV2Session(report = () => {}) {
   if (PREVIEW) return null;
-  if (!state.wallet?.account || state.wallet.chainId !== CHAIN_ID) {
-    throw new Error("Connect the current owner on Robinhood Chain first.");
-  }
-  report("Checking the signed-in wallet session…");
-  try {
-    const current = await jsonRequest("/api/v2/session");
-    if (current.walletAddress === state.wallet.account) {
-      report("Wallet session confirmed. Preparing the strategy proof…");
-      return current;
+  const owner = state.wallet?.account;
+  const assertCurrent = () => {
+    if (!owner || state.wallet?.account !== owner || state.wallet.chainId !== CHAIN_ID) {
+      throw new Error("Connect the current owner on Robinhood Chain and retry.");
     }
-  } catch { /* prepare a new current-wallet session */ }
+  };
+  assertCurrent();
+  report("Checking the signed-in wallet session…");
+  let current;
+  try { current = await jsonRequest("/api/v2/session"); }
+  catch (error) {
+    if (!["V2_SESSION_REQUIRED", "V2_SESSION_EXPIRED"].includes(error?.code)) throw error;
+  }
+  assertCurrent();
+  if (current?.walletAddress?.toLowerCase() === owner) {
+    report("Wallet session confirmed.");
+    return current;
+  }
   report("Preparing a wallet sign-in message…");
   const prepared = await jsonRequest("/api/v2/session", { method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ action: "prepare", walletAddress: state.wallet.account }) });
+    body: JSON.stringify({ action: "prepare", walletAddress: owner }) });
+  assertCurrent();
   const provider = window.__GOGH_WALLET_PROVIDER__;
   if (!provider?.request) throw new Error("Wallet provider unavailable.");
-  report("MetaMask should be open now. Sign the free wallet-login message.");
+  report("Open your wallet and sign the free login message. No transaction is required.");
   const signature = await provider.request({ method: "personal_sign",
-    params: [prepared.challenge.message, state.wallet.account] });
+    params: [prepared.challenge.message, owner] });
+  assertCurrent();
   report("Wallet-login signature received. Verifying it…");
-  return jsonRequest("/api/v2/session", { method: "POST",
+  await jsonRequest("/api/v2/session", { method: "POST",
     headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "complete",
-      challengeId: prepared.challenge.challengeId, walletAddress: state.wallet.account, signature }) });
+      challengeId: prepared.challenge.challengeId, walletAddress: owner, signature }) });
+  assertCurrent();
+  // Verify that this host received the HttpOnly cookie before claiming sign-in.
+  const confirmed = await jsonRequest("/api/v2/session");
+  assertCurrent();
+  if (confirmed.walletAddress?.toLowerCase() !== owner) {
+    throw new Error("The signed-in wallet changed. Sign in again with the current owner.");
+  }
+  return confirmed;
 }
 
 async function activatePunkAgentMission(draft, report) {
@@ -1560,7 +1719,7 @@ function showConfirmation(draft) {
         intent.requiresSocial && (intent.preferredSocialPlatforms.join(" + ") || "SOCIAL")]
         .filter(Boolean).join(" + "),
     target: intent.allowedContracts?.length === 1
-      ? short(intent.allowedContracts[0]) : "ALL ROBINHOOD NFTS",
+      ? intent.allowedContracts[0] : "ALL ROBINHOOD NFTS",
     free: intent.mintMode === "FREE_ONLY",
   } : draft;
   const values = [
@@ -1578,18 +1737,22 @@ function showConfirmation(draft) {
   }
   const activate = one("[data-activate-strategy]");
   const activateAndSend = one("[data-activate-send-strategy]");
-  const autonomousAvailable = selectedAgentAccount()?.readiness?.setupAvailable === true;
+  const accountStatus = selectedAgentAccount();
+  const autonomousAvailable = accountStatus?.readiness?.setupAvailable === true;
+  const setupBlockers = (accountStatus?.readiness?.blockers ?? [])
+    .filter(value => !["ACCOUNT_NOT_ACTIVATED", "SESSION_NOT_AUTHORIZED", "AGENT_GAS_UNFUNDED"].includes(value))
+    .map(blockerLabel).join(" · ");
   const activationLocked = view.mode === "AUTONOMOUS" && !autonomousAvailable
     || draft.state === "NEEDS_CLARIFICATION";
   activate.disabled = activationLocked;
   activate.textContent = view.mode === "AUTONOMOUS"
     ? autonomousAvailable ? "AUTHORIZE MISSION" : "AUTONOMOUS LOCKED"
-    : REVIEW_HOST ? "ACTIVATE ONLY" : "ACTIVATE STRATEGY";
-  activateAndSend.hidden = !REVIEW_HOST || PREVIEW;
+    : REVIEW_HOST && !draft.version ? "ACTIVATE ONLY" : "ACTIVATE STRATEGY";
+  activateAndSend.hidden = !REVIEW_HOST || PREVIEW || Boolean(draft.version);
   activateAndSend.disabled = activationLocked;
   set("[data-strategy-activation-status]", activationLocked
     ? view.mode === "AUTONOMOUS"
-      ? "Punk Agent Account infrastructure is not ready. No wallet request can be made."
+      ? `Autonomous setup unavailable: ${accountStatus?.error || setupBlockers || "readiness not verified"}. Use Check Autonomous Readiness to retry.`
       : "This draft cannot be activated. Edit it before continuing."
     : "Ready for owner confirmation. No wallet request has been made.");
   const dialog = one("[data-confirmation-dialog]");
@@ -1651,8 +1814,55 @@ function applyOwnedPunks(punks) {
   if (state.selected && activeTab) void hydrateSelected(activeTab);
 }
 
+function clearTransferredPunkReview() {
+  state.localStrategy = null; state.localSkill = null; state.lastInspection = null;
+  state.fundingPlan = null; state.gasFundingPlan = null;
+  state.wrappedPlan = null; state.withdrawalPlan = null;
+  state.withdrawalAsset = null; state.fundAgentAccount = false;
+  state.reviewMintOpportunityId = null; state.reviewMintArtifact = null; state.reviewMintPrepared = null;
+  for (const dialog of all('dialog[open]')) dialog.close();
+  all('[data-fund-confirm], [data-agent-gas-confirm], [data-weth-confirm]').forEach(input => { input.checked = false; });
+  // Private conversation maps stay owner-scoped. Never attach the sold Punk's open
+  // transcript or unsigned review to whichever Punk is selected next.
+  one('[data-conversation]')?.replaceChildren();
+}
+
 function setup() {
   restoreReviewSessionState();
+  const ownerRefresh = createOwnerRefresh({
+    getContext: () => ({ owner: PREVIEW ? null : state.wallet?.account, chainId: state.wallet?.chainId,
+      visible: !document.hidden, loading: Boolean(state.ownershipLoadingAccount) }),
+    getPunks: () => state.punks,
+    readOwned: fetchOwnedPunks,
+    onChanged: punks => {
+      const retained = new Set(punks.map(punk => punk.tokenId));
+      const removed = state.punks.filter(punk => !retained.has(punk.tokenId));
+      for (const punk of removed) {
+        state.agentAccounts.delete(punk.tokenId);
+        state.agentAccountLoading.delete(punk.tokenId);
+        const key = reviewAgentKey(state.wallet.account, punk.tokenId);
+        state.reviewAgents.delete(key); state.reviewInspections.delete(key);
+      }
+      if (state.selected && !retained.has(state.selected.tokenId)) clearTransferredPunkReview();
+      state.ownershipAccount = state.wallet.account;
+      // Keep already-loaded balances/preferences for still-owned Punks; new purchases
+      // are hydrated from token-bound account state, never the seller's cached policy.
+      const prior = new Map(state.punks.map(punk => [punk.tokenId, punk]));
+      applyOwnedPunks(punks.map(punk => prior.get(punk.tokenId) ?? punk));
+      set('[data-ownership-sync]', 'Original NFT ownership refreshed automatically. No claim or migration needed.');
+    },
+    onUnavailable: () => {
+      clearTransferredPunkReview(); state.agentAccounts.clear(); state.agentAccountLoading.clear();
+      state.ownershipAccount = null; applyOwnedPunks([]);
+      set('[data-roster-count]', '—');
+      set('[data-ownership-sync]', 'Ownership could not be verified. Controls are hidden; retrying automatically.');
+    },
+  });
+  window.addEventListener('focus', () => void ownerRefresh.refresh());
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) void ownerRefresh.refresh();
+  });
+  window.setInterval(() => void ownerRefresh.refresh(), 30_000);
   one("[data-preview-banner]").hidden = !PREVIEW && !REVIEW_HOST;
   if (REVIEW_HOST && !PREVIEW) {
     set("[data-review-title]", "PR REVIEW BUILD");
@@ -1668,11 +1878,54 @@ function setup() {
   one("[data-review-agent-recall]").addEventListener("click", recallSelectedReviewAgent);
   one("[data-review-agent-test]").addEventListener("click", () => sendReviewAgentOut({ testMode: true }));
   one("[data-fund-agent-account]").addEventListener("click", () => {
-    state.fundAgentAccount = true; state.fundingPlan = null;
+    state.fundAgentAccount = false; state.fundingPlan = null;
     one("[data-fund-confirm]").checked = false;
     activateTab("fund"); renderSelected();
-    set("[data-fund-result]", "Funds go directly to the ownership-bound Punk Agent Account and are available only for its gas and owner-controlled recovery.");
-    one("#fund-amount").focus();
+    one("#agent-gas-amount").focus();
+  });
+  one("[data-agent-gas-recheck]").addEventListener("click", async () => {
+    set("[data-agent-gas-readiness]", "Checking readiness; MetaMask may request a sign-in message, not a funding transaction…");
+    await loadAgentAccountStatus({ authenticate: true });
+    renderAgentAccount();
+  });
+  one("[data-open-agent-readiness]").addEventListener("click", () => {
+    void loadAgentAccountStatus({ authenticate: true });
+  });
+  one("[data-run-agent-mission]").addEventListener("click", async (event) => {
+    const button = event.currentTarget, punk = state.selected, owner = state.wallet?.account;
+    const sessionId = selectedAgentAccount()?.mission?.sessionId;
+    if (button.disabled || button.hasAttribute("aria-busy") || !punk || !sessionId) return;
+    button.setAttribute("aria-busy", "true"); button.disabled = true;
+    const current = () => state.selected === punk && state.wallet?.account === owner;
+    set("[data-agent-mission-run-status]", "Checking this approved mission once…");
+    try {
+      await ensureV2Session();
+      if (!current()) return;
+      const result = await jsonRequest(`/api/v2/punks/${punk.tokenId}/agent-account/run`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId }), timeoutMs: 60_000,
+      });
+      if (!current()) return;
+      const outcome = result.submitted ? "Mint submitted under your approved mission. Check Activity for its receipt."
+        : result.status === "NO_ELIGIBLE_MATCH" ? "One check completed. No mint passed every approved rule. Check Activity for the reasons."
+          : `Mission check: ${blockerLabel(result.status)}. Check Activity for the latest result.`;
+      set("[data-agent-mission-run-status]", outcome); addMessage("punk", outcome);
+      await loadAgentAccountStatus({ authenticate: false });
+    } catch (error) {
+      if (current()) {
+        const message = `${error?.message ?? "Mission check could not finish."} Check Activity before retrying; a pending transaction must be reconciled first.`;
+        set("[data-agent-mission-run-status]", message); addMessage("punk", message);
+      }
+    } finally {
+      button.removeAttribute("aria-busy");
+      button.disabled = !current() || selectedAgentAccount()?.readiness?.manualExecutionReady !== true;
+    }
+  });
+  one("[data-resume-chat-mission]").addEventListener("click", async () => {
+    const punk = state.selected, draft = state.localStrategy;
+    if (!draft) return;
+    await loadAgentAccountStatus({ authenticate: true });
+    if (state.selected === punk && state.localStrategy === draft) showConfirmation(draft);
   });
   one("[data-review-mint-submit]").addEventListener("click", runOwnerAssistedLiveMint);
   one("[data-review-mint-confirm]").addEventListener("change", () => {
@@ -1710,18 +1963,31 @@ function setup() {
     activateTab("talk");
     chatForm.requestSubmit();
   }));
-  if (REVIEW_HOST && !PREVIEW) {
-    const providerSetting = one("#provider-setting");
-    for (const option of providerSetting.options) {
-      option.disabled = option.textContent !== "AUTO";
-    }
-    providerSetting.options[0].textContent = "AUTO · REVIEW CHAT";
-  }
   chatForm.addEventListener("submit", async (event) => {
     event.preventDefault(); const input = one("#punk-prompt"); const message = input.value.trim();
     if (!message || chatForm.hasAttribute("aria-busy")) return;
     addMessage("owner", message); input.value = "";
-    if (/pause/i.test(message)) {
+    const chatAction = punkChatAction(message);
+    if (chatAction?.kind === 'FORGE') {
+      activateTab('forge');
+      addMessage('punk', 'The Forge research lab is open. Sign in there to test available read-only tools. Learning, equipping and burning are not live yet.');
+      return;
+    }
+    if (chatAction?.kind === "GAS" || chatAction?.kind === "STATUS") {
+      const punk = state.selected;
+      setChatBusy(true);
+      try {
+        if (chatAction.kind === "GAS") {
+          addMessage("punk", "Let's review gas funding here. Choose the source and exact amount, simulate, then approve in MetaMask. Funding won't start a mission.");
+          await openChatGasReview(chatAction);
+        } else {
+          const status = await loadAgentAccountStatus({ authenticate: true });
+          if (state.selected === punk) addMessage("punk", agentChatStatus(status));
+        }
+      } finally { setChatBusy(false); }
+      return;
+    }
+    if (chatAction?.kind === "RECALL") {
       if (selectedAgentAccount()?.mission?.status === "ACTIVE") {
         await recallSelectedReviewAgent();
         return;
@@ -1782,53 +2048,21 @@ function setup() {
         addMessage("punk", `${error?.message ?? "LOCAL INTELLIGENCE UNAVAILABLE"} Existing rules remain unchanged.`);
         return;
       }
-    } else if (REVIEW_HOST) {
-      try {
-        const currentIntent = selectedAgentAccount()?.mission?.intent
-          ?? selectedReviewAgent()?.intent ?? null;
-        const skills = selectedReviewSkills();
-        const inspection = state.lastInspection ? { kind: state.lastInspection.link.kind,
-          status: state.lastInspection.status,
-          ...(state.lastInspection.link.identity
-            ? { identity: state.lastInspection.link.identity } : {}) } : null;
-        const history = selectedConversationHistory().slice(0, -1).slice(-8);
-        const review = selectedReviewSummary();
-        const requestOptions = {
-          method: "POST", headers: { "content-type": "application/json" },
-          body: JSON.stringify({ owner: state.wallet.account, tokenId: state.selected.tokenId,
-            message, ...(currentIntent ? { currentIntent } : {}),
-            ...(inspection ? { inspection } : {}), ...(history.length ? { history } : {}),
-            ...(review ? { review } : {}), ...(skills.length ? { skills } : {}) }),
-        };
-        let payload;
-        try { payload = await jsonRequest("/api/v2/review/chat", requestOptions); }
-        catch (error) {
-          if (!["V2_SESSION_REQUIRED", "V2_SESSION_EXPIRED"].includes(error?.code)) throw error;
-          await ensureV2Session();
-          payload = await jsonRequest("/api/v2/review/chat", requestOptions);
-        }
-        draft = payload.draft; reply = payload.reply;
-        if (payload.responseKind === "SKILL_DRAFT") {
-          setChatBusy(false); addMessage("punk", reply); showSkillConfirmation(payload.skillDraft);
-          return;
-        }
-        set("[data-intelligence-status]", payload.responseKind === "CONVERSATION"
-          ? payload.providerAvailable
-            ? `GOGH INTELLIGENCE · ${payload.provider.provider}`
-            : "GOGH INTELLIGENCE · SAFE FALLBACK"
-          : "GOGH INTELLIGENCE · REVIEW PARSER");
-      } catch (error) {
-        setChatBusy(false);
-        addMessage("punk", `${error?.message ?? "REVIEW PARSER UNAVAILABLE"} Existing rules remain unchanged.`);
-        return;
-      }
     } else {
       try {
+        const punk = state.selected, owner = state.wallet?.account;
         await ensureV2Session();
-        const payload = await jsonRequest(`/api/v2/punks/${state.selected.tokenId}/chat`, {
+        await loadAgentAccountStatus({ authenticate: true });
+        if (state.selected !== punk || state.wallet?.account !== owner) {
+          setChatBusy(false); return;
+        }
+        const payload = await jsonRequest(`/api/v2/punks/${punk.tokenId}/chat`, {
           method: "POST", headers: { "content-type": "application/json" },
           body: JSON.stringify({ message }),
         });
+        if (state.selected !== punk || state.wallet?.account !== owner) {
+          setChatBusy(false); return;
+        }
         draft = payload.draft; reply = payload.reply;
         if (payload.responseKind === "CONVERSATION") {
           set("[data-intelligence-status]", payload.providerAvailable
@@ -1845,6 +2079,13 @@ function setup() {
     if (!draft) { addMessage("punk", reply); return; }
     if (draft.intent?.operatingMode === "AUTONOMOUS") {
       await loadAgentAccountStatus({ authenticate: false });
+      const runtime = selectedAgentAccount()?.runtime;
+      if (runtime?.accountCreated && runtime.nativeBalance === "0" && runtime.entryPointDeposit === "0") {
+        state.localStrategy = draft;
+        addMessage("punk", "Your mission draft is saved, but my Agent gas is empty. Review funding here first, then use REVIEW SAVED MISSION. Neither step grants the other permission.");
+        await openChatGasReview();
+        return;
+      }
     }
     const intent = draft.intent;
     const tastes = intent ? intent.preferences.prefer.map((value) => value.replaceAll("_", " ")) : draft.tastes;
@@ -2004,7 +2245,7 @@ function setup() {
       unlock();
       return;
     }
-    if (REVIEW_HOST && !PREVIEW) {
+    if (REVIEW_HOST && !PREVIEW && !state.localStrategy.version) {
       try {
         if (mode === "ASSIST") {
           await ensureV2Session(report);
@@ -2093,6 +2334,67 @@ function setup() {
     addMessage("punk", PREVIEW ? "Strategy activated in local preview state only. Nothing was saved remotely."
       : "STRATEGY ACTIVATED WITH YOUR WALLET SIGNATURE. No unsigned change was accepted.");
     unlock();
+  });
+  const gasForm = one("[data-agent-gas-form]");
+  const gasButton = gasForm.querySelector("button[type=submit]");
+  const resetGasReview = () => { state.gasFundingPlan = null; gasButton.textContent = "REVIEW & SIMULATE"; };
+  gasForm.addEventListener("input", resetGasReview);
+  one("[data-agent-gas-confirm]").addEventListener("change", resetGasReview);
+  gasForm.addEventListener("submit", async event => {
+    event.preventDefault();
+    if (state.gasFundingBusy) return;
+    const punk = state.selected, owner = state.wallet?.account;
+    const source = one("#agent-gas-source").value, amount = one("#agent-gas-amount").value.trim();
+    const output = one("[data-agent-gas-result]");
+    let submittedHash = null;
+    const isCurrent = () => state.selected === punk && state.wallet?.account === owner
+      && state.wallet?.chainId === CHAIN_ID && one("#agent-gas-source").value === source
+      && one("#agent-gas-amount").value.trim() === amount && one("[data-agent-gas-confirm]").checked;
+    try {
+      if (PREVIEW) throw new Error("Local preview cannot fund a real account.");
+      if (!punk || !owner || !isCurrent()) throw new Error("Connect the owner on Robinhood Chain and check the gas-funding confirmation.");
+      state.gasFundingBusy = true; gasButton.disabled = true;
+      const provider = window.__GOGH_WALLET_PROVIDER__;
+      const loadContext = async () => {
+        await ensureV2Session();
+        const [gate, agent, funding] = await Promise.all([
+          fetchPunkWalletFundsGate((...args) => fetch(...args), punk.tokenId),
+          jsonRequest(`/api/v2/punks/${punk.tokenId}/agent-account`),
+          jsonRequest(`/api/v2/punks/${punk.tokenId}/fund`),
+        ]);
+        return { gate, agent, funding };
+      };
+      if (!state.gasFundingPlan) {
+        output.textContent = "Verifying both accounts, current ownership, reserve and exact transfer simulation…";
+        const prepared = await prepareAgentGasFunding(provider, await loadContext(), punk.tokenId, source, amount);
+        if (!isCurrent()) throw new Error("Selection changed during review.");
+        state.gasFundingPlan = prepared; gasButton.textContent = "SUBMIT IN METAMASK";
+        output.textContent = `SIMULATION PASSED · Move ${amount} ETH from ${source === "PUNK" ? "this Punk Wallet" : "your connected wallet"} to Agent Account ${prepared.destination}. Your connected wallet pays the transfer fee. No mission is activated.`;
+        return;
+      }
+      output.textContent = "Rechecking funding before MetaMask…";
+      const submitted = await submitAgentGasFunding(provider, state.gasFundingPlan, { loadContext, isCurrent });
+      submittedHash = submitted.hash; state.gasFundingPlan = null;
+      if (state.selected === punk) {
+        const link = one("[data-agent-gas-transaction]"); link.href = `https://robinhoodchain.blockscout.com/tx/${submittedHash}`; link.hidden = false;
+        output.textContent = "Gas funding submitted. Waiting for confirmation; do not submit again.";
+      }
+      await waitForPunkWalletTransactionReceipt(provider, submittedHash);
+      if (state.selected === punk) {
+        one("[data-agent-gas-confirm]").checked = false;
+        await Promise.all([loadAgentAccountStatus(), loadPunkBalances(punk)]);
+        if (state.selected === punk) {
+          renderSelected(); output.textContent = "GAS FUNDING CONFIRMED ✓ Review and approve your mission separately.";
+          one("[data-resume-chat-mission]").hidden = !state.localStrategy;
+          addMessage("punk", `GAS FUNDING CONFIRMED. ${amount} ETH moved to my Agent Account. No mission was activated. ${state.localStrategy ? "Use REVIEW SAVED MISSION to continue." : "Tell me your mission and I'll show its limits for approval."}`);
+        }
+      }
+    } catch (error) {
+      state.gasFundingPlan = null;
+      if (state.selected === punk) output.textContent = submittedHash
+        ? "Funding confirmation is pending. Check the linked transaction before retrying."
+        : `${error?.message ?? "Gas funding stopped."} Check wallet activity before retrying if MetaMask opened.`;
+    } finally { state.gasFundingBusy = false; gasButton.disabled = false; if (!state.gasFundingPlan) gasButton.textContent = "REVIEW & SIMULATE"; }
   });
   const fundForm = one("[data-fund-form]");
   const fundButton = fundForm.querySelector("button[type=submit]");
@@ -2286,9 +2588,15 @@ function setup() {
     const wallet = event.detail ?? {};
     const account = typeof wallet.account === "string" ? wallet.account.toLowerCase() : null;
     const previousAccount = state.wallet?.account ?? null;
-    if (account !== previousAccount) state.agentAccounts.clear();
+    const previousChain = state.wallet?.chainId;
+    if (account !== previousAccount || wallet.chainId !== previousChain) {
+      state.agentAccounts.clear(); state.agentAccountLoading.clear();
+    }
     const verifiedSameAccount = account && state.ownershipAccount === account;
     state.wallet = { ...wallet, account };
+    if (account !== previousAccount || wallet.chainId !== previousChain) {
+      ownerRefresh.invalidate(); clearTransferredPunkReview();
+    }
     if (!account) {
       if (wallet.restoring || wallet.status === "pending") return;
       state.ownershipRequestId += 1; state.ownershipAccount = null;
@@ -2336,7 +2644,11 @@ function setup() {
     }
   }, 5_000);
   const requestedTab = new URLSearchParams(location.search).get("tab");
-  if (["talk", "strategy", "fund", "collection", "activity", "settings"].includes(requestedTab)) {
+  forgeControl = createForgeControl({ root: one('[data-v2-panel="forge"]'),
+    getSelection: () => state.selected ? { tokenId: String(state.selected.tokenId),
+      owner: state.wallet?.account ?? null, chainId: state.wallet?.chainId, preview: PREVIEW } : null,
+    ensureSession: ensureV2Session, request: jsonRequest });
+  if (["talk", "strategy", "fund", "collection", "activity", "forge", "settings"].includes(requestedTab)) {
     activateTab(requestedTab);
   }
 }

@@ -1,0 +1,19 @@
+{
+  "schema": "GOGH_SKILL_PACKAGE_V1",
+  "skillId": 4,
+  "version": 1,
+  "chainId": 4663,
+  "name": "Rarity Eye",
+  "capabilities": ["RARITY_READ"],
+  "requiredMcpTools": ["get_metadata", "rank_trait_sample"],
+  "requiredWalletCapabilities": [],
+  "requiredExecutorCapabilities": [],
+  "riskTier": 0,
+  "equipCost": 1,
+  "trainingCost": 1,
+  "maxSkillLevel": 1,
+  "implementation": "broker/src/v4/skill-forge/research-tools.mjs",
+  "implementationSha256": "53322cbbcfa71c34e210548e9e10db99ab0da63dc39516ad1a144024b3c39c98",
+  "sourceAudit": "docs/v2-skill-source-audit.md",
+  "walletAuthority": "NONE"
+}

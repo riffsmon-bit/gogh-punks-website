@@ -1,0 +1,24 @@
+{
+  "schema": "GOGH_PUNK_EPOCH_ACCOUNT_DEPLOYMENT_V1",
+  "version": 1,
+  "status": "UNDEPLOYED",
+  "chainId": 4663,
+  "network": "Robinhood Chain",
+  "canonicalCollection": "0xE0F92B3B0E6DeD3654177FE3809Cd300e5ffaDf6",
+  "entryPoint": "0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108",
+  "contracts": { "GoghPunkAgentAccount": null, "GoghPunkAgentAccountRegistry": null },
+  "epochAuthority": { "wrapper": null, "epochs": null, "progression": null },
+  "reusedContracts": {
+    "ArtAdapterRegistry": "0x421D51709Fe21736a35fFa2a86B157Df1b030EE2",
+    "AutomatedSeaDropStudioFreeMintAdapter": "0xD4316dfbCFa3f51F1a9De77aAA5D9E6eDf848777",
+    "SeaDrop": "0x00005EA00Ac477B1030CE78506496e8C2dE24bf5"
+  },
+  "configuration": {
+    "sourceVerified": false, "adapterRegistrationConfirmed": false, "bundlerConfigured": false,
+    "sessionSignerConfigured": false, "receiptReconciliationEnabled": false, "workerEnabled": false,
+    "wrapperOperatorRegistrationConfirmed": false, "wrappedOwnerIntegrationReady": false,
+    "legacyEnrollmentReviewed": false
+  },
+  "authorization": { "deploymentAuthorized": false, "automaticSubmissionEnabled": false },
+  "notes": "SUPERSEDED PRODUCT PATH, September 10 2026: original NFT sales must directly carry the agent, without wrapped receipts. Do not deploy or enroll users into this proposal. Retained solely for isolated local research; all activation gates remain false. See docs/punk-original-nft-inheritance.md. No production burn source exists here. Existing default account deployment manifests and canonical original-NFT ownership remain unchanged."
+}

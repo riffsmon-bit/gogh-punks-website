@@ -1,0 +1,147 @@
+{
+  "schemaVersion": "GOGH_REGISTRY_CANARY_CHECKPOINT_EVIDENCE_V1",
+  "date": "2026-09-10",
+  "status": "PREPARATION_ONLY_NOT_DEPLOYED",
+  "productionTrainingAuthorized": false,
+  "productionBurnAuthorized": false,
+  "liveObservation": {
+    "source": "https://robinhood-rpc.publicnode.com",
+    "chainId": 4663,
+    "collection": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+    "collectionCodeHash": "0x3222e4925f77909e6370e17fe071d2774d43e191f6bc72c3a97c97209c6e2e93",
+    "anchor": {
+      "number": "59491487",
+      "hash": "0x97aa85a57ad18edeca931a010260ed4e2079c4662dd59b33213896c77207d9dc",
+      "timestamp": 1789052201
+    },
+    "guardianProposal": "0xC7f55cE6A7dF9A79cc4A643a5081230F890c7AA6",
+    "guardianApproved": false,
+    "guardianContext": {
+      "kind": "EIP7702_DELEGATED_EOA",
+      "codeHash": "0xb09ef517c48d2bf6eed05457ff56871b2596e3fc904fc6e9795882a870c2e993",
+      "delegation": "0x63c0c19a282a1B52b07dD5a65b58948A07DAE32B",
+      "delegationCodeHash": "0xa06befcb6f1d7b6c566a607d9d5d932f9b267f3470e55940225c6ee9c4c5e6b0"
+    },
+    "inputHash": "0xa8fcf5fe1164a98a6bcc1dff71c6ec01df5f2b1266fad7f3e8d80fdfabe03984",
+    "proposalHash": "0x7899235a384f45938e52637800b3e174247d51d4f5f78284a6e92eb1519a0ede",
+    "estimate": {
+      "scope": "REGISTRY_CREATION_ONLY_NOT_TOTAL_BUDGET",
+      "gas": "775485",
+      "observedGasPriceWei": "128160000",
+      "estimatedExecutionFeeWei": "99386157600000",
+      "includesConfigurationTransactions": false,
+      "guaranteedFinalFee": false,
+      "broadcastAuthorized": false
+    }
+  },
+  "pins": {
+    "compiler": "0.8.34+commit.80d5c536",
+    "metadataHash": "0xc2131cee908e71c5e037f3e6e43c1054958642467ad27224697a11a9c85d4623",
+    "creationCodeHash": "0x2add372eefc5a5f3da4480b4788c482be91ec2b240faf0dbef46da7272e854ec",
+    "runtimeCodeHash": "0x6a061b9d291e4402e32f93e7815cb2fe2242e725fe4052740f2be0a78049d3c3",
+    "definitions": [
+      {
+        "slug": "contract-detective",
+        "skillId": 3,
+        "version": 1,
+        "key": "0x1a7bb5f14ab81288db8a451245c3aa880c3696e9f2aae4ca3e72171416f9a837",
+        "manifestHash": "0x80695d48a12865c2c633b4977cd8f24dd598dd8808eae5ebf733052f8091ba24",
+        "instructionHash": "0x1e283e611d6f72e8fa34d1412a5cbef8dd4d936f0138a5f18fdf519bafc93252",
+        "implementationHash": "0x53322cbbcfa71c34e210548e9e10db99ab0da63dc39516ad1a144024b3c39c98",
+        "capabilities": "1",
+        "riskTier": 0,
+        "status": "TESTING",
+        "walletAuthority": "NONE"
+      },
+      {
+        "slug": "rarity-eye",
+        "skillId": 4,
+        "version": 1,
+        "key": "0x2109a1600733ac7484f1358fcf5a116586a8e66b993ae96f479098fffbb7b1c1",
+        "manifestHash": "0x9f17224444ef8938c9d998754a6be4c9dce2029c5e6e6a5f918effdc276c0d26",
+        "instructionHash": "0x7f7baae864b35a8230361de2ac3a6abda099669a6659e3d76e5bdf105bf859f0",
+        "implementationHash": "0x53322cbbcfa71c34e210548e9e10db99ab0da63dc39516ad1a144024b3c39c98",
+        "capabilities": "8",
+        "riskTier": 0,
+        "status": "TESTING",
+        "walletAuthority": "NONE"
+      },
+      {
+        "slug": "market-scout",
+        "skillId": 8,
+        "version": 1,
+        "key": "0x5be308fd3ddc8decbc42d85408afb0c0251ed92e2b556457406fea9a0376cf34",
+        "manifestHash": "0x558793169f07ac6af696cb2ad2f1d2a2678cc29b03fe9887586fb6a0fb0948e3",
+        "instructionHash": "0x002f585d2764331cd2fbbe96b12a382143e8f698d066d2929993c84acff43cce",
+        "implementationHash": "0x28baf5dc5190efd2ef32ee9e6d11237da566376ae5b556cfc57ca5fdbc5130e9",
+        "capabilities": "4",
+        "riskTier": 0,
+        "status": "TESTING",
+        "walletAuthority": "NONE"
+      }
+    ]
+  },
+  "toolSha256": {
+    "broker/src/v4/skill-forge/registry-canary.mjs": "5f2bbd9534b91db352c74c955d5eb90f968246fd7092327eb88298198a39317b",
+    "scripts/prepare-forge-registry-canary.mjs": "4c7150ff18833ffb805b58a56a9457239939c7ab391c24ecb9f5a5a966c3c6c6",
+    "scripts/verify-forge-registry-canary.mjs": "b9d906a941c2883dd5c743012fd57364711a61c04d4ed934de1f926f553e017f",
+    "scripts/test-forge-registry-canary-fork.mjs": "0a998b60a3b2404078dee19c3cebe57f00ee5e446755c767ba6adf9b2d7e09a2"
+  },
+  "fork": {
+    "result": "PASS",
+    "environment": "DISPOSABLE_ANVIL_FORK_NOT_PUBLIC_CHAIN",
+    "forkBlock": "59491496",
+    "registryRuntimeHash": "0x6a061b9d291e4402e32f93e7815cb2fe2242e725fe4052740f2be0a78049d3c3",
+    "proposalHash": "0x56afcf2eff1683118e79008cbc02fc01c89bc0018f5ec2a99952783ff3c6993f",
+    "localTransactions": 8,
+    "confirmedReceiptDepth": 12,
+    "exactPackageHashes": true,
+    "emergencyDisabled": true,
+    "unauthorizedGuardianRejected": true,
+    "corruptionCasesRejected": 12,
+    "readySkills": 0,
+    "realCreditsCreated": 0,
+    "productionTransactions": 0,
+    "realPunksBurned": 0,
+    "observedLocalExecutionFeesWei": [
+      "86148303708221",
+      "6834134072149",
+      "14505142795605",
+      "2697589972228",
+      "9981441638295",
+      "2065342339880",
+      "7641437407197",
+      "1581277759268"
+    ]
+  },
+  "regressions": {
+    "javascript": {
+      "passed": 1469,
+      "failed": 0,
+      "skipped": 0
+    },
+    "registryCanaryUnit": {
+      "passed": 26,
+      "failed": 0
+    },
+    "focusedContracts": {
+      "passed": 34,
+      "failed": 0,
+      "fuzzRuns": 1024
+    },
+    "syntaxModules": 557,
+    "siteCheck": "PASS",
+    "artBrokerCheck": "PASS",
+    "abiAndSizeCheck": "PASS",
+    "offlineContractBuild": "PASS",
+    "fullWalletSdkOrNetlifyBuild": "NOT_RUN"
+  },
+  "limitations": [
+    "Self-reported reproducible test record; not independent audit or governance approval.",
+    "Historical read-only quote; registry creation only, not an authorized deployment budget.",
+    "Fork transactions do not exist on the public chain; no deployment address may be adopted from this evidence.",
+    "Twelve additional L2 blocks do not establish L1 finality.",
+    "Existing guardian delegation still requires review.",
+    "Production training source and post-burn asset recovery remain unresolved."
+  ]
+}

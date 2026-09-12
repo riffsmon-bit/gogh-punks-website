@@ -252,6 +252,7 @@ export function createConfiguredPunkAgentBundler(environment = process.env) {
   if (mode === "DIRECT_PRIVATE_RELAY") {
     return createPunkAgentDirectRelay({
       url: environment.PUNK_AGENT_DIRECT_RELAY_RPC_URL,
+      receiptRpcUrl: environment.PUNK_AGENT_RECEIPT_RPC_URL ?? environment.RPC_URL,
       privateKey: environment.PUNK_AGENT_SESSION_PRIVATE_KEY,
       expectedAddress: environment.PUNK_AGENT_SESSION_ADDRESS,
       receiptLookbackBlocks: environment.PUNK_AGENT_RECEIPT_LOOKBACK_BLOCKS ?? "120000",

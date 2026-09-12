@@ -1,0 +1,65 @@
+{
+  "schema": "GOGH_CONNECTED_FORGE_CHECKS_V1",
+  "recordedAt": "2026-09-12T12:36:40.240Z",
+  "status": "PASS",
+  "javascript": {
+    "passed": 1755,
+    "failed": 0,
+    "skipped": 0
+  },
+  "contracts": {
+    "passed": 267,
+    "failed": 0,
+    "skipped": 0,
+    "fuzzRuns": 1024
+  },
+  "deploymentChecks": {
+    "passed": 127,
+    "failed": 0
+  },
+  "localStack": "PASS",
+  "localPractice": "PASS",
+  "browser": {
+    "status": "PASS",
+    "widths": [
+      1440,
+      390,
+      375
+    ]
+  },
+  "originalCollectionFork": "PASS",
+  "publicDeploymentPreflight": {
+    "status": "PREPARED_PAUSED_FORGE_DEPLOYMENT",
+    "observedAt": "2026-09-12T12:35:23.845Z",
+    "maximumTotalFeeWei": "1092798493000000",
+    "notExecuted": true
+  },
+  "practice": {
+    "preservedPort": 64343,
+    "tokenId": 44,
+    "slots": 2,
+    "learnedCount": 0,
+    "credits": "0",
+    "freshConnectedStackPort": 64344
+  },
+  "production": {
+    "status": "UNDEPLOYED",
+    "publicTransactions": 0,
+    "realBurns": 0,
+    "manifestChanges": 0,
+    "burnIntegrationComplete": false
+  },
+  "sourceSha256": {
+    "contracts/src/GoghForgeDeployment.sol": "d7286eca21f721e6c099f8084df3e1f08abb19aa48293480294820f56837b3bb",
+    "contracts/src/GoghReviewedBurnSource.sol": "be5a2a678e7e9902fb3eb7f80ffba5e70c86a2a2bd6e47164bec7c33f838eb55",
+    "contracts/src/GoghReviewedSkillProgression.sol": "28c12fb24a9c74fc69460ad84208cc4f0498821b2ffdc4b06c153c3ce35ffff4",
+    "broker/src/v4/skill-forge/forge-deployment.mjs": "2bc03983c8a6d082237dfc9b9a55c5cc162e1773afecf8a0d3acd9616794e33d",
+    "scripts/dev/skill-forge/preview-server.mjs": "ae99af989e3392c99f8e95dec1fa127d798a1eba6409691c82c17431394a1467",
+    "scripts/dev/skill-forge/burn-practice.mjs": "b89bee392ffe39d31ce7fbe557aa7e9cd3c4fb708640de4669a5fc71873601ca",
+    "scripts/test-reviewed-burn-local.mjs": "fafc57ce7f7ad9318249302ed07a24eb015aeee13241bb77ffc0a715178fa8fc",
+    "scripts/test-forge-stack-fork.mjs": "a51c9fe4de67b6c004ea8288abb8a7406680e56301253c16d5bccc3de9137b0a",
+    "scripts/prepare-forge-deployment.mjs": "a258583bf14a8d48701e1a00e37c781a5ca9f113fad85ca3d39352a8d495a661",
+    "scripts/verify-forge-deployment.mjs": "c6cc18a3c5e7b464dc717ac0370cd28c2a2bdaf66f377ee67548c7999b6e9087",
+    "tests/skill-forge-deployment.test.mjs": "14cdea2e47b9af54e9fea3f6af215590ac396ba4c479775efaa169ed9ee7e12e"
+  }
+}

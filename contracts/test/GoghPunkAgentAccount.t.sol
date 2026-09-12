@@ -281,6 +281,54 @@ contract GoghPunkAgentAccountTest {
         entryPoint.validate(account, second, keccak256("second"), 0);
     }
 
+    function testTransferRequiresExplicitNewOwnerSessionBeforeMinting() public {
+        address nextOwner = VM.addr(0xB0B);
+        uint64 generation = account.sessionGeneration();
+        address identity = address(account);
+        VM.prank(owner);
+        MockCanonicalGoghPunks(GOGH_PUNKS).safeTransferFrom(owner, nextOwner, PUNK_ID);
+        require(account.owner() == nextOwner && address(account) == identity);
+        require(!account.isAutonomousSessionActive());
+        VM.expectRevert(
+            abi.encodeWithSelector(GoghPunkAgentAccount.NotAuthorized.selector, owner, nextOwner)
+        );
+        _configureSession(1, 1, 0.01 ether, 0);
+        require(!account.isAutonomousSessionActive());
+        owner = nextOwner; // Change only the test caller, not contract authorization.
+        _configureSession(1, 1, 0.01 ether, 0);
+        require(account.sessionGeneration() == generation + 1);
+        require(account.autonomousSession().authorizingOwner == nextOwner);
+        require(account.isAutonomousSessionActive());
+        (PackedUserOperation memory userOp, bytes32 userOpHash) = _signedUserOp(_intent(1));
+        require(
+            entryPoint.validate(account, userOp, userOpHash, 0) != 1,
+            "new owner session signature accepted"
+        );
+        entryPoint.execute(address(account), userOp.callData);
+        require(collection.ownerOf(1) == identity);
+    }
+
+    // Characterization of a CURRENT GAP, not a security acceptance test. No RPC/fork.
+    // Owner equality alone cannot remember Alice -> Bob -> Alice without a transfer epoch.
+    function testKnownGapRoundTripTransferCanReviveOldSession() public {
+        address nextOwner = VM.addr(0xB0B);
+        uint64 generation = account.sessionGeneration();
+        (PackedUserOperation memory userOp, bytes32 userOpHash) = _signedUserOp(_intent(1));
+        VM.prank(owner);
+        MockCanonicalGoghPunks(GOGH_PUNKS).transferFrom(owner, nextOwner, PUNK_ID);
+        require(!account.isAutonomousSessionActive());
+        VM.prank(nextOwner);
+        MockCanonicalGoghPunks(GOGH_PUNKS).transferFrom(nextOwner, owner, PUNK_ID);
+        require(account.sessionGeneration() == generation);
+        require(account.isAutonomousSessionActive(), "update this characterization when fixed");
+        require(
+            entryPoint.validate(account, userOp, userOpHash, 0) != 1,
+            "old signature still accepted: known gap"
+        );
+        entryPoint.execute(address(account), userOp.callData);
+        require(collection.ownerOf(1) == address(account));
+    }
+
     function testOwnerCanManageEntryPointDepositAndRegistryReportsAgentAccount() public {
         VM.deal(owner, 1 ether);
         VM.prank(owner);

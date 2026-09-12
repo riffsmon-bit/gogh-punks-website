@@ -1,0 +1,27 @@
+{
+  "observedAt": "2026-09-12T03:16:57.979Z",
+  "site": "9f495fcf-b694-4b06-bdf5-7cd63bfe220e",
+  "branch": "fix/punk-93-mint-stall",
+  "context": "branch",
+  "publicSigner": "0xF20064aE9d41097669049Bb059b2510FF1f62083",
+  "productionRelayReady": true,
+  "keys": [
+    "PUNK_AGENT_SESSION_PRIVATE_KEY",
+    "PUNK_AGENT_SESSION_ADDRESS",
+    "PUNK_AGENT_BUNDLER_MODE",
+    "PUNK_AGENT_DIRECT_RELAY_RPC_URL",
+    "PUNK_AGENT_DIRECT_RELAY_MIN_BALANCE_WEI",
+    "PUNK_AGENT_RECEIPT_LOOKBACK_BLOCKS",
+    "PUNK_AGENT_WORKER_ENABLED",
+    "ENABLE_PREVIEW_BACKGROUND_RPC",
+    "PUNK_AGENT_PREVIEW_RUN_ENABLED",
+    "BACKGROUND_RPC_ALLOWED_TASKS",
+    "SITE_URL"
+  ],
+  "privateValuesPrinted": false,
+  "productionModified": false,
+  "scheduledWorkerInvoked": false,
+  "publicTransactions": 0,
+  "applied": true,
+  "productionValuesPreserved": true
+}

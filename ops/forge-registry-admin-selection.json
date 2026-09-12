@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "GOGH_FORGE_REGISTRY_ADMIN_SELECTION_V1",
+  "status": "OWNER_SELECTED_SUBJECT_TO_SECURITY_REVIEW",
+  "chainId": 4663,
+  "collection": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+  "administrator": "0xC7f55cE6A7dF9A79cc4A643a5081230F890c7AA6",
+  "selectedOn": "2026-09-10",
+  "ownerSelectionConfirmed": true,
+  "decisionScope": "Registry administrator identity only, subject to security review.",
+  "securityReviewComplete": false,
+  "feeBudgetApproved": false,
+  "deploymentAuthorized": false,
+  "configurationAuthorized": false,
+  "productionTrainingAuthorized": false,
+  "productionBurnAuthorized": false,
+  "walletDelegationChangeAuthorized": false,
+  "notes": "Records the owner's conversational selection, not an on-chain authorization or a signature. Do not infer transaction authority from this file. Existing EIP-7702 delegation, a fresh deployment proposal and complete fee limits still require review. No encrypted key or signing window is needed at this stage."
+}

@@ -1,0 +1,17 @@
+{
+  "result": "PASS",
+  "engine": "postgres (PostgreSQL) 16.15",
+  "sqlAssertions": 66,
+  "nativeMultiSessionTested": true,
+  "concurrentClaimAndLeaseTested": true,
+  "durableDiskRestartTested": true,
+  "immediateCrashRecovered": true,
+  "uncommittedChangeRolledBack": true,
+  "noSecondWalletClaim": true,
+  "browserAccessDenied": true,
+  "requestRoleCannotSettleOrRewriteAudit": true,
+  "workerRoleCanSettle": true,
+  "publicChainTransactions": 0,
+  "productionDatabaseAccessed": false,
+  "productionTrainingAuthorized": false
+}

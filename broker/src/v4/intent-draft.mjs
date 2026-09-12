@@ -1,5 +1,6 @@
 import { collectingIntentConfirmation, defaultAskIntent,
   normalizePunkCollectingIntent } from "./collecting-intent.mjs";
+import { acquisitionRequest } from "./acquisition-request.mjs";
 
 const STYLE_PATTERNS = Object.freeze([
   ["PIXEL_ART", /\bpixel(?:\s+art)?\b/i], ["GENERATIVE", /\bgenerative\b/i],
@@ -14,7 +15,6 @@ const STYLE_PATTERNS = Object.freeze([
 const NUMBER_WORDS = Object.freeze({ one: 1, two: 2, three: 3, four: 4, five: 5,
   six: 6, seven: 7, eight: 8, nine: 9, ten: 10 });
 const ADDRESS = /^0x[0-9a-f]{40}$/;
-const SPECIFIC_TARGET = /\b(?:this|that|specific)\s+(?:mint|collection|contract|project)\b|\bonly\s+(?:mint|collect)\s+(?:from\s+)?(?:this|that)\b/i;
 
 function decimalEthToWei(value) {
   if (!/^(?:0|[1-9]\d*|\.\d+|\d+\.\d+)$/.test(value)) throw new TypeError("ETH amount is invalid");
@@ -56,6 +56,8 @@ export function draftStrategyFromConversation({ message, punkTokenId, expectedOw
   const next = structuredClone(base);
   const changes = [];
   const ambiguous = [];
+  const acquisition = acquisitionRequest(text);
+  if (acquisition?.blocked) ambiguous.push(acquisition.blocked);
 
   if (/\bautonomous(?:ly)?\b|\bgo shopping\b/i.test(text)) {
     next.operatingMode = "AUTONOMOUS"; changes.push("MODE_AUTONOMOUS");
@@ -108,7 +110,7 @@ export function draftStrategyFromConversation({ message, punkTokenId, expectedOw
       ambiguous.push("TOTAL_LIMIT");
     }
   }
-  const supply = text.match(/(?:supply|collections?)\s*(?:under|below|less than|<|above)?\s*([\d,]+)/i)
+  const supply = text.match(/(?:supply|collections?)\s*(?:under|below|less than|<|above)?\s*([\d,]+)\b/i)
     ?? text.match(/(?:nothing|no collections?)\s+(?:above|over)\s+([\d,]+)\s*(?:supply)?/i);
   if (supply) {
     const value = Number(supply[1].replaceAll(",", ""));
@@ -151,8 +153,8 @@ export function draftStrategyFromConversation({ message, punkTokenId, expectedOw
     if (negative) { avoid.add(style); prefer.delete(style); changes.push(`AVOID_${style}`); }
     else { prefer.add(style); avoid.delete(style); changes.push(`PREFER_${style}`); }
   }
-  if (SPECIFIC_TARGET.test(text)) {
-    const target = String(targetContract ?? "").toLowerCase();
+  if (acquisition?.kind === "DIRECTED_MINT" && !acquisition.blocked) {
+    const target = String(acquisition.targetContract ?? targetContract ?? "").toLowerCase();
     if (!ADDRESS.test(target)) ambiguous.push("TARGET_CONTRACT");
     else if (next.blockedContracts.includes(target)) ambiguous.push("BLOCKED_TARGET_CONTRACT");
     else {
@@ -166,7 +168,7 @@ export function draftStrategyFromConversation({ message, punkTokenId, expectedOw
   return Object.freeze({
     status: ambiguous.length ? "NEEDS_CLARIFICATION" : "PENDING_OWNER_CONFIRMATION",
     intent, confirmation: collectingIntentConfirmation(intent, now),
-    changes: Object.freeze([...new Set(changes)]), ambiguous: Object.freeze(ambiguous),
+    changes: Object.freeze([...new Set(changes)]), ambiguous: Object.freeze([...new Set(ambiguous)]),
     economicPermissionsActivated: false,
   });
 }

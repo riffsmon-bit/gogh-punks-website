@@ -1,0 +1,26 @@
+{
+  "observedAt": "2026-09-11T14:10:14.450Z",
+  "productionDeploy": "6aa16a462e74d5c77dfe58c6",
+  "assets": [
+    {
+      "path": "broker-v2.js",
+      "sha256": "6cc1413c485cd42720c567ee0d880f68e6fa142ddb382e26ea1e3bdf58dbbdc8",
+      "matchesSource": "0daf269"
+    },
+    {
+      "path": "punk-chat-actions.js",
+      "sha256": "d147f17eadd47cbd8581443ce18cf6979973522ec8b9c4429061718ac3bf6d8b",
+      "matchesSource": "0daf269"
+    },
+    {
+      "path": "punk-agent-gas-funding.js",
+      "sha256": "bef487e968c07d8607e29fd8ca8a7da53887d5a5e33612d9344ccfd547a85754",
+      "matchesSource": "0daf269"
+    },
+    {
+      "path": "broker/v2/index.html",
+      "sha256": "2b6dff8b0efe58c4ecc3158203ed33e727c2c0740cbf5d5bb3a2d1c95757b29a",
+      "matchesSource": "0daf269"
+    }
+  ]
+}

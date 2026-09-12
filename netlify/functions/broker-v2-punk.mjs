@@ -17,7 +17,8 @@ export default async function handler(request) {
       pool.query(`SELECT version, intent_hash, intent, state, expires_at, activated_at
         FROM broker_v2_strategies WHERE chain_id = $1 AND collection_address = $2
           AND token_id = $3::numeric AND state IN ('ACTIVE', 'PAUSED')
-        ORDER BY version DESC LIMIT 1`, [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, tokenId]),
+          AND configured_by = $4 AND intent->>'expectedOwner' = $4
+        ORDER BY version DESC LIMIT 1`, [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, tokenId, session.walletAddress]),
       pool.query(`SELECT COUNT(*)::integer AS count FROM broker_acquisitions
         WHERE chain_id = $1 AND punk_collection_address = $2 AND punk_token_id = $3::numeric`,
       [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, tokenId]),

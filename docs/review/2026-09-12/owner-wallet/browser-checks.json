@@ -1,0 +1,27 @@
+{
+  "status": "PASS",
+  "environment": "NEW_DISPOSABLE_ANVIL_AND_BROWSER",
+  "wrongOwnerBlocked": true,
+  "explicitWalletButtons": true,
+  "committedClaimBeforeWallet": true,
+  "lostWalletHashRecovered": true,
+  "serverRestartRecovered": true,
+  "reloadDoesNotResend": true,
+  "nonceChangedBeforeAcceptance": true,
+  "lostHashReportRecoveredOnRecheck": true,
+  "rpcFailureHashPersisted": true,
+  "pendingHashRecoveredAfterRestart": true,
+  "missingHashNotReportedAsFinality": true,
+  "failedRefreshClearsVerifiedEvidence": true,
+  "bothTransactionsVerified": true,
+  "registryStillPaused": true,
+  "publicManifestsNotCreated": true,
+  "widths": [
+    1440,
+    390,
+    375
+  ],
+  "walletRequests": 2,
+  "publicTransactions": 0,
+  "browserErrors": []
+}

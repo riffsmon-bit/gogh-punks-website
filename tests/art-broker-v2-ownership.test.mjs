@@ -68,7 +68,8 @@ test("V2 APIs authenticate mutations and preserve independent withdrawal access"
     readFile(new URL("../netlify/functions/_shared/v2-session.mjs", import.meta.url), "utf8"),
     readFile(new URL("../site/broker-v2.js", import.meta.url), "utf8"),
   ]);
-  assert.match(chat, /requireV2Session/); assert.match(chat, /readV2PunkAuthority/);
+  assert.match(chat, /requireV2Session/); assert.match(chat, /readV2ChatAuthority/);
+  assert.match(chat, /assertV2ChatAuthorityUnchanged/);
   assert.match(strategy, /verifyWalletSignature/); assert.match(strategy, /AUTONOMOUS/);
   assert.match(fund, /projectCustody: false/); assert.doesNotMatch(fund, /INSERT INTO|UPDATE /);
   assert.match(withdrawal, /requiresAI: false/); assert.match(withdrawal, /requiresExecutor: false/);

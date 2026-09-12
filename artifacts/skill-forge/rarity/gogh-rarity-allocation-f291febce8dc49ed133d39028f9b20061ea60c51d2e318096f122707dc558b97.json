@@ -1,0 +1,31 @@
+{
+  "schema": "GOGH_RARITY_ALLOCATION_REVIEW_V1",
+  "chainId": 4663,
+  "collection": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+  "snapshotHash": "0x8a492f7dbb1ea8fe2ca51a134ffb6a9d4003bd6e9aa7cb87b121de43a40430de",
+  "allocationRoot": "0xf291febce8dc49ed133d39028f9b20061ea60c51d2e318096f122707dc558b97",
+  "tokenCount": 4295,
+  "baseSlots": 1,
+  "maximumSlots": 7,
+  "productionAuthorized": false,
+  "example": {
+    "tokenId": "93",
+    "startingSlots": 1,
+    "proof": [
+      "0x7c394f61cf07d2f465bc7a75dba269caea29e8f01f1e9c80cb4f2b61295a5afa",
+      "0x7a9b58a74c43e13f431981c38d2b2d00aecc2edf7cc4fbb3aeb34f8660cb5d68",
+      "0x22089cfa9cdd6c0fc912dd49cd216a3eb12b5c78cac71627fa491b867a6aa0ab",
+      "0xbda4dad4eabbae648015ebcf420ff99569a097a645fa7dfaa7ce1204fe95b1cd",
+      "0x68b788dcdd9a08884dc09e08afb4c641048c2713ac8e1f08ce0a08f347f6c9c7",
+      "0xbe7bda77c45f7e4b9cf8f5f04dcee3919e6016e7cb44d0e40d2baa563992fbdf",
+      "0xfca254e3fad09be03c60cbc6d40eb410fd755f1f5a9f80b955084d7e34b2a7d7",
+      "0xea6355f157951ef7e35b06af13df10173e7ca9b4c6a3fe9098c17bfda1cdfd7a",
+      "0x2ecc1e6190ec82306274fe72e4ee4ad943307c58183f34e21b7a88e125cbca62",
+      "0xfc1756e03b7a04aaeefb9e57ee22fad2ed40bdebdbdf42a1594dd3f023b35a5a",
+      "0x30b72a9f552a0c077fe1526813e00cb5c987ec2538d82fab900244a9fb5531be",
+      "0x501c0decf33b737a05c3de8db709df641e57194561f3320e47c1a46e39770aa2",
+      "0xac5548612dc31a0c7468dfbeec79fc977df961cf4ee0439b9940784aef8a3dff"
+    ]
+  },
+  "encoding": "double keccak256 ABI leaf: bytes32 domain, uint256 chainId, address collection, bytes32 snapshotHash, uint256 tokenId, uint8 startingSlots; domain keccak256(GOGH_RARITY_SLOTS_V1); sorted pair hashing; odd node promoted"
+}

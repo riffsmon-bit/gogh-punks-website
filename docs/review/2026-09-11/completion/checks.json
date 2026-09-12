@@ -1,0 +1,62 @@
+{
+  "reviewDate": "2026-09-11",
+  "sourceBaseCommit": "a74ba2c007e15ff77d24334545688032ee9a4a9c",
+  "fullJavaScriptSuite": {
+    "result": "PASS",
+    "tests": 1673,
+    "pass": 1673,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0
+  },
+  "siteDeployGate": {
+    "result": "PASS",
+    "tests": 127,
+    "pass": 127,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0
+  },
+  "finalStoreRegression": {
+    "result": "PASS",
+    "tests": 13,
+    "pass": 13,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0
+  },
+  "equippedResearchApiAndRuntime": {
+    "result": "PASS",
+    "tests": 11,
+    "pass": 11,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0
+  },
+  "finalChangeValidation": "Full JavaScript suite rerun after the disconnected-wallet startup fix. Full browser check includes actual wallet.js on a first visit, then production chat and gas flows with disposable RPC/auth fixtures.",
+  "nativePostgres": "native-postgres.json",
+  "disposableAnvil": "disposable-chain.json",
+  "fullBrokerBrowser": "full-broker-browser.json",
+  "solidity": {
+    "changedInContinuation": false,
+    "priorFullTestsPassed": 234,
+    "fuzzRuns": 1024
+  },
+  "release": {
+    "status": "UNDEPLOYED",
+    "productionTrainingAuthorized": false,
+    "productionBurnAuthorized": false
+  },
+  "publicChainTransactions": 0,
+  "productionDatabaseChanged": false,
+  "productionDeployed": false,
+  "fullReviewUrl": "https://deploy-preview-47.preview.goghpunks.xyz/broker/v2/?tab=talk",
+  "walletSelectionRegression": {
+    "result": "PASS",
+    "tests": 26,
+    "pass": 26,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0
+  }
+}
