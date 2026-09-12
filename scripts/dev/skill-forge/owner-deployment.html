@@ -12,5 +12,12 @@
 <div id="profile-controls" hidden><label for="punk-id">Your Punk number</label><input id="punk-id" type="number" min="0" max="9999" value="93"><button id="read-profile">Read live Forge state</button><pre id="profile"></pre></div>
 <details><summary>Recover a wallet transaction</summary><p>If a wallet response was lost, copy its transaction hash from wallet activity. Recovery reads the original transaction; it does not resend it.</p><label for="recover-step">Transaction</label><select id="recover-step"><option value="0">Deploy paused Forge</option><option value="1">Accept registry control</option></select><label for="recover-hash">Transaction hash</label><input id="recover-hash" autocomplete="off" spellcheck="false" placeholder="0x…"><div class="actions"><button id="recover" disabled>Recover this receipt</button><button id="resolve" disabled>Check canceled / replaced nonce</button></div><p>A missing hash or expired review does not prove that a wallet request was canceled. If your wallet still shows a pending request, resolve it there before preparing another transaction.</p></details>
 <a href="/api/evidence" target="_blank" rel="noopener">View deployment record</a></section>
+<section id="burn-test" hidden><h2 id="burn-pair-title">First burn-to-training test</h2>
+<p id="burn-pair-warning"></p><p>Burning earns one training credit. Learning a skill or unlocking a slot is a separate transaction.</p>
+<button id="read-burn-pair">Check selected Punks live</button><p id="burn-pair-status" role="status">Live checks have not run on this page.</p>
+<dl id="burn-pair-baseline"></dl><div id="burn-source-wallets"></div><ul id="burn-pair-blockers"></ul>
+<p>Zero ETH does not prove a wallet is empty. NFTs, other tokens, missions, pending transactions and legacy obligations need a complete review before burning.</p>
+<button disabled>Burn unavailable · checks and setup pending</button>
+<details><summary>Live preflight record</summary><pre id="burn-pair-evidence"></pre></details></section>
 <p id="status" role="status" aria-live="polite">Loading…</p><p class="footnote">Your wallet sends transactions. This local setup page has no private key. The saved record survives a browser refresh and server restart.</p>
 </main><script type="module" src="/owner-deployment.js"></script></body></html>

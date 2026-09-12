@@ -1,8 +1,8 @@
 # First public Forge setup and selected burn source
 
-The owner selected **Punk #1753 as the proposed burn source** on September 12.
-The different recipient Punk is still pending. This selection is not a completed
-burn review or a burn transaction.
+The owner selected **burn Punk #1753 → credit Punk #93** on September 12.
+The pair is stored in `ops/forge-burn-test-selection.json`. This selection is not
+a completed burn review or a burn transaction.
 
 ## Actual public transaction
 
@@ -60,8 +60,34 @@ legacy jobs, priority sessions, gas balances/deposits/usage/refunds, reconciliat
 activity, diagnostics and Punk-state tables. These queries do not cover the
 separate current broker database or prove absence of external obligations.
 
-Before a burn, finish live asset and mission/session recovery checks, select and
-verify the recipient, complete production burn integration, and present the exact
+## Selected pair baseline
+
+[The pair preflight](pair-1753-to-93.json) verified both owners, pinned wallet
+registries/implementations and the deployed paused Forge through both RPCs at one
+canonical current block. #93 has zero Forge credits and zero learned skills. Its
+Agent session is active, its V3 wallet holds `700000000000000` wei, and its Agent
+wallet holds `250925000000000` wei plus `101718909000000` wei in EntryPoint gas.
+These are recipient balances, not source assets to withdraw. No recipient
+session, mission, wallet balance or NFT was changed by this read.
+
+The live setup page now offers **Check selected Punks live**. Every click checks
+the selected pair again; it does not prepare or request a transaction. It reports
+unverified source inventory and operational obligations, pending registry
+acceptance, the paused Forge and unfinished production burn integration. A failed
+read clears the previous displayed results. Snapshot evidence is not a reusable
+burn authorization, and current reads do not replace finalized deployment proof.
+
+Validation: 1,775 JavaScript tests passed, including six new selection/provider
+guards; syntax checks passed for 637 modules. Independent wallet reads run
+concurrently and the browser request times out after 35 seconds. The
+[browser check](pair-browser-checks.json) exercised the real live preflight at
+1440 and 375 pixels, verified the source wallet cards and recipient baseline,
+then injected a failed response and verified that previous results cleared.
+It made zero wallet requests and zero public transactions. Screenshots are
+[desktop](pair-live-1440.png) and [phone](pair-live-375.png).
+
+Before a burn, finish live asset and mission/session recovery checks, refresh and
+verify both owners, complete production burn integration, and present the exact
 source/recipient and wallet-access-loss review. Both ownership and all current
 checks must be refreshed. The public collection still contains #1753; no burn or
 training transaction was requested in this session. The #44 practice servers

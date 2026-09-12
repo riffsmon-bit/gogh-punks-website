@@ -8,8 +8,11 @@ separate disposable practice chains.
 its original receipt was recovered through both RPCs. Continue with registry
 acceptance in step 4 using the existing journal. See the
 [public setup record](review/2026-09-12/live-owner/README.md) for the transaction,
-addresses and remaining verification. Punk #1753 is the selected burn source;
-the recipient is still pending and no burn has been requested.
+addresses and remaining verification. The selected pair is **burn #1753 → credit
+#93**. No burn has been requested. Use **Check selected Punks live** to read both
+owners, all four source wallets, the recipient's Agent-session state and its
+training-credit baseline through both RPCs. This is a read-only preflight; missing
+inventory, operational and production-integration checks stay explicit blockers.
 
 1. Click **Connect wallet** and select the existing administrator,
    `0xC7f55cE6A7dF9A79cc4A643a5081230F890c7AA6`. Switch to Robinhood if prompted.

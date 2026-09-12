@@ -1,0 +1,23 @@
+{
+  "status": "PASS",
+  "environment": "DISPOSABLE_BROWSER_PUBLIC_READS_ONLY",
+  "sourceTokenId": "1753",
+  "targetTokenId": "93",
+  "realPreflightAnchor": {
+    "number": "61311145",
+    "hash": "0x92f04069bfa6507407ebb5060a5ebf65eff67609577741a4fe0600fe33d34070",
+    "timestamp": "1789237017",
+    "finalized": false
+  },
+  "sourceWalletCards": 4,
+  "missingInventoryBlocked": true,
+  "recipientCreditBaseline": "0",
+  "failedReadClearsPreviousResults": true,
+  "widths": [
+    1440,
+    375
+  ],
+  "walletRequests": 0,
+  "publicTransactions": 0,
+  "browserErrors": []
+}

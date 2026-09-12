@@ -3,8 +3,11 @@ import { readFile } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import { createOriginalForgeProfileReader } from '../../../broker/src/v4/skill-forge/original-punk-profile.mjs';
 import release from '../../../deployments/robinhood-skill-forge.json' with { type: 'json' };
+import { readLiveBurnPair, validateBurnTestSelection } from '../../../broker/src/v4/skill-forge/live-burn-pair.mjs';
 
-export async function startOwnerDeploymentServer({ session, build, administrator, port = 64345, client, localFixture = false, pins = release }) {
+export async function startOwnerDeploymentServer({ session, build, administrator, port = 64345, client, clients = null,
+  burnTestSelection = null, localFixture = false, pins = release }) {
+  const burnSelection = burnTestSelection ? validateBurnTestSelection(burnTestSelection) : null;
   const csrf = randomBytes(32).toString('hex');
   const paths = { '/': ['owner-deployment.html', 'text/html'], '/owner-deployment.js': ['owner-deployment.js', 'text/javascript'],
     '/owner-deployment.css': ['owner-deployment.css', 'text/css'], '/deployment-wallet.js': ['../../../site/forge-deployment-wallet.js', 'text/javascript'],
@@ -24,7 +27,14 @@ export async function startOwnerDeploymentServer({ session, build, administrator
       if (request.method === 'GET' && url.pathname === '/api/state') return json(200, { state: session.snapshot(), csrf,
         config: { administrator, chainId: localFixture ? 31337 : 4663, localFixture,
           buildHash: build.buildHash, creationCodeHash: build.pins.deployment.creationCodeHash,
-          pins: Object.fromEntries(['collection', 'collectionCodeHash', 'allocationRoot', 'snapshotHash'].map(key => [key, pins[key]])) } });
+          pins: Object.fromEntries(['collection', 'collectionCodeHash', 'allocationRoot', 'snapshotHash'].map(key => [key, pins[key]])),
+          burnTestSelection: burnSelection } });
+      if (request.method === 'GET' && url.pathname === '/api/burn-pair') {
+        if (localFixture || !burnSelection || !clients) return json(409, { error: 'LIVE_BURN_PAIR_UNAVAILABLE' });
+        const state = session.snapshot();
+        return json(200, await readLiveBurnPair({ clients, selection: burnSelection, build,
+          plan: state.steps[0].status === 'INCLUDED' ? state.packet.plan : null }));
+      }
       if (request.method === 'GET' && url.pathname === '/api/profile') {
         const tokenId = url.searchParams.get('tokenId'), state = session.snapshot();
         if (!state.candidates || !/^(0|[1-9][0-9]{0,3})$/.test(tokenId)) return json(409, { error: 'VERIFIED_LIVE_DEPLOYMENT_REQUIRED' });

@@ -197,6 +197,13 @@ mission types were exercised.
 
 ## 10. Burn-to-training — required launch acceptance
 
+The first owner-selected pair is **burn #1753 → credit #93**. Both owners were
+verified on September 12; #93's initial Forge balance was zero credits. The live
+setup page offers **Check selected Punks live** to refresh the pair and its wallet
+balances. The expected burn result is **#93: 0 → 1 credit**, followed by a separate
+reviewed learning or slot transaction. Selection and preflight do not enable a
+burn. Keep #93's existing assets and Agent session accounted for throughout testing.
+
 Do not run a real burn merely because this guide exists. This case starts only
 after the release explicitly enables the reviewed burn source and you personally
 choose the actual source and recipient Punks. The local Test #7/#44 IDs are not

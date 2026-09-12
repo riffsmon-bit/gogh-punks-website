@@ -1,0 +1,146 @@
+{
+  "schema": "GOGH_LIVE_BURN_PAIR_PREFLIGHT_V1",
+  "selection": {
+    "schema": "GOGH_BURN_TEST_SELECTION_V1",
+    "chainId": 4663,
+    "collection": "0xE0F92B3B0E6DeD3654177FE3809Cd300e5ffaDf6",
+    "owner": "0xC7f55cE6A7dF9A79cc4A643a5081230F890c7AA6",
+    "sourceTokenId": "1753",
+    "targetTokenId": "93"
+  },
+  "checkedAt": "2026-09-12T18:07:22.805Z",
+  "anchor": {
+    "number": "61305266",
+    "hash": "0x171fd2334ceca8ca29e2d518d50f35d938646b406b687a587363e1efcfcbafd8",
+    "timestamp": "1789236420",
+    "finalized": false
+  },
+  "sourceOwner": "0xC7f55cE6A7dF9A79cc4A643a5081230F890c7AA6",
+  "targetOwner": "0xC7f55cE6A7dF9A79cc4A643a5081230F890c7AA6",
+  "supply": "4295",
+  "sourceApproval": "0x0000000000000000000000000000000000000000",
+  "sourceWallets": [
+    {
+      "role": "V1",
+      "address": "0x0533A1172567E0E28a443f32DB78fA990371F6bE",
+      "deployed": false,
+      "nativeWei": "0",
+      "wethWei": "0",
+      "entryPointDepositWei": "0",
+      "agentSessionActive": null,
+      "nftInventory": "UNKNOWN",
+      "otherTokenInventory": "UNKNOWN"
+    },
+    {
+      "role": "V2",
+      "address": "0xA50EE88b8F1bFa8a08A7ECFe743930A5cf4dEc96",
+      "deployed": false,
+      "nativeWei": "0",
+      "wethWei": "0",
+      "entryPointDepositWei": "0",
+      "agentSessionActive": null,
+      "nftInventory": "UNKNOWN",
+      "otherTokenInventory": "UNKNOWN"
+    },
+    {
+      "role": "V3",
+      "address": "0xC735bbAaF79295a27cb66AC84bDc926a125602E2",
+      "deployed": false,
+      "nativeWei": "0",
+      "wethWei": "0",
+      "entryPointDepositWei": "0",
+      "agentSessionActive": null,
+      "nftInventory": "UNKNOWN",
+      "otherTokenInventory": "UNKNOWN"
+    },
+    {
+      "role": "AGENT",
+      "address": "0x56dF53299941890500D44aBA31dCB376b92E1b65",
+      "deployed": false,
+      "nativeWei": "0",
+      "wethWei": "0",
+      "entryPointDepositWei": "0",
+      "agentSessionActive": false,
+      "nftInventory": "UNKNOWN",
+      "otherTokenInventory": "UNKNOWN"
+    }
+  ],
+  "targetWallets": [
+    {
+      "role": "V1",
+      "address": "0xC10300C554a69C137F0e8a26B809C1D8A5A97a09",
+      "deployed": true,
+      "nativeWei": "0",
+      "wethWei": "0",
+      "entryPointDepositWei": "0",
+      "agentSessionActive": null,
+      "nftInventory": "UNKNOWN",
+      "otherTokenInventory": "UNKNOWN"
+    },
+    {
+      "role": "V2",
+      "address": "0x8228448193C77AEC6eaE6c50E198B9FbC9b75515",
+      "deployed": false,
+      "nativeWei": "0",
+      "wethWei": "0",
+      "entryPointDepositWei": "0",
+      "agentSessionActive": null,
+      "nftInventory": "UNKNOWN",
+      "otherTokenInventory": "UNKNOWN"
+    },
+    {
+      "role": "V3",
+      "address": "0x06D5e0Df2Eb9512777403bF017031618F4713e19",
+      "deployed": true,
+      "nativeWei": "700000000000000",
+      "wethWei": "0",
+      "entryPointDepositWei": "0",
+      "agentSessionActive": null,
+      "nftInventory": "UNKNOWN",
+      "otherTokenInventory": "UNKNOWN"
+    },
+    {
+      "role": "AGENT",
+      "address": "0xcAdcFD37e715bC031cF0cEC7fA2335091c878C83",
+      "deployed": true,
+      "nativeWei": "250925000000000",
+      "wethWei": "0",
+      "entryPointDepositWei": "101718909000000",
+      "agentSessionActive": true,
+      "nftInventory": "UNKNOWN",
+      "otherTokenInventory": "UNKNOWN"
+    }
+  ],
+  "forge": {
+    "addresses": {
+      "deployment": "0xF03A7331ACc83Bdba0e257221Daf8f4ee35d955B",
+      "registry": "0xc2A1Bd47fbc0FE33E53c85f130be53591c898E83",
+      "trainingSource": "0x7e4d6DB6c96C7B09c78F49760D9EEdb5dd4e1533",
+      "progression": "0x08ADa19EDf9c387dc07A181069a1848C66cA2dA4"
+    },
+    "codeHashes": {
+      "deploymentCodeHash": "0xc1217de9159139e225ea12c7e68a60a692c30c0aea533052110ebe609e8c0880",
+      "registryCodeHash": "0x6a061b9d291e4402e32f93e7815cb2fe2242e725fe4052740f2be0a78049d3c3",
+      "progressionCodeHash": "0x1e4a242384f6081dddc5b7bb0020b247d0107082edb14e9d4368a8f346dcd51d",
+      "trainingSourceCodeHash": "0x001996450268878eca44c4d13b6d3aea3cc68b6ee89280ecc62d9d6b6606742e"
+    },
+    "registryAcceptancePending": true,
+    "paused": true,
+    "targetCredits": "0",
+    "targetLearnedCount": "0",
+    "finalizedDeploymentVerified": false
+  },
+  "status": "BLOCKED",
+  "canBurn": false,
+  "blockers": [
+    "SOURCE_NFT_AND_OTHER_TOKEN_INVENTORY_UNKNOWN",
+    "SOURCE_OPERATIONAL_OBLIGATIONS_UNKNOWN",
+    "PRODUCTION_BURN_NOT_ENABLED",
+    "REGISTRY_ACCEPTANCE_PENDING",
+    "FORGE_PAUSED"
+  ],
+  "confirmationText": "BURN 1753",
+  "warning": "Burning Punk #1753 permanently destroys that NFT and can remove access to its wallets. Assets are not transferred to Punk #93.",
+  "expectedCreditGain": "1",
+  "publicTransactions": 0
+}
