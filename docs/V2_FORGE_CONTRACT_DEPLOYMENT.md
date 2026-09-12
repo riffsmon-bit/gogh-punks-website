@@ -1,8 +1,12 @@
 # Connected Forge deployment and test checkpoint — September 12
 
+**Live wallet interaction:** use the [owner-wallet test page instructions](V2_FORGE_OWNER_WALLET_TEST.md)
+to send the two setup transactions from the selected wallet. The page is available
+at http://127.0.0.1:64345/ and preserves deployment requests across restarts.
+
 Burn-to-training is required for the September 16 launch. The contract stack is
 built and connected in the test app. Production deployment is still pending the
-owner's wallet transactions; neither production manifest contains live Forge
+owner’s wallet transactions; neither production manifest contains live Forge
 addresses yet.
 
 ## Contracts and deployment behavior
@@ -56,7 +60,9 @@ The preparation command only reads/simulates. It reads the selected administrato
 from the existing selection record, verifies the frozen source/build hashes,
 compares both RPCs, checks funds/nonces and vacant predicted addresses, and
 produces a ten-minute review. It has no key loader, signer or sender. An expired
-packet must be regenerated. A wallet request with a lost response must be
+unsigned review must be refreshed before requesting the wallet. An already-requested
+deployment can be recovered even if its exact receipt arrives after that review
+expires. Registry acceptance receives its own fresh review. A lost response must be
 recovered by its original nonce/hash; do not blindly deploy again.
 
 After the owner signs both exact transactions, verify their actual hashes:

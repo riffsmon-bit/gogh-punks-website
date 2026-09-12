@@ -104,7 +104,7 @@ export function validateForgeDeploymentPlan(plan, build, { localFixture = false 
   return plan;
 }
 
-export async function inspectForgeStack({ client, plan, build, blockNumber }) {
+export async function inspectForgeStack({ client, plan, build, blockNumber, pendingGuardian = false }) {
   const { addresses: a, pins: p } = plan;
   valid(await client.getChainId() === plan.chainId, 'FORGE_DEPLOYMENT_WRONG_CHAIN');
   const read = (role, functionName, args = []) => client.readContract({ address: a[role], abi: build.artifacts[role].abi, functionName, args, blockNumber });
@@ -118,7 +118,8 @@ export async function inspectForgeStack({ client, plan, build, blockNumber }) {
     await client.getCode({ address: a[role], blockNumber }), expected[role]);
   const checks = [
     ['deployment', 'registry', a.registry], ['deployment', 'progression', a.progression], ['deployment', 'trainingSource', a.trainingSource],
-    ['registry', 'owner', plan.administrator], ['registry', 'pendingOwner', zeroAddress], ['registry', 'globallyDisabled', true],
+    ['registry', 'owner', pendingGuardian ? a.deployment : plan.administrator],
+    ['registry', 'pendingOwner', pendingGuardian ? plan.administrator : zeroAddress], ['registry', 'globallyDisabled', true],
     ['registry', 'disabledCapabilities', (1n << 256n) - 1n], ['registry', 'skillCount', 0n],
     ['trainingSource', 'collection', p.collection], ['trainingSource', 'collectionCodeHash', p.collectionCodeHash],
     ['trainingSource', 'progression', a.progression], ['trainingSource', 'progressionCodeHash', codeHashes.progressionCodeHash],
@@ -134,7 +135,47 @@ export async function inspectForgeStack({ client, plan, build, blockNumber }) {
   return codeHashes;
 }
 
-export async function verifyForgeDeployment({ clients, plan, build, transactionHashes, localFixture = false }) {
+export function buildForgeAcceptanceReview({ plan, nonce, anchor, gasLimit = '100000', maxFeePerGas = plan.maxFeePerGas }) {
+  valid(uint(nonce) && BigInt(nonce) > BigInt(plan.transactions[0].nonce) && BigInt(nonce) < BigInt(Number.MAX_SAFE_INTEGER)
+    && anchor && uint(anchor.number) && BigInt(anchor.number) > BigInt(plan.anchor.number) && HASH.test(anchor.hash)
+    && Number.isSafeInteger(anchor.timestamp) && anchor.timestamp >= plan.anchor.timestamp
+    && uint(gasLimit) && BigInt(gasLimit) > 0n && BigInt(gasLimit) <= 100000n
+    && uint(maxFeePerGas) && BigInt(maxFeePerGas) > 0n && BigInt(maxFeePerGas) <= 10000000000n, 'INVALID_FORGE_ACCEPTANCE_REVIEW');
+  const body = { schema: 'GOGH_FORGE_ACCEPTANCE_REVIEW_V1', planHash: plan.planHash, anchor,
+    expiresAt: anchor.timestamp + 600, gasLimit, maxFeePerGas,
+    transaction: { ...plan.transactions[1], nonce }, maximumFeeWei: String(BigInt(gasLimit) * BigInt(maxFeePerGas)) };
+  return { ...body, reviewHash: manifestHash(body) };
+}
+
+export function validateForgeAcceptanceReview(review, plan) {
+  const expected = buildForgeAcceptanceReview({ plan, nonce: review?.transaction?.nonce, anchor: review?.anchor,
+    gasLimit: review?.gasLimit, maxFeePerGas: review?.maxFeePerGas });
+  valid(manifestHash(expected) === manifestHash(review), 'FORGE_ACCEPTANCE_REVIEW_CHANGED');
+  return review;
+}
+
+export function forgeDeploymentStep(plan, index, acceptanceReview = null) {
+  valid(index === 0 || index === 1, 'INVALID_FORGE_DEPLOYMENT_STEP');
+  if (index === 1 && acceptanceReview) {
+    validateForgeAcceptanceReview(acceptanceReview, plan);
+    return { transaction: acceptanceReview.transaction, gasLimit: acceptanceReview.gasLimit,
+      maxFeePerGas: acceptanceReview.maxFeePerGas, anchor: acceptanceReview.anchor, expiresAt: acceptanceReview.expiresAt };
+  }
+  return { transaction: plan.transactions[index], gasLimit: plan.gasLimits[index], maxFeePerGas: plan.maxFeePerGas,
+    anchor: plan.anchor, expiresAt: plan.expiresAt };
+}
+
+export function assertForgeDeploymentTransaction({ plan, index, transaction: tx, acceptanceReview = null }) {
+  const step = forgeDeploymentStep(plan, index, acceptanceReview), expected = step.transaction;
+  valid(same(tx.from, expected.from) && (index === 0 ? tx.to === null : same(tx.to, expected.to))
+    && tx.input === expected.data && tx.value === 0n && tx.chainId === plan.chainId && String(tx.nonce) === expected.nonce
+    && tx.type === 'eip1559' && !tx.authorizationList?.length && tx.gas > 0n && tx.gas <= BigInt(step.gasLimit)
+    && tx.maxFeePerGas > 0n && tx.maxFeePerGas <= BigInt(step.maxFeePerGas) && tx.maxPriorityFeePerGas === 0n,
+  'FORGE_DEPLOYMENT_TRANSACTION_MISMATCH');
+  return step;
+}
+
+export async function verifyForgeDeployment({ clients, plan, build, transactionHashes, localFixture = false, acceptanceReview = null }) {
   validateForgeDeploymentPlan(plan, build, { localFixture });
   valid(Array.isArray(clients) && clients.length === (localFixture ? 1 : 2)
     && Array.isArray(transactionHashes) && transactionHashes.length === 2
@@ -152,17 +193,20 @@ export async function verifyForgeDeployment({ clients, plan, build, transactionH
     const fees = [];
     for (const [index, hash] of transactionHashes.entries()) {
       const [receipt, tx] = await Promise.all([client.getTransactionReceipt({ hash }), client.getTransaction({ hash })]);
-      const expected = plan.transactions[index], mined = await client.getBlock({ blockNumber: receipt.blockNumber });
+      const step = assertForgeDeploymentTransaction({ plan, index, transaction: tx, acceptanceReview });
+      const expected = step.transaction, mined = await client.getBlock({ blockNumber: receipt.blockNumber });
+      const reviewAnchor = await client.getBlock({ blockNumber: BigInt(step.anchor.number) });
+      valid(same(reviewAnchor.hash, step.anchor.hash), 'FORGE_DEPLOYMENT_ANCHOR_CHANGED');
       valid(receipt.status === 'success' && same(receipt.transactionHash, hash) && same(tx.hash, hash)
         && same(receipt.blockHash, mined.hash) && same(tx.blockHash, mined.hash) && tx.blockNumber === receipt.blockNumber
-        && receipt.blockNumber > anchor.number && receipt.blockNumber <= final.number && mined.timestamp <= BigInt(plan.expiresAt)
+        && receipt.blockNumber > reviewAnchor.number && receipt.blockNumber <= final.number
         && (receipt.blockNumber > previousBlock || receipt.blockNumber === previousBlock && receipt.transactionIndex > previousIndex)
         && same(tx.from, expected.from) && same(receipt.from, expected.from)
         && (index === 0 ? tx.to === null && same(receipt.contractAddress, plan.addresses.deployment) : same(tx.to, expected.to))
         && tx.input === expected.data && tx.value === 0n && tx.chainId === plan.chainId && String(tx.nonce) === expected.nonce
         && tx.type === 'eip1559' && !tx.authorizationList?.length
-        && tx.gas > 0n && tx.gas <= BigInt(plan.gasLimits[index]) && tx.maxFeePerGas > 0n
-        && tx.maxFeePerGas <= BigInt(plan.maxFeePerGas) && tx.maxPriorityFeePerGas === 0n
+        && tx.gas > 0n && tx.gas <= BigInt(step.gasLimit) && tx.maxFeePerGas > 0n
+        && tx.maxFeePerGas <= BigInt(step.maxFeePerGas) && tx.maxPriorityFeePerGas === 0n
         && receipt.gasUsed <= tx.gas && receipt.effectiveGasPrice <= tx.maxFeePerGas
         && Number.isSafeInteger(receipt.transactionIndex) && receipt.transactionIndex >= 0 && tx.transactionIndex === receipt.transactionIndex
         && receipt.gasUsed > 0n && receipt.effectiveGasPrice > 0n, 'FORGE_DEPLOYMENT_RECEIPT_MISMATCH');
@@ -178,6 +222,9 @@ export async function verifyForgeDeployment({ clients, plan, build, transactionH
     planHash: plan.planHash, chainId: plan.chainId, localFixture, blockNumber: String(final.number), blockHash: final.hash,
     addresses: plan.addresses, codeHashes: observations[0].codeHashes, transactionHashes, observedFeesWei: observations[0].fees,
     finality: localFixture ? 'DISPOSABLE_CHAIN_ONLY' : 'TWO_RPC_FINALIZED', productionTrainingAuthorized: false, productionBurnAuthorized: false };
+  // Deployment and acceptOwnership have no on-chain expiry. Freshness is enforced
+  // before each wallet request; a late exact receipt must remain recoverable.
+  if (acceptanceReview) body.acceptanceReviewHash = acceptanceReview.reviewHash;
   return { ...body, evidenceHash: manifestHash(body) };
 }
 

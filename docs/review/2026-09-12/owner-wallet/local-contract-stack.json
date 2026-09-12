@@ -1,0 +1,60 @@
+{
+  "status": "PASS",
+  "environment": "NEW_DISPOSABLE_ANVIL",
+  "productionTransactions": 0,
+  "sourceTokenId": "7",
+  "targetTokenId": "44",
+  "contract": "GoghReviewedBurnSource",
+  "approvalTransaction": "0x040888a0c006bf90ae180c40e471b09c8311f0cc366893d47e238b8c6ff3642d",
+  "burnTransaction": "0x68b8f4bfc8c83e0f8466c52f07a64d7df0b254ba4351f7f843fbbc7398797bb3",
+  "tokenSpecificApproval": true,
+  "approvalDoesNotCredit": true,
+  "exactBrowserEncoding": true,
+  "sourceAndTargetRoundTripRejected": true,
+  "operatorApprovalRejected": true,
+  "cancellationInvalidates": true,
+  "globalPauseChecked": true,
+  "alteredReceiptRejected": true,
+  "missingReceiptPending": true,
+  "exactCreditEvents": true,
+  "previousPracticeReset": false,
+  "productionAuthority": false,
+  "walletInventoryReviewed": false,
+  "atomicDeployment": {
+    "schema": "GOGH_ATOMIC_FORGE_DEPLOYMENT_EVIDENCE_V1",
+    "status": "VERIFIED_PAUSED_FORGE",
+    "planHash": "0x10853289ae28e031403cae055c0321e27c969d13f48927def9203513cdebbb2f",
+    "chainId": 31337,
+    "localFixture": true,
+    "blockNumber": "3",
+    "blockHash": "0x45964c2064a5a2e66ba16e881396a3fe7b0fa84f6e3edab479113266dec7c154",
+    "addresses": {
+      "deployment": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+      "registry": "0xCafac3dD18aC6c6e92c921884f9E4176737C052c",
+      "trainingSource": "0x9f1ac54BEF0DD2f6f3462EA0fa94fC62300d3a8e",
+      "progression": "0xbf9fBFf01664500A33080Da5d437028b07DFcC55"
+    },
+    "codeHashes": {
+      "deploymentCodeHash": "0x3c6632b5218c83b7cf62a83bf84b09744d79699e5fd2503444cbb0403518b7ec",
+      "registryCodeHash": "0x6a061b9d291e4402e32f93e7815cb2fe2242e725fe4052740f2be0a78049d3c3",
+      "progressionCodeHash": "0xd7c26c343ce13675cf04560ab4cd419bb79a694c71b6079196bdf04ef8db80dd",
+      "trainingSourceCodeHash": "0xe7e7313975610c0a2a59c789a01349447c26e9fdd67c252615a1fbe99dff5935"
+    },
+    "transactionHashes": [
+      "0xfcf14f5f43601e3a21beff6ee2788e0defe817077fd3207b0f99bd9029d8bf77",
+      "0x406b8be7a227b14e4b88f81ccbbc494372386669787a4ae89f7514bd2cc2579b"
+    ],
+    "observedFeesWei": [
+      "3374647127938998",
+      "22630053578553"
+    ],
+    "finality": "DISPOSABLE_CHAIN_ONLY",
+    "productionTrainingAuthorized": false,
+    "productionBurnAuthorized": false,
+    "evidenceHash": "0x761cefb764c7aa74303078125d14b3b5ac892c8ae05595df84055b5748de391d"
+  },
+  "deploymentCorruptionCasesRejected": 11,
+  "localEvidenceCannotBecomePublicManifest": true,
+  "burnCreditLearnEquipUnequip": true,
+  "actualLoadoutReader": true
+}

@@ -13,6 +13,11 @@ have separate implementation and acceptance work.
 
 ## Your test setup
 
+For the current contract setup stage, use [the live owner-wallet steps](V2_FORGE_OWNER_WALLET_TEST.md)
+at http://127.0.0.1:64345/. That page sends real deployment/registry-acceptance
+transactions through your wallet. The full release tests below still require
+the production integrations and explicit capability enablement.
+
 | Item | Record before testing |
 | --- | --- |
 | Live URL | The published broker URL supplied with the release; open Talk without `preview=1` |

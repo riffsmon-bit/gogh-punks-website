@@ -1,0 +1,49 @@
+{
+  "schema": "GOGH_LIVE_OWNER_WALLET_CHECKPOINT_V1",
+  "observedAt": "2026-09-12T14:28:06.757Z",
+  "javascript": {
+    "passed": 1769,
+    "failed": 0,
+    "skipped": 0
+  },
+  "deploymentChecks": {
+    "passed": 127,
+    "failed": 0
+  },
+  "browser": "PASS_OWNED_ANVIL_1440_390_375",
+  "serverRestartAndLostHashRecovery": "PASS",
+  "freshAcceptanceNonce": "PASS",
+  "localContractStack": "PASS",
+  "liveConsole": {
+    "url": "http://127.0.0.1:64345/",
+    "administrator": "0xC7f55cE6A7dF9A79cc4A643a5081230F890c7AA6",
+    "chainId": 4663,
+    "reviewPrepared": true,
+    "steps": [
+      {
+        "status": "READY",
+        "transactionHash": null
+      },
+      {
+        "status": "READY",
+        "transactionHash": null
+      }
+    ],
+    "verified": false
+  },
+  "publicTransactions": 0,
+  "burns": 0,
+  "productionBurnEnabled": false,
+  "sourceSha256": {
+    "broker/src/v4/skill-forge/forge-deployment.mjs": "32cd14a30c82c901e330e56818376f3da210faf2b6e0de01b987bc9278baa446",
+    "broker/src/v4/skill-forge/forge-deployment-preparation.mjs": "8455853cf7ff16df0e6a68e7d8a59bf1e59efd25090ff4876d81e995243b9ea7",
+    "scripts/dev/skill-forge/owner-deployment-session.mjs": "d8ae5aa73229b008ebcfe5e09a76d56674b816780a331a10affd1f57e05ae0f6",
+    "scripts/dev/skill-forge/owner-deployment-server.mjs": "4560ba6a5ae52852915da26a480081fb68ee593d9b26318cec2c552ac34e6f99",
+    "site/forge-deployment-wallet.js": "dd30d2f8303875f4db1670c253f1980098e6d3e1c9be502c7a0394ea630b1f38",
+    "scripts/dev/skill-forge/owner-deployment.js": "e3d5e96ab404d4975b1aa92402ec5f214fe11d0e35faeafd068e47fa0c49ada6",
+    "scripts/dev/skill-forge/owner-deployment.html": "f4194e04ef0600eeeb1e99bf6e3754a840cd316990770aa882556062716516bb",
+    "scripts/dev/skill-forge/owner-deployment.css": "10c44664c50378097122f95cbe9039c6be7dc7cfe38a5d2621b1c97a0710b33c",
+    "scripts/test-owner-deployment-browser.mjs": "7e8376bee55d3a9abb7b9f56d371095e814290eb0d94e8f682a29ed255bf7037",
+    "tests/skill-forge-deployment-wallet.test.mjs": "ce27f181677923e10dfb448526972047b1ffa1db1bbe528b52567be384d085e4"
+  }
+}
