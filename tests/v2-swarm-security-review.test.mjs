@@ -2,6 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { decodeFunctionData, keccak256, parseAbi } from 'viem';
 import { CODE as runtime } from './fixtures/punk-agent-runtime.mjs';
+import { StatelessV2Executor } from '../broker/src/v4/executor.mjs';
+import { defaultAskIntent } from '../broker/src/v4/collecting-intent.mjs';
+import { validateMintSimulation } from '../broker/src/v4/simulation.mjs';
 import { AGENT_RECOVERY_PINS as P, agentRecoveryProxyRuntime,
   buildAgentRecoveryTransaction, createAgentRecoveryController } from '../site/punk-agent-recovery.js';
 
@@ -109,3 +112,37 @@ test('security: an edited terminal journal cannot claim success without receipt 
   assert.throws(() => f.controller().getState(), { code: 'AGENT_RECOVERY_JOURNAL_INVALID' });
   assert.equal(f.calls.length, 0);
 });
+
+for (const field of ['approvals', 'unexpectedTransfers']) {
+  test(`security: executor cannot erase sparse ${field} before simulation validation`, async () => {
+    const at = new Date(now), transitions = [];
+    const strategy = { ...defaultAskIntent({ punkTokenId: '93', expectedOwner: owner, punkWallet: account }, at),
+      operatingMode: 'ASSIST', maxGasPerMintWei: '500', minimumReserveWei: '1000' };
+    const candidate = { schema: 'GOGH_NORMALIZED_OPPORTUNITY_V2', version: 2,
+      opportunityId: 'security:mint:public', chainId: 4663, collectionContract: asset,
+      mintContract: asset, adapter: asset, mintStage: 'PUBLIC', mintMethod: 'mint()',
+      priceWei: '0', estimatedGasCostWei: '100', supply: 100, walletLimit: 1,
+      startTime: null, endTime: null, website: 'https://art.example',
+      socialUrls: { x: 'https://x.com/art', discord: null, farcaster: null }, sourceUrls: [],
+      artStyles: [], imageReference: null, collectionName: 'Security fixture',
+      contractCodeHash: blockHash, adapterCodeHash: blockHash, screeningStatus: 'PASSED',
+      simulationStatus: 'PASSED', riskLevel: 'LOW', riskScore: 0, expectedNftReceiver: account,
+      unexpectedApprovals: false, unexpectedTransfers: false, createdAt: at.toISOString(), updatedAt: at.toISOString() };
+    const evidence = { success: true, reverted: false, valueWei: '0', nftReceiver: account,
+      estimatedGasWei: '100', approvals: [], unexpectedTransfers: [], postCallVerified: true,
+      [field]: Array(1) };
+    assert.equal(validateMintSimulation(evidence, { valueWei: '0', punkWallet: account }).status, 'FAILED');
+    const executor = new StatelessV2Executor({ clock: () => at,
+      readAuthority: async () => ({ chainId: 4663, collection: P.collection, tokenId: '93',
+        owner, punkWallet: account, activated: true, nativeBalanceWei: '2000', blockNumber: '88', blockHash }),
+      attemptStore: { reserve: async () => ({ replayed: false }),
+        transition: async (_key, state) => { transitions.push(state); } },
+      buildKnownSafeMint: async () => ({ envelope: { to: asset, valueWei: '0', data: '0x12345678' },
+        screening: { allowedSelectors: ['0x12345678'], adapterRecognized: true, chainCodePinned: true,
+          proxyChanged: false, containsDelegatecall: false, requestsApproval: false, requestsAssetTransfer: false } }),
+      simulate: async () => evidence });
+    await assert.rejects(executor.prepare({ intent: strategy, opportunity: candidate, strategyVersion: 1,
+      accountNonce: '1', usage: { dailyMints: 0, totalMints: 0, opportunityMints: 0 } }));
+    assert.deepEqual(transitions, ['REJECTED']);
+  });
+}
