@@ -58,7 +58,7 @@ This command requires existing server environment values; it does not fetch secr
 
 Focused adapter/probe and existing AI regression suite: **74/74 passed**, zero failures, skipped or cancelled (2.213 seconds). Command: `node --test tests/groq-provider.test.mjs tests/bankr-enablement.test.mjs tests/v2-swarm-ai.test.mjs tests/v2-hardening-ai.test.mjs`. Both operator scripts also passed Node syntax checks and `git diff --check` passed. New tests cover exact model/origin binding, dedicated credential preference, no network without configuration/free-plan verification, no arbitrary tool routing, actual provider identity, strict JSON output, truncated/refused/tool-call responses, sanitized limits, two fixed read-only Bankr checks, daily budget/credit rejection, bounded stalled streams and the distinction between configuration, local live proof and deployed readiness.
 
-The original specialist branch added no contracts, wallet permissions, skills, database migrations or frontend controls. Root integrated the shared seams below. Bankr remains disabled. Groq has completed secure credential handoff, direct live probes and deployed preview verification; production verification follows publication.
+The original specialist branch added no contracts, wallet permissions, skills, database migrations or frontend controls. Root integrated the shared seams below. Bankr remains disabled. Groq has completed secure credential handoff, direct live probes and deployed preview and production verification.
 
 ## Lead integration evidence
 
@@ -85,3 +85,21 @@ typechecking, wallet build, static/secret/syntax and broker checks. After adding
 the actual holder's separate expired-review case, the full JavaScript suite
 passed **2,501/2,501** with no failure, cancellation or skip (214.134 seconds).
 The focused paid-mint/recovery suite passed **32/32**. These counts overlap.
+
+## Production verification
+
+PR #67 published as `8c848176346e3077976f2c11246647e2364f6e95` in Netlify deploy
+`6aa70b3ad28c240008927876` at 2026-09-13T20:46:43.313Z. All five checked browser
+files match the reviewed source. The production provider list includes Groq,
+Gemini, GPT, Claude and Grok; Bankr is absent. [Served-file proof](pr67-served-proof.json).
+
+Actual production Groq chat and strict structured-output probes passed through
+the application runtime and its database quota checks at 20:47:07Z, with all six
+usage/registry privileges verified (2,818 ms combined). This is an observed
+request pair, not a service-level guarantee. [Production proof](groq-production-proof.json).
+The free account was not upgraded and no paid top-up was made.
+
+The holder's newly loaded production page also displays **PAID MINT COMPLETE**,
+Peppies World #1599, the Collection link and the separate expired-review dismissal.
+Verification read the DOM and did not click a wallet or cancellation action.
+[Production UI proof](paid-completion-production-ui.json).

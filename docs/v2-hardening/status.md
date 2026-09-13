@@ -22,7 +22,7 @@ All shared interfaces were agreed before feature work. No two feature agents own
 
 Validation: full JavaScript **2,435/2,435**; deployment **140/140**; unchanged contracts **284/284**; independent security **39/39**; route integration **40/40**; final browser **25 scenarios / 59 screenshots**. Counts overlap. The last security-only file was added after the main full-run glob and passed in the separate 39-test review gate.
 
-No demonstrated unresolved P0/P1 remains in controlled-testing scope. One P3 decorative cached budget meter remains; numeric unknown values and fresh execution gates are correct. Bankr lacks reviewed credentials; generic website resolution, unaccepted Forge packages, floor sweeps/bids, arbitrary paid collections and general Agent ERC20 recovery are explicitly unavailable.
+No demonstrated unresolved P0/P1 remains in the original controlled-testing scope. The P3 decorative cached budget meter was subsequently fixed in PR #67. Bankr remains disabled by owner preference; generic website resolution, unaccepted Forge packages, public floor sweeps/bids, arbitrary paid collections and general Agent ERC20 recovery remain explicitly unavailable. Further capability work has its own review boundary.
 
 Production model configuration uses only existing managed-gateway access; no key appears in browser code, evidence or logs. Production proof passed after deployment and is recorded in release-acceptance.json. The old read-only database role is intentionally not the application write role; the actual preview and published production functions passed all required usage/registry privileges.
 
@@ -31,3 +31,16 @@ See [final report](final-report.md), [acceptance matrix](acceptance-matrix.md), 
 ## Published release
 
 PR #65 is deployed at `61cb6a973027d5f3ae3744fa62f0cb45e57dff4f`, Netlify `6aa6f80761abe600083ab7c1`, published 2026-09-13T19:24:57.840Z. Nine critical served files match the reviewed source. All four real production provider probes pass. The existing authenticated holder session received 140 fully verified Punks in 2,800ms, #93 Collection 34 holdings including #1599 in 6,991ms, fund data in 5,353ms, supported contract inspection in 2,657ms and five Market v2 observations in 14,136ms. These are individual actual-route observations, not a p95/SLA. No wallet request or public transaction occurred. [Release evidence](release-acceptance.json).
+
+### PR #67 follow-up
+
+Current publication is `8c848176346e3077976f2c11246647e2364f6e95`, Netlify
+`6aa70b3ad28c240008927876`, published 2026-09-13T20:46:43.313Z. Groq is verified
+through the real production quota-backed runtime, Bankr stays disabled, Forge
+reads use the configured independent archive services, and returning #93 shows
+its completed #1599 mint separately from an expired unsigned review. Full JS:
+2,501 passed; focused paid browser: 15 scenarios passed; native PostgreSQL:
+28 assertions passed. [Verification](free-ai-enablement.md#production-verification).
+The new skill and marketplace expansion is tracked separately in
+[remaining capability status](../v2-next-capabilities/status.md); this publication
+does not activate those financial operations.

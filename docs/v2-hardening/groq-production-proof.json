@@ -1,0 +1,33 @@
+{
+  "checkedAt": "2026-09-13T20:47:07.271Z",
+  "origin": "https://goghpunks.xyz",
+  "status": 200,
+  "elapsedMs": 2818,
+  "ok": true,
+  "code": "AI_CONNECTION_VERIFIED",
+  "checks": [
+    {
+      "kind": "CHAT",
+      "verified": true,
+      "provider": "GROQ",
+      "code": "PASS"
+    },
+    {
+      "kind": "STRUCTURED_OUTPUT",
+      "verified": true,
+      "provider": "GROQ",
+      "code": "PASS"
+    }
+  ],
+  "databasePrivileges": {
+    "checked": true,
+    "usageSelect": true,
+    "usageInsert": true,
+    "usageUpdate": true,
+    "registrySelect": true,
+    "registryInsert": true,
+    "registryUpdate": true
+  },
+  "walletAuthority": "NONE",
+  "transactionSubmitted": false
+}

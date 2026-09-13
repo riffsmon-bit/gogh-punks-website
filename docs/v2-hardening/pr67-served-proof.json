@@ -1,0 +1,61 @@
+{
+  "checkedAt": "2026-09-13T20:47:06.027Z",
+  "origin": "https://goghpunks.xyz",
+  "files": [
+    {
+      "path": "broker-v2.js",
+      "httpStatus": 200,
+      "sha256": "4489e656d32f2773b08195887cb986671681a483dd24aef23c77bc8461b4f873",
+      "matches": true
+    },
+    {
+      "path": "broker-v2.css",
+      "httpStatus": 200,
+      "sha256": "89ec01951735329ac672640b69138f9d558e5a8af6532cf62af7e36e5019a76c",
+      "matches": true
+    },
+    {
+      "path": "directed-paid-panel.js",
+      "httpStatus": 200,
+      "sha256": "68d80c2a089d168c735cb7b3a506e642d862bd6028b253f125f1cdbd8e5efcd7",
+      "matches": true
+    },
+    {
+      "path": "directed-paid-status.js",
+      "httpStatus": 200,
+      "sha256": "b7c568d5f55dd68906b13ed1b175e9a768ac315f902dd11cc3493d775b663416",
+      "matches": true
+    },
+    {
+      "path": "broker-v2-preferences.js",
+      "httpStatus": 200,
+      "sha256": "f9fc4d25406343892be92ed4177496a3a673d3914c128d8b8917e17d91030f83",
+      "matches": true
+    }
+  ],
+  "providers": [
+    {
+      "provider": "GROQ",
+      "health": true
+    },
+    {
+      "provider": "GEMINI",
+      "health": true
+    },
+    {
+      "provider": "OPENAI",
+      "health": true
+    },
+    {
+      "provider": "ANTHROPIC",
+      "health": true
+    },
+    {
+      "provider": "XAI",
+      "health": true
+    }
+  ],
+  "bankrDisabled": true,
+  "groqConfigured": true,
+  "transactionsSubmitted": 0
+}

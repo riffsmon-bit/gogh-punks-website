@@ -10,10 +10,10 @@ The user requested continued implementation of burn/training, remaining skills, 
 |---|---|---|---|
 | Burn, credits, skill progression and interactive practice | forge_completion | `broker/src/v4/skill-forge` excluding market readers; `site/forge-*`, `site/broker-v2-forge.*`; Forge functions/runtime; dedicated tests/scripts | RUNNING |
 | Marketplace purchase/sweep/offer lifecycle | market_execution | New `broker/src/v4/marketplace/**`, new marketplace contracts/tests/scripts | RUNNING — wallet/Seaport compatibility audit and interface proposal first |
-| Free AI / Bankr disabled | bankr_enablement + lead | Groq/Bankr adapters, registry/runtime/preference seams, provider constraint migration, tests/probes/docs | INTEGRATED — direct and quota-backed preview Groq checks passed; 28 native PostgreSQL assertions; production publication/check pending |
+| Free AI / Bankr disabled | bankr_enablement + lead | Groq/Bankr adapters, registry/runtime/preference seams, provider constraint migration, tests/probes/docs | INTEGRATED — PR #67 published as `8c84817`; direct, preview and production quota-backed Groq checks passed; 28 native PostgreSQL assertions |
 | Versioned real skills | real_skill_completion | Versioned packages/adapters and research runtime; shared MCP context integration owned by lead | RUNNING |
 | Integration, core UI, API/chat seams, cosmetic fix | lead | `site/broker-v2.js/.css`, core page, integration docs and shared seams | RUNNING |
-| Paid-mint completion display and independent review | lead + free_ai_release_review | `site/directed-paid-panel.js`, `site/directed-paid-status.js`, focused tests; reviewer owns new browser regression and review doc | READY_FOR_REVIEW — completed #1599 fixture restores after reload; 10 real-browser scenarios passed at 1440/375/320; no automatic wallet or recovery action |
+| Paid-mint completion display and independent review | lead + free_ai_release_review | `site/directed-paid-panel.js`, `site/directed-paid-status.js`, focused tests; reviewer owns new browser regression and review doc | INTEGRATED — `bdc5725`, published in PR #67; 15 browser scenarios passed at 1440/375/320; actual production DOM confirms #1599 complete and separate expired review |
 
 Reuse `ArtBrokerAIProvider`, existing exact review/receipt/idempotency contracts, fixed current-owner checks, Skill Registry hashes and `EffectiveCapabilities`. Marketplace interfaces must be proposed and accepted before another scope consumes them. Accepted v1 skill packages and hashes cannot silently change.
 
