@@ -33,3 +33,14 @@ export function createSetupReadClient(url) {
   return createPublicClient({ transport: custom({ request: args => requestSetupRead(upstream.request, args) },
     { retryCount: 0 }), cacheTime: 0 });
 }
+
+export async function readSetupAnchor(clients, now = Date.now) {
+  const heads = await Promise.all(clients.map(client => client.getBlock()));
+  if (heads.length < 2 || heads.some(block => typeof block?.number !== 'bigint'
+    || typeof block.timestamp !== 'bigint' || !/^0x[0-9a-f]{64}$/i.test(block.hash ?? ''))) throw Error('LIVE_SETUP_STATE_UNAVAILABLE');
+  // A provider may be several blocks ahead of its peer. Use a block both have
+  // reached; the caller still verifies its canonical hash and state on each node.
+  const anchor = heads.reduce((lower, block) => block.number < lower.number ? block : lower);
+  if (Math.abs(now()/1000 - Number(anchor.timestamp)) >= 30) throw Error('LIVE_SETUP_STATE_STALE');
+  return anchor;
+}

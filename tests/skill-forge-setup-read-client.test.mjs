@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { requestSetupRead } from '../scripts/dev/skill-forge/setup-read-client.mjs';
+import { requestSetupRead, readSetupAnchor } from '../scripts/dev/skill-forge/setup-read-client.mjs';
 
 const query = { method: 'eth_getCode', params: ['0x' + '1'.repeat(40), '0x100'] };
 test('setup reads recover transient rate limits and state propagation on the same request', async () => {
@@ -33,4 +33,14 @@ test('setup transport refuses every transaction and signing method before callin
     await assert.rejects(requestSetupRead(() => { throw Error('PROVIDER_MUST_NOT_BE_CALLED'); },
       { method, params: [] }), /SETUP_RPC_READ_ONLY/);
   }
+});
+
+test('setup selects the fresh head both providers have reached and rejects stale or missing heads', async () => {
+  const lower = { number: 100n, timestamp: 1000n, hash: '0x' + '1'.repeat(64) };
+  const higher = { number: 105n, timestamp: 1001n, hash: '0x' + '2'.repeat(64) };
+  const clients = heads => heads.map(block => ({ getBlock: async () => block }));
+  assert.equal(await readSetupAnchor(clients([higher, lower]), () => 1002000), lower);
+  assert.equal(await readSetupAnchor(clients([lower, higher]), () => 1002000), lower);
+  await assert.rejects(readSetupAnchor(clients([higher, lower]), () => 1030000), /LIVE_SETUP_STATE_STALE/);
+  await assert.rejects(readSetupAnchor(clients([higher, null]), () => 1002000), /LIVE_SETUP_STATE_UNAVAILABLE/);
 });
