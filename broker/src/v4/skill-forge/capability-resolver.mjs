@@ -130,7 +130,9 @@ export function createSkillToolGate({ readState, packages, implementations }) {
     async call({ tokenId, owner, name, arguments: args = {} }) {
       const context = await resolve({ tokenId, owner });
       if (!context.effectiveMcpTools.includes(name)) throw new Error('SKILL_TOOL_DENIED');
-      if (!args || typeof args !== 'object' || Array.isArray(args)
+      if (!args || typeof args !== 'object' || Object.getPrototypeOf(args) !== Object.prototype
+        || Reflect.ownKeys(args).some(key => typeof key !== 'string')
+        || Object.values(Object.getOwnPropertyDescriptors(args)).some(descriptor => !Object.hasOwn(descriptor, 'value'))
         || args.tokenId !== undefined && String(args.tokenId) !== String(context.tokenId)
         || args.owner !== undefined && getAddress(args.owner) !== getAddress(context.owner)) throw new Error('TOOL_IDENTITY_MISMATCH');
       const result = await implementations[name]({ ...args, tokenId: context.tokenId, owner: context.owner }, context);

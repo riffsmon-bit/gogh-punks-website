@@ -88,6 +88,17 @@ test('missing, duplicate or out-of-capability tool declarations fail closed even
     assert.throws(() => resolve(f), /PACKAGE_TOOL_MISMATCH/);
   }
 });
+
+test('tool gate rejects accessors and exotic records before reading caller properties', async () => {
+  const f = fixture(); f.state.blockTime = Date.now(); let accessed = 0, called = 0;
+  const gate = createSkillToolGate({ readState: async () => f.state, packages: [f.pack],
+    implementations: { inspect_contract: () => { called++; } } });
+  for (const args of [Object.create({ tokenId: '93' }), { [Symbol('hidden')]: true },
+    Object.defineProperty({}, 'tokenId', { get() { accessed++; return '93'; }, enumerable: true })]) {
+    await assert.rejects(gate.call({ tokenId: '93', owner, name: 'inspect_contract', arguments: args }), /TOOL_IDENTITY_MISMATCH/);
+  }
+  assert.equal(accessed, 0); assert.equal(called, 0);
+});
 test('canonical hashing is key-order stable but value-sensitive', () => {
   assert.equal(manifestHash({ a: 1, b: 2 }), manifestHash({ b: 2, a: 1 }));
   assert.notEqual(manifestHash({ a: 1 }), manifestHash({ a: 2 }));

@@ -22,7 +22,7 @@ export function createForgeRpcClients(environment = process.env, { clientFactory
   const pair = resolveForgeRpcPair(environment);
   // Existing coordinator code selects index 1 for authoritative state reads.
   // Preserve that contract while giving it the configured archive primary.
-  return [pair.secondary, pair.primary].map(url => clientFactory({ cacheTime: 0,
+  return [pair.secondary, pair.primary].map(url => clientFactory({ cacheTime: 0, ccipRead: false,
     transport: transportFactory(url, { timeout: 6000, retryCount: 0, batch: { batchSize: 20, wait: 5 },
       fetchOptions: { redirect: 'error' } }),
   }));

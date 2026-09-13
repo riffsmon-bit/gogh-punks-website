@@ -1,14 +1,13 @@
 import { TRAINING_RELEASE, TRAINING_BINDING } from './forge-training-release.js';
 import { createDurableTrainingWallet, validateDurableTrainingSnapshot } from './forge-durable-wallet.js';
-import { keccak256Hex } from './keccak256.js';
+import { forgeResearchAction, forgeResearchNeedsSample } from './forge-research-actions.js';
+import { renderPlannedResearchResult } from './forge-research-result.js';
 
 const ZERO=`0x${'0'.repeat(64)}`;
 const TERMINAL=['EXPIRED','CANCELLED','SETTLED_SUCCESS','SETTLED_REVERT','NONCE_CONSUMED','REVIEW_EXPIRED'];
 const element=(tag,text)=>{const node=document.createElement(tag);if(text!=null)node.textContent=text;return node;};
 const eth=value=>{const n=BigInt(value),fraction=(n%10n**18n).toString().padStart(18,'0').replace(/0+$/,'');return `${n/10n**18n}${fraction?`.${fraction}`:''} ETH`;};
 const randomKey=()=>Array.from(crypto.getRandomValues(new Uint8Array(32)),n=>n.toString(16).padStart(2,'0')).join('');
-const researchActions=new Map([[3,'inspect_contract'],[4,'rank_trait_sample'],[8,'get_market_listings']].map(([id,action])=>[
-  keccak256Hex(`0x${BigInt(id).toString(16).padStart(64,'0')}${'1'.padStart(64,'0')}`),action]));
 
 // Lives inside the existing V2 Forge tab. Talk, mint review and the shared gas
 // funding component retain their current behavior. No wallet request on mount.
@@ -59,8 +58,8 @@ export function createDurableTrainingPanel({root,getSelection,ensureSession,requ
   }
   const check=()=>work(async(selected,current)=>{await ensureSession();if(current())await refresh(selected,current);});
   const research=skillKey=>work(async(selected,current)=>{
-    researchResult=null;const action=researchActions.get(skillKey);if(!action)throw Error('This research action is not available.');
-    const sampleTokenIds=action==='rank_trait_sample'?[String(selected.tokenId),
+    researchResult=null;const action=forgeResearchAction(skillKey);if(!action)throw Error('This research action is not available.');
+    const sampleTokenIds=forgeResearchNeedsSample(action)?[String(selected.tokenId),
       document.querySelector('[data-forge-sample-two]')?.value.trim(),document.querySelector('[data-forge-sample-three]')?.value.trim()]:undefined;
     const result=await request(`/api/v2/punks/${selected.tokenId}/forge/skill`,{method:'POST',headers:{'content-type':'application/json'},
       body:JSON.stringify({action,skillKey,...(sampleTokenIds?{sampleTokenIds}:{})}),timeoutMs:45000});
@@ -138,11 +137,13 @@ export function createDurableTrainingPanel({root,getSelection,ensureSession,requ
       if(skill.level===0)button(row,'REVIEW LEARN · 1 CREDIT',()=>prepare({operation:'learn',skillKey:skill.key}),!skill.available||BigInt(s.credits)<1n);
       else{const label=element('label','Equip in slot');const select=element('select');for(let slot=0;slot<s.slots;slot++){const option=element('option',`Slot ${slot+1}`);option.value=String(slot);select.append(option);}label.append(select);row.append(label);
         button(row,'REVIEW EQUIP',()=>prepare({operation:'equip',skillKey:skill.key,slot:Number(select.value)}),!skill.available||s.equipped.includes(skill.key));}
-      if(skill.level===1&&skill.available&&s.equipped.includes(skill.key)&&researchActions.has(skill.key))button(row,'RUN EQUIPPED RESEARCH',()=>research(skill.key));
+      if(skill.level===1&&skill.available&&s.equipped.includes(skill.key)&&forgeResearchAction(skill.key))button(row,'RUN EQUIPPED RESEARCH',()=>research(skill.key));
       root.append(row);
     }
     s.equipped.forEach((skillKey,slot)=>{if(skillKey!==ZERO)button(root,`REVIEW UNEQUIP · SLOT ${slot+1}`,()=>prepare({operation:'unequip',slot}));});
-    if(researchResult){const details=element('details');details.append(element('summary','View equipped research result'),
+    if(researchResult){
+      if(['rank_observed_listings','research_collection','classify_collection'].includes(researchResult.action))root.append(renderPlannedResearchResult({document:root.ownerDocument,action:researchResult.action,result:researchResult.result}));
+      const details=element('details');details.append(element('summary','View equipped research result'),
       element('p',`Observed ${new Date(researchResult.observedAt).toLocaleString()}. Re-run for a fresh result.`),element('pre',JSON.stringify(researchResult.result,null,2)));root.append(details);}
     root.append(element('p','Use the selected burn review above to earn a credit. Training does not grant spending permission.'));
   }
