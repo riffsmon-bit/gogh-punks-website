@@ -11,13 +11,17 @@ const owner=`0x${'1'.repeat(40)}`,other=`0x${'2'.repeat(40)}`,account=`0x${'3'.r
 const hash=`0x${'a'.repeat(64)}`,origin='https://deploy-preview-47.preview.goghpunks.xyz';
 const now=new Date('2026-09-11T22:00:00Z');
 const environment={CONTEXT:'deploy-preview',PUNK_AGENT_PREVIEW_RUN_ENABLED:'true',PUNK_AGENT_WORKER_ENABLED:'true',ENABLE_PREVIEW_BACKGROUND_RPC:'true',BACKGROUND_RPC_ALLOWED_TASKS:'PUNK_AGENT_WORKER'};
-let db,pool,sessions,runs,authOwner,liveOwner;
+let db,leaseDb,pool,sessions,runs,authOwner,liveOwner;
 before(async()=>{
  db=new PGlite();
+ // PGlite has one backend. Use another instance for the lease connection so
+ // its rollback cannot roll back unrelated pool queries. Native PostgreSQL
+ // integration separately verifies real shared-lock concurrency and expiry.
+ leaseDb=new PGlite();
  for(const file of ['20260817224000_create_art_broker_foundation.sql','20260906010000_create_art_broker_v2.sql','20260907010000_add_punk_agent_accounts.sql'])await db.exec(await readFile(new URL('../netlify/database/migrations/'+file,import.meta.url),'utf8'));
- pool={query:(...args)=>db.query(...args),connect:async()=>({query:(...args)=>db.query(...args),release(){}})};
+ pool={query:(...args)=>db.query(...args),connect:async()=>({query:(...args)=>leaseDb.query(...args),release(){}})};
 });
-after(async()=>{await db?.close();});
+after(async()=>{await db?.close();await leaseDb?.close();});
 async function seed(tokenId,wallet){
  const punkAccount=tokenId==='93'?account:`0x${'4'.repeat(40)}`;
  const intent={...defaultAskIntent({punkTokenId:tokenId,expectedOwner:wallet,punkWallet:punkAccount},now),operatingMode:'AUTONOMOUS'};

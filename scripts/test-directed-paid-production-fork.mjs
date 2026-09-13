@@ -8,6 +8,7 @@ import {createPaidCoordinator} from '../broker/src/v4/directed-paid-coordinator.
 import {runDirectedPaidWorker} from '../broker/src/v4/directed-paid-worker.mjs';
 import {PAID_ABI,paidRead} from '../broker/src/v4/directed-paid-mint.mjs';
 import {readDirectedPaidHistory} from '../broker/src/v4/directed-paid-history.mjs';
+import {acquirePunkAgentWorkerLease} from '../netlify/functions/_shared/punk-agent-worker-lease.mjs';
 if(process.argv.length!==4||process.argv[2]!=='--disposable-only'||!process.argv[3].startsWith('--postgres-bin=/'))throw Error('Requires --disposable-only --postgres-bin=/absolute/path');
 const bin=process.argv[3].slice('--postgres-bin='.length),run=promisify(execFile),dir=await mkdtemp(join(tmpdir(),'gogh-directed-paid-test-')),data=join(dir,'data');
 const port=async()=>{const s=createServer();await new Promise(r=>s.listen(0,'127.0.0.1',r));const p=s.address().port;await new Promise(r=>s.close(r));return p;};
@@ -18,6 +19,22 @@ try {
  await command('pg_ctl',['-D',data,'-l',join(dir,'postgres.log'),'-o',`-h 127.0.0.1 -p ${dbPort} -k ${dir}`,'-w','start']);started=true;
  const settings={host:'127.0.0.1',port:dbPort,database:'postgres',max:3,connectionTimeoutMillis:5000};
  admin=new pg.Pool({...settings,user:userInfo().username});
+ // Real PostgreSQL: a retired session lock cannot block the new key, concurrent
+ // workers have one winner, and timeout/disconnect cannot revive an old lease.
+ const retired=await admin.connect();
+ await retired.query('SELECT pg_advisory_lock(4663,8004)');
+ let held=await acquirePunkAgentWorkerLease(admin);
+ assert.equal(held.acquired,true);await held.assertHeld();
+ assert.equal((await acquirePunkAgentWorkerLease(admin)).acquired,false);
+ await held.release();
+ await retired.query('SELECT pg_advisory_unlock(4663,8004)');retired.release();
+ let connection;
+ held=await acquirePunkAgentWorkerLease({connect:async()=>{connection=await admin.connect();return connection;}});
+ await connection.query("SET LOCAL idle_in_transaction_session_timeout='200ms'");
+ await new Promise(r=>setTimeout(r,500));
+ await assert.rejects(held.assertHeld(),{code:'WORKER_LEASE_LOST'});await held.release();
+ const successor=await acquirePunkAgentWorkerLease(admin);assert.equal(successor.acquired,true);
+ await successor.assertHeld();await successor.release();
  await admin.query(await readFile(new URL('../netlify/database/migrations/20260913050000_stage_directed_paid_reviews.sql',import.meta.url),'utf8'));
  await admin.query('CREATE ROLE forge_request LOGIN; CREATE ROLE forge_worker LOGIN; CREATE ROLE anon LOGIN; CREATE ROLE authenticated; CREATE ROLE service_role; GRANT USAGE ON SCHEMA public TO forge_request,forge_worker;');
  await admin.query(await readFile(new URL('../netlify/database/review/directed-paid-roles.sql',import.meta.url),'utf8'));
@@ -43,7 +60,13 @@ try {
  const options={clients,release:r,now:()=>at};
  const coordinator=createPaidCoordinator({...options,store}),workerCoordinator=createPaidCoordinator({...options,store:workerStore});
  const relay={getChainId:()=>c.getChainId(),getTransactionCount:v=>c.getTransactionCount(v),sendRawTransaction:v=>c.sendRawTransaction(v)};
- const tick=()=>runDirectedPaidWorker({...options,store:workerStore,coordinator:workerCoordinator,relay,signer});
+ let loseLeaseBeforeBroadcast=false;
+ const tick=async()=>{
+  const lease=await acquirePunkAgentWorkerLease(admin);assert.equal(lease.acquired,true);let checks=0;
+  try{return await runDirectedPaidWorker({...options,store:workerStore,coordinator:workerCoordinator,relay,signer,
+   assertLease:async()=>{checks++;if(loseLeaseBeforeBroadcast&&checks===3)await lease.release();await lease.assertHeld();}});}
+  finally{await lease.release();}
+ };
  const mine=async()=>{await c.request({method:'anvil_mine',params:['0xc','0x1']});at=Number((await c.getBlock()).timestamp)*1000;};
  let ownerSends=0;
  async function authorize(action='AUTHORIZE'){
@@ -62,10 +85,10 @@ try {
  await assert.rejects(coordinator.decline({intentId:rejected.review.intentId,revision:claim.record.revision,rejectionCode:4002}),/PAID_JOURNAL_CHANGED/);
  await coordinator.decline({intentId:rejected.review.intentId,revision:claim.record.revision,rejectionCode:4001});
  const id=await authorize();
- // Emulate worker crash after durable signature but before network broadcast.
+ // Lose the actual database lease after durable signature, before broadcast.
  const normal=relay.sendRawTransaction;let broadcastCalls=0;
- relay.sendRawTransaction=async()=>{throw Error('FIXTURE_BROADCAST_LOST');};
- await assert.rejects(tick(),/FIXTURE_BROADCAST_LOST/);
+ relay.sendRawTransaction=async()=>{throw Error('MUST_NOT_BROADCAST_WITHOUT_LEASE');};
+ loseLeaseBeforeBroadcast=true;await assert.rejects(tick(),{code:'WORKER_LEASE_LOST'});loseLeaseBeforeBroadcast=false;
  const signed=(await workerPool.query('SELECT * FROM broker_selected_paid_executions WHERE intent_id=$1',[id])).rows[0];
  assert.equal(signed.status,'SIGNED');assert.equal(keccak256(signed.raw_transaction),signed.transaction_hash);
  relay.sendRawTransaction=async args=>{broadcastCalls++;assert.equal(args.serializedTransaction,signed.raw_transaction);const hash=await normal(args);throw Object.assign(Error('FIXTURE_RESPONSE_LOST'),{fixtureHash:hash});};
@@ -106,6 +129,7 @@ try {
  const result={status:'PASS',environment:'DISPOSABLE_POSTGRES_AND_ANVIL_FORK',publicAnchor:{number:String(anchor.number),hash:anchor.hash},
   deployedFactory:r.factory,compiledVaultRuntimeVerified:r.vaultCodeHash,oneOwnerConfirmationForMint:true,workerExecuted:true,deliveredToken:completed.receipt.tokenId,
   lostBroadcastRecovery:true,sameSignedBytes:true,concurrentClaimWinner:1,ownershipRoundTripBlocked:true,cancelAndRefundVerified:true,
+  transactionLeaseConcurrentWinner:1,transactionLeaseTimeoutRecovered:true,lostLeasePreventsBroadcast:true,retiredSessionLockCannotBlock:true,
   runtimeDriftBlockedAndRefundable:true,expiredMissionNotSigned:true,collectionAndActivityHistoryVerified:true,publicGasQuoteWei:String(observedGasPrice),
   browserDatabaseDenied:true,requestCannotReadOrWriteSignedTransactions:true,publicTransactions:0};
  await writeFile(new URL('../docs/review/2026-09-12/selected-launch/production-paid-integration-fork.json',import.meta.url),JSON.stringify(result,null,2)+'\n');console.log(JSON.stringify(result));

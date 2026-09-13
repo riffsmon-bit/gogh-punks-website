@@ -247,10 +247,11 @@ export function createPunkAgentBundler({ url, fetchImpl = globalThis.fetch, time
   } });
 }
 
-export function createConfiguredPunkAgentBundler(environment = process.env) {
+export function createConfiguredPunkAgentBundler(environment = process.env, {assertLease = async () => {}} = {}) {
   const mode = environment.PUNK_AGENT_BUNDLER_MODE ?? "HTTPS";
   if (mode === "DIRECT_PRIVATE_RELAY") {
     return createPunkAgentDirectRelay({
+      assertLease,
       url: environment.PUNK_AGENT_DIRECT_RELAY_RPC_URL,
       receiptRpcUrl: environment.PUNK_AGENT_RECEIPT_RPC_URL ?? environment.RPC_URL,
       privateKey: environment.PUNK_AGENT_SESSION_PRIVATE_KEY,

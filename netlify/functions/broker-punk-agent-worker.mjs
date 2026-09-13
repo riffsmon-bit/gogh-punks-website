@@ -23,6 +23,7 @@ import { ROBINHOOD } from "../../broker/src/config.mjs";
 import { getRpcUrl } from "./_shared/config.mjs";
 import { backgroundRpcDecision } from "./_shared/background-rpc-policy.mjs";
 import { runConfiguredDirectedPaidWorker } from './_shared/directed-paid-runtime.mjs';
+import { acquirePunkAgentWorkerLease } from './_shared/punk-agent-worker-lease.mjs';
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
@@ -352,16 +353,12 @@ export async function runScheduledPunkAgentWorker({
   const readiness = punkAgentAccountReadiness(manifest);
   if (!readiness.ready) return Object.freeze({ status: "LOCKED", submitted: false,
     blockers: readiness.blockers });
-  const lease = await pool.connect();
-  let leaseHeld = false;
+  const lease = await acquirePunkAgentWorkerLease(pool);
+  if (!lease.acquired) return Object.freeze({ status: "WORKER_ALREADY_RUNNING", submitted: false });
   let selectedMission = null;
   let paidStatus;
   try {
-    const leaseResult = await lease.query("SELECT pg_try_advisory_lock($1::integer, $2::integer) AS acquired",
-      [ROBINHOOD.chainId, 8004]);
-    leaseHeld = leaseResult.rows[0]?.acquired === true;
-    if (!leaseHeld) return Object.freeze({ status: "WORKER_ALREADY_RUNNING", submitted: false });
-    const liveBundler = bundler ?? createConfiguredPunkAgentBundler(environment);
+    const liveBundler = bundler ?? createConfiguredPunkAgentBundler(environment, {assertLease: lease.assertHeld});
     const liveClient = client ?? createClient();
     const liveSigner = signer ?? createPunkAgentSessionSigner(environment);
     const reconciliation = await reconcileOne(pool, liveClient, liveBundler, now, missionScope);
@@ -373,7 +370,7 @@ export async function runScheduledPunkAgentWorker({
       const openFree = await pool.query(`SELECT operation_id FROM broker_v2_agent_user_operations
         WHERE state IN ('SIGNED','SUBMITTED','RECONCILIATION_REQUIRED') LIMIT 1`);
       if (openFree.rows.length) return Object.freeze({status:'SHARED_SIGNER_RECONCILIATION_PENDING',submitted:false});
-      const paid = await runPaid({environment,signer:liveSigner});
+      const paid = await runPaid({environment,signer:liveSigner,assertLease:lease.assertHeld});
       paidStatus = paid.status;
       if (paid.status !== 'PAID_NO_MISSION') return Object.freeze({...paid,reconciliation});
     }
@@ -381,13 +378,14 @@ export async function runScheduledPunkAgentWorker({
     const observation = { opportunitiesChecked: 0, liveSimulationsPassed: 0 };
     const run = await runMission({ deployment: manifest, client: liveClient,
       bundler: liveBundler, signer: liveSigner, gas, now,
+      assertLease: lease.assertHeld,
       loadMission: async () => {
         selectedMission = await loadMission(pool, now, missionScope);
         return selectedMission;
       },
       loadCandidate: ({ mission, runtime }) => loadCandidate(
         pool, liveClient, mission, runtime, now, observation),
-      reserveOperation: (input) => reserveOperation(pool, input),
+      reserveOperation: async (input) => { await lease.assertHeld(); return reserveOperation(pool, input); },
       markSubmitted: (input) => markSubmitted(pool, input),
       markFailed: (input) => markFailed(pool, input) });
     if (run.status === "NO_ELIGIBLE_MATCH") {
@@ -424,9 +422,7 @@ export async function runScheduledPunkAgentWorker({
     }
     throw error;
   } finally {
-    if (leaseHeld) await lease.query("SELECT pg_advisory_unlock($1::integer, $2::integer)",
-      [ROBINHOOD.chainId, 8004]);
-    lease.release();
+    await lease.release();
   }
 }
 

@@ -72,13 +72,15 @@ test('paid API gates owner, selected Punk, worker availability and arbitrary req
 });
 test('paid worker uses the shared signer lock and blocks free execution while its receipt is unresolved',async()=>{
  const order=[];let held=false;
- const lease={query:async(sql,args)=>{assert.deepEqual(args,[4663,8004]);
-  if(sql.includes('pg_try_advisory_lock')){held=true;order.push('lock');return {rows:[{acquired:true}]};}
-  assert.ok(sql.includes('pg_advisory_unlock'));held=false;order.push('unlock');return {rows:[]};},release:()=>order.push('release')};
+ const lease={query:async(sql,args)=>{
+  if(sql.startsWith('BEGIN')){order.push('begin');return {rows:[]};}
+  if(sql.includes('pg_try_advisory_xact_lock')){assert.deepEqual(args,[4663,8005]);held=true;order.push('lock');return {rows:[{acquired:true,pid:1,transaction_id:'2'}]};}
+  if(sql.includes('pg_locks'))return {rows:[{held,pid:1,transaction_id:'2'}]};
+  assert.equal(sql,'ROLLBACK');held=false;order.push('unlock');return {rows:[]};},release:()=>order.push('release')};
  const pool={connect:async()=>lease,query:async()=>({rows:[]})};
  const result=await runScheduledPunkAgentWorker({pool,client:{},bundler:{},signer:{address:release.executor},
   environment:{PUNK_AGENT_WORKER_ENABLED:'true',PUNK_AGENT_DIRECTED_PAID_MINT_ENABLED:'true'},
-  runPaid:async()=>{assert.equal(held,true);order.push('paid');return {status:'PAID_RECEIPT_PENDING',submitted:false};},
+  runPaid:async({assertLease})=>{await assertLease();assert.equal(held,true);order.push('paid');return {status:'PAID_RECEIPT_PENDING',submitted:false};},
   runMission:async()=>{throw Error('FREE_MUST_NOT_RUN');}});
- assert.equal(result.status,'PAID_RECEIPT_PENDING');assert.deepEqual(order,['lock','paid','unlock','release']);
+ assert.equal(result.status,'PAID_RECEIPT_PENDING');assert.deepEqual(order,['begin','lock','paid','unlock','release']);
 });

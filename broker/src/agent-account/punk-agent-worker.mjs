@@ -29,6 +29,7 @@ function functionValue(value, label) {
 export async function runPunkAgentMissionOnce({
   deployment, client, bundler, signer, gas, now = new Date(),
   loadMission, loadCandidate, reserveOperation, markSubmitted, markFailed,
+  assertLease = async () => {},
 }) {
   const readiness = punkAgentAccountReadiness(deployment);
   if (!readiness.ready) return Object.freeze({ status: "LOCKED", submitted: false,
@@ -76,6 +77,7 @@ export async function runPunkAgentMissionOnce({
   // Candidate inspection can be slow. Recheck before the signer sees an operation.
   try { await verifyPunkAgentOwnershipContinuity({ client, mission, runtime, deployment }); }
   catch (error) { return blocked(error); }
+  await assertLease();
   const prepared = await prepareSignedPunkAgentMint({ client, signer, runtime,
     opportunity: candidate.opportunity, strategyHash: mission.strategyHash,
     tokenId: candidate.tokenId, simulationInputHash: candidate.simulationInputHash,
@@ -89,6 +91,7 @@ export async function runPunkAgentMissionOnce({
   try { await verifyPunkAgentOwnershipContinuity({ client, mission, runtime, deployment }); }
   catch (error) { return blocked(error, reservation); }
   try {
+    await assertLease();
     const submitted = await submitPunkAgentUserOperation({ bundler,
       operation: prepared.operation, authorization: { ownerSessionActive: true,
         screeningPassed: true, simulationPassed: true,
