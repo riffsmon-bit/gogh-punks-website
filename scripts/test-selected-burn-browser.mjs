@@ -49,5 +49,15 @@ try {
  await evaluate("document.querySelector('input[type=checkbox]').click();Array.from(document.querySelectorAll('input')).find(i=>i.type!=='checkbox').value='BURN 1753'");await click('CONFIRM IN WALLET');
  await until("document.body.textContent.includes('Simulated decline read interruption')");await call('Page.reload');await until("document.querySelector('button')?.textContent==='RECHECK SELECTED TEST'");await click('RECHECK SELECTED TEST');
  await until("document.body.textContent.includes('Wallet confirmation declined')");assert.equal(await evaluate("localStorage.getItem('mock.sends')"),null);assert.deepEqual(errors,[]);
- console.log(JSON.stringify({status:'PASS',explicitRejectionSurvivesFailedReadAndReload:true,widths:[1440,375,320],lostReadThenReloadRecovery:true,mockWalletSends:1,publicTransactions:0}));
+ // Let a saved review expire while its fields are filled in. The timeout
+ // disables only the send control; it must not erase the user's input.
+ await evaluate("(()=>{const s=JSON.parse(localStorage.getItem('mock.server'));s.record.status='PREPARED';s.record.reportedHash=null;localStorage.removeItem('gogh-selected-burn-v1:'+s.record.review.intentId);localStorage.setItem('mock.server',JSON.stringify(s));window.__realNow=Date.now;const offset=s.record.review.expiresAt-5500-Date.now();Date.now=()=>window.__realNow()+offset;})()");
+ await click('RECHECK SELECTED TEST');await until("document.body.textContent.includes('Review ready.')");
+ await evaluate("document.querySelector('input[type=checkbox]').checked=true;Array.from(document.querySelectorAll('input')).find(i=>i.type!=='checkbox').value='BURN 1753'");
+ await until("document.body.textContent.includes('This review expired')");
+ assert.equal(await evaluate("Array.from(document.querySelectorAll('button')).find(b=>b.textContent==='CONFIRM IN WALLET').disabled"),true);
+ assert.equal(await evaluate("document.querySelector('input[type=checkbox]').checked"),true);
+ assert.equal(await evaluate("Array.from(document.querySelectorAll('input')).find(i=>i.type!=='checkbox').value"),'BURN 1753');
+ assert.equal(await evaluate("localStorage.getItem('mock.sends')"),null);assert.deepEqual(errors,[]);
+ console.log(JSON.stringify({status:'PASS',expiredReviewDisablesSendWithoutErasingInput:true,explicitRejectionSurvivesFailedReadAndReload:true,widths:[1440,375,320],lostReadThenReloadRecovery:true,mockWalletSends:1,publicTransactions:0}));
 }finally{ws?.close();chrome.kill('SIGTERM');if(chrome.exitCode===null)await new Promise(r=>{const timer=setTimeout(r,3000);chrome.once('exit',()=>{clearTimeout(timer);r();});});await rm(profile,{recursive:true,force:true,maxRetries:3});await new Promise(r=>server.close(r));}
