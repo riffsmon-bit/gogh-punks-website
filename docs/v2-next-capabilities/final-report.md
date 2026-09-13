@@ -1,6 +1,6 @@
 # Skill and marketplace follow-up — integration report
 
-The new capability set is ready for controlled testing subject to the final repository and deployment gates recorded below. Public marketplace execution is **NOT_READY**. This follow-up does not register new public skills, deploy the candidate contracts, burn an original Punk or move real funds.
+**FINAL_TESTING_READY for the bounded copied-chain skill and marketplace increment.** Repository validation and independent review passed; publication still requires the served-preview gate below. Public marketplace execution is **NOT_READY**. This follow-up does not register new public skills, deploy the candidate contracts, burn an original Punk or move real funds.
 
 The already-published PR #67 fixes the user's completed-mint screenshot: #93 shows **Paid mint complete**, Peppies World **#1599**, and a Collection link. A separate expired unsigned review remains explicitly dismissible. Groq is saved in the server-only Netlify configuration and passed its real production conversation and structured-output probes. Bankr remains disabled by the owner's choice.
 
@@ -34,7 +34,7 @@ The marketplace independent reviewer reproduced and closed three P2 issues: expi
 
 ## Validation and independent review
 
-Final repository gate: **PENDING**. Full browser gate: **PASS**, 25 scenarios/59 captures. Final marketplace browser: **PASS**, nine journeys/seven captures, zero public transactions. Solidity gate: **PASS**, formatting, offline build/sizes, high-severity lint, 305 tests with 1,024 fuzz runs, ABI/EIP-170 checks. No deployed wallet or Forge contract source changed.
+Final repository gate: **PASS**, `npm run site:check`: 2,732 JavaScript tests, zero failures/skips, domain typecheck, wallet build, static/secret/syntax checks and broker gate. Full browser gate: **PASS**, 25 scenarios/59 captures. Final marketplace browser: **PASS**, nine journeys/seven captures, zero public transactions. Solidity gate: **PASS**, formatting, offline build/sizes, high-severity lint, 305 tests with 1,024 fuzz runs, ABI/EIP-170 checks. No deployed wallet or Forge contract source changed.
 
 Specialist groups overlap: marketplace 106 tests; real-skill MCP/history 153; independent package tests nine; historical Forge deployment/recovery 79. Native PostgreSQL context 28 assertions. Composed skill proof: 38 local transactions; Forge progression proof: 16 local transactions. None is a public transaction.
 
@@ -46,7 +46,7 @@ Specialist groups overlap: marketplace 106 tests; real-skill MCP/history 153; in
 - [Marketplace browser evidence](../v2-marketplace/practice-final-browser-evidence.json)
 - [Holder testing guide](../v2-hardening/testing-guide.md)
 
-No known open P0/P1 is reported within the bounded controlled-testing increment; final convergence review and repository gates must pass before accepting it. This does not certify the unreleased public trading features. Bankr's paid service remains deliberately excluded.
+Final independent convergence review: **PASS**, 89 targeted regressions and actual packaged-file loading across three Forge/MCP functions. Remaining demonstrated P0: **0**; P1: **0**; P2: **0** within this bounded controlled-testing increment. This does not certify the unreleased public trading features. Bankr's paid service remains deliberately excluded.
 
 ## Production gates still outstanding
 

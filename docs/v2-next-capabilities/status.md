@@ -8,11 +8,11 @@ The user requested continued implementation of burn/training, remaining skills, 
 
 | Scope | Agent | Exclusive files | State |
 |---|---|---|---|
-| Burn, credits, skill progression and interactive practice | forge_completion | `broker/src/v4/skill-forge` excluding market readers; `site/forge-*`, `site/broker-v2-forge.*`; Forge functions/runtime; dedicated tests/scripts | INTEGRATED — combined validation in progress |
+| Burn, credits, skill progression and interactive practice | forge_completion | `broker/src/v4/skill-forge` excluding market readers; `site/forge-*`, `site/broker-v2-forge.*`; Forge functions/runtime; dedicated tests/scripts | INTEGRATED — combined validation passed |
 | Marketplace purchase/sweep/offer lifecycle | market_execution | New `broker/src/v4/marketplace/**`, new marketplace contracts/tests/scripts | INTEGRATED — reviewed contracts/core and nine actual copied-chain browser journeys; public execution remains blocked |
 | Free AI / Bankr disabled | bankr_enablement + lead | Groq/Bankr adapters, registry/runtime/preference seams, provider constraint migration, tests/probes/docs | INTEGRATED — PR #67 published as `8c84817`; direct, preview and production quota-backed Groq checks passed; 28 native PostgreSQL assertions |
-| Versioned real skills | real_skill_completion | Versioned packages/adapters and research runtime; shared MCP context integration owned by lead | INTEGRATED — combined validation in progress |
-| Integration, core UI, API/chat seams, cosmetic fix | lead | `site/broker-v2.js/.css`, core page, integration docs and shared seams | INTEGRATED — combined validation in progress |
+| Versioned real skills | real_skill_completion | Versioned packages/adapters and research runtime; shared MCP context integration owned by lead | INTEGRATED — combined validation passed |
+| Integration, core UI, API/chat seams, cosmetic fix | lead | `site/broker-v2.js/.css`, core page, integration docs and shared seams | INTEGRATED — combined validation passed |
 | Paid-mint completion display and independent review | lead + free_ai_release_review | `site/directed-paid-panel.js`, `site/directed-paid-status.js`, focused tests; reviewer owns new browser regression and review doc | INTEGRATED — `bdc5725`, published in PR #67; 15 browser scenarios passed at 1440/375/320; actual production DOM confirms #1599 complete and separate expired review |
 
 Reuse `ArtBrokerAIProvider`, existing exact review/receipt/idempotency contracts, fixed current-owner checks, Skill Registry hashes and `EffectiveCapabilities`. Marketplace interfaces must be proposed and accepted before another scope consumes them. Accepted v1 skill packages and hashes cannot silently change.
@@ -63,8 +63,8 @@ interactive practice server and UI. These changes are excluded from PR #67.
 | Marketplace practice and independent review | INTEGRATED | `a251508`, `36f8ed5`; 106 targeted tests and nine final actual browser journeys, seven desktop/mobile captures |
 | Historical Forge build reproducibility | INTEGRATED | `41d8d3c`; exact accepted plan preserved after compiler AST renumbering; 79 targeted tests |
 | Independent real-skills review | INTEGRATED | `5bc9667`; nine adversarial/package tests, both discovered P2 integration issues resolved |
-| Fresh final integration reviewer | RUNNING | Read-only convergence review; owns only final review report |
-| Lead full integration validation | RUNNING | Final site/build suite and actual Control Center browser regressions |
+| Fresh final integration reviewer | INTEGRATED / PASS | 89 regressions, actual packaged loading across three functions; `final-integration-review.md` |
+| Lead full integration validation | PASS / PREVIEW PENDING | 2,732 JS, 305 Solidity, 25 Control Center browser journeys/59 captures; PR #68 |
 
 New contracts are not deployed publicly. No new registry READY transition or
 public skill-release entry is added. Original accepted Rarity Eye and the existing

@@ -1,6 +1,6 @@
 # Versioned equipped skills in the MCP API
 
-Status: **READY FOR INDEPENDENT REVIEW — public skill release unchanged**.
+Status: **INDEPENDENTLY REVIEWED AND INTEGRATED — public skill release unchanged**.
 
 This increment wires the reviewed local Market Scout v2, Link Sniper v1 and Mint Hunter v1 packages into `/api/v2/mcp`. Only exact keys and package hashes already present in the server's `OWNER_CANARY` release can become available. It adds no registry transaction, release entry, secret, migration, public capability, or execution authority. The current public release still determines what a holder can use.
 
