@@ -22,6 +22,30 @@ try {
  await call('Page.enable');await call('Runtime.enable');await call('Page.navigate',{url:origin});
  await until("document.querySelector('#status')?.textContent.includes('Practice state refreshed')");
  const confirm=async(text='CONFIRM COPY')=>{await evaluate(`document.querySelector('#ack').click();document.querySelector('#confirmation').value=${JSON.stringify(text)};document.querySelector('#confirmation').dispatchEvent(new Event('input',{bubbles:true}));`);await click('Confirm practice step');await until("document.querySelector('#status').textContent.includes('confirmed on the disposable chain')");};
+ // Reproduce the holder's exact dead end: an optional starting-slot review
+ // expires, survives reload, and must be explicitly discardable before burn.
+ assert.equal(await evaluate("document.querySelector('#extra-slots').open"),false);
+ await evaluate("document.querySelector('#extra-slots').open=true");
+ await click('Claim starting slots');await until("document.querySelector('#status').textContent==='Review ready. Nothing has been submitted.'");
+ const expiredReview=(await(await fetch(origin+'/api/practice')).json()).review;
+ assert.equal(expiredReview.action,'claim_rarity');assert.equal(expiredReview.transactionHash,null);
+ // A transport failure is ambiguous to the UI even when this fixture prevents
+ // the request from reaching the server. Fresh durable state must restore it.
+ await evaluate(`(()=>{const original=window.fetch;window.fetch=async(...args)=>{if(args[0]==='/api/practice'&&JSON.parse(args[1]?.body??'{}').operation==='confirm'){window.fetch=original;throw new TypeError('Simulated lost response');}return original(...args);};document.querySelector('#ack').click();document.querySelector('#confirmation').value='CONFIRM COPY';document.querySelector('#confirmation').dispatchEvent(new Event('input',{bubbles:true}));})()`);
+ await click('Confirm practice step');await until("document.querySelector('#status').textContent.includes('confirmation result could not be verified')");
+ assert.equal(await evaluate("document.querySelector('#cancel').disabled && document.querySelector('#confirm').disabled"),true);
+ assert.equal(await evaluate("document.querySelector('#review-expiry').textContent.includes('Nothing was submitted')"),false);
+ await click('Refresh progress');await until("document.querySelector('#status').textContent==='Review ready. Nothing has been submitted.'");
+ await new Promise(resolve=>setTimeout(resolve,Math.max(0,expiredReview.expiresAt-Date.now()+200)));
+ await until("document.querySelector('#confirm').hidden && document.querySelector('#cancel').textContent==='Discard expired review' && !document.querySelector('#cancel').disabled");
+ await call('Page.reload');await until("document.querySelector('#status')?.textContent.includes('unsent review expired')");
+ const expired=await(await fetch(origin+'/api/practice')).json();
+ assert.equal(expired.review.status,'EXPIRED');assert.equal(expired.review.canDiscardUnsent,true);
+ assert.equal(expired.review.transactionHash,null);assert.equal(expired.training.credits,'0');assert.equal(expired.burn.credited,false);
+ for(const width of [1440,375,320]){await call('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<600});await evaluate("document.querySelector('#review-panel').scrollIntoView({block:'start'})");assert.ok(await evaluate('document.documentElement.scrollWidth<=innerWidth'),`expired overflow at ${width}`);const shot=await call('Page.captureScreenshot',{format:'png'});await writeFile(`/private/tmp/gogh-original-forge-expired-${width}.png`,Buffer.from(shot.data,'base64'));}
+ await click('Discard expired review');await until("document.querySelector('#status').textContent.includes('Unsent review discarded')");
+ assert.equal((await(await fetch(origin+'/api/practice')).json()).review,null);
+ assert.equal(await evaluate("Array.from(document.querySelectorAll('button')).find(b=>b.textContent==='Review approval for copy #1753').disabled"),false);
  await click('Review approval for copy #1753');await until("document.querySelector('#status').textContent==='Review ready. Nothing has been submitted.'");
  assert.equal(await evaluate("document.querySelector('#confirm').disabled"),true);await confirm();
  await click('Review copied sacrifice');await until("document.querySelector('#status').textContent==='Review ready. Nothing has been submitted.'");
@@ -40,6 +64,6 @@ try {
  const rejected=await fetch(origin+'/api/practice',{method:'POST',headers:{origin,'content-type':'application/json','x-forge-nonce':initial.nonce},body:JSON.stringify({operation:'research',input:{}})});assert.equal(rejected.status,409);
  assert.equal((await rejected.json()).code,'SKILL_TOOL_DENIED');assert.deepEqual(errors,[]);
  const final=await(await fetch(origin+'/api/practice')).json();
- const evidence={schema:'GOGH_ORIGINAL_FORGE_INTERACTIVE_BROWSER_V1',status:'PASS',checkedAt:new Date().toISOString(),widths:[1440,375,320],copiedSource:'1753',copiedTarget:'93',forkAnchor:initial.forkAnchor,realBrowserClicks:true,actualDeployedStackCopy:true,actualStandardAssetHistory:true,applicationObligationsFixture:true,independentPublicFinalityProven:false,sourceCoverage:final.sourceCoverage,burnCreditExactlyOnceAcrossReload:true,learnSpendsCredit:true,equipEnablesResearch:true,unequipDeniesResearch:true,sourceOwnershipOriginalUnchangedByDesign:true,csrfRejected:true,noGenericRpcRoute:true,walletRequests:0,publicTransactions:0};
+ const evidence={schema:'GOGH_ORIGINAL_FORGE_INTERACTIVE_BROWSER_V1',status:'PASS',checkedAt:new Date().toISOString(),widths:[1440,375,320],copiedSource:'1753',copiedTarget:'93',forkAnchor:initial.forkAnchor,realBrowserClicks:true,actualDeployedStackCopy:true,actualStandardAssetHistory:true,applicationObligationsFixture:true,independentPublicFinalityProven:false,sourceCoverage:final.sourceCoverage,realReviewExpiry:true,expiredReviewSurvivesReload:true,expiredUnsentDiscardRestoresBurn:true,ambiguousConfirmationReservedUntilFreshRead:true,optionalSlotsCollapsed:true,burnCreditExactlyOnceAcrossReload:true,learnSpendsCredit:true,equipEnablesResearch:true,unequipDeniesResearch:true,sourceOwnershipOriginalUnchangedByDesign:true,csrfRejected:true,noGenericRpcRoute:true,walletRequests:0,publicTransactions:0};
  await writeFile(new URL('../docs/v2-hardening/forge-interactive-evidence.json',import.meta.url),JSON.stringify(evidence,null,2)+'\n');console.log(JSON.stringify(evidence,null,2));
 }finally{ws?.close();chrome.kill('SIGTERM');if(chrome.exitCode===null)await new Promise(r=>{const timer=setTimeout(r,3000);chrome.once('exit',()=>{clearTimeout(timer);r();});});await rm(profile,{recursive:true,force:true,maxRetries:3});}

@@ -14,6 +14,7 @@ import { createDurableTrainingWallet } from '../../../site/forge-durable-wallet.
 import { createV2McpResearch } from '../../../netlify/functions/_shared/v2-mcp-research.mjs';
 import { validateTrainingRelease } from '../../../broker/src/v4/skill-forge/training-release.mjs';
 import { loadResearchSkillCatalog } from '../../../broker/src/v4/skill-forge/research-runtime.mjs';
+import { originalPracticeReviewState } from './original-practice-review.mjs';
 
 const owner = SELECTED_BURN_OWNER, tokenId = '93';
 const json = value => JSON.stringify(value, (_key, item) => typeof item === 'bigint' ? String(item) : item);
@@ -44,12 +45,17 @@ export async function serveOriginalForgePractice({ clients, client, sourceClient
   const scope = () => ({ owner, tokenId, ...(review?.kind === 'TRAINING' ? { intentId: review.prepared.record.intentId } : {}) });
   const state = async () => {
     await fresh();
-    const training = await coordinator.get({ owner, tokenId });
+    const selectedReview = review;
+    const training = await coordinator.get(scope());
     const burnState = await burn.get();
+    if (selectedReview !== review) throw Error('PRACTICE_REVIEW_UNAVAILABLE');
+    const reviewState = review ? originalPracticeReviewState(review,
+      review.kind === 'TRAINING' ? training.record : burnState.record, sent.get(review.id) ?? null) : null;
+    if (review) review.status = reviewState.status;
     return { schema: 'GOGH_ORIGINAL_FORGE_INTERACTIVE_PRACTICE_V1', localOnly: true, productionAuthority: false,
       sourceTokenId: '1753', targetTokenId: tokenId, copiedChainId: 4663, forkAnchor: { number: String(anchor.number), hash: anchor.hash },
       nonce, busy, training: training.state, burn: burnState.state, review: review ? {
-        id: review.id, kind: review.kind, action: review.action, status: review.status, transactionHash: sent.get(review.id) ?? null,
+        id: review.id, kind: review.kind, action: review.action, ...reviewState,
         feeCeilingWei: review.kind === 'BURN' ? review.prepared.record.review.maximumNetworkFeeWei : review.prepared.feeCeilingWei,
         expiresAt: review.kind === 'BURN' ? review.prepared.record.review.expiresAt : Number(review.prepared.record.review.guard.deadline) * 1000,
       } : null, lastResult, lastError,
@@ -61,10 +67,11 @@ export async function serveOriginalForgePractice({ clients, client, sourceClient
     const hash = sent.get(review.id);
     if (!hash) {
       const row = review.kind === 'BURN' ? (await burn.get()).record : (await coordinator.get(scope())).record;
-      review.status = row.status;
+      const current = originalPracticeReviewState(review, row);
+      review.status = current.status;
       // Only a persisted PREPARED row proves claim never reached the wallet.
       // Any claimed/unknown result stays reserved and cannot be sent again.
-      if (row.status === 'PREPARED') attempted.delete(review.id);
+      if (current.canDiscardUnsent) attempted.delete(review.id);
       return;
     }
     await finalize();
@@ -127,11 +134,20 @@ export async function serveOriginalForgePractice({ clients, client, sourceClient
       }
       await finish();
     } else if (body.operation === 'cancel') {
-      if (!exact(body.input, ['id']) || body.input.id !== review?.id || review.status !== 'PREPARED') throw Error('PRACTICE_UNSENT_REVIEW_REQUIRED');
-      const row = review.prepared.record;
-      if (review.kind === 'BURN') await burn.cancel({ intentId: review.id, revision: row.revision });
-      else await coordinator.mutate(scope(), 'cancel', row.revision);
-      review.status = 'CANCELLED';
+      if (!exact(body.input, ['id']) || body.input.id !== review?.id) throw Error('PRACTICE_UNSENT_REVIEW_REQUIRED');
+      // Re-read the exact intent: a prior GET may have expired it and advanced
+      // its revision. Never clear an unknown send merely because time elapsed.
+      const row = review.kind === 'BURN' ? (await burn.get()).record : (await coordinator.get(scope())).record;
+      const current = originalPracticeReviewState(review, row, sent.get(review.id) ?? null);
+      if (!current.canDiscardUnsent) throw Error('PRACTICE_UNSENT_REVIEW_REQUIRED');
+      if (row.status === 'PREPARED') {
+        const cancelled = review.kind === 'BURN'
+          ? (await burn.cancel({ intentId: review.id, revision: row.revision })).record
+          : await coordinator.mutate(scope(), 'cancel', row.revision);
+        if (!['CANCELLED', 'EXPIRED'].includes(cancelled.status)) throw Error('PRACTICE_UNSENT_REVIEW_REQUIRED');
+      }
+      attempted.delete(review.id);
+      review = null;
     } else if (body.operation === 'research') {
       if (!exact(body.input, [])) throw Error('PRACTICE_ARGUMENTS_INVALID');
       lastResult = await research.call({ owner, tokenId, name: 'rank_trait_sample', arguments: { sampleTokenIds: ['93', '95', '96'] } });
