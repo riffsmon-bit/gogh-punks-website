@@ -3,9 +3,10 @@ import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
-import { createPublicClient, http, encodeFunctionData, encodeDeployData, getContractAddress, keccak256, parseAbi } from 'viem';
+import { encodeFunctionData, encodeDeployData, getContractAddress, keccak256, parseAbi } from 'viem';
 import { loadRegistryCanaryInputs } from '../../../broker/src/v4/skill-forge/registry-canary.mjs';
 import { openSetupReviewJournal, setupDigest } from './setup-review-journal.mjs';
+import { createSetupReadClient } from './setup-read-client.mjs';
 import release from '../../../deployments/robinhood-forge-training.json' with { type:'json' };
 
 if (process.argv.length!==3 || process.argv[2]!=='--live-owner-wallet') throw Error('Requires --live-owner-wallet');
@@ -24,7 +25,7 @@ for(const [path,source] of Object.entries(paid.metadata.sources)) {
 }
 const agentRegistry='0x3253adc3bBd5B0010C1Bf9cE8def26b7e0DB5844';
 const agentRelease=JSON.parse(await readFile(new URL('deployments/robinhood-punk-agent-account.json',ROOT)));
-const clients=['https://robinhood-rpc.publicnode.com','https://rpc.mainnet.chain.robinhood.com'].map(url=>createPublicClient({transport:http(url,{timeout:12000,retryCount:0}),cacheTime:0}));
+const clients=['https://robinhood-rpc.publicnode.com','https://rpc.mainnet.chain.robinhood.com'].map(createSetupReadClient);
 const zero='0x'+'0'.repeat(64),reviewEvidenceHash='0x'+setupDigest(evidence);
 const steps=[
   {action:'REGISTER_RARITY_EYE',label:'Register Rarity Eye v1',to:release.registry,data:encodeFunctionData({abi:inputs.artifact.abi,functionName:'register',args:[4,1,rarity.manifestHash,rarity.instructionHash,zero,8n,0]})},
