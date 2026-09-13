@@ -99,3 +99,45 @@ Market Scout v2 is isolated native read-only code and remains TESTING/unpromoted
 The real runtime privilege/probe evidence closes the earlier distinction between the read-only inspection role and the actual application role. No permission changes were inferred from the read-only role's intentionally absent INSERT/UPDATE privileges. Model configuration and a successful preview probe still do not mean a new model has been enabled in production.
 
 Security accepts the reviewed software for controlled final testing with existing authority limits. The lead must record the final integrated source and full validation result. A future live burn, refund, wallet transfer, new executable marketplace adapter or autonomous-scope change requires its own concrete owner authorization and review.
+
+## Third independent review — final read-only integration
+
+Current scoped verdict remains **PASS FOR CONTROLLED FINAL TESTING**. No unresolved P0/P1 security issue was demonstrated by this follow-up. This review does not change the authority limitations above or substitute for the lead's full final suite and product-wide verdict.
+
+Reviewed parent commit `9c9f76f08f87071be203af9dd0fd29396a1932df` and resolver candidate `96909844a6c796f18aeca35cd0da45eccd941cf7`, integrated as `eae589b`. The resolver source SHA-256 is `e252a62a7e0f1b558268b923d22683cac697134be48ac30fd45e068422ead719`. Also reviewed the pending, limited parent wiring of the same resolver into the MCP `inspect_mint_link` and deploy-preview inspection defaults, plus mobile link-input sizing. Those edits retain existing principal/owner/preview gates and add no transaction path. The lead records their eventual integration commit.
+
+The native-balance display follow-up closes the previously reported freshness issue: a failed balance refresh now labels the native balance unavailable and the budget unknown. Explicit recheck also refreshes balances. A remaining P3 decorative budget meter can retain its old fill while those labels say unknown; this must not be confused with fresh budget evidence and is not used to authorize an action.
+
+The Forge lab alone now uses the separately reviewed Market Reader v2. Its owner-canary diagnostic gate, fresh owner and post-read continuity checks remain. Limited samples and partial/unavailable coverage are described explicitly; no result establishes a floor or authorizes a purchase/bid. Skill manifests, registered hashes, catalog promotion, learned/equipped capability routing and production flags remain untouched. Market Scout v2 remains TESTING. A successful lab observation is not an equipped skill or execution proof.
+
+The link resolver accepts only the existing normalized Robinhood contract-link class. The RPC destination comes from existing server configuration or a fixed public endpoint, never the submitted website/model input. Only five read methods are available, with locally encoded view calls. Redirects and CCIP lookups are disabled. Contract and supported SeaDrop observations share one block; chain, block identity and timestamp are rechecked before returning. No-code addresses are blocked; unsupported or failed mint observations remain unknown rather than being displayed as free. Its bounds are 20 RPC calls, eight seconds total, 256 KiB per response, 1 MiB aggregate response bytes and 64 KiB result hex. Deadline cancellation also releases stalled response readers. Sanitized errors do not reflect provider endpoints or credentials.
+
+Observed details remain single-source latest-block evidence. Interfaces can lie, proxy implementation behavior is not comprehensively inspected, a public mint window does not prove wallet eligibility, and no selected-wallet simulation is performed. The resolver always returns no transaction preparation, no external calldata acceptance, no execution permission and no wallet authority. It does not turn arbitrary OpenSea, X or project websites into supported resolvers.
+
+The new chat findings card validates matching chain/contract/anchor and actual positive code evidence before rendering. Malformed contract values, missing code, blocked results and mismatched block evidence cannot create a card. Exact one-wei prices remain exact, while unknown prices are not free. Security and simulation labels are fixed to review needed/not run regardless of upstream PASS flags. The card projects text into DOM nodes and constructs only a fixed-origin explorer link; it has no signing, transaction or executable-markup action. Existing owner/chain/Punk request fences still govern whether the card reaches the conversation.
+
+### Final follow-up evidence
+
+| Check | Result | Attribution and limits |
+|---|---|---|
+| New `tests/final-hardening-link-security.test.mjs` | **10/10 passed** | Independently written and executed against actual integrated UI/resolver modules. Adversarial authority labels/calldata, malformed/mismatched/no-code evidence, DOM sinks, wrong chain/reorg, arbitrary destinations, credential reflection, oversized responses and stalled transport/body cancellation. Mocked dependencies; no public transaction. |
+| All three independent security files against root `eae589b` plus the reviewed pending defaults | **39/39 passed** | Executed by this reviewer after final resolver integration; includes prior funding journal, provider/quota, delegated owner, market and MCP tests. |
+| Resolver implementation file | **11/11 passed** | Executed by this reviewer against final candidate source; includes actual reader/ABI, reviewed runtime fixtures, CCIP rejection, stream cleanup and production endpoint default wiring. |
+| Root Forge endpoint, link-card and MCP roster implementation suites | **32/32 passed** | Executed by this reviewer; retains owner/transfer/reorg gates, exact amounts and bounded complete-at-block ownership behavior. |
+| `docs/v2-swarm/fixed-source-link-live.json` | Two successful historical read-only observations, public transactions **0** | Specialist-executed exported production wrapper. At 2026-09-13T19:09:25–26Z, Peppies had observed SeaDrop public state at block 62193686; Gogh had real contract evidence and explicit unsupported mint state at 62193691. These are not fresh purchase quotes, simulations, finalized multi-provider proof or a readiness claim for arbitrary links. |
+
+Final independent command from this review worktree:
+
+```sh
+GOGH_SECURITY_WALLET_ROOT=/private/tmp/gogh-punk93-mint-stall \
+GOGH_SECURITY_AI_ROOT=/private/tmp/gogh-punk93-mint-stall \
+GOGH_SECURITY_FORGE_ROOT=/private/tmp/gogh-punk93-mint-stall \
+GOGH_SECURITY_UI_ROOT=/private/tmp/gogh-punk93-mint-stall \
+GOGH_SECURITY_MARKET_MCP_ROOT=/private/tmp/gogh-punk93-mint-stall \
+GOGH_SECURITY_LINK_ROOT=/private/tmp/gogh-punk93-mint-stall \
+node --test tests/final-hardening-security.test.mjs \
+  tests/final-hardening-market-security.test.mjs \
+  tests/final-hardening-link-security.test.mjs
+```
+
+The optional root overrides are unnecessary after the files are integrated into the tested repository. No feature, contract, migration, secret, environment setting or production state was changed by this reviewer. Full-suite and final browser results remain the lead's integration gate; this signoff remains confined to the reviewed software and controlled test phase.
