@@ -23,6 +23,7 @@ import { ROBINHOOD } from "../../broker/src/config.mjs";
 import { getRpcUrl } from "./_shared/config.mjs";
 import { backgroundRpcDecision } from "./_shared/background-rpc-policy.mjs";
 import { runConfiguredDirectedPaidWorker } from './_shared/directed-paid-runtime.mjs';
+import { PAID_RECEIPT_MISMATCH_FIELDS } from '../../broker/src/v4/directed-paid-mint.mjs';
 import { acquirePunkAgentWorkerLease } from './_shared/punk-agent-worker-lease.mjs';
 
 function sha256(value) {
@@ -435,6 +436,24 @@ function workerErrorCode(error) {
     ? error.code : "PUNK_AGENT_WORKER_FAILED";
 }
 
+function paidReceiptDiagnostic(error,code) {
+  if (code !== 'PAID_RECEIPT_MISMATCH') return {};
+  try {
+    const providerIndex = Object.getOwnPropertyDescriptor(error,'paidReceiptProviderIndex')?.value;
+    const supplied = Object.getOwnPropertyDescriptor(error,'paidReceiptMismatchFields')?.value;
+    if (![0,1].includes(providerIndex) || !Array.isArray(supplied)) return {};
+    const length = Object.getOwnPropertyDescriptor(supplied,'length')?.value;
+    if (!Number.isSafeInteger(length) || length < 1 || length > PAID_RECEIPT_MISMATCH_FIELDS.length) return {};
+    // Copy fixed allowlist entries; never invoke diagnostic getters/toJSON or
+    // serialize an error, provider response, URL, hash, or transaction amount.
+    const fields = PAID_RECEIPT_MISMATCH_FIELDS.filter(field => {
+      for (let i=0;i<length;i++) if (Object.getOwnPropertyDescriptor(supplied,String(i))?.value === field) return true;
+      return false;
+    });
+    return fields.length ? {paidReceiptMismatch:{providerIndex,fields}} : {};
+  } catch { return {}; }
+}
+
 export default async function handler(_request, { run = runScheduledPunkAgentWorker,
   report = console.log } = {}) {
   try {
@@ -450,7 +469,7 @@ export default async function handler(_request, { run = runScheduledPunkAgentWor
     headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } }); }
   catch (error) {
     const code = workerErrorCode(error);
-    report(JSON.stringify({ event: "PUNK_AGENT_WORKER_FAILED", code }));
+    report(JSON.stringify({ event: "PUNK_AGENT_WORKER_FAILED", code, ...paidReceiptDiagnostic(error,code) }));
     return new Response(JSON.stringify({ ok: false,
     code }), { status: 503,
     headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } }); }

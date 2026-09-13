@@ -1,0 +1,22 @@
+{
+  "status": "COMPLETED",
+  "checkedAt": "2026-09-13T17:02:23.418Z",
+  "transactionHash": "0x64b9704b7ea60ad5fa5cdd0e6816ee017f99e334b720edb2951adaf2d0406a03",
+  "blockNumber": "62116306",
+  "blockHash": "0xf06ff695567b3edb5cdb84200ab72e892c67295cfccf6d84311cd0f838c1967f",
+  "completedAt": "2026-09-13T16:58:17.000Z",
+  "tokenId": "1599",
+  "recipient": "0xcadcfd37e715bc031cf0cec7fa2335091c878c83",
+  "collection": "0xb73f1d1aee57410d537d87b656e98b9d3df5b213",
+  "generation": "2",
+  "priceWei": "100000000000000",
+  "executionFeeWei": "86074000000000",
+  "receiptStatus": "success",
+  "confirmations": "2418",
+  "verifiedProviders": 2,
+  "remainingRefundWei": "183954000000000",
+  "diagnosticPublicTransactions": 0,
+  "applicationReconciliation": "BLOCKED_PAID_RECEIPT_MISMATCH",
+  "productionCommit": "3b534724094aad9a775e60fe147db196272d0539",
+  "localShadowReconciliation": "PASS_WITHOUT_WRITES"
+}
