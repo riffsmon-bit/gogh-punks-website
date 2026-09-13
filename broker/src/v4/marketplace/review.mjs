@@ -129,7 +129,7 @@ export async function prepareMarketplaceReview(request, deps) {
     if (total > budget.maxTotalPriceWei) fail('PRICE_BUDGET_EXCEEDED');
     const balance = await client.getBalance({ address: wallet, blockNumber: anchor.number });
     if (balance < total + budget.minimumReserveWei) fail('PUNK_RESERVE_VIOLATION');
-    base.selection = { collection, items: orders.map(o => ({ orderHash: o.orderHash, tokenId: o.tokenId, totalWei: o.totalWei })) };
+    base.selection = { collection, items: orders.map(o => ({ orderHash: o.orderHash, counter: String(o.counter), tokenId: o.tokenId, totalWei: o.totalWei })) };
     base.balance = { nativeWei: String(balance), remainingAfterPurchaseWei: String(balance - total), minimumReserveWei: String(budget.minimumReserveWei) };
     base.note = 'These exact selected listings are bought together or the whole purchase reverts. This is not a verified collection floor. The final on-chain check enforces the remaining balance, current owner, account state and NFT delivery, or the whole purchase reverts.';
     transaction = { from: owner, to: wallet, data: encodeFunctionData({ abi: ACCOUNT_ABI, functionName: 'executeBatch', args: [calls] }), value: 0n };
