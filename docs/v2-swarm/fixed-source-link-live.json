@@ -1,0 +1,178 @@
+{
+  "environment": "LIVE_READ_ONLY",
+  "transactionCount": 0,
+  "observations": [
+    {
+      "name": "Peppies",
+      "link": {
+        "kind": "ROBINHOOD_CONTRACT",
+        "host": "robinhoodchain.blockscout.com",
+        "identity": "0xb73f1d1aee57410d537d87b656e98b9d3df5b213",
+        "canonicalUrl": "https://robinhoodchain.blockscout.com/address/0xb73f1d1aee57410d537d87b656e98b9d3df5b213"
+      },
+      "status": "NEEDS_REVIEW",
+      "executable": false,
+      "reason": "SEADROP_STATE_OBSERVED",
+      "evidence": {
+        "status": "NEEDS_REVIEW",
+        "source": "ROBINHOOD_MAINNET_RPC",
+        "chainId": 4663,
+        "contract": "0xb73f1d1aee57410d537d87b656e98b9d3df5b213",
+        "observedAt": "2026-09-13T19:09:25.911Z",
+        "simulationStatus": "UNAVAILABLE",
+        "transactionPrepared": false,
+        "externalCalldataAccepted": false,
+        "executionAuthorized": false,
+        "walletAuthority": "NONE",
+        "limitations": [
+          "Observed contract interfaces and runtime hashes are not a security clearance.",
+          "Public-window and supply observations do not establish this wallet's mint eligibility.",
+          "No selected-wallet simulation, gas estimate, transaction or execution authorization is provided."
+        ],
+        "reason": "SEADROP_STATE_OBSERVED",
+        "anchor": {
+          "blockNumber": "62193686",
+          "blockHash": "0x32ea94a8f9105849ec7e0a397eafda417920febf2cd9754ffb35d40a3d7953f2",
+          "blockTimestamp": "1789326564",
+          "canonicalRechecked": true
+        },
+        "contractInspection": {
+          "chainId": 4663,
+          "contract": "0xB73f1d1aee57410d537d87b656E98b9D3DF5B213",
+          "blockNumber": "62193686",
+          "blockHash": "0x32ea94a8f9105849ec7e0a397eafda417920febf2cd9754ffb35d40a3d7953f2",
+          "codeHash": "0xe3e252831cdd0c11e1327d04a57ddd9bfa11ef49d50edb524040d98bfb228bc4",
+          "codeBytes": 45,
+          "erc721": {
+            "status": "OBSERVED",
+            "value": true
+          },
+          "erc1155": {
+            "status": "OBSERVED",
+            "value": false
+          },
+          "eip1967Implementation": {
+            "status": "OBSERVED",
+            "value": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "nonzero": false
+          },
+          "eip1967Beacon": {
+            "status": "OBSERVED",
+            "value": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "nonzero": false
+          },
+          "minimalProxy": true,
+          "securityVerdict": "NOT_A_SECURITY_CLEARANCE",
+          "walletAuthority": "NONE",
+          "limitations": [
+            "Interface responses can lie.",
+            "Nonstandard proxies may not use these slots.",
+            "No verified source, approval enumeration, or comprehensive vulnerability analysis is claimed."
+          ],
+          "evidenceHash": "189715a1d02a5a3ff1579486ba197dface50f72ad395e8cfe523e62739b8813c"
+        },
+        "mint": {
+          "status": "OBSERVED",
+          "standard": "SEADROP_PUBLIC",
+          "mintContract": "0x00005ea00ac477b1030ce78506496e8c2de24bf5",
+          "priceWei": "100000000000000",
+          "startTime": "1789315200",
+          "endTime": "1789747200",
+          "walletLimit": "50",
+          "totalMinted": "1599",
+          "maxSupply": "2222",
+          "feeRecipientAllowed": true,
+          "publicWindow": "OPEN",
+          "reason": "PUBLIC_STATE_OBSERVED"
+        }
+      },
+      "externalTransactionAccepted": false
+    },
+    {
+      "name": "Gogh",
+      "link": {
+        "kind": "ROBINHOOD_CONTRACT",
+        "host": "robinhoodchain.blockscout.com",
+        "identity": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+        "canonicalUrl": "https://robinhoodchain.blockscout.com/address/0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6"
+      },
+      "status": "NEEDS_REVIEW",
+      "executable": false,
+      "reason": "UNSUPPORTED_MINT_RUNTIME",
+      "evidence": {
+        "status": "NEEDS_REVIEW",
+        "source": "ROBINHOOD_MAINNET_RPC",
+        "chainId": 4663,
+        "contract": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+        "observedAt": "2026-09-13T19:09:26.203Z",
+        "simulationStatus": "UNAVAILABLE",
+        "transactionPrepared": false,
+        "externalCalldataAccepted": false,
+        "executionAuthorized": false,
+        "walletAuthority": "NONE",
+        "limitations": [
+          "Observed contract interfaces and runtime hashes are not a security clearance.",
+          "Public-window and supply observations do not establish this wallet's mint eligibility.",
+          "No selected-wallet simulation, gas estimate, transaction or execution authorization is provided."
+        ],
+        "reason": "UNSUPPORTED_MINT_RUNTIME",
+        "anchor": {
+          "blockNumber": "62193691",
+          "blockHash": "0x9aeb1b0e54f4d10a4f4cbb00f740c93cda5d9dc778278e4067a49d78487fcbb9",
+          "blockTimestamp": "1789326565",
+          "canonicalRechecked": true
+        },
+        "contractInspection": {
+          "chainId": 4663,
+          "contract": "0xE0F92B3B0E6DeD3654177FE3809Cd300e5ffaDf6",
+          "blockNumber": "62193691",
+          "blockHash": "0x9aeb1b0e54f4d10a4f4cbb00f740c93cda5d9dc778278e4067a49d78487fcbb9",
+          "codeHash": "0x3222e4925f77909e6370e17fe071d2774d43e191f6bc72c3a97c97209c6e2e93",
+          "codeBytes": 18470,
+          "erc721": {
+            "status": "OBSERVED",
+            "value": true
+          },
+          "erc1155": {
+            "status": "OBSERVED",
+            "value": false
+          },
+          "eip1967Implementation": {
+            "status": "OBSERVED",
+            "value": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "nonzero": false
+          },
+          "eip1967Beacon": {
+            "status": "OBSERVED",
+            "value": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "nonzero": false
+          },
+          "minimalProxy": false,
+          "securityVerdict": "NOT_A_SECURITY_CLEARANCE",
+          "walletAuthority": "NONE",
+          "limitations": [
+            "Interface responses can lie.",
+            "Nonstandard proxies may not use these slots.",
+            "No verified source, approval enumeration, or comprehensive vulnerability analysis is claimed."
+          ],
+          "evidenceHash": "4ebb5607e02c0c2e5f1c8e57e25a3938033de2fad6d131a36ad6c57d7f83fe8a"
+        },
+        "mint": {
+          "status": "UNSUPPORTED",
+          "standard": null,
+          "mintContract": null,
+          "priceWei": null,
+          "startTime": null,
+          "endTime": null,
+          "walletLimit": null,
+          "totalMinted": null,
+          "maxSupply": null,
+          "feeRecipientAllowed": null,
+          "publicWindow": "UNKNOWN",
+          "reason": "UNSUPPORTED_MINT_RUNTIME"
+        }
+      },
+      "externalTransactionAccepted": false
+    }
+  ]
+}
