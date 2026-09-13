@@ -52,3 +52,5 @@ Only the lead edits this tracker and integrates commits. States: NOT_STARTED, RU
 
 - Final burn browser check passed at 1440/375/320, including preserved inputs on expiry and original-transaction recovery after lost reads/reload; zero public transactions. The final site deployment gate also passed all 140 tests and required compiler/build checks. See [validation-results.json](validation-results.json) and [final-report.md](final-report.md).
 - All thirteen completed specialist worktrees have been removed after checking for unrelated modifications; their branches and integration commits remain. The integration checkout and user practice/setup services remain available.
+
+- RPC follow-up: confirmed Netlify PublicNode automation/relay settings, absent dedicated archive variables, protected general RPC values unavailable through the API, no local Keychain RPC credential found, and public historical-state requests rejected. Configuration unchanged. See [rpc-configuration-audit.md](rpc-configuration-audit.md).
