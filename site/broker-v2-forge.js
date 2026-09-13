@@ -114,7 +114,14 @@ export function createForgeControl({ root, getSelection, ensureSession, request,
         snapshot = null; report.replaceChildren();
         status.textContent = `${error.message} No training or wallet change was made.`;
       }
-    } finally { if (ticket === sequence && original === context()) { busy = false; render(); } }
+    } finally { if (ticket === sequence && original === context()) {
+      busy = false; render();
+      if (action && report.childNodes.length) {
+        report.tabIndex = -1;
+        report.focus({ preventScroll: true });
+        report.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+      }
+    } }
   }
   connect.addEventListener('click', () => run());
   window.addEventListener('gogh:owner-snapshot', selectionChanged);
