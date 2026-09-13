@@ -4,7 +4,7 @@ Date: September 13, 2026. Lead integration branch: `v2/final-hardening-20260913`
 
 ## 1. Final verdict
 
-**FINAL_TESTING_READY — controlled final testing.** The integrated software, independent reviews and controlled journeys passed the gates below. This is readiness for holder end-to-end testing, not authorization for production financial actions. Production cutover and its read-only acceptance are recorded separately after publication.
+**FINAL_TESTING_READY — controlled final testing.** The integrated software, independent reviews and controlled journeys passed the gates below. This is readiness for holder end-to-end testing, not authorization for production financial actions. Production publication and read-only acceptance are complete; [the release record](release-acceptance.json) binds the deployed source and observations.
 
 ## 2–25. Product and integration results
 
@@ -12,10 +12,10 @@ Date: September 13, 2026. Lead integration branch: `v2/final-hardening-20260913`
 |---|---|---|
 | 2 | Product audit | Existing architecture retained. The [baseline audit](product-audit.md), [39-gate acceptance matrix](acceptance-matrix.md) and [status ledger](status.md) separate working features, fixes, unsupported scope and proof limits. |
 | 3 | User journeys | Owner-scoped optional welcome, progressive selection, meaningful empty/error states, preserved retry text, original-hash recovery and exact review amounts. No funding required to explore. |
-| 4 | Performance before/after | Collection previously timed out and hid the paid delivery; actual production response now returns 34 verified holdings including #1599 in 4,114ms. Complete MCP roster: 140 owned Punks, zero hints, 35 reads, four concurrent requests, 1,743ms. [Measurements and limits](performance-audit.md). |
+| 4 | Performance before/after | Collection previously timed out and hid the paid delivery; the earlier repair returned 34 verified holdings including #1599 in 4,114ms, and final production acceptance returned them in 6,991ms. Complete MCP roster: 140 owned Punks in a 1,743ms local live scan and 2,800ms through the published authenticated route. These are individual samples, not p95 measurements. [Measurements and limits](performance-audit.md). |
 | 5 | Load time | Parallel bounded collection sources; optional metadata; artwork cache and request coalescing; balances no longer block NFTs; bounded MCP batching; reused AI registry initialization. Real API p95 and native-device timings remain unmeasured. |
 | 6 | Chat | Actual selected provider reaches the server; explicit choice stays pinned; AUTO can fall back. Late owner/Punk replies are ignored, failed text restored, mode controls collapsed and mobile composer prioritized. Strategy confirmations preserve even one-wei limits. New contract cards show useful observed details without claiming safety or simulation passed. |
-| 7 | AI providers | Gemini, GPT, Claude and Grok passed real fixed conversation and structured-output probes on the preview; runtime database privileges passed. Their reviewed configuration is prepared for production. Bankr is explicitly unavailable because no reviewed credential/funded gateway configuration exists. [Provider evidence](provider-live-checks.json), [AI review](ai-review.md). |
+| 7 | AI providers | Gemini, GPT, Claude and Grok passed real fixed conversation and structured-output probes on the preview; runtime database privileges passed. All four also passed on the published production runtime: Gemini 1,843ms, GPT 3,728ms, Claude 3,149ms and Grok 3,084ms, each with actual usage/registry privileges. Bankr is explicitly unavailable because no reviewed credential/funded gateway configuration exists. [Provider evidence](provider-live-checks.json), [AI review](ai-review.md). |
 | 8 | Wallet | Canonical V3 Punk Wallet and separate Agent custody retained. Owner-funded Agent gas no longer requires an active unrelated V3 wallet. Fresh owner, chain, runtime, exact transaction and nonce checks remain. Current-owner reserve query rejects seller/expired/other-wallet rules. |
 | 9 | Withdraw | Existing V3 recovery retained. Agent ETH, gas deposit and standard NFT recovery have reviewed exact destination/amount, continuity, confirmation and durable hash recovery. No withdrawal was sent by this hardening phase. General Agent ERC20 and complete legacy inventory UI remain unsupported. |
 | 10 | Burn mechanism | Complete deployed-stack copy journey passed on owned Anvil/native PostgreSQL. Two copied sources each produce one credit; supply falls exactly once per burn. The originals remain intact. [Composed evidence](forge-journey-evidence.json). |
@@ -61,7 +61,7 @@ Explicit supported-scope limits: Bankr credential absent; generic website resolu
 ## 29–30. Remaining critical issues
 
 - **P0: 0 demonstrated unresolved defects in the reviewed controlled-testing scope.**
-- **P1: 0 demonstrated unresolved defects in that scope**, after the link-resolver and previously reported wallet/chat/collection/Forge defects were fixed and retested. Final deployment acceptance is tracked separately until completed.
+- **P1: 0 demonstrated unresolved defects in that scope**, after the link-resolver and previously reported wallet/chat/collection/Forge defects were fixed and retested. Final production deployment acceptance passed.
 
 ## 31. Production actions still requiring owner authorization
 
@@ -76,3 +76,9 @@ Scoped worktrees: `/private/tmp/gogh-hardening-wallet`, `gogh-hardening-ai`, `go
 Rejected approaches included silently replacing explicit provider choices, weakening historical verification to work around Anvil snapshots, promoting unreviewed marketplace packages, treating an index as complete ownership, displaying failed reads as zero, and accepting compilation as journey proof. Compatible narrow corrections were integrated; no conflicting subsystem rewrite was merged.
 
 User entry points: [Art Broker](https://goghpunks.xyz/broker/v2/), [public test guide](https://goghpunks.xyz/broker/v2/test-guide/), [complete holder guide](testing-guide.md).
+
+## Production acceptance
+
+Published September 13 at 19:24:57 UTC: commit `61cb6a973027d5f3ae3744fa62f0cb45e57dff4f`, deployment `6aa6f80761abe600083ab7c1`. All nine checked HTML/JS/CSS files match the reviewed source. Actual authenticated checks passed: complete 140-Punk MCP roster, #93 funding data, Collection 34 holdings/#1599, supported SeaDrop contract details and five Market v2 listing observations. Actual Gemini/GPT/Claude/Grok conversation and structured-output checks passed with all required database privileges. [Exact results](release-acceptance.json).
+
+The holder should refresh an already-open tab to load the new frontend. No real burn, refund, wallet transfer, replacement mint or broad autonomous activation was needed for this acceptance.

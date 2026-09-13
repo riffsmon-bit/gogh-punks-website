@@ -161,6 +161,146 @@
       "walletAuthority": "NONE",
       "transactionSubmitted": false,
       "scope": "isolated preview final hardening runtime"
+    },
+    {
+      "checkedAt": "2026-09-13T19:26:16.655Z",
+      "origin": "https://goghpunks.xyz",
+      "status": 200,
+      "elapsedMs": 3728,
+      "ok": true,
+      "code": "AI_CONNECTION_VERIFIED",
+      "checks": [
+        {
+          "kind": "CHAT",
+          "verified": true,
+          "provider": "OPENAI",
+          "code": "PASS"
+        },
+        {
+          "kind": "STRUCTURED_OUTPUT",
+          "verified": true,
+          "provider": "OPENAI",
+          "code": "PASS"
+        }
+      ],
+      "databasePrivileges": {
+        "checked": true,
+        "usageSelect": true,
+        "usageInsert": true,
+        "usageUpdate": true,
+        "registrySelect": true,
+        "registryInsert": true,
+        "registryUpdate": true
+      },
+      "walletAuthority": "NONE",
+      "transactionSubmitted": false,
+      "scope": "published final hardening runtime",
+      "productionCommit": "61cb6a973027d5f3ae3744fa62f0cb45e57dff4f"
+    },
+    {
+      "checkedAt": "2026-09-13T19:26:16.288Z",
+      "origin": "https://goghpunks.xyz",
+      "status": 200,
+      "elapsedMs": 3149,
+      "ok": true,
+      "code": "AI_CONNECTION_VERIFIED",
+      "checks": [
+        {
+          "kind": "CHAT",
+          "verified": true,
+          "provider": "ANTHROPIC",
+          "code": "PASS"
+        },
+        {
+          "kind": "STRUCTURED_OUTPUT",
+          "verified": true,
+          "provider": "ANTHROPIC",
+          "code": "PASS"
+        }
+      ],
+      "databasePrivileges": {
+        "checked": true,
+        "usageSelect": true,
+        "usageInsert": true,
+        "usageUpdate": true,
+        "registrySelect": true,
+        "registryInsert": true,
+        "registryUpdate": true
+      },
+      "walletAuthority": "NONE",
+      "transactionSubmitted": false,
+      "scope": "published final hardening runtime",
+      "productionCommit": "61cb6a973027d5f3ae3744fa62f0cb45e57dff4f"
+    },
+    {
+      "checkedAt": "2026-09-13T19:26:50.483Z",
+      "origin": "https://goghpunks.xyz",
+      "status": 200,
+      "elapsedMs": 3084,
+      "ok": true,
+      "code": "AI_CONNECTION_VERIFIED",
+      "checks": [
+        {
+          "kind": "CHAT",
+          "verified": true,
+          "provider": "XAI",
+          "code": "PASS"
+        },
+        {
+          "kind": "STRUCTURED_OUTPUT",
+          "verified": true,
+          "provider": "XAI",
+          "code": "PASS"
+        }
+      ],
+      "databasePrivileges": {
+        "checked": true,
+        "usageSelect": true,
+        "usageInsert": true,
+        "usageUpdate": true,
+        "registrySelect": true,
+        "registryInsert": true,
+        "registryUpdate": true
+      },
+      "walletAuthority": "NONE",
+      "transactionSubmitted": false,
+      "scope": "published final hardening runtime",
+      "productionCommit": "61cb6a973027d5f3ae3744fa62f0cb45e57dff4f"
+    },
+    {
+      "checkedAt": "2026-09-13T19:26:49.358Z",
+      "origin": "https://goghpunks.xyz",
+      "status": 200,
+      "elapsedMs": 1843,
+      "ok": true,
+      "code": "AI_CONNECTION_VERIFIED",
+      "checks": [
+        {
+          "kind": "CHAT",
+          "verified": true,
+          "provider": "GEMINI",
+          "code": "PASS"
+        },
+        {
+          "kind": "STRUCTURED_OUTPUT",
+          "verified": true,
+          "provider": "GEMINI",
+          "code": "PASS"
+        }
+      ],
+      "databasePrivileges": {
+        "checked": true,
+        "usageSelect": true,
+        "usageInsert": true,
+        "usageUpdate": true,
+        "registrySelect": true,
+        "registryInsert": true,
+        "registryUpdate": true
+      },
+      "walletAuthority": "NONE",
+      "transactionSubmitted": false,
+      "scope": "published final hardening runtime",
+      "productionCommit": "61cb6a973027d5f3ae3744fa62f0cb45e57dff4f"
     }
   ],
   "bankr": {
@@ -168,5 +308,6 @@
     "reason": "No reviewed Bankr API key or funded gateway configuration was found. No new paid account was created."
   },
   "authority": "fixed administrative prompts only; no owner impersonation or wallet action",
-  "productionNewModelsEnabled": false
+  "productionNewModelsEnabled": true,
+  "productionPublishedAt": "2026-09-13T19:24:57.840Z"
 }

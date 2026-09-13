@@ -115,3 +115,7 @@ The baseline above is preserved. These results supersede its specific pending re
 | Small-phone interactions | Crowded pre-chat controls, recovery field and intrinsic-width forms | Native disclosure for mode controls; quick calls follow composer; 48px recovery/link controls; 16px inputs; minmax grids; exact values wrap. Independent six-width screenshots verify no overflow. |
 
 Live production API p95 and real mobile first-token/wallet-handoff times remain unmeasured. The browser report records synthetic shell/panel timings and source hashes; these must not be represented as production network performance. No new database index was justified by the inspected low-volume usage tables; atomic owner quota locks and cached registry initialization address the demonstrated correctness and duplicate-write issue without a migration.
+
+## Published-route follow-up
+
+At 19:26 UTC, the existing authenticated holder session checked the published `61cb6a9` release: complete roster 140 in 2,800ms; Collection 34/#1599 in 6,991ms; fund 5,353ms; supported link 2,657ms; owner-gated Market v2 lab 14,136ms. All returned HTTP 200. These were five different routes under concurrent read load, one sample each; no population p95 is claimed. The slower optional research route remains a performance watch item, distinct from the repaired Collection timeout. Nine static source responses matched local hashes in 314–490ms. [Evidence](release-acceptance.json).
