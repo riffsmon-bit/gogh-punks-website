@@ -1,0 +1,248 @@
+{
+  "schema": "GOGH_MARKETPLACE_DISPOSABLE_PROOF_V1",
+  "checkedAt": "2026-09-13T20:21:52.931Z",
+  "status": "PASS_CONTROLLED_ONLY",
+  "durationMs": 26005,
+  "publicTransactions": 0,
+  "publicOrdersPosted": 0,
+  "publicReads": 142,
+  "localTransactions": 31,
+  "chainId": 4663,
+  "anchor": {
+    "number": "62236278",
+    "hash": "0xd9232037e6c2510ba496129c4e6b38b9ccc1602bd617a9c30b4df3d5498ea154"
+  },
+  "sourcePins": {
+    "chainId": 4663,
+    "collection": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+    "seaport": "0x0000000000000068f116a894984e2db1123eb395",
+    "seaportCodeHash": "0x95809b70c9659c30188db5fdd87103e24b1a55379af8c851fca393aba0224a00",
+    "weth": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+    "wethCodeHash": "0x5706be52f64875fee65a2cec0d80e47a23d8793cbe85d214b48445e2d05f5353",
+    "registry": "0x3253adc3bbd5b0010c1bf9ce8def26b7e0db5844",
+    "registryCodeHash": "0x5a1001edb812b6ec2e233cbba6db4b7c680d0832453927696cf1ef623fff8e22",
+    "implementation": "0xfdb26c2ec70956227728414ff4ab7a5eda64d13b",
+    "implementationCodeHash": "0x7d37d360014ce94902655062605b8318581097df100ab2573be52904afa6badc"
+  },
+  "localContracts": {
+    "collection": "0x8f2020a0ddfac7ef3514caa4f96f6c70944a40d6",
+    "guard": "0x771b42eef5e397e94b60f030df1727d138809131",
+    "guardCodeHash": "0xf5a63f3ae0c40cb8c9f85b44aeab36d24b6a8f23da0b7df84fb70df4d813f9e7",
+    "escrow": "0xa2fe1311748f33ecfda6494d33001935b202f323",
+    "escrowCodeHash": "0xaabb636971a54c7db9431771edcfb2add6165608927c7e65dbf324ed43d85509"
+  },
+  "steps": [
+    {
+      "test": "reserve changed after review atomically rejects",
+      "status": "PASS"
+    },
+    {
+      "test": "interleaved owner or session account state invalidates purchase",
+      "status": "PASS"
+    },
+    {
+      "test": "original transaction hash/block/type/all fee fields and receipt status fail closed",
+      "status": "PASS"
+    },
+    {
+      "test": "two selected listings paid and received atomically; duplicate rejected",
+      "status": "PASS",
+      "transactionHash": "0x54e0eb973068ea0de9effb13a61b378d5306d1093e9c16984e00ba7572a8fa33"
+    },
+    {
+      "test": "one cancelled listing prevents any sweep item/payment",
+      "status": "PASS"
+    },
+    {
+      "test": "exact WETH offer fills once to Agent; substitution and partial fill rejected",
+      "status": "PASS",
+      "transactionHash": "0x481d367119569cce9de8027bd564d4d0d632fbc1f37b6608555a7260c4f08cd6"
+    },
+    {
+      "test": "cancel after fill reconciles historical terminal state without refund or missing-event error",
+      "status": "PASS"
+    },
+    {
+      "test": "quantity-one collection WETH bid resolves exact seller token",
+      "status": "PASS"
+    },
+    {
+      "test": "cached ERC1271 validation cannot bypass transfer; repeat cancel reconciles without duplicate refund",
+      "status": "PASS"
+    },
+    {
+      "test": "away-and-back limitation reproduced and public WETH path blocked",
+      "status": "PASS_WITH_PUBLIC_RELEASE_BLOCKER"
+    },
+    {
+      "test": "original funder recovery works after copied Punk burn",
+      "status": "PASS"
+    }
+  ],
+  "receipts": [
+    {
+      "hash": "0xa8bb849c10d2cbfed529e723f5cbdf2cdebaec4d5f814669b23393d3ef7c9758",
+      "blockNumber": "62236279",
+      "status": "success"
+    },
+    {
+      "hash": "0xf03635b64c034afdaca34c824e377125e76bd4ff8d0575092d12f1f96c7efc60",
+      "blockNumber": "62236280",
+      "status": "success"
+    },
+    {
+      "hash": "0x65dd3437267912c7bf79e8c753b92ed4a6af37b0c18f87842af8acbd38280dad",
+      "blockNumber": "62236281",
+      "status": "success"
+    },
+    {
+      "hash": "0xdace191b8d2364674ba6e81574dde51ad8a5cc69986f6b251c0992e153576f52",
+      "blockNumber": "62236282",
+      "status": "success"
+    },
+    {
+      "hash": "0x55c527ce8269b14e9964f6a7a003d9ee70df4c8126867038fdaa348612f2a252",
+      "blockNumber": "62236283",
+      "status": "success"
+    },
+    {
+      "hash": "0xbbb3639bbb8ba19f0add559d1792baa80446d08a9a4e135dc8ba8bd247370eaa",
+      "blockNumber": "62236284",
+      "status": "success"
+    },
+    {
+      "hash": "0x9b179acf5f2114486d5f9193410fabd435b8eb6c3e57924e1193eaece1f48c79",
+      "blockNumber": "62236285",
+      "status": "success"
+    },
+    {
+      "hash": "0x54e0eb973068ea0de9effb13a61b378d5306d1093e9c16984e00ba7572a8fa33",
+      "blockNumber": "62236286",
+      "status": "success"
+    },
+    {
+      "hash": "0x599c44539e6e10f23e05efa39cc620b54c0ce280c62b5095714c4f277f9ac754",
+      "blockNumber": "62236287",
+      "status": "success"
+    },
+    {
+      "hash": "0x80764b44b9037a107cad2d8866cab8377c14796e1920686a7d2d18906233c8ce",
+      "blockNumber": "62236288",
+      "status": "success"
+    },
+    {
+      "hash": "0x7a13f637f5a09429b5e4a2dfe8215335528b5aabe797666b3bade365c83639e7",
+      "blockNumber": "62236289",
+      "status": "success"
+    },
+    {
+      "hash": "0xa78250cbb678f747546c155264568e9af083c79052a93f8f7c1e96817fdeb48d",
+      "blockNumber": "62236290",
+      "status": "success"
+    },
+    {
+      "hash": "0x481d367119569cce9de8027bd564d4d0d632fbc1f37b6608555a7260c4f08cd6",
+      "blockNumber": "62236291",
+      "status": "success"
+    },
+    {
+      "hash": "0xc61e96d5bff8dc1b17705f6e62c3c20eb56513bc845e1113ff78319a78c5116a",
+      "blockNumber": "62236292",
+      "status": "success"
+    },
+    {
+      "hash": "0x6115455baee4f987d8b58dc3bbe760ecbefb8969c91319548749fd78b1ceda24",
+      "blockNumber": "62236293",
+      "status": "success"
+    },
+    {
+      "hash": "0x710863580d7586b2cc7804ea769d13d365acc32f3c4da9f4a1150d3c6b39f2eb",
+      "blockNumber": "62236294",
+      "status": "success"
+    },
+    {
+      "hash": "0x74f13608b237b75dbf5454151ef385e28353ed8f85d271dd80e19d459dfdfa4a",
+      "blockNumber": "62236295",
+      "status": "success"
+    },
+    {
+      "hash": "0xf720f23656580de91a59e12bc16a9e2d3d569658ca37a8cb97a297dfc9f4a498",
+      "blockNumber": "62236296",
+      "status": "success"
+    },
+    {
+      "hash": "0x5179def81dc4cfeb32d89938e669896ababe08d0b012ee226f7aa041d86f14e0",
+      "blockNumber": "62236297",
+      "status": "success"
+    },
+    {
+      "hash": "0xf4a4d558f5db9da8ab9ba8493b45e878ef90b12dee9bf3dc8d0ccf459a38a74b",
+      "blockNumber": "62236298",
+      "status": "success"
+    },
+    {
+      "hash": "0xd88bbb077842d52a5f43cbfdbb5226176a9d58fa196dbcd2a2e615a312df140a",
+      "blockNumber": "62236299",
+      "status": "success"
+    },
+    {
+      "hash": "0xb9bd0dac311f1aded912b829f0fc8e41dccb0d620054b2854ef698450da7d96d",
+      "blockNumber": "62236300",
+      "status": "success"
+    },
+    {
+      "hash": "0xeda901ab408a20f8bd1ee239471c1509345b0e70aa8621d58434da4919bb0ceb",
+      "blockNumber": "62236301",
+      "status": "success"
+    },
+    {
+      "hash": "0x10e9503c5b068c03d9e4997912887eee2c7fd783e02f25bcadaa6903b0201701",
+      "blockNumber": "62236302",
+      "status": "success"
+    },
+    {
+      "hash": "0x6ac7a71f7d0492fb5a9e6be45d9aa764e8e04c9badc020e8a964c3bcf0b9c44c",
+      "blockNumber": "62236303",
+      "status": "success"
+    },
+    {
+      "hash": "0xef0d133d6b1f2786afe3ba15715d529994dc76e073276c0b11b96e6a0023a650",
+      "blockNumber": "62236304",
+      "status": "success"
+    },
+    {
+      "hash": "0xf82f9a617911a91e92cc2e35745a806e5e9978ade2a98017b93a7fff206c576f",
+      "blockNumber": "62236305",
+      "status": "success"
+    },
+    {
+      "hash": "0x0e972307068237d031462d388aeb95abb249b51e48900f6f8c139411ec8ed107",
+      "blockNumber": "62236306",
+      "status": "success"
+    },
+    {
+      "hash": "0xd52e97d84df5e86dab6308b65e7d069a3163c7262ec8f63be9c567bd109ade7c",
+      "blockNumber": "62236307",
+      "status": "success"
+    },
+    {
+      "hash": "0xabeb79392932f425eaf9ac26bf99f6b3001981f8b5fa91824ba175364f1dd953",
+      "blockNumber": "62236308",
+      "status": "success"
+    },
+    {
+      "hash": "0x5ca9c9771739839838712c1f4160160bbe23245c732c34738bd095ceee824b0b",
+      "blockNumber": "62236309",
+      "status": "success"
+    }
+  ],
+  "limitations": [
+    "PUBLIC_GUARD_AND_ESCROW_NOT_DEPLOYED",
+    "WETH_AWAY_AND_BACK_TRANSFER_NOT_DETECTABLE",
+    "NO_PUBLIC_OPENSEA_ORDER_POSTING",
+    "TEST_NFT_RUNTIME_USED",
+    "LOCAL_IMPERSONATION_AND_TEST_BALANCES_ONLY",
+    "SINGLE_ERC721_ORDERS_ONLY",
+    "NO_VERIFIED_COLLECTION_FLOOR"
+  ]
+}

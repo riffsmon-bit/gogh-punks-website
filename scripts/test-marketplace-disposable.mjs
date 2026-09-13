@@ -14,7 +14,7 @@ import { MARKETPLACE_PINS as P, ACCOUNT_ABI, SEAPORT_ABI, MARKETPLACE_BID_ABI, O
 import { reconcileMarketplaceReview } from '../broker/src/v4/marketplace/reconcile.mjs';
 import { prepareMarketplaceReview } from '../broker/src/v4/marketplace/review.mjs';
 const args = process.argv.slice(2);
-if (args[0] !== '--disposable-only' || args.some(a => !['--disposable-only','--archive-keychain'].includes(a) && !a.startsWith('--artifacts=') && !a.startsWith('--output='))) throw Error('Requires --disposable-only [--archive-keychain] --artifacts=/absolute/forge-out [--output=/absolute/evidence.json]');
+if (args[0] !== '--disposable-only' || args.some(a => !['--disposable-only','--archive-keychain','--interactive'].includes(a) && !a.startsWith('--artifacts=') && !a.startsWith('--output='))) throw Error('Requires --disposable-only [--archive-keychain] --artifacts=/absolute/forge-out [--output=/absolute/evidence.json] [--interactive]');
 const artifacts = args.find(a => a.startsWith('--artifacts='))?.slice(12);
 if (!artifacts || !isAbsolute(artifacts)) throw Error('ABSOLUTE_ARTIFACTS_REQUIRED');
 const output = args.find(a => a.startsWith('--output='))?.slice(9);
@@ -82,6 +82,10 @@ try {
   };
   await send(seller.address,collection,encodeFunctionData({abi:nftABI,functionName:'setApprovalForAll',args:[P.seaport,true]}));
   const request=(action,selection)=>({action,owner,punkId:'93',walletRole:'AGENT',selection,budget});
+  if(args.includes('--interactive')) {
+    const { serveMarketplacePractice } = await import('./dev/marketplace/practice-server.mjs');
+    await serveMarketplacePractice({client:c,owner,wallet,collection,escrow,deps,budget,makeListing,request,sendReview,send,seller:seller.address,assertDisposable,anchor});
+  } else {
   stage('ATOMIC_NATIVE_SWEEP_AND_ADVERSE_REVIEWS');
   const listings=[await makeListing(1n),await makeListing(2n)];deps.loadListings=async()=>listings;
   const buyRequest=request('BUY_LISTINGS',{collection,orderHashes:listings.map(l=>l.order_hash)});
@@ -105,6 +109,14 @@ try {
   const purchaseSettlement=await reconcileMarketplaceReview(fresh,{client:c,transactionHash:buyReceipt.transactionHash,minConfirmations:1});assert.equal(purchaseSettlement.status,'COMPLETED');
   await assert.rejects(reconcileMarketplaceReview({...fresh,transaction:{...fresh.transaction,value:'0x1'}},{client:c,transactionHash:buyReceipt.transactionHash,minConfirmations:1}),/MISMATCH/);
   assert.equal((await reconcileMarketplaceReview(fresh,{client:c,transactionHash:buyReceipt.transactionHash,minConfirmations:100})).status,'PENDING_FINALITY');
+  const actualBuy=await c.getTransaction({hash:buyReceipt.transactionHash});
+  for(const mutate of [
+    tx=>({...tx,hash:zeroHash}),tx=>({...tx,blockHash:zeroHash}),tx=>({...tx,blockNumber:tx.blockNumber-1n}),
+    tx=>({...tx,type:'eip1559',maxFeePerGas:tx.gasPrice*100n,maxPriorityFeePerGas:tx.gasPrice*10n}),
+    tx=>({...tx,type:undefined}),tx=>({...tx,gasPrice:undefined}),tx=>({...tx,maxFeePerGas:tx.gasPrice*100n}),
+  ]) await assert.rejects(reconcileMarketplaceReview(fresh,{client:{...c,getTransaction:async()=>mutate(actualBuy)},transactionHash:buyReceipt.transactionHash,minConfirmations:1}),/ORIGINAL_TRANSACTION_MISMATCH/);
+  for(const badStatus of [undefined,'unknown'])await assert.rejects(reconcileMarketplaceReview(fresh,{client:{...c,getTransactionReceipt:async()=>({...buyReceipt,status:badStatus})},transactionHash:buyReceipt.transactionHash,minConfirmations:1}),/RECEIPT_STATUS_UNAVAILABLE/);
+  steps.push({test:'original transaction hash/block/type/all fee fields and receipt status fail closed',status:'PASS'});
   await assert.rejects(prepareMarketplaceReview(buyRequest,deps),/FILLED/);
   steps.push({test:'two selected listings paid and received atomically; duplicate rejected',status:'PASS',transactionHash:buyReceipt.transactionHash});
   const reverted=[await makeListing(3n),await makeListing(4n)];deps.loadListings=async()=>reverted;
@@ -136,6 +148,10 @@ try {
   await send(owner,escrow,encodeFunctionData({abi:MARKETPLACE_BID_ABI,functionName:'settleBid',args:[bidHash]}));
   await assert.rejects(c.call({account:seller.address,to:P.seaport,data:encodeFunctionData({abi:SEAPORT_ABI,functionName:'fulfillAdvancedOrder',args:[order,[],zeroHash,seller.address]})}));
   steps.push({test:'exact WETH offer fills once to Agent; substitution and partial fill rejected',status:'PASS',transactionHash:fillReceipt.transactionHash});
+  const afterFillCancel=await prepareMarketplaceReview(request('CANCEL_WETH_BID',{orderHash:bidHash}),deps),afterFillReceipt=await sendReview(afterFillCancel);
+  const afterFillResult=await reconcileMarketplaceReview(afterFillCancel,{client:c,transactionHash:afterFillReceipt.transactionHash,minConfirmations:1});
+  assert.equal(afterFillResult.status,'BID_ALREADY_SETTLED');assert.equal(afterFillResult.refundedWethWei,'0');assert.equal(afterFillResult.refundInThisTransaction,false);
+  steps.push({test:'cancel after fill reconciles historical terminal state without refund or missing-event error',status:'PASS'});
   const collectionBid=await createBid({...bidSelection(0n),anyToken:true});
   await fulfill(await orderFor(collectionBid),[{orderIndex:0n,side:1,index:0n,identifier:4n,criteriaProof:[]}]);
   assert.equal((await read(collection,nftABI,'ownerOf',[4n])).toLowerCase(),wallet);steps.push({test:'quantity-one collection WETH bid resolves exact seller token',status:'PASS'});
@@ -149,9 +165,11 @@ try {
   const refundBefore=await read(P.weth,erc20,'balanceOf',[owner]);
   const cancel=await prepareMarketplaceReview(request('CANCEL_WETH_BID',{orderHash:transferBid}),{...deps,policyEvidence:async()=>{throw Error('No skill authority is needed for original-funder recovery');}});
   const cancelReceipt=await sendReview(cancel);assert.equal((await reconcileMarketplaceReview(cancel,{client:c,transactionHash:cancelReceipt.transactionHash,minConfirmations:1})).status,'BID_CANCELLED');assert.equal(await read(P.weth,erc20,'balanceOf',[owner]),refundBefore+100000000000000n);
-  await send(owner,escrow,encodeFunctionData({abi:MARKETPLACE_BID_ABI,functionName:'cancelBid',args:[transferBid]}));
+  const repeatCancel=await prepareMarketplaceReview(request('CANCEL_WETH_BID',{orderHash:transferBid}),deps),repeatReceipt=await sendReview(repeatCancel);
+  const repeatResult=await reconcileMarketplaceReview(repeatCancel,{client:c,transactionHash:repeatReceipt.transactionHash,minConfirmations:1});
+  assert.equal(repeatResult.status,'BID_ALREADY_CANCELLED');assert.equal(repeatResult.refundedWethWei,'0');assert.equal(repeatResult.refundInThisTransaction,false);
   assert.equal(await read(P.weth,erc20,'balanceOf',[owner]),refundBefore+100000000000000n);
-  steps.push({test:'cached ERC1271 validation cannot bypass transfer; original funder cancels once',status:'PASS'});
+  steps.push({test:'cached ERC1271 validation cannot bypass transfer; repeat cancel reconciles without duplicate refund',status:'PASS'});
   await send(stranger,P.collection,encodeFunctionData({abi:nftABI,functionName:'transferFrom',args:[stranger,owner,93n]}));
   const backBid=await createBid(bidSelection(5n)),backOrder=await orderFor(backBid);
   await send(owner,P.collection,encodeFunctionData({abi:nftABI,functionName:'transferFrom',args:[owner,stranger,93n]}));
@@ -172,6 +190,7 @@ try {
     limitations:['PUBLIC_GUARD_AND_ESCROW_NOT_DEPLOYED','WETH_AWAY_AND_BACK_TRANSFER_NOT_DETECTABLE','NO_PUBLIC_OPENSEA_ORDER_POSTING','TEST_NFT_RUNTIME_USED','LOCAL_IMPERSONATION_AND_TEST_BALANCES_ONLY','SINGLE_ERC721_ORDERS_ONLY','NO_VERIFIED_COLLECTION_FLOOR']};
   if(output)await writeFile(output,JSON.stringify(evidence,null,2)+'\n');
   console.log(JSON.stringify(evidence,null,2));
+  }
 } catch(error) {
   const message=String(error?.shortMessage??error?.message??error).replace(/https?:\/\/[^\s]+/g,'[URL]');console.error(JSON.stringify({status:'FAILED',message,publicTransactions:0,localTransactions:writes}));process.exitCode=1;
 } finally { if(child&&child.exitCode===null){child.kill('SIGTERM');await new Promise(r=>{child.once('exit',r);setTimeout(r,3000);});} if(proxy)await new Promise(r=>proxy.close(r));await rm(dir,{recursive:true,force:true}); }

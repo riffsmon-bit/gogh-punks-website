@@ -139,6 +139,7 @@ export async function prepareMarketplaceReview(request, deps) {
     await deps.assertDisposable();
     const escrow = addr(deployment.address);
     if (keccak256(await code(escrow)) !== hash(deployment.codeHash)) fail('BID_ESCROW_CODE_CHANGED');
+    base.bidEscrow = { address: escrow, codeHash: hash(deployment.codeHash) };
     if (keccak256(await code(P.weth)) !== P.wethCodeHash) fail('WETH_CODE_CHANGED');
     base.environment = 'OWNED_DISPOSABLE_CHAIN';
     if (request.action === 'CREATE_WETH_BID') {
@@ -157,7 +158,9 @@ export async function prepareMarketplaceReview(request, deps) {
     } else {
       const orderHash = hash(request.selection?.orderHash), bid = await read(escrow, MARKETPLACE_BID_ABI, 'bids', [orderHash]);
       if (addr(bid[0]) !== owner || addr(bid[1]) !== wallet || bid[3] !== BigInt(punkId)) fail('NOT_BID_FUNDER');
-      base.selection = { orderHash, refundCurrency: 'WETH', maximumRefundWei: String(bid[5]) };
+      base.selection = { orderHash, refundCurrency: 'WETH', maximumRefundWei: String(bid[5]), bidBinding: {
+        collection: addr(bid[2]), tokenId: String(bid[4]), priceWei: String(bid[5]), salt: String(bid[6]), counter: String(bid[7]),
+        createdAt: String(bid[8]), deadline: String(bid[9]), anyToken: bid[10], collectionCodeHash: hash(bid[11]), recipientCodeHash: hash(bid[12]) } };
       base.note = 'If settlement already won the race, this only records completion; it never returns spent bid funds.';
       transaction = { from: owner, to: escrow, value: 0n, data: encodeFunctionData({ abi: MARKETPLACE_BID_ABI, functionName: 'cancelBid', args: [orderHash] }) };
     }
@@ -187,7 +190,7 @@ export async function prepareMarketplaceReview(request, deps) {
   base.simulation = { status: 'PASS', anchorHash: anchor.hash, method: 'EXACT_OWNER_TRANSACTION_ETH_CALL', gasEstimate: String(gas), postState: request.action === 'BUY_LISTINGS' ? 'SEAPORT_FULFILLMENT_RETURN_VERIFIED' : 'CONTROLLED_ESCROW_CALL_SIMULATED' };
   base.cost = { currency: 'ETH', totalPriceWei: String(total), maximumNetworkFeeWei: String(maxFee), minimumReserveWei: String(budget.minimumReserveWei), payer: request.action === 'BUY_LISTINGS' ? 'PUNK_WALLET_PRICE_OWNER_GAS' : 'OWNER_WALLET' };
   base.idempotencyKey = keccak256(stringToHex(stringify({ chainId: 4663, action: request.action, owner, punkId, selection: base.selection })));
-  base.transaction = { ...transaction, nonce: toHex(pendingNonce), value: toHex(transaction.value), chainId: toHex(4663), gas: toHex(gas), gasPrice: toHex(gasPrice) };
+  base.transaction = { ...transaction, type: '0x0', nonce: toHex(pendingNonce), value: toHex(transaction.value), chainId: toHex(4663), gas: toHex(gas), gasPrice: toHex(gasPrice) };
   base.availability = request.action === 'BUY_LISTINGS' ? 'OWNER_REVIEW_READY' : 'DISPOSABLE_REVIEW_READY';
   return base;
 }
