@@ -1,0 +1,69 @@
+{
+  "schema": "GOGH_DURABLE_MARKETPLACE_DISPOSABLE_PROOF_V1",
+  "status": "PASS_CONTROLLED_ONLY",
+  "checkedAt": "2026-09-13T23:20:04.187Z",
+  "chainId": 4663,
+  "owner": "0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6",
+  "punkId": "93",
+  "wallet": "0xcadcfd37e715bc031cf0cec7fa2335091c878c83",
+  "collection": "0x8f2020a0ddfac7ef3514caa4f96f6c70944a40d6",
+  "publicTransactions": 0,
+  "publicOrdersPosted": 0,
+  "walletClaims": 1,
+  "purchaseTransactions": 1,
+  "nativePostgres": true,
+  "narrowRoleVerified": true,
+  "databaseRestarted": true,
+  "coordinatorRestarted": true,
+  "releasePausedAtRecovery": true,
+  "reviewHash": "30995820fd061e5bf7b9a0832bcb9187b7538d0def7974b56a6b849fc007c44a",
+  "receipt": {
+    "items": [
+      {
+        "counter": "0",
+        "tokenId": "8101",
+        "totalWei": "100000000000000",
+        "orderHash": "0xcf2e66d37663149d4cd071b7de58baa9d195b828a787ca5c0ecfe4bd9e4ee755"
+      },
+      {
+        "counter": "0",
+        "tokenId": "8102",
+        "totalWei": "100000000000000",
+        "orderHash": "0xec272762f1d6d76347d83c71ba5df6939bbcbc937459b657844e708639d63173"
+      }
+    ],
+    "action": "BUY_LISTINGS",
+    "status": "COMPLETED",
+    "blockHash": "0x0fd94e4bb872470129dda3e4cbf32381cc68605b86c01e7762df7325ea37e3d4",
+    "blockNumber": "62341647",
+    "confirmations": "13",
+    "transactionHash": "0x2c5a32992e23aafcce26fd55e668d53e0fab16a353592634fdba1782daeade23",
+    "publicTransactions": 0
+  },
+  "audit": [
+    {
+      "revision": 0,
+      "status": "PREPARED"
+    },
+    {
+      "revision": 1,
+      "status": "WALLET_REQUESTED"
+    },
+    {
+      "revision": 2,
+      "status": "WALLET_REQUESTED"
+    },
+    {
+      "revision": 3,
+      "status": "COMPLETED"
+    }
+  ],
+  "limitations": [
+    "DISPOSABLE_COLLECTION_SCREEN_AND_POLICY_FIXTURES",
+    "NO_PUBLIC_GUARD_DEPLOYED",
+    "NO_PUBLIC_RELEASE_AUTHORIZATION",
+    "NO_LIVE_OPENSEA_SIGNED_ORDER_ADAPTER",
+    "TEST_OWNER_IMPERSONATION_ONLY",
+    "NO_BROWSER_WALLET_TEST_IN_THIS_PROOF"
+  ]
+}

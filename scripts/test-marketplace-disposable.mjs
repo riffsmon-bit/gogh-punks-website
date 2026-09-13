@@ -14,7 +14,8 @@ import { MARKETPLACE_PINS as P, ACCOUNT_ABI, SEAPORT_ABI, MARKETPLACE_BID_ABI, O
 import { reconcileMarketplaceReview } from '../broker/src/v4/marketplace/reconcile.mjs';
 import { prepareMarketplaceReview } from '../broker/src/v4/marketplace/review.mjs';
 const args = process.argv.slice(2);
-if (args[0] !== '--disposable-only' || args.some(a => !['--disposable-only','--archive-keychain','--interactive'].includes(a) && !a.startsWith('--artifacts=') && !a.startsWith('--output='))) throw Error('Requires --disposable-only [--archive-keychain] --artifacts=/absolute/forge-out [--output=/absolute/evidence.json] [--interactive]');
+if (args[0] !== '--disposable-only' || args.some(a => !['--disposable-only','--archive-keychain','--interactive','--durable-journal-test'].includes(a) && !a.startsWith('--artifacts=') && !a.startsWith('--output='))
+  || (args.includes('--interactive') && args.includes('--durable-journal-test'))) throw Error('Requires --disposable-only [--archive-keychain] --artifacts=/absolute/forge-out [--output=/absolute/evidence.json] [--interactive | --durable-journal-test]');
 const artifacts = args.find(a => a.startsWith('--artifacts='))?.slice(12);
 if (!artifacts || !isAbsolute(artifacts)) throw Error('ABSOLUTE_ARTIFACTS_REQUIRED');
 const output = args.find(a => a.startsWith('--output='))?.slice(9);
@@ -32,7 +33,7 @@ const publicRead = async ({method,params=[]}) => {
   const r = await fetch(upstream,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method,params}),signal:AbortSignal.timeout(20000)});
   if (!r.ok) throw Error('PUBLIC_READ_UNAVAILABLE'); const body = await r.json(); if (body.error || !Object.hasOwn(body,'result')) throw Error('PUBLIC_READ_REJECTED'); return body.result;
 };
-const p = createPublicClient({cacheTime:0,transport:custom({request:publicRead},{retryCount:0})});
+const p = createPublicClient({ccipRead:false,cacheTime:0,transport:custom({request:publicRead},{retryCount:0})});
 const artifact = async name => JSON.parse(await readFile(join(artifacts,`${name}.sol`,`${name}.json`),'utf8'));
 const nftABI = parseAbi(['function mint(address,uint256)','function ownerOf(uint256) view returns(address)','function setApprovalForAll(address,bool)','function transferFrom(address,address,uint256)']);
 const erc20 = parseAbi(['function balanceOf(address) view returns(uint256)','function allowance(address,address) view returns(uint256)']);
@@ -48,7 +49,7 @@ try {
   await new Promise(r=>proxy.listen(0,'127.0.0.1',r));
   child=spawn('anvil',['--silent','--host','127.0.0.1','--port',String(port),'--chain-id','4663','--mnemonic-random','--prune-history','10000','--cache-path',join(dir,'cache'),'--fork-url',`http://127.0.0.1:${proxy.address().port}`,'--fork-block-number',String(anchor.number)],{stdio:'ignore'});
   const url=`http://127.0.0.1:${port}`;
-  const c=localClient=createPublicClient({cacheTime:0,transport:http(url,{timeout:60000,retryCount:0})});
+  const c=localClient=createPublicClient({ccipRead:false,cacheTime:0,transport:http(url,{timeout:60000,retryCount:0})});
   for(let i=0;i<100;i++){try{if(await c.getChainId()===4663)break;}catch{}await new Promise(r=>setTimeout(r,200));}
   assert.match(await c.request({method:'web3_clientVersion'}),/anvil/i);
   assert.equal((await c.getBlock({blockNumber:anchor.number})).hash,anchor.hash);
@@ -82,7 +83,10 @@ try {
   };
   await send(seller.address,collection,encodeFunctionData({abi:nftABI,functionName:'setApprovalForAll',args:[P.seaport,true]}));
   const request=(action,selection)=>({action,owner,punkId:'93',walletRole:'AGENT',selection,budget});
-  if(args.includes('--interactive')) {
+  if(args.includes('--durable-journal-test')) {
+    const { proveDurableMarketplace } = await import('./dev/marketplace/durable-journal-proof.mjs');
+    await proveDurableMarketplace({client:c,owner,wallet,collection,deps,budget,makeListing,sendReview,assertDisposable,local,output});
+  } else if(args.includes('--interactive')) {
     const { serveMarketplacePractice } = await import('./dev/marketplace/practice-server.mjs');
     await serveMarketplacePractice({client:c,owner,wallet,collection,escrow,deps,budget,makeListing,request,sendReview,send,seller:seller.address,assertDisposable,anchor});
   } else {

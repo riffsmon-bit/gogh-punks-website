@@ -1,0 +1,30 @@
+# Durable marketplace backend review
+
+The durable purchase backend is implemented with a production-blocked release and an injectable reviewed server composition seam. No public deployment, migration, purchase, order posting, signing credential access, refund, or production role change is part of this work.
+
+The coordinator persists the exact review before wallet claim and uses a database CAS before returning its one wallet payload. Immutable input and review digests preserve idempotency across competing preparers and retry/restart. Owner/Punk/chain scoping prevents one session from retrieving another owner's review. Active unique indexes preserve the old owner's unresolved purchase across a transfer and serialize the owner's marketplace nonce stream across Punks.
+
+Unknown wallet responses, alleged prompt rejection, lost claim acknowledgements, lost transaction hashes, time expiry and uncertain receipt reads retain the original reservation. Only an unclaimed review cancels. First hash binding requires observing the exact reviewed transaction, rather than trusting a browser hint or assuming a missing receipt proves identity. Known hashes cannot be replaced. Final recovery uses the immutable original review, canonical receipt and historical proof through the existing reconciler, including after release pause or ownership transfer.
+
+The HTTP surface derives identity from the existing session, requires same-origin POST, rejects all unsupported fields, and limits requests to 4096 bytes. Review calldata is redacted from every entry. The claim response carries a single exact transaction; prepared entries provide a keccak256 calldata commitment plus fee/nonce/type/address/value/chain fields for browser comparison. Seaport counters are retained for full order-hash reconstruction. The concrete runtime and coordinator require client-level `ccipRead:false` to prohibit viem OffchainLookup callbacks.
+
+Validation completed:
+
+- Focused JavaScript suite: 133 tests passed, including HTTP, durable coordinator, existing marketplace core/security and existing practice regressions with the final CCIP/counter hardening.
+- Native PostgreSQL: real simultaneous preparations and 12 competing claims, one wallet winner, original-byte persistence, separate-pool recovery, one terminal audit transition, scope isolation, immutable JSON/hash, hash substitution rejection, claimed cancellation rejection, database-clock expiry, fresh preparation after unclaimed cancellation, and restricted-role privilege checks passed.
+- PostgreSQL ran only in a fresh automatically cleaned loopback cluster with `fsync=on` and `synchronous_commit=on`. The staged migration was never applied to production.
+- The optional `--durable-journal-test` harness branch passed on 2026-09-13 at 23:20:04 UTC. It composed actual existing marketplace preparation, fresh original-transaction claim simulation, PostgreSQL persistence through a narrow request role, one owned copied-chain purchase, 13-confirmation receipt recovery (12 required), and a real PostgreSQL/coordinator restart while the release was paused. Two NFTs were verified in the canonical Agent, and the durable audit contained exactly revisions 0 PREPARED, 1 WALLET_REQUESTED, 2 WALLET_REQUESTED with original hash, and 3 COMPLETED. See `durable-disposable-evidence.json`.
+
+The release remains blocked by absent public purchase-guard deployment, reviewed signed-order source, authoritative collection screening, shared policy/skill adapter and production journal authorization. The durable backend does not invent those attestations. Its native fixture tests exercise persistence and adversarial control flow; only the disposable harness exercises actual core transactions. Even that harness uses a known local test collection and explicitly fixture policy/skill evidence, not a production policy integration. Public WETH bids and automatic transactions remain unavailable.
+
+Residual boundaries: root integration owns the browser's exact calldata/order verification and one-send persistence, Netlify packaging, and any eventual release/deployment review. A post-claim lost hash cannot be safely unlocked with the evidence currently available and therefore remains held. A review on another feature's independent nonce lane can make a marketplace transaction stale; the marketplace journal does not alter existing paid/free-mint coordination. No automatic retry, wallet replacement, spend reallocation, or refund process is introduced.
+
+Reproduction commands:
+
+```sh
+node --test tests/marketplace-api.test.mjs tests/marketplace-durable-journal.test.mjs tests/marketplace-review.test.mjs tests/marketplace-independent-security.test.mjs tests/marketplace-practice.test.mjs tests/marketplace-practice-independent.test.mjs
+node scripts/test-marketplace-journal-postgres.mjs --owned-local-only
+node scripts/test-marketplace-disposable.mjs --disposable-only --durable-journal-test --artifacts=/absolute/existing/forge-output --output=/absolute/local/evidence.json
+```
+
+The native harness uses `/private/tmp/gogh-postgres-native/bin` and creates its own loopback cluster. The copied-chain harness retains the original fixed read-only public RPC allowlist, creates its own Anvil, and never connects to a practice server. `--interactive` and `--durable-journal-test` are mutually exclusive. An initial proof run exposed a test-only `pg_ctl restart` inherited-output wait; the helper now directs restart output to the owned cluster log, and the final rerun passed. Only that first run's owned cluster was stopped to complete cleanup.
