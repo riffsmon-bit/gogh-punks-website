@@ -1,0 +1,249 @@
+{
+  "schema": "GOGH_FORGE_COMPOSED_JOURNEY_V1",
+  "status": "PASS",
+  "checkedAt": "2026-09-13T18:54:24.911Z",
+  "environment": "OWNED_DISPOSABLE_ANVIL_FORK_AND_NATIVE_POSTGRES",
+  "publicAnchor": {
+    "number": "62184384",
+    "hash": "0x160b806d1f813e1d99e803972c9aaf99314601db49911bb024051016f56a849e"
+  },
+  "deployedRuntimePinsVerified": true,
+  "selectedSource": "1753",
+  "trainingTarget": "93",
+  "extraSlotSource": "94",
+  "initialSelectedCredit": "0",
+  "selectedCreditGained": 1,
+  "extraCreditGained": 1,
+  "creditsAfterLearningAndUnlock": "0",
+  "supplyDecreaseOnFork": 2,
+  "slotCountBeforePaidUnlock": 1,
+  "slotCountAfterPaidUnlock": 2,
+  "skill": {
+    "name": "Rarity Eye",
+    "key": "0x2109a1600733ac7484f1358fcf5a116586a8e66b993ae96f479098fffbb7b1c1",
+    "manifestHash": "0x9f17224444ef8938c9d998754a6be4c9dce2029c5e6e6a5f918effdc276c0d26",
+    "instructionHash": "0x7f7baae864b35a8230361de2ac3a6abda099669a6659e3d76e5bdf105bf859f0",
+    "implementationSha256": "53322cbbcfa71c34e210548e9e10db99ab0da63dc39516ad1a144024b3c39c98",
+    "sampleSize": 3,
+    "metadataEvidence": {
+      "blockNumber": "62184953",
+      "blockHash": "0x8e07a266bf163339beb24b1ce925fa168d578720c616f5471773894e05171eee",
+      "metadataHash": "35fb4d91a5c92646bc63faa42e23dbfcbc65aac01227c1641496ff81c58ba7f3"
+    }
+  },
+  "capabilityMaskEquipped": "8",
+  "unequippedResearchDenied": true,
+  "spendingToolDenied": true,
+  "releasedServerResearchBridgeVerified": true,
+  "bridgeUsesActualStateAndOwnershipContinuity": true,
+  "bridgeWalletAuthority": "NONE",
+  "bridgeEconomicAuthorizationSeparate": true,
+  "browserEnvelopeValidated": true,
+  "recreatedBrowserAttemptMarkerPreserved": true,
+  "lostWalletResponseRecoveredWithoutResend": true,
+  "concurrentBurnClaimWinners": 1,
+  "duplicateSettlementNoCreditOrTraining": true,
+  "buyerFreshReviewAccepted": true,
+  "sellerAuthorityDenied": true,
+  "privateSellerReviewHiddenFromBuyer": true,
+  "transfer": {
+    "forkTransactionHash": "0x5e48fb0a1534016a186cfbecb7e01973d7c970f31b8b21dcf1683a086a2df30f",
+    "learnedSkillsPersist": true,
+    "slotsPersist": true,
+    "loadoutPersists": true,
+    "canonicalWallet": "0x06D5e0Df2Eb9512777403bF017031618F4713e19",
+    "agentWallet": "0xcAdcFD37e715bC031cF0cEC7fA2335091c878C83",
+    "paidNft1599CustodyPersisted": true,
+    "sessionActiveBefore": true,
+    "sessionActiveAfter": false,
+    "managedContinuityRejectsPreviousOwner": true,
+    "trainingDoesNotReactivateAutomation": true,
+    "roundTripSessionRevivalNotChanged": true
+  },
+  "sourceEligibility": {
+    "evidence": "EXPLICIT_MOCK_SNAPSHOTS_NOT_PRODUCTION_INVENTORY",
+    "cases": [
+      "V1:nativeWei",
+      "V1:entryPointDepositWei",
+      "V1:nftCount",
+      "V1:erc20AssetCount",
+      "V1:otherAssetCount",
+      "V2:nativeWei",
+      "V2:entryPointDepositWei",
+      "V2:nftCount",
+      "V2:erc20AssetCount",
+      "V2:otherAssetCount",
+      "V3:nativeWei",
+      "V3:entryPointDepositWei",
+      "V3:nftCount",
+      "V3:erc20AssetCount",
+      "V3:otherAssetCount",
+      "AGENT:nativeWei",
+      "AGENT:entryPointDepositWei",
+      "AGENT:nftCount",
+      "AGENT:erc20AssetCount",
+      "AGENT:otherAssetCount",
+      "openMissions",
+      "activeAutomation",
+      "unsettledTransactions",
+      "legacyLocks"
+    ],
+    "emptyMockDoesNotAuthorizeProduction": true,
+    "selectedCoordinatorSourceClearanceMocked": true,
+    "sourceCheckAssetAndObligationFailuresPreventWalletRequest": true,
+    "secondSourceInventoryNotClaimedVerified": true
+  },
+  "database": {
+    "engine": "native PostgreSQL",
+    "restrictedRequestAndWorkerRoles": true,
+    "browserDenied": true,
+    "trainingEvents": [
+      {
+        "status": "INCLUDED_SUCCESS",
+        "count": 8
+      },
+      {
+        "status": "PREPARED",
+        "count": 9
+      },
+      {
+        "status": "REVIEW_EXPIRED",
+        "count": 1
+      },
+      {
+        "status": "SETTLED_SUCCESS",
+        "count": 8
+      },
+      {
+        "status": "SUBMISSION_UNKNOWN",
+        "count": 1
+      },
+      {
+        "status": "SUBMITTED",
+        "count": 8
+      },
+      {
+        "status": "WALLET_REQUESTED",
+        "count": 9
+      }
+    ],
+    "selectedBurnEvents": [
+      {
+        "status": "CONFIRMED",
+        "count": 3
+      },
+      {
+        "status": "PREPARED",
+        "count": 3
+      },
+      {
+        "status": "WALLET_REQUESTED",
+        "count": 6
+      }
+    ]
+  },
+  "twoReceiptClientsShareOneOwnedNode": true,
+  "publicFinalityOrIndependentProvidersProven": false,
+  "visualBrowserProof": "SEPARATE_EXISTING_BROWSER_HARNESSES; THIS_SCRIPT_USES_REAL_BROWSER_ENVELOPE_MODULES_WITH_LOCAL_PROVIDER",
+  "forkTransactions": 16,
+  "reviewedTrainingSends": 8,
+  "publicRequests": 213,
+  "publicMethods": [
+    "eth_call",
+    "eth_chainId",
+    "eth_gasPrice",
+    "eth_getBalance",
+    "eth_getBlockByNumber",
+    "eth_getCode",
+    "eth_getStorageAt",
+    "eth_getTransactionCount",
+    "eth_getTransactionReceipt"
+  ],
+  "publicTransactions": 0,
+  "publicOriginalsUnchanged": true,
+  "manifestsChanged": false,
+  "productionDatabaseAccessed": false,
+  "productionBurnAuthorized": false,
+  "inMemoryBuyerAllowlistOnly": true,
+  "freshRandomAnvilGenesisActors": true,
+  "ownedAnvilHistoryStatesRetained": 10000,
+  "ownedAnvilCacheIsolated": true,
+  "metrics": {
+    "elapsedMs": 45398
+  },
+  "steps": [
+    {
+      "action": "ENABLE_FORGE",
+      "status": "CONFIRMED",
+      "forkTransactionHash": "0x684d85783f953d79ade9f4f0041973c616a275ec24ded8bd9a65006880feea1f"
+    },
+    {
+      "action": "APPROVE",
+      "status": "CONFIRMED",
+      "forkTransactionHash": "0x85e49335e88cbed0a596834dfb7b4417cc2bad6c86a78a0db7e1dfbc1890c95f"
+    },
+    {
+      "action": "BURN",
+      "status": "CONFIRMED",
+      "forkTransactionHash": "0xde0475921e64e14cdea08b6881777502b2ca054806c112f6185f79e9736b2282"
+    },
+    {
+      "action": "learn",
+      "owner": "0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6",
+      "status": "SETTLED_SUCCESS",
+      "forkTransactionHash": "0x6d508f867c7802b1a918ca8c7478a23c61cf9ca121547e11294f0e146bc79deb"
+    },
+    {
+      "action": "APPROVE_SECOND_COPY",
+      "status": "CONFIRMED",
+      "forkTransactionHash": "0x2a88b43c9d135504eedce1cc38156306de759ca45db163f6c018716242f6d778"
+    },
+    {
+      "action": "BURN_SECOND_COPY",
+      "status": "CONFIRMED",
+      "forkTransactionHash": "0x86e36fb938133c49d5cf16ed83b299fa22bfa748977c51d435f7e9d1a79967e8"
+    },
+    {
+      "action": "claim_rarity",
+      "owner": "0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6",
+      "status": "SETTLED_SUCCESS",
+      "forkTransactionHash": "0x277b566c66516a324558fbbf5d3a0fc3cf866f3c7fbaa98c2a0d83c5ad4b32ea"
+    },
+    {
+      "action": "unlock",
+      "owner": "0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6",
+      "status": "SETTLED_SUCCESS",
+      "forkTransactionHash": "0x047fd71d75d565a260eb7b5358f9680fb187fc1a0989b25acbe8b0799f5228b5"
+    },
+    {
+      "action": "equip",
+      "owner": "0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6",
+      "status": "SETTLED_SUCCESS",
+      "forkTransactionHash": "0xeb7906bdc4f1a76b46233180fda19b5522c4424508fcae838464c121bc7e457b"
+    },
+    {
+      "action": "unequip",
+      "owner": "0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6",
+      "status": "SETTLED_SUCCESS",
+      "forkTransactionHash": "0x1c22ef96e2a85d199de6e325d9f5e6cea79257dc58b1160de1280d2c3d6644a4"
+    },
+    {
+      "action": "equip",
+      "owner": "0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6",
+      "status": "SETTLED_SUCCESS",
+      "forkTransactionHash": "0xeb1dcb668444857e8493af6be0cf5aa205c0276f43c7c15044370c891db55dd6"
+    },
+    {
+      "action": "unequip",
+      "owner": "0xb72e0bd0502a2b24519b0b8bc7befe33fa450693",
+      "status": "SETTLED_SUCCESS",
+      "forkTransactionHash": "0x633ada63cf68ab57417b36e0d34d63c5131060201ce37b5f7413297c26c0b953"
+    },
+    {
+      "action": "equip",
+      "owner": "0xb72e0bd0502a2b24519b0b8bc7befe33fa450693",
+      "status": "SETTLED_SUCCESS",
+      "forkTransactionHash": "0xe8c6a40a637e1dffa7edc317463801c67b91c43acad094b831fc103d2e71e94e"
+    }
+  ]
+}

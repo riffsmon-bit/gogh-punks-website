@@ -1,0 +1,20 @@
+{
+  "schema": "GOGH_FORGE_OWNER_RUNTIME_AUDIT_V1",
+  "status": "TRAINING_OWNER_UNSUPPORTED_AT_BASELINE",
+  "checkedAt": "2026-09-13T18:16:43.527Z",
+  "owner": "0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6",
+  "chainId": 4663,
+  "anchor": {
+    "number": "62162606",
+    "hash": "0x8ab13f53a2226a764ed1d5e4ac0e0055488310a6644c94211f26e667b7c68070"
+  },
+  "runtimeBytes": 23,
+  "designation": "EIP7702_DELEGATED_EOA",
+  "codeHash": "0xb09ef517c48d2bf6eed05457ff56871b2596e3fc904fc6e9795882a870c2e993",
+  "delegation": "0x63c0c19a282a1b52b07dd5a65b58948a07dae32b",
+  "delegationCodeHash": "0xa06befcb6f1d7b6c566a607d9d5d932f9b267f3470e55940225c6ee9c4c5e6b0",
+  "delegationHasCode": true,
+  "nestedDelegation": false,
+  "failedGuard": "training-state.mjs:71 requires empty owner code",
+  "publicTransactions": 0
+}

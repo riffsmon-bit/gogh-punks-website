@@ -99,3 +99,19 @@ Use a bounded set of fixtures: no-Punk owner, one fresh Punk, the observed 140-P
 Collect a small predeclared sample of cold/warm runs and report count, median, p95 only when the sample supports it, maximum, errors and cache state. Record request correlation IDs, fixed phase labels, durations, candidate/verified counts and sanitized provider status. Do not record keys, authenticated URLs, raw signed transactions, wallet signatures or private chat text. Do not run an unbounded benchmark against free public RPCs.
 
 Preserve baseline artifacts and compare the exact same workload after integration. One successful response or an all-green unit suite cannot establish production latency, inventory completeness or long-term provider reliability.
+
+## Measured hardening results — September 13
+
+The baseline above is preserved. These results supersede its specific pending repairs.
+
+| Path | Before | After / evidence |
+|---|---|---|
+| #93 Collection | User-visible timeout; paid delivery hidden | Real authenticated production response: 34 verified holdings including #1599, 4,114ms, no unavailable discovery sources. The older timeout has no reliable numeric baseline. |
+| Missing original artwork | 20 live-owned IDs absent from the artwork index | Fixed-collection on-chain enrichment: six distinct missing images in 1,733ms cold, 3ms same-process warm. Browser display remains progressive and owner-fenced. |
+| MCP owned roster | Up to 256 indexed rows; serial full authority/profile reads | 140 live-owned Punks with zero index hints in 1,743ms, 35 RPC reads, max concurrency 4. Registry/chain/anchor retained; request budget 12s. Existing archive configuration is preferred for this read-only path. |
+| Chat provider timeout | Independent 20s attempts could accumulate across fallback | 20s overall budget, 10s attempt cap, aborted HTTP and atomic quota reservation. These are enforced bounds, not measured normal reply times. |
+| Live fixed provider checks | Only prior Gemini runtime verified | Gemini 3,301ms; GPT 3,498ms; Claude 2,254ms; Grok 3,020ms on preview, each including actual structured and conversational probes. These are individual checks, not API p95 or first-token measurements. |
+| ETH/WETH display | Production WETH stayed checking; failed refresh retained native display | Independent coalesced balances with 10s bound, explicit unavailable state and retry; NFT loading does not wait. Browser tests prove one pending read is shared between Fund and Collection. |
+| Small-phone interactions | Crowded pre-chat controls, recovery field and intrinsic-width forms | Native disclosure for mode controls; quick calls follow composer; 48px recovery/link controls; 16px inputs; minmax grids; exact values wrap. Independent six-width screenshots verify no overflow. |
+
+Live production API p95 and real mobile first-token/wallet-handoff times remain unmeasured. The browser report records synthetic shell/panel timings and source hashes; these must not be represented as production network performance. No new database index was justified by the inspected low-volume usage tables; atomic owner quota locks and cached registry initialization address the demonstrated correctness and duplicate-write issue without a migration.

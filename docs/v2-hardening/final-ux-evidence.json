@@ -1,0 +1,2218 @@
+{
+  "status": "PASS",
+  "siteRoot": "/private/tmp/gogh-punk93-mint-stall/site",
+  "sourceSha256": {
+    "broker/v2/index.html": "d07b2dfc36a2516bd6c2c90091011dbfeff58713e85261323552a5f391901fd6",
+    "broker-v2.js": "e700d5f9e06c520a467a6dc7e2226dd0568ba72971f863e9fd243c7a843adc7e",
+    "broker-v2.css": "15b3aa4348011af9c4d86eb685b2255d13de4a2c60af21e23b217fc100b1ba92",
+    "assets/nft-placeholder.svg": "2a24f5e18af88747a8a86b064b5c571e20d87f22b5759fd33630c25e66591535",
+    "broker-v2-preferences.js": "3c0785a5c36d9529f696e0ac33be67a216535e6f7243712695fc5d3c6afb9f48",
+    "broker-v2-amounts.js": "9b5b658f3969331f4701595edd84baf57f26b90d29205aad304e8aacbcead6aa",
+    "punk-agent-gas-recovery-panel.js": "ebe2dd3890e3531571821c906e907b1fa3b08c517020e39ad65d8b8f941078a8",
+    "punk-agent-gas-funding.js": "a65eafdd80870608231b5670d32b4c5a6316f995204e4a42cbe57da147c75402",
+    "punk-agent-gas-funding-journal.js": "996cc874cdbd590a3d3042880a1413ba184f7ae8a69f7754f0c94b554ffeb3fa",
+    "broker-v2-forge.js": "813de672b779c7d22d87c99a904e8032a12517adce61241b1fd7a3801278bc7c",
+    "broker-v2-forge.css": "3c8bfeb0286d6875b7f05659cd01fa9583366d8867b8be1c9ba94a09aeea66b3",
+    "account-activation.js": "a1ff44502c51cff053401e7d0dbcc16f1d879bb6f25f3e6f0d3c663e3a4a4186",
+    "account-funds.js": "d1d04c04612452ea916ca70810f0e7dd952d90b86a8b04005d5fa36ab75bc719",
+    "agent-live-ui.js": "c67442dcc03840c9f6e12d4e89afda0c53b437619a2fe57dbe03b26cc86ba3fa",
+    "agent-setup-wizard.js": "55925340db715ccad37a0c2b9b2c3f48b58a8293b99f9df55c9cd59e30edb432",
+    "autonomous-minting.js": "858028ac51765b9c95753685323c10631aee3997f1131f56ec84269cff552724",
+    "broker-prompt-library.js": "21f01c776485db38ff9d90230776b2dcd0f03c28595cffcfa480e41eabe72fa8",
+    "broker-sunset.js": "c8d439106fd73fd00159db1336ea07fa66d416b27f899f9ee462831f2900fcf6",
+    "broker-v2-admin.css": "9cafa65cd054469a967d006bbf92011b9475013a66bc83ea373f76a68581a9c3",
+    "broker-v2-admin.js": "1fc520e912d60df047d8752c8db64f623ef4269f90b1397c62604f813893ad9b",
+    "broker-v2-epoch.css": "fd7a71e7e43581447e521a0d59d4342fdc77e852d77b9a5988a43afeef025355",
+    "broker-v2-epoch.js": "e51196ec5e7ac6682d895a0d91c71550cb1ac204789aac59e261cd4b39e28a91",
+    "broker-v2-link-findings.js": "b632efce7650d850dcacac5e41f35f474c7a6856c11162fc4852ecf0b4a2d828",
+    "broker-v2-owner-refresh.js": "a1e68fb4ae6f6bb1822a5818cac1de530d8759a117cc56de5685aee4022a15de",
+    "broker-v2-ownership.js": "0f5c9b843ced6abb3c4c128674ee76d8fb2117ec2274959e1e5028955bf4337f",
+    "broker-v2-review-agent.js": "21a75228edcdc323963049cfd98493ba7bd0ff042099039894f74e1f18a58aa3",
+    "broker-v2-review-skill.js": "e4c9cf2634cb89fddd154c87dd10adf661f8279115e75716db3fa796b53080cd",
+    "broker.css": "ffaf9f84b7bd5f3a39112917e9ee203ea6e4f25a45e69342b59ca00bebf65df5",
+    "broker.js": "abe49b165821fa5e321577e401e1cc4f2fbb4376df49043109af911e7283b66a",
+    "canary-execution.js": "dcf176aa8b48ab770e6b67dcefaab0510533afd11b0e8a4d2e5392c2b0263ab0",
+    "directed-paid-panel.js": "57bf944abefffc054cdc3cf94f0d45360e8eb9dbe3d0ce0dd7c8a6e03ddb3a7f",
+    "directed-paid-release.js": "723d72c2cb62c25db077e18026872d8622309137aeb35306830eb090335e1e4a",
+    "directed-paid-status.js": "a0e28782b92a623e68bb4147841ea49813944954fa9d4dd199d6705c02598372",
+    "directed-paid-wallet.js": "7a4fd8f787917bbca18f40955614297faab3340432465235fbe1733959d208df",
+    "external-free-mint-test.js": "6baeb58d0ad6e1dcce533e209a9e77aabda7887d4b68229fbbe4ad2cfe7f9872",
+    "forge-burn-calldata.js": "3df3f5d5f2bf6abd662c8cfb97fe6fd1ff824c4d4ee9a081eea738212903c6b8",
+    "forge-catalog.js": "9ea34d858a04a68bd8a75d4981467826f9edf0bc2cd44a7947c6b22fbdd862ab",
+    "forge-deployment-status.js": "1e1157c5410e06685b7a92da422b2e393b2bf67ff383190b14ba0193a00bab05",
+    "forge-deployment-wallet.js": "dd30d2f8303875f4db1670c253f1980098e6d3e1c9be502c7a0394ea630b1f38",
+    "forge-durable-training-panel.js": "45eac384c6861534373994b490bf45bef46456fdf341efc0d5ae2e8caa63a32b",
+    "forge-durable-wallet.js": "579455fc180c6a27f7bffa9c41575b54c288796574d0ab72404622f5ee6c728f",
+    "forge-profile-view.js": "7934543cf0a099b9c4e9963c6a5f4da0a308e06d030d07fa2d8ce5322a5c81d2",
+    "forge-reviewed-calldata.js": "65e284f2cc5bb89a65cc51e730001ba3143e064aadb82f36a1c5b2ca03d77853",
+    "forge-reviewed-training.js": "481780001ba5dcaf9b1b4ca5e565e85db791658474a0b677bb770cc700f6b0dc",
+    "forge-selected-burn-panel.js": "e9080df986398e62ff92843e5cb172acb47607116fe5fe290e7ab4abc57e1cc2",
+    "forge-selected-burn-wallet.js": "321f52b078c7246d1e2f5c38638938c33cbc31522163b54850d9cc96ef14a661",
+    "forge-training-release.js": "b88f2064974fbbf7e904cc6b645fdf3cb6f17553143204d515e08901246cba0f",
+    "forge-training-transaction.js": "1bf627f2c936ed70a3d68e48da77930003f3a8fec222b57cbe98255261f427e6",
+    "forge-training-wallet.js": "cd479a6fa20652b0881e60417484547ac9d4b896cc4b16522fbb6dae03882efb",
+    "forge-training.css": "f58ccf5b969036548cf1cfd87cb7a950feaf847f9a0e2910a5d476bda5cd96d0",
+    "forge-training.js": "635413f70b5073bf44ba0ebbb697f20cd356f33260c2d252abc2e1c79fab36b3",
+    "keccak256.js": "c2bed4dd2a8bcdcc8e7c126c08a833a31b335be1366dbc4f115ddbbb6f9d9b12",
+    "live-punk-display.js": "39bd3ae57624698cae1e4b575d0d9a209746f13d208bd0c49db34b72d2957c43",
+    "main.js": "5688864252ebbd55b9a09ebd405b950a6aae8ba4788f455e5093061a39d34485",
+    "mandate-editor.js": "6d03f46abb632cc98446e72946fa5d32429ffdf75e1db77cdb5d21447e4bf6dc",
+    "nft-withdrawal.js": "07d34af3e8a1f29c6d877f848eaa7030c9b7d46f9d394ccd0edfa50668f1602c",
+    "owner-accounts.js": "ee65c3f5c5e4314ccfc4f127856551f97b242dad2e6fcdbe5ff7e22f567dbd1b",
+    "owner-agent-activation.js": "6244ce0adcad5ba9b65dba0e30d2246466c66d6da24ddb45b17aa1da62db8044",
+    "owner-assisted-seadrop-mint.js": "a296539d8350ef4e00cf8c54fb285a83d4de4e74501ab516b6095c8b38f237cd",
+    "owner-paid-free-mint.js": "5a60299ba5eb8cd1ad49a059ccec80135ac15d3ab340240b3c10256f7915e6d8",
+    "owner-policy-controls.js": "fb93606729431d1389dc70035d1e220b35e641e8a881b2695c03d33e0b5e0e3f",
+    "pepemfers-mint.js": "f125a4fd44d630f25733734ca532966cf355dd10b474527e34d8b1fc5ac99b97",
+    "pepemfers.css": "81e06f74677e19ca93f44cbc8898b9255efc5912ea9cb7cdff2d743496abf2c3",
+    "prepaid-agent-gas.js": "c1c27e560ea2b5eeaf81d7e20b339f3c83a311e6a72e103c85e1701725bb4022",
+    "punk-agent-recall.js": "275cd13e49118c582d9a526563460af173cf058976e1e54b3bae5e4dbb11a08c",
+    "punk-agent-recovery-panel.js": "59a082376f396e3f9f1c19b4c6992bb3664a6e4dbea94ed5f463fb1a3ba49888",
+    "punk-agent-recovery.js": "686d1a60f1ecda5994d1684303e04b9e25a5f42e275a8898d820b59c1e75e4a8",
+    "punk-chat-actions.js": "842f157838ecd812fe4516031bd65a9befdd40a4558f3a9e4a708b243e5ed3f3",
+    "punk-control-center.js": "785d68c780bc066cc15adfa6cca541f0929d0d27d6d7d51045a21dcb2ee67dfe",
+    "punk-wallet-funds.js": "96c76a5a1ebd4b70fd1ffb8bcf544ea47a89ba772a1105b0df6f9bae06683d6d",
+    "reown-wallet-app.js": "d3ea35ea05b27b11a55d5f795aabebee16f54a64b2d26bea0b432a8d58734902",
+    "styles.css": "9415facb0e748c149badf05fdb1d7ac016a1ef141c438414297210f22c94615c",
+    "wallet.js": "11f93c8df4667bbb6e3f646a7b998e64af6661ba09e4fc65278f45a9c9b41e7e",
+    "wrapped-native.js": "221d1a9264c3224de96216d3a2b872f6b0f2bf26a3ac6a37e77a9ed78a3988ea"
+  },
+  "scope": "Actual candidate UI with mocked ownership, RPC, model and HTTP. No production wallet, AI latency or funding execution proof.",
+  "widths": [
+    1440,
+    1280,
+    768,
+    430,
+    375,
+    320
+  ],
+  "artworkFixtures": {
+    "/__collection-art/235": {
+      "sha256": "66560444ab708b63a29fbcb757bf199431af0a3e4f0c888629623173b6206bfb",
+      "source": "Original collection tokenURI 235"
+    },
+    "/__collection-art/241": {
+      "sha256": "87a771cefb787395ddab872295c9ed7e6c409e38c12704fa7621d5002a4e3101",
+      "source": "Original collection tokenURI 241"
+    },
+    "/__collection-art/1599": {
+      "sha256": "c948905e99c74ad8ba53b05afc9a648dc75166a8df94c1f6440b7522af7edb64",
+      "source": "https://ipfs.io/ipfs/bafkreigjjcif5gohjlmluu5qll6juzeny5iwnkg7sta7mralourk67w3mq"
+    }
+  },
+  "scenarios": [
+    "welcome-needs-no-funding",
+    "production-collection-loads-weth-balance",
+    "fund-collection-balance-reads-coalesce",
+    "weth-failure-and-explicit-refresh-recovery",
+    "selected-provider-body-and-reply",
+    "strategy-draft-exact-limits-edit-without-authority",
+    "stale-chat-success-ignored",
+    "stale-chat-error-ignored",
+    "stale-owner-chat-success-ignored",
+    "stale-owner-chat-error-ignored",
+    "chat-error-preserves-retry-message",
+    "stale-link-success-ignored",
+    "stale-link-error-ignored",
+    "link-current-result-clear",
+    "observed-link-card-exact-price-and-no-safety-pass",
+    "owner-gas-funding-review-skips-v3",
+    "saved-funding-hash-recovery-without-broadcast",
+    "saved-funding-recheck-without-broadcast",
+    "one-wei-visible-without-rounding-to-zero",
+    "verified-forge-loadout-empty-slots",
+    "owner-preferences-isolated",
+    "returning-owner-preferences-retained",
+    "saved-unavailable-provider-does-not-silently-switch",
+    "many-punk-roster-keyboard-navigation",
+    "empty-owner-roster-hides-previous-punk"
+  ],
+  "findings": [],
+  "observations": [
+    {
+      "name": "first-usable-disconnected-shell",
+      "elapsedMs": 1081.3074040000001
+    },
+    {
+      "name": "connected-roster-and-selected-shell",
+      "elapsedMs": 1381.475472
+    },
+    {
+      "name": "welcome",
+      "width": 1440,
+      "innerWidth": 1440,
+      "scrollWidth": 1440,
+      "cards": 0,
+      "count": "\u2014",
+      "smallFieldText": [
+        {
+          "tag": "SELECT",
+          "name": "broker-prompt-choice",
+          "fontSize": "13.6px"
+        }
+      ],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "talk",
+      "width": 1440,
+      "elapsedMs": 88.86728399999993
+    },
+    {
+      "name": "talk",
+      "width": 1440,
+      "innerWidth": 1440,
+      "scrollWidth": 1440,
+      "cards": 0,
+      "count": "\u2014",
+      "smallFieldText": [
+        {
+          "tag": "SELECT",
+          "name": "broker-prompt-choice",
+          "fontSize": "13.6px"
+        }
+      ],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "strategy",
+      "width": 1440,
+      "elapsedMs": 113.395622
+    },
+    {
+      "name": "strategy",
+      "width": 1440,
+      "innerWidth": 1440,
+      "scrollWidth": 1440,
+      "cards": 0,
+      "count": "\u2014",
+      "smallFieldText": [],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "fund",
+      "width": 1440,
+      "elapsedMs": 94.38189300000067
+    },
+    {
+      "name": "fund",
+      "width": 1440,
+      "innerWidth": 1440,
+      "scrollWidth": 1440,
+      "cards": 0,
+      "count": "\u2014",
+      "smallFieldText": [
+        {
+          "tag": "SELECT",
+          "name": "source",
+          "fontSize": "9.6px"
+        },
+        {
+          "tag": "INPUT",
+          "name": "amount",
+          "fontSize": "9.6px"
+        },
+        {
+          "tag": "SELECT",
+          "name": "direction",
+          "fontSize": "9.6px"
+        },
+        {
+          "tag": "INPUT",
+          "name": "amount",
+          "fontSize": "9.6px"
+        },
+        {
+          "tag": "SELECT",
+          "name": "action",
+          "fontSize": "12px"
+        },
+        {
+          "tag": "INPUT",
+          "name": "amount",
+          "fontSize": "12px"
+        }
+      ],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "collection",
+      "width": 1440,
+      "elapsedMs": 169.21063200000026
+    },
+    {
+      "name": "collection",
+      "width": 1440,
+      "innerWidth": 1440,
+      "scrollWidth": 1440,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "activity",
+      "width": 1440,
+      "elapsedMs": 237.32989599999928
+    },
+    {
+      "name": "activity",
+      "width": 1440,
+      "innerWidth": 1440,
+      "scrollWidth": 1440,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "forge",
+      "width": 1440,
+      "elapsedMs": 290.77751200000057
+    },
+    {
+      "name": "forge",
+      "width": 1440,
+      "innerWidth": 1440,
+      "scrollWidth": 1440,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [
+        {
+          "tag": "INPUT",
+          "name": "",
+          "fontSize": "12px"
+        },
+        {
+          "tag": "INPUT",
+          "name": "",
+          "fontSize": "12px"
+        },
+        {
+          "tag": "INPUT",
+          "name": "",
+          "fontSize": "12px"
+        }
+      ],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "settings",
+      "width": 1440,
+      "elapsedMs": 120.85219200000029
+    },
+    {
+      "name": "settings",
+      "width": 1440,
+      "innerWidth": 1440,
+      "scrollWidth": 1440,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [
+        {
+          "tag": "SELECT",
+          "name": "provider-setting",
+          "fontSize": "9.92px"
+        }
+      ],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "welcome",
+      "width": 1280,
+      "innerWidth": 1280,
+      "scrollWidth": 1280,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [
+        {
+          "tag": "SELECT",
+          "name": "provider-setting",
+          "fontSize": "9.92px"
+        }
+      ],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "talk",
+      "width": 1280,
+      "elapsedMs": 192.16992500000015
+    },
+    {
+      "name": "talk",
+      "width": 1280,
+      "innerWidth": 1280,
+      "scrollWidth": 1280,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [
+        {
+          "tag": "SELECT",
+          "name": "broker-prompt-choice",
+          "fontSize": "13.6px"
+        }
+      ],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "strategy",
+      "width": 1280,
+      "elapsedMs": 218.77968200000032
+    },
+    {
+      "name": "strategy",
+      "width": 1280,
+      "innerWidth": 1280,
+      "scrollWidth": 1280,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "fund",
+      "width": 1280,
+      "elapsedMs": 123.76802099999986
+    },
+    {
+      "name": "fund",
+      "width": 1280,
+      "innerWidth": 1280,
+      "scrollWidth": 1280,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [
+        {
+          "tag": "SELECT",
+          "name": "source",
+          "fontSize": "9.6px"
+        },
+        {
+          "tag": "INPUT",
+          "name": "amount",
+          "fontSize": "9.6px"
+        },
+        {
+          "tag": "SELECT",
+          "name": "direction",
+          "fontSize": "9.6px"
+        },
+        {
+          "tag": "INPUT",
+          "name": "amount",
+          "fontSize": "9.6px"
+        },
+        {
+          "tag": "SELECT",
+          "name": "action",
+          "fontSize": "12px"
+        },
+        {
+          "tag": "INPUT",
+          "name": "amount",
+          "fontSize": "12px"
+        }
+      ],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "collection",
+      "width": 1280,
+      "elapsedMs": 118.7248410000011
+    },
+    {
+      "name": "collection",
+      "width": 1280,
+      "innerWidth": 1280,
+      "scrollWidth": 1280,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "activity",
+      "width": 1280,
+      "elapsedMs": 107.04576500000076
+    },
+    {
+      "name": "activity",
+      "width": 1280,
+      "innerWidth": 1280,
+      "scrollWidth": 1280,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "forge",
+      "width": 1280,
+      "elapsedMs": 120.15478199999961
+    },
+    {
+      "name": "forge",
+      "width": 1280,
+      "innerWidth": 1280,
+      "scrollWidth": 1280,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [
+        {
+          "tag": "INPUT",
+          "name": "",
+          "fontSize": "12px"
+        },
+        {
+          "tag": "INPUT",
+          "name": "",
+          "fontSize": "12px"
+        },
+        {
+          "tag": "INPUT",
+          "name": "",
+          "fontSize": "12px"
+        }
+      ],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "settings",
+      "width": 1280,
+      "elapsedMs": 111.11465100000169
+    },
+    {
+      "name": "settings",
+      "width": 1280,
+      "innerWidth": 1280,
+      "scrollWidth": 1280,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [
+        {
+          "tag": "SELECT",
+          "name": "provider-setting",
+          "fontSize": "9.92px"
+        }
+      ],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "welcome",
+      "width": 768,
+      "innerWidth": 768,
+      "scrollWidth": 768,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [
+        {
+          "tag": "SELECT",
+          "name": "provider-setting",
+          "fontSize": "9.92px"
+        }
+      ],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "talk",
+      "width": 768,
+      "elapsedMs": 115.23207200000252
+    },
+    {
+      "name": "talk",
+      "width": 768,
+      "innerWidth": 768,
+      "scrollWidth": 768,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [
+        {
+          "tag": "SELECT",
+          "name": "broker-prompt-choice",
+          "fontSize": "13.6px"
+        }
+      ],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "strategy",
+      "width": 768,
+      "elapsedMs": 101.87823900000149
+    },
+    {
+      "name": "strategy",
+      "width": 768,
+      "innerWidth": 768,
+      "scrollWidth": 768,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "fund",
+      "width": 768,
+      "elapsedMs": 108.21623600000021
+    },
+    {
+      "name": "fund",
+      "width": 768,
+      "innerWidth": 768,
+      "scrollWidth": 768,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [
+        {
+          "tag": "SELECT",
+          "name": "source",
+          "fontSize": "9.6px"
+        },
+        {
+          "tag": "INPUT",
+          "name": "amount",
+          "fontSize": "9.6px"
+        },
+        {
+          "tag": "SELECT",
+          "name": "direction",
+          "fontSize": "9.6px"
+        },
+        {
+          "tag": "INPUT",
+          "name": "amount",
+          "fontSize": "9.6px"
+        },
+        {
+          "tag": "SELECT",
+          "name": "action",
+          "fontSize": "12px"
+        },
+        {
+          "tag": "INPUT",
+          "name": "amount",
+          "fontSize": "12px"
+        }
+      ],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "collection",
+      "width": 768,
+      "elapsedMs": 96.55268199999773
+    },
+    {
+      "name": "collection",
+      "width": 768,
+      "innerWidth": 768,
+      "scrollWidth": 768,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "activity",
+      "width": 768,
+      "elapsedMs": 114.56981100000121
+    },
+    {
+      "name": "activity",
+      "width": 768,
+      "innerWidth": 768,
+      "scrollWidth": 768,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "forge",
+      "width": 768,
+      "elapsedMs": 114.21000699999786
+    },
+    {
+      "name": "forge",
+      "width": 768,
+      "innerWidth": 768,
+      "scrollWidth": 768,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [
+        {
+          "tag": "INPUT",
+          "name": "",
+          "fontSize": "12px"
+        },
+        {
+          "tag": "INPUT",
+          "name": "",
+          "fontSize": "12px"
+        },
+        {
+          "tag": "INPUT",
+          "name": "",
+          "fontSize": "12px"
+        }
+      ],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "settings",
+      "width": 768,
+      "elapsedMs": 97.07475899999918
+    },
+    {
+      "name": "settings",
+      "width": 768,
+      "innerWidth": 768,
+      "scrollWidth": 768,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [
+        {
+          "tag": "SELECT",
+          "name": "provider-setting",
+          "fontSize": "9.92px"
+        }
+      ],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "welcome",
+      "width": 430,
+      "innerWidth": 430,
+      "scrollWidth": 430,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "talk",
+      "width": 430,
+      "elapsedMs": 109.46023100000093
+    },
+    {
+      "name": "talk",
+      "width": 430,
+      "innerWidth": 430,
+      "scrollWidth": 430,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "strategy",
+      "width": 430,
+      "elapsedMs": 97.60820400000011
+    },
+    {
+      "name": "strategy",
+      "width": 430,
+      "innerWidth": 430,
+      "scrollWidth": 430,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "fund",
+      "width": 430,
+      "elapsedMs": 106.08316899999772
+    },
+    {
+      "name": "fund",
+      "width": 430,
+      "innerWidth": 430,
+      "scrollWidth": 430,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "collection",
+      "width": 430,
+      "elapsedMs": 108.99199099999896
+    },
+    {
+      "name": "collection",
+      "width": 430,
+      "innerWidth": 430,
+      "scrollWidth": 430,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "activity",
+      "width": 430,
+      "elapsedMs": 109.71273500000098
+    },
+    {
+      "name": "activity",
+      "width": 430,
+      "innerWidth": 430,
+      "scrollWidth": 430,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "forge",
+      "width": 430,
+      "elapsedMs": 112.18456000000151
+    },
+    {
+      "name": "forge",
+      "width": 430,
+      "innerWidth": 430,
+      "scrollWidth": 430,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "settings",
+      "width": 430,
+      "elapsedMs": 119.58519199999864
+    },
+    {
+      "name": "settings",
+      "width": 430,
+      "innerWidth": 430,
+      "scrollWidth": 430,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "welcome",
+      "width": 375,
+      "innerWidth": 375,
+      "scrollWidth": 375,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "talk",
+      "width": 375,
+      "elapsedMs": 99.17205099999774
+    },
+    {
+      "name": "talk",
+      "width": 375,
+      "innerWidth": 375,
+      "scrollWidth": 375,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "strategy",
+      "width": 375,
+      "elapsedMs": 98.12020699999994
+    },
+    {
+      "name": "strategy",
+      "width": 375,
+      "innerWidth": 375,
+      "scrollWidth": 375,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "fund",
+      "width": 375,
+      "elapsedMs": 106.377794
+    },
+    {
+      "name": "fund",
+      "width": 375,
+      "innerWidth": 375,
+      "scrollWidth": 375,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "collection",
+      "width": 375,
+      "elapsedMs": 170.89921999999933
+    },
+    {
+      "name": "collection",
+      "width": 375,
+      "innerWidth": 375,
+      "scrollWidth": 375,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "activity",
+      "width": 375,
+      "elapsedMs": 101.65549000000101
+    },
+    {
+      "name": "activity",
+      "width": 375,
+      "innerWidth": 375,
+      "scrollWidth": 375,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "forge",
+      "width": 375,
+      "elapsedMs": 104.90699400000085
+    },
+    {
+      "name": "forge",
+      "width": 375,
+      "innerWidth": 375,
+      "scrollWidth": 375,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "settings",
+      "width": 375,
+      "elapsedMs": 107.84107500000027
+    },
+    {
+      "name": "settings",
+      "width": 375,
+      "innerWidth": 375,
+      "scrollWidth": 375,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "welcome",
+      "width": 320,
+      "innerWidth": 320,
+      "scrollWidth": 320,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "talk",
+      "width": 320,
+      "elapsedMs": 101.69957200000135
+    },
+    {
+      "name": "talk",
+      "width": 320,
+      "innerWidth": 320,
+      "scrollWidth": 320,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "strategy",
+      "width": 320,
+      "elapsedMs": 94.61692400000175
+    },
+    {
+      "name": "strategy",
+      "width": 320,
+      "innerWidth": 320,
+      "scrollWidth": 320,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "fund",
+      "width": 320,
+      "elapsedMs": 112.61535499999809
+    },
+    {
+      "name": "fund",
+      "width": 320,
+      "innerWidth": 320,
+      "scrollWidth": 320,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "collection",
+      "width": 320,
+      "elapsedMs": 108.58296599999812
+    },
+    {
+      "name": "collection",
+      "width": 320,
+      "innerWidth": 320,
+      "scrollWidth": 320,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "activity",
+      "width": 320,
+      "elapsedMs": 101.57306999999855
+    },
+    {
+      "name": "activity",
+      "width": 320,
+      "innerWidth": 320,
+      "scrollWidth": 320,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "forge",
+      "width": 320,
+      "elapsedMs": 100.3994160000002
+    },
+    {
+      "name": "forge",
+      "width": 320,
+      "innerWidth": 320,
+      "scrollWidth": 320,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "panel-change",
+      "tab": "settings",
+      "width": 320,
+      "elapsedMs": 98.85925299999872
+    },
+    {
+      "name": "settings",
+      "width": 320,
+      "innerWidth": 320,
+      "scrollWidth": 320,
+      "cards": 2,
+      "count": "2",
+      "smallFieldText": [],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "link-contract-evidence",
+      "width": 320,
+      "innerWidth": 320,
+      "scrollWidth": 320,
+      "cards": 0,
+      "count": "\u2014",
+      "smallFieldText": [],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "saved-funding-recovery",
+      "width": 320,
+      "innerWidth": 320,
+      "scrollWidth": 320,
+      "cards": 0,
+      "count": "\u2014",
+      "smallFieldText": [],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "one-wei-balance",
+      "width": 320,
+      "innerWidth": 320,
+      "scrollWidth": 320,
+      "cards": 0,
+      "count": "\u2014",
+      "smallFieldText": [],
+      "smallTargets": [],
+      "unnamed": []
+    },
+    {
+      "name": "140-punk-mocked-roster-shell",
+      "elapsedMs": 16.436438000000635
+    },
+    {
+      "name": "large-roster",
+      "width": 320,
+      "innerWidth": 320,
+      "scrollWidth": 320,
+      "cards": 0,
+      "count": "\u2014",
+      "smallFieldText": [],
+      "smallTargets": [],
+      "unnamed": []
+    }
+  ],
+  "screenshots": [
+    "/private/tmp/gogh-final-link-followup-qa-clean/landing-1440.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/welcome-1440.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/talk-1440.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/strategy-1440.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/fund-1440.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/collection-1440.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/activity-1440.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/forge-1440.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/settings-1440.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/welcome-1280.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/talk-1280.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/strategy-1280.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/fund-1280.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/collection-1280.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/activity-1280.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/forge-1280.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/settings-1280.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/welcome-768.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/talk-768.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/strategy-768.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/fund-768.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/collection-768.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/activity-768.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/forge-768.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/settings-768.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/welcome-430.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/talk-430.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/strategy-430.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/fund-430.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/collection-430.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/activity-430.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/forge-430.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/settings-430.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/welcome-375.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/talk-375.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/strategy-375.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/fund-375.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/collection-375.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/activity-375.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/forge-375.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/settings-375.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/welcome-320.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/talk-320.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/strategy-320.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/fund-320.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/collection-320.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/activity-320.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/forge-320.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/settings-320.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/balance-unavailable-320.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/strategy-confirmation-320.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/link-result-320.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/link-contract-evidence-320.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/funding-missing-result-320.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/one-wei-fund-320.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/forge-verified-320.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/saved-provider-unavailable-320.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/large-roster-320.png",
+    "/private/tmp/gogh-final-link-followup-qa-clean/no-owned-punks-320.png"
+  ],
+  "externalRequests": [],
+  "errors": [],
+  "realWalletCalls": 0,
+  "publicTransactions": 0,
+  "mockRpcCalls": [],
+  "apiRequests": [
+    {
+      "path": "/api/v2/providers",
+      "method": "GET",
+      "body": null,
+      "at": 1268.0999999940395
+    },
+    {
+      "path": "/api/broker/owner-punks",
+      "method": "GET",
+      "body": null,
+      "at": 1270.0999999940395
+    },
+    {
+      "path": "/api/broker/punk-artwork",
+      "method": "GET",
+      "body": null,
+      "at": 1284
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 1285.0999999940395
+    },
+    {
+      "path": "/api/v2/punks/93/agent-account",
+      "method": "GET",
+      "body": null,
+      "at": 1285.5
+    },
+    {
+      "path": "/api/v2/punks/93",
+      "method": "GET",
+      "body": null,
+      "at": 2126.5
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 2830.2999999821186
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 3160.699999988079
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 3522.7999999821186
+    },
+    {
+      "path": "/api/v2/punks/93/collection",
+      "method": "GET",
+      "body": null,
+      "at": 3542
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 4010.399999976158
+    },
+    {
+      "path": "/api/v2/punks/93/activity",
+      "method": "GET",
+      "body": null,
+      "at": 4013.0999999940395
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 9271
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 9822.59999999404
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 10174.699999988079
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 10557.399999976158
+    },
+    {
+      "path": "/api/v2/punks/93/activity",
+      "method": "GET",
+      "body": null,
+      "at": 10560.199999988079
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 12304
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 12608.5
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 12991.09999999404
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 13333.09999999404
+    },
+    {
+      "path": "/api/v2/punks/93/activity",
+      "method": "GET",
+      "body": null,
+      "at": 13336.299999982119
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 14776.09999999404
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 15029
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 15278.799999982119
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 15524.09999999404
+    },
+    {
+      "path": "/api/v2/punks/93/activity",
+      "method": "GET",
+      "body": null,
+      "at": 15526.799999982119
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 16804.399999976158
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 17036.09999999404
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 17323.399999976158
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 17662.19999998808
+    },
+    {
+      "path": "/api/v2/punks/93/activity",
+      "method": "GET",
+      "body": null,
+      "at": 17664.29999998212
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 18841.399999976158
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 19069.399999976158
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 19346.899999976158
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 19588.19999998808
+    },
+    {
+      "path": "/api/v2/punks/93/activity",
+      "method": "GET",
+      "body": null,
+      "at": 19590.19999998808
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 20378.899999976158
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 20492.899999976158
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 20627.899999976158
+    },
+    {
+      "path": "/api/v2/punks/93/collection",
+      "method": "GET",
+      "body": null,
+      "at": 20630
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 20805.79999998212
+    },
+    {
+      "path": "/api/v2/punks/93/collection",
+      "method": "GET",
+      "body": null,
+      "at": 20808
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 21019.09999999404
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 21021.69999998808
+    },
+    {
+      "path": "/api/v2/punks/93/agent-account",
+      "method": "GET",
+      "body": null,
+      "at": 21022.29999998212
+    },
+    {
+      "path": "/api/v2/punks/93/chat",
+      "method": "POST",
+      "body": {
+        "message": "Tell me a little about pixel art.",
+        "providerPreference": "OPENAI"
+      },
+      "at": 21023.19999998808
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 21043
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 21043.899999976158
+    },
+    {
+      "path": "/api/v2/punks/93/agent-account",
+      "method": "GET",
+      "body": null,
+      "at": 21044.29999998212
+    },
+    {
+      "path": "/api/v2/punks/93/chat",
+      "method": "POST",
+      "body": {
+        "message": "Build a paid pixel art strategy with a one wei price, gas cap and reserve.",
+        "providerPreference": "OPENAI"
+      },
+      "at": 21045
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 21260.29999998212
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 21261.09999999404
+    },
+    {
+      "path": "/api/v2/punks/93/agent-account",
+      "method": "GET",
+      "body": null,
+      "at": 21261.69999998808
+    },
+    {
+      "path": "/api/v2/punks/93/chat",
+      "method": "POST",
+      "body": {
+        "message": "Please explain painterly pixel styles.",
+        "providerPreference": "OPENAI"
+      },
+      "at": 21262.399999976158
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 21273.29999998212
+    },
+    {
+      "path": "/api/v2/punks/235/agent-account",
+      "method": "GET",
+      "body": null,
+      "at": 21276.19999998808
+    },
+    {
+      "path": "/api/v2/punks/235",
+      "method": "GET",
+      "body": null,
+      "at": 21276.59999999404
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 21381.69999998808
+    },
+    {
+      "path": "/api/v2/punks/93",
+      "method": "GET",
+      "body": null,
+      "at": 21386.5
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 21405.19999998808
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 21406
+    },
+    {
+      "path": "/api/v2/punks/93/agent-account",
+      "method": "GET",
+      "body": null,
+      "at": 21406.59999999404
+    },
+    {
+      "path": "/api/v2/punks/93/chat",
+      "method": "POST",
+      "body": {
+        "message": "Please explain painterly pixel styles.",
+        "providerPreference": "OPENAI"
+      },
+      "at": 21407.19999998808
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 21420.19999998808
+    },
+    {
+      "path": "/api/v2/punks/235",
+      "method": "GET",
+      "body": null,
+      "at": 21424
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 21522.29999998212
+    },
+    {
+      "path": "/api/v2/punks/93",
+      "method": "GET",
+      "body": null,
+      "at": 21526.5
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 21551.09999999404
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 21553.29999998212
+    },
+    {
+      "path": "/api/v2/punks/93/agent-account",
+      "method": "GET",
+      "body": null,
+      "at": 21554.09999999404
+    },
+    {
+      "path": "/api/v2/punks/93/chat",
+      "method": "POST",
+      "body": {
+        "message": "Please discuss a landscape palette.",
+        "providerPreference": "OPENAI"
+      },
+      "at": 21554.79999998212
+    },
+    {
+      "path": "/api/broker/owner-punks",
+      "method": "GET",
+      "body": null,
+      "at": 21668.09999999404
+    },
+    {
+      "path": "/api/broker/punk-artwork",
+      "method": "GET",
+      "body": null,
+      "at": 21680.29999998212
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 21680.5
+    },
+    {
+      "path": "/api/v2/punks/93/agent-account",
+      "method": "GET",
+      "body": null,
+      "at": 21680.5
+    },
+    {
+      "path": "/api/v2/punks/93",
+      "method": "GET",
+      "body": null,
+      "at": 21689.399999976158
+    },
+    {
+      "path": "/api/broker/owner-punks",
+      "method": "GET",
+      "body": null,
+      "at": 21783.399999976158
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 21789.5
+    },
+    {
+      "path": "/api/v2/punks/93/agent-account",
+      "method": "GET",
+      "body": null,
+      "at": 21789.59999999404
+    },
+    {
+      "path": "/api/v2/punks/93",
+      "method": "GET",
+      "body": null,
+      "at": 21790.09999999404
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 21801.399999976158
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 21805.899999976158
+    },
+    {
+      "path": "/api/v2/punks/93/agent-account",
+      "method": "GET",
+      "body": null,
+      "at": 21806.69999998808
+    },
+    {
+      "path": "/api/v2/punks/93/chat",
+      "method": "POST",
+      "body": {
+        "message": "Please discuss a landscape palette.",
+        "providerPreference": "OPENAI"
+      },
+      "at": 21807.399999976158
+    },
+    {
+      "path": "/api/broker/owner-punks",
+      "method": "GET",
+      "body": null,
+      "at": 21913.79999998212
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 21919.899999976158
+    },
+    {
+      "path": "/api/v2/punks/93/agent-account",
+      "method": "GET",
+      "body": null,
+      "at": 21920
+    },
+    {
+      "path": "/api/v2/punks/93",
+      "method": "GET",
+      "body": null,
+      "at": 21927.899999976158
+    },
+    {
+      "path": "/api/broker/owner-punks",
+      "method": "GET",
+      "body": null,
+      "at": 22020
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 22027.899999976158
+    },
+    {
+      "path": "/api/v2/punks/93/agent-account",
+      "method": "GET",
+      "body": null,
+      "at": 22028
+    },
+    {
+      "path": "/api/v2/punks/93",
+      "method": "GET",
+      "body": null,
+      "at": 22028.59999999404
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 22041.79999998212
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 22042.79999998212
+    },
+    {
+      "path": "/api/v2/punks/93/agent-account",
+      "method": "GET",
+      "body": null,
+      "at": 22043.399999976158
+    },
+    {
+      "path": "/api/v2/punks/93/chat",
+      "method": "POST",
+      "body": {
+        "message": "Describe luminous blue palettes.",
+        "providerPreference": "OPENAI"
+      },
+      "at": 22044
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 22058.899999976158
+    },
+    {
+      "path": "/api/v2/inspect-url",
+      "method": "POST",
+      "body": {
+        "tokenId": "93",
+        "url": "https://example.com/project"
+      },
+      "at": 22059.29999998212
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 22067.19999998808
+    },
+    {
+      "path": "/api/v2/punks/241/agent-account",
+      "method": "GET",
+      "body": null,
+      "at": 22069.899999976158
+    },
+    {
+      "path": "/api/v2/punks/241",
+      "method": "GET",
+      "body": null,
+      "at": 22074.29999998212
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 22179.09999999404
+    },
+    {
+      "path": "/api/v2/punks/93",
+      "method": "GET",
+      "body": null,
+      "at": 22183.29999998212
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 22195.19999998808
+    },
+    {
+      "path": "/api/v2/inspect-url",
+      "method": "POST",
+      "body": {
+        "tokenId": "93",
+        "url": "https://example.com/project"
+      },
+      "at": 22195.5
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 22208.29999998212
+    },
+    {
+      "path": "/api/v2/punks/241",
+      "method": "GET",
+      "body": null,
+      "at": 22209
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 22307.19999998808
+    },
+    {
+      "path": "/api/v2/punks/93",
+      "method": "GET",
+      "body": null,
+      "at": 22310.59999999404
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 22322.19999998808
+    },
+    {
+      "path": "/api/v2/inspect-url",
+      "method": "POST",
+      "body": {
+        "tokenId": "93",
+        "url": "https://example.com/project"
+      },
+      "at": 22322.5
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 22479.5
+    },
+    {
+      "path": "/api/v2/inspect-url",
+      "method": "POST",
+      "body": {
+        "tokenId": "93",
+        "url": "https://example.com/project"
+      },
+      "at": 22479.79999998212
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 22642.79999998212
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 22739.69999998808
+    },
+    {
+      "path": "/api/v2/punks/93/agent-account",
+      "method": "GET",
+      "body": null,
+      "at": 22742.5
+    },
+    {
+      "path": "/api/v2/punks/93/agent-account",
+      "method": "GET",
+      "body": null,
+      "at": 23110.899999976158
+    },
+    {
+      "path": "/api/v2/punks/93/agent-account",
+      "method": "GET",
+      "body": null,
+      "at": 23132.59999999404
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 23172.5
+    },
+    {
+      "path": "/api/v2/punks/93",
+      "method": "GET",
+      "body": null,
+      "at": 23176.09999999404
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 23257.19999998808
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 23559.399999976158
+    },
+    {
+      "path": "/api/v2/punks/93/forge",
+      "method": "GET",
+      "body": null,
+      "at": 23562.399999976158
+    },
+    {
+      "path": "/api/broker/owner-punks",
+      "method": "GET",
+      "body": null,
+      "at": 23723.69999998808
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 23731.29999998212
+    },
+    {
+      "path": "/api/v2/punks/93/agent-account",
+      "method": "GET",
+      "body": null,
+      "at": 23731.399999976158
+    },
+    {
+      "path": "/api/v2/punks/93",
+      "method": "GET",
+      "body": null,
+      "at": 23732.5
+    },
+    {
+      "path": "/api/broker/owner-punks",
+      "method": "GET",
+      "body": null,
+      "at": 23749.5
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 23755.69999998808
+    },
+    {
+      "path": "/api/v2/punks/93/agent-account",
+      "method": "GET",
+      "body": null,
+      "at": 23755.79999998212
+    },
+    {
+      "path": "/api/v2/punks/93",
+      "method": "GET",
+      "body": null,
+      "at": 23756.399999976158
+    },
+    {
+      "path": "/api/v2/providers",
+      "method": "GET",
+      "body": null,
+      "at": 636.6000000238419
+    },
+    {
+      "path": "/api/broker/owner-punks",
+      "method": "GET",
+      "body": null,
+      "at": 637.1000000238419
+    },
+    {
+      "path": "/api/broker/punk-artwork",
+      "method": "GET",
+      "body": null,
+      "at": 641.5
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 642
+    },
+    {
+      "path": "/api/v2/punks/93/agent-account",
+      "method": "GET",
+      "body": null,
+      "at": 642
+    },
+    {
+      "path": "/api/v2/punks/93",
+      "method": "GET",
+      "body": null,
+      "at": 643.2000000178814
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 1244.6000000238419
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 1247.800000011921
+    },
+    {
+      "path": "/api/v2/punks/93/agent-account",
+      "method": "GET",
+      "body": null,
+      "at": 1248.5
+    },
+    {
+      "path": "/api/v2/punks/93/chat",
+      "method": "POST",
+      "body": {
+        "message": "Please compare jewel tone pixel art.",
+        "providerPreference": "OPENAI"
+      },
+      "at": 1250.1000000238419
+    },
+    {
+      "path": "/api/broker/owner-punks",
+      "method": "GET",
+      "body": null,
+      "at": 1257.6000000238419
+    },
+    {
+      "path": "/api/broker/punk-artwork",
+      "method": "GET",
+      "body": null,
+      "at": 1273.4000000059605
+    },
+    {
+      "path": "/api/broker/punk-artwork",
+      "method": "GET",
+      "body": null,
+      "at": 1273.5
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 1273.7000000178814
+    },
+    {
+      "path": "/api/v2/punks/93/agent-account",
+      "method": "GET",
+      "body": null,
+      "at": 1273.7000000178814
+    },
+    {
+      "path": "/api/v2/punks/93",
+      "method": "GET",
+      "body": null,
+      "at": 1296.5
+    },
+    {
+      "path": "/api/broker/owner-punks",
+      "method": "GET",
+      "body": null,
+      "at": 1473.300000011921
+    },
+    {
+      "path": "/api/v2/session",
+      "method": "GET",
+      "body": null,
+      "at": 1495
+    },
+    {
+      "path": "/api/v2/punks/235/agent-account",
+      "method": "GET",
+      "body": null,
+      "at": 1495.6000000238419
+    },
+    {
+      "path": "/api/broker/punk-artwork",
+      "method": "GET",
+      "body": null,
+      "at": 1503.6000000238419
+    },
+    {
+      "path": "/api/broker/punk-artwork",
+      "method": "GET",
+      "body": null,
+      "at": 1503.7000000178814
+    },
+    {
+      "path": "/api/v2/punks/235",
+      "method": "GET",
+      "body": null,
+      "at": 1505.7000000178814
+    },
+    {
+      "path": "/api/broker/owner-punks",
+      "method": "GET",
+      "body": null,
+      "at": 1548
+    }
+  ],
+  "harnessFile": "scripts/test-v2-final-hardening-ui.mjs",
+  "reviewVerdict": "PASS FOR FINAL UI TESTING: 25 functional scenarios, 59 screenshots, no open P0/P1/P2 findings in this scope. Decorative cached budget meter is a nonblocking P3 source observation.",
+  "reviewFollowup": {
+    "candidateCommit": "9c9f76f",
+    "candidateIncludesUncommittedCSS": true,
+    "sourceHashCount": 74,
+    "sourceHashesMatchedAfterRun": true,
+    "unitTests": {
+      "command": "node --test tests/v2-hardening-link-findings.test.mjs",
+      "passed": 3,
+      "failed": 0
+    },
+    "sourceOnlyObservations": [
+      {
+        "severity": "P3",
+        "issue": "Unknown native balance clears amount and available-budget labels but the decorative budget meter still derives width from cached balance.",
+        "authorityImpact": "None; numeric labels correctly show unknown and execution validation is separate."
+      }
+    ]
+  }
+}

@@ -1,0 +1,86 @@
+# Final testing acceptance matrix
+
+Evidence snapshot: September 13, 2026, integration `49816b2` on `v2/final-hardening-20260913`. Independent documentation review: `hardening_acceptance_guide`. This review changed no application, contract, deployment, database or wallet state.
+
+**Updated verdict: FINAL_TESTING_READY for controlled testing.** The original snapshot below has been reconciled with the final fixes, full suite and independent review. The final source gate is `782247e`, whose Netlify preview passed. Production cutover is a separate release step; preview proof alone does not establish published configuration. See [the final report](final-report.md).
+
+## Evidence rules and release identity
+
+| Label | What it establishes |
+|---|---|
+| SOURCE | Inspected behavior or boundary; does not prove runtime success. |
+| UNIT / SQL | Real module or SQL behavior with controlled dependencies; not public-chain or production-account acceptance. |
+| BROWSER | Actual candidate DOM/modules in isolated Chrome with substituted wallet/API/RPC dependencies and blocked external traffic. |
+| DISPOSABLE | Real transactions/contracts and durable database behavior on an owned copied chain; no original NFT or user funds moved. |
+| LIVE READ | Actual public chain, authenticated service or production route observation at a recorded time. |
+| LIVE DELIVERY | Public receipt plus independently checked delivery and durable completion of the existing owner-authorized mint. |
+
+Production currently recorded in [status](status.md): `3ebaa6d05cd17d2e36a0f96346e47b5493735e40`, PR #64, Netlify `6aa6e937f5737700082a7d35`. URL: <https://goghpunks.xyz/broker/v2/>. Hardening PR #65 is a separate candidate at <https://deploy-preview-65.preview.goghpunks.xyz>. A preview hostname does not make a connected wallet or contract a disposable test environment.
+
+The baseline [product audit](product-audit.md), [performance audit](performance-audit.md) and older swarm records preserve historical failures. Later evidence below supersedes only the specific resolved finding. For example, archive access and #1599 delivery are no longer blocked; all ten requested skills have not thereby become released.
+
+## Every requested FINAL TESTING READY gate
+
+“PASS, bounded” means sufficient evidence exists for the stated supported test scope. The qualification remains part of the result.
+
+| # | Required gate | Status at snapshot | Evidence and practical limit |
+|---|---|---|---|
+| 1 | Wallet connection stable | PASS, bounded | Existing `tests/wallet-connect.test.mjs`, owner/discovery race suites, production connected-holder Collection response. BROWSER tests deliberately replace wallet bootstrap. Actual iOS wallet app switching remains a final holder check. |
+| 2 | Punk ownership stable | PASS, bounded | `site/broker-v2-ownership.js`, ownership/transfer suites; LIVE READ of 140 owned originals. Indexed rows/artwork are hints, never owner authority. Failed history remains unavailable. |
+| 3 | Punk roster fast | PASS, bounded | Progressive canonical artwork and owner-scoped request fencing deployed in PR #64; 140-item BROWSER keyboard test. LIVE READ scan observations are about two seconds, not a service-level guarantee. New MCP helper separately found all 140 with zero hints in 1,743 ms; its production route remains a cutover check. |
+| 4 | Control Center polished | PASS, bounded | [Final UX review](final-ux-qa.md): 25 adversarial scenarios, 59 screenshots at 1440/1280/768/430/375/320 widths; recorded P1/P2 findings corrected. |
+| 5 | Funding works in test environment | PASS, bounded | [Wallet review](wallet-review.md): 145 focused tests; actual OWNER path skips inactive V3 checks, PUNK path preserves reserve, exact review and ambiguous-result journal. BROWSER runs actual preparation/recovery modules with wallet responses mocked. No new live deposit is claimed. |
+| 6 | Withdrawals work | PASS for supported assets | [Cross-subsystem proof](../v2-swarm/integration-validation.md), recovery/controller/API and contract tests cover exact owner destination, custody, transfer rejection, immutable review and original-hash recovery. V3 recovery retained; Agent ETH, gas deposit and standard single/multi-edition NFTs supported. Arbitrary Agent ERC20 and complete V1/V2 recovery UI are not delivered. |
+| 7 | Chat works | PASS, bounded | Provider LIVE fixed conversation/JSON probes plus persistence, owner/selection fencing, retry and exact-draft BROWSER/module tests. No end-to-end streaming or first-token latency claim; production hardening cutover still pending. |
+| 8 | GPT works | PASS on preview | [Provider evidence](provider-live-checks.json): actual OpenAI fixed conversation and structured-output probes, 3,498 ms, injected database privileges verified. Candidate configuration is not yet production activation. |
+| 9 | Claude works | PASS on preview | Same evidence: actual Anthropic probes, 2,254 ms, exact provider identity and required database privileges. |
+| 10 | Grok works | PASS on preview | Same evidence: actual XAI probes through the constrained managed gateway, 3,020 ms. No wallet tools or signing authority. |
+| 11 | Bankr works or documented blocker | PASS as documented exception | [AI review](ai-review.md) and provider evidence: no reviewed Bankr credential/funded gateway configuration found. Bankr must remain unavailable, not READY. No account purchase or wallet integration is inferred. |
+| 12 | Strategy creation works | PASS, bounded | Structured intent normalization, chat tests, scoped domain compiler and actual confirmation BROWSER. Identity, allowed adapters and exact wei amounts are deterministic. |
+| 13 | Strategy confirmation works | PASS, bounded | Existing owner message/activation tests and review binding. Final BROWSER proves one-wei mint/gas/reserve remain visible; malformed amounts block confirmation. No automatic broad-autonomy activation is authorized. |
+| 14 | Link scanner works | PASS for supported contract links | Production, preview and MCP share the bounded Robinhood resolver. Real Peppies identity/price/window/supply and Gogh unsupported-mint observations pass; canonical chain/block, no redirects/CCIP and no execution authority. No fresh link simulation is claimed; other URLs remain unresolved. [Evidence](../v2-swarm/fixed-source-link-inspection.md). |
+| 15 | Shared discovery works | PASS for existing shared source; coverage bounded | [Discovery review](../v2-swarm/discovery-review.md), shared SeaDrop source/converter, repository dedupe/provenance and actual SQL tests. No per-Punk scanner. New generic ingest is intentionally gated/unscheduled; tests do not establish fresh opportunities on every site or an available live free mint today. |
+| 16 | Security screen works | PASS for reviewed adapters | [Policy/simulation review](../v2-swarm/policy-simulation-review.md), sparse/unknown hazard regressions and immutable evidence gates. Unknown bytecode/effects remain unknown; no claim of universal contract safety. |
+| 17 | Simulation works | PASS for reviewed transaction paths | Existing execution, funding, recovery, selected-paid and controlled Forge tests simulate exact calls. Stored MCP simulation evidence is labeled stored, not a newly executed simulation. Fresh supported-link integration remains gate 14. |
+| 18 | Policy engine works | PASS, bounded | `tests/v2-swarm-policy.test.mjs`, execution/runtime tests: mode, exact price/gas/reserve, adapter, owner, skills, immutable transaction and known risk gates. AI output cannot bypass them. |
+| 19 | Skill Registry works | PASS, bounded | Existing deployed runtime pins and [composed journey](forge-journey.md). Rarity Eye v1 accepted in the recorded production registry. Presence in a catalog does not imply acceptance. |
+| 20 | Training Credits work | PASS, DISPOSABLE | [Forge evidence](forge-journey-evidence.json): exactly one credit per copied original burn; duplicate claims/settlement cannot create another. Two credits spent once each on learning and slot unlock. |
+| 21 | Burn works in controlled environment | PASS, DISPOSABLE | Real copied deployed stack, browser envelope/controller, restricted native PostgreSQL and receipt reconciler: 16 local transactions, no public transactions. #1753/#94 were fork copies. |
+| 22 | Burn safety blocks asset-bearing Punk | PASS for guard behavior; no live clearance | Same evidence: 24 explicit asset/state failures block the wallet request. Actual source inventory/obligation prerequisite is mocked in the composed fork. Nonstandard assets, later deposits and off-chain obligations remain outside complete enumeration. |
+| 23 | Skill learning works | PASS, DISPOSABLE | Actual Rarity Eye learn, credit decrement, duplicate prevention and lost wallet response/reload recovery. Delegated-owner correction supported the real owner's copied existing designation without clearing code or installing a module. |
+| 24 | Slot unlocking works | PASS, DISPOSABLE | One slot became two after a separately earned second credit; no-credit unlock rejected. Seven-slot cap and rarity allocation have dedicated tests. |
+| 25 | Equip/unequip works | PASS, DISPOSABLE + BROWSER | Actual reviewed transactions settle once; BROWSER shows empty/locked slots and plain learned/equipped distinctions. |
+| 26 | Equipped skills change capabilities | PASS for Rarity Eye | Actual production server research bridge reads three forked original metadata records when equipped, rejects research after unequip and still denies `prepare_mint`. Skills do not grant spending. |
+| 27 | Skills survive transfer | PASS, DISPOSABLE | Learned skills, slots and loadout persist with copied #93; Wallet/Agent addresses and copied #1599 custody persist. |
+| 28 | Old owner loses control | PASS, bounded | Composed journey rejects seller training/research and prior worker continuity window; contract/ownership suites cover current-owner methods. Retain documented away-and-back session limitation and managed history gates. |
+| 29 | New owner gains control | PASS, DISPOSABLE | Fresh buyer training review and equip/unequip settle; buyer cannot access private seller review. Test-only buyer allowlist does not broaden production access. |
+| 30 | Automation pauses on transfer | PASS for managed/direct transfer case | Copied Agent session active before transfer, inactive after; training never reactivates it. Current released account does not permanently invalidate an old session after ownership returns to the former owner; broader autonomy remains blocked. |
+| 31 | Activity feed works | PASS, bounded | LIVE DELIVERY #1599 durable completion; endpoint/history tests and BROWSER verified-empty/loading/error treatment. Authorization, submission, delivery and application reconciliation remain separate states. |
+| 32 | Collection works | PASS, bounded LIVE READ | Actual authenticated production #93 route: 34 verified holdings including #1599 in 4,114 ms, no unavailable discovery sources. Current custody is rechecked; this bounded collection view is not burn-clearance inventory. |
+| 33 | Mobile polished | PASS for browser viewport testing | Six-width independent review with no remaining overflow, field-label or target-size findings; phone inputs at least 16px. Native iOS keyboard, screen-reader and wallet handoff remain physical-device acceptance checks. |
+| 34 | Major load-time issues fixed | PASS for measured repairs | Collection timeout repaired; progressive artwork, deduplicated owner authentication/balances, bounded MCP, 20-second AI router budget and reused registry initialization. Recorded quiet mocked usable shell 680 ms; no production API p95 or AI first-token claim. |
+| 35 | No P0 bugs | NO NEW P0 demonstrated in reviewed scope | Independent reviews preserve current-owner, immutable review, no-resend, secret and fail-closed boundaries. This is bounded evidence, not a perfect-safety claim or approval to broaden execution. |
+| 36 | No unresolved P1 bugs | PASS in reviewed scope | Link gap closed and retested. Exact-price, wallet balance, delegated training, provider preference/quota and collection defects fixed. Unsupported capabilities stay explicit; no newly demonstrated unresolved P1. |
+| 37 | Full build passes | PASS | Deployment gate140/140; domain compiler, wallet/site build, syntax, secret checks and final Netlify preview782247e pass. Contract284/284, no Solidity/manifests changed. |
+| 38 | Full test suite passes | PASS | Full integrated JavaScript2,435/2,435 in219.7s. Final supplemental security file subsequently integrated and all39 independent probes pass; counts overlap. Route/Forge/roster40/40; browser25 scenarios/59 screenshots. |
+| 39 | Security reviewer signs off for final test phase | PASS, controlled testing | [Independent security signoff](final-security-review.md), including final link/lab/MCP/UI follow-up and composed Forge/provider proof. No financial-production authority is granted. |
+
+Gemini also passed actual conversation/structured-output checks on production (2,382 ms) and the hardening preview (3,301 ms, September 13 at 18:47:45Z, sanitized local artifact `/private/tmp/gogh-live-gemini-preview.json`). The latter should be folded into the committed provider evidence by the lead. None of these two fixed probes measures general conversational quality or a long-running provider SLA.
+
+## Remaining release blockers and follow-through
+
+| ID | Priority / classification | Concrete closure |
+|---|---|---|
+| A-01 | CLOSED | Supported contract resolver integrated at all three callers, live observations recorded and adverse/default-route tests pass. |
+| A-02 | CLOSED | Full2,435-test suite,140deployment checks,39 independent security probes and final Netlify preview pass. |
+| A-03 | CLOSED | Fresh final security signoff plus25 browser scenarios/59 screenshots and actual server-bridge Forge journey. |
+| A-04 | CLOSED | Public guide now separates live read/review checks, disposable transaction practice and later deliberate owner canaries. Historical September12 guide marked superseded. |
+| A-05 | Production cutover acceptance | After reviewed deployment, record release SHA, static assets, real provider probes and read-only roster/Collection/MCP checks. Preview success cannot establish production configuration. This does not require a real burn, funding, refund or sweep. |
+
+No new application defect beyond the already assigned link gap is demonstrated by this documentation-only review. Known unsupported behavior remains visible scope, not a hidden promise: floor sweeps/WETH bids, arbitrary paid collections, all ten accepted Forge skills, general Agent ERC20 recovery and complete legacy inventory. Market Scout v2 has live read-only data proof and targeted tests; it is connected only to the controlled lab and remains TESTING, not registered as a learned production skill. Its versioned implementation must not silently replace accepted v1 hashes.
+
+## Final holder acceptance still worth doing
+
+Use [the holder guide](testing-guide.md) for production read-only checks and explicitly labeled disposable transaction practice. Record selected Punk, action, exact displayed result, time and public transaction hash when one exists. Check one small phone with a real supported wallet, reconnect after returning from the wallet app, and verify keyboard navigation/screen-reader labels. These observations close device-specific limits; mock Chrome screenshots cannot establish them.
+
+Preserve original #1753, existing #93 holdings and the untouched earlier paid refund throughout this phase. Marketplace indexing after a real burn is not established by a local fork and is not needed to pretend a production burn occurred. Source NFT approval itself has no on-chain expiry and does not create a credit; the app must retain that distinction in any later separately authorized burn review.

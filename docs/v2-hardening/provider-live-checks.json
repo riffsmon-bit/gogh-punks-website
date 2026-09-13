@@ -1,0 +1,172 @@
+{
+  "schema": "GOGH_PROVIDER_LIVE_ACCEPTANCE_V1",
+  "checks": [
+    {
+      "checkedAt": "2026-09-13T18:30:10.353Z",
+      "origin": "https://goghpunks.xyz",
+      "status": 200,
+      "elapsedMs": 2382,
+      "ok": true,
+      "code": "AI_CONNECTION_VERIFIED",
+      "checks": [
+        {
+          "kind": "CHAT",
+          "verified": true,
+          "provider": "GEMINI",
+          "code": "PASS"
+        },
+        {
+          "kind": "STRUCTURED_OUTPUT",
+          "verified": true,
+          "provider": "GEMINI",
+          "code": "PASS"
+        }
+      ],
+      "walletAuthority": "NONE",
+      "transactionSubmitted": false,
+      "scope": "production prior runtime"
+    },
+    {
+      "checkedAt": "2026-09-13T18:38:56.274Z",
+      "origin": "https://deploy-preview-65.preview.goghpunks.xyz",
+      "status": 200,
+      "elapsedMs": 3498,
+      "ok": true,
+      "code": "AI_CONNECTION_VERIFIED",
+      "checks": [
+        {
+          "kind": "CHAT",
+          "verified": true,
+          "provider": "OPENAI",
+          "code": "PASS"
+        },
+        {
+          "kind": "STRUCTURED_OUTPUT",
+          "verified": true,
+          "provider": "OPENAI",
+          "code": "PASS"
+        }
+      ],
+      "databasePrivileges": {
+        "checked": true,
+        "usageSelect": true,
+        "usageInsert": true,
+        "usageUpdate": true,
+        "registrySelect": true,
+        "registryInsert": true,
+        "registryUpdate": true
+      },
+      "walletAuthority": "NONE",
+      "transactionSubmitted": false,
+      "scope": "isolated preview final hardening runtime"
+    },
+    {
+      "checkedAt": "2026-09-13T18:41:01.672Z",
+      "origin": "https://deploy-preview-65.preview.goghpunks.xyz",
+      "status": 200,
+      "elapsedMs": 2254,
+      "ok": true,
+      "code": "AI_CONNECTION_VERIFIED",
+      "checks": [
+        {
+          "kind": "CHAT",
+          "verified": true,
+          "provider": "ANTHROPIC",
+          "code": "PASS"
+        },
+        {
+          "kind": "STRUCTURED_OUTPUT",
+          "verified": true,
+          "provider": "ANTHROPIC",
+          "code": "PASS"
+        }
+      ],
+      "databasePrivileges": {
+        "checked": true,
+        "usageSelect": true,
+        "usageInsert": true,
+        "usageUpdate": true,
+        "registrySelect": true,
+        "registryInsert": true,
+        "registryUpdate": true
+      },
+      "walletAuthority": "NONE",
+      "transactionSubmitted": false,
+      "scope": "isolated preview final hardening runtime"
+    },
+    {
+      "checkedAt": "2026-09-13T18:41:34.426Z",
+      "origin": "https://deploy-preview-65.preview.goghpunks.xyz",
+      "status": 200,
+      "elapsedMs": 3020,
+      "ok": true,
+      "code": "AI_CONNECTION_VERIFIED",
+      "checks": [
+        {
+          "kind": "CHAT",
+          "verified": true,
+          "provider": "XAI",
+          "code": "PASS"
+        },
+        {
+          "kind": "STRUCTURED_OUTPUT",
+          "verified": true,
+          "provider": "XAI",
+          "code": "PASS"
+        }
+      ],
+      "databasePrivileges": {
+        "checked": true,
+        "usageSelect": true,
+        "usageInsert": true,
+        "usageUpdate": true,
+        "registrySelect": true,
+        "registryInsert": true,
+        "registryUpdate": true
+      },
+      "walletAuthority": "NONE",
+      "transactionSubmitted": false,
+      "scope": "isolated preview final hardening runtime"
+    },
+    {
+      "checkedAt": "2026-09-13T18:47:45.108Z",
+      "origin": "https://deploy-preview-65.preview.goghpunks.xyz",
+      "status": 200,
+      "elapsedMs": 3301,
+      "ok": true,
+      "code": "AI_CONNECTION_VERIFIED",
+      "checks": [
+        {
+          "kind": "CHAT",
+          "verified": true,
+          "provider": "GEMINI",
+          "code": "PASS"
+        },
+        {
+          "kind": "STRUCTURED_OUTPUT",
+          "verified": true,
+          "provider": "GEMINI",
+          "code": "PASS"
+        }
+      ],
+      "databasePrivileges": {
+        "checked": true,
+        "usageSelect": true,
+        "usageInsert": true,
+        "usageUpdate": true,
+        "registrySelect": true,
+        "registryInsert": true,
+        "registryUpdate": true
+      },
+      "walletAuthority": "NONE",
+      "transactionSubmitted": false,
+      "scope": "isolated preview final hardening runtime"
+    }
+  ],
+  "bankr": {
+    "status": "BLOCKED",
+    "reason": "No reviewed Bankr API key or funded gateway configuration was found. No new paid account was created."
+  },
+  "authority": "fixed administrative prompts only; no owner impersonation or wallet action",
+  "productionNewModelsEnabled": false
+}

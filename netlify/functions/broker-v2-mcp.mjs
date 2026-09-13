@@ -4,7 +4,7 @@ import { collectingIntentConfirmation, defaultAskIntent, normalizePunkCollecting
 } from "../../broker/src/v4/collecting-intent.mjs";
 import { interpretPunkCollectingIntent } from "../../broker/src/v4/ai/intent-interpreter.mjs";
 import { normalizeV2Opportunity } from "../../broker/src/v4/opportunity.mjs";
-import { inspectArtBrokerLink } from "../../broker/src/v4/link-scanner.mjs";
+import { inspectRobinhoodArtBrokerLink } from "../../broker/src/v4/discovery/robinhood-link-resolver.mjs";
 import { GoghArtBrokerMcpServer, handleArtBrokerMcpJsonRpc } from
   "../../broker/src/v4/mcp/art-broker-mcp.mjs";
 import { json, readJson } from "./_shared/http.mjs";
@@ -13,6 +13,7 @@ import { v2Failure } from "./_shared/v2-http.mjs";
 import { readV2PunkAuthority } from "./_shared/v2-ownership.mjs";
 import { requireV2Session } from "./_shared/v2-session.mjs";
 import { createV2McpResearch } from "./_shared/v2-mcp-research.mjs";
+import { readV2McpRoster } from "./_shared/v2-mcp-roster.mjs";
 
 export function v2McpDependencies(pool, principal, { authorityReader = readV2PunkAuthority,
   research = createV2McpResearch() } = {}) {
@@ -33,17 +34,7 @@ export function v2McpDependencies(pool, principal, { authorityReader = readV2Pun
     research,
     requireCurrentOwner: async (tokenId) => authority(tokenId),
     get_punk_skills: async (tokenId) => research.getSkills({ tokenId, owner: principal.walletAddress }),
-    getMyPunks: async () => {
-      const result = await pool.query(`SELECT token_id::text, account_address FROM broker_punks
-        WHERE chain_id = $1 AND collection_address = $2 AND owner_snapshot = $3 ORDER BY token_id`,
-      [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, principal.walletAddress]);
-      const verified = [];
-      for (const row of result.rows.slice(0, 256)) {
-        try { const live = await authority(row.token_id); verified.push({ tokenId: row.token_id,
-          punkWallet: live.punkWallet, ownershipBlock: live.blockNumber }); } catch { /* stale index */ }
-      }
-      return { punks: verified, indexIsAuthority: false };
-    },
+    getMyPunks: async () => readV2McpRoster(principal.walletAddress, { pool }),
     get_punk: async (tokenId) => ({ authority: await authority(tokenId), strategy: await strategy(tokenId) }),
     get_punk_wallet: async (tokenId) => { const value = await authority(tokenId);
       return { tokenId, punkWallet: value.punkWallet, activated: value.activated }; },
@@ -96,7 +87,7 @@ export function v2McpDependencies(pool, principal, { authorityReader = readV2Pun
       return { collectionContract: String(collectionContract).toLowerCase(),
         classification: result.rows[0] ?? null, cacheOnly: true };
     },
-    inspect_mint_link: async (url) => inspectArtBrokerLink(url),
+    inspect_mint_link: async (url) => inspectRobinhoodArtBrokerLink(url),
     estimate_mint_cost: async (tokenId, id) => {
       const value = await opportunity(id); const live = await authority(tokenId);
       return value ? { tokenId, opportunityId: id, mintPriceWei: value.priceWei,

@@ -65,12 +65,15 @@ export function exactHttpsEndpoint(value, expectedOrigin, expectedPath) {
   return url.href;
 }
 
-export async function providerJsonRequest({ fetchImpl, url, headers, body, timeoutMs = 20_000 }) {
+export async function providerJsonRequest({ fetchImpl, url, headers, body, timeoutMs = 20_000, signal }) {
   if (typeof fetchImpl !== "function") throw new TypeError("fetch implementation is required");
-  if (!Number.isInteger(timeoutMs) || timeoutMs < 1_000 || timeoutMs > 60_000) {
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 60_000) {
     throw new TypeError("provider timeout is invalid");
   }
   const controller = new AbortController();
+  const abort = () => controller.abort();
+  if (signal?.aborted) throw new ArtBrokerProviderError("AI_REQUEST_TIMEOUT", "The intelligence request timed out.");
+  signal?.addEventListener("abort", abort, { once: true });
   const startedAt = performance.now();
   const maximumBytes = 2_000_000;
   let response;
@@ -157,6 +160,7 @@ export async function providerJsonRequest({ fetchImpl, url, headers, body, timeo
       { retryable: true });
   } finally {
     clearTimeout(timeout);
+    signal?.removeEventListener("abort", abort);
     if (!complete) { controller.abort(); cancelBody(); }
   }
 }

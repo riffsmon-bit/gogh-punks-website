@@ -1,5 +1,7 @@
 import { getDatabase } from "@netlify/database";
-import { ArtBrokerLinkError, inspectArtBrokerLink } from "../../broker/src/v4/link-scanner.mjs";
+import { ArtBrokerLinkError } from "../../broker/src/v4/link-scanner.mjs";
+import { inspectRobinhoodArtBrokerLink } from
+  "../../broker/src/v4/discovery/robinhood-link-resolver.mjs";
 import { PublicError, json, readJson, requireSameOrigin } from "./_shared/http.mjs";
 import { v2Failure } from "./_shared/v2-http.mjs";
 import { readV2PunkAuthority } from "./_shared/v2-ownership.mjs";
@@ -11,7 +13,7 @@ const LINK_INPUT_ERRORS = new Set([
 
 export async function handleV2InspectUrl(request, { pool,
   requireSession = requireV2Session, readAuthority = readV2PunkAuthority,
-  inspect = inspectArtBrokerLink } = {}) {
+  inspect = inspectRobinhoodArtBrokerLink } = {}) {
   if (request.method !== "POST") return json({ ok: false, code: "METHOD_NOT_ALLOWED" }, 405);
   const databasePool = pool ?? getDatabase().pool;
   try {
@@ -25,7 +27,9 @@ export async function handleV2InspectUrl(request, { pool,
     }
     await readAuthority(body.tokenId, { expectedOwner: session.walletAddress });
     const inspection = await inspect(body.url);
-    return json({ ok: true, inspection, message: inspection.status === "NEEDS_REVIEW"
+    return json({ ok: true, inspection, message: inspection.evidence
+      ? "Read-only inspection complete. Review the observed evidence and its limitations before a separate mint review."
+      : inspection.status === "NEEDS_REVIEW"
       ? "Project identified. A trusted on-chain resolver is required before screening or simulation."
       : "Link inspection complete.", transactionPrepared: false, externalCalldataAccepted: false });
   } catch (error) {

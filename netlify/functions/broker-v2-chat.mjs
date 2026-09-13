@@ -14,6 +14,7 @@ import { createDatabaseBackedGoghIntelligence } from "./_shared/v2-ai-runtime.mj
 import { v2Failure } from "./_shared/v2-http.mjs";
 import { requireV2Session } from "./_shared/v2-session.mjs";
 import { readV2ChatAuthority, assertV2ChatAuthorityUnchanged } from "./_shared/v2-ownership.mjs";
+import { providerPreference } from "../../broker/src/v4/ai/router.mjs";
 import paidRelease from '../../deployments/robinhood-directed-paid-mint.json' with {type:'json'};
 import {directedPaidPrompt} from '../../broker/src/v4/directed-paid-prompt.mjs';
 
@@ -150,8 +151,13 @@ export async function handleV2Chat(request, { pool, requireSession = requireV2Se
     const authority = await readAuthority(tokenId, { expectedOwner: session.walletAddress });
     const body = await readJson(request, 12_000);
     if (!body || typeof body !== "object" || Array.isArray(body)
-      || Object.keys(body).length !== 1 || !Object.hasOwn(body, "message")) {
+      || !Object.hasOwn(body, "message")
+      || Object.keys(body).some(key => !["message", "providerPreference"].includes(key))) {
       throw new PublicError(400, "INVALID_REQUEST", "The chat request is invalid.");
+    }
+    let preference;
+    try { preference = providerPreference(body.providerPreference); } catch {
+      throw new PublicError(400, "INVALID_PROVIDER_PREFERENCE", "Choose Auto or an available AI option.");
     }
     const ownerMessage = message(body.message);
     const latest = await pool.query(`SELECT intent FROM broker_v2_strategies
@@ -176,7 +182,7 @@ export async function handleV2Chat(request, { pool, requireSession = requireV2Se
       acquisitionRequest(acquisitionConversationMessage(ownerMessage, history)));
     const resolved = await resolveV2PunkChat({ router: intelligence.router, ownerMessage,
       currentIntent, tokenId, authority, owner: session.walletAddress, now, targetContract, history,
-      context: { ownerFingerprint: session.walletAddress, punkTokenId: tokenId } });
+      context: { ownerFingerprint: session.walletAddress, punkTokenId: tokenId, preference } });
     const client = await pool.connect();
     let version;
     let conversationId;

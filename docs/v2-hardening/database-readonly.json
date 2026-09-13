@@ -1,0 +1,228 @@
+{
+  "checkedAt": "2026-09-13T18:18:49.850Z",
+  "mode": "PRODUCTION_READ_ONLY",
+  "tlsCertificateVerified": true,
+  "elapsedMs": 528,
+  "tables": [
+    {
+      "table_name": "broker_acquisitions",
+      "rls": false,
+      "force_rls": false,
+      "can_select": true,
+      "can_insert": false,
+      "can_update": false,
+      "can_delete": false
+    },
+    {
+      "table_name": "broker_automation_v3_worker_runs",
+      "rls": false,
+      "force_rls": false,
+      "can_select": true,
+      "can_insert": false,
+      "can_update": false,
+      "can_delete": false
+    },
+    {
+      "table_name": "broker_v2_activity",
+      "rls": false,
+      "force_rls": false,
+      "can_select": true,
+      "can_insert": false,
+      "can_update": false,
+      "can_delete": false
+    },
+    {
+      "table_name": "broker_v2_model_registry",
+      "rls": false,
+      "force_rls": false,
+      "can_select": true,
+      "can_insert": false,
+      "can_update": false,
+      "can_delete": false
+    },
+    {
+      "table_name": "broker_v2_provider_usage",
+      "rls": false,
+      "force_rls": false,
+      "can_select": true,
+      "can_insert": false,
+      "can_update": false,
+      "can_delete": false
+    },
+    {
+      "table_name": "broker_v2_strategies",
+      "rls": false,
+      "force_rls": false,
+      "can_select": true,
+      "can_insert": false,
+      "can_update": false,
+      "can_delete": false
+    }
+  ],
+  "indexes": [
+    {
+      "tablename": "broker_acquisitions",
+      "indexname": "broker_acquisitions_pkey",
+      "indexdef": "CREATE UNIQUE INDEX broker_acquisitions_pkey ON public.broker_acquisitions USING btree (chain_id, transaction_hash, log_index)"
+    },
+    {
+      "tablename": "broker_acquisitions",
+      "indexname": "broker_acquisitions_punk_time_idx",
+      "indexdef": "CREATE INDEX broker_acquisitions_punk_time_idx ON public.broker_acquisitions USING btree (chain_id, punk_collection_address, punk_token_id, acquired_at DESC)"
+    },
+    {
+      "tablename": "broker_automation_v3_worker_runs",
+      "indexname": "broker_automation_v3_worker_runs_pkey",
+      "indexdef": "CREATE UNIQUE INDEX broker_automation_v3_worker_runs_pkey ON public.broker_automation_v3_worker_runs USING btree (run_id)"
+    },
+    {
+      "tablename": "broker_automation_v3_worker_runs",
+      "indexname": "broker_automation_v3_worker_r_release_commit_started_at_com_key",
+      "indexdef": "CREATE UNIQUE INDEX broker_automation_v3_worker_r_release_commit_started_at_com_key ON public.broker_automation_v3_worker_runs USING btree (release_commit, started_at, completed_at)"
+    },
+    {
+      "tablename": "broker_automation_v3_worker_runs",
+      "indexname": "broker_automation_v3_worker_runs_transaction_idx",
+      "indexdef": "CREATE UNIQUE INDEX broker_automation_v3_worker_runs_transaction_idx ON public.broker_automation_v3_worker_runs USING btree (transaction_hash) WHERE (transaction_hash IS NOT NULL)"
+    },
+    {
+      "tablename": "broker_automation_v3_worker_runs",
+      "indexname": "broker_automation_v3_worker_runs_completed_idx",
+      "indexdef": "CREATE INDEX broker_automation_v3_worker_runs_completed_idx ON public.broker_automation_v3_worker_runs USING btree (completed_at DESC)"
+    },
+    {
+      "tablename": "broker_automation_v3_worker_runs",
+      "indexname": "broker_automation_v3_worker_runs_lane_completed_idx",
+      "indexdef": "CREATE INDEX broker_automation_v3_worker_runs_lane_completed_idx ON public.broker_automation_v3_worker_runs USING btree (lane_id, completed_at DESC)"
+    },
+    {
+      "tablename": "broker_v2_activity",
+      "indexname": "broker_v2_activity_pkey",
+      "indexdef": "CREATE UNIQUE INDEX broker_v2_activity_pkey ON public.broker_v2_activity USING btree (activity_id)"
+    },
+    {
+      "tablename": "broker_v2_activity",
+      "indexname": "broker_v2_activity_punk_idx",
+      "indexdef": "CREATE INDEX broker_v2_activity_punk_idx ON public.broker_v2_activity USING btree (chain_id, punk_token_id, occurred_at DESC)"
+    },
+    {
+      "tablename": "broker_v2_activity",
+      "indexname": "broker_v2_activity_collected_attempt_uidx",
+      "indexdef": "CREATE UNIQUE INDEX broker_v2_activity_collected_attempt_uidx ON public.broker_v2_activity USING btree (attempt_id) WHERE ((attempt_id IS NOT NULL) AND ((activity_type)::text = 'COLLECTED'::text))"
+    },
+    {
+      "tablename": "broker_v2_model_registry",
+      "indexname": "broker_v2_model_registry_pkey",
+      "indexdef": "CREATE UNIQUE INDEX broker_v2_model_registry_pkey ON public.broker_v2_model_registry USING btree (registry_key)"
+    },
+    {
+      "tablename": "broker_v2_model_registry",
+      "indexname": "broker_v2_model_registry_provider_model_id_key",
+      "indexdef": "CREATE UNIQUE INDEX broker_v2_model_registry_provider_model_id_key ON public.broker_v2_model_registry USING btree (provider, model_id)"
+    },
+    {
+      "tablename": "broker_v2_provider_usage",
+      "indexname": "broker_v2_provider_usage_pkey",
+      "indexdef": "CREATE UNIQUE INDEX broker_v2_provider_usage_pkey ON public.broker_v2_provider_usage USING btree (usage_id)"
+    },
+    {
+      "tablename": "broker_v2_provider_usage",
+      "indexname": "broker_v2_provider_usage_recent_idx",
+      "indexdef": "CREATE INDEX broker_v2_provider_usage_recent_idx ON public.broker_v2_provider_usage USING btree (occurred_at DESC, provider, task)"
+    },
+    {
+      "tablename": "broker_v2_strategies",
+      "indexname": "broker_v2_strategies_pkey",
+      "indexdef": "CREATE UNIQUE INDEX broker_v2_strategies_pkey ON public.broker_v2_strategies USING btree (chain_id, collection_address, token_id, version)"
+    },
+    {
+      "tablename": "broker_v2_strategies",
+      "indexname": "broker_v2_strategies_intent_hash_key",
+      "indexdef": "CREATE UNIQUE INDEX broker_v2_strategies_intent_hash_key ON public.broker_v2_strategies USING btree (intent_hash)"
+    },
+    {
+      "tablename": "broker_v2_strategies",
+      "indexname": "broker_v2_strategies_active_idx",
+      "indexdef": "CREATE INDEX broker_v2_strategies_active_idx ON public.broker_v2_strategies USING btree (chain_id, state, expires_at, token_id)"
+    }
+  ],
+  "publicPrivileges": [],
+  "usage": {
+    "rows": 12,
+    "last24h": 8
+  },
+  "providerColumns": [
+    {
+      "column_name": "usage_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "column_name": "owner_fingerprint",
+      "data_type": "character",
+      "is_nullable": "NO"
+    },
+    {
+      "column_name": "punk_token_id",
+      "data_type": "numeric",
+      "is_nullable": "NO"
+    },
+    {
+      "column_name": "provider",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "column_name": "model_registry_key",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "column_name": "task",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "column_name": "request_count",
+      "data_type": "smallint",
+      "is_nullable": "NO"
+    },
+    {
+      "column_name": "input_tokens",
+      "data_type": "bigint",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "output_tokens",
+      "data_type": "bigint",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "estimated_cost_microusd",
+      "data_type": "bigint",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cache_hit",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "column_name": "latency_ms",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "result_code",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "column_name": "occurred_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    }
+  ],
+  "credentialsExposed": false,
+  "productionWrites": 0
+}

@@ -1,0 +1,1185 @@
+{
+  "schema": "GOGH_MARKET_MCP_READONLY_ACCEPTANCE_V1",
+  "checkedAt": "2026-09-13T18:46:49.213Z",
+  "productionWrites": 0,
+  "walletRequests": 0,
+  "roster": {
+    "status": "PASSED",
+    "durationMs": 1743,
+    "provider": "VALIDATION_CLOUD_ROBINHOOD_MAINNET",
+    "indexHints": 0,
+    "database": "NOT_USED_EMPTY_HINT_FIXTURE",
+    "rpcRequests": 35,
+    "maximumConcurrentRPC": 4,
+    "punks": [
+      {
+        "tokenId": "93",
+        "punkWallet": "0x06d5e0df2eb9512777403bf017031618f4713e19",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "94",
+        "punkWallet": "0xdcf2b3d5ce12804422107705b2ee6f7f19e0a5a4",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "95",
+        "punkWallet": "0xde63d5fef566d61c283c89edb2e906c91eb6c578",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "96",
+        "punkWallet": "0xaf290e4b9c0aa14b1bbf1b9cd8d93147571652bf",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "97",
+        "punkWallet": "0xf13cea9a7cc46e6ca806715a5ffdcd62307fe412",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "235",
+        "punkWallet": "0xfd430c15b85ebcb9fc2b804988f0ec1b9243a806",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "241",
+        "punkWallet": "0x210b81884269cacf11cd07095bf27310c085ac3b",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "349",
+        "punkWallet": "0x46a47f30d492d2a57dfa6cc811630db153f71a08",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "476",
+        "punkWallet": "0x24e2ded1eb0130a8944e87e274a0d7cd6a730c83",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "761",
+        "punkWallet": "0xbb9fdcbad57055e284f6cb94c9468d54a3cdb8e8",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "907",
+        "punkWallet": "0xbce1a44097a01d5372bbcf629a1644ab3905ca17",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1135",
+        "punkWallet": "0x5fd01fd42f8bb2e4e0c39771242eaa1b4844abe4",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1305",
+        "punkWallet": "0xc7f40bdba38fe5cc75bacbcc201f141eb0cd111d",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1563",
+        "punkWallet": "0x64b5a1845ba646fc697d3461f4621addfa5b8e17",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1572",
+        "punkWallet": "0xf193d52efb9165fa2f68beacecedca488f8ff2b6",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1613",
+        "punkWallet": "0x839a4c8b0bced676840d63c247bacc896ddf8b03",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1614",
+        "punkWallet": "0x3df1f6c9626b527cde67dd947baa8d5e417c8bae",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1615",
+        "punkWallet": "0x7ea957e061296220cb4d7292dff32c6064d5b871",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1616",
+        "punkWallet": "0x16631a8c1632af94d9bedc860ea6eb0f82a6737a",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1617",
+        "punkWallet": "0xb49236621186c23005b5f384382730b15b6d765a",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1618",
+        "punkWallet": "0x8d10f3ca56c38f3f235cbce088a3ee8abdd62cf7",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1620",
+        "punkWallet": "0xdbb02954181fc7b46427ddf9e8f0c46125a992b3",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1621",
+        "punkWallet": "0x0495d5e9375a8bc8eddda643a3c22d785982ff72",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1622",
+        "punkWallet": "0xfbeb2729bb6523cbd335a84f3a6e89663efc2bc0",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1623",
+        "punkWallet": "0x6d518b875690e2ebab2411cead992e593f88df6c",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1624",
+        "punkWallet": "0x578d1e7eef2e80182ef824b24b8e15846aec0192",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1625",
+        "punkWallet": "0x78023c1fc19f74836916ff880cc204f12608216d",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1626",
+        "punkWallet": "0x47d36dbd73385a21792a0889e0dcbfc13ad6a3f8",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1627",
+        "punkWallet": "0xef0ab38c5223b4f4f8f34018a03a14864138d6a5",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1628",
+        "punkWallet": "0xb84116efa39b4abefbd65242b7b42cdc26ef45df",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1629",
+        "punkWallet": "0x04f2861c62b8f543c7d2768f441984699f30e3ca",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1630",
+        "punkWallet": "0x986292e40302a853951607e185b5d0361dd08d67",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1631",
+        "punkWallet": "0x7c68b1d01ff3a8fe67506f0de96b7077038f7de4",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1632",
+        "punkWallet": "0xf81bcc365de9900d819d3e1710fa594594a353be",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1633",
+        "punkWallet": "0xfe376d6dff992d024eecade70518ac4d413af743",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1634",
+        "punkWallet": "0x23b7414bafdf5bcd43fe2f91350aa712099a32a3",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1635",
+        "punkWallet": "0xbca5617a4b1ba1ccd7fa36d36164147369726c49",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1636",
+        "punkWallet": "0xd652cfc6283752fa6e00532cd050d07e8e9f3dee",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1637",
+        "punkWallet": "0x9f260950f6c9a1d90531cfa4259b12e76224f696",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1640",
+        "punkWallet": "0x4de4cd97477ce1462e731134b22ff013714a12c2",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1641",
+        "punkWallet": "0xa4f6d02e8aeae7e08f9f6737222604b65a7cf7b8",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1642",
+        "punkWallet": "0xeef3e2717e3aa60cf0fb7b2f010f687307e8488f",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1644",
+        "punkWallet": "0xdd5231323009ffd3a125a2a2d4f9be7310d702b3",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1646",
+        "punkWallet": "0x0dad2e75052b0734282473739fa7d997f2ede2f8",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1647",
+        "punkWallet": "0x5c4b1b39e03daf2a56141d343cf51886fcdacbf2",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1648",
+        "punkWallet": "0x982e4883be5a65e3a21243829ad6e4be29f43276",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1649",
+        "punkWallet": "0x1c55a384391f3f21bffe7969d6152cc65cb62ecc",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1650",
+        "punkWallet": "0x55a7a93edaf0af9b6244f37f1ad39d286ff3ee85",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1651",
+        "punkWallet": "0xe5f3ed6a10b442a2d4eada8307533a4ab61bb7b2",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1652",
+        "punkWallet": "0xed83c2dc54260328ec6b183518d7210a99282e0d",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1653",
+        "punkWallet": "0x00e5f017bfea7a9e5a259f579c9a5c471764665e",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1656",
+        "punkWallet": "0x214e6f276528c86f836a369fb546510dc552ad7f",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1658",
+        "punkWallet": "0xa72656b717543ffc6ef1cab3c607e7cefcea6211",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1659",
+        "punkWallet": "0x0e624dc35dd2f86486e6b6f3ed14f303b26da2d4",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1660",
+        "punkWallet": "0x6eca21bfcbf648f8105e2f46388d373aa1cb46b8",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1662",
+        "punkWallet": "0x404edce8a1ab912d81b13ada57c733cf9acbc617",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1663",
+        "punkWallet": "0x1c0728fbe257d2a10289f46eefb36a6f36a76936",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1664",
+        "punkWallet": "0x97c8b1db8b7d9964d0964c69ed34994fa3cef0de",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1665",
+        "punkWallet": "0xb674b04b97b079565db84e3d2433be22f7fef1ef",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1666",
+        "punkWallet": "0xb47c3dbf50993b8764aab76cb7659849f521ad55",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1670",
+        "punkWallet": "0x4bda977d5d30ad05c20354ee8ff5815b9063fc9b",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1671",
+        "punkWallet": "0x4126fa24738247c5682816a32d69d58e3aabd99c",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1672",
+        "punkWallet": "0x67ac63bab91e6d645f9458a6bca9a021a62c4645",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1673",
+        "punkWallet": "0xf11031a6c6b926a89534c4e1016a10d52c11e821",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1674",
+        "punkWallet": "0xe6e81d8d7605c224e5bd6844e342266281fbdb5a",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1675",
+        "punkWallet": "0x7f76c09b88589141196ddfb94a0b094a8e9c931b",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1677",
+        "punkWallet": "0x578074f35eb92c64496e3b7f537f0a43d04bdb4d",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1678",
+        "punkWallet": "0xe06151404a78e274345010015af56bbd2294b6c1",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1679",
+        "punkWallet": "0x5a37e5a8722569c795725817145f6177d58d445d",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1680",
+        "punkWallet": "0xd9514f94859a7d61357b97eabf94deca06c6fcf9",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1681",
+        "punkWallet": "0x264ded2a09473e789638457cb5c6b0f725e9f5a2",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1682",
+        "punkWallet": "0x4a948df203b73826ef1412d18d6d0d56563ffdff",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1684",
+        "punkWallet": "0x373b7246d93ee90a8e822e0fd0a4551b5c9bd775",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1685",
+        "punkWallet": "0x166ff9d2997ee48fefdaba3727d556df3db172f9",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1686",
+        "punkWallet": "0x6e48b3aaa540c9db36a75a9548fda96b326cb364",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1688",
+        "punkWallet": "0xd138dcbd9d30c8d3e63e6d6bc720f62d1e9f7551",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1689",
+        "punkWallet": "0x473ed3cc11e430baaf00b9363ccc206aca13d610",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1690",
+        "punkWallet": "0xfa8517eade18bbec88dcda9bba5cafc11a1feab5",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1691",
+        "punkWallet": "0x7b191f6c0c593794f4e247a2fcb4f8cb496c7f18",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1692",
+        "punkWallet": "0xe4d098770001619009583a564cad154b88696c1c",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1693",
+        "punkWallet": "0x8964d77773218e956f5623aebc1bf34ca961658f",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1694",
+        "punkWallet": "0x3b327590496d83a67e55fc590d14274de8189192",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1695",
+        "punkWallet": "0xbab6230e76accc5d8708502062344473f9c2e978",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1696",
+        "punkWallet": "0xa93a3b3c2cf4fa110f5cf9bddff7488973d3d741",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1697",
+        "punkWallet": "0x6d32cdb892d6706888f4b997337b121c41c614d2",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1698",
+        "punkWallet": "0x6aee74461859878539d49629100e0c48325952df",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1699",
+        "punkWallet": "0xba6ee8f2e667477c01a45e07d94afd02dfe06168",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1700",
+        "punkWallet": "0x8d2f90ca349afc794b5f45198fde2ab43213002f",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1702",
+        "punkWallet": "0xfab30e474b7303d9baeed55f8888f06e638a35c7",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1703",
+        "punkWallet": "0x00fcc44e9c39256fd948ff55fe87b3ffebb232e3",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1704",
+        "punkWallet": "0x6ac286c43f3a2105362bf31fa36be2ef64a74339",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1705",
+        "punkWallet": "0x48b705da7fa8a4d9f3e08a5f9d93bed36f744d50",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1706",
+        "punkWallet": "0xec6f341f09bd031d74e3048f7387293c3fff8066",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1707",
+        "punkWallet": "0x249900ae0a6ac007652df42793ed36d3875f4db5",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1709",
+        "punkWallet": "0xa4aad3e685f5cecb5604d9c70b8c201acee0a401",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1710",
+        "punkWallet": "0x5bae39804abd79a77f8a536177023f9c6133d6e4",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1711",
+        "punkWallet": "0x0cbde6208aab60dfecb25d4bf5642d79c1993bf5",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1712",
+        "punkWallet": "0x39d9f644b4d66ad22aa351d9db32bed3d129615f",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1713",
+        "punkWallet": "0x90692076c9ce06c03b947de93064d718c97c588a",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1721",
+        "punkWallet": "0xab2d30c12e0f8db0b369a4d19a127e25d031e8d9",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1723",
+        "punkWallet": "0x29522805bec5a0b892342072ddcc220f82ad3aa0",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1724",
+        "punkWallet": "0xec604de845520582900e6ed87c4cf51ee8b4988a",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1726",
+        "punkWallet": "0xd1fca8c8cdfb9a2224e5de38ea6b54c20c3e27ff",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1728",
+        "punkWallet": "0xea32b911ab2e81e000c733a89415f7efdf8ab96b",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1733",
+        "punkWallet": "0xbfe2b0093582f9eb8269e1b210aec2cf4f05893b",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1739",
+        "punkWallet": "0x36a8574a3abe7f5d2771d44dc31a8edb15ba5e3b",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1745",
+        "punkWallet": "0x65fed1d3e2ac56cd4b8a5e0a618f5d7062d289cf",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1750",
+        "punkWallet": "0x83f7a1c85186b0b39d2732e9482867be6b5c5e63",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1751",
+        "punkWallet": "0x52a25afc56da24a5405b887750d17fa5b6afb5da",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1753",
+        "punkWallet": "0xc735bbaaf79295a27cb66ac84bdc926a125602e2",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1754",
+        "punkWallet": "0x06373ec2825ae227144633637692ea3dc5a5d387",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1755",
+        "punkWallet": "0xb1e1c75ad64725e49dab7dbc630044a932066329",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1757",
+        "punkWallet": "0x50f3306b6343535d24ea269dfd63bafd76552fa2",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1760",
+        "punkWallet": "0x0a2bb56c5fc2323f53b9c62a84140549ce49da8a",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1763",
+        "punkWallet": "0x00ef08f21af500111e36cf1b32c95f73f1a9872d",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1764",
+        "punkWallet": "0x633969580fa140cf33c6e64817151a3b8d7798ce",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1769",
+        "punkWallet": "0x3e68047fa6a327a8f709098da3d16710e1d76b5d",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1772",
+        "punkWallet": "0xfe37628b56bbfd053465223644dba0fb5ba3ff61",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1773",
+        "punkWallet": "0xe0842e2c0d280e8c82a543a94e6b6f44c28bee6a",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1774",
+        "punkWallet": "0x3ec9bd90865e75ee806602cd623a1d4f575628b9",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1779",
+        "punkWallet": "0xbe7dcf8f9b25d87b7183d84ad055a22b81a374df",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1780",
+        "punkWallet": "0x7c4711a9cf1d1dff1c858742cbef3f55bd231f43",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1783",
+        "punkWallet": "0x1a191392a461dff1ead32c89b002d2c670915c94",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1785",
+        "punkWallet": "0xcd58be764f39d6d7a1dfdd73f9a4b696fac81ac7",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1786",
+        "punkWallet": "0xea75d06c60a8b8cc6f701357af33f07fa0acc751",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1788",
+        "punkWallet": "0xc0a6449617a69583db565630dd15ebd4bbb9184d",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1790",
+        "punkWallet": "0xa32450ba655ae698a40c3c7cda835379ee54471e",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1792",
+        "punkWallet": "0xed658d2ae933778a5a84edd5184722e371277366",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1793",
+        "punkWallet": "0xf12fa95ce77ec799d067a71df4e47d613bf1cd1a",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1797",
+        "punkWallet": "0x4ea639dd845dad5c41403cbb5699fd2cc77932cf",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1836",
+        "punkWallet": "0xea11cd7b24c4069a947bce22593d1a2f531eb24a",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "1983",
+        "punkWallet": "0x162fa3db535015b66d0b8366fbd0be8f8d9350e3",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "2111",
+        "punkWallet": "0xc7dd0731465fc9b10c9d16d20e71a2a08c20e68b",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "2122",
+        "punkWallet": "0xa1f6e0348316f3d6e7511c316945c36c0d254ecf",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "2456",
+        "punkWallet": "0x071dd1c8b747340ef25b90cc8f79297bc9aa07c7",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "2594",
+        "punkWallet": "0x53225a902b196faefcb4ec0cdfb123643ddec379",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "3019",
+        "punkWallet": "0x5cd9406d9599a95c6feea3cf309846daa52763b9",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "3515",
+        "punkWallet": "0x221b3fdf8beba3b4f31fd3ba19bb44dbb06f11d3",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "3776",
+        "punkWallet": "0x3c8f4c31a5a78c104b56b8180e33c6502c974a56",
+        "ownershipBlock": "62180386"
+      },
+      {
+        "tokenId": "4078",
+        "punkWallet": "0xf309ff31ee432f5458369662f404895765a841a9",
+        "ownershipBlock": "62180386"
+      }
+    ],
+    "indexIsAuthority": false,
+    "coverage": {
+      "status": "COMPLETE_AT_BLOCK",
+      "blockNumber": "62180386",
+      "blockHash": "0x6111cd5389246a75f294d2b6ff6cc7e12bb24fc5aa0909aa1c939b7b11c11429",
+      "verifiedCount": 140,
+      "scope": "ORIGINAL_GOGH_COLLECTION"
+    }
+  },
+  "market": [
+    {
+      "durationMs": 177,
+      "httpGetRequests": 2,
+      "schema": "GOGH_MARKET_LISTING_OBSERVATIONS_V2",
+      "slug": "gogh-punks-255843210",
+      "chainId": 4663,
+      "contract": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+      "name": "Gogh Punks",
+      "identityVerified": true,
+      "observationStartedAt": "2026-09-13T18:46:51.053Z",
+      "observedAt": "2026-09-13T18:46:51.229Z",
+      "listings": [
+        {
+          "orderHash": "0xc0694320c84e402e9cae9e3b10ef506bdca90c73a37bb789bd05a3cf276aab5f",
+          "chainId": 4663,
+          "protocolAddress": "0x0000000000000068f116a894984e2db1123eb395",
+          "asset": {
+            "chainId": 4663,
+            "contract": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+            "tokenId": "3513",
+            "standard": "ERC721"
+          },
+          "quantity": "1",
+          "remainingQuantity": "1",
+          "paymentToken": {
+            "chainId": 4663,
+            "address": "0x0000000000000000000000000000000000000000",
+            "symbol": "ETH",
+            "decimals": 18,
+            "kind": "NATIVE"
+          },
+          "price": {
+            "totalAmount": "1099600000000000",
+            "unitAmount": "1099600000000000",
+            "remainingTotalAmount": "1099600000000000",
+            "decimals": 18,
+            "currency": "ETH",
+            "basis": "FIXED_SINGLE_ITEM_CONSIDERATION_SUM",
+            "includesListedFees": true,
+            "includesGas": false
+          },
+          "startsAtUnix": "1789324688",
+          "expiresAtUnix": "1789325348",
+          "orderType": "FULL_RESTRICTED",
+          "zoneRestricted": true,
+          "zoneAddress": "0x000056f7000000ece9003ca63978907a00ffd100",
+          "providerStatus": "ACTIVE",
+          "validity": "UNVERIFIED_ON_CHAIN",
+          "executable": false
+        },
+        {
+          "orderHash": "0x13c086dde52ab338c4b5ac91b1aea6cf4445d919b9e4dc3717c048b3f8ca93c8",
+          "chainId": 4663,
+          "protocolAddress": "0x0000000000000068f116a894984e2db1123eb395",
+          "asset": {
+            "chainId": 4663,
+            "contract": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+            "tokenId": "3514",
+            "standard": "ERC721"
+          },
+          "quantity": "1",
+          "remainingQuantity": "1",
+          "paymentToken": {
+            "chainId": 4663,
+            "address": "0x0000000000000000000000000000000000000000",
+            "symbol": "ETH",
+            "decimals": 18,
+            "kind": "NATIVE"
+          },
+          "price": {
+            "totalAmount": "1099600000000000",
+            "unitAmount": "1099600000000000",
+            "remainingTotalAmount": "1099600000000000",
+            "decimals": 18,
+            "currency": "ETH",
+            "basis": "FIXED_SINGLE_ITEM_CONSIDERATION_SUM",
+            "includesListedFees": true,
+            "includesGas": false
+          },
+          "startsAtUnix": "1789324713",
+          "expiresAtUnix": "1789325373",
+          "orderType": "FULL_RESTRICTED",
+          "zoneRestricted": true,
+          "zoneAddress": "0x000056f7000000ece9003ca63978907a00ffd100",
+          "providerStatus": "ACTIVE",
+          "validity": "UNVERIFIED_ON_CHAIN",
+          "executable": false
+        },
+        {
+          "orderHash": "0x65fa292677b848e5659ac714fb40d94645827d6939c19af5354a20bc90171080",
+          "chainId": 4663,
+          "protocolAddress": "0x0000000000000068f116a894984e2db1123eb395",
+          "asset": {
+            "chainId": 4663,
+            "contract": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+            "tokenId": "1405",
+            "standard": "ERC721"
+          },
+          "quantity": "1",
+          "remainingQuantity": "1",
+          "paymentToken": {
+            "chainId": 4663,
+            "address": "0x0000000000000000000000000000000000000000",
+            "symbol": "ETH",
+            "decimals": 18,
+            "kind": "NATIVE"
+          },
+          "price": {
+            "totalAmount": "1099700000000000",
+            "unitAmount": "1099700000000000",
+            "remainingTotalAmount": "1099700000000000",
+            "decimals": 18,
+            "currency": "ETH",
+            "basis": "FIXED_SINGLE_ITEM_CONSIDERATION_SUM",
+            "includesListedFees": true,
+            "includesGas": false
+          },
+          "startsAtUnix": "1789248599",
+          "expiresAtUnix": "1804800599",
+          "orderType": "FULL_RESTRICTED",
+          "zoneRestricted": true,
+          "zoneAddress": "0x000056f7000000ece9003ca63978907a00ffd100",
+          "providerStatus": "ACTIVE",
+          "validity": "UNVERIFIED_ON_CHAIN",
+          "executable": false
+        },
+        {
+          "orderHash": "0x03301ede1c624ec43f4716a0a81a01011148a7653467b1fd44f4a8201cf350cc",
+          "chainId": 4663,
+          "protocolAddress": "0x0000000000000068f116a894984e2db1123eb395",
+          "asset": {
+            "chainId": 4663,
+            "contract": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+            "tokenId": "1167",
+            "standard": "ERC721"
+          },
+          "quantity": "1",
+          "remainingQuantity": "1",
+          "paymentToken": {
+            "chainId": 4663,
+            "address": "0x0000000000000000000000000000000000000000",
+            "symbol": "ETH",
+            "decimals": 18,
+            "kind": "NATIVE"
+          },
+          "price": {
+            "totalAmount": "1099700000000000",
+            "unitAmount": "1099700000000000",
+            "remainingTotalAmount": "1099700000000000",
+            "decimals": 18,
+            "currency": "ETH",
+            "basis": "FIXED_SINGLE_ITEM_CONSIDERATION_SUM",
+            "includesListedFees": true,
+            "includesGas": false
+          },
+          "startsAtUnix": "1789248599",
+          "expiresAtUnix": "1804800599",
+          "orderType": "FULL_RESTRICTED",
+          "zoneRestricted": true,
+          "zoneAddress": "0x000056f7000000ece9003ca63978907a00ffd100",
+          "providerStatus": "ACTIVE",
+          "validity": "UNVERIFIED_ON_CHAIN",
+          "executable": false
+        },
+        {
+          "orderHash": "0x11eb36cbaf83168bc2eb489d89f8553ff1798e7de8c3454dd0011770c6cbe5bc",
+          "chainId": 4663,
+          "protocolAddress": "0x0000000000000068f116a894984e2db1123eb395",
+          "asset": {
+            "chainId": 4663,
+            "contract": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+            "tokenId": "1061",
+            "standard": "ERC721"
+          },
+          "quantity": "1",
+          "remainingQuantity": "1",
+          "paymentToken": {
+            "chainId": 4663,
+            "address": "0x0000000000000000000000000000000000000000",
+            "symbol": "ETH",
+            "decimals": 18,
+            "kind": "NATIVE"
+          },
+          "price": {
+            "totalAmount": "1099800000000000",
+            "unitAmount": "1099800000000000",
+            "remainingTotalAmount": "1099800000000000",
+            "decimals": 18,
+            "currency": "ETH",
+            "basis": "FIXED_SINGLE_ITEM_CONSIDERATION_SUM",
+            "includesListedFees": true,
+            "includesGas": false
+          },
+          "startsAtUnix": "1789245509",
+          "expiresAtUnix": "1804797509",
+          "orderType": "FULL_RESTRICTED",
+          "zoneRestricted": true,
+          "zoneAddress": "0x000056f7000000ece9003ca63978907a00ffd100",
+          "providerStatus": "ACTIVE",
+          "validity": "UNVERIFIED_ON_CHAIN",
+          "executable": false
+        }
+      ],
+      "source": "OPENSEA_REST",
+      "walletAuthority": "NONE",
+      "executable": false,
+      "coverage": {
+        "status": "BOUNDED_SAMPLE",
+        "requestedLimit": 5,
+        "maxPages": 2,
+        "pagesRead": 1,
+        "listingsRead": 5,
+        "supportedCount": 5,
+        "excluded": {},
+        "providerPaginationExhausted": false,
+        "collectionFloorVerified": false,
+        "collectionFloor": null,
+        "unavailable": null
+      },
+      "limitations": [
+        "BOUNDED_OPENSEA_SAMPLE",
+        "ERC721_FIXED_PRICE_SINGLE_ITEM_ONLY",
+        "CANCELLATION_AND_OWNERSHIP_NOT_CHECKED",
+        "APPROVAL_AND_SIGNATURE_NOT_CHECKED",
+        "OBSERVATION_TIME_IS_SERVER_UTC_NOT_CHAIN_TIME",
+        "NOT_AN_EXECUTABLE_QUOTE"
+      ],
+      "warning": "Observed listings only. They may be cancelled or unfillable. This sample does not establish a collection floor or authorize a purchase."
+    },
+    {
+      "durationMs": 144,
+      "httpGetRequests": 2,
+      "schema": "GOGH_MARKET_LISTING_OBSERVATIONS_V2",
+      "slug": "peppies-world",
+      "chainId": 4663,
+      "contract": "0xb73f1d1aee57410d537d87b656e98b9d3df5b213",
+      "name": "Peppies World",
+      "identityVerified": true,
+      "observationStartedAt": "2026-09-13T18:46:51.229Z",
+      "observedAt": "2026-09-13T18:46:51.373Z",
+      "listings": [
+        {
+          "orderHash": "0xb9f08fbc5d9466b74ef17a0f96807a4dff66ed29cfea36e0b70a4787707767b4",
+          "chainId": 4663,
+          "protocolAddress": "0x0000000000000068f116a894984e2db1123eb395",
+          "asset": {
+            "chainId": 4663,
+            "contract": "0xb73f1d1aee57410d537d87b656e98b9d3df5b213",
+            "tokenId": "608",
+            "standard": "ERC721"
+          },
+          "quantity": "1",
+          "remainingQuantity": "1",
+          "paymentToken": {
+            "chainId": 4663,
+            "address": "0x0000000000000000000000000000000000000000",
+            "symbol": "ETH",
+            "decimals": 18,
+            "kind": "NATIVE"
+          },
+          "price": {
+            "totalAmount": "200000000000000",
+            "unitAmount": "200000000000000",
+            "remainingTotalAmount": "200000000000000",
+            "decimals": 18,
+            "currency": "ETH",
+            "basis": "FIXED_SINGLE_ITEM_CONSIDERATION_SUM",
+            "includesListedFees": true,
+            "includesGas": false
+          },
+          "startsAtUnix": "1789318477",
+          "expiresAtUnix": "1804870477",
+          "orderType": "FULL_OPEN",
+          "zoneRestricted": false,
+          "zoneAddress": "0x0000000000000000000000000000000000000000",
+          "providerStatus": "ACTIVE",
+          "validity": "UNVERIFIED_ON_CHAIN",
+          "executable": false
+        },
+        {
+          "orderHash": "0xc5d651c78b2ebd34d0d5098ea5cf8a718381957232beec8bb4b629b389b30dcf",
+          "chainId": 4663,
+          "protocolAddress": "0x0000000000000068f116a894984e2db1123eb395",
+          "asset": {
+            "chainId": 4663,
+            "contract": "0xb73f1d1aee57410d537d87b656e98b9d3df5b213",
+            "tokenId": "607",
+            "standard": "ERC721"
+          },
+          "quantity": "1",
+          "remainingQuantity": "1",
+          "paymentToken": {
+            "chainId": 4663,
+            "address": "0x0000000000000000000000000000000000000000",
+            "symbol": "ETH",
+            "decimals": 18,
+            "kind": "NATIVE"
+          },
+          "price": {
+            "totalAmount": "200000000000000",
+            "unitAmount": "200000000000000",
+            "remainingTotalAmount": "200000000000000",
+            "decimals": 18,
+            "currency": "ETH",
+            "basis": "FIXED_SINGLE_ITEM_CONSIDERATION_SUM",
+            "includesListedFees": true,
+            "includesGas": false
+          },
+          "startsAtUnix": "1789318477",
+          "expiresAtUnix": "1804870477",
+          "orderType": "FULL_OPEN",
+          "zoneRestricted": false,
+          "zoneAddress": "0x0000000000000000000000000000000000000000",
+          "providerStatus": "ACTIVE",
+          "validity": "UNVERIFIED_ON_CHAIN",
+          "executable": false
+        },
+        {
+          "orderHash": "0xe6fda7b599abf6d149fc4708d8c28d9f9ed6dc80300207492215afee8300ac9e",
+          "chainId": 4663,
+          "protocolAddress": "0x0000000000000068f116a894984e2db1123eb395",
+          "asset": {
+            "chainId": 4663,
+            "contract": "0xb73f1d1aee57410d537d87b656e98b9d3df5b213",
+            "tokenId": "605",
+            "standard": "ERC721"
+          },
+          "quantity": "1",
+          "remainingQuantity": "1",
+          "paymentToken": {
+            "chainId": 4663,
+            "address": "0x0000000000000000000000000000000000000000",
+            "symbol": "ETH",
+            "decimals": 18,
+            "kind": "NATIVE"
+          },
+          "price": {
+            "totalAmount": "200000000000000",
+            "unitAmount": "200000000000000",
+            "remainingTotalAmount": "200000000000000",
+            "decimals": 18,
+            "currency": "ETH",
+            "basis": "FIXED_SINGLE_ITEM_CONSIDERATION_SUM",
+            "includesListedFees": true,
+            "includesGas": false
+          },
+          "startsAtUnix": "1789318477",
+          "expiresAtUnix": "1804870477",
+          "orderType": "FULL_OPEN",
+          "zoneRestricted": false,
+          "zoneAddress": "0x0000000000000000000000000000000000000000",
+          "providerStatus": "ACTIVE",
+          "validity": "UNVERIFIED_ON_CHAIN",
+          "executable": false
+        },
+        {
+          "orderHash": "0x992b62f7a7eaa04a94078020ddf2e5b697fa7f2492186f5b83aeaa1cc71013fd",
+          "chainId": 4663,
+          "protocolAddress": "0x0000000000000068f116a894984e2db1123eb395",
+          "asset": {
+            "chainId": 4663,
+            "contract": "0xb73f1d1aee57410d537d87b656e98b9d3df5b213",
+            "tokenId": "606",
+            "standard": "ERC721"
+          },
+          "quantity": "1",
+          "remainingQuantity": "1",
+          "paymentToken": {
+            "chainId": 4663,
+            "address": "0x0000000000000000000000000000000000000000",
+            "symbol": "ETH",
+            "decimals": 18,
+            "kind": "NATIVE"
+          },
+          "price": {
+            "totalAmount": "200000000000000",
+            "unitAmount": "200000000000000",
+            "remainingTotalAmount": "200000000000000",
+            "decimals": 18,
+            "currency": "ETH",
+            "basis": "FIXED_SINGLE_ITEM_CONSIDERATION_SUM",
+            "includesListedFees": true,
+            "includesGas": false
+          },
+          "startsAtUnix": "1789318477",
+          "expiresAtUnix": "1804870477",
+          "orderType": "FULL_OPEN",
+          "zoneRestricted": false,
+          "zoneAddress": "0x0000000000000000000000000000000000000000",
+          "providerStatus": "ACTIVE",
+          "validity": "UNVERIFIED_ON_CHAIN",
+          "executable": false
+        },
+        {
+          "orderHash": "0x45d2c7884785444ff084516ddb35a04b0fad6bf282e1a09cd43e51aaee6efae4",
+          "chainId": 4663,
+          "protocolAddress": "0x0000000000000068f116a894984e2db1123eb395",
+          "asset": {
+            "chainId": 4663,
+            "contract": "0xb73f1d1aee57410d537d87b656e98b9d3df5b213",
+            "tokenId": "885",
+            "standard": "ERC721"
+          },
+          "quantity": "1",
+          "remainingQuantity": "1",
+          "paymentToken": {
+            "chainId": 4663,
+            "address": "0x0000000000000000000000000000000000000000",
+            "symbol": "ETH",
+            "decimals": 18,
+            "kind": "NATIVE"
+          },
+          "price": {
+            "totalAmount": "200000000000000",
+            "unitAmount": "200000000000000",
+            "remainingTotalAmount": "200000000000000",
+            "decimals": 18,
+            "currency": "ETH",
+            "basis": "FIXED_SINGLE_ITEM_CONSIDERATION_SUM",
+            "includesListedFees": true,
+            "includesGas": false
+          },
+          "startsAtUnix": "1789319103",
+          "expiresAtUnix": "1797095103",
+          "orderType": "FULL_OPEN",
+          "zoneRestricted": false,
+          "zoneAddress": "0x0000000000000000000000000000000000000000",
+          "providerStatus": "ACTIVE",
+          "validity": "UNVERIFIED_ON_CHAIN",
+          "executable": false
+        }
+      ],
+      "source": "OPENSEA_REST",
+      "walletAuthority": "NONE",
+      "executable": false,
+      "coverage": {
+        "status": "BOUNDED_SAMPLE",
+        "requestedLimit": 5,
+        "maxPages": 2,
+        "pagesRead": 1,
+        "listingsRead": 5,
+        "supportedCount": 5,
+        "excluded": {},
+        "providerPaginationExhausted": false,
+        "collectionFloorVerified": false,
+        "collectionFloor": null,
+        "unavailable": null
+      },
+      "limitations": [
+        "BOUNDED_OPENSEA_SAMPLE",
+        "ERC721_FIXED_PRICE_SINGLE_ITEM_ONLY",
+        "CANCELLATION_AND_OWNERSHIP_NOT_CHECKED",
+        "APPROVAL_AND_SIGNATURE_NOT_CHECKED",
+        "OBSERVATION_TIME_IS_SERVER_UTC_NOT_CHAIN_TIME",
+        "NOT_AN_EXECUTABLE_QUOTE"
+      ],
+      "warning": "Observed listings only. They may be cancelled or unfillable. This sample does not establish a collection floor or authorize a purchase."
+    }
+  ]
+}

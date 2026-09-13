@@ -4,6 +4,10 @@ Audit date: September 13, 2026. Source baseline: integration commit `4f9e450`, b
 
 The broker has working deployed accounts, controlled execution lanes, a verified production paid mint and substantial reviewed V2 code. It is not yet a fully accepted version of every feature in the master prompt. The broad swarm candidate and the current production release must remain separate in release notes: the latest recorded production component is `a044582`; broader reviewed work at this integration baseline was not established as deployed by the evidence inspected here.
 
+## Current resolution
+
+The table below preserves the starting baseline. The final hardening corrections and test readiness are recorded in [the final report](final-report.md) and [updated acceptance matrix](acceptance-matrix.md). Roster/collection, provider preference/quota, owner funding/reserve, composed Forge, MCP completeness and supported-link findings have been fixed and retested. Unsupported marketplace execution and unaccepted skill packages remain explicit scope limits.
+
 ## Evidence and status rules
 
 - **COMPLETE** means the stated bounded implementation and its relevant acceptance evidence exist. It does not imply every provider, wallet, browser or production configuration is verified.

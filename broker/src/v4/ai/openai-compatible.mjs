@@ -22,7 +22,7 @@ function responseText(payload) {
 }
 
 export class ResponsesArtBrokerProvider extends ArtBrokerAIProvider {
-  constructor({ provider, modelId, secretName, endpoint, expectedOrigin, fetchImpl = fetch,
+  constructor({ provider, modelId, secretName, endpoint, expectedOrigin, expectedPath = "/v1/responses", fetchImpl = fetch,
     environment = process.env, timeoutMs = 20_000 }) {
     super(provider);
     if (typeof modelId !== "string" || !modelId.trim() || modelId.length > 160) {
@@ -31,7 +31,7 @@ export class ResponsesArtBrokerProvider extends ArtBrokerAIProvider {
     this.modelId = modelId.trim();
     this.secretName = secretName;
     this.environment = environment;
-    this.endpoint = exactHttpsEndpoint(endpoint, expectedOrigin, "/v1/responses");
+    this.endpoint = exactHttpsEndpoint(endpoint, expectedOrigin, expectedPath);
     this.fetchImpl = fetchImpl;
     this.timeoutMs = timeoutMs;
   }
@@ -48,7 +48,7 @@ export class ResponsesArtBrokerProvider extends ArtBrokerAIProvider {
     catch { return { ok: false, code: "NOT_CONFIGURED" }; }
   }
 
-  async invoke(task, input) {
+  async invoke(task, input, { signal, timeoutMs } = {}) {
     assertProviderTask(task);
     const prompt = boundedPrompt(input?.prompt);
     const instructions = boundedPrompt(input?.instructions ??
@@ -63,7 +63,7 @@ export class ResponsesArtBrokerProvider extends ArtBrokerAIProvider {
       strict: true, schema } };
     const secret = providerSecret(this.environment, this.secretName);
     const { payload, latencyMs } = await providerJsonRequest({ fetchImpl: this.fetchImpl,
-      url: this.endpoint, timeoutMs: this.timeoutMs,
+      url: this.endpoint, timeoutMs: Math.min(this.timeoutMs, timeoutMs ?? this.timeoutMs), signal,
       headers: { authorization: `Bearer ${secret}`, "content-type": "application/json" }, body });
     const text = responseText(payload);
     if (typeof text !== "string") {
