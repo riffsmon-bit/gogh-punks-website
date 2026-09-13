@@ -64,7 +64,7 @@ interactive practice server and UI. These changes are excluded from PR #67.
 | Historical Forge build reproducibility | INTEGRATED | `41d8d3c`; exact accepted plan preserved after compiler AST renumbering; 79 targeted tests |
 | Independent real-skills review | INTEGRATED | `5bc9667`; nine adversarial/package tests, both discovered P2 integration issues resolved |
 | Fresh final integration reviewer | INTEGRATED / PASS | 89 regressions, actual packaged loading across three functions; `final-integration-review.md` |
-| Lead full integration validation | PASS / PREVIEW PENDING | 2,732 JS, 305 Solidity, 25 Control Center browser journeys/59 captures; PR #68 |
+| Lead full integration validation | PASS / PREVIEW VERIFIED | 2,732 JS, 305 Solidity, 25 Control Center browser journeys/59 captures; PR #68 preview `6aa7136900dbe00008b8ef15` verified |
 
 New contracts are not deployed publicly. No new registry READY transition or
 public skill-release entry is added. Original accepted Rarity Eye and the existing

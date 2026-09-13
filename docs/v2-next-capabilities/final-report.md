@@ -1,6 +1,6 @@
 # Skill and marketplace follow-up — integration report
 
-**FINAL_TESTING_READY for the bounded copied-chain skill and marketplace increment.** Repository validation and independent review passed; publication still requires the served-preview gate below. Public marketplace execution is **NOT_READY**. This follow-up does not register new public skills, deploy the candidate contracts, burn an original Punk or move real funds.
+**FINAL_TESTING_READY for the bounded copied-chain skill and marketplace increment.** Repository validation, independent review and served-preview acceptance passed. Public marketplace execution is **NOT_READY**. This follow-up does not register new public skills, deploy the candidate contracts, burn an original Punk or move real funds.
 
 The already-published PR #67 fixes the user's completed-mint screenshot: #93 shows **Paid mint complete**, Peppies World **#1599**, and a Collection link. A separate expired unsigned review remains explicitly dismissible. Groq is saved in the server-only Netlify configuration and passed its real production conversation and structured-output probes. Bankr remains disabled by the owner's choice.
 
@@ -47,6 +47,12 @@ Specialist groups overlap: marketplace 106 tests; real-skill MCP/history 153; in
 - [Holder testing guide](../v2-hardening/testing-guide.md)
 
 Final independent convergence review: **PASS**, 89 targeted regressions and actual packaged-file loading across three Forge/MCP functions. Remaining demonstrated P0: **0**; P1: **0**; P2: **0** within this bounded controlled-testing increment. This does not certify the unreleased public trading features. Bankr's paid service remains deliberately excluded.
+
+## Preview acceptance and holder practice
+
+PR #68 preview `6aa7136900dbe00008b8ef15` passed the full hosted deployment gate. Six JavaScript files match source byte-for-byte; the holder guide matches after removing only Netlify’s preview toolbar. Public MCP diagnostics respond, selected-owner MCP and Forge reject unauthenticated calls, unearned skill aliases stay hidden, Groq is configured, and Bankr remains absent. [Preview proof](preview-verification.json). These unauthenticated checks complement the actual packaged-file tests; they do not claim a new signed-in production skill execution.
+
+Fresh holder sessions on this Mac: Forge **http://127.0.0.1:50786**, marketplace **http://127.0.0.1:50652**. Both returned HTTP 200 after startup and require no real wallet. The earlier Forge session at port 62764 had already stopped; no old process was killed or reset. Practice URLs last only while their own launcher runs.
 
 ## Production gates still outstanding
 

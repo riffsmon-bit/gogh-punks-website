@@ -1,0 +1,91 @@
+{
+  "checkedAt": "2026-09-13T21:21:44.382Z",
+  "origin": "https://deploy-preview-68.preview.goghpunks.xyz",
+  "files": [
+    {
+      "path": "broker-v2.js",
+      "httpStatus": 200,
+      "sha256": "4489e656d32f2773b08195887cb986671681a483dd24aef23c77bc8461b4f873",
+      "comparison": "EXACT",
+      "normalizedSha256": "4489e656d32f2773b08195887cb986671681a483dd24aef23c77bc8461b4f873",
+      "matches": true
+    },
+    {
+      "path": "broker-v2-forge.js",
+      "httpStatus": 200,
+      "sha256": "3bb2bf3e71fca47d1d8f19932280e229cbcebcf460b43c068c4a97b6e87e291c",
+      "comparison": "EXACT",
+      "normalizedSha256": "3bb2bf3e71fca47d1d8f19932280e229cbcebcf460b43c068c4a97b6e87e291c",
+      "matches": true
+    },
+    {
+      "path": "forge-library-state.js",
+      "httpStatus": 200,
+      "sha256": "4cf00132cd1cfeb27e9099ff83fb34bbc872011bd80b43e58ae46a346df05b68",
+      "comparison": "EXACT",
+      "normalizedSha256": "4cf00132cd1cfeb27e9099ff83fb34bbc872011bd80b43e58ae46a346df05b68",
+      "matches": true
+    },
+    {
+      "path": "forge-training-release.js",
+      "httpStatus": 200,
+      "sha256": "b88f2064974fbbf7e904cc6b645fdf3cb6f17553143204d515e08901246cba0f",
+      "comparison": "EXACT",
+      "normalizedSha256": "b88f2064974fbbf7e904cc6b645fdf3cb6f17553143204d515e08901246cba0f",
+      "matches": true
+    },
+    {
+      "path": "directed-paid-panel.js",
+      "httpStatus": 200,
+      "sha256": "68d80c2a089d168c735cb7b3a506e642d862bd6028b253f125f1cdbd8e5efcd7",
+      "comparison": "EXACT",
+      "normalizedSha256": "68d80c2a089d168c735cb7b3a506e642d862bd6028b253f125f1cdbd8e5efcd7",
+      "matches": true
+    },
+    {
+      "path": "directed-paid-status.js",
+      "httpStatus": 200,
+      "sha256": "b7c568d5f55dd68906b13ed1b175e9a768ac315f902dd11cc3493d775b663416",
+      "comparison": "EXACT",
+      "normalizedSha256": "b7c568d5f55dd68906b13ed1b175e9a768ac315f902dd11cc3493d775b663416",
+      "matches": true
+    },
+    {
+      "path": "broker/v2/test-guide/index.html",
+      "httpStatus": 200,
+      "sha256": "1ef04de96da6ca69d3e77e0b02b73dc01c6340f70278916a541eaa5a12b437b6",
+      "comparison": "NETLIFY_PREVIEW_TOOLBAR_REMOVED",
+      "normalizedSha256": "8ea62590cca976a288ab2202443b877d7b86cb47ba12671f74e6b0ead83cb4ee",
+      "matches": true
+    }
+  ],
+  "providers": [
+    {
+      "provider": "GROQ",
+      "health": true
+    },
+    {
+      "provider": "GEMINI",
+      "health": true
+    }
+  ],
+  "bankrDisabled": true,
+  "groqConfigured": true,
+  "mcp": {
+    "httpStatus": 200,
+    "toolCount": 21,
+    "hasBaseline": true,
+    "unearnedSkillAliasesExposed": [],
+    "ownerGateStatus": 401,
+    "ownerGateCode": "V2_SESSION_REQUIRED"
+  },
+  "forge": {
+    "unauthenticatedStatus": 401,
+    "code": "V2_SESSION_REQUIRED"
+  },
+  "walletRequests": 0,
+  "publicTransactions": 0,
+  "candidate": "2f8055b9f2325391c9e04556b9683b70fdc2e443",
+  "netlifyDeployId": "6aa7136900dbe00008b8ef15",
+  "note": "Provider availability is context-specific; preview has configured Groq and Gemini. HTML comparison removes only Netlify preview toolbar injection. No authenticated principal was assumed."
+}
