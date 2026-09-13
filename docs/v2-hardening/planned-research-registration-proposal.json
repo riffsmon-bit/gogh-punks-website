@@ -1,0 +1,73 @@
+{
+  "schema": "GOGH_RESEARCH_SKILL_REGISTRATION_PROPOSAL_V1",
+  "chainId": 4663,
+  "status": "REVIEW_REQUIRED",
+  "transactionSubmitted": false,
+  "productionAuthorized": false,
+  "definitions": [
+    {
+      "slug": "floor-hunter",
+      "skillId": 9,
+      "version": 1,
+      "key": "0x06bc3f25d3f333e9317bce16741bdef285f4a55d00de11b43db7614f5d27b230",
+      "manifestHash": "0xf5f61885bbf3ba023970de11ab86756144a3350858ef93e42500e156a506c3c9",
+      "instructionHash": "0x86e45147308a07fa367bac81239a214b09d627abd8c45c1498b52c100f1d384b",
+      "implementation": "broker/src/v4/skill-forge/floor-hunter-v1.mjs",
+      "implementationSha256": "25b02ac23a4b4b9ff6da16d470126502677fc620b1e2c9c5ddbf9f85f5bae9b1",
+      "capabilities": "4",
+      "riskTier": 0,
+      "prerequisite": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "initialRegistryStatus": "DISCOVERED",
+      "readyTransitionIncluded": false,
+      "reviewOnlyRegisterCalldata": "0x63576a2c00000000000000000000000000000000000000000000000000000000000000090000000000000000000000000000000000000000000000000000000000000001f5f61885bbf3ba023970de11ab86756144a3350858ef93e42500e156a506c3c986e45147308a07fa367bac81239a214b09d627abd8c45c1498b52c100f1d384b000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000",
+      "walletAuthority": "NONE",
+      "runtimeStatus": "TESTING",
+      "runtimeApproved": false
+    },
+    {
+      "slug": "collection-researcher",
+      "skillId": 11,
+      "version": 1,
+      "key": "0x2040f8777bd900d065ac2ba4a2df7b49e6bd6625196d859057d5dfd7f05d0480",
+      "manifestHash": "0x45448ac9ea41e308cf8206c555b844adac7c5c9602f35743f51a851e6561d89d",
+      "instructionHash": "0xd0b6ce87162a8efcdf003b1431c107badfcbf99ece2316c35dad7fffa9e67f23",
+      "implementation": "broker/src/v4/skill-forge/collection-researcher-v1.mjs",
+      "implementationSha256": "c9e98e26cb5ff8c5695b68d5fc172c50953a97f1441416b3b4683cd7f2bbad38",
+      "capabilities": "9",
+      "riskTier": 0,
+      "prerequisite": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "initialRegistryStatus": "DISCOVERED",
+      "readyTransitionIncluded": false,
+      "reviewOnlyRegisterCalldata": "0x63576a2c000000000000000000000000000000000000000000000000000000000000000b000000000000000000000000000000000000000000000000000000000000000145448ac9ea41e308cf8206c555b844adac7c5c9602f35743f51a851e6561d89dd0b6ce87162a8efcdf003b1431c107badfcbf99ece2316c35dad7fffa9e67f23000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000090000000000000000000000000000000000000000000000000000000000000000",
+      "walletAuthority": "NONE",
+      "runtimeStatus": "TESTING",
+      "runtimeApproved": false
+    },
+    {
+      "slug": "art-curator",
+      "skillId": 6,
+      "version": 1,
+      "key": "0xef3df33dded5f7e7d58f37ca5ecd4ce095803bfa298d391740897de071ea2ae2",
+      "manifestHash": "0xd28c0c762745ba86efd41fb9387a48ddbc8874e1f1c53acaa5eb54ec18dab808",
+      "instructionHash": "0x0775e25b3d7371df3e5e5f1fe4239960e50f55b6db939d6401730ca94ef55ed8",
+      "implementation": "broker/src/v4/skill-forge/art-curator-v1.mjs",
+      "implementationSha256": "70a2b76c1f24e92c83f8ebf0af48a0c415f291a1167ac5192581fb6f3837e94e",
+      "capabilities": "64",
+      "riskTier": 0,
+      "prerequisite": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "initialRegistryStatus": "DISCOVERED",
+      "readyTransitionIncluded": false,
+      "reviewOnlyRegisterCalldata": "0x63576a2c00000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000001d28c0c762745ba86efd41fb9387a48ddbc8874e1f1c53acaa5eb54ec18dab8080775e25b3d7371df3e5e5f1fe4239960e50f55b6db939d6401730ca94ef55ed8000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000000",
+      "walletAuthority": "NONE",
+      "runtimeStatus": "TESTING",
+      "runtimeApproved": false
+    }
+  ],
+  "requiredBeforeActivation": [
+    "Independent implementation and package-hash review.",
+    "Current registry owner, code hashes, nonce, chain and registration state checks.",
+    "Explicit administrator confirmation and a separate TESTING-to-READY evidence attestation.",
+    "Server release must select the exact reviewed versions and pins.",
+    "Holder must learn and equip a skill; transfer continuity and owner authority remain separate checks."
+  ]
+}

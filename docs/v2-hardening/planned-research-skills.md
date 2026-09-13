@@ -38,6 +38,28 @@ Listing Watcher stays a roadmap item. A bounded listing sample cannot prove newl
 
 ## Validation
 
-`node --test tests/skill-forge-planned-research.test.mjs` exercises the actual adapters with controlled fixed RPC/OpenSea responses, exact large-integer sorting, currency separation, exclusions, partial/unavailable metadata, bounded IDs, malformed/ambiguous style declarations, reorg and timeout rejection, real viem OffchainLookup blocking, every implementation/dependency pin, exact shared-bit isolation, missing services, before/after owner/equipment gating and registration calldata round trips.
+`node --test tests/skill-forge-planned-research.test.mjs` passed 31 tests. It exercises the actual adapters with controlled fixed RPC/OpenSea responses, exact large-integer sorting, currency separation, exclusions, partial/unavailable metadata, bounded IDs, malformed/ambiguous style declarations, reorg and timeout rejection, real viem OffchainLookup blocking, every implementation/dependency pin, exact shared-bit isolation, missing services, before/after owner/equipment gating and registration calldata round trips.
 
-Composed copied-chain acceptance is tracked separately and does not confer public READY status.
+The [registration proposal](planned-research-registration-proposal.json) provides exact register-only calldata for review, without a transaction envelope, sender, destination, broadcast or READY transition.
+
+The combined package/runtime/capability/metadata/market/link regression set passed **155 tests**. The initial broad run could not import one route suite because its Netlify source was absent from the sparse worktree; after materializing those unchanged tracked read dependencies, that suite passed all 11 cases. Accepted package and reader bytes compare unchanged against the merged PR69 base.
+
+## Copied-chain acceptance
+
+The [composed evidence](planned-research-composed-evidence.json) passed on September 13, 2026 at 23:09 UTC in **33.544 seconds**. A new random Anvil behind a public RPC method allowlist copied the deployed collection, registry, progression and training source and verified their runtime pins. Existing practice processes were untouched; the harness cleaned its own node and cache.
+
+The three exact packages progressed through registration, TESTING and READY only on that disposable copy. Copied sources #1753, #94 and #95 created exactly three credits for copied #93. Each skill was learned, denied while unequipped, equipped and invoked through the real progression reader/gate, then denied again after unequip. Duplicate burn and training submissions reverted.
+
+Floor Hunter returned five actual OpenSea order observations with a bounded sample minimum and no floor assertion. Collection Researcher read actual copied inline metadata for #93, #96 and #97. Art Curator read the same metadata and correctly left all three styles UNKNOWN: those samples do not declare supported style labels. Positive declared-style matching is exercised by the controlled adapter tests, not claimed as demonstrated by these Gogh tokens. No collection or artwork metadata was fabricated for this journey.
+
+After transfer to a random copied-chain buyer, all learned skills, slots and the equipped loadout remained. The seller's research and training calls were denied. The buyer could use Floor Hunter, then unequip it and receive the expected denial. Transfer continuity beyond this ownership handoff retains its separate production checks.
+
+The journey sent **28 local transactions, zero public transactions**, made four read-only OpenSea requests, did not access production SQL or change a public release, and rechecked that all four original public Punks still had their original owner. Its copied burn sources are inventory fixtures: the separate burn safety journey must establish eligibility before any public sacrifice. No mint or purchase was sent, and no wallet setup or mint strategy fixture was needed.
+
+Reproduce using existing Keychain credentials without printing them:
+
+```
+node scripts/test-planned-research-composed-journey.mjs --disposable-only --archive-keychain --opensea-keychain
+```
+
+This proves the new packages on the copied deployed progression stack. It does not confer public READY status.
