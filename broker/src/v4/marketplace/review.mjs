@@ -97,7 +97,7 @@ export async function prepareMarketplaceReview(request, deps) {
     if (!Array.isArray(ids) || !ids.length || ids.length > MARKETPLACE_LIMITS.maxListings) fail('INVALID_LISTING_SELECTION');
     const hashes = ids.map(hash);
     if (new Set(hashes).size !== hashes.length) fail('DUPLICATE_ORDER');
-    const raw = await deps.loadListings({ collection, orderHashes: hashes, anchor: base.anchor });
+    const raw = await deps.loadListings({ collection, orderHashes: hashes, anchor: base.anchor, wallet });
     if (!Array.isArray(raw) || raw.length !== hashes.length) fail('LISTING_SOURCE_INCOMPLETE');
     const orders = raw.map(item => normalizeNativeListing(item, { collection, nowSeconds: anchor.timestamp }));
     if (new Set(orders.map(o => o.orderHash)).size !== hashes.length || orders.some(o => !hashes.includes(o.orderHash))) fail('LISTING_SOURCE_MISMATCH');
