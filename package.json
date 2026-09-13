@@ -59,8 +59,8 @@
     "broker:index": "node scripts/run-broker-indexer.mjs",
     "broker:scout": "node scripts/run-broker-scout.mjs",
     "env:check": "node scripts/env-check.mjs",
-    "site:check": "npm run wallet:build && node scripts/site-check.mjs && npm run code:check && npm run broker:check && npm test",
-    "site:deploy-check": "npm run wallet:build && node scripts/site-check.mjs && npm run code:check && npm run broker:check && node --test tests/account-activation-browser.test.mjs tests/account-funds-browser.test.mjs tests/autonomous-minting-ui.test.mjs tests/canary-execution-browser.test.mjs tests/external-free-mint-site.test.mjs tests/nft-withdrawal-assets.test.mjs tests/nft-withdrawal.test.mjs tests/owner-art-mandate.test.mjs tests/owner-policy-controls.test.mjs tests/owner-punk-picker.test.mjs tests/reown-wallet-wizard.test.mjs tests/robinhood-rpc-pair.test.mjs tests/wallet-connect.test.mjs tests/directed-paid-owner-flow.test.mjs tests/punk-agent-worker-lease.test.mjs tests/punk-agent-direct-relay.test.mjs",
+    "site:check": "npm run typecheck:v2-domain && npm run wallet:build && node scripts/site-check.mjs && npm run code:check && npm run broker:check && npm test",
+    "site:deploy-check": "npm run typecheck:v2-domain && npm run wallet:build && node scripts/site-check.mjs && npm run code:check && npm run broker:check && node --test tests/account-activation-browser.test.mjs tests/account-funds-browser.test.mjs tests/autonomous-minting-ui.test.mjs tests/canary-execution-browser.test.mjs tests/external-free-mint-site.test.mjs tests/nft-withdrawal-assets.test.mjs tests/nft-withdrawal.test.mjs tests/owner-art-mandate.test.mjs tests/owner-policy-controls.test.mjs tests/owner-punk-picker.test.mjs tests/reown-wallet-wizard.test.mjs tests/robinhood-rpc-pair.test.mjs tests/wallet-connect.test.mjs tests/directed-paid-owner-flow.test.mjs tests/punk-agent-worker-lease.test.mjs tests/punk-agent-direct-relay.test.mjs",
     "test": "node --test tests/*.test.mjs broker/test/*.test.mjs",
     "typecheck:v2-domain": "tsc --project tsconfig.v2-domain.json"
   },
