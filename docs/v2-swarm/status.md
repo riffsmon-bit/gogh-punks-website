@@ -70,12 +70,14 @@ The free pair passed runtime-compatible historical reads and older positive cont
 
 At 16:58:17 UTC, the existing owner-authorized worker completed generation 2 and delivered Peppies World #1599 to #93's Agent Account. Two independent archive providers verified the receipt, mint-and-delivery events, historical ownership and current ownership. Transaction: `0x64b9704b7ea60ad5fa5cdd0e6816ee017f99e334b720edb2951adaf2d0406a03`. The earlier attempt's refund remains `183954000000000` wei.
 
-Application reconciliation remains blocked by production-only `PAID_RECEIPT_MISMATCH`; the same saved signed transaction and full reconciliation pass in a local read-only shadow run. No database status was manually changed and no transaction was broadcast by these diagnostics.
+Application reconciliation initially encountered production-only `PAID_RECEIPT_MISMATCH`; the same saved signed transaction and full reconciliation passed in a local read-only shadow run. The ordinary scheduled worker completed reconciliation at 17:18:08 UTC, and a read-only database check confirmed `COMPLETED` for #1599. No database status was manually changed and no transaction was broadcast by these diagnostics.
 
 | Specialist | State | Branch / worktree | Owned scope | Dependencies | Integration commit |
 |---|---|---|---|---|---|
 | Receipt diagnostics (`/root/security_review`) | INTEGRATED | `fix/paid-receipt-diagnostics` / `/private/tmp/gogh-paid-receipt-release` | Existing receipt predicate labels, safe worker diagnostics, 41 dedicated regression tests | Preserve all verification and signed-reservation checks | `a044582` production |
 | Independent review (`/root/free_rpc_research`) | INTEGRATED | Read-only release review | Predicate/order compatibility, allowlisted logs, unchanged reservation/retry behavior | Q patch and tests | `a044582` production |
-| Lead | RUNNING | Same release; integration tracker | Read-only production evidence, diff review, validation and release | Identify production mismatch before changing behavior | `a044582` diagnostics live |
+| Lead | INTEGRATED | Same release; integration tracker | Read-only production evidence, diff review, validation and release | Scheduled completion and durable journal independently verified | `a044582` production; `d743234` integration |
 
-Diagnostics PR #63 passed 1,942 JavaScript tests, 140 deployment checks, parent review and independent review. Production deployment `6aa6da6223a3df00084c0c21` published at 17:17:47 UTC. The next ordinary scheduled-worker logs will identify the failed predicate; no verification comparison has been relaxed.
+Diagnostics PR #63 passed 1,942 JavaScript tests, 140 deployment checks, parent review and independent review. Production deployment `6aa6da6223a3df00084c0c21` published at 17:17:47 UTC. Its first ordinary scheduled run verified completion with unchanged checks; the original failed predicate was not captured, so its cause remains unproven. Subsequent worker logs show `IDLE`, `PAID_NO_MISSION`, `READY`. See [reconciliation evidence and limits](paid-receipt-reconciliation.md).
+
+After integrating both production follow-ups into the broader swarm candidate, all 2,198 JavaScript tests and 140 deployment checks passed. The scoped compiler, wallet bundle, site/secret checks and syntax checks for 719 modules also passed. Contract, SQL, fork and browser implementations remain unchanged; their earlier validation evidence is retained in [validation results](validation-results.json).

@@ -16,7 +16,45 @@
   "verifiedProviders": 2,
   "remainingRefundWei": "183954000000000",
   "diagnosticPublicTransactions": 0,
-  "applicationReconciliation": "BLOCKED_PAID_RECEIPT_MISMATCH",
+  "applicationReconciliation": "COMPLETED",
   "productionCommit": "3b534724094aad9a775e60fe147db196272d0539",
-  "localShadowReconciliation": "PASS_WITHOUT_WRITES"
+  "localShadowReconciliation": "PASS_WITHOUT_WRITES",
+  "ownerAuthorization": {
+    "transactionHash": "0x627798778557c3f88374a479a32e65c8796eb36cdeac933d928f4317b7cf51ad",
+    "blockNumber": "62115900",
+    "authorizedAt": "2026-09-13T16:57:35.000Z",
+    "escrowWei": "186074000000000",
+    "deadline": "1789319151"
+  },
+  "deliveryDelaySeconds": 42,
+  "reconciliation": {
+    "observedAt": "2026-09-13T17:20:28.027Z",
+    "workerCompletedAt": "2026-09-13T17:18:08.117Z",
+    "productionCommit": "a0445825969e8c404eb5b8bcb728e9a37f2c41de",
+    "productionDeploy": "6aa6da6223a3df00084c0c21",
+    "intentId": "2e6d00fd3fcfd99d5d5b68f2e9ebc5c47259b82cc5475bf29c3eead84b10ee74",
+    "journalStatus": "COMPLETED",
+    "verifiedProviders": 2,
+    "submitted": false,
+    "followupWorker": "IDLE_PAID_NO_MISSION_READY",
+    "manuallyInvoked": false,
+    "directDatabaseWrites": 0
+  },
+  "originalMismatchCause": "NOT_IDENTIFIED: first scheduled run after diagnostic deployment passed unchanged verification checks",
+  "finalChainState": {
+    "checkedAt": "2026-09-13T17:21:37.611Z",
+    "missionStatus": 2,
+    "generation": "2",
+    "refundWei": "183954000000000",
+    "anchor": {
+      "number": "62130071",
+      "hash": "0x4d3b7a18c3b819690f564b54838cf6077066dc37f6611d9c9c955195c09f6769",
+      "timestamp": "1789320095"
+    },
+    "mintOwner": "0xcadcfd37e715bc031cf0cec7fa2335091c878c83",
+    "source1753Intact": true,
+    "verifiedProviders": 2,
+    "publicTransactions": 0
+  },
+  "updatedAt": "2026-09-13T17:21:37.611Z"
 }

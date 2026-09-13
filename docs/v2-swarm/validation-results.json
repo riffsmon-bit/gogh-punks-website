@@ -214,5 +214,39 @@
       "localPath": "/private/tmp/gogh-swarm-burn-browser.log",
       "sha256": "76775101c8ac79aeafc12fa532cb8cfdca881dc482fff55293f04304ce5d5fef"
     }
+  },
+  "paidReceiptFollowup": {
+    "reviewedCodeCommit": "d7432344db098ff1e519b1fd3bbb167e930f6aba",
+    "productionComponentCommit": "a0445825969e8c404eb5b8bcb728e9a37f2c41de",
+    "broaderSwarmDeployed": false,
+    "javascript": {
+      "status": "PASS",
+      "command": "npm test",
+      "passed": 2198,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 179092.853635,
+      "log": "/private/tmp/gogh-swarm-paid-receipt-full-js.log"
+    },
+    "siteDeployment": {
+      "status": "PASS",
+      "command": "npm run site:deploy-check",
+      "passed": 140,
+      "failed": 0,
+      "skipped": 0,
+      "syntaxModules": 719,
+      "compiler": "PASS",
+      "log": "/private/tmp/gogh-swarm-paid-receipt-deploy-check.log"
+    },
+    "minimalProductionRelease": {
+      "javascriptPassed": 1942,
+      "deploymentChecksPassed": 140,
+      "newReceiptTests": 41,
+      "independentReview": "PASS"
+    },
+    "livePaidMint": "COMPLETED_1599_TO_PUNK_93",
+    "evidence": "paid-mint-delivery-1599.json",
+    "contracts": "UNCHANGED; prior contract, SQL, fork and browser evidence retained",
+    "financialTransactionsSubmittedByFollowup": 0
   }
 }
