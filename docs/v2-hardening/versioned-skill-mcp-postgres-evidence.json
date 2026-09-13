@@ -1,0 +1,16 @@
+{
+  "schema": "GOGH_MINT_RESEARCH_NATIVE_POSTGRES_V1",
+  "ok": true,
+  "assertions": 28,
+  "actualRepositoryTableDDL": true,
+  "fullContextRead": true,
+  "canonicalAgent": "0xcadcfd37e715bc031cf0cec7fa2335091c878c83",
+  "readOnlyApplicationRole": true,
+  "restrictedPaidRole": true,
+  "rawTransactionReadDenied": true,
+  "completedAndPendingUsage": true,
+  "crossSourceTransactionDedupe": true,
+  "rlsCoverageVerified": true,
+  "publicTransactions": 0,
+  "productionDatabaseUsed": false
+}
