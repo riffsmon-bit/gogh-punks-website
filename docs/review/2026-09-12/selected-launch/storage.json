@@ -1,0 +1,22 @@
+{
+  "status": "PASS",
+  "checkedAt": "2026-09-13T01:56:11.904Z",
+  "database": "EXISTING_SUPABASE_PROJECT",
+  "results": [
+    {
+      "role": "request",
+      "verified": true,
+      "sslCertificateAndHostnameVerified": true
+    },
+    {
+      "role": "worker",
+      "verified": true,
+      "sslCertificateAndHostnameVerified": true
+    }
+  ],
+  "browserAccessDenied": true,
+  "intents": 0,
+  "credentials": "NETLIFY_SECRET_FUNCTIONS_PRODUCTION_ONLY",
+  "trainingRelease": "PAUSED",
+  "publicTransactions": 0
+}

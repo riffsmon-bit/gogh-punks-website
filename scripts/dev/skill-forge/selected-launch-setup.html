@@ -1,0 +1,11 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Rarity Eye and directed mint setup</title><link rel="stylesheet" href="/setup.css"><script type="module" src="/setup.js"></script></head><body><main>
+<h1>Rarity Eye and directed mint setup</h1>
+<p>Selected test: burn Punk #1753 → train Punk #93 with Rarity Eye.</p>
+<p>This page registers the reviewed skill and deploys the paid-mint contracts. Forge stays paused during this setup. The burn and mint require their own reviews after setup.</p>
+<section><h2>Connect the administrator wallet</h2><p id="identity" class="address"></p><button id="connect">Connect wallet</button><p id="wallet" class="address"></p></section>
+<section><h2>Setup transactions</h2><ol id="steps"></ol><button id="prepare">Prepare next transaction</button></section>
+<section id="review" hidden><h2 id="review-title"></h2><p>Network: Robinhood Chain · 4663</p><p>Transaction value: 0 ETH</p><p id="fee"></p><p id="target" class="address"></p><p id="expiry"></p><button id="send">Confirm setup · open wallet</button><details><summary>Exact transaction and saved review</summary><pre id="review-json"></pre></details></section>
+<section><h2>Transaction recovery</h2><p>A saved wallet request will not be sent again. If the wallet result was lost, copy its transaction hash from wallet activity.</p><label for="hash">Transaction hash</label><input id="hash" placeholder="0x…" size="66"><button id="recover">Recover transaction</button><button id="recheck">Recheck receipt</button></section>
+<p id="status" role="status" aria-live="polite" hidden></p>
+<p>Rarity Eye compares traits within an explicitly selected sample. It does not authorize purchases. Burning #1753 permanently destroys it and can remove access to its wallets; assets do not move to #93. This setup page does not burn a Punk.</p>
+</main></body></html>
