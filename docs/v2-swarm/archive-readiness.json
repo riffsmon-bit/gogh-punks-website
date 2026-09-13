@@ -1,0 +1,30 @@
+{
+  "checkedAt": "2026-09-13T15:23:52Z",
+  "environment": "LOCAL_READ_ONLY_DIAGNOSTIC",
+  "configurationChanged": false,
+  "scope": "SELECTED_PAID_HISTORY_ACCESS_ONLY",
+  "chainId": 4663,
+  "tokenId": "93",
+  "historyLookbackBlocks": 20000,
+  "productionAuthorized": false,
+  "continuityVerified": false,
+  "publicTransactions": 0,
+  "databaseWrites": 0,
+  "status": "UNAVAILABLE",
+  "code": "PAID_HISTORY_UNAVAILABLE",
+  "verifiedProviders": 0,
+  "providerStatus": [
+    {
+      "provider": "PRIMARY",
+      "status": "UNAVAILABLE",
+      "stage": "ARCHIVE",
+      "rpcCode": -32000
+    },
+    {
+      "provider": "SECONDARY",
+      "status": "UNAVAILABLE",
+      "stage": "ARCHIVE",
+      "httpStatus": 403
+    }
+  ]
+}
