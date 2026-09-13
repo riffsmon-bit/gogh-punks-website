@@ -31,6 +31,9 @@ CREATE UNIQUE INDEX broker_marketplace_punk_hold ON broker_marketplace_reviews(c
 -- Owner EOAs share one nonce stream even when the selected Punk changes.
 CREATE UNIQUE INDEX broker_marketplace_owner_hold ON broker_marketplace_reviews(chain_id,owner_address)
  WHERE status IN('PREPARED','WALLET_REQUESTED');
+-- Bound the scoped latest-review lookup without scanning other holders' history.
+CREATE INDEX broker_marketplace_current_review ON broker_marketplace_reviews
+ (owner_address,punk_id,chain_id,(status IN('PREPARED','WALLET_REQUESTED')) DESC,created_at DESC,intent_id DESC);
 CREATE TABLE broker_marketplace_events (
  intent_id text NOT NULL REFERENCES broker_marketplace_reviews(intent_id), revision integer NOT NULL,
  status text NOT NULL, reported_hash text, receipt jsonb, reason text,
