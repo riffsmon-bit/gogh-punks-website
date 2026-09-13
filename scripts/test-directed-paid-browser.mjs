@@ -52,5 +52,12 @@ try {
  await click('CONFIRM MINT BUDGET IN WALLET');await until("document.body.textContent.includes('Simulated decline read interruption')");
  await call('Page.reload');await until("document.querySelector('button')?.textContent==='RECHECK PAID MINT'");await click('RECHECK PAID MINT');
  await until("document.body.textContent.includes('Wallet confirmation declined')");assert.equal(await evaluate("localStorage.getItem('mock.sends')"),null);assert.deepEqual(errors,[]);
- console.log(JSON.stringify({status:'PASS',widths:[1440,375,320],chatDraftOpensQuote:true,explicitRejectionSurvivesFailedReadAndReload:true,lostReadThenReloadRecovery:true,mockWalletSends:1,publicTransactions:0}));
+ await evaluate("(()=>{const s=JSON.parse(localStorage.getItem('mock.server'));s.record.status='PREPARED';s.record.reportedHash=null;localStorage.removeItem('gogh-directed-paid-v1:'+s.record.review.intentId);localStorage.setItem('mock.server',JSON.stringify(s));window.__realNow=Date.now;const offset=s.record.review.expiresAt-5500-Date.now();Date.now=()=>window.__realNow()+offset;})()");
+ await click('RECHECK PAID MINT');await until("document.body.textContent.includes('This quote expired')");
+ assert.equal(await evaluate("Array.from(document.querySelectorAll('button')).find(b=>b.textContent==='CONFIRM MINT BUDGET IN WALLET').disabled"),true);
+ await evaluate("(()=>{const s=JSON.parse(localStorage.getItem('mock.server'));s.record.status='CONFIRMED';s.record.reportedHash='0x'+'c'.repeat(64);s.state.missionStatus=1;localStorage.setItem('mock.server',JSON.stringify(s));const offset=Number(s.record.review.deadline)*1000+1000-window.__realNow();Date.now=()=>window.__realNow()+offset;})()");
+ await click('RECHECK PAID MINT');await until("document.body.textContent.includes('Mission deadline passed')");
+ assert.equal(await evaluate("Array.from(document.querySelectorAll('button')).some(b=>b.textContent==='REVIEW MISSION CANCELLATION'&&!b.disabled)"),true);
+ assert.equal(await evaluate("localStorage.getItem('mock.sends')"),null);assert.deepEqual(errors,[]);
+ console.log(JSON.stringify({status:'PASS',widths:[1440,375,320],chatDraftOpensQuote:true,expiredQuoteDisablesSend:true,expiredMissionShowsCancellation:true,explicitRejectionSurvivesFailedReadAndReload:true,lostReadThenReloadRecovery:true,mockWalletSends:1,publicTransactions:0}));
 }finally{ws?.close();chrome.kill('SIGTERM');if(chrome.exitCode===null)await new Promise(r=>{const timer=setTimeout(r,3000);chrome.once('exit',()=>{clearTimeout(timer);r();});});await rm(profile,{recursive:true,force:true,maxRetries:3});await new Promise(r=>server.close(r));}

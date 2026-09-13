@@ -1,8 +1,9 @@
 import {randomBytes} from 'node:crypto';
+import {verifyPaidHistoryAccess,paidReceiptState} from './directed-paid-archive.mjs';
 import {paidAssert,paidSame,paidHex,paidCall,readPaidState,paidRead,missionMatches,
  paidEvents,verifyPaidTransaction,paidReceiptPending,validatePaidRelease} from './directed-paid-mint.mjs';
 
-export function createPaidCoordinator({clients,release,store,now=Date.now}) {
+export function createPaidCoordinator({clients,release,store,now=Date.now,historyClients=()=>clients,checkHistoryAccess=verifyPaidHistoryAccess}) {
  const r=validatePaidRelease(release),state=()=>readPaidState(clients,r,now);
  const terminal=['CONFIRMED','REVERTED','CANCELLED','DECLINED'];
  function verifyReview(review){
@@ -34,6 +35,7 @@ export function createPaidCoordinator({clients,release,store,now=Date.now}) {
     &&BigInt(review.maximumPriceWei)<=BigInt(r.maximumPriceWei)&&BigInt(review.executionFeeWei)>0n
     &&BigInt(review.executionFeeWei)<=BigInt(r.maximumExecutionFeeWei)&&current.targetCodeHash===r.targetCollectionCodeHash,'PAID_PRICE_CHANGED');
    paidAssert(BigInt(review.deadline)>BigInt(current.anchor.timestamp)+60n&&BigInt(review.deadline)<=BigInt(current.anchor.timestamp)+600n,'PAID_REVIEW_EXPIRED');
+   await checkHistoryAccess(historyClients(),r,current.anchor);
   }else if(review.action==='CANCEL_MISSION')paidAssert(current.missionStatus===1&&current.generation===review.expectedGeneration
     &&paidSame(current.mission[0],r.owner),'PAID_MISSION_CHANGED');
   else paidAssert(BigInt(current.refundWei)>0n&&current.refundWei===review.refundWei,'PAID_REFUND_CHANGED');
@@ -88,8 +90,8 @@ export function createPaidCoordinator({clients,release,store,now=Date.now}) {
     const e=events[0];paidAssert(paidSame(e.owner,r.owner)&&paidSame(e.executor,r.executor)&&paidSame(e.collection,r.targetCollection)
      &&paidSame(e.recipient,r.recipient)&&String(e.generation)===String(BigInt(review.expectedGeneration)+1n)
      &&String(e.priceWei)===review.priceWei&&String(e.executionFeeWei)===review.executionFeeWei&&String(e.deadline)===review.deadline,'PAID_AUTHORIZATION_MISMATCH');
-    for(const c of clients){const m=await paidRead(c,r.vault,'mission',[],receipt.blockNumber);
-     paidAssert(missionMatches(m,review,r)&&Number(m[8])===1,'PAID_AUTHORIZATION_MISMATCH');}
+    await paidReceiptState(historyClients(),receipt,async c=>{const m=await paidRead(c,r.vault,'mission',[],receipt.blockNumber);
+     paidAssert(missionMatches(m,review,r)&&Number(m[8])===1,'PAID_AUTHORIZATION_MISMATCH');});
    }else if(review.action==='CANCEL_MISSION'){
     const e=paidEvents(receipt,r.vault,'MissionCancelled');paidAssert(e.length===1&&String(e[0].generation)===review.expectedGeneration
      &&paidSame(e[0].funder,r.owner)&&e[0].refundWei>0n,'PAID_CANCEL_MISMATCH');

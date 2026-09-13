@@ -33,8 +33,9 @@
     <ol><li>Send this in Talk. The <strong>Directed paid mint</strong> panel should open a fresh quote for exactly one NFT.</li>
       <li>Verify Peppies World: <code>0xb73f1d1aee57410d537d87b656e98b9d3df5b213</code>. Check the mint price, fixed worker fee, total escrow, wallet network fee and expiry. The full quoted worker fee is charged only after successful delivery.</li>
       <li>Select <strong>Confirm mint budget in wallet</strong> and approve once. First use creates #93’s mint vault, so its network gas is higher than later authorizations.</li>
-      <li>The worker checks every minute. Use <strong>Recheck paid mint</strong> until delivery is verified. A second purchase signature should not be requested.</li>
+      <li>The worker checks every minute. A confirmed budget means funding succeeded; it does not mean a mint has been submitted. Use <strong>Recheck paid mint</strong> until delivery is verified. A second purchase signature should not be requested.</li>
       <li>Verify the receipt and NFT token ID. The destination is #93’s Agent wallet, <code>0xcadcfd37e715bc031cf0cec7fa2335091c878c83</code>. Check Collection and Activity too; current NFT ownership is verified when Collection loads.</li></ol>
+    <p>Historical contract reads and ownership logs must pass on both providers before a new budget can be confirmed. If history verification is unavailable, wait for the service to recover; no new budget should be requested.</p>
     <p>If a review expires before any wallet request, cancel the unsent review and prepare a fresh quote. If a wallet request was made, recover its original transaction hash from wallet activity. Refreshing must not send it again.</p>
     <p>If the mint stops or expires, review <strong>Mission cancellation</strong>, confirm it, then review <strong>Refund</strong> and withdraw. These are two separate wallet transactions. The refund contains unused mint escrow; network gas already spent is excluded.</p>
   </section>
@@ -42,7 +43,7 @@
     <p><strong>This permanently destroys #1753 and can remove access to its wallets, including assets received later. Its assets do not move to #93.</strong></p>
     <ol><li>Open Forge with #93 selected. Select <strong>Recheck selected test</strong>. Verify source #1753 and recipient #93.</li>
       <li>If shown, review and confirm <strong>Enable Forge</strong>. This administrator transaction unpauses the shared contracts for all owners while enabling only Rarity Eye research. Recheck its receipt.</li>
-      <li>Review <strong>#1753 approval</strong>, read the fresh wallet and obligation checks, and confirm the token-specific approval. Review any nonstandard assets and off-chain obligations before proceeding.</li>
+      <li>Review <strong>#1753 approval</strong>. If the review expired, select <strong>Cancel unsent review</strong> and prepare a fresh one. Approval does not burn the Punk or create a credit. Read the fresh wallet and obligation checks, and confirm the token-specific approval. Review any nonstandard assets and off-chain obligations before proceeding.</li>
       <li>Review <strong>Burn #1753 → credit #93</strong>. Check the owner acknowledgement, type <strong>BURN 1753</strong>, and confirm in the wallet.</li>
       <li>Verify the burn receipt and exactly one new training credit on #93. Then use <strong>Recheck training</strong>.</li>
       <li>Claim initial rarity slots if offered, learn Rarity Eye, and equip it. These are separate transactions. Training waits for chain finality between steps; recent observations were about 14 minutes. Recheck saved receipts while settlement is pending.</li>

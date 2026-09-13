@@ -1,11 +1,12 @@
 import {encodeFunctionData,keccak256,parseTransaction,recoverTransactionAddress} from 'viem';
+import {paidHistoryRead,paidReceiptState} from './directed-paid-archive.mjs';
 import {PAID_ABI,paidAssert,paidSame,paidHex,paidJson,paidRead,readPaidState,missionMatches,
  paidEvents,verifyPaidTransaction,paidReceiptPending,validatePaidRelease} from './directed-paid-mint.mjs';
 
 // The caller holds the SAME application-database transaction lease
 // used by the existing free-mint relay. A raw transaction is committed before
 // its first broadcast; retries can only broadcast those identical bytes.
-export async function runDirectedPaidWorker({clients,relay,signer,release,store,coordinator,now=Date.now,allowBroadcast=true,assertLease=async()=>{}}) {
+export async function runDirectedPaidWorker({clients,relay,signer,release,store,coordinator,now=Date.now,allowBroadcast=true,assertLease=async()=>{},historyClients=()=>clients}) {
  const r=validatePaidRelease(release),pool=store.pool;
  paidAssert(paidSame(signer.address,r.executor)&&await relay.getChainId()===4663,'PAID_EXECUTOR_CHANGED');
  const summarize=(status,extra={})=>({status,tokenId:'93',submitted:false,...extra});
@@ -14,17 +15,21 @@ export async function runDirectedPaidWorker({clients,relay,signer,release,store,
    WHERE intent_id=$1 AND revision=$2 RETURNING *`,[job.intent_id,job.revision,status,receipt,reason])).rows[0];
   paidAssert(row,'PAID_EXECUTION_CHANGED');return row;
  }
- async function verifyContinuity(record,current){
+ function verifyCurrentMission(record,current){
   paidAssert(current.owner===r.owner&&current.missionStatus===1&&missionMatches(current.mission,record.review,r),'PAID_MISSION_CHANGED');
   paidAssert(BigInt(current.anchor.timestamp)+15n<BigInt(record.review.deadline),'PAID_MISSION_EXPIRED');
   paidAssert(current.priceWei===record.review.priceWei&&current.targetCodeHash===r.targetCollectionCodeHash,'PAID_PRICE_CHANGED');
+ }
+ async function verifyContinuity(record,current){
+  verifyCurrentMission(record,current);
   const from=BigInt(record.receipt.blockNumber),to=BigInt(current.anchor.number);
   paidAssert(to>=from&&to-from<=20000n,'PAID_OWNERSHIP_WINDOW_EXCEEDED');
-  const all=await Promise.all(clients.map(async c=>{
+  const all=await paidHistoryRead(()=>Promise.all(historyClients().map(async c=>{
    paidAssert(paidSame((await c.getBlock({blockNumber:from})).hash,record.receipt.blockHash),'PAID_AUTHORIZATION_REORG');
+   paidAssert(paidSame((await c.getBlock({blockNumber:to})).hash,current.anchor.hash),'PAID_PROVIDERS_DISAGREE');
    const logs=await c.getLogs({address:r.collection,event:PAID_ABI.find(v=>v.type==='event'&&v.name==='Transfer'),args:{tokenId:93n},fromBlock:from,toBlock:to,strict:true});
    paidAssert(logs.length===0,'PAID_OWNERSHIP_CHANGED');
-  }));return all;
+  })));return all;
  }
  async function validateSigned(job,record){
   const tx=parseTransaction(job.raw_transaction),e=job.transaction_json;
@@ -51,8 +56,8 @@ export async function runDirectedPaidWorker({clients,relay,signer,release,store,
     const transfers=paidEvents(receipt,r.targetCollection,'Transfer').filter(t=>t.tokenId===e.tokenId);
     paidAssert(transfers.length===2&&paidSame(transfers[0].from,'0x0000000000000000000000000000000000000000')
      &&paidSame(transfers[0].to,r.vault)&&paidSame(transfers[1].from,r.vault)&&paidSame(transfers[1].to,r.recipient),'PAID_DELIVERY_UNVERIFIED');
-    for(const c of clients){paidAssert(paidSame(await paidRead(c,r.targetCollection,'ownerOf',[e.tokenId],receipt.blockNumber),r.recipient),'PAID_DELIVERY_UNVERIFIED');
-     const m=await paidRead(c,r.vault,'mission',[],receipt.blockNumber);paidAssert(missionMatches(m,record.review,r)&&Number(m[8])===2,'PAID_DELIVERY_UNVERIFIED');}
+    await paidReceiptState(historyClients(),receipt,async c=>{paidAssert(paidSame(await paidRead(c,r.targetCollection,'ownerOf',[e.tokenId],receipt.blockNumber),r.recipient),'PAID_DELIVERY_UNVERIFIED');
+     const m=await paidRead(c,r.vault,'mission',[],receipt.blockNumber);paidAssert(missionMatches(m,record.review,r)&&Number(m[8])===2,'PAID_DELIVERY_UNVERIFIED');});
    }
    const evidence={status,transactionHash:job.transaction_hash,blockNumber:String(receipt.blockNumber),blockHash:block.hash,
     collection:r.targetCollection,tokenId,recipient:r.recipient,priceWei:record.review.priceWei,executionFeeWei:record.review.executionFeeWei,
@@ -83,15 +88,21 @@ export async function runDirectedPaidWorker({clients,relay,signer,release,store,
  const row=(await pool.query(`SELECT r.intent_id FROM broker_selected_paid_reviews r LEFT JOIN broker_selected_paid_executions e USING(intent_id)
   WHERE r.status='CONFIRMED' AND r.review_json::jsonb->>'action'='AUTHORIZE' AND e.intent_id IS NULL ORDER BY r.created_at LIMIT 1`)).rows[0];
  if(!row)return summarize('PAID_NO_MISSION');
- if(!allowBroadcast)return summarize('PAID_WORKER_PAUSED');
  const record=await store.get(row.intent_id);
- await coordinator.verifyOwnerReceipt(record.review,record.reportedHash);
  const current=await readPaidState(clients,r,now);
- try{await verifyContinuity(record,current);}catch(error){
+ // A confirmed journal with no signed execution can be stopped from fresh
+ // state alone. Archive outages must not keep an expired job ahead of all
+ // other work. Signed/ambiguous jobs still use reconciliation above.
+ const stop=async error=>{
   if(!['PAID_MISSION_CHANGED','PAID_MISSION_EXPIRED','PAID_OWNERSHIP_CHANGED','PAID_OWNERSHIP_WINDOW_EXCEEDED','PAID_PRICE_CHANGED'].includes(error.code))throw error;
+  await assertLease();
   await pool.query(`INSERT INTO broker_selected_paid_executions(intent_id,status,reason) VALUES($1,'STOPPED',$2)`,[row.intent_id,error.code]);
   return summarize('PAID_STOPPED',{reason:error.code});
- }
+ };
+ try{verifyCurrentMission(record,current);}catch(error){return stop(error);}
+ if(!allowBroadcast)return summarize('PAID_WORKER_PAUSED');
+ await coordinator.verifyOwnerReceipt(record.review,record.reportedHash);
+ try{await verifyContinuity(record,current);}catch(error){return stop(error);}
  const data=encodeFunctionData({abi:PAID_ABI,functionName:'execute',args:[BigInt(record.review.expectedGeneration)+1n]});
  const call={account:r.executor,to:r.vault,data,value:0n};
  const estimates=await Promise.all(clients.map(c=>c.estimateGas(call)));

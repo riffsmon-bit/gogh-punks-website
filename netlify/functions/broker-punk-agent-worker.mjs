@@ -357,6 +357,8 @@ export async function runScheduledPunkAgentWorker({
   if (!lease.acquired) return Object.freeze({ status: "WORKER_ALREADY_RUNNING", submitted: false });
   let selectedMission = null;
   let paidStatus;
+  let paidReadiness;
+  let paidHistoryProviders;
   try {
     const liveBundler = bundler ?? createConfiguredPunkAgentBundler(environment, {assertLease: lease.assertHeld});
     const liveClient = client ?? createClient();
@@ -372,6 +374,8 @@ export async function runScheduledPunkAgentWorker({
       if (openFree.rows.length) return Object.freeze({status:'SHARED_SIGNER_RECONCILIATION_PENDING',submitted:false});
       const paid = await runPaid({environment,signer:liveSigner,assertLease:lease.assertHeld});
       paidStatus = paid.status;
+      paidReadiness = paid.paidReadiness;
+      paidHistoryProviders = paid.paidHistoryProviders;
       if (paid.status !== 'PAID_NO_MISSION') return Object.freeze({...paid,reconciliation});
     }
     const gas = await gasEnvelope(liveClient, environment);
@@ -411,7 +415,7 @@ export async function runScheduledPunkAgentWorker({
         }, now);
       }
     }
-    return Object.freeze({ ...run, reconciliation, paidStatus });
+    return Object.freeze({ ...run, reconciliation, paidStatus, paidReadiness, paidHistoryProviders });
   } catch (error) {
     if (selectedMission) {
       await recordWorkerActivity(pool, selectedMission.tokenId, "AGENT_CHECK_FAILED", {
@@ -438,6 +442,8 @@ export default async function handler(_request, { run = runScheduledPunkAgentWor
     report(JSON.stringify({ event: "PUNK_AGENT_WORKER", status: result.status,
       submitted: result.submitted === true, tokenId: result.tokenId,
       paidStatus: result.paidStatus,
+      paidReadiness: result.paidReadiness,
+      paidHistoryProviders: result.paidHistoryProviders,
       reason: result.reason, reconciliationStatus: result.reconciliation?.status }));
     return new Response(JSON.stringify({ ok: true,
     ...result }), { status: 200,

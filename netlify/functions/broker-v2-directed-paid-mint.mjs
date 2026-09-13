@@ -6,6 +6,7 @@ import {currentPaidRelease,directedPaidRuntime} from './_shared/directed-paid-ru
 const fields={prepare:['operation','action','maximumPriceWei'],claim:['operation','intentId','revision','reviewHash'],
  recover:['operation','intentId','revision','transactionHash'],cancel:['operation','intentId','revision'],decline:['operation','intentId','revision','rejectionCode']};
 const messages={PAID_RECOVER_EXISTING_REVIEW:'Recheck or cancel the existing review before preparing another.',
+ PAID_HISTORY_UNAVAILABLE:'Paid minting is unavailable because both history providers could not be verified. No new budget was requested. Cancellation, refunds and recovery remain available.',
  PAID_EXECUTION_FEE_BOUND:'Current network gas exceeds this test’s worker-fee ceiling. Try a fresh quote later.',
  PAID_NETWORK_FEE_TOO_HIGH:'Current wallet gas exceeds this test’s network-fee ceiling. Try a fresh quote later.',
  PAID_REVIEW_EXPIRED:'This quote expired. Cancel the unsent review and prepare a fresh quote.',

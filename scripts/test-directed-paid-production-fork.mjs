@@ -9,6 +9,7 @@ import {runDirectedPaidWorker} from '../broker/src/v4/directed-paid-worker.mjs';
 import {PAID_ABI,paidRead} from '../broker/src/v4/directed-paid-mint.mjs';
 import {readDirectedPaidHistory} from '../broker/src/v4/directed-paid-history.mjs';
 import {acquirePunkAgentWorkerLease} from '../netlify/functions/_shared/punk-agent-worker-lease.mjs';
+import {verifyPaidHistoryRange} from '../broker/src/v4/directed-paid-archive.mjs';
 if(process.argv.length!==4||process.argv[2]!=='--disposable-only'||!process.argv[3].startsWith('--postgres-bin=/'))throw Error('Requires --disposable-only --postgres-bin=/absolute/path');
 const bin=process.argv[3].slice('--postgres-bin='.length),run=promisify(execFile),dir=await mkdtemp(join(tmpdir(),'gogh-directed-paid-test-')),data=join(dir,'data');
 const port=async()=>{const s=createServer();await new Promise(r=>s.listen(0,'127.0.0.1',r));const p=s.address().port;await new Promise(r=>s.close(r));return p;};
@@ -51,13 +52,29 @@ try {
  // Fixture key is generated for this disposable test only; no real signer key is loaded.
  const signer=privateKeyToAccount('0x'+'11'.repeat(32)),r={...deployment,status:'OWNER_CANARY',allowedOwners:[deployment.owner],productionPaidMintAuthorized:true,executor:signer.address.toLowerCase()};
  await c.request({method:'anvil_impersonateAccount',params:[r.owner]});await c.request({method:'anvil_setBalance',params:[signer.address,'0xde0b6b3a7640000']});
+ // Public #93 may already have a funded mission. Clear it ONLY in this
+ // disposable fork after expiry; never alter the user's live journal/budget.
+ await c.request({method:'anvil_mine',params:['0xc','0x1']});
+ if((await c.getCode({address:r.vault}))?.length>2){
+  const existing=await paidRead(c,r.vault,'mission');
+  if(Number(existing[8])===1){assert.ok((await c.getBlock()).timestamp>existing[7]);
+   await c.request({method:'eth_sendTransaction',params:[{from:r.owner,to:r.vault,data:encodeFunctionData({abi:PAID_ABI,functionName:'cancel',args:[existing[6]]})}]});}
+  if(await paidRead(c,r.vault,'refundable',[r.owner])>0n)
+   await c.request({method:'eth_sendTransaction',params:[{from:r.owner,to:r.vault,data:encodeFunctionData({abi:PAID_ABI,functionName:'withdrawRefund',args:[r.owner]})}]});
+ }
  const initialSignerNonce=await c.getTransactionCount({address:signer.address});
  let at=Number((await c.getBlock()).timestamp)*1000;
  // Anvil adds a default 1-gwei tip to eth_gasPrice. Use the observed public
  // chain quote for this fee-bound test; execution still uses the real EVM.
  const observedGasPrice=await pub.getGasPrice();for(const client of clients)client.getGasPrice=async()=>observedGasPrice;
  const store=createPaidStore(requestPool),workerStore=createPaidStore(workerPool);
- const options={clients,release:r,now:()=>at};
+ let archiveUnavailable=false;
+ // The disposable chain's storage history starts at its fork anchor. Test
+ // the same archive checks over that available history; unit/live checks
+ // exercise the production wrapper's full 20,000-block lookback separately.
+ const options={clients,release:r,now:()=>at,checkHistoryAccess:(pair,release,current)=>verifyPaidHistoryRange(pair,release,current,anchor.number),historyClients:()=>{
+  if(archiveUnavailable)throw Object.assign(Error('PAID_HISTORY_UNAVAILABLE'),{code:'PAID_HISTORY_UNAVAILABLE'});return clients;
+ }};
  const coordinator=createPaidCoordinator({...options,store}),workerCoordinator=createPaidCoordinator({...options,store:workerStore});
  const relay={getChainId:()=>c.getChainId(),getTransactionCount:v=>c.getTransactionCount(v),sendRawTransaction:v=>c.sendRawTransaction(v)};
  let loseLeaseBeforeBroadcast=false;
@@ -80,7 +97,13 @@ try {
   assert.equal(reported.record.reportedHash,hash);await mine();
   return reported.record.review.intentId;
  }
+ archiveUnavailable=true;
+ await assert.rejects(coordinator.prepare({action:'AUTHORIZE',maximumPriceWei:null}),{code:'PAID_HISTORY_UNAVAILABLE'});
+ assert.equal(await store.current(),null);archiveUnavailable=false;
  const rejected=(await coordinator.prepare({action:'AUTHORIZE',maximumPriceWei:null})).record;
+ archiveUnavailable=true;
+ await assert.rejects(coordinator.claim({intentId:rejected.review.intentId,revision:rejected.revision,reviewHash:rejected.reviewHash}),{code:'PAID_HISTORY_UNAVAILABLE'});
+ assert.equal((await store.get(rejected.review.intentId)).status,'PREPARED');archiveUnavailable=false;
  const claim=await coordinator.claim({intentId:rejected.review.intentId,revision:rejected.revision,reviewHash:rejected.reviewHash});
  await assert.rejects(coordinator.decline({intentId:rejected.review.intentId,revision:claim.record.revision,rejectionCode:4002}),/PAID_JOURNAL_CHANGED/);
  await coordinator.decline({intentId:rejected.review.intentId,revision:claim.record.revision,rejectionCode:4001});
@@ -91,6 +114,8 @@ try {
  loseLeaseBeforeBroadcast=true;await assert.rejects(tick(),{code:'WORKER_LEASE_LOST'});loseLeaseBeforeBroadcast=false;
  const signed=(await workerPool.query('SELECT * FROM broker_selected_paid_executions WHERE intent_id=$1',[id])).rows[0];
  assert.equal(signed.status,'SIGNED');assert.equal(keccak256(signed.raw_transaction),signed.transaction_hash);
+ archiveUnavailable=true;await assert.rejects(tick(),{code:'PAID_HISTORY_UNAVAILABLE'});archiveUnavailable=false;
+ assert.equal((await workerPool.query('SELECT raw_transaction FROM broker_selected_paid_executions WHERE intent_id=$1',[id])).rows[0].raw_transaction,signed.raw_transaction);
  relay.sendRawTransaction=async args=>{broadcastCalls++;assert.equal(args.serializedTransaction,signed.raw_transaction);const hash=await normal(args);throw Object.assign(Error('FIXTURE_RESPONSE_LOST'),{fixtureHash:hash});};
  await assert.rejects(tick(),/FIXTURE_RESPONSE_LOST/);await mine();relay.sendRawTransaction=normal;
  const completed=await tick();assert.equal(completed.status,'PAID_COMPLETED');assert.equal(broadcastCalls,1);assert.equal(ownerSends,1);
@@ -122,7 +147,9 @@ try {
  await authorize('CANCEL_MISSION');await tick();await authorize('WITHDRAW_REFUND');await tick();
  assert.equal((await coordinator.get()).state.refundWei,'0');
  await c.request({method:'anvil_setCode',params:[r.targetCollection,collectionCode]});await mine();
- const fourth=await authorize();await c.request({method:'evm_increaseTime',params:[600]});await mine();
+ const fourth=await authorize(),fourthRecord=await store.get(fourth);
+ await workerCoordinator.recover({intentId:fourth,revision:fourthRecord.revision,transactionHash:fourthRecord.reportedHash},{worker:true});
+ await c.request({method:'evm_increaseTime',params:[600]});await mine();archiveUnavailable=true;
  const expired=await tick();assert.equal(expired.status,'PAID_STOPPED');assert.equal(expired.reason,'PAID_MISSION_EXPIRED');
  for(const intent of [third,fourth])assert.equal((await workerPool.query('SELECT raw_transaction FROM broker_selected_paid_executions WHERE intent_id=$1',[intent])).rows[0].raw_transaction,null);
  await authorize('CANCEL_MISSION');await tick();await authorize('WITHDRAW_REFUND');await tick();assert.equal((await coordinator.get()).state.refundWei,'0');
@@ -131,6 +158,7 @@ try {
   lostBroadcastRecovery:true,sameSignedBytes:true,concurrentClaimWinner:1,ownershipRoundTripBlocked:true,cancelAndRefundVerified:true,
   transactionLeaseConcurrentWinner:1,transactionLeaseTimeoutRecovered:true,lostLeasePreventsBroadcast:true,retiredSessionLockCannotBlock:true,
   runtimeDriftBlockedAndRefundable:true,expiredMissionNotSigned:true,collectionAndActivityHistoryVerified:true,publicGasQuoteWei:String(observedGasPrice),
+  unavailableArchiveBlocksPrepareAndClaim:true,archiveOutagePreservesSignedPayload:true,expiredUnsentMissionStopsDuringArchiveOutage:true,refundWorksDuringArchiveOutage:true,
   browserDatabaseDenied:true,requestCannotReadOrWriteSignedTransactions:true,publicTransactions:0};
  await writeFile(new URL('../docs/review/2026-09-12/selected-launch/production-paid-integration-fork.json',import.meta.url),JSON.stringify(result,null,2)+'\n');console.log(JSON.stringify(result));
 }catch(e){console.log(JSON.stringify({status:'FAILED',type:e.name,code:e.code??null,message:e.shortMessage??e.message,stack:e.stack?.split('\n').slice(0,5)}));process.exitCode=1;}
