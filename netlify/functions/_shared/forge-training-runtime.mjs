@@ -1,6 +1,7 @@
 import pg from 'pg';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { X509Certificate } from 'node:crypto';
 import { createPublicClient, http } from 'viem';
 import releaseArtifact from '../../../deployments/robinhood-forge-training.json' with { type: 'json' };
 import { validateTrainingRelease, trainingDeploymentBinding } from '../../../broker/src/v4/skill-forge/training-release.mjs';
@@ -10,6 +11,13 @@ import { createTrainingCoordinator } from '../../../broker/src/v4/skill-forge/tr
 import { buildFrozenAllocation, FROZEN_RARITY_HASH } from '../../../broker/src/v4/skill-forge/rarity-allocation.mjs';
 
 const pools = new Map(); let frozen;
+export async function trainingDatabaseTls(hostname) {
+  if (!hostname.endsWith('.pooler.supabase.com')) return { rejectUnauthorized: true };
+  const ca = await readFile(resolve(process.cwd(),'deployments/certificates/supabase-prod-ca-2021.crt'),'utf8');
+  if (new X509Certificate(ca).fingerprint256 !== '80:70:25:AD:50:D4:ED:21:9D:2C:9C:7D:29:9C:00:4F:82:4E:B0:0C:F7:F6:5A:FE:F6:07:D0:7B:72:E6:CA:FA')
+    throw Error('FORGE_TRAINING_DATABASE_CA_CHANGED');
+  return { rejectUnauthorized: true, ca };
+}
 export const currentTrainingRelease = () => validateTrainingRelease(releaseArtifact);
 async function allocationReader(tokenId) {
   if (!frozen) {
@@ -40,7 +48,7 @@ export async function forgeTrainingRuntime(role, environment = process.env) {
     if (address.search) throw Error('FORGE_TRAINING_DATABASE_URL_OPTIONS_UNSUPPORTED');
     pool = new pg.Pool({ host: address.hostname, port: Number(address.port || 5432),
       database: decodeURIComponent(address.pathname.slice(1)), user: decodeURIComponent(address.username),
-      password: decodeURIComponent(address.password), ssl: { rejectUnauthorized: true }, max: 2,
+      password: decodeURIComponent(address.password), ssl: await trainingDatabaseTls(address.hostname), max: 2,
       connectionTimeoutMillis: 5000, idleTimeoutMillis: 10000,
       options: '-c search_path=public -c statement_timeout=10000 -c lock_timeout=3000',
       application_name: `gogh-forge-${role}` });

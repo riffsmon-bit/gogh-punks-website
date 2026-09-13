@@ -1,0 +1,35 @@
+{
+  "checkedAt": "2026-09-13T01:57:06.806Z",
+  "scope": "OPENSEA_INDEXED_NFTS_ONLY",
+  "reports": [
+    {
+      "address": "0x0533A1172567E0E28a443f32DB78fA990371F6bE",
+      "httpStatus": 200,
+      "nftCount": 0,
+      "nextPage": false,
+      "assets": []
+    },
+    {
+      "address": "0xA50EE88b8F1bFa8a08A7ECFe743930A5cf4dEc96",
+      "httpStatus": 200,
+      "nftCount": 0,
+      "nextPage": false,
+      "assets": []
+    },
+    {
+      "address": "0xC735bbAaF79295a27cb66AC84bDc926a125602e2",
+      "httpStatus": 200,
+      "nftCount": 0,
+      "nextPage": false,
+      "assets": []
+    },
+    {
+      "address": "0x56dF53299941890500D44aBA31dCB376b92E1b65",
+      "httpStatus": 200,
+      "nftCount": 0,
+      "nextPage": false,
+      "assets": []
+    }
+  ],
+  "publicTransactions": 0
+}

@@ -1,0 +1,174 @@
+{
+  "status": "PASS",
+  "environment": "NEW_DISPOSABLE_FORK_NOT_PUBLIC_CHAIN",
+  "chainId": 4663,
+  "publicAnchor": {
+    "number": "61561065",
+    "hash": "0x22ddd31c4c2de22d898c913d97cb61298180953fc52e969ba1d0718201da0708"
+  },
+  "copiedCollectionCodeHash": "0x3222e4925f77909e6370e17fe071d2774d43e191f6bc72c3a97c97209c6e2e93",
+  "copiedSourceTokenId": "1753",
+  "copiedRecipientTokenId": "93",
+  "copySupplyBefore": "4295",
+  "copiedExistingPublicDeployment": true,
+  "addresses": {
+    "deployment": "0xF03A7331ACc83Bdba0e257221Daf8f4ee35d955B",
+    "registry": "0xc2A1Bd47fbc0FE33E53c85f130be53591c898E83",
+    "trainingSource": "0x7e4d6DB6c96C7B09c78F49760D9EEdb5dd4e1533",
+    "progression": "0x08ADa19EDf9c387dc07A181069a1848C66cA2dA4"
+  },
+  "connectedStackRuntimeVerified": true,
+  "startsPaused": true,
+  "atomicDeploymentHashesOnFork": [],
+  "approvalHashOnFork": "0x3c90b5c586e5e694a892db6f3a666a3e22dcf5623e05b864dd2896f81cc0abca",
+  "burnHashOnFork": "0xc14d91397e1659a4277a1c32e71ec88f5e95b056be95af284cead8de542f3e77",
+  "approvalDoesNotCredit": true,
+  "exactlyOneCredit": true,
+  "burnLearnEquipUnequip": true,
+  "actualProductionProfileReader": true,
+  "publicOriginalsStillOwned": true,
+  "selectedSkill": {
+    "slug": "rarity-eye",
+    "skillId": 4,
+    "version": 1,
+    "key": "0x2109a1600733ac7484f1358fcf5a116586a8e66b993ae96f479098fffbb7b1c1",
+    "manifestHash": "0x9f17224444ef8938c9d998754a6be4c9dce2029c5e6e6a5f918effdc276c0d26",
+    "instructionHash": "0x7f7baae864b35a8230361de2ac3a6abda099669a6659e3d76e5bdf105bf859f0",
+    "implementationHash": "0x53322cbbcfa71c34e210548e9e10db99ab0da63dc39516ad1a144024b3c39c98",
+    "capabilities": "8",
+    "riskTier": 0,
+    "status": "TESTING",
+    "walletAuthority": "NONE"
+  },
+  "raritySample": {
+    "model": "GOGH_INVERSE_TRAIT_FREQUENCY_V1",
+    "numericMode": "categorical",
+    "coverage": "SAMPLE_ONLY",
+    "sampleSize": 3,
+    "frequencies": [
+      {
+        "trait": [
+          "Family",
+          "Mechanical + Cosmic"
+        ],
+        "count": 3
+      },
+      {
+        "trait": [
+          "Archetype",
+          "Gogh Archetype 069"
+        ],
+        "count": 1
+      },
+      {
+        "trait": [
+          "Colorway",
+          "Deep Midnight"
+        ],
+        "count": 1
+      },
+      {
+        "trait": [
+          "Sky Sign",
+          "Static Fragments"
+        ],
+        "count": 1
+      },
+      {
+        "trait": [
+          "Archetype Edition",
+          68
+        ],
+        "count": 1
+      },
+      {
+        "trait": [
+          "Archetype",
+          "Gogh Archetype 072"
+        ],
+        "count": 1
+      },
+      {
+        "trait": [
+          "Colorway",
+          "Verdigris Dream"
+        ],
+        "count": 1
+      },
+      {
+        "trait": [
+          "Sky Sign",
+          "Orbit Rings"
+        ],
+        "count": 1
+      },
+      {
+        "trait": [
+          "Archetype Edition",
+          75
+        ],
+        "count": 1
+      },
+      {
+        "trait": [
+          "Archetype",
+          "Gogh Archetype 064"
+        ],
+        "count": 1
+      },
+      {
+        "trait": [
+          "Colorway",
+          "Ochre Sun"
+        ],
+        "count": 1
+      },
+      {
+        "trait": [
+          "Sky Sign",
+          "Comet Trail"
+        ],
+        "count": 1
+      },
+      {
+        "trait": [
+          "Archetype Edition",
+          26
+        ],
+        "count": 1
+      }
+    ],
+    "ranked": [
+      {
+        "tokenId": "93",
+        "score": 13,
+        "rank": 1
+      },
+      {
+        "tokenId": "94",
+        "score": 13,
+        "rank": 1
+      },
+      {
+        "tokenId": "95",
+        "score": 13,
+        "rank": 1
+      }
+    ],
+    "walletAuthority": "NONE",
+    "warning": "Sample ranks are not collection-wide rarity or a price estimate.",
+    "evidenceHash": "b0418987f384183b4d7e1f0ad54349520fe61b475252121574c2c0aabc1bd2e2",
+    "metadataEvidence": {
+      "blockNumber": "61561077",
+      "blockHash": "0x3cd90b75541de0190c7b849124fcfab965402d4ac8e68ce714649490fd11991c",
+      "metadataHash": "b0418987f384183b4d7e1f0ad54349520fe61b475252121574c2c0aabc1bd2e2"
+    }
+  },
+  "spendingToolsDenied": true,
+  "unequippedToolDenied": true,
+  "packageReadinessFixtureOnly": true,
+  "publicTransactions": 0,
+  "manifestsWritten": false,
+  "previousPracticeReset": false,
+  "note": "This fork does not exercise production asset recovery or lifecycle cleanup. The public source NFT was not burned. Fork receipts cannot establish a public deployment."
+}

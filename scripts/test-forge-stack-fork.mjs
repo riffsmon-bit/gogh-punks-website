@@ -10,10 +10,14 @@ import { validateBurnTestSelection } from '../broker/src/v4/skill-forge/live-bur
 import { createReviewedBurnPreparation } from '../broker/src/v4/skill-forge/reviewed-burn.mjs';
 import { encodeReviewedTrainingCall } from '../site/forge-reviewed-calldata.js';
 import { createOriginalForgeProfileReader } from '../broker/src/v4/skill-forge/original-punk-profile.mjs';
+import { loadRegistryCanaryInputs } from '../broker/src/v4/skill-forge/registry-canary.mjs';
+import { createProgressionReader } from '../broker/src/v4/skill-forge/capability-resolver.mjs';
+import { loadResearchSkillCatalog, createResearchSkillRuntime } from '../broker/src/v4/skill-forge/research-runtime.mjs';
 import manifest from '../deployments/robinhood-skill-forge.json' with { type: 'json' };
 
-if (process.argv.length !== 3 || !['--fork-readonly','--fork-deployed-selection'].includes(process.argv[2])) throw Error('Requires --fork-readonly or --fork-deployed-selection; all transactions use an owned disposable fork');
-const existing = process.argv[2] === '--fork-deployed-selection';
+if (process.argv.length !== 3 || !['--fork-readonly','--fork-deployed-selection','--fork-rarity-eye-selection'].includes(process.argv[2])) throw Error('Requires --fork-readonly or --fork-deployed-selection; all transactions use an owned disposable fork');
+const rarityEye = process.argv[2] === '--fork-rarity-eye-selection';
+const existing = rarityEye || process.argv[2] === '--fork-deployed-selection';
 const pair = existing ? validateBurnTestSelection(JSON.parse(await readFile(new URL('../ops/forge-burn-test-selection.json', import.meta.url), 'utf8'))) : null;
 const sourceTokenId=pair?.sourceTokenId??'93', targetTokenId=pair?.targetTokenId??'94';
 const rpc = existing ? 'https://rpc.mainnet.chain.robinhood.com' : 'https://robinhood-rpc.publicnode.com';
@@ -82,8 +86,10 @@ try {
   const approved = await send(await prepare('APPROVE')); assert.equal(approved.verified.creditGain, 0);
   const burned = await send(await prepare('BURN')); assert.equal(burned.verified.creditGain, 1);
   const zero = `0x${'0'.repeat(64)}`, pack = keccak256('0x1234');
-  await write('registry', 'register', [3, 1, pack, pack, zero, 1n, 0]);
-  const key = await client.readContract({ address: registry, abi: build.artifacts.registry.abi, functionName: 'skillKey', args: [3, 1] });
+  const rarity = rarityEye ? (await loadRegistryCanaryInputs()).pins.definitions.find(d => d.slug === 'rarity-eye') : null;
+  const capability = rarityEye ? 8n : 1n;
+  await write('registry', 'register', [rarity?.skillId ?? 3, 1, rarity?.manifestHash ?? pack, rarity?.instructionHash ?? pack, zero, capability, 0]);
+  const key = await client.readContract({ address: registry, abi: build.artifacts.registry.abi, functionName: 'skillKey', args: [rarity?.skillId ?? 3, 1] });
   await write('registry', 'setStatus', [key, 3, zero]);
   await write('registry', 'setStatus', [key, 4, pack]);
   const read = (functionName, args = [BigInt(targetTokenId)]) => client.readContract({ address: progression, abi: build.artifacts.progression.abi, functionName, args });
@@ -94,7 +100,22 @@ try {
     return receipt(await wallet.sendTransaction({ to: progression, data: encodeReviewedTrainingCall(review), value: 0n, chain: null }));
   };
   await train('learn'); assert.equal(await read('trainingCredits'), 0n); assert.equal(await read('effectiveCapabilities'), 0n);
-  await train('equip'); assert.equal(await read('effectiveCapabilities'), 1n);
+  await train('equip'); assert.equal(await read('effectiveCapabilities'), capability);
+  let rarityResult;
+  if (rarityEye) {
+    const packages = (await loadResearchSkillCatalog()).map(p => p.slug === 'rarity-eye' ? { ...p, status: 'READY', approved: true } : p);
+    const readState = createProgressionReader({ client, chainId: 4663, collection: manifest.collection, registry, progression, registryCodeHash: codeHashes.registryCodeHash, progressionCodeHash: codeHashes.progressionCodeHash });
+    const runtime = createResearchSkillRuntime({ client, readState, packages });
+    const context = await runtime.resolve({ tokenId: targetTokenId, owner });
+    assert.deepEqual(context.effectiveMcpTools, ['get_metadata', 'rank_trait_sample']);
+    assert.equal(context.walletAuthority, 'NONE');
+    rarityResult = await runtime.call({ tokenId: targetTokenId, owner, name: 'rank_trait_sample', arguments: { contract: manifest.collection, tokenIds: ['93','94','95'], numericMode: 'categorical' } });
+    assert.equal(rarityResult.sampleSize, 3);
+    await assert.rejects(runtime.call({ tokenId: targetTokenId, owner, name: 'prepare_mint' }), /SKILL_TOOL_DENIED/);
+    await train('unequip');
+    await assert.rejects(runtime.call({ tokenId: targetTokenId, owner, name: 'rank_trait_sample', arguments: { contract: manifest.collection, tokenIds: ['93','94','95'], numericMode: 'categorical' } }), /SKILL_TOOL_DENIED/);
+    await train('equip');
+  }
   // Exercise the actual production profile reader with fixture bindings held only
   // in this process. No fork address is written into a deployment manifest.
   const fixtureRead = { ...manifest, status: 'READ_ONLY_CANARY', registry, progression, trainingSource,
@@ -113,9 +134,10 @@ try {
     connectedStackRuntimeVerified: true, startsPaused: true, atomicDeploymentHashesOnFork: deploymentHashes,
     approvalHashOnFork: approved.hash, burnHashOnFork: burned.hash, approvalDoesNotCredit: true, exactlyOneCredit: true,
     burnLearnEquipUnequip: true, actualProductionProfileReader: true, publicOriginalsStillOwned: true,
+    ...(rarityEye ? { selectedSkill: rarity, raritySample: rarityResult, spendingToolsDenied: true, unequippedToolDenied: true, packageReadinessFixtureOnly: true } : {}),
     publicTransactions: 0, manifestsWritten: false, previousPracticeReset: false,
     note: 'This fork does not exercise production asset recovery or lifecycle cleanup. The public source NFT was not burned. Fork receipts cannot establish a public deployment.' };
   const output = new URL('../docs/review/2026-09-12/atomic-forge/', import.meta.url);
-  await mkdir(output, { recursive: true }); await writeFile(new URL(existing?'selected-pair-fork.json':'original-collection-fork.json', output), JSON.stringify(evidence, null, 2) + '\n');
+  await mkdir(output, { recursive: true }); await writeFile(new URL(rarityEye?'rarity-eye-selected-pair-fork.json':existing?'selected-pair-fork.json':'original-collection-fork.json', output), JSON.stringify(evidence, null, 2) + '\n');
   console.log(JSON.stringify(evidence, null, 2));
 } finally { if (child.exitCode === null) child.kill('SIGTERM'); }

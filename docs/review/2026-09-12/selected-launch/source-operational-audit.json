@@ -1,0 +1,94 @@
+{
+  "schema": "GOGH_RARITY_EYE_OWNER_TEST_AUDIT_V1",
+  "checkedAt": "2026-09-13T01:24:13.457Z",
+  "block": "61563515",
+  "blockHash": "0x854b151ed5f6b296f04782f31511610c8fdabfb6fa8a20d7caabb773d0dbf7e3",
+  "readOnly": true,
+  "sourceTokenId": "1753",
+  "targetTokenId": "93",
+  "skill": "Rarity Eye",
+  "chainId": 4663,
+  "registryOwner": "0xC7f55cE6A7dF9A79cc4A643a5081230F890c7AA6",
+  "registryPendingOwner": "0x0000000000000000000000000000000000000000",
+  "paused": true,
+  "registeredSkills": "0",
+  "targetCredits": "0",
+  "targetLearnedCount": "0",
+  "sourceOwner": "0xC7f55cE6A7dF9A79cc4A643a5081230F890c7AA6",
+  "targetOwner": "0xC7f55cE6A7dF9A79cc4A643a5081230F890c7AA6",
+  "sourceApproval": "0x0000000000000000000000000000000000000000",
+  "supply": "4295",
+  "runtimes": [
+    {
+      "role": "collection",
+      "verified": true
+    },
+    {
+      "role": "registry",
+      "verified": true
+    },
+    {
+      "role": "progression",
+      "verified": true
+    },
+    {
+      "role": "trainingSource",
+      "verified": true
+    }
+  ],
+  "wallets": [
+    {
+      "role": "V1",
+      "address": "0x0533a1172567e0e28a443f32db78fa990371f6be",
+      "codeBytes": 0,
+      "nativeWei": "0",
+      "nonce": 0,
+      "pendingNonce": 0,
+      "nftAndOtherTokenInventory": "UNVERIFIED_EXPLORER_HTTP_403"
+    },
+    {
+      "role": "V2",
+      "address": "0xa50ee88b8f1bfa8a08a7ecfe743930a5cf4dec96",
+      "codeBytes": 0,
+      "nativeWei": "0",
+      "nonce": 0,
+      "pendingNonce": 0,
+      "nftAndOtherTokenInventory": "UNVERIFIED_EXPLORER_HTTP_403"
+    },
+    {
+      "role": "V3",
+      "address": "0xc735bbaaf79295a27cb66ac84bdc926a125602e2",
+      "codeBytes": 0,
+      "nativeWei": "0",
+      "nonce": 0,
+      "pendingNonce": 0,
+      "nftAndOtherTokenInventory": "UNVERIFIED_EXPLORER_HTTP_403"
+    },
+    {
+      "role": "AGENT",
+      "address": "0x56df53299941890500d44aba31dcb376b92e1b65",
+      "codeBytes": 0,
+      "nativeWei": "0",
+      "nonce": 0,
+      "pendingNonce": 0,
+      "nftAndOtherTokenInventory": "UNVERIFIED_EXPLORER_HTTP_403"
+    }
+  ],
+  "applicationRecords": {
+    "broker_v2_agent_sessions": 0,
+    "broker_v2_execution_attempts": 0,
+    "broker_v2_strategies": 0,
+    "broker_paid_mint_jobs": 0,
+    "broker_v4_execution_attempts": 0,
+    "broker_v4_punk_policy_proposals": 0,
+    "broker_automation_v3_enrollments": 0,
+    "broker_directed_mint_intents": 0,
+    "broker_forge_training_intents": 0,
+    "broker_scouting_schedules": 0,
+    "broker_canary_execution_reviews": 0,
+    "broker_agent_authorizations": 0,
+    "broker_proposals": 0
+  },
+  "publicTransactions": 0,
+  "canonical": true
+}

@@ -1,0 +1,20 @@
+{
+  "status": "PASS",
+  "environment": "DISPOSABLE_FORK_ONLY",
+  "publicAnchor": {
+    "number": "61591594",
+    "hash": "0x9565ca03ca9fd34f36aa51950977d6b4f86cb762bac24c96a10e98a39dc8cff5"
+  },
+  "sourceCollection": "0xb73f1d1aee57410d537d87b656e98b9d3df5b213",
+  "priceWei": "100000000000000",
+  "executionFeeWei": "20000000000000",
+  "copiedPunkTokenId": "93",
+  "oneOwnerAuthorization": true,
+  "workerExecuted": true,
+  "receivedTokenId": "1390",
+  "recipient": "0xcAdcFD37e715bC031cF0cEC7fA2335091c878C83",
+  "deploymentGas": "3067931",
+  "firstAuthorizationGas": "2024165",
+  "executionGas": "245404",
+  "publicTransactions": 0
+}
