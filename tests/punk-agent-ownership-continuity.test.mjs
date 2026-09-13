@@ -159,7 +159,7 @@ test("history is chunked without gaps and capped", async () => {
   f.to = 40100n; await assert.rejects(f.check(), { code: "OWNERSHIP_HISTORY_WINDOW_EXCEEDED" });
 });
 for (const mode of ["missing_hash", "reverted", "wrong_hash", "wrong_generation", "wrong_event_owner", "wrong_account",
-  "anchor_reorg", "rpc_error", "malformed_logs", "removed_log", "wrong_log_token", "stale_head", "head_advanced", "wrong_chain"]) {
+  "anchor_reorg", "rpc_error", "malformed_logs", "removed_log", "wrong_log_token", "stale_head", "same_height_reorg", "wrong_chain"]) {
   test(`continuity fails closed: ${mode}`, async () => {
     const f = fixture(), receipt = f.receipt();
     if (mode === "missing_hash") delete f.mission.authorizationTransactionHash;
@@ -177,7 +177,7 @@ for (const mode of ["missing_hash", "reverted", "wrong_hash", "wrong_generation"
       else f.logs[0].topics[3] = `0x${"0".repeat(63)}1`;
     }
     if (mode === "stale_head") { const get = f.client.getBlock; f.client.getBlock = async input => ({ ...await get(input), timestamp: 1n }); }
-    if (mode === "head_advanced") { const get = f.client.getBlock; let latest = 0; f.client.getBlock = async input => ({ ...await get(input), ...(input.blockTag === "latest" && ++latest > 1 ? { hash: hash("f") } : {}) }); }
+    if (mode === "same_height_reorg") { const get = f.client.getBlock; let latest = 0; f.client.getBlock = async input => ({ ...await get(input), ...(input.blockTag === "latest" && ++latest > 1 ? { hash: hash("f") } : {}) }); }
     if (mode === "wrong_chain") f.client.getChainId = async () => 1;
     f.receipt = () => receipt;
     await assert.rejects(f.check(), e => ["OWNERSHIP_CONTINUITY_UNVERIFIED", "SESSION_STATE_MISMATCH"].includes(e.code) && !e.message.includes("secret"));
@@ -212,4 +212,145 @@ test("worker never exposes an arbitrary provider error code", async () => {
 test("transfer inside the authorization block is conservatively blocked", async () => {
   const f = fixture(); f.roundTrip(); f.logs[0].blockNumber = f.from; f.logs[0].blockHash = hash("a");
   await assert.rejects(f.check(), { code: "OWNERSHIP_CHANGED_SINCE_AUTHORIZATION" });
+});
+
+function advancingHead(f = fixture()) {
+  f.head = f.to; f.latestReads = 0; f.stateReads = []; f.step = 2n;
+  f.blockHash = number => number === f.from ? hash("a") : `0x${number.toString(16).padStart(64, "0")}`;
+  const timestamp = BigInt(Math.floor(f.now.getTime() / 1_000));
+  f.client.getBlock = async ({ blockNumber }) => {
+    if (blockNumber === undefined) {
+      if (f.latestReads++) f.head += f.step;
+      const block = { number: f.head, hash: f.blockHash(f.head), timestamp };
+      if (f.latestReads === 2) f.onClosing?.(block);
+      return block;
+    }
+    return { number: blockNumber, hash: f.blockHash(blockNumber), timestamp };
+  };
+  const read = f.client.readContract;
+  f.client.readContract = query => { f.stateReads.push(query); return read(query); };
+  return f;
+}
+
+test("advancing head is covered without gaps and evidence stops at the checked closing block", async () => {
+  const f = advancingHead(), result = await f.check();
+  assert.equal(result.verified, true); assert.equal(result.toBlock, "112");
+  assert.equal(result.blockHash, f.blockHash(112n)); assert.equal(f.latestReads, 2);
+  assert.deepEqual(f.queries.map(q => [q.fromBlock, q.toBlock]), [[100n, 110n], [111n, 112n]]);
+  for (const functionName of ["ownerOf", "sessionGeneration", "isAutonomousSessionActive"])
+    assert.deepEqual(f.stateReads.filter(q => q.functionName === functionName).map(q => q.blockNumber), [110n, 112n]);
+});
+
+test("worker can scan, sign and submit on an advancing chain with all three guards", async () => {
+  const f = advancingHead(); assert.equal((await f.run()).status, "SUBMITTED");
+  assert.equal(f.latestReads, 6); assert.equal(f.signatures, 1); assert.equal(f.submissions, 1);
+  assert.deepEqual(f.queries.map(q => [q.fromBlock, q.toBlock]), [
+    [100n, 110n], [111n, 112n], [100n, 114n], [115n, 116n], [100n, 118n], [119n, 120n],
+  ]);
+});
+
+for (const height of [111n, 112n]) test(`a transfer at tail block ${height} blocks signing even if the current owner is unchanged`, async () => {
+  const f = advancingHead();
+  f.onClosing = () => { f.logs = [log(TRANSFER, { from: OWNER, to: OTHER, tokenId: 93n },
+    ROBINHOOD.canonicalCollection, height, f.blockHash(height))]; };
+  assert.equal((await f.run()).status, "OWNERSHIP_CHANGED_SINCE_AUTHORIZATION");
+  assert.equal(f.signatures, 0); assert.equal(f.submissions, 0); assert.equal(f.failures[0].terminal, true);
+});
+
+test("away-and-back transfers entirely inside the new tail are rejected", async () => {
+  const f = advancingHead(); f.onClosing = () => { f.logs = [
+    log(TRANSFER, { from: OWNER, to: OTHER, tokenId: 93n }, ROBINHOOD.canonicalCollection, 111n, f.blockHash(111n)),
+    log(TRANSFER, { from: OTHER, to: OWNER, tokenId: 93n }, ROBINHOOD.canonicalCollection, 112n, f.blockHash(112n)),
+  ]; };
+  await assert.rejects(f.check(), { code: "OWNERSHIP_CHANGED_SINCE_AUTHORIZATION" });
+});
+
+for (const change of ["owner", "generation", "revoked", "epoch", "security"]) {
+  test(`closing snapshot rechecks ${change}`, async () => {
+    const f = advancingHead(["epoch", "security"].includes(change) ? epochFixture() : fixture());
+    f.onClosing = () => {
+      if (change === "owner") f.owner = OTHER;
+      if (change === "generation") f.session.generation++;
+      if (change === "epoch") f.epoch += 2n;
+      if (change === "security") f.security++;
+      if (change === "revoked") {
+        const read = f.client.readContract;
+        f.client.readContract = query => query.functionName === "isAutonomousSessionActive" ? false : read(query);
+      }
+    };
+    await assert.rejects(f.check(), { code: change === "owner" ? "OWNER_CHANGED"
+      : ["epoch", "security"].includes(change) ? "OWNERSHIP_CHANGED_SINCE_AUTHORIZATION" : "SESSION_STATE_MISMATCH" });
+  });
+}
+
+for (const fault of ["backwards", "too_far", "stale", "future", "timestamp_backwards", "missing_hash", "tail_rpc", "tail_malformed",
+  "tail_removed", "tail_wrong_token", "tail_noncanonical", "initial_reorg", "anchor_reorg", "closing_reorg", "closing_wrong_number"]) {
+  test(`advancing snapshot fails closed: ${fault}`, async () => {
+    const f = advancingHead(), get = f.client.getBlock, logs = f.client.getLogs;
+    f.onClosing = block => {
+      if (fault === "backwards") block.number = 109n;
+      if (fault === "too_far") block.number = 2111n;
+      if (fault === "stale") block.timestamp -= 31n;
+      if (fault === "future") block.timestamp += 60n;
+      if (fault === "timestamp_backwards") block.timestamp--;
+      if (fault === "missing_hash") delete block.hash;
+      if (["tail_removed", "tail_wrong_token", "tail_noncanonical"].includes(fault)) {
+        f.logs = [log(TRANSFER, { from: OWNER, to: OTHER, tokenId: fault === "tail_wrong_token" ? 94n : 93n },
+          ROBINHOOD.canonicalCollection, 111n, fault === "tail_noncanonical" ? hash("f") : f.blockHash(111n))];
+        if (fault === "tail_removed") f.logs[0].removed = true;
+      }
+    };
+    f.client.getLogs = query => {
+      if (query.fromBlock > f.to && fault === "tail_rpc") throw Error("private provider error");
+      if (query.fromBlock > f.to && fault === "tail_malformed") return null;
+      return logs(query);
+    };
+    f.client.getBlock = async query => {
+      const block = await get(query);
+      if (f.latestReads >= 2 && query.blockNumber !== undefined) {
+        if ((fault === "initial_reorg" && query.blockNumber === 110n)
+          || (fault === "anchor_reorg" && query.blockNumber === 100n)
+          || (fault === "closing_reorg" && query.blockNumber === 112n)) block.hash = hash("f");
+        if (fault === "closing_wrong_number" && query.blockNumber === 112n) block.number = 113n;
+      }
+      return block;
+    };
+    await assert.rejects(f.check(), { code: "OWNERSHIP_CONTINUITY_UNVERIFIED" });
+  });
+}
+
+test("the closing tail cannot extend the inclusive legacy history cap", async () => {
+  const f = fixture(); f.to = 40099n; advancingHead(f);
+  await assert.rejects(f.check(), { code: "OWNERSHIP_HISTORY_WINDOW_EXCEEDED" });
+  assert.equal(f.queries.at(-1).toBlock, 40099n);
+});
+
+test("a slow closing read cannot return expired evidence", async t => {
+  const f = advancingHead(); let now = f.now.getTime(); t.mock.method(Date, "now", () => now);
+  const read = f.client.readContract;
+  f.client.readContract = query => { if (query.blockNumber === 112n) now += 31_000; return read(query); };
+  await assert.rejects(f.check(), { code: "OWNERSHIP_CONTINUITY_UNVERIFIED" });
+});
+
+test("a transfer in the final guard's new tail preserves reconciliation and prevents submission", async () => {
+  const f = advancingHead(), get = f.client.getBlock;
+  f.client.getBlock = async query => {
+    const block = await get(query);
+    if (query.blockTag === "latest" && f.latestReads === 6) f.logs = [
+      log(TRANSFER, { from: OWNER, to: OTHER, tokenId: 93n }, ROBINHOOD.canonicalCollection, 119n, f.blockHash(119n)),
+      log(TRANSFER, { from: OTHER, to: OWNER, tokenId: 93n }, ROBINHOOD.canonicalCollection, 120n, f.blockHash(120n)),
+    ];
+    return block;
+  };
+  assert.equal((await f.run()).status, "OWNERSHIP_CHANGED_SINCE_AUTHORIZATION");
+  assert.equal(f.signatures, 1); assert.equal(f.reserved, 1); assert.equal(f.submissions, 0); assert.equal(f.recorded, 0);
+  assert.equal(f.failures[0].reservation.operationId, "local-operation");
+});
+
+test("further block production during closing state reads does not extend the attested range", async () => {
+  const f = advancingHead(), read = f.client.readContract;
+  f.client.readContract = query => { if (query.blockNumber === 112n) f.head++; return read(query); };
+  const evidence = await f.check();
+  assert.equal(f.head, 115n); assert.equal(evidence.toBlock, "112");
+  assert.equal(evidence.blockHash, f.blockHash(112n)); assert.equal(f.queries.at(-1).toBlock, 112n);
 });

@@ -1,6 +1,6 @@
 # Worker ownership-continuity mitigation
 
-September 9, 2026. Local feature-branch code only: no main push, deployment, environment change, revocation or fund movement.
+Updated September 12, 2026 after investigating Punk #93's intermittent production ownership-check failures. This correction changes the worker verifier; it does not change account contracts or authorize a new mission.
 
 ## What changed
 
@@ -9,7 +9,8 @@ The scheduled Punk Agent worker now loads the existing `authorization_transactio
 1. Verifies a successful canonical authorization receipt from the selected account, with exactly one session-configured event matching the mission's owner, session key and generation.
 2. Reads canonical collection ownership, account generation and active-session status at one block.
 3. Scans canonical collection Transfer logs for the selected Punk from the authorization block through that head, including away-and-back transfers.
-4. Rechecks the authorization block and head, rejecting reorgs, stale heads or a head advance during the read.
+4. Captures a closing head after the history scan. If blocks arrived, scans every new block through that closing head and rechecks ownership, generation and session activity there. Epoch accounts also recheck their epoch binding there.
+5. Rechecks the canonical hashes and numbers of the authorization block, initial head and closing head. Evidence names only the fully checked closing block; later block production does not extend the attested range.
 
 The check runs before discovery, immediately before signing after candidate work, and after estimation/reservation immediately before submission. No caller can omit this guard from `runPunkAgentMissionOnce`.
 
@@ -22,7 +23,8 @@ If the final guard fails after a signed operation has been reserved, the existin
 - Queries use 2,000-block pages, with a 40,000-block inclusive maximum. Exceeding that bound pauses the worker and requires fresh mission approval; it does not assume an unscanned range is empty.
 - This cap is an initial engineering limit, not the desired long-term mission duration. Existing long-lived sessions may exceed it. Measure RPC latency/rate limits and design a durable, reorg-aware incremental history index before deployment if this is too restrictive.
 - Even a transfer earlier in the authorization block is conservatively rejected. Reauthorization in a later block is required.
-- The head must be no more than 30 seconds old (with at most five seconds future clock skew), and cannot advance during a check. Busy/slow RPCs may cause repeated deferrals. No production liveness claim is made.
+- Initial and closing heads must be no more than 30 seconds old (with at most five seconds future clock skew). The initial snapshot must still be within that age at completion. The closing head cannot move backwards, change hash at the same height, move its timestamp backwards, or advance by more than 2,000 blocks. A slow or inconsistent read remains retryable. There is one bounded catch-up pass, not an unbounded loop waiting for the chain to stop.
+- The 40,000-block legacy history cap includes the closing tail. No range is skipped to make an old mission pass. Production requires archive access; the unauthenticated PublicNode endpoint rejected the historical log request during this investigation.
 - Missing authorization hashes, malformed data, RPC errors, unmatched events, removed logs and inconsistent block hashes fail closed. Provider details are not exposed through activity codes.
 - The result assumes an honest, complete RPC history response. It is not a cryptographic proof that a provider did not omit logs, nor a burn-eligibility attestation.
 
@@ -38,6 +40,10 @@ No new withdrawal authority, project custody, arbitrary NFT approval or executio
 
 ## Verification
 
-54 tests passed across continuity, worker/endpoints, account runtime, ownership and mint/UserOperation regression suites. Coverage includes a successful mock worker run, old-owner round trip before discovery, during candidate inspection, during gas estimation and during reservation; database pause/activity persistence; fresh authorization; chunk bounds; same-block conservative rejection; stale/malformed/reorged evidence; and no provider-error leakage. These are deterministic RPC/database fixtures, not a live-chain canary or an on-chain cure.
+104 tests passed across continuity, worker/endpoints, account runtime, ownership, recall and mint/UserOperation regression suites. The 62 continuity tests include advancing heads through all three worker guards, complete tail coverage, tail-only round trips, closing owner/session/epoch changes, reorgs at all three anchors, malformed/unavailable tail evidence, unchanged history bounds and expired evidence. A final-guard transfer after reservation preserves the reconciliation record and prevents submission. These are deterministic RPC/database fixtures, not an on-chain cure.
+
+The read-only production diagnostic reproduced the old rejection with #93's generation-6 authorization at block `61486037`: all 12 history pages were empty and canonical, but the head advanced from `61509058` to `61509119` during the read. The old verifier rejected that ordinary 61-block advance.
+
+Before this correction was deployed, an existing scheduled attempt subsequently passed the old guard and completed the already approved one-mint mission. The receipt for [Project Mars Plots #152](https://robinhoodchain.blockscout.com/tx/0xcbdcc88f9309fce5721326fa8e8e7c088012d6cf4f781e64a10f906d6c6f3b60), block `61509639`, contains a mint transfer to #93's Agent account `0xcAdcFD37e715bC031cF0cEC7fA2335091c878C83`; current `ownerOf(152)` agrees. Production recorded four opportunities checked, one simulation passed and mission completion at 23:55:08 UTC. A subsequent live verifier correctly rejects that consumed session. This receipt demonstrates the existing mission's success; it is not a canary of this correction or permission to start another mission.
 
 The existing contract characterization in [the transfer checkpoint](./v2-forge-transfer-checkpoint.md) remains valid and must remain visible until an actual account-level fix is verified.
