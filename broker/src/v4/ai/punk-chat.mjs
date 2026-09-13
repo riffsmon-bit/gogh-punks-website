@@ -254,7 +254,10 @@ export async function answerPunkConversation({ router, message, intent, inspecti
   try {
     if (!router || typeof router.run !== "function") throw new TypeError("router unavailable");
     const result = await router.run("CHAT", { instructions: grounded.instructions,
-      prompt: grounded.prompt, maxOutputTokens: 256 }, context);
+      prompt: grounded.prompt, maxOutputTokens: 1_536 }, context);
+    if (typeof result.text !== "string" || result.text.trim().length > 1_200) {
+      throw new TypeError("Punk reply is too long");
+    }
     return Object.freeze({ reply: cleanText(result.text), provider: result.provider,
       registryKey: result.registryKey ?? null, providerAvailable: true });
   } catch {

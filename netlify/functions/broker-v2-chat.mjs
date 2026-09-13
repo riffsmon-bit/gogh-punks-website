@@ -6,7 +6,7 @@ import { answerPunkConversation, isPunkConversationMessage } from
   "../../broker/src/v4/ai/punk-chat.mjs";
 import { draftStrategyFromConversation } from "../../broker/src/v4/intent-draft.mjs";
 import { draftPunkSkillFromConversation, isTeachPunkSkillMessage } from "../../broker/src/v4/punk-skill.mjs";
-import { acquisitionRequest, acquisitionClarification, readIndexedDirectedTarget } from
+import { acquisitionRequest, acquisitionClarification, acquisitionConversationMessage, readIndexedDirectedTarget } from
   "../../broker/src/v4/acquisition-request.mjs";
 import { PublicError, json, readJson } from "./_shared/http.mjs";
 import { requireV2OwnerOrigin } from "./_shared/v2-review.mjs";
@@ -36,7 +36,7 @@ function punkReply(confirmation) {
 }
 
 export async function resolveV2PunkChat({ router, ownerMessage, currentIntent, tokenId,
-  authority, owner, now = new Date(), context = {}, targetContract = null }) {
+  authority, owner, now = new Date(), context = {}, targetContract = null, history = [] }) {
   if (isTeachPunkSkillMessage(ownerMessage)) {
     let skillDraft;
     try {
@@ -65,12 +65,13 @@ export async function resolveV2PunkChat({ router, ownerMessage, currentIntent, t
   const conversation = async (intent = currentIntent) => {
     const answer = await answerPunkConversation({ router, message: ownerMessage, intent,
       punkTokenId: tokenId, punkState: livePunkState,
-      strategyStatus: intent === currentIntent ? "ACTIVE" : "DEFAULT", context, now });
+      strategyStatus: intent === currentIntent ? "ACTIVE" : "DEFAULT", history, context, now });
     return Object.freeze({ responseKind: "CONVERSATION", reply: answer.reply, draft: null,
       provider: { provider: answer.provider, registryKey: answer.registryKey },
       providerAvailable: answer.providerAvailable });
   };
-  const acquisition = acquisitionRequest(ownerMessage);
+  const planningMessage = acquisitionConversationMessage(ownerMessage, history);
+  const acquisition = acquisitionRequest(planningMessage);
   if (acquisition?.blocked) return Object.freeze({ responseKind: "CLARIFICATION_REQUIRED", draft: null,
     reply: acquisitionClarification(acquisition.blocked),
     provider: { provider: "DETERMINISTIC_REVIEW_PARSER", registryKey: null }, providerAvailable: true });
@@ -80,7 +81,7 @@ export async function resolveV2PunkChat({ router, ownerMessage, currentIntent, t
       reply: "I can enforce a gas cap per mint, not a separate cumulative gas budget across retries. For this test, say: Autonomously find and mint one free NFT. Max one mint per day and one mint total. Max 0.0005 ETH gas per mint. Then review the full limits before signing. Nothing has been authorized.",
       provider: { provider: "DETERMINISTIC_REVIEW_PARSER", registryKey: null }, providerAvailable: true });
   }
-  const interpreted = draftStrategyFromConversation({ message: ownerMessage, punkTokenId: tokenId,
+  const interpreted = draftStrategyFromConversation({ message: planningMessage, punkTokenId: tokenId,
     expectedOwner: owner, punkWallet: strategyWallet, currentIntent, targetContract }, now);
   if (interpreted.ambiguous.length) {
     const fields = interpreted.ambiguous.map((field) => field.replaceAll("_", " "));
@@ -158,10 +159,19 @@ export async function handleV2Chat(request, { pool, requireSession = requireV2Se
     const now = new Date();
     const currentIntent = latest.rows[0]?.intent ?? defaultAskIntent({ punkTokenId: tokenId,
       expectedOwner: session.walletAddress, punkWallet: authority.punkWallet }, now);
+    const recent = await pool.query(`SELECT m.role, m.content FROM broker_v2_conversation_messages m
+      JOIN broker_v2_conversations c ON c.conversation_id = m.conversation_id
+      WHERE c.chain_id = $1 AND c.collection_address = $2 AND c.token_id = $3::numeric
+        AND c.owner_snapshot = $4 AND c.state = 'ACTIVE' AND m.role IN ('OWNER','PUNK')
+        AND m.created_at >= NOW() - INTERVAL '30 minutes'
+      ORDER BY m.created_at DESC, CASE m.role WHEN 'PUNK' THEN 1 ELSE 0 END DESC, m.message_id DESC LIMIT 8`,
+    [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, tokenId, session.walletAddress]);
+    const history = recent.rows.toReversed().map(({ role, content }) => ({ role, content }));
     const intelligence = createIntelligence(pool);
-    const targetContract = await readIndexedDirectedTarget(pool, acquisitionRequest(ownerMessage));
+    const targetContract = await readIndexedDirectedTarget(pool,
+      acquisitionRequest(acquisitionConversationMessage(ownerMessage, history)));
     const resolved = await resolveV2PunkChat({ router: intelligence.router, ownerMessage,
-      currentIntent, tokenId, authority, owner: session.walletAddress, now, targetContract,
+      currentIntent, tokenId, authority, owner: session.walletAddress, now, targetContract, history,
       context: { ownerFingerprint: session.walletAddress, punkTokenId: tokenId } });
     const client = await pool.connect();
     let version;

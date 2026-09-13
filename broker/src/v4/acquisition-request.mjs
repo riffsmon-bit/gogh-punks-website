@@ -3,6 +3,28 @@ import { normalizeArtBrokerLink } from "./link-scanner.mjs";
 const ADDRESS = /^0x[0-9a-f]{40}$/;
 const ZERO = `0x${"0".repeat(40)}`;
 const SPECIFIC = /\b(?:this|that|specific)\s+(?:mint|collection|contract|project)\b/i;
+const REFERENCE = /^(?:0x[0-9a-f]{40}|https?:\/\/[^\s<>]+)$/i;
+const MINT_FOLLOW_UP = /^(?:ok(?:ay)?[,\s]+)?(?:then\s+)?(?:go\s+)?(?:ahead\s+(?:and\s+)?)?(?:please\s+)?mint\s+(?:it|that|this)(?:\s+(?:please|for me))?[.!]?$/i;
+
+// Only an explicit mint continuation or a requested target can inherit the
+// nearest owner's acquisition request. Assistant prose never becomes authority.
+export function acquisitionConversationMessage(message, history = []) {
+  const text = String(message).trim();
+  if (!MINT_FOLLOW_UP.test(text) && !REFERENCE.test(text)) return text;
+  const references = REFERENCE.test(text) ? [text] : [];
+  const owners = history.filter(item => item.role === 'OWNER').slice(-8).reverse();
+  for (const item of owners) {
+    const previous = String(item.content).trim();
+    if (REFERENCE.test(previous)) { if (!references.length) references.push(previous); continue; }
+    if (MINT_FOLLOW_UP.test(previous)) continue;
+    const request = acquisitionRequest(previous);
+    if (!request || !['DIRECTED_MINT','PAID_MINT'].includes(request.kind)) break;
+    // An explicit target already in the request wins; two different targets
+    // remain ambiguous instead of silently choosing one.
+    return `${previous}${references.length ? ` Collection contract: ${references[0]}` : ''}`;
+  }
+  return MINT_FOLLOW_UP.test(text) ? 'Mint from this collection' : text;
+}
 
 // Recognize acquisition requests before applying ordinary collecting preferences.
 // Marketplace execution is not part of the deployed free-mint strategy schema.
