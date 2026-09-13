@@ -34,7 +34,7 @@ Fresh learned/equipped/current-owner/registry gates run before and after every t
 
 ## Safety and limits
 
-Mint Hunter imports and executes the existing zero-price, quantity-one, fixed SeaDrop owner-assisted simulator. Runtime pins, public mint price, supply, wallet limit and exact call are checked. It then re-reads the strategy, budget and usage and checks canonical chain state. Research has a 12-second response budget; underlying read-only requests still rely on the configured client's transport timeout.
+Mint Hunter imports and executes the existing zero-price, quantity-one, fixed SeaDrop owner-assisted simulator. Runtime pins, public mint price, supply, wallet limit and exact call are checked. It then re-reads the strategy, budget and usage and checks canonical chain state. The Mint Hunter adapter has a 12-second response budget in addition to the shared progression gate; underlying read-only requests still rely on the configured client's transport timeout.
 
 The call check does not provide a full effect trace. Results explicitly state `effectTraceAvailable: false` and `postconditionPendingReceipt: true`. `prepare_mint` produces an owner-review recommendation with `transaction: null`, not a signing artifact, execution reservation or autonomous authorization. The dedicated wallet flow must separately refresh policy/simulation and reserve durable idempotency. No calldata reaches AI through these tools.
 
@@ -54,4 +54,24 @@ Command:
 node --test tests/skill-forge-real-package-adapters.test.mjs tests/skill-forge-research-runtime.test.mjs tests/skill-forge-capability-resolver.test.mjs tests/v2-hardening-market-reader.test.mjs tests/v2-fixed-source-link-resolver.test.mjs tests/owner-assisted-seadrop-mint.test.mjs tests/v2-swarm-policy.test.mjs
 ```
 
-A separate copied-chain registry→credit→learn→equip→tool→transfer journey is the next acceptance gate. This file does not claim that an RPC response fixture proves a public learned/equipped skill or that package code passing tests registers it on mainnet.
+## Copied-chain acceptance
+
+The [composed evidence](real-skill-composed-evidence.json) passed on September 13, 2026 at 20:20 UTC in **45.446 seconds**. The harness started and cleaned its own random Anvil behind a public read-only method allowlist. Existing practice chains were untouched.
+
+All four proposed packages were registered with their exact version/hash on copies of the deployed registry and progressed through TESTING to READY only inside that disposable chain. Four copied sources (#1753, #94, #95 and #96) created exactly four credits for copied #93. Each skill was learned, denied while unequipped, equipped, invoked through the actual progression reader/tool gate, then denied again after unequip. Duplicate burn and training submissions reverted.
+
+Contract Detective inspected the copied deployed collection. Market Scout v2 returned two real OpenSea listings through two read-only requests. Link Sniper inspected the copied SeaDrop state. Mint Hunter passed the actual fixed SeaDrop call simulation through **#93's canonical Agent Wallet**, `0xcadcfd37e715bc031cf0cec7fa2335091c878c83`; its registry and implementation runtime pins were verified. The recommendation returned no wallet transaction.
+
+After transfer to a fresh random Anvil actor, all four learned skills, slots, loadout and canonical wallet remained. The seller's tool and training requests were rejected. The buyer could use the equipped research skill, but could not inherit the previous owner's mint strategy. A separately confirmed buyer-rule fixture enabled a new owner-review recommendation.
+
+The test made **38 local transactions, zero public transactions**, and rechecked that all five original public Punks still had their original owner. It did not register public skills, change a public release manifest, access production SQL or send a mint.
+
+Fixture boundaries are explicit: the copied Peppies administrator changed its public drop to zero price only on Anvil, and the copied Agent balance was set to 1 ETH for the funded-wallet journey. Strategy and pending-usage records are in-memory server fixtures, so the production database context adapter still needs its own integration review. This skill-specific harness does not prove the burn source inventory is clear; the separate burn safety journey covers that gate. The accepted v1 Rarity Eye package is unchanged.
+
+Reproduce using existing Keychain credentials without exposing them:
+
+```
+node scripts/test-real-skill-composed-journey.mjs --disposable-only --archive-keychain --opensea-keychain
+```
+
+This proves registered/learned/equipped behavior on the copied deployed stack. It does not register or promote a skill on mainnet.

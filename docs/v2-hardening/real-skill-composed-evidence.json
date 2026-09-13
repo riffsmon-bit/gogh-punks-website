@@ -1,0 +1,211 @@
+{
+  "schema": "GOGH_REAL_SKILL_COMPOSED_JOURNEY_V1",
+  "status": "PASS",
+  "checkedAt": "2026-09-13T20:20:23.682Z",
+  "sourceCommit": "33d48af4b98b31fd9b0d4470104421e2ba3290e6",
+  "forkAnchor": {
+    "number": "62235186",
+    "hash": "0x7dbabb97b64c106f639aa24d089fa328dc8d214ed6e3c653d0e60b15b337781a"
+  },
+  "copiedDeploymentPinsVerified": true,
+  "targetTokenId": "93",
+  "canonicalWalletRole": "AGENT",
+  "canonicalAgentWallet": "0xcadcfd37e715bc031cf0cec7fa2335091c878c83",
+  "agentRegistryAndImplementationPinsVerified": true,
+  "copiedAgentBalanceBefore": "222944009000000",
+  "copiedAgentBalanceFixtureWei": "1000000000000000000",
+  "copiedSacrifices": [
+    "1753",
+    "94",
+    "95",
+    "96"
+  ],
+  "copiedCreditGain": 4,
+  "creditsSpentLearning": 4,
+  "duplicateBurnAndTrainingReplayRejected": true,
+  "learnedWithoutEquippedDenied": true,
+  "unequippedDenied": true,
+  "results": [
+    {
+      "skill": "Contract Detective",
+      "version": 1,
+      "key": "0x1a7bb5f14ab81288db8a451245c3aa880c3696e9f2aae4ca3e72171416f9a837",
+      "tool": "inspect_contract",
+      "status": "PASS",
+      "resultSchema": null,
+      "listings": null,
+      "simulation": null
+    },
+    {
+      "skill": "Market Scout",
+      "version": 2,
+      "key": "0xf9e55d813fbee91e69b57f90249ab5bb4b482e4028ebdfd6d26b90e12b770b22",
+      "tool": "get_market_listings",
+      "status": "PASS",
+      "resultSchema": "GOGH_MARKET_LISTING_OBSERVATIONS_V2",
+      "listings": 2,
+      "simulation": null
+    },
+    {
+      "skill": "Link Sniper",
+      "version": 1,
+      "key": "0x73eba8fe2a968be1b207d159f21e119f98a6efc707cb0647ce8c16659e697571",
+      "tool": "inspect_mint_link",
+      "status": "PASS",
+      "resultSchema": "GOGH_LINK_SNIPER_OBSERVATION_V1",
+      "listings": null,
+      "simulation": "UNAVAILABLE"
+    },
+    {
+      "skill": "Mint Hunter",
+      "version": 1,
+      "key": "0x2005e6de496529ac7703c747ed6674d300b85a217f2321d257aa208cf1e5ab3e",
+      "tool": "prepare_mint",
+      "status": "PASS",
+      "resultSchema": "GOGH_MINT_HUNTER_REVIEW_V1",
+      "listings": null,
+      "simulation": "PASSED"
+    }
+  ],
+  "transfer": {
+    "transactionHash": "0x6d0e62db0e684f66263ad610a6089b7710c9707599b90c2bfc939efd89288848",
+    "allLearnedSkillsPersist": true,
+    "slotsPersist": true,
+    "loadoutPersists": true,
+    "walletPersists": true,
+    "oldOwnerDenied": true,
+    "newOwnerResearchWorks": true,
+    "inheritedStrategyDenied": true,
+    "buyerExplicitNewRulesRequired": true
+  },
+  "externalMarketRequests": 2,
+  "publicRequests": 223,
+  "publicMethods": [
+    "eth_call",
+    "eth_chainId",
+    "eth_gasPrice",
+    "eth_getBalance",
+    "eth_getBlockByNumber",
+    "eth_getCode",
+    "eth_getStorageAt",
+    "eth_getTransactionCount",
+    "eth_getTransactionReceipt"
+  ],
+  "localTransactions": 38,
+  "publicTransactions": 0,
+  "productionDatabaseAccessed": false,
+  "productionManifestsChanged": false,
+  "publicOriginalsUnchanged": true,
+  "sourceInventoryFixtureOnly": true,
+  "productionBurnAuthorized": false,
+  "durationMs": 45446,
+  "limitations": [
+    "Copied-chain fixture administration only; no public skill registration or READY transition.",
+    "Burn source inventory is not reviewed by this skill-specific harness; use the separate burn safety journey.",
+    "The copied Peppies administrator temporarily sets a free public drop on this owned chain only.",
+    "The copied Agent balance is set to 1 ETH as a funded-wallet fixture; no public funding or transfer occurs.",
+    "Mint strategy and usage are server-owned fixture records; production DB adapter must be reviewed separately.",
+    "Marketplace listings use real read-only OpenSea; link and mint calls use the copied fixed contract stack.",
+    "Simulation does not expose a full effect trace and no mint transaction is submitted.",
+    "Original token transfer continuity and broad autonomous execution retain their separate restrictions."
+  ],
+  "steps": [
+    {
+      "action": "REGISTER_TESTING_READY_COPY",
+      "skill": "Contract Detective",
+      "version": 1,
+      "key": "0x1a7bb5f14ab81288db8a451245c3aa880c3696e9f2aae4ca3e72171416f9a837",
+      "transactionHash": "0xfe60d798edb5addf17b8e9fb1513af692e4c6e9f5b91487a7c16de2323966c40"
+    },
+    {
+      "action": "REGISTER_TESTING_READY_COPY",
+      "skill": "Market Scout",
+      "version": 2,
+      "key": "0xf9e55d813fbee91e69b57f90249ab5bb4b482e4028ebdfd6d26b90e12b770b22",
+      "transactionHash": "0x8aa118b3ff5c97bb36d41f29b26efe8d2ad4255d756448d8a7def9cb77e01ba9"
+    },
+    {
+      "action": "REGISTER_TESTING_READY_COPY",
+      "skill": "Link Sniper",
+      "version": 1,
+      "key": "0x73eba8fe2a968be1b207d159f21e119f98a6efc707cb0647ce8c16659e697571",
+      "transactionHash": "0x9971849b3c5ed4237a635ee4e6e36e64e9260b87b7f01f5cd4f024e3656f5006"
+    },
+    {
+      "action": "REGISTER_TESTING_READY_COPY",
+      "skill": "Mint Hunter",
+      "version": 1,
+      "key": "0x2005e6de496529ac7703c747ed6674d300b85a217f2321d257aa208cf1e5ab3e",
+      "transactionHash": "0xa001821aeb8df2aed023d32330756067bf94ed2af4310c607c5eabb831197861"
+    },
+    {
+      "action": "APPROVE_COPY",
+      "sourceTokenId": "1753",
+      "targetTokenId": "93",
+      "transactionHash": "0xe11a2416b5b0eb5d187f4ea45e7e2f7e29a73c3f853d2467f47c3655ccfd1833"
+    },
+    {
+      "action": "BURN_COPY",
+      "sourceTokenId": "1753",
+      "targetTokenId": "93",
+      "transactionHash": "0xa14ab9bc14d15dc124ec01b12e189bbe8c87b556c6b4d72da6971d58cbcac4cc"
+    },
+    {
+      "action": "APPROVE_COPY",
+      "sourceTokenId": "94",
+      "targetTokenId": "93",
+      "transactionHash": "0x12804c05c6628db0d37e414747f9660e812b4a98f80754d9c878e5da11ebf2e2"
+    },
+    {
+      "action": "BURN_COPY",
+      "sourceTokenId": "94",
+      "targetTokenId": "93",
+      "transactionHash": "0x15d4b370d3d732b70ff35c8c3aba4badf43288b87891f9eea0796f565a28fd6e"
+    },
+    {
+      "action": "APPROVE_COPY",
+      "sourceTokenId": "95",
+      "targetTokenId": "93",
+      "transactionHash": "0x04adf0070e2694f425220b366a353bab0a357fc998967c00b55226c383221f0c"
+    },
+    {
+      "action": "BURN_COPY",
+      "sourceTokenId": "95",
+      "targetTokenId": "93",
+      "transactionHash": "0xaf4353db85eaee04d2b75a562e3416f28340689939da8a58df77bb3ab0186521"
+    },
+    {
+      "action": "APPROVE_COPY",
+      "sourceTokenId": "96",
+      "targetTokenId": "93",
+      "transactionHash": "0xccdadd9b496d73f9d402b845c694c09b4ee23f73d3295a34a39efc522e742a49"
+    },
+    {
+      "action": "BURN_COPY",
+      "sourceTokenId": "96",
+      "targetTokenId": "93",
+      "transactionHash": "0x2e659700a663603e56642c6eb27bdff0c189817089f2874725c0e80bb9f87fd7"
+    },
+    {
+      "action": "LEARN_EQUIP_TOOL_UNEQUIP_DENIED",
+      "skill": "Contract Detective",
+      "key": "0x1a7bb5f14ab81288db8a451245c3aa880c3696e9f2aae4ca3e72171416f9a837"
+    },
+    {
+      "action": "LEARN_EQUIP_TOOL_UNEQUIP_DENIED",
+      "skill": "Market Scout",
+      "key": "0xf9e55d813fbee91e69b57f90249ab5bb4b482e4028ebdfd6d26b90e12b770b22"
+    },
+    {
+      "action": "LEARN_EQUIP_TOOL_UNEQUIP_DENIED",
+      "skill": "Link Sniper",
+      "key": "0x73eba8fe2a968be1b207d159f21e119f98a6efc707cb0647ce8c16659e697571"
+    },
+    {
+      "action": "LEARN_EQUIP_TOOL_UNEQUIP_DENIED",
+      "skill": "Mint Hunter",
+      "key": "0x2005e6de496529ac7703c747ed6674d300b85a217f2321d257aa208cf1e5ab3e"
+    }
+  ],
+  "harnessSha256": "9cd163d605ebf551b24fcb5c98641174b8ab146e071829ffeae4993d1aa71376"
+}
