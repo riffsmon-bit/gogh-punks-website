@@ -21,7 +21,8 @@ function snapshot(value, depth = 0) {
     || ![Object.prototype, Array.prototype].includes(Object.getPrototypeOf(value))) {
     fail("EXECUTION_CONTEXT_CHANGED", "Execution context must contain plain data.");
   }
-  const copy = Array.isArray(value) ? [] : {};
+  // Preserve sparse-array length: missing effect evidence must not become [].
+  const copy = Array.isArray(value) ? new Array(value.length) : {};
   for (const key of Reflect.ownKeys(value)) {
     if (Array.isArray(value) && key === "length") continue;
     const descriptor = Object.getOwnPropertyDescriptor(value, key);
