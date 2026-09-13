@@ -4,7 +4,7 @@ Status: **ready for a holder rehearsal on an owned disposable chain**. This is a
 
 ## Try the running session
 
-The verified session was started at `http://127.0.0.1:64843` on September 13, 2026. It is available only on the machine running the launcher and lasts until that launcher closes. The separate Forge practice at port 62764 was left intact.
+The final repaired session was verified at `http://127.0.0.1:50034` on September 13, 2026. It is available only on the machine running the launcher and lasts until that launcher closes. The separate Forge practice at port 62764 was left intact.
 
 1. Open the practice page. Choose **Buy one NFT** or **Buy two together**.
 2. Review the exact copied price, maximum network fee, NFT numbers, and expiry. Type **CONFIRM COPY**, then confirm practice.
@@ -25,7 +25,7 @@ From the repository, using the already-reviewed artifacts and configured archive
 node scripts/test-marketplace-disposable.mjs \
   --disposable-only \
   --archive-keychain \
-  --artifacts=/private/tmp/gogh-market-execution-build \
+  --artifacts=contracts/out \
   --interactive
 ```
 
@@ -45,17 +45,17 @@ Mutations require the exact local Host, exact Origin, a random per-process nonce
 
 `tests/marketplace-practice.test.mjs`: 15 passing tests cover original-nonce recovery, transaction substitution, incomplete history, consumed and pending nonces, local node checks, strict HTTP guards, sanitized first-load failure and retry, concurrent actions, and rejection of arbitrary RPC/send endpoints.
 
-The combined marketplace review, independent security, and practice suite passed **93/93 tests** after integration. No contracts changed in this practice task; the prior reviewed contract and copied-chain validation remains recorded in the adjacent marketplace evidence.
+The combined marketplace review, independent security, and practice suite passed **106/106 tests** after integration. No contracts changed in this practice task; the prior reviewed contract and copied-chain validation remains recorded in the adjacent marketplace evidence.
 
 `scripts/test-marketplace-practice-browser.mjs` uses a fresh isolated Chrome profile and the real running practice API. It blocks external origins, injects one initial state-load failure, performs the actual copied-chain transactions, checks their reconciled results, waits through a real review expiry, and records screenshots. Run it against a fresh practice session:
 
 ```sh
 node scripts/test-marketplace-practice-browser.mjs \
-  --url=http://127.0.0.1:64843 \
+  --url=http://127.0.0.1:50034 \
   --output=/private/tmp/gogh-marketplace-practice-qa
 ```
 
-Nine real browser journeys passed: initial-load retry; one purchase and duplicate-confirmation protection; a two-NFT purchase; exact WETH bid fill; filled-state persistence across reload; collection WETH bid fill; cancellation and repeated cancellation without another refund; cancel-after-fill without refund; actual expiry and discard recovery. The returned receipt hashes are in [practice-browser-evidence.json](practice-browser-evidence.json).
+Nine real browser journeys passed: initial-load retry; one purchase and duplicate-confirmation protection; a two-NFT purchase; exact WETH bid fill; filled-state persistence across reload; collection WETH bid fill; cancellation and repeated cancellation without another refund; cancel-after-fill without refund; actual expiry and discard recovery. The returned receipt hashes are in [practice-final-browser-evidence.json](practice-final-browser-evidence.json).
 
 Seven screenshots cover 320, 375, 430, 768, and 1440-pixel widths, including loading failure, native purchase, offers, and expiry. All measured widths have no horizontal overflow and no enabled buttons below a 44-pixel touch target. Desktop, small-phone offers, and expired-review screens were also visually inspected.
 
@@ -64,3 +64,15 @@ The backend lost-send search is covered by isolated adverse tests; this browser 
 ## Production boundary
 
 Public native purchases still require the reviewed guard deployment/pins, real authorization, policy, simulation, and durable production journal. Public WETH offers remain blocked on the original collection's away-and-back ownership continuity limitation and unverified marketplace support for posting these restricted escrow orders. This practice does not change those gates or any existing wallet/collection ownership semantics.
+
+## Final recovery review
+
+The independent reviewer reproduced three P2 issues. Commit `36f8ed5` fixes them:
+expired offers now replace prominent active results with an expired status; failed
+canonical receipt rechecks clear old success and preserve the original claim for
+recovery; a retained failed seller claim no longer offers a false retry button.
+Terminal Filled/Cancelled labels take precedence over a historical failed attempt.
+Thirteen independent regressions and the full 106-test marketplace group pass.
+The fresh repaired process passed all nine actual browser journeys again at
+21:09 UTC, with seven screenshots and zero public transactions. The screenshot
+review found no desktop/phone overflow or undersized enabled actions.

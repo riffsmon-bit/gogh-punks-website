@@ -2,7 +2,7 @@
 
 Open **[Gogh Punks Art Broker V2](https://goghpunks.xyz/broker/v2/)**. Start with **Punk #93** on Robinhood Chain. You can connect, explore, talk and review your collecting rules without funding anything.
 
-This guide is dated September 13, 2026. The artwork and Collection repair is already live. The final hardening build is live as release `61cb6a9`: provider choices, funding recovery, supported contract inspection and mobile refinements are published. Refresh an already-open tab. [Release verification](release-acceptance.json). **The preview is not a practice chain.** Use the separate disposable environment supplied for transaction practice.
+This guide is dated September 13, 2026. The artwork and Collection repair is already live. The latest verified production release is PR #67 (`8c84817`): the completed paid-mint display, free Groq provider, funding recovery, supported contract inspection and mobile refinements are published. Refresh an already-open tab. [Release verification](release-acceptance.json). **The preview is not a practice chain.** Use the separate disposable environment supplied for transaction practice.
 
 ## What is already confirmed
 
@@ -10,7 +10,7 @@ This guide is dated September 13, 2026. The artwork and Collection repair is alr
 - Original **#1753 has not been burned** by this hardening work. The controlled test used copies of #1753, #93 and #94.
 - The earlier unused paid-mint refund was **not withdrawn**. The last recorded amount was **0.000183954 ETH**; a fresh reviewed balance would be needed before any later withdrawal.
 - The controlled Forge test completed burn → one credit → learn Rarity Eye → equip → use → unequip, plus an extra copied burn to unlock a slot. Skills, slots and holdings stayed with the copied Punk after transfer.
-- Gemini, GPT, Claude and Grok passed real conversation and structured-response checks. All four also passed on the published production runtime. **Bankr is unavailable until a reviewed credential is configured.**
+- Groq, Gemini, GPT, Claude and Grok passed real conversation and structured-response checks through the published production runtime. Choose **Groq · GPT OSS** in Settings for the configured free Groq service. **Bankr remains disabled by your preference.** A Groq rate-limit error will not switch to a paid provider; normal free-service quotas still apply.
 
 ## 1. Connect and choose your Punk
 
@@ -24,7 +24,7 @@ If the page has been open since before the display repair, save any unsent messa
 
 ## 2. Find #93's minted NFT
 
-Open **[Collection](https://goghpunks.xyz/broker/v2/?tab=collection)** with #93 selected and refresh the collection.
+Open **[Collection](https://goghpunks.xyz/broker/v2/?tab=collection&tokenId=93)** with #93 selected and refresh the collection. Talk now loads its saved **Paid mint complete** result automatically using the existing sign-in. A distinct expired unsigned review may be dismissed explicitly; it does not change the completed mint. Rechecking never sends another mint.
 
 Look for **Peppies World #1599**. Its collection is `0xb73f1d1aee57410d537d87b656e98b9d3df5b213`; its recorded destination is #93's Agent wallet, `0xcadcfd37e715bc031cf0cec7fa2335091c878c83`. Its current dark animated pre-reveal artwork is valid artwork, not automatically a load failure.
 
@@ -122,3 +122,33 @@ On a small phone, verify the roster swipes, text remains readable, the Talk comp
 Try a slow or unavailable read in the supplied practice environment. Useful content should remain visible, unknown balances should stay unknown, and retry should preserve typed messages or recovery hashes. Change Punk while a response is pending and check that the old result is ignored. Empty Collection and Activity should explain what to do next.
 
 For any failure, report **Punk number, page/action, displayed message, approximate time and transaction hash if one exists**. Include whether you were on production, preview or the disposable chain. Never send a private key, recovery phrase, provider credential or raw signed transaction. A screenshot plus the public hash is enough to start investigating; a hash by itself does not establish success.
+
+## Additional copied-chain practice: purchases and WETH offers
+
+Use the separate local marketplace practice URL supplied for this session. This
+page uses copies and requires no wallet connection. It is separate from production
+and from the Forge practice. Closing its launcher discards its copied state.
+
+1. Choose **Buy one NFT** or **Buy two together**. Review the NFT numbers, copied
+   price, fee ceiling and reserve. Type **CONFIRM COPY** and confirm.
+2. Wait for the verified received NFTs. Recheck the original result and reload;
+   neither action should buy again. These selected listings do not prove a floor.
+3. Choose **Bid on one NFT** or **Bid on the collection**. Confirm the copied
+   amount, then use **Play seller · fill offer** to deliver the practice NFT.
+4. Make a different practice offer, review its cancellation and confirm. Its
+   unused copied WETH returns once. Repeated cancellation must return nothing.
+5. Let an unsent review expire. Confirm becomes unavailable; discard the unsent
+   review to restore the mission controls. A failed receipt recheck must keep the
+   original transaction reserved instead of showing an old success or resending.
+
+The reviewed browser run passed all nine purchase/offer/recovery journeys.
+[Detailed practice guide and limits](../v2-marketplace/interactive-practice.md).
+Public floor sweeps and WETH bids remain unavailable. The original collection's
+transfer-continuity limit and restricted-order marketplace compatibility still
+need resolution before public WETH offers can be enabled.
+
+The copied-chain skill composition additionally proved Contract Detective,
+Market Scout, Link Sniper and Mint Hunter's inspection/simulation paths behind
+actual learned/equipped gates. Those new packages have **not** been publicly
+registered/released. Mint preparation returns a recommendation without signing
+or execution authority. [Skill proof and limits](real-skill-completion.md).
