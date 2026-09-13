@@ -1,0 +1,40 @@
+{
+  "status": "PASS",
+  "checkedAt": "2026-09-13T23:51:02.646Z",
+  "widths": [
+    1440,
+    375,
+    320
+  ],
+  "screenshots": [
+    "review-1440.png",
+    "review-375.png",
+    "review-320.png",
+    "recovery-375.png",
+    "completed-1440.png",
+    "completed-375.png",
+    "completed-320.png",
+    "reverted-320.png",
+    "error-375.png"
+  ],
+  "actualBoundaryHelper": true,
+  "durableUuidBeforePrepare": true,
+  "sameIntentAfterLostPrepare": true,
+  "lostClaimNeverResends": true,
+  "lostReceiptReadReloadRecovery": true,
+  "oneSendForConcurrentClicks": true,
+  "manualUnobservedHashNotBound": true,
+  "rejectedWalletRemainsReserved": true,
+  "terminalCardsHaveNoReviewActions": true,
+  "ownershipChangeDropsStaleViewPreservesJournal": true,
+  "storageFailurePreventsPreparation": true,
+  "noHtmlInjection": true,
+  "unreleasedIdleHasNoRequests": true,
+  "pausedReleaseReadsServerHistoryWithoutLocalJournal": true,
+  "publicRequests": 0,
+  "publicTransactions": 0,
+  "limitations": [
+    "All API, release and wallet responses are controlled in-memory browser fixtures.",
+    "The real browser panel and reviewed wallet helper/codec run; SQL CAS, live wallet behavior and public release remain separate gates."
+  ]
+}
