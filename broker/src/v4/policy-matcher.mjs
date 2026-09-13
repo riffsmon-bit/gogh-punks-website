@@ -1,6 +1,13 @@
 import { normalizePunkCollectingIntent } from "./collecting-intent.mjs";
 import { normalizeV2Opportunity } from "./opportunity.mjs";
 
+function wei(value, label) {
+  if (typeof value !== "string" || !/^(?:0|[1-9]\d{0,77})$/.test(value)) {
+    throw new TypeError(`${label} is invalid`);
+  }
+  return BigInt(value);
+}
+
 function socialPresent(opportunity, platform) {
   if (platform === "X") return Boolean(opportunity.socialUrls.x);
   if (platform === "DISCORD") return Boolean(opportunity.socialUrls.discord);
@@ -9,19 +16,25 @@ function socialPresent(opportunity, platform) {
 }
 
 export function matchV2Opportunity(intentValue, opportunityValue, state, now = new Date()) {
+  // Validate economic inputs before the shared normalizers can coerce them.
+  for (const field of ["maxMintPriceWei", "maxGasPerMintWei", "minimumReserveWei"]) {
+    wei(intentValue?.[field], field);
+  }
   const intent = normalizePunkCollectingIntent(intentValue, now);
   const opportunity = normalizeV2Opportunity(opportunityValue, now);
-  const balance = BigInt(String(state?.punkWalletBalanceWei ?? ""));
-  const dailyMints = Number(state?.dailyMints);
-  const totalMints = Number(state?.totalMints);
-  const opportunityMints = Number(state?.opportunityMints ?? 0);
-  const currentOwner = String(state?.currentOwner ?? "").toLowerCase();
-  const currentWallet = String(state?.punkWallet ?? "").toLowerCase();
-  if (balance < 0n || !Number.isInteger(dailyMints) || dailyMints < 0
-    || !Number.isInteger(totalMints) || totalMints < 0
-    || !Number.isInteger(opportunityMints) || opportunityMints < 0) {
+  const balance = wei(state?.punkWalletBalanceWei, "Punk Wallet balance");
+  const dailyMints = state?.dailyMints;
+  const totalMints = state?.totalMints;
+  // Older recommendation callers omit this optional count; explicit unknown values fail.
+  const opportunityMints = state && Object.hasOwn(state, "opportunityMints") ? state.opportunityMints : 0;
+  if (!Number.isSafeInteger(dailyMints) || dailyMints < 0
+    || !Number.isSafeInteger(totalMints) || totalMints < 0
+    || !Number.isSafeInteger(opportunityMints) || opportunityMints < 0
+    || typeof state?.currentOwner !== "string" || typeof state?.punkWallet !== "string") {
     throw new TypeError("Punk matching state is invalid");
   }
+  const currentOwner = state.currentOwner.toLowerCase();
+  const currentWallet = state.punkWallet.toLowerCase();
   const reasons = [];
   const notes = [];
   if (intent.chainId !== opportunity.chainId) reasons.push("WRONG_CHAIN");
@@ -67,6 +80,7 @@ export function matchV2Opportunity(intentValue, opportunityValue, state, now = n
   if (opportunity.walletLimit !== null && opportunityMints >= opportunity.walletLimit) {
     reasons.push("WALLET_LIMIT_REACHED");
   }
+  if (opportunity.riskLevel === "UNKNOWN") reasons.push("RISK_UNKNOWN");
   if (opportunity.riskScore > intent.riskThreshold) reasons.push("RISK_LIMIT_EXCEEDED");
   if (intent.maximumCollectionSupply !== null
     && (opportunity.supply === null || opportunity.supply > intent.maximumCollectionSupply)) {

@@ -15,7 +15,7 @@ function record(value, label) {
 
 function address(value, label, nullable = false) {
   if (nullable && value === null) return null;
-  const output = String(value ?? "").toLowerCase();
+  const output = typeof value === "string" ? value.toLowerCase() : "";
   if (!ADDRESS.test(output)) throw new TypeError(`${label} is invalid`);
   return output;
 }
@@ -28,7 +28,7 @@ function hash(value, label, nullable = false) {
 }
 
 function uint(value, label) {
-  const text = String(value ?? "");
+  const text = typeof value === "string" ? value : "";
   if (!/^(?:0|[1-9][0-9]{0,77})$/.test(text)) throw new TypeError(`${label} is invalid`);
   return text;
 }
@@ -80,14 +80,17 @@ export function normalizeV2Opportunity(value, now = new Date()) {
   const source = record(value, "opportunity");
   if (source.schema !== NORMALIZED_V2_OPPORTUNITY_SCHEMA || source.version !== 2
     || source.chainId !== 4663) throw new TypeError("opportunity schema is invalid");
-  const screeningStatus = String(source.screeningStatus ?? "");
-  const simulationStatus = String(source.simulationStatus ?? "");
-  const riskLevel = String(source.riskLevel ?? "");
+  const screeningStatus = source.screeningStatus;
+  const simulationStatus = source.simulationStatus;
+  const riskLevel = source.riskLevel;
   if (!SCREENING.has(screeningStatus) || !SIMULATION.has(simulationStatus)
-    || !RISK.has(riskLevel)) throw new TypeError("opportunity safety state is invalid");
-  const supply = source.supply === null ? null : Number(source.supply);
-  const walletLimit = source.walletLimit === null ? null : Number(source.walletLimit);
-  const riskScore = Number(source.riskScore);
+    || !RISK.has(riskLevel) || typeof source.unexpectedApprovals !== "boolean"
+    || typeof source.unexpectedTransfers !== "boolean") {
+    throw new TypeError("opportunity safety state is invalid");
+  }
+  const supply = source.supply;
+  const walletLimit = source.walletLimit;
+  const riskScore = source.riskScore;
   if ((supply !== null && (!Number.isSafeInteger(supply) || supply < 0))
     || (walletLimit !== null && (!Number.isSafeInteger(walletLimit) || walletLimit < 1))
     || !Number.isInteger(riskScore) || riskScore < 0 || riskScore > 100) {
@@ -136,8 +139,8 @@ export function normalizeV2Opportunity(value, now = new Date()) {
     riskLevel,
     riskScore,
     expectedNftReceiver: address(source.expectedNftReceiver, "expected NFT receiver", true),
-    unexpectedApprovals: source.unexpectedApprovals === true,
-    unexpectedTransfers: source.unexpectedTransfers === true,
+    unexpectedApprovals: source.unexpectedApprovals,
+    unexpectedTransfers: source.unexpectedTransfers,
     createdAt: date(source.createdAt ?? now, "created time"),
     updatedAt: date(source.updatedAt ?? now, "updated time"),
   };
