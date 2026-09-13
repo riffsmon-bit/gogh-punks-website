@@ -1,0 +1,194 @@
+{
+  "schema": "GOGH_ACCEPTED_FORGE_BUILD_IMMUTABLE_REFERENCES_V1",
+  "buildHash": "0x63ce4525c0b9cf07182bd867d3630f6875123c7579e2ea14e6495bff44316786",
+  "planHash": "0x8cfc3a90a62c833d1298612195ad9b34dc639b3fdb8163f811906f48ba960419",
+  "immutableReferences": {
+    "deployment": {
+      "138": [
+        {
+          "start": 86,
+          "length": 32
+        }
+      ],
+      "141": [
+        {
+          "start": 155,
+          "length": 32
+        }
+      ],
+      "144": [
+        {
+          "start": 218,
+          "length": 32
+        }
+      ]
+    },
+    "registry": {},
+    "progression": {
+      "14608": [
+        {
+          "start": 2758,
+          "length": 32
+        },
+        {
+          "start": 3856,
+          "length": 32
+        }
+      ],
+      "14610": [
+        {
+          "start": 2699,
+          "length": 32
+        },
+        {
+          "start": 3711,
+          "length": 32
+        },
+        {
+          "start": 6826,
+          "length": 32
+        }
+      ],
+      "14612": [
+        {
+          "start": 3579,
+          "length": 32
+        },
+        {
+          "start": 4241,
+          "length": 32
+        },
+        {
+          "start": 6741,
+          "length": 32
+        }
+      ],
+      "15343": [
+        {
+          "start": 1555,
+          "length": 32
+        },
+        {
+          "start": 2532,
+          "length": 32
+        },
+        {
+          "start": 4002,
+          "length": 32
+        },
+        {
+          "start": 4558,
+          "length": 32
+        },
+        {
+          "start": 6269,
+          "length": 32
+        },
+        {
+          "start": 6787,
+          "length": 32
+        },
+        {
+          "start": 7192,
+          "length": 32
+        },
+        {
+          "start": 7857,
+          "length": 32
+        }
+      ],
+      "15346": [
+        {
+          "start": 718,
+          "length": 32
+        },
+        {
+          "start": 2010,
+          "length": 32
+        },
+        {
+          "start": 2600,
+          "length": 32
+        },
+        {
+          "start": 7272,
+          "length": 32
+        }
+      ],
+      "15348": [
+        {
+          "start": 1493,
+          "length": 32
+        },
+        {
+          "start": 3287,
+          "length": 32
+        }
+      ],
+      "15350": [
+        {
+          "start": 1432,
+          "length": 32
+        },
+        {
+          "start": 6613,
+          "length": 32
+        }
+      ],
+      "15352": [
+        {
+          "start": 2942,
+          "length": 32
+        },
+        {
+          "start": 3377,
+          "length": 32
+        }
+      ]
+    },
+    "trainingSource": {
+      "341": [
+        {
+          "start": 319,
+          "length": 32
+        },
+        {
+          "start": 1033,
+          "length": 32
+        },
+        {
+          "start": 2893,
+          "length": 32
+        },
+        {
+          "start": 3097,
+          "length": 32
+        },
+        {
+          "start": 3555,
+          "length": 32
+        },
+        {
+          "start": 4309,
+          "length": 32
+        }
+      ],
+      "343": [
+        {
+          "start": 3417,
+          "length": 32
+        },
+        {
+          "start": 4344,
+          "length": 32
+        }
+      ],
+      "345": [
+        {
+          "start": 210,
+          "length": 32
+        }
+      ]
+    }
+  }
+}
