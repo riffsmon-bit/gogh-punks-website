@@ -14,7 +14,10 @@ const MAX_FEE = 1_000_000_000_000_000n;
 const word = value => BigInt(value).toString(16).padStart(64, '0');
 const addressWord = value => value.slice(2).padStart(64, '0');
 const copy = value => JSON.parse(JSON.stringify(value));
-const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const stable = value => value && typeof value === 'object'
+  ? Array.isArray(value) ? value.map(stable) : Object.fromEntries(Object.keys(value).sort().map(key => [key, stable(value[key])]))
+  : value;
+const same = (a, b) => JSON.stringify(stable(a)) === JSON.stringify(stable(b));
 const emptyResult = `0x${word(32)}${word(0)}`;
 export function agentRecoveryFail(code, message = 'Agent recovery could not be verified. Review again.') {
   throw Object.assign(new Error(message), { code: `AGENT_RECOVERY_${code}` });
@@ -167,11 +170,26 @@ export function createAgentRecoveryController({ provider, fetchFunction = global
     record(value, ['schema', 'status', 'review', 'transactionHash', 'receipt']);
     requireValue(value.schema === 'GOGH_AGENT_RECOVERY_JOURNAL_V1'
       && [...terminal, 'PREPARED', 'WALLET_REQUESTED', 'SUBMITTED'].includes(value.status), 'JOURNAL_INVALID');
+    requireValue(value.status !== 'EMPTY' || value.review === null, 'JOURNAL_INVALID');
     if (value.review) {
       validateAgentRecoveryReview(value.review);
       requireValue(value.review.owner === owner && value.review.intent.tokenId === tokenId, 'JOURNAL_INVALID');
     } else requireValue(value.status === 'EMPTY', 'JOURNAL_INVALID');
     requireValue(value.transactionHash === null || HASH.test(value.transactionHash), 'JOURNAL_INVALID');
+    if (['CONFIRMED', 'REVERTED'].includes(value.status)) {
+      requireValue(HASH.test(value.transactionHash ?? '') && value.receipt !== null, 'JOURNAL_INVALID');
+      record(value.receipt, ['transactionHash', 'blockNumber', 'blockHash', 'status']);
+      requireValue(value.receipt.transactionHash === value.transactionHash
+        && typeof value.receipt.blockNumber === 'string' && UINT.test(value.receipt.blockNumber)
+        && BigInt(value.receipt.blockNumber) < 2n ** 256n
+        && BigInt(value.receipt.blockNumber) >= BigInt(value.review.anchor.number)
+        && HASH.test(value.receipt.blockHash ?? '') && !/^0x0{64}$/.test(value.receipt.blockHash)
+        && value.receipt.status === (value.status === 'CONFIRMED' ? '0x1' : '0x0'), 'JOURNAL_INVALID');
+    } else {
+      requireValue(value.receipt === null, 'JOURNAL_INVALID');
+      requireValue(value.status === 'SUBMITTED' ? HASH.test(value.transactionHash ?? '')
+        : value.transactionHash === null, 'JOURNAL_INVALID');
+    }
     return value;
   }
   function save(value) {
@@ -248,27 +266,36 @@ export function createAgentRecoveryController({ provider, fetchFunction = global
       const state = read(); requireValue(['PREPARED', 'REJECTED'].includes(state.status), 'PENDING_WALLET_REQUEST');
       return save({ ...state, status: 'CANCELLED' });
     }),
-    submit: () => locked(async () => {
-      let state = read(); requireValue(state.status === 'PREPARED', 'PENDING_WALLET_REQUEST');
-      const review = validateAgentRecoveryReview(state.review), fresh = await freshReview(review.intent);
-      for (const field of ['owner', 'account', 'accountSalt', 'accountRuntimeCodeHash', 'assetRuntimeCodeHash', 'session'])
-        requireValue(same(review[field], fresh[field]), 'REVIEW_CHANGED');
-      for (const field of ['from', 'to', 'value', 'data', 'chainId', 'nonce'])
-        requireValue(review.transaction[field] === fresh.transaction[field], 'REVIEW_CHANGED');
-      requireValue(hex(fresh.transaction.gas) <= hex(review.transaction.gas)
-        && hex(fresh.transaction.gasPrice) <= hex(review.transaction.gasPrice), 'FEE_CHANGED');
-      await preflight(provider, review, now);
-      requireValue(isCurrent() && review.expiresAt > now() + 5_000, 'SELECTION_CHANGED');
-      state = save({ ...state, status: 'WALLET_REQUESTED' });
-      let hash;
-      try { hash = await provider.request({ method: 'eth_sendTransaction', params: [copy(review.transaction)] }); }
-      catch (error) {
-        if (error?.code === 4001) return save({ ...state, status: 'REJECTED' });
-        agentRecoveryFail('WALLET_RESULT_UNKNOWN', 'Check wallet activity and recover the original transaction. It will not be resent.');
-      }
-      requireValue(HASH.test(hash?.toLowerCase() ?? ''), 'WALLET_RESULT_UNKNOWN');
-      return save({ ...state, status: 'SUBMITTED', transactionHash: hash.toLowerCase() });
-    }),
+    submit: async options => {
+      requireValue(options && Object.hasOwn(options, 'expectedReview') && options.expectedReview, 'REVIEW_REQUIRED');
+      record(options, ['expectedReview']);
+      // Snapshot the displayed approval before waiting on another tab's lock.
+      // Never substitute whichever review happens to be in storage at click time.
+      const displayed = validateAgentRecoveryReview(options.expectedReview);
+      return locked(async () => {
+        let state = read(); requireValue(state.status === 'PREPARED', 'PENDING_WALLET_REQUEST');
+        const review = validateAgentRecoveryReview(state.review);
+        requireValue(same(displayed, review), 'REVIEW_CHANGED');
+        const fresh = await freshReview(review.intent);
+        for (const field of ['owner', 'account', 'accountSalt', 'accountRuntimeCodeHash', 'assetRuntimeCodeHash', 'session'])
+          requireValue(same(review[field], fresh[field]), 'REVIEW_CHANGED');
+        for (const field of ['from', 'to', 'value', 'data', 'chainId', 'nonce'])
+          requireValue(review.transaction[field] === fresh.transaction[field], 'REVIEW_CHANGED');
+        requireValue(hex(fresh.transaction.gas) <= hex(review.transaction.gas)
+          && hex(fresh.transaction.gasPrice) <= hex(review.transaction.gasPrice), 'FEE_CHANGED');
+        await preflight(provider, review, now);
+        requireValue(isCurrent() && review.expiresAt > now() + 5_000, 'SELECTION_CHANGED');
+        state = save({ ...state, status: 'WALLET_REQUESTED' });
+        let hash;
+        try { hash = await provider.request({ method: 'eth_sendTransaction', params: [copy(review.transaction)] }); }
+        catch (error) {
+          if (error?.code === 4001) return save({ ...state, status: 'REJECTED' });
+          agentRecoveryFail('WALLET_RESULT_UNKNOWN', 'Check wallet activity and recover the original transaction. It will not be resent.');
+        }
+        requireValue(HASH.test(hash?.toLowerCase() ?? ''), 'WALLET_RESULT_UNKNOWN');
+        return save({ ...state, status: 'SUBMITTED', transactionHash: hash.toLowerCase() });
+      });
+    },
     refresh: () => locked(async () => reconcile(read())),
     recover: hash => locked(async () => {
       const state = read(); requireValue(['WALLET_REQUESTED', 'SUBMITTED'].includes(state.status)

@@ -87,7 +87,7 @@ for(const action of ['NATIVE','ENTRY_POINT','ERC721','ERC1155'])test(`${action}:
   const decoded=decodeFunctionData({abi:AGENT_RECOVERY_ABI,data:review.transaction.data});
   if(action==='ENTRY_POINT'){assert.equal(decoded.functionName,'withdrawEntryPointDeposit');assert.equal(decoded.args[0],amount);}
   else {assert.equal(decoded.functionName,'execute');assert.equal(decoded.args[0].toLowerCase(),action==='NATIVE'?OWNER:NFT);assert.equal(decoded.args[3],0);}
-  assert.equal(f.requests,0);const c=f.controller();await c.prepare(i);assert.equal((await c.submit()).status,'SUBMITTED');assert.equal(f.requests,1);
+  assert.equal(f.requests,0);const c=f.controller();await c.prepare(i);assert.equal((await c.submit({expectedReview:c.getState().review})).status,'SUBMITTED');assert.equal(f.requests,1);
   f.confirm(action);assert.equal((await c.refresh()).status,'CONFIRMED');assert.equal(f.requests,1);
 });
 for(const [name,mutate] of [['destination',i=>i.destination=OTHER],['calldata',i=>i.data='0x'],['action',i=>i.action='ARBITRARY'],
@@ -112,34 +112,34 @@ for(const fault of ['owner','chain','code','balance','asset','reserve','simulati
     if(fault==='owner')f.owner=OTHER;if(fault==='chain')f.chain=1;if(fault==='code')f.code.registry='0x6000';if(fault==='balance')f.native=0n;
     if(fault==='asset')f.assetOwner=OTHER;if(fault==='reserve')f.active=true;if(fault==='nonce')f.nonce++;
     if(fault==='simulation'){const request=f.provider.request;f.provider.request=q=>q.method==='eth_estimateGas'?'0x0':request(q);}return response;}});
-  await assert.rejects(guarded.submit());assert.equal(f.requests,0);assert.equal(c.getState().status,'PREPARED');
+  await assert.rejects(guarded.submit({expectedReview:guarded.getState().review}));assert.equal(f.requests,0);assert.equal(c.getState().status,'PREPARED');
 });
 test('lost wallet response survives reload, API/read failures and cannot resend',async()=>{
-  const f=fixture(),c=f.controller();await c.prepare(intent());f.sendError=Error('transport');await assert.rejects(c.submit(),{code:'AGENT_RECOVERY_WALLET_RESULT_UNKNOWN'});
-  const reload=f.controller();assert.equal(reload.getState().status,'WALLET_REQUESTED');await assert.rejects(reload.submit(),{code:'AGENT_RECOVERY_PENDING_WALLET_REQUEST'});
+  const f=fixture(),c=f.controller();await c.prepare(intent());f.sendError=Error('transport');await assert.rejects(c.submit({expectedReview:c.getState().review}),{code:'AGENT_RECOVERY_WALLET_RESULT_UNKNOWN'});
+  const reload=f.controller();assert.equal(reload.getState().status,'WALLET_REQUESTED');await assert.rejects(reload.submit({expectedReview:reload.getState().review}),{code:'AGENT_RECOVERY_PENDING_WALLET_REQUEST'});
   await assert.rejects(reload.prepare(intent()),{code:'AGENT_RECOVERY_PENDING_REVIEW'});await assert.rejects(reload.cancelReview(),{code:'AGENT_RECOVERY_PENDING_WALLET_REQUEST'});
   assert.equal((await reload.refresh()).status,'WALLET_REQUESTED');assert.equal(f.requests,1);f.confirm();f.receiptError=true;
   await assert.rejects(reload.recover(TXHASH));assert.equal(reload.getState().transactionHash,TXHASH);f.receiptError=false;
   assert.equal((await f.controller().refresh()).status,'CONFIRMED');assert.equal(f.requests,1);
 });
 test('concurrent same-Punk submits open the mock wallet only once',async()=>{
-  const f=fixture(),a=f.controller(),b=f.controller();await a.prepare(intent());const results=await Promise.allSettled([a.submit(),b.submit()]);
+  const f=fixture(),a=f.controller(),b=f.controller();await a.prepare(intent());const results=await Promise.allSettled([a.submit({expectedReview:a.getState().review}),b.submit({expectedReview:b.getState().review})]);
   assert.equal(results.filter(r=>r.status==='fulfilled').length,1);assert.equal(f.requests,1);
 });
 test('storage or Web Lock failure prevents wallet submission',async()=>{
   for(const fault of ['storage','lock']){const f=fixture(),c=f.controller();await c.prepare(intent());if(fault==='storage')f.storage.setItem=()=>{throw Error('full');};
-    await assert.rejects((fault==='lock'?f.controller({locks:null}):c).submit());assert.equal(f.requests,0);}
+    await assert.rejects((fault==='lock'?f.controller({locks:null}):c).submit({expectedReview:c.getState().review}));assert.equal(f.requests,0);}
 });
 test('definite wallet rejection frees review; expiration cannot submit',async()=>{
-  const f=fixture(),c=f.controller();await c.prepare(intent());f.sendError=Object.assign(Error('reject'),{code:4001});assert.equal((await c.submit()).status,'REJECTED');
-  delete f.sendError;await c.prepare(intent());f.now+=90_000;await assert.rejects(c.submit());assert.equal(f.requests,1);
+  const f=fixture(),c=f.controller();await c.prepare(intent());f.sendError=Object.assign(Error('reject'),{code:4001});assert.equal((await c.submit({expectedReview:c.getState().review})).status,'REJECTED');
+  delete f.sendError;await c.prepare(intent());f.now+=90_000;await assert.rejects(c.submit({expectedReview:c.getState().review}));assert.equal(f.requests,1);
 });
 test('receipt mismatch retains pending hash without claiming withdrawal',async()=>{
-  const f=fixture(),c=f.controller();await c.prepare(intent());await c.submit();f.confirm();f.tx.to=OTHER;await assert.rejects(c.refresh(),{code:'AGENT_RECOVERY_RECEIPT_MISMATCH'});
+  const f=fixture(),c=f.controller();await c.prepare(intent());await c.submit({expectedReview:c.getState().review});f.confirm();f.tx.to=OTHER;await assert.rejects(c.refresh(),{code:'AGENT_RECOVERY_RECEIPT_MISMATCH'});
   assert.equal(c.getState().status,'SUBMITTED');assert.equal(f.requests,1);
 });
 test('NFT success receipt without exact transfer event is not a confirmed recovery',async()=>{
-  const f=fixture(),c=f.controller();await c.prepare(intent('ERC721'));await c.submit();f.confirm();
+  const f=fixture(),c=f.controller();await c.prepare(intent('ERC721'));await c.submit({expectedReview:c.getState().review});f.confirm();
   await assert.rejects(c.refresh(),{code:'AGENT_RECOVERY_ASSET_RECEIPT_MISMATCH'});assert.equal(c.getState().status,'SUBMITTED');assert.equal(f.requests,1);
 });
 test('transfer keeps the Agent account, rejects old owner and prepares recovery for the new owner',async()=>{
@@ -152,25 +152,68 @@ test('transfer keeps the Agent account, rejects old owner and prepares recovery 
 test('active native reserve changes are independently checked at the wallet boundary',async()=>{
   const f=fixture();f.active=true;const c=f.controller();await c.prepare(intent());
   const guarded=f.controller({fetchFunction:async(...args)=>{const response=await f.fetch(...args);f.reserve++;return response;}});
-  await assert.rejects(guarded.submit(),{code:'AGENT_RECOVERY_SESSION_CHANGED'});assert.equal(f.requests,0);
+  await assert.rejects(guarded.submit({expectedReview:guarded.getState().review}),{code:'AGENT_RECOVERY_SESSION_CHANGED'});assert.equal(f.requests,0);
 });
 test('provider failure after wallet request retains saved hash and hides private details',async()=>{
-  const f=fixture(),c=f.controller();await c.prepare(intent());await c.submit();f.confirm();f.receiptError=true;
+  const f=fixture(),c=f.controller();await c.prepare(intent());await c.submit({expectedReview:c.getState().review});f.confirm();f.receiptError=true;
   await assert.rejects(c.refresh(),error=>error.code==='AGENT_RECOVERY_RPC_UNAVAILABLE'&&!error.message.includes('private'));
   assert.equal(c.getState().transactionHash,TXHASH);assert.equal(c.getState().status,'SUBMITTED');assert.equal(f.requests,1);
 });
 test('wrong recovery hash can be corrected without rebroadcasting the original request',async()=>{
-  const f=fixture(),c=f.controller();await c.prepare(intent());f.sendError=Error('lost wallet response');await assert.rejects(c.submit());f.confirm();
+  const f=fixture(),c=f.controller();await c.prepare(intent());f.sendError=Error('lost wallet response');await assert.rejects(c.submit({expectedReview:c.getState().review}));f.confirm();
   const wrong=`0x${'c'.repeat(64)}`;
   await assert.rejects(c.recover(wrong),{code:'AGENT_RECOVERY_RECEIPT_MISMATCH'});
   assert.equal(c.getState().status,'WALLET_REQUESTED');assert.equal(c.getState().transactionHash,null);
   assert.equal((await c.recover(TXHASH)).status,'CONFIRMED');assert.equal(f.requests,1);
 });
 test('missing or unavailable recovery candidate preserves original request and allows retry',async()=>{
-  const f=fixture(),c=f.controller();await c.prepare(intent());f.sendError=Error('lost');await assert.rejects(c.submit());
+  const f=fixture(),c=f.controller();await c.prepare(intent());f.sendError=Error('lost');await assert.rejects(c.submit({expectedReview:c.getState().review}));
   await assert.rejects(c.recover(TXHASH),{code:'AGENT_RECOVERY_TRANSACTION_NOT_FOUND'});
   assert.equal(c.getState().status,'WALLET_REQUESTED');assert.equal(c.getState().transactionHash,null);
   f.confirm();f.transactionReadError=true;await assert.rejects(c.recover(TXHASH),{code:'AGENT_RECOVERY_RPC_UNAVAILABLE'});
   assert.equal(c.getState().status,'WALLET_REQUESTED');assert.equal(c.getState().transactionHash,null);
   f.transactionReadError=false;assert.equal((await c.recover(TXHASH)).status,'CONFIRMED');assert.equal(f.requests,1);
 });
+test('two-tab replacement cannot turn an earlier displayed approval into a different withdrawal',async()=>{
+  const f=fixture(),displayed=[];
+  const a=f.controller({onChange:state=>displayed.push(state)}),b=f.controller();
+  await a.prepare(intent());const expectedReview=displayed.at(-1).review;
+  await b.cancelReview();await b.prepare({...intent(),amountWei:'900'});
+  assert.equal(expectedReview.intent.amountWei,'100');const calls=f.calls.length;
+  await assert.rejects(a.submit({expectedReview}),{code:'AGENT_RECOVERY_REVIEW_CHANGED'});
+  assert.equal(f.calls.length,calls);assert.equal(f.requests,0);assert.equal(a.getState().review.intent.amountWei,'900');
+});
+test('missing displayed review is rejected before refresh, preflight or wallet request',async()=>{
+  const f=fixture(),c=f.controller();await c.prepare(intent());const calls=f.calls.length;
+  for(const options of [undefined,{}, {expectedReview:null}])await assert.rejects(c.submit(options),{code:'AGENT_RECOVERY_REVIEW_REQUIRED'});
+  assert.equal(f.calls.length,calls);assert.equal(f.requests,0);assert.equal(c.getState().status,'PREPARED');
+});
+test('full review binding includes observed balances and accepts an exact normalized snapshot',async()=>{
+  const f=fixture(),c=f.controller();await c.prepare(intent());const expectedReview=c.getState().review;
+  const altered=structuredClone(expectedReview);altered.balances.ownerNativeWei='999999999999999999';
+  await assert.rejects(c.submit({expectedReview:altered}),{code:'AGENT_RECOVERY_REVIEW_CHANGED'});assert.equal(f.requests,0);
+  const reordered=Object.fromEntries(Object.entries(expectedReview).reverse());
+  assert.equal((await c.submit({expectedReview:reordered})).status,'SUBMITTED');assert.equal(f.requests,1);
+});
+for(const status of ['CONFIRMED','REVERTED']){
+  for(const [fault,change] of [
+    ['missing receipt',s=>s.receipt=null],['missing hash',s=>s.transactionHash=null],
+    ['different receipt hash',s=>s.receipt.transactionHash=`0x${'c'.repeat(64)}`],
+    ['malformed block hash',s=>s.receipt.blockHash='0x'],['zero block hash',s=>s.receipt.blockHash=SALT],
+    ['invalid block number',s=>s.receipt.blockNumber='-1'],['wrong receipt status',s=>s.receipt.status=s.status==='CONFIRMED'?'0x0':'0x1'],
+    ['extra receipt field',s=>s.receipt.unchecked=true],
+  ])test(`${status} restored journal rejects ${fault}`,async()=>{
+    const f=fixture(),review=await f.prepare(intent());
+    const state={schema:'GOGH_AGENT_RECOVERY_JOURNAL_V1',status,review,transactionHash:TXHASH,
+      receipt:{transactionHash:TXHASH,blockNumber:'1000',blockHash:HASH,status:status==='CONFIRMED'?'0x1':'0x0'}};
+    change(state);f.storage.setItem(`gogh:agent-recovery:4663:${OWNER}:93`,JSON.stringify(state));
+    assert.throws(()=>f.controller().getState());assert.equal(f.requests,0);
+  });
+  test(`${status} coherent restored receipt remains cached evidence without a new request`,async()=>{
+    const f=fixture(),review=await f.prepare(intent());
+    const state={schema:'GOGH_AGENT_RECOVERY_JOURNAL_V1',status,review,transactionHash:TXHASH,
+      receipt:{transactionHash:TXHASH,blockNumber:'1000',blockHash:HASH,status:status==='CONFIRMED'?'0x1':'0x0'}};
+    f.storage.setItem(`gogh:agent-recovery:4663:${OWNER}:93`,JSON.stringify(state));const calls=f.calls.length;
+    assert.deepEqual(f.controller().getState(),state);assert.equal(f.calls.length,calls);assert.equal(f.requests,0);
+  });
+}
