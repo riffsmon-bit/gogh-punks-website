@@ -197,18 +197,22 @@ export function createAgentRecoveryController({ provider, fetchFunction = global
     requireValue(review.owner === owner && review.intent.tokenId === tokenId && same(review.intent, intent), 'SELECTION_CHANGED');
     return review;
   }
+  function verifyTransaction(tx, hash, review) {
+    const expected = review.transaction;
+    requireValue(tx && tx.hash?.toLowerCase() === hash && tx.from?.toLowerCase() === expected.from
+      && tx.to?.toLowerCase() === expected.to && (tx.input ?? tx.data)?.toLowerCase() === expected.data
+      && hex(tx.value) === 0n && hex(tx.nonce) === hex(expected.nonce)
+      && hex(tx.gas) === hex(expected.gas) && hex(tx.gasPrice) === hex(expected.gasPrice)
+      && hex(tx.chainId) === 4663n, 'RECEIPT_MISMATCH');
+  }
   async function reconcile(value) {
     if (!value.transactionHash) return value;
     const rpc = (method, params) => walletRead(provider, method, params);
     requireValue(hex(await rpc('eth_chainId', [])) === 4663n, 'WRONG_CHAIN');
     const [tx, receipt] = await Promise.all([rpc('eth_getTransactionByHash', [value.transactionHash]), rpc('eth_getTransactionReceipt', [value.transactionHash])]);
     if (!tx || !receipt) return value;
-    const expected = value.review.transaction;
-    requireValue(tx.hash?.toLowerCase() === value.transactionHash && tx.from?.toLowerCase() === expected.from
-      && tx.to?.toLowerCase() === expected.to && (tx.input ?? tx.data)?.toLowerCase() === expected.data
-      && hex(tx.value) === 0n && hex(tx.nonce) === hex(expected.nonce)
-      && hex(tx.gas) === hex(expected.gas) && hex(tx.gasPrice) === hex(expected.gasPrice)
-      && hex(tx.chainId) === 4663n && ['0x1', '0x0'].includes(receipt.status)
+    verifyTransaction(tx, value.transactionHash, value.review);
+    requireValue(['0x1', '0x0'].includes(receipt.status)
       && receipt.transactionHash?.toLowerCase() === value.transactionHash && HASH.test(receipt.blockHash), 'RECEIPT_MISMATCH');
     const [block, head] = await Promise.all([rpc('eth_getBlockByNumber', [receipt.blockNumber, false]), rpc('eth_blockNumber', [])]);
     requireValue(block?.hash === receipt.blockHash && hex(block.number) === hex(receipt.blockNumber), 'RECEIPT_MISMATCH');
@@ -270,7 +274,14 @@ export function createAgentRecoveryController({ provider, fetchFunction = global
       const state = read(); requireValue(['WALLET_REQUESTED', 'SUBMITTED'].includes(state.status)
         && typeof hash === 'string' && HASH.test(hash.toLowerCase()), 'RECOVERY_INVALID');
       requireValue(!state.transactionHash || state.transactionHash === hash.toLowerCase(), 'RECOVERY_HASH_CHANGED');
-      // Persist the submitted hash before reads; a provider outage must not lose it.
+      if (state.transactionHash) return reconcile(state);
+      // A pasted hash is a candidate, not transaction identity. Never bind an
+      // unavailable or unrelated candidate and strand the original wallet request.
+      requireValue(hex(await walletRead(provider, 'eth_chainId')) === 4663n, 'WRONG_CHAIN');
+      const candidate = await walletRead(provider, 'eth_getTransactionByHash', [hash.toLowerCase()]);
+      requireValue(candidate !== null, 'TRANSACTION_NOT_FOUND');
+      verifyTransaction(candidate, hash.toLowerCase(), state.review);
+      // Identity is now verified. Save before receipt reads so an outage preserves it.
       return reconcile(save({ ...state, status: 'SUBMITTED', transactionHash: hash.toLowerCase() }));
     }),
   });

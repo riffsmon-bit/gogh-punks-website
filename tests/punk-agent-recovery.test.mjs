@@ -61,7 +61,7 @@ function fixture(){
         if(data.startsWith('0x01ffc9a7'))return `0x${word(1)}`;}
       return data.startsWith('0xb94668c0')?'0x':EMPTY;
     }
-    if(method==='eth_getTransactionByHash')return f.tx??null;
+    if(method==='eth_getTransactionByHash'){if(f.transactionReadError)throw Error('unavailable');return f.tx??null;}
     if(method==='eth_getTransactionReceipt'){if(f.receiptError)throw Error('private provider details');return f.receipt??null;}
     if(method==='eth_blockNumber')return '0x400';if(method==='eth_getBlockByNumber')return {number:'0x3e8',hash:HASH};
     throw Error(`Unexpected offline method ${method}`);
@@ -158,4 +158,19 @@ test('provider failure after wallet request retains saved hash and hides private
   const f=fixture(),c=f.controller();await c.prepare(intent());await c.submit();f.confirm();f.receiptError=true;
   await assert.rejects(c.refresh(),error=>error.code==='AGENT_RECOVERY_RPC_UNAVAILABLE'&&!error.message.includes('private'));
   assert.equal(c.getState().transactionHash,TXHASH);assert.equal(c.getState().status,'SUBMITTED');assert.equal(f.requests,1);
+});
+test('wrong recovery hash can be corrected without rebroadcasting the original request',async()=>{
+  const f=fixture(),c=f.controller();await c.prepare(intent());f.sendError=Error('lost wallet response');await assert.rejects(c.submit());f.confirm();
+  const wrong=`0x${'c'.repeat(64)}`;
+  await assert.rejects(c.recover(wrong),{code:'AGENT_RECOVERY_RECEIPT_MISMATCH'});
+  assert.equal(c.getState().status,'WALLET_REQUESTED');assert.equal(c.getState().transactionHash,null);
+  assert.equal((await c.recover(TXHASH)).status,'CONFIRMED');assert.equal(f.requests,1);
+});
+test('missing or unavailable recovery candidate preserves original request and allows retry',async()=>{
+  const f=fixture(),c=f.controller();await c.prepare(intent());f.sendError=Error('lost');await assert.rejects(c.submit());
+  await assert.rejects(c.recover(TXHASH),{code:'AGENT_RECOVERY_TRANSACTION_NOT_FOUND'});
+  assert.equal(c.getState().status,'WALLET_REQUESTED');assert.equal(c.getState().transactionHash,null);
+  f.confirm();f.transactionReadError=true;await assert.rejects(c.recover(TXHASH),{code:'AGENT_RECOVERY_RPC_UNAVAILABLE'});
+  assert.equal(c.getState().status,'WALLET_REQUESTED');assert.equal(c.getState().transactionHash,null);
+  f.transactionReadError=false;assert.equal((await c.recover(TXHASH)).status,'CONFIRMED');assert.equal(f.requests,1);
 });
