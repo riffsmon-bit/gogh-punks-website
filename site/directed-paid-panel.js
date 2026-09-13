@@ -4,7 +4,7 @@ import {paidReviewStatus} from './directed-paid-status.js';
 const el=(tag,text)=>{const n=document.createElement(tag);if(text!=null)n.textContent=text;return n;};
 const eth=n=>{const v=BigInt(n),f=(v%10n**18n).toString().padStart(18,'0').replace(/0+$/,'');return `${v/10n**18n}${f?'.'+f:''} ETH`;};
 export function createDirectedPaidPanel({root,getSelection,ensureSession,request,getProvider=()=>window.__GOGH_WALLET_PROVIDER__}){
- if(!root)return null;let envelope=null,key='',sequence=0,busy=false,message='',maximumPriceWei=null,expiryTimer;
+ if(!root)return null;let envelope=null,key='',sequence=0,busy=false,message='',maximumPriceWei=null,expiryTimer,recoveryDraft={id:null,hash:''};
  const available=()=>{const s=getSelection();return PAID_RELEASE.status==='OWNER_CANARY'&&PAID_RELEASE.productionPaidMintAuthorized===true
   &&s?.owner?.toLowerCase()===PAID_RELEASE.owner&&String(s.tokenId)==='93'&&s.chainId===4663&&!s.preview;};
  const storage=id=>`gogh-directed-paid-v1:${id}`;
@@ -12,10 +12,12 @@ export function createDirectedPaidPanel({root,getSelection,ensureSession,request
  const persist=(id,value)=>{const text=JSON.stringify(value);localStorage.setItem(storage(id),text);if(localStorage.getItem(storage(id))!==text)throw Error('The mint recovery record could not be saved.');};
  const api=body=>request('/api/v2/punks/93/directed-paid-mint',body?{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body),timeoutMs:55000}:{timeoutMs:45000});
  function selectionChanged(){const s=getSelection(),next=`${s?.owner}:${s?.tokenId}:${s?.chainId}:${s?.preview}`;
-  if(next!==key){key=next;++sequence;busy=false;envelope=null;message='';maximumPriceWei=null;render();}}
+  if(next!==key){key=next;++sequence;busy=false;envelope=null;message='';maximumPriceWei=null;recoveryDraft={id:null,hash:''};render();}}
  async function work(fn){if(busy||!available())return;const ticket=++sequence,selection={...getSelection()},original=key;
   const current=()=>ticket===sequence&&original===key&&available();busy=true;render();
-  try{await ensureSession();if(current())await fn(selection,current);}catch(error){if(current())message=error.message;}
+  try{await ensureSession();if(current()){await fn(selection,current);return current();}}catch(error){if(current())message=error.code==='PAID_HISTORY_UNAVAILABLE'
+   ?'Historical chain verification is unavailable. New paid budgets are blocked until archive reads recover. Keep the existing mission and transaction hash; recheck its result before taking another action.'
+   :error.message??'Paid-mint review is unavailable. Your request and recovery details are retained.';}
   finally{if(current()){busy=false;render();}}}
  async function refresh(selection,current){
   const result=validatePaidEnvelope(await api(),selection);if(!current())return;envelope=result;
@@ -32,7 +34,9 @@ export function createDirectedPaidPanel({root,getSelection,ensureSession,request
   if(current()){envelope=result;message='';}});
  function button(label,action,disabled=false){const b=el('button',label);b.type='button';b.className='filter-button';b.disabled=busy||disabled;b.addEventListener('click',()=>void action());root.append(b);return b;}
  function render(){clearTimeout(expiryTimer);root.replaceChildren();root.hidden=!available();if(!available())return;
-  root.append(el('h3','DIRECTED PAID MINT · PUNK #93'),el('p','One Peppies World NFT. Approve the exact mint price and fixed worker fee once; the worker mints and delivers to #93’s Agent wallet before the mission expires.'));
+  root.setAttribute('aria-busy',String(busy));
+  root.append(el('h3','DIRECTED PAID MINT · PUNK #93'),el('p','Owner canary for one Peppies World NFT, delivered to #93’s separate Agent Account. New budgets require verified historical chain access. A review or funded budget does not prove mint delivery.'));
+  if(maximumPriceWei!==null)root.append(el('p',`Saved mint-price limit: ${eth(maximumPriceWei)}. Worker and network fees are reviewed separately.`));
   const matchingExecution=Boolean(envelope?.execution&&envelope.execution.intent_id===envelope?.record?.review.intentId);
   const status=el('p',message||paidReviewStatus(envelope));status.setAttribute('role','status');status.setAttribute('aria-live','polite');root.append(status);
   const deadline=envelope?.record?.status==='CONFIRMED'&&envelope.record.review.action==='AUTHORIZE'?Number(envelope.record.review.deadline)*1000:null;
@@ -70,7 +74,10 @@ export function createDirectedPaidPanel({root,getSelection,ensureSession,request
    const details=el('details');details.append(el('summary','Exact transaction'),el('pre',JSON.stringify(v,null,2)));root.append(details);return;
   }
   if(record?.status==='WALLET_REQUESTED'){
-   const label=el('label','Transaction hash from wallet activity'),input=el('input');input.placeholder='0x…';input.maxLength=66;input.value=saved(record.review.intentId)?.hash??record.reportedHash??'';label.append(input);root.append(label);
+   root.append(el('p','This wallet request is unresolved. Recover the original transaction; rechecking does not send it again. A pending wallet request cannot be cancelled as an unsent quote.'));
+   if(recoveryDraft.id!==record.review.intentId)recoveryDraft={id:record.review.intentId,hash:saved(record.review.intentId)?.hash??record.reportedHash??''};
+   const label=el('label','Transaction hash from wallet activity'),input=el('input');input.placeholder='0x…';input.maxLength=66;input.value=recoveryDraft.hash;input.disabled=busy;
+   input.addEventListener('input',()=>{recoveryDraft.hash=input.value;});label.append(input);root.append(label);
    button('RECOVER ORIGINAL TRANSACTION',()=>{const hash=input.value.trim().toLowerCase();return work(async(selection,current)=>{
     if(!/^0x[0-9a-f]{64}$/.test(hash))throw Error('Enter the full transaction hash.');persist(record.review.intentId,{attempted:true,hash});await refresh(selection,current);});});return;
   }
@@ -80,8 +87,8 @@ export function createDirectedPaidPanel({root,getSelection,ensureSession,request
  }
  async function openDraft(draft){if(!available())return;
   if(draft?.collection!==PAID_RELEASE.targetCollection||draft.quantity!==1||!(draft.maximumPriceWei===null||/^[1-9][0-9]{0,15}$/.test(draft.maximumPriceWei)))throw Error('The paid-mint request does not match this test.');
-  maximumPriceWei=draft.maximumPriceWei;await check();root.scrollIntoView({behavior:'smooth',block:'start'});
-  if(!busy&&(!envelope?.record||['CONFIRMED','REVERTED','CANCELLED','DECLINED'].includes(envelope.record.status))&&envelope?.state?.missionStatus!==1)await prepare('AUTHORIZE');
+  maximumPriceWei=draft.maximumPriceWei;const checked=await check();root.scrollIntoView({behavior:'smooth',block:'start'});
+  if(checked&&!busy&&(!envelope?.record||['CONFIRMED','REVERTED','CANCELLED','DECLINED'].includes(envelope.record.status))&&envelope?.state?.missionStatus!==1)await prepare('AUTHORIZE');
  }
  selectionChanged();return {selectionChanged,openDraft,destroy(){++sequence;clearTimeout(expiryTimer);}};
 }
