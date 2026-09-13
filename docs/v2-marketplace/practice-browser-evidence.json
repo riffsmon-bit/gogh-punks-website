@@ -1,0 +1,111 @@
+{
+  "schema": "GOGH_MARKETPLACE_PRACTICE_BROWSER_QA_V1",
+  "checkedAt": "2026-09-13T20:46:58.634Z",
+  "status": "PASS",
+  "url": "http://127.0.0.1:64843",
+  "publicTransactions": 0,
+  "walletConnections": 0,
+  "externalOriginsAllowed": 0,
+  "evidence": [
+    {
+      "test": "initial state request failure offers a working retry",
+      "status": "PASS"
+    },
+    {
+      "test": "one purchase + repeated confirmation reuses original result",
+      "status": "PASS",
+      "transactionHash": "0x556f10642393bc3660cbe7c2cf0818f4fcb0dd680ae284f24759222498148fd6"
+    },
+    {
+      "test": "two selected NFTs acquired together with actual receipt",
+      "status": "PASS",
+      "transactionHash": "0xfc4ed10b83d4a838475f57a90c189d32f39bef86e8655cbe04d167b62b29acf5"
+    },
+    {
+      "test": "exact WETH bid fills and original creation recheck stays filled",
+      "status": "PASS",
+      "transactionHash": "0x250e37d1d6368c44da86f7e5ecb4314bb38da87f0ecda7f56e6de34ca56a0fbd"
+    },
+    {
+      "test": "reload preserves verified bid result and original transaction",
+      "status": "PASS"
+    },
+    {
+      "test": "collection WETH offer resolves seller token and delivers NFT",
+      "status": "PASS",
+      "transactionHash": "0x1611cf04b32b8490e55a2e98c80a96365a8b82866174e566909192f12ffff4ab"
+    },
+    {
+      "test": "cancel then repeat cancellation never credits a second refund",
+      "status": "PASS"
+    },
+    {
+      "test": "cancel-after-fill reports settlement with no refund",
+      "status": "PASS"
+    },
+    {
+      "test": "real expiry blocks confirmation without sending; discard restores usable mission controls",
+      "status": "PASS"
+    }
+  ],
+  "screens": [
+    {
+      "name": "initial-load-retry",
+      "path": "/private/tmp/gogh-marketplace-practice-qa/initial-load-retry.png",
+      "width": 375,
+      "scrollWidth": 375,
+      "smallButtons": 0
+    },
+    {
+      "name": "native-sweep-desktop",
+      "path": "/private/tmp/gogh-marketplace-practice-qa/native-sweep-desktop.png",
+      "width": 1440,
+      "scrollWidth": 1440,
+      "smallButtons": 0
+    },
+    {
+      "name": "offers-tablet",
+      "path": "/private/tmp/gogh-marketplace-practice-qa/offers-tablet.png",
+      "width": 768,
+      "scrollWidth": 768,
+      "smallButtons": 0
+    },
+    {
+      "name": "offers-iphone-large",
+      "path": "/private/tmp/gogh-marketplace-practice-qa/offers-iphone-large.png",
+      "width": 430,
+      "scrollWidth": 430,
+      "smallButtons": 0
+    },
+    {
+      "name": "offers-iphone-small",
+      "path": "/private/tmp/gogh-marketplace-practice-qa/offers-iphone-small.png",
+      "width": 375,
+      "scrollWidth": 375,
+      "smallButtons": 0
+    },
+    {
+      "name": "offers-narrow",
+      "path": "/private/tmp/gogh-marketplace-practice-qa/offers-narrow.png",
+      "width": 320,
+      "scrollWidth": 320,
+      "smallButtons": 0
+    },
+    {
+      "name": "expired-review",
+      "path": "/private/tmp/gogh-marketplace-practice-qa/expired-review.png",
+      "width": 375,
+      "scrollWidth": 375,
+      "smallButtons": 0
+    }
+  ],
+  "finalResult": {
+    "status": "REVIEW_CANCELLED"
+  },
+  "limitations": [
+    "LOCAL_COPIED_CHAIN_AND_FUNDS",
+    "FIXED_TEST_SKILL_POLICY_PERMISSIONS",
+    "BACKEND_UNKNOWN_NONCE_RECOVERY_COVERED_BY_DEDICATED_UNIT_TESTS",
+    "NO_PUBLIC_MARKETPLACE_ORDER_POSTING"
+  ]
+}

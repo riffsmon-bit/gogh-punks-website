@@ -1,0 +1,67 @@
+// Real local practice HTTP + browser QA. No wallet connection or external origin.
+import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import { mkdtemp, readFile, writeFile, mkdir, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, isAbsolute } from 'node:path';
+const args=process.argv.slice(2),base=args.find(a=>a.startsWith('--url='))?.slice(6),output=args.find(a=>a.startsWith('--output='))?.slice(9);
+assert.ok(base&&/^http:\/\/127\.0\.0\.1:\d+$/.test(base));assert.ok(output&&isAbsolute(output));
+const before=await fetch(base+'/api/state').then(r=>r.json());assert.equal(before.localOnly,true);assert.equal(before.productionAuthority,false);
+await mkdir(output,{recursive:true});const profile=await mkdtemp(join(tmpdir(),'gogh-market-browser-'));
+const child=spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',['--headless=new','--disable-gpu','--disable-background-networking','--disable-sync','--no-first-run','--no-default-browser-check','--remote-debugging-port=0',`--user-data-dir=${profile}`,'about:blank'],{stdio:'ignore'});
+let socket,id=1;const pending=new Map(),listeners=new Map(),evidence=[],screens=[];let failInitial=true;
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+try {
+ let port;for(let i=0;i<150;i++){try{port=(await readFile(join(profile,'DevToolsActivePort'),'utf8')).split('\n')[0];break;}catch{}await wait(100);}assert.ok(port);
+ const targets=await fetch(`http://127.0.0.1:${port}/json/list`).then(r=>r.json());socket=new WebSocket(targets.find(t=>t.type==='page').webSocketDebuggerUrl);
+ await new Promise((resolve,reject)=>{socket.addEventListener('open',resolve,{once:true});socket.addEventListener('error',reject,{once:true});});
+ const call=(method,params={})=>new Promise((resolve,reject)=>{const current=id++;const timer=setTimeout(()=>{pending.delete(current);reject(Error(`CDP timeout ${method}`));},65000);pending.set(current,{resolve:v=>{clearTimeout(timer);resolve(v);},reject:e=>{clearTimeout(timer);reject(e);}});socket.send(JSON.stringify({id:current,method,params}));});
+ socket.addEventListener('message',({data})=>{const message=JSON.parse(data);if(message.id){const p=pending.get(message.id);pending.delete(message.id);message.error?p?.reject(Error(message.error.message)):p?.resolve(message.result);}else for(const listener of listeners.get(message.method)??[])listener(message.params);});
+ const on=(event,fn)=>listeners.set(event,[...(listeners.get(event)??[]),fn]);
+ const evaluate=async(expression)=>{const r=await call('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(r.exceptionDetails)throw Error(r.exceptionDetails.text);return r.result?.value;};
+ const until=async(expression,label,timeout=60000)=>{const start=Date.now();while(Date.now()-start<timeout){if(await evaluate(expression))return;await wait(100);}throw Error(`Timed out: ${label}: ${await evaluate('document.querySelector("#status")?.textContent')}`);};
+ const click=selector=>evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
+ const state=()=>evaluate(`fetch('/api/state').then(r=>r.json())`);
+ const post=(operation,input={})=>evaluate(`(async()=>{const s=await fetch('/api/state').then(r=>r.json());const r=await fetch('/api/action',{method:'POST',headers:{'content-type':'application/json','x-practice-nonce':s.nonce},body:JSON.stringify(${JSON.stringify({operation,input})})});return {http:r.status,state:await r.json()};})()`);
+ const screenshot=async(name,width,height=1000)=>{await call('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:width<600});await wait(150);const metrics=await evaluate(`({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,smallButtons:[...document.querySelectorAll('button:not([hidden])')].filter(e=>e.getClientRects().length&&e.getBoundingClientRect().height<44).length})`);assert.ok(metrics.scrollWidth<=metrics.width,`overflow ${name}`);assert.equal(metrics.smallButtons,0);const image=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});const path=join(output,`${name}.png`);await writeFile(path,Buffer.from(image.data,'base64'));screens.push({name,path,...metrics});};
+ on('Fetch.requestPaused',event=>{const url=event.request.url;if(url===base+'/api/state'&&failInitial){failInitial=false;void call('Fetch.failRequest',{requestId:event.requestId,errorReason:'Failed'});}
+  else if(url.startsWith(base+'/')||url==='about:blank')void call('Fetch.continueRequest',{requestId:event.requestId});else void call('Fetch.failRequest',{requestId:event.requestId,errorReason:'BlockedByClient'});});
+ await call('Page.enable');await call('Runtime.enable');await call('Fetch.enable',{patterns:[{urlPattern:'*'}]});
+ await call('Page.navigate',{url:base});
+ await until(`document.querySelector('[data-action="recheck"]')?.textContent==='RETRY CONNECTION'&&!document.querySelector('[data-action="recheck"]').disabled`,'initial retry');
+ await screenshot('initial-load-retry',375);await click('[data-action="recheck"]');
+ await until(`document.querySelector('[data-action="recheck"]')?.textContent==='RECHECK ORIGINAL RESULT'&&!document.querySelector('[data-action="buy-one"]').disabled`,'retry connected');
+ evidence.push({test:'initial state request failure offers a working retry',status:'PASS'});
+ const confirm=async()=>{await until(`document.querySelector('#review')&&!document.querySelector('#review').hidden`,'prepared review');const prepared=await state();await evaluate(`document.querySelector('#confirmation').value='CONFIRM COPY';document.querySelector('#confirmation').dispatchEvent(new Event('input',{bubbles:true}));`);await click('[data-action="confirm"]');await until(`!document.querySelector('[data-action="recheck"]').disabled&&!document.querySelector('#status').textContent.includes('Checking')&&document.querySelector('#review').hidden`,'confirmed result');return prepared;};
+ await click('[data-action="buy-one"]');const one=await confirm();let s=await state();assert.equal(s.lastResult.status,'COMPLETED');assert.equal(s.lastResult.items.length,1);
+ const firstHash=s.lastResult.transactionHash,firstBalance=s.balance.nativeWei;
+ const replay=await post('confirm',{reviewId:one.review.id,phrase:'CONFIRM COPY'});assert.equal(replay.http,200);assert.equal(replay.state.lastResult.transactionHash,firstHash);assert.equal(replay.state.balance.nativeWei,firstBalance);
+ evidence.push({test:'one purchase + repeated confirmation reuses original result',status:'PASS',transactionHash:firstHash});
+ await click('[data-action="buy-two"]');await confirm();s=await state();assert.equal(s.lastResult.status,'COMPLETED');assert.equal(s.lastResult.items.length,2);
+ evidence.push({test:'two selected NFTs acquired together with actual receipt',status:'PASS',transactionHash:s.lastResult.transactionHash});
+ await screenshot('native-sweep-desktop',1440);
+ const create=async(anyToken)=>{await click(anyToken?'[data-action="bid-collection"]':'[data-action="bid-one"]');await confirm();const snap=await state();assert.equal(snap.lastResult.status,'BID_ACTIVE');return snap.bids.at(-1);};
+ const fill=async bid=>{await click(`[data-order-hash="${bid.orderHash}"] [data-operation="fill_bid"]`);await until(`document.querySelector('#status').textContent.startsWith('Offer filled.')&&!document.querySelector('[data-action="recheck"]').disabled`,'bid filled');let snap=await state();assert.equal(snap.bids.find(b=>b.orderHash===bid.orderHash).status,'FILLED');assert.equal(snap.lastResult.verifiedOnChain,true);await click('[data-action="recheck"]');await until(`!document.querySelector('[data-action="recheck"]').disabled`,'filled recheck');snap=await state();assert.equal(snap.lastResult.status,'BID_FILLED');assert.equal(snap.bids.find(b=>b.orderHash===bid.orderHash).status,'FILLED');return snap;};
+ const exactBid=await create(false);s=await fill(exactBid);evidence.push({test:'exact WETH bid fills and original creation recheck stays filled',status:'PASS',transactionHash:s.lastResult.transactionHash});
+ await call('Page.reload');await until(`document.querySelector('#status')?.textContent.startsWith('Offer filled.')`,'filled state reload');
+ assert.equal((await state()).lastResult.status,'BID_FILLED');evidence.push({test:'reload preserves verified bid result and original transaction',status:'PASS'});
+ const anyBid=await create(true);s=await fill(anyBid);evidence.push({test:'collection WETH offer resolves seller token and delivers NFT',status:'PASS',transactionHash:s.lastResult.transactionHash});
+ await screenshot('offers-tablet',768);
+ const cancelled=await create(false);await click(`[data-order-hash="${cancelled.orderHash}"] [data-operation="prepare_cancel"]`);await confirm();s=await state();assert.equal(s.lastResult.status,'BID_CANCELLED');const refundBalance=s.balance.funderWethWei;
+ await click(`[data-order-hash="${cancelled.orderHash}"] [data-operation="prepare_cancel"]`);await confirm();s=await state();assert.equal(s.lastResult.status,'BID_ALREADY_CANCELLED');assert.equal(s.lastResult.refundedWethWei,'0');assert.equal(s.balance.funderWethWei,refundBalance);
+ evidence.push({test:'cancel then repeat cancellation never credits a second refund',status:'PASS'});
+ await click(`[data-order-hash="${exactBid.orderHash}"] [data-operation="prepare_cancel"]`);await confirm();s=await state();assert.equal(s.lastResult.status,'BID_ALREADY_SETTLED');assert.equal(s.lastResult.refundedWethWei,'0');
+ evidence.push({test:'cancel-after-fill reports settlement with no refund',status:'PASS'});
+ for(const [name,width]of [['offers-iphone-large',430],['offers-iphone-small',375],['offers-narrow',320]])await screenshot(name,width);
+ await click('[data-action="buy-one"]');await until(`!document.querySelector('#review').hidden`,'expiry review');const expiring=await state();
+ console.log(JSON.stringify({phase:'WAITING_FOR_REAL_REVIEW_EXPIRY',expiresAt:expiring.review.expiresAt}));
+ while(Date.now()<expiring.review.expiresAt+1000)await wait(250);
+ await until(`document.querySelector('#review-detail').textContent.includes('Review expired')&&document.querySelector('[data-action="confirm"]').disabled`,'expiry UI');
+ const denied=await post('confirm',{reviewId:expiring.review.id,phrase:'CONFIRM COPY'});assert.equal(denied.http,409);assert.equal(denied.state.code,'PRACTICE_REVIEW_EXPIRED');
+ assert.equal((await state()).review.transactionHash,null);await screenshot('expired-review',375);
+ await click('[data-action="cancel-review"]');await until(`document.querySelector('#review').hidden&&!document.querySelector('[data-action="buy-one"]').disabled`,'discard expired');
+ evidence.push({test:'real expiry blocks confirmation without sending; discard restores usable mission controls',status:'PASS'});
+ const after=await state();const report={schema:'GOGH_MARKETPLACE_PRACTICE_BROWSER_QA_V1',checkedAt:new Date().toISOString(),status:'PASS',url:base,publicTransactions:0,walletConnections:0,externalOriginsAllowed:0,evidence,screens,finalResult:after.lastResult,
+  limitations:['LOCAL_COPIED_CHAIN_AND_FUNDS','FIXED_TEST_SKILL_POLICY_PERMISSIONS','BACKEND_UNKNOWN_NONCE_RECOVERY_COVERED_BY_DEDICATED_UNIT_TESTS','NO_PUBLIC_MARKETPLACE_ORDER_POSTING']};
+ await writeFile(join(output,'evidence.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report,null,2));
+}finally{socket?.close();if(child.exitCode===null){child.kill('SIGTERM');await wait(1000);}await rm(profile,{recursive:true,force:true});}
