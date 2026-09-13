@@ -2,7 +2,7 @@ import pg from 'pg';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { X509Certificate } from 'node:crypto';
-import { createPublicClient, http } from 'viem';
+import { createForgeRpcClients } from '../../../broker/src/v4/skill-forge/rpc-clients.mjs';
 import releaseArtifact from '../../../deployments/robinhood-forge-training.json' with { type: 'json' };
 import { validateTrainingRelease, trainingDeploymentBinding } from '../../../broker/src/v4/skill-forge/training-release.mjs';
 import { verifyTrainingDatabaseRole } from '../../../broker/src/v4/skill-forge/training-database-role.mjs';
@@ -55,8 +55,7 @@ export async function forgeTrainingRuntime(role, environment = process.env) {
     pool.on('error', () => {}); pools.set(role,pool);
   }
   await verifyTrainingDatabaseRole(pool,role);
-  const clients = ['https://robinhood-rpc.publicnode.com','https://rpc.mainnet.chain.robinhood.com'].map(url =>
-    createPublicClient({ transport: http(url,{ timeout: 5000,retryCount: 0 }), cacheTime: 0 }));
+  const clients = createForgeRpcClients(environment);
   const store = createPostgresTrainingStore({ pool, deployment: trainingDeploymentBinding(release) });
   return { release,clients,store,pool, ...(role === 'request' ? {
     coordinator: createTrainingCoordinator({ pool, storeFactory: createPostgresTrainingStore,

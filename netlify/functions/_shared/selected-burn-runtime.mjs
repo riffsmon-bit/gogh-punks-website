@@ -1,4 +1,3 @@
-import { createPublicClient, http } from 'viem';
 import { forgeTrainingRuntime } from './forge-training-runtime.mjs';
 import { createSelectedBurnStore } from '../../../broker/src/v4/skill-forge/selected-burn-store.mjs';
 import { createSelectedBurnCoordinator } from '../../../broker/src/v4/skill-forge/selected-burn-coordinator.mjs';
@@ -10,7 +9,7 @@ const CHECKS={broker_v2_agent_sessions:'punk_token_id',broker_v2_execution_attem
   broker_automation_v3_enrollments:'token_id',broker_directed_mint_intents:'punk_token_id',broker_forge_training_intents:'punk_token_id',
   broker_scouting_schedules:'token_id',broker_canary_execution_reviews:'punk_token_id'};
 export async function selectedBurnRuntime(applicationPool) {
-  const {release,pool}=await forgeTrainingRuntime('request');
+  const {release,pool,clients}=await forgeTrainingRuntime('request');
   if(burnRelease.status!=='OWNER_CANARY'||burnRelease.productionBurnAuthorized!==true||burnRelease.chainId!==4663
     ||burnRelease.owner!==SELECTED_BURN_OWNER||burnRelease.sourceTokenId!=='1753'||burnRelease.targetTokenId!=='93'
     ||['collection','registry','progression'].some(role=>burnRelease[role]!==release[role])
@@ -22,8 +21,6 @@ export async function selectedBurnRuntime(applicationPool) {
     has_table_privilege(current_user,'broker_selected_burn_events','INSERT,UPDATE,DELETE') AS writes_audit
     FROM pg_class c WHERE c.oid='broker_selected_burn_reviews'::regclass`)).rows[0];
   if(!role||role.rls!==true||role.owns!==false||role.deletes!==false||role.writes_audit!==false)throw Error('BURN_DATABASE_ROLE_INVALID');
-  const clients=['https://robinhood-rpc.publicnode.com','https://rpc.mainnet.chain.robinhood.com'].map(url=>
-    createPublicClient({cacheTime:0,transport:http(url,{batch:{batchSize:20,wait:5},timeout:6000,retryCount:1,retryDelay:200})}));
   const checkObligations=async()=>{
     const counts={};
     const rows=await Promise.all(Object.entries(CHECKS).map(async([table,column])=>[table,
