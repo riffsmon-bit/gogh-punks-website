@@ -27,7 +27,7 @@ export class BankrArtBrokerProvider extends ArtBrokerAIProvider {
     catch { return { ok: false, code: "NOT_CONFIGURED" }; }
   }
 
-  async invoke(task, input) {
+  async invoke(task, input, { signal, timeoutMs } = {}) {
     assertProviderTask(task);
     const schema = input?.schema ? strictSchema(input.schema) : null;
     const body = { model: this.modelId, max_tokens: Number.isInteger(input?.maxOutputTokens)
@@ -43,7 +43,7 @@ export class BankrArtBrokerProvider extends ArtBrokerAIProvider {
       name: "gogh_art_broker_result", strict: true, schema } };
     const secret = providerSecret(this.environment, "BANKR_API_KEY");
     const { payload, latencyMs } = await providerJsonRequest({ fetchImpl: this.fetchImpl,
-      url: this.endpoint, timeoutMs: this.timeoutMs,
+      url: this.endpoint, timeoutMs: Math.min(this.timeoutMs, timeoutMs ?? this.timeoutMs), signal,
       headers: { "x-api-key": secret, "content-type": "application/json" }, body });
     const choice = payload?.choices?.[0];
     if (choice?.finish_reason === "length") {

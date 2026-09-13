@@ -75,7 +75,7 @@ export class GeminiArtBrokerProvider extends ArtBrokerAIProvider {
     catch { return { ok: false, code: "NOT_CONFIGURED" }; }
   }
 
-  async invoke(task, input) {
+  async invoke(task, input, { signal, timeoutMs } = {}) {
     assertProviderTask(task);
     const schema = input?.schema ? strictSchema(input.schema) : null;
     const maxOutputTokens = Number.isInteger(input?.maxOutputTokens)
@@ -93,7 +93,7 @@ export class GeminiArtBrokerProvider extends ArtBrokerAIProvider {
         ...(schema ? { responseMimeType: "application/json", responseJsonSchema: schema } : {}) },
     };
     const { payload, latencyMs } = await providerJsonRequest({ fetchImpl: this.fetchImpl,
-      url: this.endpoint, timeoutMs: this.timeoutMs,
+      url: this.endpoint, timeoutMs: Math.min(this.timeoutMs, timeoutMs ?? this.timeoutMs), signal,
       headers: { "x-goog-api-key": secret, "content-type": "application/json" }, body });
     const text = generatedText(payload);
     if (typeof text !== "string") {

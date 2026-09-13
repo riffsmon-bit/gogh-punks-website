@@ -6,8 +6,14 @@ import { modelRegistryFromEnvironment } from "./registry.mjs";
 import { GoghIntelligenceRouter } from "./router.mjs";
 import { XAIArtBrokerProvider } from "./xai.mjs";
 
+import { NetlifyGrokArtBrokerProvider } from "./xai-gateway.mjs";
+
 export function createGoghIntelligenceRuntime({ environment = process.env, fetchImpl = fetch,
   quota, usage } = {}) {
+  if (environment.GOGH_XAI_TRANSPORT !== undefined
+    && !["DIRECT", "NETLIFY_GATEWAY"].includes(environment.GOGH_XAI_TRANSPORT)) {
+    throw new TypeError("xAI transport is invalid");
+  }
   const registry = modelRegistryFromEnvironment(environment);
   const providers = {};
   for (const entry of registry.enabled()) {
@@ -15,7 +21,8 @@ export function createGoghIntelligenceRuntime({ environment = process.env, fetch
     if (entry.provider === "GEMINI") providers[entry.registryKey] = new GeminiArtBrokerProvider(options);
     else if (entry.provider === "OPENAI") providers[entry.registryKey] = new OpenAIArtBrokerProvider(options);
     else if (entry.provider === "ANTHROPIC") providers[entry.registryKey] = new AnthropicArtBrokerProvider(options);
-    else if (entry.provider === "XAI") providers[entry.registryKey] = new XAIArtBrokerProvider(options);
+    else if (entry.provider === "XAI") providers[entry.registryKey] = environment.GOGH_XAI_TRANSPORT === "NETLIFY_GATEWAY"
+      ? new NetlifyGrokArtBrokerProvider(options) : new XAIArtBrokerProvider(options);
     else if (entry.provider === "BANKR") providers[entry.registryKey] = new BankrArtBrokerProvider(options);
   }
   return Object.freeze({ registry, providers,

@@ -3,16 +3,21 @@ import {
   exactHttpsEndpoint, providerJsonRequest, providerResult, providerSecret, strictSchema,
 } from "./provider.mjs";
 
+import { managedProviderEndpoint } from "./gateway.mjs";
+
 export class AnthropicArtBrokerProvider extends ArtBrokerAIProvider {
   constructor({ modelId, fetchImpl = fetch, environment = process.env, timeoutMs = 20_000,
-    endpoint = "https://api.anthropic.com/v1/messages" }) {
+    endpoint }) {
     super("ANTHROPIC");
     if (typeof modelId !== "string" || !modelId.trim() || modelId.length > 160) {
       throw new TypeError("model ID is invalid");
     }
     this.modelId = modelId.trim(); this.fetchImpl = fetchImpl;
     this.environment = environment; this.timeoutMs = timeoutMs;
-    this.endpoint = exactHttpsEndpoint(endpoint, "https://api.anthropic.com", "/v1/messages");
+    const bound = managedProviderEndpoint({ environment, baseVariable: "ANTHROPIC_BASE_URL",
+      directOrigin: "https://api.anthropic.com", path: "/v1/messages" });
+    const url = new URL(bound);
+    this.endpoint = exactHttpsEndpoint(endpoint ?? bound, url.origin, url.pathname);
   }
 
   getCapabilities() {
@@ -27,7 +32,7 @@ export class AnthropicArtBrokerProvider extends ArtBrokerAIProvider {
     catch { return { ok: false, code: "NOT_CONFIGURED" }; }
   }
 
-  async invoke(task, input) {
+  async invoke(task, input, { signal, timeoutMs } = {}) {
     assertProviderTask(task);
     const schema = input?.schema ? strictSchema(input.schema) : null;
     const body = { model: this.modelId,
@@ -41,7 +46,7 @@ export class AnthropicArtBrokerProvider extends ArtBrokerAIProvider {
     if (schema) body.output_config = { format: { type: "json_schema", schema } };
     const secret = providerSecret(this.environment, "ANTHROPIC_API_KEY");
     const { payload, latencyMs } = await providerJsonRequest({ fetchImpl: this.fetchImpl,
-      url: this.endpoint, timeoutMs: this.timeoutMs,
+      url: this.endpoint, timeoutMs: Math.min(this.timeoutMs, timeoutMs ?? this.timeoutMs), signal,
       headers: { "x-api-key": secret, "anthropic-version": "2023-06-01",
         "content-type": "application/json" }, body });
     if (["max_tokens", "model_context_window_exceeded"].includes(payload?.stop_reason)) {
