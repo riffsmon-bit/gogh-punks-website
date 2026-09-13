@@ -5,6 +5,9 @@ import { readDurableTrainingReceipt } from './training-receipt-verifier.mjs';
 export const TRAINING_SETTLED_STATES = Object.freeze(['SETTLED_SUCCESS', 'SETTLED_REVERT', 'NONCE_CONSUMED', 'REVIEW_EXPIRED']);
 const SCHEMA = 'GOGH_TRAINING_SETTLEMENT_V1';
 const POLICY = 'RPC_FINALIZED_QUORUM_V1';
+// Legacy V1 schema slot IDs retained by persisted evidence hashes and the SQL
+// constraint. They identify [secondary, primary], not current provider vendors.
+// Actual endpoints come from the validated server-only RPC pair configuration.
 const SOURCES = ['PUBLICNODE', 'ROBINHOOD'];
 const KEYS = ['schema', 'policy', 'status', 'reviewHash', 'transactionHash', 'finalizedBlockNumber',
   'finalizedBlockHash', 'finalizedTimestamp', 'receiptBlockNumber', 'receiptBlockHash', 'ownerNonce', 'sources', 'evidenceHash'];
@@ -52,7 +55,7 @@ function checkedBlock(block) {
 const sameBlock = (one, two) => one.number === two.number && one.hash === two.hash && one.timestamp === two.timestamp;
 const missingTransaction = error => error?.name === 'TransactionNotFoundError';
 
-// Both clients are fixed server dependencies, in PUBLICNODE / ROBINHOOD order.
+// Both clients are fixed server dependencies, in secondary / primary order.
 // This follows the providers' finalized tags, not an independent L1 proof. There
 // is no fallback to latest/safe, elapsed time or a fixed L2 confirmation count.
 export async function readTrainingSettlement({ clients, review, transactionHash = null,

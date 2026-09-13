@@ -40,3 +40,8 @@ test('A saved key alone does not enable Groq and the preference UI reflects serv
     { provider: 'GROQ', health: { ok: true } }, { provider: 'BANKR', health: { ok: false } },
   ] }), ['AUTO', 'GROQ']);
 });
+
+test('Bankr text-only adapter is not advertised as accepting images', () => {
+  const { registry } = createGoghIntelligenceRuntime({ environment: { GOGH_BANKR_MODEL: 'reviewed-text-model' } });
+  assert.equal(registry.get('bankr:auto').capabilities.supportsImages, false);
+});
