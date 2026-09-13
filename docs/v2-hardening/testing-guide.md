@@ -2,7 +2,7 @@
 
 Open **[Gogh Punks Art Broker V2](https://goghpunks.xyz/broker/v2/)**. Start with **Punk #93** on Robinhood Chain. You can connect, explore, talk and review your collecting rules without funding anything.
 
-This guide is dated September 13, 2026. The artwork and Collection repair is already live. The final hardening build is still being validated in [preview #65](https://deploy-preview-65.preview.goghpunks.xyz); its provider choices, funding recovery and mobile refinements must not be assumed live until the release is confirmed. **The preview is not a practice chain.** Use the separate disposable environment supplied for transaction practice.
+This guide is dated September 13, 2026. The artwork and Collection repair is already live. The final hardening build is live as release `61cb6a9`: provider choices, funding recovery, supported contract inspection and mobile refinements are published. Refresh an already-open tab. [Release verification](release-acceptance.json). **The preview is not a practice chain.** Use the separate disposable environment supplied for transaction practice.
 
 ## What is already confirmed
 
@@ -10,7 +10,7 @@ This guide is dated September 13, 2026. The artwork and Collection repair is alr
 - Original **#1753 has not been burned** by this hardening work. The controlled test used copies of #1753, #93 and #94.
 - The earlier unused paid-mint refund was **not withdrawn**. The last recorded amount was **0.000183954 ETH**; a fresh reviewed balance would be needed before any later withdrawal.
 - The controlled Forge test completed burn → one credit → learn Rarity Eye → equip → use → unequip, plus an extra copied burn to unlock a slot. Skills, slots and holdings stayed with the copied Punk after transfer.
-- Gemini, GPT, Claude and Grok passed real conversation and structured-response checks. GPT/Claude/Grok and the new Gemini runtime were checked on the hardening preview; Gemini also passed the released production runtime. **Bankr is unavailable until a reviewed credential is configured.**
+- Gemini, GPT, Claude and Grok passed real conversation and structured-response checks. All four also passed on the published production runtime. **Bankr is unavailable until a reviewed credential is configured.**
 
 ## 1. Connect and choose your Punk
 
@@ -57,7 +57,7 @@ In the hardening build, choose a model in Settings, send a normal question, relo
 
 Choose **Inspect a collection or mint link** in Example prompts, open the link checker and paste a supported Robinhood collection, mint or explorer URL.
 
-Watch for clear progress and then check the identified collection, chain, mint price, availability and any screening/simulation result. **Needs review**, **unsupported** and **unavailable** are valid results; none means a simulation passed. The final supported-source resolver is still being integrated at this guide's snapshot, so an identified URL alone is not a completed mint inspection.
+Watch for clear progress and then check the identified collection, chain, mint price, availability and any screening/simulation result. **Needs review**, **unsupported** and **unavailable** are valid results; none means a simulation passed. Robinhood explorer contract links now return anchored contract evidence and, for supported SeaDrop contracts, observed public mint details. Generic sites remain unresolved; this inspection does not run a fresh wallet simulation.
 
 The checker must never ask you to accept a wallet transaction copied from a website. An unknown or ambiguous collection needs further identification. Do not paste a real paid mint and expect it to become a free-mint mission.
 
@@ -107,7 +107,7 @@ The current composed test passed this sequence using copied #1753 → #93, then 
 |---|---|
 | Rarity Eye | Registered v1; full learn/equip/research/transfer sequence passed on the disposable deployed-stack copy. Real #93 has no recorded public learned/equipped completion from this phase. |
 | Contract Detective | Existing read-only research lab/package; laboratory availability is not permanent skill acceptance or purchase permission. |
-| Market Scout | Read-only research exists. New exact-price v2 passed real bounded listing reads but remains TESTING, with separate package/runtime/registry review required before promotion. A listing sample is not a guaranteed floor quote. |
+| Market Scout | Read-only research exists. New exact-price v2 passed real bounded listing reads but remains TESTING, and is available in the controlled lab; separate package/runtime/registry review is required before promotion. A listing sample is not a guaranteed floor quote. |
 | Chat playbook skills | Reviewable scouting routines; they do not spend permanent credits or authorize purchases. |
 | Mint Hunter, Link Sniper and other roadmap skills | Existing related tools do not mean all named Forge packages are accepted, learnable and equipped. Follow the actual released/available label. |
 | Free missions | Existing bounded supported-mint lane; review-only prompts and disposable tests are appropriate here. No eligible current mint is a valid outcome. A new broad autonomous mission is outside this phase. |

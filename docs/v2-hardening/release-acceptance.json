@@ -1,0 +1,189 @@
+{
+  "schema": "GOGH_FINAL_HARDENING_RELEASE_ACCEPTANCE_V1",
+  "verdict": "FINAL_TESTING_READY",
+  "scope": "controlled holder end-to-end testing; no production financial actions",
+  "productionCommit": "61cb6a973027d5f3ae3744fa62f0cb45e57dff4f",
+  "pullRequest": 65,
+  "deploymentId": "6aa6f80761abe600083ab7c1",
+  "publishedAt": "2026-09-13T19:24:57.840Z",
+  "url": "https://goghpunks.xyz/broker/v2/",
+  "testGuide": "https://goghpunks.xyz/broker/v2/test-guide/",
+  "static": {
+    "checkedAt": "2026-09-13T19:26:37.349Z",
+    "productionCommit": "61cb6a973027d5f3ae3744fa62f0cb45e57dff4f",
+    "checks": [
+      {
+        "path": "broker/v2/index.html",
+        "status": 200,
+        "elapsedMs": 490,
+        "bytes": 35861,
+        "matches": true,
+        "sha256": "d07b2dfc36a2516bd6c2c90091011dbfeff58713e85261323552a5f391901fd6"
+      },
+      {
+        "path": "broker-v2.js",
+        "status": 200,
+        "elapsedMs": 445,
+        "bytes": 174645,
+        "matches": true,
+        "sha256": "e700d5f9e06c520a467a6dc7e2226dd0568ba72971f863e9fd243c7a843adc7e"
+      },
+      {
+        "path": "broker-v2.css",
+        "status": 200,
+        "elapsedMs": 361,
+        "bytes": 48971,
+        "matches": true,
+        "sha256": "15b3aa4348011af9c4d86eb685b2255d13de4a2c60af21e23b217fc100b1ba92"
+      },
+      {
+        "path": "broker-v2-link-findings.js",
+        "status": 200,
+        "elapsedMs": 326,
+        "bytes": 3612,
+        "matches": true,
+        "sha256": "b632efce7650d850dcacac5e41f35f474c7a6856c11162fc4852ecf0b4a2d828"
+      },
+      {
+        "path": "broker-v2-forge.js",
+        "status": 200,
+        "elapsedMs": 321,
+        "bytes": 9883,
+        "matches": true,
+        "sha256": "813de672b779c7d22d87c99a904e8032a12517adce61241b1fd7a3801278bc7c"
+      },
+      {
+        "path": "broker-v2-preferences.js",
+        "status": 200,
+        "elapsedMs": 315,
+        "bytes": 4522,
+        "matches": true,
+        "sha256": "3c0785a5c36d9529f696e0ac33be67a216535e6f7243712695fc5d3c6afb9f48"
+      },
+      {
+        "path": "punk-agent-gas-funding.js",
+        "status": 200,
+        "elapsedMs": 327,
+        "bytes": 7475,
+        "matches": true,
+        "sha256": "a65eafdd80870608231b5670d32b4c5a6316f995204e4a42cbe57da147c75402"
+      },
+      {
+        "path": "punk-agent-gas-recovery-panel.js",
+        "status": 200,
+        "elapsedMs": 352,
+        "bytes": 4100,
+        "matches": true,
+        "sha256": "ebe2dd3890e3531571821c906e907b1fa3b08c517020e39ad65d8b8f941078a8"
+      },
+      {
+        "path": "broker/v2/test-guide/index.html",
+        "status": 200,
+        "elapsedMs": 314,
+        "bytes": 8186,
+        "matches": true,
+        "sha256": "df3485e9804fb565c64da81d7a284a0a7c9bf5f53c27bdaae0e0d6ec9f205a5d"
+      }
+    ],
+    "ok": true,
+    "publicTransactions": 0
+  },
+  "authenticatedHolderReads": {
+    "checkedAt": "2026-09-13T19:26:28.035Z",
+    "pending": false,
+    "results": [
+      {
+        "name": "collection",
+        "status": 200,
+        "elapsedMs": 6991,
+        "ok": true,
+        "holdings": 34,
+        "paid1599": true,
+        "unavailable": []
+      },
+      {
+        "name": "fund",
+        "status": 200,
+        "elapsedMs": 5353,
+        "ok": true
+      },
+      {
+        "name": "roster",
+        "status": 200,
+        "elapsedMs": 2800,
+        "count": 140,
+        "contains93": true,
+        "coverage": {
+          "status": "COMPLETE_AT_BLOCK",
+          "blockNumber": "62203654",
+          "blockHash": "0x2d79c6f8752f1037f6475d2eedd44477e9b64e50a1d1d86f96f36a0a3ed2a9af",
+          "verifiedCount": 140,
+          "scope": "ORIGINAL_GOGH_COLLECTION"
+        }
+      },
+      {
+        "name": "link",
+        "status": 200,
+        "elapsedMs": 2657,
+        "ok": true,
+        "inspectionStatus": "NEEDS_REVIEW",
+        "reason": "SEADROP_STATE_OBSERVED",
+        "chainId": 4663,
+        "mint": {
+          "status": "OBSERVED",
+          "standard": "SEADROP_PUBLIC",
+          "mintContract": "0x00005ea00ac477b1030ce78506496e8c2de24bf5",
+          "priceWei": "100000000000000",
+          "startTime": "1789315200",
+          "endTime": "1789747200",
+          "walletLimit": "50",
+          "totalMinted": "1604",
+          "maxSupply": "2222",
+          "feeRecipientAllowed": true,
+          "publicWindow": "OPEN",
+          "reason": "PUBLIC_STATE_OBSERVED"
+        },
+        "simulation": "UNAVAILABLE",
+        "transactionPrepared": false
+      },
+      {
+        "name": "market",
+        "status": 200,
+        "elapsedMs": 14136,
+        "ok": true,
+        "schema": "GOGH_MARKET_LISTING_OBSERVATIONS_V2",
+        "listings": 5,
+        "coverage": {
+          "status": "BOUNDED_SAMPLE",
+          "requestedLimit": 5,
+          "maxPages": 2,
+          "pagesRead": 1,
+          "listingsRead": 5,
+          "supportedCount": 5,
+          "excluded": {},
+          "providerPaginationExhausted": false,
+          "collectionFloorVerified": false,
+          "collectionFloor": null,
+          "unavailable": null
+        },
+        "walletAuthority": "NONE"
+      }
+    ],
+    "publicTransactions": 0,
+    "walletRequests": 0
+  },
+  "publicTransactions": 0,
+  "walletRequests": 0,
+  "remainingP0": 0,
+  "remainingP1": 0,
+  "remainingP3": [
+    "Decorative budget meter may retain cached width while numeric amounts correctly become unavailable."
+  ],
+  "limitations": [
+    "Bankr not configured",
+    "Floor sweeps and WETH bids unavailable",
+    "Not all roadmap skills released",
+    "Disposable Forge clearance uses mocked inventory; no original NFT cleared for public burn",
+    "Browser viewport tests do not establish native mobile wallet handoff"
+  ]
+}
