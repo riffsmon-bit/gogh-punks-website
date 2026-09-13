@@ -1,4 +1,6 @@
-# Gogh Punks live test guide — September 16 release
+# Historical September 12 launch test record
+
+This record is superseded by [the final holder testing guide](v2-hardening/testing-guide.md) and [the live guide](https://goghpunks.xyz/broker/v2/test-guide/). Its deployment IDs, feature labels and setup steps describe the earlier release, not the current test build.
 
 **Core broker release published September 12 at 3:43 PM America/Detroit.** Open
 [the live broker](https://goghpunks.xyz/broker/v2/?tab=talk). The core release commit is

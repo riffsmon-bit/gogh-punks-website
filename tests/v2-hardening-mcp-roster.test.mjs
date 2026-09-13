@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { decodeFunctionData, encodeFunctionResult, parseAbi } from 'viem';
-import { readV2McpRoster } from '../netlify/functions/_shared/v2-mcp-roster.mjs';
+import { readV2McpRoster, getV2RosterRpcUrl } from '../netlify/functions/_shared/v2-mcp-roster.mjs';
 import registryCode from './fixtures/market-mcp/registry-code.json' with { type: 'json' };
 import { ROBINHOOD } from '../broker/src/config.mjs';
 
@@ -11,6 +11,13 @@ const account = id => `0x${BigInt(10_000 + Number(id)).toString(16).padStart(40,
 const word = n => `0x${BigInt(n).toString(16).padStart(64, '0')}`;
 const addr = a => `0x${a.slice(2).padStart(64, '0')}`;
 const delay = n => new Promise(resolve => setTimeout(resolve, n));
+test('MCP roster uses the configured archive for pinned reads without exposing bad configuration', () => {
+  assert.equal(getV2RosterRpcUrl({ ROBINHOOD_ARCHIVE_RPC_URL: 'https://archive.example/secret' }), 'https://archive.example/secret');
+  for (const raw of ['http://archive.example/secret', 'not-a-url-secret']) {
+    assert.throws(() => getV2RosterRpcUrl({ ROBINHOOD_ARCHIVE_RPC_URL: raw }), error =>
+      error.code === 'PUNK_ROSTER_UNAVAILABLE' && !error.message.includes('secret'));
+  }
+});
 function fixture({ owned = ['93', '235', '5016'], hints = ['93', '44'], latency = 0 } = {}) {
   const calls = [], controls = { brokenAccount: false, badCode: false, reorg: false,
     wrongChain: false, switchChain: false, mismatch: false, badRpc: false };

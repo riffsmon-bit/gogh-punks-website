@@ -172,8 +172,8 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .talk-mode-control label > input:checked + span small { color: var(--ink); }
 .talk-mode-control label b { overflow: hidden; font-size: .69rem; text-overflow: ellipsis; white-space: nowrap; }
 
-.talk-layout { display: grid; grid-template-columns: 1fr 240px; gap: 18px; }
-.conversation { min-height: 230px; max-height: 420px; overflow-y: auto; padding: 20px; border: 1px solid var(--line); background: var(--ink); }
+.talk-layout { display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 18px; }
+.conversation { min-width: 0; min-height: 230px; max-height: 420px; overflow-y: auto; padding: 20px; border: 1px solid var(--line); background: var(--ink); }
 .message { display: flex; gap: 12px; margin-bottom: 15px; }
 .message img { flex-shrink: 0; width: 44px; height: 44px; object-fit: cover; image-rendering: pixelated; border: 1px solid var(--line-strong); }
 .message div { min-width: 0; max-width: 680px; padding: 12px 14px; background: var(--surface-raised); }
@@ -408,6 +408,13 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .withdraw-grid p, .settings-grid p { min-height: 52px; color: var(--muted); font-size: .8rem; line-height: 1.5; }
 .withdraw-grid a { display: inline-flex; align-items: center; min-height: 44px; margin-top: 15px; color: var(--acid);
   font-size: .66rem; font-weight: 900; letter-spacing: .08em; }
+.link-findings { margin-top: 16px; min-width: 0; }
+.link-findings h3 { font-size: .9rem; color: var(--cyan); }
+.link-findings dl { margin: 12px 0; }
+.link-findings dl > div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.link-findings dt { color: var(--muted); font-size: .8rem; }
+.link-findings dd { margin: 0; font-size: .85rem; overflow-wrap: anywhere; }
+.link-findings a { display: inline-flex; align-items: center; min-height: 44px; color: var(--cyan); font-weight: 800; }
 .settings-grid { grid-template-columns: minmax(0, 1.3fr) minmax(0, .7fr); }
 .settings-grid article, .settings-grid .select-label { min-width: 0; }
 .settings-grid select { width: 100%; min-width: 0; }
@@ -483,7 +490,8 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   .panel-header h2 { font-size: 2.6rem; }
   .talk-mode-control { grid-template-columns: 1fr; }
   .talk-mode-control fieldset { grid-template-columns: 1fr; }
-  .talk-layout { grid-template-columns: 1fr; }
+  .talk-layout { grid-template-columns: minmax(0, 1fr); }
+  .link-findings dl > div { grid-template-columns: minmax(0, 1fr); gap: 4px; }
   .quick-commands { display: grid; grid-template-columns: repeat(2, 1fr); }
   .quick-commands > span { grid-column: 1 / -1; }
   .quick-commands button { padding: 10px; border-right: 1px solid var(--line); }

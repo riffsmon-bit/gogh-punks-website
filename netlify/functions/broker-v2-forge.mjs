@@ -7,7 +7,7 @@ import { ROBINHOOD } from '../../broker/src/config.mjs';
 import { createOriginalForgeProfileReader } from '../../broker/src/v4/skill-forge/original-punk-profile.mjs';
 import { loadResearchSkillCatalog } from '../../broker/src/v4/skill-forge/research-runtime.mjs';
 import { inspectContract, retrieveInlineMetadata, rankTraitSample } from '../../broker/src/v4/skill-forge/research-tools.mjs';
-import { createMarketReader } from '../../broker/src/v4/skill-forge/market-reader.mjs';
+import { createMarketReaderV2 } from '../../broker/src/v4/skill-forge/market-reader-v2.mjs';
 import { getRpcUrl } from './_shared/config.mjs';
 import { json, readJson, PublicError, requireSameOrigin } from './_shared/http.mjs';
 import { v2Failure } from './_shared/v2-http.mjs';
@@ -24,7 +24,7 @@ export async function handleForge(request, { pool, environment = process.env, ma
   // included_files retain these repository-relative paths in the function task root.
   // Do not resolve paths relative to bundled import.meta.url (all modules move into one file).
   packageLoader = () => loadResearchSkillCatalog({ root: pathToFileURL(`${process.cwd()}/`) }), inspector = inspectContract,
-  metadataReader = retrieveInlineMetadata, marketFactory = createMarketReader,
+  metadataReader = retrieveInlineMetadata, marketFactory = createMarketReaderV2,
 } = {}) {
   if (!['GET', 'POST'].includes(request.method)) return json({ ok: false, code: 'METHOD_NOT_ALLOWED' }, 405);
   try {

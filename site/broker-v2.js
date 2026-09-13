@@ -1,4 +1,5 @@
 import { displayEth, displayEthBudget } from "./broker-v2-amounts.js";
+import { linkFindings, createLinkFindingsCard } from './broker-v2-link-findings.js';
 import { mountBrokerPreferences } from "./broker-v2-preferences.js";
 import { verifyOwnedPunkIds } from "./broker-v2-ownership.js";
 import { createForgeControl } from './broker-v2-forge.js';
@@ -1171,8 +1172,8 @@ function renderSelected() {
     ? "Punk Agent Account gas balance" : "selected Punk Wallet");
   const balance = Number(punk.balanceEth ?? 0); const reserve = Number(punk.reserveEth ?? 0);
   const available = Math.max(0, balance - reserve);
-  const balanceKnown = punk.balanceLoaded !== false;
-  const nativeDisplay = balanceKnown ? `${punk.balanceEth} ETH` : "CHECKING…";
+  const balanceKnown = punk.balanceLoaded !== false && !punk.balanceError;
+  const nativeDisplay = balanceKnown ? `${punk.balanceEth} ETH` : punk.balanceError ? "UNAVAILABLE" : "CHECKING…";
   const wethDisplay = punk.wethBalanceEth == null ? punk.balanceError ? "UNAVAILABLE" : "CHECKING…" : `${punk.wethBalanceEth} WETH`;
   set("[data-punk-balance]", nativeDisplay);
   set("[data-fund-balance]", fundingAgent
@@ -1761,7 +1762,7 @@ async function hydrateSelected(tab) {
   }
 }
 
-function addMessage(role, message) {
+function addMessage(role, message, details = null) {
   const conversation = one("[data-conversation]"); const article = document.createElement("article");
   article.className = `message ${role === "owner" ? "owner-message" : "punk-message"}`;
   if (role !== "owner") {
@@ -1770,6 +1771,7 @@ function addMessage(role, message) {
   const copy = document.createElement("div"); const label = document.createElement("b");
   label.textContent = role === "owner" ? "OWNER" : `PUNK #${state.selected?.tokenId ?? "—"}`;
   const text = document.createElement("p"); text.textContent = message; copy.append(label, text); article.append(copy);
+  if (details) copy.append(details);
   conversation.append(article); conversation.scrollTop = conversation.scrollHeight;
   const key = selectedReviewKey();
   if (key && typeof message === "string" && message.trim()) {
@@ -2163,6 +2165,7 @@ function setup() {
     one("#agent-gas-amount").focus();
   });
   one("[data-agent-gas-recheck]").addEventListener("click", async () => {
+    if (state.selected?.account) void loadPunkBalances(state.selected).catch(() => {});
     set("[data-agent-gas-readiness]", "Checking readiness; MetaMask may request a sign-in message, not a funding transaction…");
     await loadAgentAccountStatus({ authenticate: true });
     renderAgentAccount();
@@ -2461,7 +2464,8 @@ function setup() {
       output.textContent = `${kind} · ${status}. See the review below for available contract checks and simulation. Nothing was submitted.`;
       addReviewActivity("DISCOVERED", kind, `${status} · transaction data ignored`);
       renderReviewAgent();
-      addMessage("punk", `LINK IDENTIFIED 👀 ${kind}. CURRENT VERDICT: ${status}. I can't call it safe yet—contract resolution, screening, and simulation still have to pass.`);
+      const findings = linkFindings(inspection);
+      addMessage("punk", findings?.summary ?? `LINK IDENTIFIED 👀 ${kind}. CURRENT VERDICT: ${status}. Contract details, safety checks and simulation still need review.`, createLinkFindingsCard(findings));
     } catch (error) {
       if (!isCurrent()) return;
       const invalid = error instanceof TypeError || !error?.message;

@@ -16,64 +16,46 @@
   </style>
 </head>
 <body><main>
-  <nav aria-label="Broker links"><a href="/broker/v2/?tab=talk">Open production broker</a><a href="/broker/v2/?tab=forge">Open Forge</a></nav>
-  <h1>Production test guide</h1>
-  <p>Start with Punk <strong>#93</strong> on Robinhood Chain. Paid minting and burn-to-training have selected-owner canary controls. The completed setup transactions do not need to be repeated.</p>
-  <p><small>Updated September 13, 2026. Punk #93’s first paid mint delivered Peppies World #1599 to its Agent wallet. Historical chain checks and its saved completion record passed. New missions still require a fresh check and your own budget confirmation.</small></p>
-  <section><h2>1. Connect, chat and check status</h2>
-    <ol><li>Open the broker, connect the owner wallet ending <strong>7AA6</strong>, select #93, and sign in if asked.</li>
-      <li>Send the prompt below. The answer should describe the selected Punk’s current state.</li>
-      <li>Open <strong>Example prompts</strong> under Talk. Choosing an example should fill the composer so you can edit it before sending.</li>
-      <li>Ask about pixel art or your collecting preferences. A conversation should not change a mission or request a purchase signature.</li></ol>
-    <blockquote>Check my status</blockquote>
-  </section>
-  <section><h2>2. One confirmation → directed paid mint</h2>
-    <p class="status">Selected owner test · #93 · Peppies World · historical-chain verification required</p>
-    <blockquote>Mint one NFT from Peppies World for up to 0.0001 ETH.</blockquote>
-    <ol><li>Send this in Talk. The <strong>Directed paid mint</strong> panel retains your maximum mint price and checks for a fresh quote for exactly one NFT. If historical chain verification is unavailable, it must explain the blocked state and request no new budget.</li>
-      <li>Verify Peppies World: <code>0xb73f1d1aee57410d537d87b656e98b9d3df5b213</code>. Check the mint price, fixed worker fee, total escrow, wallet network fee and expiry. The full quoted worker fee is charged only after successful delivery.</li>
-      <li>Select <strong>Confirm mint budget in wallet</strong> and approve once. First use creates #93’s mint vault, so its network gas is higher than later authorizations.</li>
-      <li>The worker checks every minute. A confirmed budget means funding succeeded; it does not mean a mint has been submitted. Use <strong>Recheck paid mint</strong> until delivery is verified. A second purchase signature should not be requested.</li>
-      <li>Verify the receipt and NFT token ID. The destination is #93’s Agent wallet, <code>0xcadcfd37e715bc031cf0cec7fa2335091c878c83</code>. Check Collection and Activity too; current NFT ownership is verified when Collection loads.</li></ol>
-    <p>Historical contract reads and ownership logs must pass on both providers before a new budget can be confirmed. If history verification is unavailable, wait for the service to recover; no new budget should be requested.</p>
-    <p>If a review expires before any wallet request, cancel the unsent review and prepare a fresh quote. If a wallet request was made, recover its original transaction hash from wallet activity. Refreshing must not send it again. A failed recheck or invalid pasted hash should retain your typed recovery details.</p>
-    <p>If the mint stops or expires, review <strong>Mission cancellation</strong>, confirm it, then review <strong>Refund</strong> and withdraw. These are two separate wallet transactions. The refund contains unused mint escrow; network gas already spent is excluded.</p>
-  </section>
-  <section><h2>3. Practice burn and training</h2>
-    <p class="status">Controlled test environment only · production burns are outside this hardening test</p>
-    <p>Use the separate practice Forge supplied with the test build. Check that it identifies a disposable chain before continuing. The production Forge does not become a practice chain by opening a preview URL.</p>
-    <ol><li>Choose the Punk to train, then a different test Punk to sacrifice.</li>
-      <li>Check the selected names, wallet inventory and mission status. A test Punk with funds, NFTs, tokens or unresolved work must remain blocked.</li>
-      <li>Read the permanent-sacrifice warning. Confirm the displayed Punk number and the exact credit recipient.</li>
-      <li>Complete the test burn. Verify that the source disappears and the recipient receives exactly one Training Credit. Refreshing must not burn again or add another credit.</li>
-      <li>Learn Rarity Eye, then equip it in an available slot. Learning keeps a skill with your Punk; equipping makes it available to use.</li>
-      <li>Run a trait comparison, unequip the skill and check that the action becomes unavailable. Equip it again and repeat.</li>
-      <li>Transfer the trained test Punk to the second test wallet. Its skills and slots should remain; the previous owner must lose control and automation must pause.</li></ol>
-    <p><strong>Do not use production #1753 for this practice.</strong> A real burn permanently destroys the NFT and can remove access to its wallets, including later deposits. Assets are never automatically moved to #93.</p>
-    <p>A failed check should preserve your typed details. After an unresolved wallet request, recover the original transaction instead of submitting again.</p>
-  </section>
-  <section><h2>4. Free missions and recall</h2>
-    <blockquote>Autonomously find and mint one free pixel art NFT. Maximum one mint per day and one mint total. Max 0.0005 ETH gas per mint. Show me the mission for review.</blockquote>
-    <p>Review the mode, gas cap, reserve, expiry and any collection restrictions. Confirm the required Agent setup. The worker should report checks in Activity; it should count a mint only after verifying its receipt. No eligible match is a valid outcome.</p>
-    <p>For a directed free mint, choose the exact-contract example and replace its placeholder with an open, supported collection. A paid collection must not silently become a free-mint mission.</p>
-    <blockquote>ok recall please</blockquote>
-    <p>Recall applies to the free-mint Agent session. Confirm revocation if the wallet asks, then verify paused or revoked status. A funded paid mint has its own cancellation control in Talk.</p>
-  </section>
-  <section><h2>5. Gas, ETH, WETH and NFTs</h2>
-    <ul><li><strong>Agent gas:</strong> send “Fund gas.” Review the source, destination and a small amount you choose. Verify the balance change after the receipt.</li>
-      <li><strong>V3 Punk Wallet ETH:</strong> open Fund. The V3 wallet balance is separate from Agent ETH and its EntryPoint gas deposit. Review the source and exact destination before signing.</li>
-      <li><strong>WETH:</strong> use Fund → ETH ↔ WETH to wrap and unwrap a small chosen amount. Verify both balances. Wrapping does not place a bid.</li>
-      <li><strong>NFTs:</strong> open Collection and check custody. Use the V3 recovery link for a V3-held NFT or <strong>Withdraw NFT</strong> for an NFT with verified Agent custody. The hero’s <strong>Acquisition history</strong> counts historical records; Collection shows currently verified holdings.</li></ul>
-    <p>Open <a href="/broker/v2/?tab=fund&amp;tokenId=93#agent-recovery">Fund → Agent owner recovery for #93</a>. Select Agent ETH, EntryPoint gas deposit, ERC-721 or ERC-1155. Enter an exact amount or token identity, then choose <strong>Review recovery</strong>. Opening the panel or selecting a collection item must not request a transaction.</p>
-    <p>Before <strong>Confirm in wallet</strong> becomes available, review the Agent source, fixed current-owner destination, amount or token, maximum fee and expiry, then check the acknowledgement. Native withdrawals preserve the active mission reserve. EntryPoint withdrawal requires a confirmed recall while a mission is active. The owner wallet pays network fees.</p>
-    <p>If the wallet result is unresolved, use its original hash with <strong>Recover original transaction</strong>. A failed check retains the typed hash and pending state. <strong>Recheck saved receipt</strong> never resends; verified completion requires 12 confirmations. An expired unsent review must be cancelled and reviewed again. Keep browser recovery records while any request is unresolved.</p>
-  </section>
-  <section><h2>6. Research and playbook skills</h2>
-    <p>Use the examples for checking a collection link, teaching a scouting routine, and opening Forge’s research lab. Contract Detective, Rarity Eye and Market Scout should identify their sources or sample limits. A playbook skill does not consume a permanent training credit or authorize purchases.</p>
-    <p>Equipped Rarity Eye research requires the selected Punk to have learned and equipped the skill on the same chain. The research lab is a separate read-only test surface.</p>
-  </section>
-  <section><h2>Still pending</h2>
-    <p><strong>Floor sweeps and WETH bids are not live.</strong> Their example prompts should explain that limitation and leave existing missions unchanged.</p>
-    <p>For any unexpected result, keep the transaction hash and report the Punk ID, action, displayed message and approximate time. A transaction hash by itself does not prove completion.</p>
-  </section>
+<nav aria-label="Broker links"><a href="/broker/v2/?tab=talk">Open Art Broker</a><a href="/broker/v2/?tab=forge">Open Forge</a></nav>
+<h1>Try your Art Broker</h1>
+<p>Start with <strong>Punk #93</strong> on Robinhood Chain. You can explore, chat and review your rules without funding anything.</p>
+<p class="status">Final holder testing · September 13, 2026</p>
+<p>Read and review on the live site. Use the separate disposable chain for transaction practice. A preview URL still can use real assets.</p>
+<section><h2>1. Choose your Punk</h2>
+<ol><li>Connect your owner wallet and sign in if asked.</li><li>Check the Punk numbers and artwork. Swipe the roster on a phone, or use the arrow keys on a computer.</li><li>Select #93, then another Punk. Wallet, collection, mode and skills should follow your selection.</li></ol>
+<p>Pictures load progressively. A missing picture must not remove a Punk you own. Try Settings after reconnecting to check that your preferences remain yours.</p></section>
+<section><h2>2. Find the NFT #93 minted</h2>
+<p>#93 completed its paid mint and received <strong>Peppies World #1599</strong>. Open <a href="/broker/v2/?tab=collection&amp;tokenId=93">Collection</a> and refresh. It belongs to #93’s Agent wallet.</p>
+<p>The latest verified collection check returned 34 holdings, including #1599. Counts can change after transfers. A dark pre-reveal picture is the collection’s current artwork.</p>
+<p>Check Activity and Talk’s <strong>Recheck paid mint</strong> too. A confirmed budget means the mint is funded; verified delivery means the NFT arrived. An old loading screen is no reason to buy a replacement.</p></section>
+<section><h2>3. Talk and set your rules</h2>
+<p>Open <strong>Example prompts</strong> below the conversation. Choosing an example fills the message box; edit it before sending.</p>
+<blockquote>Build me a strategy to find free pixel art mints. One mint total, up to 0.0005 ETH gas, and keep 0.001 ETH in reserve. Ask me before buying.</blockquote>
+<p>Review the mode, mint price, gas limit, reserve and collection restrictions before confirming. Editing a draft should leave your existing rules unchanged.</p>
+<blockquote>How much can I spend, and what did my last mission do?</blockquote>
+<p>Settings offers Auto and the configured models. Auto can use a fallback. Choosing a specific model keeps that choice or explains why it is unavailable. Gemini, GPT, Claude and Grok passed real response checks; Bankr remains unavailable.</p>
+<p>If a reply fails, your message should remain ready to retry. Changing Punk must discard a late reply for the previous Punk.</p></section>
+<section><h2>4. Check a mint link</h2>
+<p>Choose <strong>+ Link</strong>. For a supported contract check, paste:</p>
+<blockquote>https://robinhoodchain.blockscout.com/address/0xb73f1d1aee57410d537d87b656e98b9d3df5b213</blockquote>
+<p>The result should identify Robinhood Chain and show the observed public mint price, window and supply where supported. Prices can change. A contract check is not a passed safety review or simulation. Other websites may still need identification.</p>
+<p>Nothing is bought by checking a link. The broker must never accept a website’s arbitrary wallet request.</p></section>
+<section><h2>5. Check balances and recovery</h2>
+<p>Open Fund. Check ETH, reserve, available art budget and WETH. Punk Wallet funds, Agent funds and its gas deposit have separate labels. If a balance is unavailable, recheck it; an unknown balance must not appear empty.</p>
+<p>You can review an exact funding amount and destination, then close the review without signing. Owner-funded Agent gas should not require activating an unrelated wallet.</p>
+<p>For an unresolved request, use <strong>Recheck funding</strong> or recover its original transaction hash from wallet activity. A recheck must not send again. Keep saved browser recovery records until the request is resolved.</p>
+<p>Collection’s <strong>Withdraw NFT</strong> opens the correct recovery review. Supported assets include Agent ETH, gas deposits and standard NFTs; V3 recovery remains separate. Practice actual deposits, withdrawals and ETH↔WETH wrapping only in the disposable environment or a separately agreed owner test. Wrapping does not place a bid.</p></section>
+<section><h2>6. Practice the Forge</h2>
+<p class="status">Disposable chain only · original #1753 remains intact</p>
+<ol><li>Select the copied Punk to train and a different copied Punk to sacrifice.</li><li>Check its assets and missions. Funds, NFTs, other tokens, unresolved work or unknown inventory must block sacrifice.</li><li>Read the warning naming both Punks and confirm the exact source number.</li><li>Burn the test copy. Supply should fall once and the recipient should gain exactly one Training Credit. Refresh must not repeat it.</li><li>Learn Rarity Eye, then equip it. Learning keeps the skill with your Punk; equipping makes it usable.</li><li>Compare three Punks, unequip and confirm the action is unavailable, then equip again.</li><li>Use another eligible test copy to earn the separate credit needed for a slot unlock.</li><li>Transfer the trained test Punk. Skills, slots, loadout and holdings remain. The old owner loses control; the new owner needs a fresh review and automation stays paused.</li></ol>
+<p>The composed test passed this sequence using copies of #1753, #93 and #94. It did not clear any original for a real burn. Real burns permanently destroy the NFT and can strand assets; wallet assets never move automatically to the recipient.</p></section>
+<section><h2>7. Missions and research</h2>
+<p>The existing selected paid test supports #93 minting one Peppies World NFT within its approved price and fixed worker fee. One wallet confirmation funds that job; the worker completes the purchase. New paid tests remain deliberate owner actions.</p>
+<p>The free-mint lane uses a bounded, approved mission. No eligible match is a valid outcome. To deliberately recall an existing free mission, send <strong>ok recall please</strong>; wallet revocation may be required. Paid jobs use their own cancellation control.</p>
+<p>Rarity Eye’s full skill journey passed on the disposable chain. Contract Detective and Market Scout have separate read-only lab checks; a lab result is not a learned skill. Market Scout v2 reports a limited listing sample, not a guaranteed floor price.</p>
+<p><strong>Floor sweeps, WETH bids and the remaining roadmap skills are not released.</strong> Requests should explain that limit and leave existing missions unchanged. The earlier unused paid-mint refund has not been withdrawn.</p></section>
+<section><h2>8. Report anything confusing</h2>
+<p>Try the main screens on your phone, including the real wallet handoff and keyboard. Check for sideways scrolling, tiny controls, missing feedback and confusing empty states.</p>
+<p>Send the Punk number, action, displayed message, time and public transaction hash if one exists. Say whether you used production, preview or the disposable chain. Never share a private key or recovery phrase.</p>
+<p><a href="https://github.com/riffsmon-bit/gogh-punks-website/blob/main/docs/v2-hardening/testing-guide.md">Full testing guide and feature limits ↗</a></p></section>
 </main></body></html>

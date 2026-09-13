@@ -14,8 +14,17 @@ const ZERO = `0x${'0'.repeat(40)}`;
 const unavailable = () => new PublicError(503, 'PUNK_ROSTER_UNAVAILABLE',
   'Your Punk list could not be fully verified. Try again shortly.');
 
+export function getV2RosterRpcUrl(environment = process.env) {
+  const archive = environment.ROBINHOOD_ARCHIVE_RPC_URL;
+  if (archive === undefined || archive === '') return getRpcUrl();
+  try {
+    const url = new URL(archive);
+    if (url.protocol !== 'https:') throw unavailable();
+    return url.toString();
+  } catch { throw unavailable(); }
+}
 function defaultClient(signal) {
-  return createPublicClient({ cacheTime: 0, transport: http(getRpcUrl(), {
+  return createPublicClient({ cacheTime: 0, transport: http(getV2RosterRpcUrl(), {
     retryCount: 0, timeout: 1_800, fetchOptions: { signal },
   }) });
 }

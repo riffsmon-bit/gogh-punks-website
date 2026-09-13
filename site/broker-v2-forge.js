@@ -85,9 +85,16 @@ export function createForgeControl({ root, getSelection, ensureSession, request,
         const result = payload.result;
         if (action === 'inspect_contract') report.append(el('p', `Code: ${result.codeBytes} bytes · block ${result.blockNumber}. This is evidence, not a security clearance.`));
         if (action === 'rank_trait_sample') report.append(el('p', `${result.sampleSize} sampled Punks ranked. Sample-only results do not change the frozen OpenSea rarity snapshot.`));
-        if (action === 'get_market_listings') report.append(el('p', `${result.listings.length} current listings returned. No purchase or bidding capability enabled.`));
+        if (action === 'get_market_listings') {
+          const coverage = result.coverage?.status;
+          report.append(el('p', coverage === 'UNAVAILABLE'
+            ? 'Market data is unavailable. Try this check again shortly.'
+            : `${result.listings.length} listing observations in this limited sample.${coverage === 'PARTIAL' ? ' Some market data could not be checked.' : ''} This does not establish the collection floor or authorize a purchase or bid.`));
+        }
         const details = el('details'); details.append(el('summary', 'View structured evidence'), el('pre', JSON.stringify(result, null, 2)));
-        report.append(details, el('p', 'Test completed—not a learned skill. Training credits and loadout remain unchanged.'));
+        report.append(details, el('p', action === 'get_market_listings' && result.coverage?.status === 'UNAVAILABLE'
+          ? 'No market result was verified. Training credits and loadout remain unchanged.'
+          : 'Research check finished. Training credits and loadout remain unchanged.'));
       }
     } catch (error) {
       if (ticket === sequence && original === context()) {
