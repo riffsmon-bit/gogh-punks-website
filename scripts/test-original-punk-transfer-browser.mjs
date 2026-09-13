@@ -12,6 +12,7 @@ import { resolveV2PunkChat } from '../netlify/functions/broker-v2-chat.mjs';
 import { validateTrainingRelease, trainingDeploymentBinding } from '../broker/src/v4/skill-forge/training-release.mjs';
 import { durableTrainingTransaction, serializeDurableTrainingReview, trainingDigest } from '../broker/src/v4/skill-forge/durable-training-review.mjs';
 import { durableReviewFixture, fixtureHash } from '../tests/fixtures/durable-training-review.mjs';
+import { skillKey } from '../broker/src/v4/skill-forge/capability-resolver.mjs';
 import trainingArtifact from '../deployments/robinhood-forge-training.json' with {type:'json'};
 if(process.argv.length!==3 || process.argv[2]!=='--local-only') throw Error('Requires --local-only');
 const ALICE=`0x${'1'.repeat(40)}`, BOB=`0x${'2'.repeat(40)}`;
@@ -31,7 +32,7 @@ let recallWalletRequests=0, recallPrepares=0, recallConfirms=0, strategyPauses=0
 const recallHash=`0x${'5'.repeat(64)}`;
 const manualSessionId='11111111-1111-4111-8111-111111111111';
 const hasSession=req=>sessionMode==='auto'||req.headers.cookie?.includes('gogh_v2_session=local_fixture');
-const skillHash=keccak256(encodeAbiParameters([{type:'uint32'},{type:'uint16'}],[3,1]));
+const skillHash=skillKey(3,1);
 const server=createServer(async(req,res)=>{
   const json=data=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify(data));};
   try {

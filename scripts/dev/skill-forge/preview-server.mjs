@@ -129,7 +129,8 @@ export async function startPreview({ port = 0, researchClient, controlCenterTrai
     }
     const skills = [], packages = [];
     for (const entry of catalog) {
-      const manifest = { skillId: entry.id, version: 1, chainId: 31337, capabilities: [entry.capability], description: 'LOCAL FIXTURE ONLY — NOT PRODUCTION READY' };
+      const manifest = { skillId: entry.id, version: 1, chainId: 31337, capabilities: [entry.capability],
+        requiredMcpTools: [...entry.tools], description: 'LOCAL FIXTURE ONLY — NOT PRODUCTION READY' };
       const hash = manifestHash(manifest), instructions = instructionHash(entry.description);
       if (!resume) await write(reg, registry, 'register', [entry.id, 1, hash, instructions, zero, entry.bit, entry.id === 1 ? 1 : 0]);
       const key = await client.readContract({ address: registry, abi: reg.abi, functionName: 'skillKey', args: [entry.id, 1] });
