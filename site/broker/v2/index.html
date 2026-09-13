@@ -49,6 +49,15 @@
         </div>
       </section>
 
+      <section class="broker-welcome" data-broker-welcome hidden aria-labelledby="welcome-title">
+        <div><span class="kicker">WELCOME TO ART BROKER V2</span><h2 id="welcome-title">MEET YOUR PUNK #<span data-welcome-token></span></h2>
+        <p>Pick a Punk above. Its artwork, collection and learned skills stay with it when it changes owners.</p></div>
+        <ol><li><b>Start with a conversation.</b> Ask for ideas or build your first collecting rules.</li>
+        <li><b>Choose how it helps.</b> Ask recommends. Assist prepares for your approval. Autonomous needs a separate review of spending limits.</li>
+        <li><b>Fund when you're ready.</b> Your Punk pays from its own wallet. The funding review shows the exact destination and amount. Exploring is free.</li></ol>
+        <div class="welcome-actions"><button class="primary-button" type="button" data-welcome-action="talk">TALK TO MY PUNK</button><button class="outline-button" type="button" data-welcome-action="fund">EXPLORE WALLET</button><button class="text-button" type="button" data-welcome-dismiss>Got it · hide this guide</button></div>
+      </section>
+
       <section class="selected-stage" data-selected-stage hidden>
         <div class="punk-hero">
           <div class="hero-number" aria-hidden="true" data-hero-number>119</div>
@@ -193,7 +202,7 @@
               <dl class="fund-breakdown"><div><dt>PUNK WALLET ETH</dt><dd data-agent-gas-punk-balance>CHECKING…</dd></div><div><dt>AGENT ACCOUNT ETH</dt><dd data-agent-gas-native>NOT VERIFIED</dd></div><div><dt>ENTRYPOINT GAS DEPOSIT</dt><dd data-agent-gas-deposit>NOT VERIFIED</dd></div><div><dt>AGENT DESTINATION</dt><dd><code data-agent-gas-destination>NOT VERIFIED</code></dd></div></dl>
               <p data-agent-gas-readiness aria-live="polite">Recheck readiness to verify this Punk's Agent Account. Funding does not activate a mission.</p>
               <form class="wrapped-form" data-agent-gas-form>
-                <label for="agent-gas-source">FUNDING SOURCE<select id="agent-gas-source" name="source"><option value="PUNK">USE PUNK WALLET ETH</option><option value="OWNER">ADD ETH FROM MY WALLET</option></select></label>
+                <label for="agent-gas-source">FUNDING SOURCE<select id="agent-gas-source" name="source"><option value="OWNER">ADD ETH FROM MY WALLET</option><option value="PUNK">USE PUNK WALLET ETH</option></select></label>
                 <label for="agent-gas-amount">AMOUNT IN ETH<input id="agent-gas-amount" name="amount" inputmode="decimal" autocomplete="off" placeholder="0.0005" /></label>
                 <button type="submit">REVIEW &amp; SIMULATE</button>
               </form>
@@ -281,7 +290,7 @@
 
           <section class="broker-panel" data-v2-panel="settings" aria-labelledby="settings-title" hidden>
             <header class="panel-header"><div><span class="kicker">BROKER PROFILE</span><h2 id="settings-title">SETTINGS</h2></div></header>
-            <div class="settings-grid"><article><span>OPERATING MODE</span><fieldset><legend class="sr-only">Operating mode</legend><label><input type="radio" name="settings-mode" value="ASK" data-operating-mode checked /><b>ASK</b><small>Discover and recommend. You decide.</small></label><label><input type="radio" name="settings-mode" value="ASSIST" data-operating-mode /><b>ASSIST</b><small>Screen and prepare. You approve.</small></label><label class="mode-locked" data-autonomous-mode><input type="radio" name="settings-mode" value="AUTONOMOUS" data-operating-mode disabled /><b data-autonomous-mode-label>AUTONOMOUS · LOCKED</b><small data-autonomous-mode-detail>Waiting for Punk Agent Account readiness.</small></label></fieldset></article><article><span>GOGH INTELLIGENCE</span><label class="select-label" for="provider-setting">ROUTING<select id="provider-setting"><option>AUTO</option><option>GEMINI</option><option>GPT</option><option>CLAUDE</option><option>GROK</option><option>BANKR ROUTED</option></select></label><p>Auto selects for task, capability, cost, latency, and availability. Your Punk stays the product.</p></article></div>
+            <div class="settings-grid"><article><span>OPERATING MODE</span><fieldset><legend class="sr-only">Operating mode</legend><label><input type="radio" name="settings-mode" value="ASK" data-operating-mode checked /><b>ASK</b><small>Discover and recommend. You decide.</small></label><label><input type="radio" name="settings-mode" value="ASSIST" data-operating-mode /><b>ASSIST</b><small>Screen and prepare. You approve.</small></label><label class="mode-locked" data-autonomous-mode><input type="radio" name="settings-mode" value="AUTONOMOUS" data-operating-mode disabled /><b data-autonomous-mode-label>AUTONOMOUS · LOCKED</b><small data-autonomous-mode-detail>Waiting for Punk Agent Account readiness.</small></label></fieldset></article><article><span>GOGH INTELLIGENCE</span><label class="select-label" for="provider-setting">ROUTING<select id="provider-setting" aria-describedby="provider-status"><option value="AUTO">Auto · choose for this task</option></select></label><p id="provider-status" data-provider-status role="status">Connect your wallet to choose an available model.</p></article></div>
           </section>
         </div>
       </section>

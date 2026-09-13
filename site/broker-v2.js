@@ -1,9 +1,12 @@
+import { displayEth, displayEthBudget } from "./broker-v2-amounts.js";
+import { mountBrokerPreferences } from "./broker-v2-preferences.js";
 import { verifyOwnedPunkIds } from "./broker-v2-ownership.js";
 import { createForgeControl } from './broker-v2-forge.js';
 import { createDirectedPaidPanel } from './directed-paid-panel.js';
 import { createAgentRecoveryPanel, recoveryEth } from './punk-agent-recovery-panel.js';
 import { createOwnerRefresh } from "./broker-v2-owner-refresh.js";
-import { prepareAgentGasFunding, submitAgentGasFunding } from "./punk-agent-gas-funding.js";
+import { createGasFundingRecovery } from "./punk-agent-gas-recovery-panel.js";
+import { prepareAgentGasFunding, submitAgentGasFunding, recheckAgentGasFunding } from "./punk-agent-gas-funding.js";
 import { punkChatAction, agentChatStatus } from "./punk-chat-actions.js";
 import { createPunkRecall } from "./punk-agent-recall.js";
 import { mountBrokerPromptLibrary } from "./broker-prompt-library.js";
@@ -60,6 +63,7 @@ const state = { wallet: null, punks: [], selected: null, localStrategy: null, lo
   gallery: [], activity: [], hydratedTokenId: null, lastInspection: null,
   ownershipAccount: null, ownershipLoadingAccount: null, ownershipRequestId: 0,
   galleryStatus: "idle", galleryNote: "", galleryRequestId: 0,
+  chatRequestId: 0, linkRequestId: 0,
   balanceRequestId: 0, galleryTokenId: null, galleryLoadingTokenId: null,
   fundingPlan: null, gasFundingPlan: null, gasFundingBusy: false, wrappedPlan: null, withdrawalAsset: null,
   withdrawalAmount: "1", withdrawalPlan: null, withdrawalBusy: false,
@@ -78,6 +82,8 @@ const REVIEW_MISSION_LEASE_MS = 15_000;
 const REVIEW_TAB_ID = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
 const punkRecall = createPunkRecall();
 let reviewMissionTimer = null;
+let gasFundingRecovery = null;
+let brokerPreferences = null;
 let forgeControl = null;
 let directedPaidControl = null;
 let agentRecoveryControl = null;
@@ -1134,6 +1140,8 @@ function renderRoster() {
 }
 
 function renderSelected() {
+  brokerPreferences?.refresh();
+  gasFundingRecovery?.refresh();
   const punk = state.selected;
   if (!punk) return;
   const displayMode = reviewModeForPunk(punk);
@@ -1153,21 +1161,21 @@ function renderSelected() {
   const balance = Number(punk.balanceEth ?? 0); const reserve = Number(punk.reserveEth ?? 0);
   const available = Math.max(0, balance - reserve);
   const balanceKnown = punk.balanceLoaded !== false;
-  const nativeDisplay = balanceKnown ? `${balance.toFixed(4)} ETH` : "CHECKING…";
+  const nativeDisplay = balanceKnown ? `${punk.balanceEth} ETH` : "CHECKING…";
   const wethDisplay = punk.wethBalanceEth == null ? "CHECKING…" : `${punk.wethBalanceEth} WETH`;
   set("[data-punk-balance]", nativeDisplay);
   set("[data-fund-balance]", fundingAgent
-    ? ethFromWei(agentRuntime.nativeBalance ?? "0") : balanceKnown ? balance.toFixed(4) : "—");
+    ? ethFromWei(agentRuntime.nativeBalance ?? "0") : balanceKnown ? punk.balanceEth : "—");
   set("[data-wrap-eth-balance]", nativeDisplay);
   set("[data-wrap-weth-balance]", wethDisplay);
   set("[data-collection-eth]", nativeDisplay);
   set("[data-collection-weth]", wethDisplay);
   set("[data-punk-nfts]", punk.acquisitionCount ?? (PREVIEW ? punk.nfts : '—'));
   set("[data-gallery-count]", state.gallery.filter(entry => Array.isArray(entry) || entry.tokenId != null).length);
-  set("[data-punk-reserve]", `${reserve.toFixed(4)} ETH`);
-  set("[data-fund-reserve]", `${reserve.toFixed(4)} ETH`);
-  set("[data-available-budget]", `${available.toFixed(4)} ETH AVAILABLE`);
-  set("[data-fund-available]", `${available.toFixed(4)} ETH`);
+  set("[data-punk-reserve]", `${balanceKnown ? punk.reserveEth : "—"} ETH`);
+  set("[data-fund-reserve]", `${balanceKnown ? punk.reserveEth : "—"} ETH`);
+  set("[data-available-budget]", `${balanceKnown ? displayEthBudget(punk.balanceEth, punk.reserveEth) : "—"} ETH AVAILABLE`);
+  set("[data-fund-available]", `${balanceKnown ? displayEthBudget(punk.balanceEth, punk.reserveEth) : "—"} ETH`);
   const meter = one("[data-budget-meter]"); if (meter) meter.style.width = `${balance ? Math.min(100, available / balance * 100) : 0}%`;
   all("[data-hero-art], [data-chat-avatar]").forEach((image) => { image.src = cleanImage(punk.image); });
   all("[data-legacy-vault]").forEach((link) => { link.href = `/broker/punk/${punk.tokenId}?tab=assets`; });
@@ -1183,9 +1191,22 @@ function renderSelected() {
   }
 }
 
+function invalidateConversationRequests() {
+  state.chatRequestId += 1; state.linkRequestId += 1;
+  const chat = one('[data-chat-form]');
+  chat?.removeAttribute('aria-busy');
+  const send = chat?.querySelector('button[type="submit"]');
+  if (send) { send.disabled = false; send.textContent = 'SEND ↗'; }
+  const link = one('[data-link-form]'); link?.removeAttribute('aria-busy');
+  const check = link?.querySelector('button[type="submit"]');
+  if (check) { check.disabled = false; check.textContent = 'CHECK LINK'; }
+  set('[data-link-result]', 'Paste a link to check its project, mint details and available safety information.');
+}
+
 function selectPunk(tokenId, { focusRoster = false } = {}) {
   const punk = state.punks.find((item) => item.tokenId === tokenId);
   if (!punk) return;
+  invalidateConversationRequests();
   state.selected = punk; state.localStrategy = null; state.localSkill = null; state.lastInspection = null;
   const key = selectedReviewKey();
   state.lastInspection = key ? state.reviewInspections.get(key) ?? null : null;
@@ -1392,12 +1413,7 @@ async function openChatGasReview(action = {}) {
   if (state.selected === punk) renderAgentAccount();
 }
 
-function ethFromWei(value) {
-  if (!/^\d+$/.test(String(value ?? ""))) return "0.0000";
-  const wei = BigInt(value); const whole = wei / 10n ** 18n;
-  const fraction = (wei % 10n ** 18n).toString().padStart(18, "0").slice(0, 4);
-  return `${whole}.${fraction}`;
-}
+function ethFromWei(value) { return displayEth(value); }
 
 function parseEthAmount(value) {
   const text = String(value ?? "").trim();
@@ -1684,9 +1700,11 @@ async function hydrateSelected(tab) {
       punk.acquisitionCount = profilePayload.profile.collectionCount;
       punk.mode = profilePayload.profile.strategy?.state === "PAUSED" ? "PAUSED"
         : profilePayload.profile.strategy?.intent?.operatingMode ?? "ASK";
-      if (profilePayload.profile.strategy?.intent?.minimumReserveWei) {
-        punk.reserveEth = ethFromWei(profilePayload.profile.strategy.intent.minimumReserveWei);
-      }
+      const rules = profilePayload.profile.strategy;
+      const walletRules = rules?.state === 'ACTIVE' && Date.parse(rules.expiresAt) > Date.now()
+        && rules.intent?.expectedOwner === owner && rules.intent?.punkTokenId === tokenId
+        && rules.intent?.punkWallet === punk.account?.toLowerCase();
+      punk.reserveEth = walletRules ? ethFromWei(rules.intent.minimumReserveWei) : '0.0000';
       state.hydratedTokenId = tokenId; renderSelected();
     }
     if (tab === "activity") {
@@ -2017,6 +2035,7 @@ function applyOwnedPunks(punks) {
 }
 
 function clearTransferredPunkReview() {
+  invalidateConversationRequests();
   state.localStrategy = null; state.localSkill = null; state.lastInspection = null;
   state.fundingPlan = null; state.gasFundingPlan = null;
   state.wrappedPlan = null; state.withdrawalPlan = null;
@@ -2031,6 +2050,13 @@ function clearTransferredPunkReview() {
 
 function setup() {
   restoreReviewSessionState();
+  let preferenceStorage; try { preferenceStorage = window.localStorage; } catch { /* Optional preferences. */ }
+  brokerPreferences = mountBrokerPreferences({ select: one('#provider-setting'), status: one('[data-provider-status]'),
+    welcome: one('[data-broker-welcome]'), storage: preferenceStorage,
+    getContext: () => ({ owner: state.wallet?.account, chainId: state.wallet?.chainId, tokenId: state.selected?.tokenId }),
+    navigate: tab => { activateTab(tab); one(`[data-v2-panel="${tab}"]`)?.scrollIntoView({ block: 'start' });
+      if (tab === 'talk') one('#punk-prompt')?.focus(); } });
+  brokerPreferences.refresh();
   document.addEventListener('error', event => {
     const image = event.target;
     if (image instanceof HTMLImageElement && !image.src.endsWith('/assets/nft-placeholder.svg')) {
@@ -2209,6 +2235,17 @@ function setup() {
   chatForm.addEventListener("submit", async (event) => {
     event.preventDefault(); const input = one("#punk-prompt"); const message = input.value.trim();
     if (!message || chatForm.hasAttribute("aria-busy")) return;
+    const selected = state.selected, selectedOwner = state.wallet?.account, selectedChain = state.wallet?.chainId;
+    const requestId = ++state.chatRequestId;
+    const isCurrent = () => requestId === state.chatRequestId && state.selected === selected
+      && state.wallet?.account === selectedOwner && state.wallet?.chainId === selectedChain;
+    const setBusy = busy => { if (isCurrent()) setChatBusy(busy); };
+    const failed = error => {
+      if (!isCurrent()) return;
+      setBusy(false);
+      addMessage('punk', `${error?.message ?? 'I could not finish that reply.'} Your rules have not changed. Your message is below so you can try again.`);
+      if (!input.value) input.value = message;
+    };
     addMessage("owner", message); input.value = "";
     const chatAction = punkChatAction(message);
     if (chatAction?.kind === "NAVIGATE") {
@@ -2217,27 +2254,28 @@ function setup() {
     }
     if (chatAction?.kind === 'FORGE') {
       activateTab('forge');
-      addMessage('punk', 'The Forge research lab is open. Sign in there to test available read-only tools. Learning, equipping and burning are not live yet.');
+      addMessage('punk', 'The Forge shows training credits, learned skills and your equipped loadout. Open a skill to see what it can do. Burn practice runs on a disposable test chain during final testing.');
       return;
     }
     if (chatAction?.kind === "GAS" || chatAction?.kind === "STATUS") {
       const punk = state.selected;
-      setChatBusy(true);
+      setBusy(true);
       try {
         if (chatAction.kind === "GAS") {
           addMessage("punk", "Let's review gas funding here. Choose the source and exact amount, simulate, then approve in MetaMask. Funding won't start a mission.");
           await openChatGasReview(chatAction);
         } else {
           const status = await loadAgentAccountStatus({ authenticate: true });
-          if (state.selected === punk) addMessage("punk", agentChatStatus(status));
+          if (isCurrent()) addMessage("punk", agentChatStatus(status));
         }
-      } finally { setChatBusy(false); }
+      } catch (error) { failed(error); } finally { setBusy(false); }
       return;
     }
     if (chatAction?.kind === "RECALL") {
-      setChatBusy(true);
+      setBusy(true);
       try { await recallSelectedReviewAgent(); }
-      finally { setChatBusy(false); }
+      catch (error) { failed(error); }
+      finally { setBusy(false); }
       return;
     }
     if (/\bshow\b.*\b(?:found|discover(?:y|ies|ed)?)\b/i.test(message)) {
@@ -2256,7 +2294,7 @@ function setup() {
       renderReviewAgent();
       return;
     }
-    setChatBusy(true);
+    setBusy(true);
     let draft;
     let reply = null;
     if (PREVIEW) {
@@ -2266,10 +2304,10 @@ function setup() {
           body: JSON.stringify({ tokenId: state.selected.tokenId, message }) });
         const payload = await response.json();
         if (!response.ok || payload?.ok !== true) throw new Error(payload?.message ?? "Local strategy draft failed.");
+        if (!isCurrent()) return;
         draft = payload.draft;
       } catch (error) {
-        setChatBusy(false);
-        addMessage("punk", `${error?.message ?? "LOCAL INTELLIGENCE UNAVAILABLE"} Existing rules remain unchanged.`);
+        failed(error);
         return;
       }
     } else {
@@ -2277,19 +2315,19 @@ function setup() {
         const punk = state.selected, owner = state.wallet?.account;
         await ensureV2Session();
         await loadAgentAccountStatus({ authenticate: true });
-        if (state.selected !== punk || state.wallet?.account !== owner) {
-          setChatBusy(false); return;
+        if (!isCurrent()) {
+          setBusy(false); return;
         }
         const payload = await jsonRequest(`/api/v2/punks/${punk.tokenId}/chat`, {
           method: "POST", headers: { "content-type": "application/json" },
-          body: JSON.stringify({ message }),
+          body: JSON.stringify({ message, providerPreference: brokerPreferences.preference() }),
         });
-        if (state.selected !== punk || state.wallet?.account !== owner) {
-          setChatBusy(false); return;
+        if (!isCurrent()) {
+          setBusy(false); return;
         }
         draft = payload.draft; reply = payload.reply;
         if (payload.responseKind === 'PAID_MINT_REVIEW') {
-          setChatBusy(false); addMessage('punk',reply);
+          setBusy(false); addMessage('punk',reply);
           await directedPaidControl?.openDraft(payload.paidDraft);
           return;
         }
@@ -2299,7 +2337,7 @@ function setup() {
             || skill.punkWallet !== punk.account.toLowerCase() || skill.state !== "DRAFT") {
             throw new Error("The skill draft no longer matches this Punk and owner.");
           }
-          setChatBusy(false); addMessage("punk", reply); showSkillConfirmation(skill);
+          setBusy(false); addMessage("punk", reply); showSkillConfirmation(skill);
           return;
         }
         if (payload.responseKind === "CONVERSATION") {
@@ -2308,15 +2346,16 @@ function setup() {
             : "GOGH INTELLIGENCE · SAFE FALLBACK");
         }
       } catch (error) {
-        setChatBusy(false);
-        addMessage("punk", `${error?.message ?? "GOGH INTELLIGENCE TEMPORARILY UNAVAILABLE"} Existing safety rules remain active.`);
+        failed(error);
         return;
       }
     }
-    setChatBusy(false);
+    if (!isCurrent()) return;
+    setBusy(false);
     if (!draft) { addMessage("punk", reply); return; }
     if (draft.intent?.operatingMode === "AUTONOMOUS") {
       await loadAgentAccountStatus({ authenticate: false });
+      if (!isCurrent()) return;
       const runtime = selectedAgentAccount()?.runtime;
       if (runtime?.accountCreated && runtime.nativeBalance === "0" && runtime.entryPointDeposit === "0") {
         state.localStrategy = draft;
@@ -2337,12 +2376,17 @@ function setup() {
     event.preventDefault();
     const form = event.currentTarget; const value = one("#mint-link").value.trim();
     const output = one("[data-link-result]"); const button = form.querySelector("button[type=submit]");
-    output.textContent = "CHECKING… No wallet request will be accepted.";
+    const punk = state.selected, owner = state.wallet?.account, chainId = state.wallet?.chainId;
+    const requestId = ++state.linkRequestId;
+    const isCurrent = () => state.linkRequestId === requestId && state.selected === punk
+      && state.wallet?.account === owner && state.wallet?.chainId === chainId;
+    output.textContent = 'Identifying the project and checking its link…';
     form.setAttribute("aria-busy", "true"); button.disabled = true; button.textContent = "CHECKING…";
     try {
       const url = new URL(value);
       if (url.protocol !== "https:" || url.username || url.password || url.port) throw new Error();
       let inspection;
+      output.textContent = 'Finding the project, chain and mint details…';
       if (PREVIEW) {
         const response = await fetch("/api/local-art-broker-v2/inspect-link", { method: "POST",
           headers: { "content-type": "application/json" },
@@ -2358,22 +2402,25 @@ function setup() {
         inspection = payload.inspection;
       } else {
         await ensureV2Session();
+        if (!isCurrent()) return;
         const payload = await jsonRequest("/api/v2/inspect-url", { method: "POST",
           headers: { "content-type": "application/json" }, body: JSON.stringify({
             tokenId: state.selected.tokenId, url: value,
           }) });
         inspection = payload.inspection;
       }
+      if (!isCurrent()) return;
       state.lastInspection = inspection;
       const reviewKey = selectedReviewKey();
       if (reviewKey) state.reviewInspections.set(reviewKey, inspection);
       const kind = inspection.link.kind.replaceAll("_", " ");
       const status = inspection.status.replaceAll("_", " ");
-      output.textContent = `${kind} · ${status} · no external calldata or wallet request accepted.`;
+      output.textContent = `${kind} · ${status}. See the review below for available contract checks and simulation. Nothing was submitted.`;
       addReviewActivity("DISCOVERED", kind, `${status} · transaction data ignored`);
       renderReviewAgent();
       addMessage("punk", `LINK IDENTIFIED 👀 ${kind}. CURRENT VERDICT: ${status}. I can't call it safe yet—contract resolution, screening, and simulation still have to pass.`);
     } catch (error) {
+      if (!isCurrent()) return;
       const invalid = error instanceof TypeError || !error?.message;
       output.textContent = invalid
         ? "BLOCKED · Paste a clean HTTPS project, marketplace, social, or explorer link."
@@ -2382,7 +2429,7 @@ function setup() {
         ? "I COULDN'T READ THAT LINK. Paste a clean HTTPS project, marketplace, social, or explorer URL."
         : `I COULDN'T FINISH THE CHECK. ${error.message} Nothing was signed or prepared.`);
     } finally {
-      form.removeAttribute("aria-busy"); button.disabled = false; button.textContent = "CHECK LINK";
+      if (isCurrent()) { form.removeAttribute("aria-busy"); button.disabled = false; button.textContent = "CHECK LINK"; }
     }
   });
   one("[data-exact-nft-form]").addEventListener("submit", async (event) => {
@@ -2575,6 +2622,18 @@ function setup() {
   });
   const gasForm = one("[data-agent-gas-form]");
   const gasButton = gasForm.querySelector("button[type=submit]");
+  const gasRecoveryRoot = document.createElement('section'); gasRecoveryRoot.className = 'gas-funding-recovery';
+  one('[data-agent-gas-panel]').append(gasRecoveryRoot);
+  gasFundingRecovery = createGasFundingRecovery({ root: gasRecoveryRoot,
+    getSelection: () => ({ owner: state.wallet?.account, tokenId: state.selected?.tokenId, chainId: state.wallet?.chainId }),
+    provider: () => window.__GOGH_WALLET_PROVIDER__,
+    onConfirmed: async selection => {
+      const punk = state.selected;
+      if (punk?.tokenId !== selection.tokenId || state.wallet?.account !== selection.owner) return;
+      await Promise.all([loadAgentAccountStatus(), loadPunkBalances(punk)]);
+      if (state.selected === punk && state.wallet?.account === selection.owner) renderSelected();
+    } });
+  gasFundingRecovery.refresh();
   const resetGasReview = () => { state.gasFundingPlan = null; gasButton.textContent = "REVIEW & SIMULATE"; };
   gasForm.addEventListener("input", resetGasReview);
   one("[data-agent-gas-confirm]").addEventListener("change", resetGasReview);
@@ -2585,8 +2644,8 @@ function setup() {
     const source = one("#agent-gas-source").value, amount = one("#agent-gas-amount").value.trim();
     const output = one("[data-agent-gas-result]");
     let submittedHash = null;
-    const isCurrent = () => state.selected === punk && state.wallet?.account === owner
-      && state.wallet?.chainId === CHAIN_ID && one("#agent-gas-source").value === source
+    const isSelected = () => state.selected === punk && state.wallet?.account === owner && state.wallet?.chainId === CHAIN_ID;
+    const isCurrent = () => isSelected() && one("#agent-gas-source").value === source
       && one("#agent-gas-amount").value.trim() === amount && one("[data-agent-gas-confirm]").checked;
     try {
       if (PREVIEW) throw new Error("Local preview cannot fund a real account.");
@@ -2595,6 +2654,11 @@ function setup() {
       const provider = window.__GOGH_WALLET_PROVIDER__;
       const loadContext = async () => {
         await ensureV2Session();
+        if (!isCurrent()) throw new Error('Funding selection changed. Review again.');
+        if (source === 'OWNER') {
+          const agent = await jsonRequest(`/api/v2/punks/${punk.tokenId}/agent-account`);
+          return { agent, ownerBinding: { owner, tokenId: punk.tokenId, chainId: CHAIN_ID, collection: COLLECTION } };
+        }
         const [gate, agent, funding] = await Promise.all([
           fetchPunkWalletFundsGate((...args) => fetch(...args), punk.tokenId),
           jsonRequest(`/api/v2/punks/${punk.tokenId}/agent-account`),
@@ -2603,7 +2667,9 @@ function setup() {
         return { gate, agent, funding };
       };
       if (!state.gasFundingPlan) {
-        output.textContent = "Verifying both accounts, current ownership, reserve and exact transfer simulation…";
+        output.textContent = source === 'OWNER'
+          ? "Checking your ownership, the Agent wallet and the exact funding transfer…"
+          : "Checking both wallets, your reserve and the exact funding transfer…";
         const prepared = await prepareAgentGasFunding(provider, await loadContext(), punk.tokenId, source, amount);
         if (!isCurrent()) throw new Error("Selection changed during review.");
         state.gasFundingPlan = prepared; gasButton.textContent = "SUBMIT IN METAMASK";
@@ -2612,16 +2678,23 @@ function setup() {
       }
       output.textContent = "Rechecking funding before MetaMask…";
       const submitted = await submitAgentGasFunding(provider, state.gasFundingPlan, { loadContext, isCurrent });
-      submittedHash = submitted.hash; state.gasFundingPlan = null;
-      if (state.selected === punk) {
+      submittedHash = submitted.hash; state.gasFundingPlan = null; gasFundingRecovery.refresh();
+      if (isSelected()) {
         const link = one("[data-agent-gas-transaction]"); link.href = `https://robinhoodchain.blockscout.com/tx/${submittedHash}`; link.hidden = false;
         output.textContent = "Gas funding submitted. Waiting for confirmation; do not submit again.";
       }
       await waitForPunkWalletTransactionReceipt(provider, submittedHash);
-      if (state.selected === punk) {
+      const result = await recheckAgentGasFunding(provider, owner, punk.tokenId, { isCurrent: isSelected });
+      gasFundingRecovery.refresh();
+      if (result?.status !== 'CONFIRMED') {
+        if (isSelected()) output.textContent =
+          'Funding is awaiting confirmation. Use Recheck funding below; nothing will be sent again.';
+        return;
+      }
+      if (isSelected()) {
         one("[data-agent-gas-confirm]").checked = false;
         await Promise.all([loadAgentAccountStatus(), loadPunkBalances(punk)]);
-        if (state.selected === punk) {
+        if (isSelected()) {
           renderSelected(); output.textContent = "GAS FUNDING CONFIRMED ✓ Review and approve your mission separately.";
           one("[data-resume-chat-mission]").hidden = !state.localStrategy;
           addMessage("punk", `GAS FUNDING CONFIRMED. ${amount} ETH moved to my Agent Account. No mission was activated. ${state.localStrategy ? "Use REVIEW SAVED MISSION to continue." : "Tell me your mission and I'll show its limits for approval."}`);
@@ -2629,10 +2702,10 @@ function setup() {
       }
     } catch (error) {
       state.gasFundingPlan = null;
-      if (state.selected === punk) output.textContent = submittedHash
-        ? "Funding confirmation is pending. Check the linked transaction before retrying."
+      if (isSelected()) output.textContent = submittedHash
+        ? "Funding confirmation could not be checked. Use Recheck funding below to verify the original transaction before trying again."
         : `${error?.message ?? "Gas funding stopped."} Check wallet activity before retrying if MetaMask opened.`;
-    } finally { state.gasFundingBusy = false; gasButton.disabled = false; if (!state.gasFundingPlan) gasButton.textContent = "REVIEW & SIMULATE"; }
+    } finally { state.gasFundingBusy = false; gasButton.disabled = false; gasFundingRecovery.refresh(); if (!state.gasFundingPlan) gasButton.textContent = "REVIEW & SIMULATE"; }
   });
   const fundForm = one("[data-fund-form]");
   const fundButton = fundForm.querySelector("button[type=submit]");
@@ -2832,6 +2905,7 @@ function setup() {
     }
     const verifiedSameAccount = account && state.ownershipAccount === account;
     state.wallet = { ...wallet, account };
+    brokerPreferences?.refresh(); gasFundingRecovery?.refresh();
     if (account !== previousAccount || wallet.chainId !== previousChain) {
       ownerRefresh.invalidate(); clearTransferredPunkReview();
       resetGallery(); state.gallery = []; state.activity = []; state.balanceRequestId += 1; state.hydratedTokenId = null;
