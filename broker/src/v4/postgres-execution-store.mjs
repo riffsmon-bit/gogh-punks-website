@@ -29,8 +29,11 @@ export class PostgresV2ExecutionStore {
     const allowed = new Set(["SIMULATED", "REJECTED", "OWNER_APPROVAL_PENDING"]);
     if (!allowed.has(state)) throw new TypeError("execution store transition is invalid");
     const rejection = state === "REJECTED" ? String(detail.reasons?.[0] ?? "POLICY_REJECTED") : null;
+    // Match the existing owner-assisted review lifetime. Replays do not renew it.
     const result = await this.pool.query(`UPDATE broker_v2_execution_attempts
-      SET state = $1, rejection_code = $2, updated_at = NOW()
+      SET state = $1, rejection_code = $2, updated_at = NOW(),
+          approval_expires_at = CASE WHEN $1 = 'OWNER_APPROVAL_PENDING'
+            THEN clock_timestamp() + INTERVAL '90 seconds' ELSE approval_expires_at END
       WHERE idempotency_key = $3 AND state = $4 RETURNING attempt_id`,
     [state, rejection, idempotencyKey,
       state === "OWNER_APPROVAL_PENDING" ? "SIMULATED" : "RESERVED"]);
