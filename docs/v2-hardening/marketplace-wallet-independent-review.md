@@ -21,6 +21,18 @@ Nineteen no-network assertions passed against the corrected source codec and bro
 - Missing trusted release, changed guard address/code hash, changed connected owner and failed durable attempt persistence all prevented a wallet send.
 - The controlled successful path recorded `attempt → claim → one mocked wallet send → hash` in that order.
 
+The probes were subsequently converted into the committed [wallet boundary test suite](../../tests/marketplace-wallet-boundary.test.mjs), which passed **45 repeatable tests** against the integration source and generated browser bundle. Run it after integrating the wallet implementation:
+
+```
+node --test tests/marketplace-wallet-boundary.test.mjs
+```
+
+These tests use independent fixture order-type declarations and verify both source and browser codecs. Calldata mutations update the outer byte commitment, forcing the codec to reject changed economic meaning instead of merely detecting a stale hash. The fixtures exercise one-, two- and five-item batches with prices above JavaScript's exact-number range.
+
+Additional scenarios cover altered claim identity/hash/revision/order/counter, attempt-storage failure, a lost claim response after reservation, wallet rejection, an interrupted wallet request with unknown outcome, an invalid returned transaction hash and failed hash persistence after a successful mocked send. None automatically retry the wallet transaction. Chain/account changes before and after the claim, failed network reads, selection changes during parallel wallet reads and expiry during the claimed response all prevent submission.
+
+The concurrent test deliberately holds responses until two submissions reach the claim boundary; an in-memory atomic-winner fixture admits one wallet request and rejects the other. This proves browser behavior given an atomic claim, not the production database's atomicity. Durable SQL, real wallet behavior, receipt reconciliation and production recovery retain their separate acceptance tests. All transactions and callbacks in this suite are in-memory fixtures; it sends zero public requests or transactions.
+
 The guard's `expectedAccountState = prior state + 1` matches the actual `executeBatch` implementation, which increments once before invoking the batch. The codec preserves zero outer transaction value, exact per-order native value, canonical calldata round trips, the Punk Wallet NFT recipient, no criteria/conduit/extra-data expansion, exact gas-fee multiplication, the final reserve/owner/collection guard and its 60-second deadline.
 
 An independent esbuild run with `write:false` and the repository's browser targets produced bytes identical to the generated `site/marketplace-wallet-codec.js`. No files in the integration worktree were changed by this review. The probes made zero public RPC requests and zero transactions; the successful send used an in-memory mock provider.
