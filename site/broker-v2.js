@@ -60,7 +60,7 @@ const previewActivity = Object.freeze([
 
 const state = { wallet: null, punks: [], selected: null, localStrategy: null, localSkill: null,
   dispatchAfterActivation: false,
-  gallery: [], activity: [], hydratedTokenId: null, lastInspection: null,
+  gallery: [], activity: [], activityLoaded: false, hydratedTokenId: null, lastInspection: null,
   ownershipAccount: null, ownershipLoadingAccount: null, ownershipRequestId: 0,
   galleryStatus: "idle", galleryNote: "", galleryRequestId: 0,
   chatRequestId: 0, linkRequestId: 0,
@@ -727,7 +727,7 @@ function renderStrategySummary(agent, serverMission) {
     ? intent.preferences.prefer.map((style) => style.replaceAll("_", " ")).join(" + ")
     : "OPEN TASTE");
   set("[data-strategy-price]", intent.mintMode === "FREE_ONLY"
-    ? "FREE ONLY" : `UP TO ${intent.maxMintPriceWei} WEI`);
+    ? "FREE ONLY" : `UP TO ${displayEth(intent.maxMintPriceWei)} ETH`);
   set("[data-strategy-gas]", `${ethFromWei(intent.maxGasPerMintWei)} ETH`);
   set("[data-strategy-daily]", intent.dailyMintLimit);
   set("[data-strategy-total]", intent.totalMintLimit);
@@ -1148,6 +1148,7 @@ function renderSelected() {
   all("[data-punk-token], [data-talk-token], [data-chat-token]").forEach((node) => { node.textContent = punk.tokenId; });
   set("[data-hero-number]", punk.tokenId);
   set("[data-punk-mode]", displayMode);
+  set("[data-mode-summary]", displayMode);
   set("[data-strategy-mode]", `${displayMode} MODE`);
   set("[data-punk-wallet]", short(punk.account));
   const agentRuntime = selectedAgentAccount()?.runtime;
@@ -1222,7 +1223,7 @@ function selectPunk(tokenId, { focusRoster = false } = {}) {
   state.reviewMintOpportunityId = null; state.reviewMintArtifact = null;
   state.reviewMintPrepared = null; state.reviewMintBusy = false;
   state.withdrawalAmount = "1"; state.withdrawalPlan = null; state.withdrawalBusy = false;
-  if (!PREVIEW) { state.gallery = []; state.activity = []; }
+  if (!PREVIEW) { state.gallery = []; state.activity = []; state.activityLoaded = false; }
   renderSelected(); renderCollectionWithdrawal(); scheduleSelectedReviewMissionCheck();
   const activeTab = one('[data-v2-tab][aria-selected="true"]')?.dataset.v2Tab;
   if (!PREVIEW && activeTab) void hydrateSelected(activeTab);
@@ -1350,7 +1351,12 @@ function renderActivity() {
     });
   if (!entries.length) {
     const empty = document.createElement("li"); empty.className = "panel-empty";
-    empty.textContent = PREVIEW ? "No activity yet." : "Open ACTIVITY to load complete Art Broker history.";
+    empty.textContent = PREVIEW || state.activityLoaded ? "No activity yet. Start with a conversation to give your Punk a direction." : "Loading your Punk's activity…";
+    if (PREVIEW || state.activityLoaded) {
+      const talk = document.createElement('button'); talk.type = 'button'; talk.className = 'outline-button'; talk.textContent = 'TALK TO MY PUNK';
+      talk.addEventListener('click', () => { activateTab('talk'); one('#punk-prompt')?.focus(); });
+      empty.append(document.createElement('br'), talk);
+    }
     feed.append(empty); return;
   }
   for (const [time, type, title, detail, transactionHash] of entries) {
@@ -1681,7 +1687,8 @@ async function hydrateSelected(tab) {
         await ensureV2Session();
         const payload = await jsonRequest(`/api/v2/punks/${tokenId}/activity`);
         if (!isCurrent()) return;
-        state.activity = payload.entries.map((entry) => [dateLabel(entry.occurredAt), entry.type,
+        state.activityLoaded = true;
+      state.activity = payload.entries.map((entry) => [dateLabel(entry.occurredAt), entry.type,
           `CURRENT ART BROKER · ${String(entry.type).replaceAll("_", " ")}`,
           activityDetail(entry), entry.detail?.transactionHash]);
         renderActivity();
@@ -1710,6 +1717,7 @@ async function hydrateSelected(tab) {
     if (tab === "activity") {
       const payload = await jsonRequest(`/api/v2/punks/${tokenId}/activity`);
       if (!isCurrent()) return;
+      state.activityLoaded = true;
       state.activity = payload.entries.map((entry) => [dateLabel(entry.occurredAt), entry.type,
         `${entry.provenance === "V1" ? "EARLIER ART BROKER" : "CURRENT ART BROKER"} · ${String(entry.type).replaceAll("_", " ")}`,
         activityDetail(entry), entry.detail?.transactionHash]);
@@ -1876,8 +1884,8 @@ function showConfirmation(draft) {
     mode: intent.operatingMode,
     daily: intent.dailyMintLimit,
     total: intent.totalMintLimit,
-    reserve: `${(Number(intent.minimumReserveWei) / 1e18).toFixed(4)}`,
-    gas: `${(Number(intent.maxGasPerMintWei) / 1e18).toFixed(4)}`,
+    reserve: displayEth(intent.minimumReserveWei),
+    gas: displayEth(intent.maxGasPerMintWei),
     supply: intent.maximumCollectionSupply ?? "NO LIMIT",
     tastes: intent.preferences.prefer.map((value) => value.replaceAll("_", " ")),
     presence: intent.onlinePresenceRequirement === "WEBSITE_OR_SOCIAL"
@@ -1888,10 +1896,11 @@ function showConfirmation(draft) {
     target: intent.allowedContracts?.length === 1
       ? intent.allowedContracts[0] : "ALL ROBINHOOD NFTS",
     free: intent.mintMode === "FREE_ONLY",
+    maximumPrice: displayEth(intent.maxMintPriceWei),
   } : draft;
   const values = [
     ["NETWORK", "ROBINHOOD CHAIN"], ["MODE", view.mode],
-    ["MINT PRICE", view.free ? "FREE ONLY" : "NOT CHANGED"], ["LOOKING FOR", view.tastes.join(" · ")],
+    ["MINT PRICE", view.free ? "FREE ONLY" : `UP TO ${view.maximumPrice ?? "—"} ETH`], ["LOOKING FOR", view.tastes.join(" · ")],
     ["REQUIRES", [view.presence, "SCREEN + SIMULATION"].filter(Boolean).join(" · ")],
     ["DAILY LIMIT", view.daily], ["TOTAL LIMIT", view.total], ["MAX GAS", `${view.gas} ETH`], ["MINIMUM RESERVE", `${view.reserve} ETH`],
     ["MAX SUPPLY", view.supply], ["TARGET", view.target],
@@ -1910,7 +1919,8 @@ function showConfirmation(draft) {
     .filter(value => !["ACCOUNT_NOT_ACTIVATED", "SESSION_NOT_AUTHORIZED", "AGENT_GAS_UNFUNDED"].includes(value))
     .map(blockerLabel).join(" · ");
   const activationLocked = view.mode === "AUTONOMOUS" && !autonomousAvailable
-    || draft.state === "NEEDS_CLARIFICATION";
+    || draft.state === "NEEDS_CLARIFICATION"
+    || !!intent && (view.gas === "—" || view.reserve === "—" || !view.free && view.maximumPrice === "—");
   activate.disabled = activationLocked;
   activate.textContent = view.mode === "AUTONOMOUS"
     ? autonomousAvailable ? "AUTHORIZE MISSION" : "AUTONOMOUS LOCKED"
@@ -2023,7 +2033,7 @@ function applyOwnedPunks(punks) {
   state.selected = punks.find((punk) => punk.tokenId === selectedTokenId) ?? punks[0] ?? null;
   const reviewKey = selectedReviewKey();
   state.lastInspection = reviewKey ? state.reviewInspections.get(reviewKey) ?? null : null;
-  state.gallery = []; state.activity = [];
+  state.gallery = []; state.activity = []; state.activityLoaded = false;
   state.hydratedTokenId = null; resetGallery();
   renderRoster(); renderSelected(); scheduleSelectedReviewMissionCheck();
   void hydrateRosterArtwork();
@@ -2202,6 +2212,10 @@ function setup() {
     one("[data-link-form]").hidden = false; one("#mint-link").focus();
   }));
   const chatForm = one("[data-chat-form]");
+  const quickCalls = one('.quick-commands'), talkLayout = one('.talk-layout');
+  const narrowChat = matchMedia('(max-width: 720px)');
+  const positionQuickCalls = () => { if (narrowChat.matches) chatForm.after(quickCalls); else talkLayout.append(quickCalls); };
+  narrowChat.addEventListener('change', positionQuickCalls); positionQuickCalls();
   const chatInput = one("#punk-prompt");
   const openPromptPanel = (panel) => {
     if (panel === "link") {
@@ -2908,7 +2922,7 @@ function setup() {
     brokerPreferences?.refresh(); gasFundingRecovery?.refresh();
     if (account !== previousAccount || wallet.chainId !== previousChain) {
       ownerRefresh.invalidate(); clearTransferredPunkReview();
-      resetGallery(); state.gallery = []; state.activity = []; state.balanceRequestId += 1; state.hydratedTokenId = null;
+      resetGallery(); state.gallery = []; state.activity = []; state.activityLoaded = false; state.balanceRequestId += 1; state.hydratedTokenId = null;
     }
     if (!account) {
       if (wallet.restoring || wallet.status === "pending") return;

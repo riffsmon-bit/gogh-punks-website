@@ -239,7 +239,7 @@ test("the hosted PR review runs bounded tab agents while owner transactions stay
 
 test("link checks show progress and ground conversational follow-up questions", async () => {
   const script = await readFile(new URL("../site/broker-v2.js", import.meta.url), "utf8");
-  assert.match(script, /CHECKING… No wallet request will be accepted/);
+  assert.match(script, /Identifying the project and checking its link/);
   assert.match(script, /form\.setAttribute\("aria-busy", "true"\)/);
   assert.match(script, /button\.disabled = true/);
   assert.match(script, /state\.lastInspection = inspection/);

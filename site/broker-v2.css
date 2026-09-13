@@ -582,3 +582,28 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .welcome-actions button { min-height: 44px; white-space: normal; }
 [data-provider-status] { line-height: 1.6; }
 @media (max-width: 480px) { .welcome-actions button { width: 100%; } }
+
+.gas-funding-recovery { margin-top: 1.2rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+.gas-funding-recovery p { line-height: 1.6; }
+[data-funding-recover] { display: grid; gap: .75rem; margin-top: 1rem; }
+[data-funding-recover] label { display: grid; gap: .5rem; line-height: 1.5; }
+[data-funding-recover] input { min-height: 48px; width: 100%; min-width: 0; padding: 12px; border: 1px solid var(--line-strong); color: var(--text); background: var(--surface); }
+[data-funding-recover] button { min-height: 48px; white-space: normal; }
+.talk-mode-options { margin-bottom: 1rem; }
+.talk-mode-options > summary, .forge-research-examples > summary { min-height: 48px; padding: 14px 0; cursor: pointer; color: var(--cyan); font-weight: 800; line-height: 1.4; }
+.forge-research-examples { margin-top: 1.5rem; }
+.hero-stats dd, [data-available-budget], [data-punk-reserve] { overflow-wrap: anywhere; }
+.broker-panel, .broker-welcome, .roster-stage { scroll-margin-top: 112px; }
+.activity-feed li.panel-empty { display: block; width: 100%; line-height: 1.7; }
+.activity-feed li.panel-empty button { margin-top: .75rem; min-height: 44px; }
+@media (max-width: 720px) { .broker-panel, .broker-welcome, .roster-stage { scroll-margin-top: 20px; } }
+.balance-readout { min-width: 0; }
+.balance-readout strong { max-width: 100%; overflow-wrap: anywhere; font-size: clamp(2rem, 5vw, 5rem); line-height: 1.1; }
+.fund-breakdown div { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); }
+.fund-breakdown dd, .wrapped-balances dd, .collection-assets strong { min-width: 0; overflow-wrap: anywhere; }
+.wrapped-balances { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.wrapped-balances > div { min-width: 0; }
+.fund-breakdown dd, .hero-stats dd { overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+[data-fund-available], [data-available-budget] { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+@media (max-width: 720px) { .talk-panel > .quick-commands { margin-top: 1rem; } }
+.confirmation-dialog > .kicker { display: block; padding-right: 36px; }
