@@ -38,7 +38,7 @@ try {
  await until("document.querySelector('button')?.textContent==='RECHECK SELECTED TEST'");await click('RECHECK SELECTED TEST');
  await until("document.body.textContent.includes('REVIEW BURN #1753')");await click('REVIEW BURN #1753 → CREDIT #93');
  await until("document.body.textContent.includes('CONFIRM THE PERMANENT BURN')");
- await evaluate("document.querySelector('input[type=checkbox]').click();Array.from(document.querySelectorAll('input')).find(i=>i.type!=='checkbox').value='BURN 1753'");
+ await evaluate("document.querySelector('input[type=checkbox]').click();(()=>{const input=Array.from(document.querySelectorAll('input')).find(i=>i.type!=='checkbox');input.value='BURN 1753';input.dispatchEvent(new Event('input',{bubbles:true}));})()");
  for(const width of [1440,375,320]){await call('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<600});assert.ok(await evaluate('document.documentElement.scrollWidth<=innerWidth'),`overflow at ${width}`);
  const shot=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});await writeFile(`/private/tmp/gogh-selected-burn-${width}.png`,Buffer.from(shot.data,'base64'));}
  await click('CONFIRM IN WALLET');await until("document.body.textContent.includes('Simulated provider interruption')");assert.equal(await evaluate("localStorage.getItem('mock.sends')"),'1');
@@ -46,14 +46,14 @@ try {
  await until("document.body.textContent.includes('Burn confirmed')");assert.equal(await evaluate("localStorage.getItem('mock.sends')"),'1');assert.deepEqual(errors,[]);
  await evaluate("localStorage.clear();localStorage.setItem('mock.reject','true')");await call('Page.reload');
  await until("document.querySelector('button')?.textContent==='RECHECK SELECTED TEST'");await click('RECHECK SELECTED TEST');await until("document.body.textContent.includes('REVIEW BURN #1753')");await click('REVIEW BURN #1753 → CREDIT #93');await until("document.body.textContent.includes('CONFIRM THE PERMANENT BURN')");
- await evaluate("document.querySelector('input[type=checkbox]').click();Array.from(document.querySelectorAll('input')).find(i=>i.type!=='checkbox').value='BURN 1753'");await click('CONFIRM IN WALLET');
+ await evaluate("document.querySelector('input[type=checkbox]').click();(()=>{const input=Array.from(document.querySelectorAll('input')).find(i=>i.type!=='checkbox');input.value='BURN 1753';input.dispatchEvent(new Event('input',{bubbles:true}));})()");await click('CONFIRM IN WALLET');
  await until("document.body.textContent.includes('Simulated decline read interruption')");await call('Page.reload');await until("document.querySelector('button')?.textContent==='RECHECK SELECTED TEST'");await click('RECHECK SELECTED TEST');
  await until("document.body.textContent.includes('Wallet confirmation declined')");assert.equal(await evaluate("localStorage.getItem('mock.sends')"),null);assert.deepEqual(errors,[]);
  // Let a saved review expire while its fields are filled in. The timeout
  // disables only the send control; it must not erase the user's input.
  await evaluate("(()=>{const s=JSON.parse(localStorage.getItem('mock.server'));s.record.status='PREPARED';s.record.reportedHash=null;localStorage.removeItem('gogh-selected-burn-v1:'+s.record.review.intentId);localStorage.setItem('mock.server',JSON.stringify(s));window.__realNow=Date.now;const offset=s.record.review.expiresAt-5500-Date.now();Date.now=()=>window.__realNow()+offset;})()");
  await click('RECHECK SELECTED TEST');await until("document.body.textContent.includes('Review ready.')");
- await evaluate("document.querySelector('input[type=checkbox]').checked=true;Array.from(document.querySelectorAll('input')).find(i=>i.type!=='checkbox').value='BURN 1753'");
+ await evaluate("document.querySelector('input[type=checkbox]').click();(()=>{const input=Array.from(document.querySelectorAll('input')).find(i=>i.type!=='checkbox');input.value='BURN 1753';input.dispatchEvent(new Event('input',{bubbles:true}));})()");
  await until("document.body.textContent.includes('This review expired')");
  assert.equal(await evaluate("Array.from(document.querySelectorAll('button')).find(b=>b.textContent==='CONFIRM IN WALLET').disabled"),true);
  assert.equal(await evaluate("document.querySelector('input[type=checkbox]').checked"),true);
