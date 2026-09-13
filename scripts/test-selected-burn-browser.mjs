@@ -12,12 +12,13 @@ const request=async(_path,options)=>{const s=load();if(!options?.body)return pay
  if(b.operation==='prepare'){const expiresAt=Math.floor(Date.now()/1000)*1000+60000,burn={sourceTokenId:'1753',targetTokenId:'93',nonce:'0',stateHash:'0x'+'d'.repeat(64),deadline:String(expiresAt/1000)};
  s.record={review:{intentId:'a'.repeat(64),action:'BURN',state:{owner,sourceTokenId:'1753',targetTokenId:'93'},burn,expiresAt,maximumNetworkFeeWei:'1000000',transaction:{from:owner,to:release.trainingSource,data:encodeReviewedBurnCall(burn),chainId:'0x1237',value:'0x0',nonce:'0x0',gas:'0x186a0',gasPrice:'0xa'}},reviewHash:'b'.repeat(64),status:'PREPARED',revision:0,reportedHash:null,receipt:null};save(s);return payload(s);}
  if(b.operation==='claim'){if(b.confirmation!=='BURN 1753'||!b.obligationsReviewed||s.record.status!=='PREPARED')throw Error('BAD_CLAIM');s.record.status='WALLET_REQUESTED';s.record.revision++;save(s);return payload({...s,transaction:s.record.review.transaction});}
+ if(b.operation==='decline'){if(b.rejectionCode!==4001||s.record.reportedHash)throw Error('BAD_DECLINE');if(!localStorage.getItem('mock.declineFailed')){localStorage.setItem('mock.declineFailed','true');throw Error('Simulated decline read interruption.');}s.record.status='DECLINED';s.record.revision++;save(s);return payload(s);}
  if(b.operation==='recover'){if(JSON.parse(localStorage.getItem('gogh-selected-burn-v1:'+s.record.review.intentId)).hash!==hash)throw Error('HASH_NOT_PERSISTED');
  if(!localStorage.getItem('mock.failed')){localStorage.setItem('mock.failed','true');throw Error('Simulated provider interruption. Recheck the original transaction.');}
  s.record.status='CONFIRMED';s.record.reportedHash=hash;s.record.revision++;s.state.credited=true;s.state.credits='1';save(s);return payload(s);}
  throw Error('UNEXPECTED_API');};
 window.__testPanel=createSelectedBurnPanel({root:document.querySelector('main'),getSelection:()=>selected,ensureSession:async()=>{},request,
- getProvider:()=>({request:async({method})=>{if(method==='eth_chainId')return '0x1237';if(method==='eth_accounts')return [owner];if(method==='eth_sendTransaction'){localStorage.setItem('mock.sends',String(Number(localStorage.getItem('mock.sends')||'0')+1));return hash;}throw Error('UNEXPECTED_WALLET_METHOD');}})});
+ getProvider:()=>({request:async({method})=>{if(method==='eth_chainId')return '0x1237';if(method==='eth_accounts')return [owner];if(method==='eth_sendTransaction'){if(localStorage.getItem('mock.reject'))throw Object.assign(Error('Wallet rejected'),{code:4001});localStorage.setItem('mock.sends',String(Number(localStorage.getItem('mock.sends')||'0')+1));return hash;}throw Error('UNEXPECTED_WALLET_METHOD');}})});
 </script>`;
 const server=createServer(async(req,res)=>{try{if(req.url==='/'){res.setHeader('content-type','text/html');res.end(html);return;}
 if(!/^\/[a-z0-9-]+\.(js|css)$/.test(req.url)){res.writeHead(404);res.end();return;}
@@ -43,5 +44,10 @@ try {
  await click('CONFIRM IN WALLET');await until("document.body.textContent.includes('Simulated provider interruption')");assert.equal(await evaluate("localStorage.getItem('mock.sends')"),'1');
  await call('Page.reload');await until("document.querySelector('button')?.textContent==='RECHECK SELECTED TEST'");await click('RECHECK SELECTED TEST');
  await until("document.body.textContent.includes('Burn confirmed')");assert.equal(await evaluate("localStorage.getItem('mock.sends')"),'1');assert.deepEqual(errors,[]);
- console.log(JSON.stringify({status:'PASS',widths:[1440,375,320],lostReadThenReloadRecovery:true,mockWalletSends:1,publicTransactions:0}));
+ await evaluate("localStorage.clear();localStorage.setItem('mock.reject','true')");await call('Page.reload');
+ await until("document.querySelector('button')?.textContent==='RECHECK SELECTED TEST'");await click('RECHECK SELECTED TEST');await until("document.body.textContent.includes('REVIEW BURN #1753')");await click('REVIEW BURN #1753 → CREDIT #93');await until("document.body.textContent.includes('CONFIRM THE PERMANENT BURN')");
+ await evaluate("document.querySelector('input[type=checkbox]').click();Array.from(document.querySelectorAll('input')).find(i=>i.type!=='checkbox').value='BURN 1753'");await click('CONFIRM IN WALLET');
+ await until("document.body.textContent.includes('Simulated decline read interruption')");await call('Page.reload');await until("document.querySelector('button')?.textContent==='RECHECK SELECTED TEST'");await click('RECHECK SELECTED TEST');
+ await until("document.body.textContent.includes('Wallet confirmation declined')");assert.equal(await evaluate("localStorage.getItem('mock.sends')"),null);assert.deepEqual(errors,[]);
+ console.log(JSON.stringify({status:'PASS',explicitRejectionSurvivesFailedReadAndReload:true,widths:[1440,375,320],lostReadThenReloadRecovery:true,mockWalletSends:1,publicTransactions:0}));
 }finally{ws?.close();chrome.kill('SIGTERM');if(chrome.exitCode===null)await new Promise(r=>{const timer=setTimeout(r,3000);chrome.once('exit',()=>{clearTimeout(timer);r();});});await rm(profile,{recursive:true,force:true,maxRetries:3});await new Promise(r=>server.close(r));}

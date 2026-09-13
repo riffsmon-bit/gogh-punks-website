@@ -21,7 +21,11 @@ export function createSelectedBurnPanel({root,getSelection,ensureSession,request
     try{await ensureSession();if(current())await fn(selected,current);}catch(error){if(current())message=error.message;}
     finally{if(current()){busy=false;render();}}}
   async function refresh(selected,current){const result=validateSelectedBurnEnvelope(await api(),selected);if(!current())return;
-    envelope=result;const r=result.record,hash=r&&(saved(r.review.intentId)?.hash??r.reportedHash);
+    envelope=result;const r=result.record,local=r&&saved(r.review.intentId),hash=r&&(local?.hash??r.reportedHash);
+    if(r?.status==='WALLET_REQUESTED'&&!hash&&local?.rejectionCode===4001){
+      await api({operation:'decline',intentId:r.review.intentId,revision:r.revision,rejectionCode:4001});
+      if(!current())return;envelope=validateSelectedBurnEnvelope(await api(),selected);
+    }
     if(r?.status==='WALLET_REQUESTED'&&hash){const recovered=await api({operation:'recover',intentId:r.review.intentId,revision:r.revision,transactionHash:hash});
       validateSelectedBurnEnvelope(recovered,selected);if(!current())return;envelope=validateSelectedBurnEnvelope(await api(),selected);}
     if(current())message=statusText(envelope.record);}
@@ -57,11 +61,8 @@ export function createSelectedBurnPanel({root,getSelection,ensureSession,request
             persistAttempt:async id=>persist(id,{attempted:true}),persistHash:async(id,hash)=>persist(id,{attempted:true,hash}),
             claim:record=>api({operation:'claim',intentId:record.review.intentId,revision:record.revision,reviewHash:record.reviewHash,
               confirmation:text,obligationsReviewed:accepted})});}
-          catch(error){if(error.code===4001&&current()){
-            const latest=validateSelectedBurnEnvelope(await api(),selected).record;
-            if(latest?.review.intentId===before.record.review.intentId&&latest.status==='WALLET_REQUESTED'&&!latest.reportedHash)
-              await api({operation:'decline',intentId:latest.review.intentId,revision:latest.revision,rejectionCode:4001});
-          }throw error;}
+          catch(error){if(error.code===4001)persist(before.record.review.intentId,
+            {...saved(before.record.review.intentId),attempted:true,rejectionCode:4001});throw error;}
           finally{if(current())await refresh(selected,current);}
         });},attempted||Date.now()+5000>=v.expiresAt);
       button(root,'CANCEL UNSENT REVIEW',cancel);
