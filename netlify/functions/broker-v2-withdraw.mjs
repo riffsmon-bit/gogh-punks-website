@@ -15,7 +15,11 @@ export default async function handler(request) {
     return json({ ok: true, tokenId, punkWallet: authority.punkWallet,
       currentOwner: authority.owner, requiresAI: false, requiresDiscovery: false,
       requiresExecutor: false, supported: ["NATIVE", "ERC721", "ERC1155", "CANONICAL_WETH"],
-      controlCenterUrl: `/broker/punk/${tokenId}?tab=assets`, transactionPrepared: false });
+      controlCenterUrl: `/broker/punk/${tokenId}?tab=assets`,
+      agentRecovery: { controlCenterUrl: `/broker/v2/?tab=fund&tokenId=${tokenId}#agent-recovery`,
+        supported: ["NATIVE", "ENTRY_POINT", "ERC721", "ERC1155"],
+        requiresCurrentOwnerReview: true, transactionPrepared: false },
+      transactionPrepared: false });
   } catch (error) { return v2Failure(error); }
 }
 

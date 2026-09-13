@@ -59,7 +59,8 @@ export default async function handler(request) {
             ? "PUNK_WALLET" : "PUNK_AGENT_ACCOUNT",
           transactionHash: row.transaction_hash, artwork: row.nftMetadata ?? null,
           withdrawControlUrl: row.punk_account_address === authority.punkWallet
-            ? `/broker/punk/${tokenId}?tab=assets` : null };
+            ? `/broker/punk/${tokenId}?tab=assets`
+            : `/broker/v2/?tab=fund&tokenId=${tokenId}#agent-recovery` };
       });
     const paidHistory = await selectedPaidHistory(tokenId,session.walletAddress);
     candidates.push(...paidHistory.candidates);
@@ -76,6 +77,7 @@ export default async function handler(request) {
         const indexed = await new OpenSeaPortfolioSource({ apiKey: process.env.OPENSEA_API_KEY }).accountNfts(agentAccount);
         candidates.push(...indexed.map(item => ({ ...item, custodyAccount: agentAccount,
           custodyType: 'PUNK_AGENT_ACCOUNT', provenance: 'RECEIVED', acquisitionType: 'RECEIVED',
+          withdrawControlUrl: `/broker/v2/?tab=fund&tokenId=${tokenId}#agent-recovery`,
           mintCostWei: null, acquiredAt: null, artwork: { name: item.name, imageUrl: item.imageUrl } })));
       } catch { /* Advisory index may be unavailable; only live-verified candidates are displayed. */ }
     }
