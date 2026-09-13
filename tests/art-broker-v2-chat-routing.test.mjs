@@ -76,7 +76,7 @@ test('a paid request stays paid across a contract address and mint-it follow-up'
     const result = await resolveV2PunkChat({ router: { run: () => { throw Error('must stay deterministic'); } },
       ownerMessage, history: previous, currentIntent, tokenId: '93', authority, owner: OWNER, now: NOW });
     assert.equal(result.responseKind, 'CLARIFICATION_REQUIRED'); assert.equal(result.draft, null);
-    assert.match(result.reply, /Paid mint execution/); assert.match(result.reply, /not replaced your request/);
+    assert.match(result.reply, /Paid mint execution is limited/); assert.match(result.reply, /existing mission is unchanged/);
   }
 });
 

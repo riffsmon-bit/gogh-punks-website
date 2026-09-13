@@ -14,6 +14,7 @@ import { v2Failure } from "./_shared/v2-http.mjs";
 import { readV2PunkAuthority } from "./_shared/v2-ownership.mjs";
 import { v2TokenIdFrom } from "./_shared/v2-route.mjs";
 import { requireV2Session } from "./_shared/v2-session.mjs";
+import {selectedPaidHistory} from './_shared/directed-paid-history.mjs';
 
 export default async function handler(request) {
   if (request.method !== "GET") return json({ ok: false, code: "METHOD_NOT_ALLOWED" }, 405);
@@ -60,6 +61,8 @@ export default async function handler(request) {
           withdrawControlUrl: row.punk_account_address === authority.punkWallet
             ? `/broker/punk/${tokenId}?tab=assets` : null };
       });
+    const paidHistory = await selectedPaidHistory(tokenId,session.walletAddress);
+    candidates.push(...paidHistory.candidates);
     if (walletInventory?.account?.toLowerCase() === authority.punkWallet.toLowerCase()
       && walletInventory?.owner?.toLowerCase() === authority.owner.toLowerCase()) {
       candidates.push(...walletInventory.items.map(item => ({ ...item,
@@ -87,7 +90,7 @@ export default async function handler(request) {
         args: [BigInt(item.tokenId)] })),
     });
     return json({ ok: true, tokenId, punkWallet: authority.punkWallet,
-      indexedAtAuthorityBlock: authority.blockNumber, ...inventory, indexerIsCustodyAuthority: false });
+      indexedAtAuthorityBlock: authority.blockNumber, ...inventory, paidMintHistoryAvailable:paidHistory.available, indexerIsCustodyAuthority: false });
   } catch (error) { return v2Failure(error); }
 }
 

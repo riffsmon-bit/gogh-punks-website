@@ -283,7 +283,7 @@ export async function startPreview({ port = 0, researchClient, controlCenterTrai
         ['/burn-practice-ui.mjs', ['burn-practice-ui.mjs', 'text/javascript']],
         ['/burn-practice.css', ['burn-practice.css', 'text/css']],
       ] : []),
-      ...['broker-v2-forge.js', 'forge-profile-view.js', 'forge-training.js', 'forge-training-transaction.js', 'forge-reviewed-training.js', 'forge-reviewed-calldata.js', 'forge-catalog.js', 'forge-durable-training-panel.js', 'forge-durable-wallet.js', 'forge-training-release.js', 'forge-selected-burn-panel.js', 'forge-selected-burn-wallet.js', 'forge-burn-calldata.js', 'keccak256.js'].map(name => [`/${name}`, [`../../../site/${name}`, 'text/javascript']]),
+      ...['broker-v2-forge.js', 'forge-profile-view.js', 'forge-training.js', 'forge-training-transaction.js', 'forge-reviewed-training.js', 'forge-reviewed-calldata.js', 'forge-catalog.js', 'forge-durable-training-panel.js', 'forge-durable-wallet.js', 'forge-training-release.js', 'directed-paid-panel.js', 'directed-paid-wallet.js', 'directed-paid-release.js', 'forge-selected-burn-panel.js', 'forge-selected-burn-wallet.js', 'forge-burn-calldata.js', 'keccak256.js'].map(name => [`/${name}`, [`../../../site/${name}`, 'text/javascript']]),
       ['/broker-v2-forge.css', ['../../../site/broker-v2-forge.css', 'text/css']],
       ['/forge-training.css', ['../../../site/forge-training.css', 'text/css']],
       ['/', ['index.html', 'text/html']], ['/app.mjs', ['app.mjs', 'text/javascript']], ['/style.css', ['style.css', 'text/css']],

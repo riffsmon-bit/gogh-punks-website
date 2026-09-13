@@ -1,0 +1,15 @@
+GRANT SELECT,INSERT ON broker_selected_paid_reviews TO forge_request;
+GRANT SELECT ON broker_selected_paid_reviews TO forge_worker;
+GRANT UPDATE(revision,status,reported_hash,receipt) ON broker_selected_paid_reviews TO forge_request;
+GRANT UPDATE(revision,status,receipt) ON broker_selected_paid_reviews TO forge_worker;
+CREATE POLICY selected_paid_reviews_read ON broker_selected_paid_reviews FOR SELECT TO forge_request,forge_worker USING(true);
+CREATE POLICY selected_paid_reviews_insert ON broker_selected_paid_reviews FOR INSERT TO forge_request WITH CHECK(status='PREPARED');
+CREATE POLICY selected_paid_reviews_update ON broker_selected_paid_reviews FOR UPDATE TO forge_request USING(status IN('PREPARED','WALLET_REQUESTED')) WITH CHECK(true);
+CREATE POLICY selected_paid_receipt_update ON broker_selected_paid_reviews FOR UPDATE TO forge_worker USING(status='WALLET_REQUESTED') WITH CHECK(status IN('CONFIRMED','REVERTED'));
+GRANT SELECT,INSERT ON broker_selected_paid_executions TO forge_worker;
+GRANT UPDATE(revision,status,receipt,reason) ON broker_selected_paid_executions TO forge_worker;
+GRANT SELECT(intent_id,revision,status,transaction_hash,receipt,reason,created_at) ON broker_selected_paid_executions TO forge_request;
+CREATE POLICY selected_paid_execution_read ON broker_selected_paid_executions FOR SELECT TO forge_request,forge_worker USING(true);
+CREATE POLICY selected_paid_execution_insert ON broker_selected_paid_executions FOR INSERT TO forge_worker WITH CHECK(status IN('SIGNED','STOPPED'));
+CREATE POLICY selected_paid_execution_update ON broker_selected_paid_executions FOR UPDATE TO forge_worker USING(status IN('SIGNED','SUBMITTED')) WITH CHECK(true);
+REVOKE ALL ON broker_selected_paid_reviews,broker_selected_paid_executions,broker_selected_paid_events FROM anon,authenticated,service_role;

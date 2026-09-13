@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#080d12">
+  <title>Production test guide · Gogh Punks Art Broker</title>
+  <link rel="stylesheet" href="/broker-v2.css">
+  <style>
+    body{margin:0;padding:24px;color:#f4f6f2;background:#080d12;font:16px/1.65 system-ui,sans-serif}
+    main{max-width:860px;margin:auto}h1{font-size:clamp(30px,6vw,48px);line-height:1.1}h2{margin:36px 0 12px;font-size:24px}
+    a{color:#dfff3f}blockquote{margin:16px 0;padding:16px;border-left:3px solid #dfff3f;background:#171f29}
+    li{margin:10px 0}code{overflow-wrap:anywhere}section{border-top:1px solid #344152;margin-top:28px}small{color:#b6c1cf}
+    .status{color:#dfff3f;font-weight:700}nav{display:flex;gap:20px;flex-wrap:wrap}
+  </style>
+</head>
+<body><main>
+  <nav aria-label="Broker links"><a href="/broker/v2/?tab=talk">Open production broker</a><a href="/broker/v2/?tab=forge">Open Forge</a></nav>
+  <h1>Production test guide</h1>
+  <p>Start with Punk <strong>#93</strong> on Robinhood Chain. Paid minting and burn-to-training are currently released for the selected owner’s test. The completed setup transactions do not need to be repeated.</p>
+  <p><small>Updated September 13, 2026. Simulations passed; each live result still needs its own verified receipt.</small></p>
+  <section><h2>1. Connect, chat and check status</h2>
+    <ol><li>Open the broker, connect the owner wallet ending <strong>7AA6</strong>, select #93, and sign in if asked.</li>
+      <li>Send the prompt below. The answer should describe the selected Punk’s current state.</li>
+      <li>Open <strong>Example prompts</strong> under Talk. Choosing an example should fill the composer so you can edit it before sending.</li>
+      <li>Ask about pixel art or your collecting preferences. A conversation should not change a mission or request a purchase signature.</li></ol>
+    <blockquote>Check my status</blockquote>
+  </section>
+  <section><h2>2. One confirmation → directed paid mint</h2>
+    <p class="status">Selected owner test · #93 · Peppies World</p>
+    <blockquote>Mint one NFT from Peppies World for up to 0.0001 ETH.</blockquote>
+    <ol><li>Send this in Talk. The <strong>Directed paid mint</strong> panel should open a fresh quote for exactly one NFT.</li>
+      <li>Verify Peppies World: <code>0xb73f1d1aee57410d537d87b656e98b9d3df5b213</code>. Check the mint price, fixed worker fee, total escrow, wallet network fee and expiry. The full quoted worker fee is charged only after successful delivery.</li>
+      <li>Select <strong>Confirm mint budget in wallet</strong> and approve once. First use creates #93’s mint vault, so its network gas is higher than later authorizations.</li>
+      <li>The worker checks every minute. Use <strong>Recheck paid mint</strong> until delivery is verified. A second purchase signature should not be requested.</li>
+      <li>Verify the receipt and NFT token ID. The destination is #93’s Agent wallet, <code>0xcadcfd37e715bc031cf0cec7fa2335091c878c83</code>. Check Collection and Activity too; current NFT ownership is verified when Collection loads.</li></ol>
+    <p>If a review expires before any wallet request, cancel the unsent review and prepare a fresh quote. If a wallet request was made, recover its original transaction hash from wallet activity. Refreshing must not send it again.</p>
+    <p>If the mint stops or expires, review <strong>Mission cancellation</strong>, confirm it, then review <strong>Refund</strong> and withdraw. These are two separate wallet transactions. The refund contains unused mint escrow; network gas already spent is excluded.</p>
+  </section>
+  <section><h2>3. Burn #1753 → teach #93 Rarity Eye</h2>
+    <p><strong>This permanently destroys #1753 and can remove access to its wallets, including assets received later. Its assets do not move to #93.</strong></p>
+    <ol><li>Open Forge with #93 selected. Select <strong>Recheck selected test</strong>. Verify source #1753 and recipient #93.</li>
+      <li>If shown, review and confirm <strong>Enable Forge</strong>. This administrator transaction unpauses the shared contracts for all owners while enabling only Rarity Eye research. Recheck its receipt.</li>
+      <li>Review <strong>#1753 approval</strong>, read the fresh wallet and obligation checks, and confirm the token-specific approval. Review any nonstandard assets and off-chain obligations before proceeding.</li>
+      <li>Review <strong>Burn #1753 → credit #93</strong>. Check the owner acknowledgement, type <strong>BURN 1753</strong>, and confirm in the wallet.</li>
+      <li>Verify the burn receipt and exactly one new training credit on #93. Then use <strong>Recheck training</strong>.</li>
+      <li>Claim initial rarity slots if offered, learn Rarity Eye, and equip it. These are separate transactions. Training waits for chain finality between steps; recent observations were about 14 minutes. Recheck saved receipts while settlement is pending.</li>
+      <li>Compare #93, #94 and #95. The result should identify that three-token sample and <strong>SAMPLE_ONLY</strong>. Unequip Rarity Eye and verify its equipped research action becomes unavailable; re-equip and repeat.</li></ol>
+  </section>
+  <section><h2>4. Free missions and recall</h2>
+    <blockquote>Autonomously find and mint one free pixel art NFT. Maximum one mint per day and one mint total. Max 0.0005 ETH gas per mint. Show me the mission for review.</blockquote>
+    <p>Review the mode, gas cap, reserve, expiry and any collection restrictions. Confirm the required Agent setup. The worker should report checks in Activity; it should count a mint only after verifying its receipt. No eligible match is a valid outcome.</p>
+    <p>For a directed free mint, choose the exact-contract example and replace its placeholder with an open, supported collection. A paid collection must not silently become a free-mint mission.</p>
+    <blockquote>ok recall please</blockquote>
+    <p>Recall applies to the free-mint Agent session. Confirm revocation if the wallet asks, then verify paused or revoked status. A funded paid mint has its own cancellation control in Talk.</p>
+  </section>
+  <section><h2>5. Gas, ETH, WETH and NFTs</h2>
+    <ul><li><strong>Agent gas:</strong> send “Fund gas.” Review the source, destination and a small amount you choose. Verify the balance change after the receipt.</li>
+      <li><strong>ETH:</strong> open Fund. Review a small deposit or withdrawal and its exact destination before signing.</li>
+      <li><strong>WETH:</strong> use Fund → ETH ↔ WETH to wrap and unwrap a small chosen amount. Verify both balances. Wrapping does not place a bid.</li>
+      <li><strong>NFTs:</strong> open Collection and check custody. Use an enabled withdrawal control for an NFT held in the Punk Wallet. Agent-wallet custody is displayed separately.</li></ul>
+  </section>
+  <section><h2>6. Research and playbook skills</h2>
+    <p>Use the examples for checking a collection link, teaching a scouting routine, and opening Forge’s research lab. Contract Detective, Rarity Eye and Market Scout should identify their sources or sample limits. A playbook skill does not consume a permanent training credit or authorize purchases.</p>
+    <p>Equipped Rarity Eye research is available after the burn, learning and equipment sequence above. The research lab is a separate read-only test surface.</p>
+  </section>
+  <section><h2>Still pending</h2>
+    <p><strong>Floor sweeps and WETH bids are not live.</strong> Their example prompts should explain that limitation and leave existing missions unchanged.</p>
+    <p>For any unexpected result, keep the transaction hash and report the Punk ID, action, displayed message and approximate time. A transaction hash by itself does not prove completion.</p>
+  </section>
+</main></body></html>

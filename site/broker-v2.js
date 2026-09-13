@@ -1,5 +1,6 @@
 import { verifyOwnedPunkIds } from "./broker-v2-ownership.js";
 import { createForgeControl } from './broker-v2-forge.js';
+import { createDirectedPaidPanel } from './directed-paid-panel.js';
 import { createOwnerRefresh } from "./broker-v2-owner-refresh.js";
 import { prepareAgentGasFunding, submitAgentGasFunding } from "./punk-agent-gas-funding.js";
 import { punkChatAction, agentChatStatus } from "./punk-chat-actions.js";
@@ -74,6 +75,7 @@ const REVIEW_TAB_ID = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math
 const punkRecall = createPunkRecall();
 let reviewMissionTimer = null;
 let forgeControl = null;
+let directedPaidControl = null;
 const one = (selector) => document.querySelector(selector);
 const all = (selector) => [...document.querySelectorAll(selector)];
 const set = (selector, value) => { const target = one(selector); if (target) target.textContent = String(value); };
@@ -1078,6 +1080,7 @@ async function runOwnerAssistedLiveMint() {
 
 function renderRoster() {
   forgeControl?.selectionChanged();
+  directedPaidControl?.selectionChanged();
   const roster = one("[data-punk-roster]");
   roster.replaceChildren();
   set("[data-roster-count]", state.punks.length);
@@ -1220,6 +1223,9 @@ function renderGallery() {
 function activityDetail(entry) {
   const detail = entry.detail;
   if (typeof detail === "string") return detail;
+  if (entry.type === 'PAID_MINT_COMPLETED') return `Paid mint confirmed · Peppies World #${detail?.tokenId??'?'} · delivered to #93’s Agent wallet.`;
+  if (['PAID_MINT_SIGNED','PAID_MINT_SUBMITTED'].includes(entry.type)) return 'Paid mint transaction saved. Waiting for verified delivery.';
+  if (['PAID_MINT_STOPPED','PAID_MINT_REVERTED'].includes(entry.type)) return 'Paid mint stopped. Recheck Directed Paid Mint in Talk to cancel the mission and withdraw unused funds.';
   if (entry.type === "AGENT_SCOUTED") {
     const reasons = Object.keys(detail?.rejectionCounts ?? {});
     const explanation = reasons.length
@@ -1570,7 +1576,7 @@ async function hydrateSelected(tab) {
       ]);
       renderGallery(); set("[data-gallery-count]", state.gallery.length);
       const inventoryNote = document.createElement('p'); inventoryNote.className = 'panel-empty';
-      inventoryNote.textContent = `${payload.inventoryNote ?? ''}${payload.ownershipChecksUnavailable ? ` ${payload.ownershipChecksUnavailable} ownership checks unavailable; retry to refresh.` : ''}`;
+      inventoryNote.textContent = `${payload.inventoryNote ?? ''}${payload.ownershipChecksUnavailable ? ` ${payload.ownershipChecksUnavailable} ownership checks unavailable; retry to refresh.` : ''}${payload.paidMintHistoryAvailable===false?' Paid-mint history is temporarily unavailable; recheck in Talk.':''}`;
       one('[data-gallery-grid]').append(inventoryNote);
     }
     if (tab === "activity") {
@@ -1579,6 +1585,7 @@ async function hydrateSelected(tab) {
         `${entry.provenance === "V1" ? "EARLIER ART BROKER" : "CURRENT ART BROKER"} · ${String(entry.type).replaceAll("_", " ")}`,
         activityDetail(entry), entry.detail?.transactionHash]);
       renderActivity();
+      if(payload.paidMintHistoryAvailable===false){const note=document.createElement('p');note.className='panel-empty';note.textContent='Paid-mint history is temporarily unavailable. Recheck Directed Paid Mint in Talk.';one('[data-activity-feed]').append(note);}
     }
   } catch (error) {
     const message = `${error?.message ?? "V2 data unavailable."} No authority was assumed.`;
@@ -2074,6 +2081,11 @@ function setup() {
           setChatBusy(false); return;
         }
         draft = payload.draft; reply = payload.reply;
+        if (payload.responseKind === 'PAID_MINT_REVIEW') {
+          setChatBusy(false); addMessage('punk',reply);
+          await directedPaidControl?.openDraft(payload.paidDraft);
+          return;
+        }
         if (payload.responseKind === "SKILL_DRAFT") {
           const skill = normalizeReviewSkill(payload.skillDraft);
           if (skill.punkTokenId !== punk.tokenId || skill.expectedOwner !== owner
@@ -2667,6 +2679,9 @@ function setup() {
     getSelection: () => state.selected ? { tokenId: String(state.selected.tokenId),
       owner: state.wallet?.account ?? null, chainId: state.wallet?.chainId, preview: PREVIEW } : null,
     ensureSession: ensureV2Session, request: jsonRequest });
+  directedPaidControl = createDirectedPaidPanel({root:one('[data-directed-paid-panel]'),
+    getSelection:()=>state.selected?{tokenId:String(state.selected.tokenId),owner:state.wallet?.account??null,chainId:state.wallet?.chainId,preview:PREVIEW}:null,
+    ensureSession:ensureV2Session,request:jsonRequest});
   if (["talk", "strategy", "fund", "collection", "activity", "forge", "settings"].includes(requestedTab)) {
     activateTab(requestedTab);
   }

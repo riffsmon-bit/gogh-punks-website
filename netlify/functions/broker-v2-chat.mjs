@@ -14,6 +14,8 @@ import { createDatabaseBackedGoghIntelligence } from "./_shared/v2-ai-runtime.mj
 import { v2Failure } from "./_shared/v2-http.mjs";
 import { requireV2Session } from "./_shared/v2-session.mjs";
 import { readV2ChatAuthority, assertV2ChatAuthorityUnchanged } from "./_shared/v2-ownership.mjs";
+import paidRelease from '../../deployments/robinhood-directed-paid-mint.json' with {type:'json'};
+import {directedPaidPrompt} from '../../broker/src/v4/directed-paid-prompt.mjs';
 
 function tokenIdFrom(request) {
   const match = new URL(request.url).pathname.match(/^\/api\/v2\/punks\/(\d+)\/chat$/);
@@ -71,6 +73,8 @@ export async function resolveV2PunkChat({ router, ownerMessage, currentIntent, t
       providerAvailable: answer.providerAvailable });
   };
   const planningMessage = acquisitionConversationMessage(ownerMessage, history);
+  const paid = directedPaidPrompt(planningMessage,{release:paidRelease,owner,tokenId});
+  if (paid) return Object.freeze(paid);
   const acquisition = acquisitionRequest(planningMessage);
   if (acquisition?.blocked) return Object.freeze({ responseKind: "CLARIFICATION_REQUIRED", draft: null,
     reply: acquisitionClarification(acquisition.blocked),
@@ -221,6 +225,7 @@ export async function handleV2Chat(request, { pool, requireSession = requireV2Se
       providerAvailable: resolved.providerAvailable,
       draft: resolved.draft ? { ...resolved.draft, version } : null,
       ...(resolved.skillDraft ? { skillDraft: resolved.skillDraft } : {}),
+      ...(resolved.paidDraft ? { paidDraft: resolved.paidDraft } : {}),
       economicPermissionsActivated: false });
   } catch (error) { return v2Failure(error); }
 }

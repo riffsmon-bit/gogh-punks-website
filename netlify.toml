@@ -38,6 +38,18 @@
 [functions."broker-v2-forge-selected-burn"]
   included_files = ["deployments/robinhood-*.json", "deployments/certificates/supabase-prod-ca-2021.crt", "docs/review/2026-09-12/selected-launch/source-standard-asset-history.json", "artifacts/skill-forge/rarity/gogh-opensea-rarity-*.json"]
 
+[functions."broker-v2-directed-paid-mint"]
+  included_files = ["deployments/robinhood-directed-paid-mint.json", "deployments/certificates/supabase-prod-ca-2021.crt"]
+
+[functions."broker-v2-collection"]
+  included_files = ["deployments/certificates/supabase-prod-ca-2021.crt"]
+
+[functions."broker-v2-activity"]
+  included_files = ["deployments/certificates/supabase-prod-ca-2021.crt"]
+
+[functions."broker-punk-agent-worker"]
+  included_files = ["deployments/robinhood-directed-paid-mint.json", "deployments/certificates/supabase-prod-ca-2021.crt"]
+
 [functions."broker-v2-forge-skill"]
   included_files = ["broker/skills/**", "broker/src/v4/skill-forge/*.mjs", "deployments/robinhood-forge-training.json", "deployments/certificates/supabase-prod-ca-2021.crt", "artifacts/skill-forge/rarity/gogh-opensea-rarity-*.json"]
 

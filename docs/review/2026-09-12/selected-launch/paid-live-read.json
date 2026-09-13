@@ -1,0 +1,22 @@
+{
+  "status": "PASS",
+  "checkedAt": "2026-09-13T04:59:10.049Z",
+  "scope": "PUBLIC_READS_AND_ETH_CALL_ONLY",
+  "anchor": {
+    "number": "61690694",
+    "hash": "0x7f88f91ec0ba4c2284edc7eadcca563917c3267ddd5f044fc04b1468eaf220c3",
+    "timestamp": "1789275528"
+  },
+  "owner": "0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6",
+  "vault": "0x6cfcd49ebcf01e8028d443d6d8382e36ca78b8cb",
+  "vaultDeployed": false,
+  "missionStatus": 0,
+  "refundWei": "0",
+  "priceWei": "100000000000000",
+  "quotedWorkerFeeWei": "88830000000000",
+  "maximumOwnerNetworkFeeWei": "436086472000000",
+  "authorizationSimulatedByProviders": 2,
+  "elapsedMs": 21857,
+  "productionJournalWrites": 0,
+  "publicTransactions": 0
+}
