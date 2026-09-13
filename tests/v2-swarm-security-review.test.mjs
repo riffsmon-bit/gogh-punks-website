@@ -1,17 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { inflateSync } from 'node:zlib';
 import { decodeFunctionData, keccak256, parseAbi } from 'viem';
+import { CODE as runtime } from './fixtures/punk-agent-runtime.mjs';
 import { AGENT_RECOVERY_PINS as P, agentRecoveryProxyRuntime,
   buildAgentRecoveryTransaction, createAgentRecoveryController } from '../site/punk-agent-recovery.js';
 
 // Reuse only the owner's published offline bytecode fixtures, never its test
 // helpers or assertions. No network, wallet, credentials or broadcasts occur.
-const source = readFileSync(new URL('./punk-agent-recovery.test.mjs', import.meta.url), 'utf8');
-const compressed = JSON.parse(source.match(/^const COMPRESSED_RUNTIME = (\{[^\n]+\});$/m)[1]);
-const runtime = Object.fromEntries(Object.entries(compressed).map(([name, bytes]) =>
-  [name, `0x${inflateSync(Buffer.from(bytes, 'base64')).toString('hex')}`]));
 assert.equal(keccak256(runtime.registry), P.registryHash);
 assert.equal(keccak256(runtime.implementation), P.implementationHash);
 const owner = `0x${'1'.repeat(40)}`, account = `0x${'3'.repeat(40)}`, asset = `0x${'4'.repeat(40)}`;
@@ -32,7 +27,7 @@ function review(i) {
     transaction: { ...buildAgentRecoveryTransaction(i, owner, account), nonce: '0x7', gas: '0xea60', gasPrice: '0x7d0' } };
 }
 function fixture() {
-  const values = new Map(), f = { sends: [], calls: [], rendered: [] };
+  const values = new Map(), f = { sends: [], calls: [], reviewRequests: [] };
   f.storage = { getItem: k => values.get(k) ?? null, setItem: (k, v) => values.set(k, v) };
   let tail = Promise.resolve();
   const locks = { request: (_key, _options, callback) => {
@@ -68,8 +63,11 @@ function fixture() {
   } };
   f.controller = (onChange = () => {}) => createAgentRecoveryController({ provider, owner, tokenId: '93',
     storage: f.storage, locks, isCurrent: () => true, now: () => now, onChange,
-    fetchFunction: async (_url, options) => ({ ok: true,
-      json: async () => ({ ok: true, review: review(JSON.parse(options.body).intent) }) }) });
+    fetchFunction: async (_url, options) => {
+      const requested = JSON.parse(options.body).intent;
+      f.reviewRequests.push(requested);
+      return { ok: true, json: async () => ({ ok: true, review: review(requested) }) };
+    } });
   f.save = state => f.storage.setItem(key, JSON.stringify(state));
   return f;
 }
@@ -81,12 +79,15 @@ test('security: confirmation in one tab must reject a review replaced by another
   await b.cancelReview();
   await b.prepare(intent('900'));
   assert.equal(displayed.at(-1).review.intent.amountWei, '100');
+  const requestsBeforeConfirm = f.reviewRequests.length;
   let failure;
   try { await a.submit({ expectedReview: displayed.at(-1).review }); } catch (error) { failure = error; }
   const decoded = f.sends.map(tx => decodeFunctionData({
     abi: parseAbi(['function execute(address,uint256,bytes,uint8) returns (bytes)']), data: tx.data }));
   assert.equal(f.sends.length, 0, `Tab A displayed 100 but submitted ${decoded[0]?.args[1]} wei`);
-  assert.ok(failure, 'A stale displayed review must be rejected before the wallet request');
+  assert.equal(failure?.code, 'AGENT_RECOVERY_REVIEW_CHANGED');
+  assert.equal(f.reviewRequests.length, requestsBeforeConfirm, 'Drift is rejected before fresh API preparation');
+  assert.equal(f.calls.length, 0, 'Drift is rejected before wallet reads or submission');
 });
 
 test('security characterization: event-confirmed NFT recovery does not prove updated custody', async () => {
@@ -102,9 +103,9 @@ test('security characterization: event-confirmed NFT recovery does not prove upd
   assert.equal(f.sends.length, 0);
 });
 
-test('security characterization: an edited terminal journal can claim success without receipt evidence', () => {
+test('security: an edited terminal journal cannot claim success without receipt evidence', () => {
   const f = fixture();
   f.save({ schema: 'GOGH_AGENT_RECOVERY_JOURNAL_V1', status: 'CONFIRMED', review: review(intent()), transactionHash: null, receipt: null });
-  assert.equal(f.controller().getState().status, 'CONFIRMED');
+  assert.throws(() => f.controller().getState(), { code: 'AGENT_RECOVERY_JOURNAL_INVALID' });
   assert.equal(f.calls.length, 0);
 });
