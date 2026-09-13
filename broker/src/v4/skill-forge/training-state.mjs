@@ -1,4 +1,5 @@
 import { keccak256, parseAbi, parseAbiItem, stringToHex } from 'viem';
+import { readTrainingOwnerOrigination, sameTrainingOwnerOrigination } from './training-owner-origination.mjs';
 
 const ZERO = `0x${'0'.repeat(64)}`;
 const DOMAIN = keccak256(stringToHex('GOGH_ORIGINAL_PUNK_TRAINING_REVIEW_V1'));
@@ -31,15 +32,23 @@ export async function assertTrainingOwnerContinuity({ client, release, owner, to
   const after = checkedTrainingBlock(await client.getBlock({ blockTag: 'latest' }), now());
   const fromBlock = BigInt(anchor.number), toBlock = BigInt(after.number);
   valid(toBlock >= fromBlock && toBlock - fromBlock <= 1000n);
-  const [prior, currentOwner, logs] = await Promise.all([
+  // The review's existing canonical anchor binds owner designation/delegate code.
+  // A changed designation or target runtime requires a new review; the durable
+  // transaction schema, current-owner authority and signatures stay unchanged.
+  const originAtAnchor = readTrainingOwnerOrigination({ client, owner, blockNumber: fromBlock });
+  const originAtHead = toBlock === fromBlock ? originAtAnchor
+    : readTrainingOwnerOrigination({ client, owner, blockNumber: toBlock });
+  const [prior, currentOwner, logs, priorOrigin, currentOrigin] = await Promise.all([
     client.getBlock({ blockNumber: fromBlock }),
     client.readContract({ address: release.collection, abi: TRAINING_STATE_ABI, functionName: 'ownerOf', args: [BigInt(tokenId)], blockNumber: toBlock }),
     client.getLogs({ address: release.collection,
       event: parseAbiItem('event Transfer(address indexed from,address indexed to,uint256 indexed tokenId)'),
       args: { tokenId: BigInt(tokenId) }, fromBlock, toBlock, strict: true }),
+    originAtAnchor, originAtHead,
   ]);
   valid(prior.number === fromBlock && prior.hash === anchor.hash && String(prior.timestamp) === anchor.timestamp
-    && equal(currentOwner, owner) && Array.isArray(logs) && logs.length === 0);
+    && equal(currentOwner, owner) && Array.isArray(logs) && logs.length === 0
+    && sameTrainingOwnerOrigination(priorOrigin, currentOrigin));
   const canonical = await client.getBlock({ blockNumber: toBlock });
   valid(canonical.number === toBlock && canonical.hash === after.hash && await client.getChainId() === release.chainId);
   return after;
@@ -57,18 +66,18 @@ export async function readReviewedTrainingState({ client, release, owner, tokenI
   const progress = (functionName, values = []) => read(release.progression, functionName, values);
   const names = ['collection','registry','trainingSource','REVIEW_DOMAIN','MAX_REVIEW_LIFETIME','allocationRoot',
     'snapshotHash','allocationChainId','baseSlots','slotCap'];
-  const [codes, constants, currentOwner, credits, nonce, stateHash, slots, claimed, ownerCode] = await Promise.all([
+  const [codes, constants, currentOwner, credits, nonce, stateHash, slots, claimed] = await Promise.all([
     Promise.all(['collection','registry','progression','trainingSource'].map(name => client.getCode({ address: release[name], blockNumber }))),
     Promise.all(names.map(name => progress(name))), read(release.collection, 'ownerOf', args),
     progress('trainingCredits', args), progress('trainingReviewNonce', args), progress('trainingReviewStateHash', args),
-    progress('unlockedSlots', args), progress('claimedStartingSlots', args), client.getCode({ address: owner, blockNumber }),
+    progress('unlockedSlots', args), progress('claimedStartingSlots', args),
   ]);
   valid(codes.every((code, index) => typeof code === 'string' && code !== '0x'
     && keccak256(code) === release[`${['collection','registry','progression','trainingSource'][index]}CodeHash`])
     && equal(constants[0],release.collection) && equal(constants[1],release.registry) && equal(constants[2],release.trainingSource)
     && constants[3] === DOMAIN && constants[4] === 60n && constants[5] === release.allocationRoot
     && constants[6] === release.snapshotHash && constants[7] === BigInt(release.chainId) && constants[8] === 1 && constants[9] === 7
-    && equal(currentOwner,owner) && (ownerCode === undefined || ownerCode === '0x')
+    && equal(currentOwner,owner)
     && uint(credits) && uint(nonce) && hash(stateHash)
     && Number.isInteger(slots) && slots >= 1 && slots <= 7 && Number.isInteger(claimed) && claimed >= 0 && claimed <= 3 && slots >= (claimed || 1));
   const equipped = await Promise.all(Array.from({ length: slots }, (_, slot) => progress('equipped', [...args,slot])));
