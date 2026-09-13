@@ -65,39 +65,93 @@ export async function providerJsonRequest({ fetchImpl, url, headers, body, timeo
     throw new TypeError("provider timeout is invalid");
   }
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   const startedAt = performance.now();
-  try {
-    const response = await fetchImpl(url, {
+  const maximumBytes = 2_000_000;
+  let response;
+  let reader;
+  let complete = false;
+  const cancelBody = () => {
+    // Cancellation is best effort: a broken upstream must not delay the deadline.
+    try { Promise.resolve(reader ? reader.cancel() : response?.body?.cancel?.()).catch(() => {}); }
+    catch { /* A locked or already closed stream needs no further cleanup. */ }
+  };
+  const timeoutError = () => new ArtBrokerProviderError("PROVIDER_TIMEOUT",
+    "The intelligence provider timed out.", { retryable: true });
+  let timeout;
+  const deadline = new Promise((_, reject) => {
+    timeout = setTimeout(() => { controller.abort(); reject(timeoutError()); }, timeoutMs);
+  });
+  const request = async () => {
+    response = await fetchImpl(url, {
       method: "POST", headers, body: JSON.stringify(body), signal: controller.signal,
       redirect: "error",
     });
-    const declared = Number(response.headers?.get?.("content-length") ?? 0);
-    if (Number.isFinite(declared) && declared > 2_000_000) {
-      throw new ArtBrokerProviderError("PROVIDER_RESPONSE_TOO_LARGE", "The intelligence response was too large.");
-    }
-    const text = await response.text();
-    if (Buffer.byteLength(text, "utf8") > 2_000_000) {
-      throw new ArtBrokerProviderError("PROVIDER_RESPONSE_TOO_LARGE", "The intelligence response was too large.");
-    }
-    let payload;
-    try { payload = JSON.parse(text); } catch {
-      throw new ArtBrokerProviderError("INVALID_PROVIDER_RESPONSE", "The intelligence provider returned invalid JSON.");
-    }
+    if (controller.signal.aborted) { cancelBody(); throw timeoutError(); }
+    // Error pages are frequently HTML or empty. Their status still determines
+    // fallback, and their untrusted bodies are neither buffered nor reflected.
     if (!response.ok) {
       const retryable = response.status === 408 || response.status === 429 || response.status >= 500;
       throw new ArtBrokerProviderError("PROVIDER_REQUEST_FAILED",
         "The intelligence provider could not complete the request.", { retryable, httpStatus: response.status });
     }
+    const declared = Number(response.headers?.get?.("content-length") ?? 0);
+    if (Number.isFinite(declared) && declared > maximumBytes) {
+      throw new ArtBrokerProviderError("PROVIDER_RESPONSE_TOO_LARGE", "The intelligence response was too large.");
+    }
+    let text = "";
+    if (response.body) {
+      if (typeof response.body.getReader !== "function") {
+        throw new ArtBrokerProviderError("INVALID_PROVIDER_RESPONSE",
+          "The intelligence provider returned an unreadable response.");
+      }
+      reader = response.body.getReader();
+      // Fixed storage also bounds memory when the upstream sends tiny chunks.
+      const bytes = Buffer.alloc(maximumBytes);
+      let size = 0;
+      try {
+        for (;;) {
+          if (controller.signal.aborted) throw timeoutError();
+          const { done, value } = await reader.read();
+          if (controller.signal.aborted) throw timeoutError();
+          if (done) break;
+          if (!(value instanceof Uint8Array)) {
+            throw new ArtBrokerProviderError("INVALID_PROVIDER_RESPONSE",
+              "The intelligence provider returned an unreadable response.");
+          }
+          if (value.byteLength > maximumBytes - size) {
+            throw new ArtBrokerProviderError("PROVIDER_RESPONSE_TOO_LARGE",
+              "The intelligence response was too large.");
+          }
+          bytes.set(value, size);
+          size += value.byteLength;
+        }
+        text = bytes.subarray(0, size).toString("utf8");
+      } finally {
+        try { reader.releaseLock(); } catch { /* Cleanup must not replace the provider error. */ }
+        reader = null;
+      }
+    }
+    let payload;
+    try { payload = JSON.parse(text); } catch {
+      throw new ArtBrokerProviderError("INVALID_PROVIDER_RESPONSE", "The intelligence provider returned invalid JSON.");
+    }
     return { payload, latencyMs: Math.round(performance.now() - startedAt) };
+  };
+  try {
+    // Native fetch observes AbortSignal. Racing also bounds injected transports
+    // whose fetch or stream reader fails to honor it.
+    const result = await Promise.race([request(), deadline]);
+    complete = true;
+    return result;
   } catch (error) {
     if (error instanceof ArtBrokerProviderError) throw error;
-    const timedOut = error?.name === "AbortError";
+    const timedOut = controller.signal.aborted || error?.name === "AbortError";
     throw new ArtBrokerProviderError(timedOut ? "PROVIDER_TIMEOUT" : "PROVIDER_UNAVAILABLE",
       timedOut ? "The intelligence provider timed out." : "The intelligence provider is unavailable.",
-      { retryable: true, cause: error });
+      { retryable: true });
   } finally {
     clearTimeout(timeout);
+    if (!complete) { controller.abort(); cancelBody(); }
   }
 }
 

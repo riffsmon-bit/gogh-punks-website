@@ -44,8 +44,13 @@ export class AnthropicArtBrokerProvider extends ArtBrokerAIProvider {
       url: this.endpoint, timeoutMs: this.timeoutMs,
       headers: { "x-api-key": secret, "anthropic-version": "2023-06-01",
         "content-type": "application/json" }, body });
+    if (["max_tokens", "model_context_window_exceeded"].includes(payload?.stop_reason)) {
+      throw new ArtBrokerProviderError("PROVIDER_OUTPUT_INCOMPLETE", "Claude could not finish the reply.");
+    }
     const text = payload?.content?.find?.((part) => part?.type === "text")?.text;
-    if (typeof text !== "string" || payload?.stop_reason === "refusal") {
+    // Tool requests and paused tool turns are not final text in this tool-free adapter.
+    if (typeof text !== "string" || payload?.stop_reason
+      && !["end_turn", "stop_sequence"].includes(payload.stop_reason)) {
       throw new ArtBrokerProviderError("INVALID_PROVIDER_RESPONSE", "Claude returned no usable output.");
     }
     return providerResult({ provider: this.provider, modelId: this.modelId, task, text,

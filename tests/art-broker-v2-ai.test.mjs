@@ -23,8 +23,7 @@ const PUNK_WALLET = "0x2222222222222222222222222222222222222222";
 const NOW = new Date("2026-09-06T18:00:00.000Z");
 
 function response(payload, status = 200) {
-  return { ok: status >= 200 && status < 300, status,
-    headers: { get: () => null }, text: async () => JSON.stringify(payload) };
+  return new Response(JSON.stringify(payload), { status });
 }
 
 test("OpenAI adapter uses server-side Responses structured output without storing prompts", async () => {

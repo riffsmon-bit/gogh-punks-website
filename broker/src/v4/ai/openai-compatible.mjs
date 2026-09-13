@@ -4,7 +4,15 @@ import {
 } from "./provider.mjs";
 
 function responseText(payload) {
+  if (payload?.status === "incomplete") {
+    throw new ArtBrokerProviderError("PROVIDER_OUTPUT_INCOMPLETE", "The provider could not finish the reply.");
+  }
+  if (payload?.status && payload.status !== "completed") return null;
   if (!Array.isArray(payload?.output)) return null;
+  if (payload.output.some(item => item?.type === "message" && item.status === "incomplete")) {
+    throw new ArtBrokerProviderError("PROVIDER_OUTPUT_INCOMPLETE", "The provider could not finish the reply.");
+  }
+  if (payload.output.some(item => item?.type === "message" && item.status && item.status !== "completed")) return null;
   for (const item of payload.output) {
     if (item?.type !== "message" || !Array.isArray(item.content)) continue;
     const part = item.content.find((value) => value?.type === "output_text");

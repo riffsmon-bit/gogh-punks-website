@@ -45,8 +45,13 @@ export class BankrArtBrokerProvider extends ArtBrokerAIProvider {
     const { payload, latencyMs } = await providerJsonRequest({ fetchImpl: this.fetchImpl,
       url: this.endpoint, timeoutMs: this.timeoutMs,
       headers: { "x-api-key": secret, "content-type": "application/json" }, body });
-    const text = payload?.choices?.[0]?.message?.content;
-    if (typeof text !== "string") {
+    const choice = payload?.choices?.[0];
+    if (choice?.finish_reason === "length") {
+      throw new ArtBrokerProviderError("PROVIDER_OUTPUT_INCOMPLETE", "Bankr could not finish the reply.");
+    }
+    const text = choice?.message?.content;
+    if (typeof text !== "string" || choice?.message?.refusal
+      || choice?.finish_reason && choice.finish_reason !== "stop") {
       throw new ArtBrokerProviderError("INVALID_PROVIDER_RESPONSE", "Bankr returned no usable output.");
     }
     return providerResult({ provider: this.provider, modelId: this.modelId, task, text,
