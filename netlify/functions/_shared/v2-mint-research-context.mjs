@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { parseAbi, parseAbiItem } from 'viem';
+import { decodeEventLog, encodeEventTopics, parseAbi, parseAbiItem } from 'viem';
 import agentDeployment from '../../../deployments/robinhood-punk-agent-account.json' with { type: 'json' };
 import paidRelease from '../../../deployments/robinhood-directed-paid-mint.json' with { type: 'json' };
 import { ROBINHOOD } from '../../../broker/src/config.mjs';
@@ -57,6 +57,96 @@ export async function readMintResearchAgentAuthority({ client, tokenId, owner, n
   return { chainId: ROBINHOOD.chainId, collection: p.collection, tokenId, owner,
     punkWallet: lower(runtime.account), activated: true, nativeBalanceWei: runtime.nativeBalance.toString(),
     blockNumber: blockNumber.toString(), blockHash: block.hash, blockTime: time };
+}
+
+// Existing session-history helpers use 2,000-block provider windows but require
+// authorization receipts or hardcode #93. This strategy reader preserves that
+// page size while keeping its own recorded ownership anchor and no session grant.
+const HISTORY_PAGE_BLOCKS = 2_000n;
+const HISTORY_MAX_PAGES = 512;
+const HISTORY_CONCURRENCY = 4;
+const HISTORY_DURATION_MS = 8_000;
+async function verifyMintResearchStrategyHistory({ client, tokenId, fromBlock, authority, now }) {
+  const toBlock = BigInt(authority.blockNumber), blocks = toBlock - fromBlock + 1n;
+  requireValue(fromBlock >= 0n && blocks > 0n && blocks <= HISTORY_PAGE_BLOCKS * BigInt(HISTORY_MAX_PAGES),
+    'MINT_RESEARCH_HISTORY_WINDOW_EXCEEDED');
+  const pages = Number((blocks + HISTORY_PAGE_BLOCKS - 1n) / HISTORY_PAGE_BLOCKS);
+  const topics = encodeEventTopics({ abi: [TRANSFER], eventName: 'Transfer', args: { tokenId: BigInt(tokenId) } });
+  const expires = Math.min(+now() + HISTORY_DURATION_MS, authority.blockTime + 30_000);
+  let stopped = false, cursor = 0, completed = 0, timer;
+  const unavailable = () => Error('MINT_RESEARCH_HISTORY_UNAVAILABLE');
+  const check = () => {
+    requireValue(!stopped && Number.isSafeInteger(+now()) && +now() >= authority.blockTime
+      && +now() < expires, 'MINT_RESEARCH_HISTORY_UNAVAILABLE');
+  };
+  const timeout = new Promise((_, reject) => { timer = setTimeout(() => {
+    stopped = true; reject(unavailable());
+  }, Math.max(1, expires - +now())); });
+  async function read(operation) {
+    check();
+    const value = await Promise.race([Promise.resolve().then(operation), timeout]);
+    check(); return value;
+  }
+  const header = (block, number) => {
+    requireValue(block?.number === number && HASH.test(block.hash) && block.hash !== `0x${'0'.repeat(64)}`
+      && typeof block.timestamp === 'bigint' && block.timestamp >= 0n
+      && Number.isSafeInteger(Number(block.timestamp) * 1000)
+      && Number(block.timestamp) * 1000 <= authority.blockTime, 'MINT_RESEARCH_HISTORY_UNAVAILABLE');
+    return { number, hash: block.hash, timestamp: block.timestamp };
+  };
+  try {
+    const [first, tip] = await Promise.all([
+      read(() => client.getBlock({ blockNumber: fromBlock })),
+      read(() => client.getBlock({ blockNumber: toBlock })),
+    ]);
+    const origin = header(first, fromBlock), anchor = header(tip, toBlock);
+    requireValue(anchor.hash === authority.blockHash && Number(anchor.timestamp) * 1000 === authority.blockTime,
+      'MINT_RESEARCH_HISTORY_UNAVAILABLE');
+    async function worker() {
+      while (cursor < pages) {
+        check();
+        const index = cursor++, start = fromBlock + BigInt(index) * HISTORY_PAGE_BLOCKS;
+        const end = start + HISTORY_PAGE_BLOCKS - 1n < toBlock ? start + HISTORY_PAGE_BLOCKS - 1n : toBlock;
+        // Inspect the raw page: viem's event-aware getLogs filters malformed
+        // or unmatched logs and could turn an invalid response into an empty one.
+        const logs = await read(() => client.request({ method: 'eth_getLogs', params: [{ address: ROBINHOOD.canonicalCollection,
+          topics, fromBlock: `0x${start.toString(16)}`, toBlock: `0x${end.toString(16)}` }] }, { retryCount: 0 }));
+        requireValue(Array.isArray(logs) && logs.length <= 1000, 'MINT_RESEARCH_HISTORY_UNAVAILABLE');
+        // Any response that is not the exact empty-array case must be examined;
+        // missing, sparse or malformed pages never become absence of transfers.
+        for (let i = 0; i < logs.length; i++) {
+          const log = logs[i];
+          requireValue(Object.hasOwn(logs, i) && log && lower(log.address) === ROBINHOOD.canonicalCollection
+            && log.removed === false && typeof log.blockNumber === 'string' && /^0x(?:0|[1-9a-f][0-9a-f]*)$/i.test(log.blockNumber)
+            && BigInt(log.blockNumber) >= start && BigInt(log.blockNumber) <= end && HASH.test(log.blockHash), 'MINT_RESEARCH_HISTORY_UNAVAILABLE');
+          let decoded;
+          try { decoded = decodeEventLog({ abi: [TRANSFER], data: log.data, topics: log.topics, strict: true }); }
+          catch { throw unavailable(); }
+          requireValue(decoded.args.tokenId === BigInt(tokenId), 'MINT_RESEARCH_HISTORY_UNAVAILABLE');
+          const eventNumber = BigInt(log.blockNumber);
+          const eventBlock = header(await read(() => client.getBlock({ blockNumber: eventNumber })), eventNumber);
+          requireValue(eventBlock.hash === log.blockHash, 'MINT_RESEARCH_HISTORY_UNAVAILABLE');
+          fail('MINT_RESEARCH_STRATEGY_OWNER_CHANGED');
+        }
+        requireValue(Reflect.ownKeys(logs).length === 1 && Object.hasOwn(logs, 'length'), 'MINT_RESEARCH_HISTORY_UNAVAILABLE');
+        completed++;
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(HISTORY_CONCURRENCY, pages) }, worker));
+    requireValue(completed === pages, 'MINT_RESEARCH_HISTORY_UNAVAILABLE');
+    const [firstAgain, tipAgain, chainId] = await Promise.all([
+      read(() => client.getBlock({ blockNumber: fromBlock })),
+      read(() => client.getBlock({ blockNumber: toBlock })), read(() => client.getChainId()),
+    ]);
+    const closingOrigin = header(firstAgain, fromBlock), closingAnchor = header(tipAgain, toBlock);
+    requireValue(chainId === 4663 && closingOrigin.hash === origin.hash && closingOrigin.timestamp === origin.timestamp
+      && closingAnchor.hash === anchor.hash && closingAnchor.timestamp === anchor.timestamp, 'MINT_RESEARCH_HISTORY_UNAVAILABLE');
+    check();
+    return { verified: true, pagesChecked: completed, fromBlock: fromBlock.toString(), toBlock: toBlock.toString(), blockHash: anchor.hash };
+  } catch (error) {
+    if (error?.message === 'MINT_RESEARCH_STRATEGY_OWNER_CHANGED') throw error;
+    throw unavailable();
+  } finally { stopped = true; clearTimeout(timer); }
 }
 
 // Select explicit read-only columns through the already configured restricted
@@ -214,15 +304,15 @@ export function createMintResearchContextReader({ pool, client, environment = pr
     requireValue(opportunity.opportunityId === opportunityId && opportunity.collectionContract === source.collection_contract
       && opportunity.screeningStatus === 'PASSED', 'MINT_RESEARCH_OPPORTUNITY_UNAVAILABLE');
     const fromBlock = BigInt(strategy.ownership_block), toBlock = BigInt(authority.blockNumber);
-    const [usage, priorOwner, logs] = await Promise.all([
+    const [usage, priorOwner, history] = await Promise.all([
       readMintResearchUsage({ pool, tokenId, wallet: authority.punkWallet, collection: opportunity.collectionContract,
         now: time, selectedPaidUsageReader }),
       client.readContract({ address: ROBINHOOD.canonicalCollection, abi: ABI, functionName: 'ownerOf', args: [BigInt(tokenId)], blockNumber: fromBlock }),
-      client.getLogs({ address: ROBINHOOD.canonicalCollection, event: TRANSFER, args: { tokenId: BigInt(tokenId) }, fromBlock, toBlock, strict: true }),
+      verifyMintResearchStrategyHistory({ client, tokenId, fromBlock, authority, now }),
     ]);
     // Inclusive anchor rejects a transfer within the original authority block as
     // well as away-and-back transfers after activation. A new strategy is needed.
-    requireValue(lower(priorOwner) === owner && Array.isArray(logs) && logs.length === 0, 'MINT_RESEARCH_STRATEGY_OWNER_CHANGED');
+    requireValue(lower(priorOwner) === owner && history.verified === true, 'MINT_RESEARCH_STRATEGY_OWNER_CHANGED');
     const head = await client.getBlock({ blockNumber: toBlock });
     requireValue(head.hash === authority.blockHash && head.number === toBlock && await client.getChainId() === 4663
       && +now() - authority.blockTime <= 30_000, 'MINT_RESEARCH_STALE_ANCHOR');

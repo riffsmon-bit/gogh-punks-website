@@ -46,6 +46,13 @@ export function mintResearchFixture() {
         getMintStats:[0n,10n,2222n]};
       if(!Object.hasOwn(values,name))throw Error(`Unexpected fixture read ${name}`);return values[name];},
     call:async query=>{f.calls.push(['call',query]);return {data:'0x'};},estimateGas:async()=>50_000n,getGasPrice:async()=>1n};
+  // Raw RPC history pages are deliberately not decoded/filtered by viem.
+  f.client.request=async({method,params})=>{
+    if(method!=='eth_getLogs')throw Error('Unexpected fixture RPC method');
+    const query=params[0];
+    return f.client.getLogs({address:query.address,fromBlock:BigInt(query.fromBlock),toBlock:BigInt(query.toBlock),
+      args:{tokenId:BigInt(query.topics[3])},strict:true});
+  };
   f.pool={query:async(sql,params=[])=>{f.sql.push([sql,params]);
     if(sql.includes('row_security_active'))return {rows:[{tables:params[0].length,complete:f.scopeComplete}]};
     if(sql.includes('WITH attempts AS'))return {rows:[f.usageRow]};

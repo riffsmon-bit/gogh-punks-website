@@ -44,5 +44,5 @@ test('canonical Agent authority rejects stale blocks before runtime reads',async
 test('state changed after SQL/historical reads is rejected',async()=>{
   const f=mintResearchFixture(),original=f.client.getLogs;
   f.client.getLogs=async q=>{f.blockHash=`0x${'b'.repeat(64)}`;return original(q);};
-  await assert.rejects(createMintResearchContextReader(f.contextOptions)(f.identity),/STALE_ANCHOR/);
+  await assert.rejects(createMintResearchContextReader(f.contextOptions)(f.identity),/HISTORY_UNAVAILABLE|STALE_ANCHOR/);
 });

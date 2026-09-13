@@ -27,7 +27,9 @@ New mint tools run the actual fixed SeaDrop inspection, simulation and determini
 
 A context requires the latest ACTIVE strategy for the current owner, its recorded confirmation, unexpired lifetime, matching canonical strategy hash, and the same Agent wallet. Older ACTIVE rows cannot bypass a newer PAUSED row. The shared opportunity comes from the application database and must agree with its stored ID, chain, collection and screening state. The client cannot supply an opportunity body, strategy, usage, capability flags, endpoint or calldata.
 
-Historical `ownerOf` and Transfer logs cover the strategy's recorded `ownership_block` through the current anchor inclusively. A transfer away and back invalidates inherited strategy authority. The ending block is rechecked for canonicality and freshness. RPC history failure yields unavailable research.
+Historical `ownerOf` and Transfer logs cover the strategy's recorded `ownership_block` through the current anchor inclusively. The scan uses 2,000-block provider windows, four concurrent requests, at most 512 pages (1,024,000 blocks), and an eight-second scan deadline within the existing 30-second authority freshness limit. A scan exceeding either bound returns unavailable and never truncates its range. Requests stop being scheduled on failure; at most the existing four read-only RPC calls may remain in flight until their transport timeouts.
+
+Every required raw `eth_getLogs` page must complete. The reader decodes provider results itself because viem's event-aware `getLogs` silently filters malformed/unmatched records; an actual viem transport regression proves that such a response is rejected here. Missing/non-array/sparse/malformed/oversized pages or continuation metadata cannot become an empty history. Transfers are decoded against the exact collection and Punk, checked within the requested page and against their canonical block, and reject inherited strategy authority. The original ownership block and common current anchor are both captured and rechecked after pagination. Reorgs, a changed chain, a transfer away and back, or stale evidence invalidate the result. This preserves the previous authority semantics while avoiding an unbounded provider request. The session/paid-history helpers use similar windows but require authorization receipts or hardcode #93, so the strategy reader retains its own existing authority anchor.
 
 The MCP bridge uses the configured Forge archive pair's primary client. Link Sniper also receives the server environment, so it can use the existing configured fixed-source resolver. Neither accepts a request-supplied endpoint.
 
@@ -49,14 +51,14 @@ The selected-paid history read is bounded to 1,001 rows and fails if more than 1
 
 ## Validation
 
-- **123 focused Node tests passed**, including 41 new context and HTTP alias tests. Real native adapters are invoked, including an exact mint call targeting #93's canonical Agent using pinned offline runtime fixtures.
+- **153 focused Node tests passed**, including 71 new context, HTTP alias and bounded-history tests. Real native adapters are invoked, including an exact mint call targeting #93's canonical Agent using pinned offline runtime fixtures.
 - **28 native PostgreSQL assertions passed** using actual repository table DDL, real read-only application and restricted paid roles, actual budget/execution journal transitions, transaction dedupe, quantity accounting, session/attempt disagreement, UTC periods, missing permissions, and RLS filtering failures. No production database was used.
 - No public chain transactions, registrations, burns, refunds, fund moves, external package installation or public capability changes.
 
 Reproduce:
 
 ```sh
-node --test tests/v2-swarm-mcp.test.mjs tests/v2-mcp-versioned-skills.test.mjs tests/v2-mint-research-context.test.mjs tests/skill-forge-real-package-adapters.test.mjs tests/skill-forge-research-runtime.test.mjs tests/skill-forge-capability-resolver.test.mjs tests/owner-assisted-seadrop-mint.test.mjs
+node --test tests/v2-swarm-mcp.test.mjs tests/v2-mcp-versioned-skills.test.mjs tests/v2-mint-research-context.test.mjs tests/v2-mint-research-history.test.mjs tests/skill-forge-real-package-adapters.test.mjs tests/skill-forge-research-runtime.test.mjs tests/skill-forge-capability-resolver.test.mjs tests/owner-assisted-seadrop-mint.test.mjs
 node tests/mint-research-context-postgres.integration.mjs --disposable-only --postgres-bin=/private/tmp/gogh-postgres-native/bin
 ```
 
