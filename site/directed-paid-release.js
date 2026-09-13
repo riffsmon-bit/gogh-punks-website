@@ -1,4 +1,5 @@
-{
+// Generated from the reviewed server release artifact by wallet:build.
+export const PAID_RELEASE = Object.freeze({
   "schema": "GOGH_DIRECTED_PAID_MINT_RELEASE_V1",
   "status": "OWNER_CANARY",
   "chainId": 4663,
@@ -39,4 +40,4 @@
   "recipientCodeHash": "0xb29422a63949d185a9a9e2823dbc6d34522ee16204b7407e6616294e7f58cf06",
   "recipientImplementation": "0xfdb26c2ec70956227728414ff4ab7a5eda64d13b",
   "recipientImplementationCodeHash": "0x7d37d360014ce94902655062605b8318581097df100ab2573be52904afa6badc"
-}
+});

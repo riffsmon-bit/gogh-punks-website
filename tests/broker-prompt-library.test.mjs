@@ -42,16 +42,18 @@ test("directed placeholders and unknown collection links require a target clarif
 });
 
 test("unreleased marketplace examples remain blocked instead of becoming free-mint missions", () => {
-  for (const [id, blocked] of [["paid", "PAID_MINTS_UNAVAILABLE"], ["sweep", "FLOOR_PURCHASES_UNAVAILABLE"],
+  for (const [id, blocked] of [["sweep", "FLOOR_PURCHASES_UNAVAILABLE"],
     ["bid", "COLLECTION_OFFERS_UNAVAILABLE"]]) {
     const item = byId(id);
     assert.equal(item.status, "NOT LIVE");
     assert.equal(acquisitionRequest(item.prompt.replace("[collection contract]", target)).blocked, blocked);
   }
   for (const id of ["burn", "learn", "loadout"]) {
-    assert.equal(byId(id).status, "NOT LIVE");
+    assert.equal(byId(id).status, "SELECTED OWNER TEST");
     assert.deepEqual(punkChatAction(byId(id).prompt), { kind: "FORGE" });
   }
+  assert.equal(byId('paid').status,'SELECTED OWNER TEST');
+  assert.equal(acquisitionRequest(byId('paid').prompt).blocked,'PAID_MINTS_UNAVAILABLE');
 });
 
 test("wallet and monitoring examples open exact controls and preserve bounded recall/funding actions", () => {

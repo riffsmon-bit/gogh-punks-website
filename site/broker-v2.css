@@ -525,3 +525,11 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .001ms !important;
     animation-duration: .001ms !important; animation-iteration-count: 1 !important; }
 }
+.directed-paid-panel { margin-top:24px; padding:20px; border:1px solid var(--acid,#dfff3f); overflow-wrap:anywhere; }
+.directed-paid-panel h3 { margin:0 0 16px; }
+.directed-paid-panel p { line-height:1.6; }
+.directed-paid-panel button { margin:6px 8px 6px 0; max-width:100%; white-space:normal; }
+.directed-paid-panel label { display:grid; gap:8px; margin:16px 0; }
+.directed-paid-panel input { width:100%; min-width:0; padding:12px; color:inherit; background:#0b1117; border:1px solid #536277; }
+.directed-paid-panel pre { max-height:280px; overflow:auto; white-space:pre-wrap; font-size:12px; }
+.directed-paid-panel a { display:inline-block; margin:8px 0; color:var(--acid,#dfff3f); }

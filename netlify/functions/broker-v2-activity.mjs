@@ -5,6 +5,7 @@ import { v2Failure } from "./_shared/v2-http.mjs";
 import { readV2PunkAuthority } from "./_shared/v2-ownership.mjs";
 import { v2TokenIdFrom } from "./_shared/v2-route.mjs";
 import { requireV2Session } from "./_shared/v2-session.mjs";
+import {selectedPaidHistory} from './_shared/directed-paid-history.mjs';
 
 export default async function handler(request) {
   if (request.method !== "GET") return json({ ok: false, code: "METHOD_NOT_ALLOWED" }, 405);
@@ -22,13 +23,15 @@ export default async function handler(request) {
           AND punk_token_id = $3::numeric ORDER BY occurred_at DESC LIMIT 100`,
       [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, tokenId]),
     ]);
+    const paidHistory=await selectedPaidHistory(tokenId,session.walletAddress);
     const entries = [
+      ...paidHistory.activity,
       ...v2.rows.map((row) => ({ ...row, provenance: "V2" })),
       ...v1.rows.map((row) => ({ ...row, provenance: "V1" })),
     ].sort((left, right) => new Date(right.occurred_at) - new Date(left.occurred_at)).slice(0, 150)
       .map((row) => ({ id: row.id, type: row.type, detail: row.detail,
         occurredAt: new Date(row.occurred_at).toISOString(), provenance: row.provenance }));
-    return json({ ok: true, tokenId, entries, includesV1History: true });
+    return json({ ok: true, tokenId, entries, includesV1History: true, paidMintHistoryAvailable:paidHistory.available });
   } catch (error) { return v2Failure(error); }
 }
 

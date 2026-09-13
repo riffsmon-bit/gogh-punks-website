@@ -22,6 +22,7 @@ import { simulateOwnerAssistedSeaDropMint } from
 import { ROBINHOOD } from "../../broker/src/config.mjs";
 import { getRpcUrl } from "./_shared/config.mjs";
 import { backgroundRpcDecision } from "./_shared/background-rpc-policy.mjs";
+import { runConfiguredDirectedPaidWorker } from './_shared/directed-paid-runtime.mjs';
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
@@ -333,6 +334,7 @@ export async function runScheduledPunkAgentWorker({
   manifest = deployment, now = new Date(), bundler = null, signer = null,
   runMission = runPunkAgentMissionOnce,
   missionScope = null,
+  runPaid = runConfiguredDirectedPaidWorker,
 } = {}) {
   if (missionScope !== null && (!missionScope || typeof missionScope !== "object"
     || Object.keys(missionScope).length !== 3
@@ -353,6 +355,7 @@ export async function runScheduledPunkAgentWorker({
   const lease = await pool.connect();
   let leaseHeld = false;
   let selectedMission = null;
+  let paidStatus;
   try {
     const leaseResult = await lease.query("SELECT pg_try_advisory_lock($1::integer, $2::integer) AS acquired",
       [ROBINHOOD.chainId, 8004]);
@@ -364,6 +367,16 @@ export async function runScheduledPunkAgentWorker({
     const reconciliation = await reconcileOne(pool, liveClient, liveBundler, now, missionScope);
     if (reconciliation?.status === "PENDING") return Object.freeze({
       status: "RECONCILIATION_PENDING", submitted: false, reconciliation });
+    if (['true','false'].includes(environment.PUNK_AGENT_DIRECTED_PAID_MINT_ENABLED)) {
+      // A scoped free-mint check cannot overlook another pending operation from
+      // the shared signer. Reconciliation happens before a paid EOA reservation.
+      const openFree = await pool.query(`SELECT operation_id FROM broker_v2_agent_user_operations
+        WHERE state IN ('SIGNED','SUBMITTED','RECONCILIATION_REQUIRED') LIMIT 1`);
+      if (openFree.rows.length) return Object.freeze({status:'SHARED_SIGNER_RECONCILIATION_PENDING',submitted:false});
+      const paid = await runPaid({environment,signer:liveSigner});
+      paidStatus = paid.status;
+      if (paid.status !== 'PAID_NO_MISSION') return Object.freeze({...paid,reconciliation});
+    }
     const gas = await gasEnvelope(liveClient, environment);
     const observation = { opportunitiesChecked: 0, liveSimulationsPassed: 0 };
     const run = await runMission({ deployment: manifest, client: liveClient,
@@ -400,7 +413,7 @@ export async function runScheduledPunkAgentWorker({
         }, now);
       }
     }
-    return Object.freeze({ ...run, reconciliation });
+    return Object.freeze({ ...run, reconciliation, paidStatus });
   } catch (error) {
     if (selectedMission) {
       await recordWorkerActivity(pool, selectedMission.tokenId, "AGENT_CHECK_FAILED", {
@@ -428,6 +441,7 @@ export default async function handler(_request, { run = runScheduledPunkAgentWor
     const result = await run();
     report(JSON.stringify({ event: "PUNK_AGENT_WORKER", status: result.status,
       submitted: result.submitted === true, tokenId: result.tokenId,
+      paidStatus: result.paidStatus,
       reason: result.reason, reconciliationStatus: result.reconciliation?.status }));
     return new Response(JSON.stringify({ ok: true,
     ...result }), { status: 200,

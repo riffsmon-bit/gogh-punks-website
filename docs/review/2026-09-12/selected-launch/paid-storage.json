@@ -1,0 +1,65 @@
+{
+  "status": "PASS",
+  "checkedAt": "2026-09-13T04:55:07.894Z",
+  "database": "EXISTING_SUPABASE_PROJECT",
+  "credentialRotation": false,
+  "tlsCertificateAndHostnameVerified": true,
+  "restrictedRoles": [
+    {
+      "role": "gogh_forge_request_prod",
+      "deletes": false,
+      "audit_writes": false,
+      "raw_read": false,
+      "raw_insert": false,
+      "raw_update": false,
+      "review_update": false,
+      "hash_update": true
+    },
+    {
+      "role": "gogh_forge_worker_prod",
+      "deletes": false,
+      "audit_writes": false,
+      "raw_read": true,
+      "raw_insert": true,
+      "raw_update": false,
+      "review_update": false,
+      "hash_update": false
+    }
+  ],
+  "browserAndServiceRolesDenied": [
+    {
+      "role": "anon",
+      "reviews": false,
+      "executions": false
+    },
+    {
+      "role": "authenticated",
+      "reviews": false,
+      "executions": false
+    },
+    {
+      "role": "service_role",
+      "reviews": false,
+      "executions": false
+    }
+  ],
+  "tables": [
+    {
+      "relname": "broker_selected_paid_reviews",
+      "relrowsecurity": true
+    },
+    {
+      "relname": "broker_selected_paid_executions",
+      "relrowsecurity": true
+    },
+    {
+      "relname": "broker_selected_paid_events",
+      "relrowsecurity": true
+    }
+  ],
+  "counts": {
+    "reviews": 0,
+    "executions": 0
+  },
+  "publicTransactions": 0
+}

@@ -79,7 +79,7 @@ export function acquisitionClarification(field) {
     case "FLOOR_PURCHASES_UNAVAILABLE":
       return "Floor purchases and sweeps are not available in this broker yet. I have not placed a purchase or changed your mint mission. Listing review, purchase execution, and receipt tracking still need implementation.";
     case "PAID_MINTS_UNAVAILABLE":
-      return "Paid mint execution is not available in this V2 chat yet. I have not replaced your request with a free-mint mission. The paid-mint review and execution flow still needs to be connected.";
+      return "Paid mint execution is limited to the selected owner’s #93 / Peppies World test. Other Punks and collections require a further release. Your existing mission is unchanged.";
     case "TARGET_CONTRACT":
       return "Which exact collection should I mint from? Paste one Robinhood Chain collection contract address, or an OpenSea collection link already identified by discovery. An unknown link needs its contract address before I can create a directed mission.";
     default: return null;
