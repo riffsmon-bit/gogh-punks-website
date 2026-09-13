@@ -3,6 +3,8 @@ import { createTrainingControl } from './forge-training.js';
 import { validateForgeProfile, forgeSlotView } from './forge-profile-view.js';
 import { createDurableTrainingPanel } from './forge-durable-training-panel.js';
 import { createSelectedBurnPanel } from './forge-selected-burn-panel.js';
+import { TRAINING_RELEASE } from './forge-training-release.js';
+import { forgeLibraryState } from './forge-library-state.js';
 const el = (tag, text, cls) => { const node = document.createElement(tag); if (text != null) node.textContent = text; if (cls) node.className = cls; return node; };
 export function createForgeControl({ root, getSelection, ensureSession, request, trainingAdapter }) {
   if (trainingAdapter) return createTrainingControl({ root, getSelection, request: trainingAdapter.request, localOnly: trainingAdapter.localOnly });
@@ -49,7 +51,14 @@ export function createForgeControl({ root, getSelection, ensureSession, request,
     for (const skill of FORGE_CATALOG) {
       const card = el('article', null, 'forge-skill'); const image = el('img');
       image.src = skill.image; image.alt = ''; image.width = 96; image.height = 96; image.loading = 'lazy';
-      card.append(image, el('span', skill.status.replaceAll('_', ' '), 'forge-state'), el('h3', skill.name), el('p', skill.description));
+      const displayState = forgeLibraryState(skill, profile, TRAINING_RELEASE, s);
+      card.append(image, el('span', displayState, 'forge-state'), el('h3', skill.name), el('p', skill.description));
+      if (displayState === 'TRAINING RELEASED' || displayState.startsWith('LEARNED') || displayState.startsWith('EQUIPPED')) {
+        const view = el('button', 'VIEW TRAINING & LOADOUT', 'filter-button'); view.type = 'button';
+        view.addEventListener('click', () => { const panel = root.querySelector('[data-forge-training]');
+          panel?.scrollIntoView({ block: 'start', behavior: 'smooth' }); panel?.querySelector('button')?.focus({ preventScroll: true }); });
+        card.append(view, el('small', 'Training checks the current skill and credits before each review. Research tests below do not teach or equip it.'));
+      }
       const button = el('button', skill.test ? 'RUN READ-ONLY TEST' : 'COMING SOON', 'filter-button'); button.type = 'button';
       button.disabled = busy || !snapshot?.labAvailable || !skill.test || skill.test === 'get_market_listings' && !snapshot.marketAvailable;
       if (skill.test) button.addEventListener('click', () => run(skill.test));

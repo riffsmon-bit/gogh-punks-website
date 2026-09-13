@@ -1,0 +1,58 @@
+{
+  "schema": "GOGH_RESEARCH_SKILL_REGISTRATION_REVIEW_V1",
+  "status": "PREPARED_NOT_AUTHORIZED_FOR_BROADCAST",
+  "preparedAt": "2026-09-13T20:01:28.358Z",
+  "basedOnRead": {
+    "number": "62215286",
+    "hash": "0xf9716ff2c738fc5918a46d173f2314ddb2d5cb08a2b65319197746b65f05c0b2"
+  },
+  "package": {
+    "name": "Contract Detective",
+    "key": "0x1a7bb5f14ab81288db8a451245c3aa880c3696e9f2aae4ca3e72171416f9a837",
+    "version": 1,
+    "manifestHash": "0x80695d48a12865c2c633b4977cd8f24dd598dd8808eae5ebf733052f8091ba24",
+    "instructionHash": "0x1e283e611d6f72e8fa34d1412a5cbef8dd4d936f0138a5f18fdf519bafc93252",
+    "implementation": "broker/src/v4/skill-forge/research-tools.mjs",
+    "implementationSha256": "53322cbbcfa71c34e210548e9e10db99ab0da63dc39516ad1a144024b3c39c98"
+  },
+  "registry": "0xc2a1bd47fbc0fe33e53c85f130be53591c898e83",
+  "registryCodeHash": "0x6a061b9d291e4402e32f93e7815cb2fe2242e725fe4052740f2be0a78049d3c3",
+  "walletAuthority": "NONE",
+  "capabilities": [
+    "CONTRACT_READ"
+  ],
+  "tools": [
+    "inspect_contract"
+  ],
+  "preparation": [
+    {
+      "label": "Register the immutable Contract Detective v1 package",
+      "from": "0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6",
+      "to": "0xc2a1bd47fbc0fe33e53c85f130be53591c898e83",
+      "chainId": 4663,
+      "value": "0",
+      "data": "0x63576a2c0000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000000180695d48a12865c2c633b4977cd8f24dd598dd8808eae5ebf733052f8091ba241e283e611d6f72e8fa34d1412a5cbef8dd4d936f0138a5f18fdf519bafc93252000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "label": "Mark it TESTING, with no execution or learning readiness attestation",
+      "from": "0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6",
+      "to": "0xc2a1bd47fbc0fe33e53c85f130be53591c898e83",
+      "chainId": 4663,
+      "value": "0",
+      "data": "0x9a9562141a7bb5f14ab81288db8a451245c3aa880c3696e9f2aae4ca3e72171416f9a83700000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ],
+  "activationBlockedUntil": [
+    "Independent security review approves the exact adapter and evidence",
+    "Copied-chain learned/equipped inspect_contract proof passes",
+    "Owner reviews fresh contract state, exact fee, nonce and the READY attestation",
+    "A separately reviewed release adds this exact package to the training allowlist",
+    "Owner reviews expanding the enabled research mask from Rarity Eye alone to Rarity Eye plus Contract Detective"
+  ],
+  "readyStatusTransaction": null,
+  "enableCapabilityTransaction": null,
+  "feeEstimate": null,
+  "note": "The prepared register/TESTING calldata is not a current wallet review. It has no nonce, fee or expiry, and cannot be submitted by this script. READY and capability activation are deliberately omitted until acceptance.",
+  "publicTransactions": 0,
+  "productionManifestChanged": false
+}
