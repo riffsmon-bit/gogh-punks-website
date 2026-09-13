@@ -88,7 +88,10 @@ test('native PostgreSQL journals races, immutable originals, scope holds, restar
       assert.equal((await session.query('SELECT count(*)::int AS n FROM broker_marketplace_reviews')).rows[0].n, 4);
       await session.query('CREATE TEMP TABLE broker_marketplace_reviews (LIKE public.broker_marketplace_reviews)');
       await session.query('CREATE TEMP TABLE broker_marketplace_events (intent_id text,revision integer,status text,reported_hash text,receipt jsonb,reason text)');
-      const scopedStore = createMarketplaceStore(session);
+      // Explicit checked-out-session adapter for this trusted test only. Production
+      // supplies a pool so each write owns its full connection/transaction lifetime.
+      const scopedStore = createMarketplaceStore({ query: session.query.bind(session),
+        connect: async () => ({ query: session.query.bind(session), release() {} }) });
       assert.equal((await scopedStore.get(cas(e, newPrepared))).status, 'PREPARED');
       await scopedStore.update(cas(e, newPrepared), { status: 'CANCELLED', reason: 'OWNER_CANCELLED_UNCLAIMED' });
       assert.equal((await session.query('SELECT count(*)::int AS n FROM pg_temp.broker_marketplace_events')).rows[0].n, 0);

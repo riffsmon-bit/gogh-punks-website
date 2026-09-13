@@ -4,12 +4,15 @@ The durable purchase backend is implemented with a production-blocked release an
 
 The coordinator persists the exact review before wallet claim and uses a database CAS before returning its one wallet payload. Immutable input and review digests preserve idempotency across competing preparers and retry/restart. Owner/Punk/chain scoping prevents one session from retrieving another owner's review. Active unique indexes preserve the old owner's unresolved purchase across a transfer and serialize the owner's marketplace nonce stream across Punks.
 
+Independent review identified that permission checks at startup did not ensure durable settings on a later pooled mutation connection. The store now explicitly wraps each insert/CAS in one checked-out connection's transaction, sets `LOCAL synchronous_commit=on`, checks `fsync`, `full_page_writes` and permanent journal/audit tables before and after its SQL mutation, and awaits COMMIT before returning. Session settings cannot silently weaken the wallet claim. Commit-acknowledgement loss throws with no transaction payload; recovery determines whether the original reservation persisted. No production database setting or migration was changed by this repair.
+
 Unknown wallet responses, alleged prompt rejection, lost claim acknowledgements, lost transaction hashes, time expiry and uncertain receipt reads retain the original reservation. Only an unclaimed review cancels. First hash binding requires observing the exact reviewed transaction, rather than trusting a browser hint or assuming a missing receipt proves identity. Known hashes cannot be replaced. Final recovery uses the immutable original review, canonical receipt and historical proof through the existing reconciler, including after release pause or ownership transfer.
 
 The HTTP surface derives identity from the existing session, requires same-origin POST, rejects all unsupported fields, and limits requests to 4096 bytes. Review calldata is redacted from every entry. The claim response carries a single exact transaction; prepared entries provide a keccak256 calldata commitment plus fee/nonce/type/address/value/chain fields for browser comparison. Seaport counters are retained for full order-hash reconstruction. The concrete runtime and coordinator require client-level `ccipRead:false` to prohibit viem OffchainLookup callbacks.
 
 Validation completed:
 
+- Durability repair: 37 API/coordinator/SQL-protocol tests passed, including forced local commit settings, delayed commit acknowledgement, committed-but-lost claim acknowledgement, unsafe engine/table rejection, post-mutation recheck, rollback and connection release. The existing native PostgreSQL suite passed again with connection-owned transactions.
 - Focused JavaScript suite: 133 tests passed, including HTTP, durable coordinator, existing marketplace core/security and existing practice regressions with the final CCIP/counter hardening.
 - Native PostgreSQL: real simultaneous preparations and 12 competing claims, one wallet winner, original-byte persistence, separate-pool recovery, one terminal audit transition, scope isolation, immutable JSON/hash, hash substitution rejection, claimed cancellation rejection, database-clock expiry, fresh preparation after unclaimed cancellation, and restricted-role privilege checks passed.
 - PostgreSQL ran only in a fresh automatically cleaned loopback cluster with `fsync=on` and `synchronous_commit=on`. The staged migration was never applied to production.
@@ -22,7 +25,7 @@ Residual boundaries: root integration owns the browser's exact calldata/order ve
 Reproduction commands:
 
 ```sh
-node --test tests/marketplace-api.test.mjs tests/marketplace-durable-journal.test.mjs tests/marketplace-review.test.mjs tests/marketplace-independent-security.test.mjs tests/marketplace-practice.test.mjs tests/marketplace-practice-independent.test.mjs
+node --test tests/marketplace-api.test.mjs tests/marketplace-durable-journal.test.mjs tests/marketplace-postgres-durability.test.mjs tests/marketplace-review.test.mjs tests/marketplace-independent-security.test.mjs tests/marketplace-practice.test.mjs tests/marketplace-practice-independent.test.mjs
 node scripts/test-marketplace-journal-postgres.mjs --owned-local-only
 node scripts/test-marketplace-disposable.mjs --disposable-only --durable-journal-test --artifacts=/absolute/existing/forge-output --output=/absolute/local/evidence.json
 ```
