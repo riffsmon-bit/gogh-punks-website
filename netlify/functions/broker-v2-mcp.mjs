@@ -13,6 +13,7 @@ import { v2Failure } from "./_shared/v2-http.mjs";
 import { readV2PunkAuthority } from "./_shared/v2-ownership.mjs";
 import { requireV2Session } from "./_shared/v2-session.mjs";
 import { createV2McpResearch } from "./_shared/v2-mcp-research.mjs";
+import { readV2McpRoster } from "./_shared/v2-mcp-roster.mjs";
 
 export function v2McpDependencies(pool, principal, { authorityReader = readV2PunkAuthority,
   research = createV2McpResearch() } = {}) {
@@ -33,17 +34,7 @@ export function v2McpDependencies(pool, principal, { authorityReader = readV2Pun
     research,
     requireCurrentOwner: async (tokenId) => authority(tokenId),
     get_punk_skills: async (tokenId) => research.getSkills({ tokenId, owner: principal.walletAddress }),
-    getMyPunks: async () => {
-      const result = await pool.query(`SELECT token_id::text, account_address FROM broker_punks
-        WHERE chain_id = $1 AND collection_address = $2 AND owner_snapshot = $3 ORDER BY token_id`,
-      [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, principal.walletAddress]);
-      const verified = [];
-      for (const row of result.rows.slice(0, 256)) {
-        try { const live = await authority(row.token_id); verified.push({ tokenId: row.token_id,
-          punkWallet: live.punkWallet, ownershipBlock: live.blockNumber }); } catch { /* stale index */ }
-      }
-      return { punks: verified, indexIsAuthority: false };
-    },
+    getMyPunks: async () => readV2McpRoster(principal.walletAddress, { pool }),
     get_punk: async (tokenId) => ({ authority: await authority(tokenId), strategy: await strategy(tokenId) }),
     get_punk_wallet: async (tokenId) => { const value = await authority(tokenId);
       return { tokenId, punkWallet: value.punkWallet, activated: value.activated }; },
