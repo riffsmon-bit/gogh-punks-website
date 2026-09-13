@@ -1,6 +1,6 @@
 {
   "status": "PASS",
-  "checkedAt": "2026-09-13T23:51:02.646Z",
+  "checkedAt": "2026-09-13T23:55:52.712Z",
   "widths": [
     1440,
     375,
@@ -31,6 +31,8 @@
   "noHtmlInjection": true,
   "unreleasedIdleHasNoRequests": true,
   "pausedReleaseReadsServerHistoryWithoutLocalJournal": true,
+  "pausedReadFailureHasRecoveryAction": true,
+  "blockedUnattemptedDraftCanBeDiscardedAfterExactRead": true,
   "publicRequests": 0,
   "publicTransactions": 0,
   "limitations": [

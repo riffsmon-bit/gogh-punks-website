@@ -26,6 +26,7 @@ const api=async(path,options)=>{
  if(!body){state.gets.push(path);save();return state.server?.owner===actor?structuredClone(state.server):empty(actor);}
  state.posts.push(body);save();
  if(body.operation==='prepare'){
+  if(state.mode==='blocked-prepare')return {...empty(actor),availability:'RELEASE_BLOCKED',blockers:['LISTING_UNAVAILABLE']};
   if(!Array.from({length:localStorage.length},(_,i)=>JSON.parse(localStorage.getItem(localStorage.key(i)))).some(r=>r.requestId===body.input.requestId))throw Error('UUID_NOT_SAVED');
   const identity=JSON.stringify({chainId:4663,owner:actor,punkId:selected.tokenId,requestId:body.input.requestId});
   const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(identity));
@@ -137,6 +138,17 @@ try {
   assert.equal(await evaluate("document.querySelector('#purchase').hidden"), false);
   assert.equal(await evaluate("__panel.controls().some(b=>b.text==='Confirm in wallet')"), false);
   assert.equal(await evaluate('__panel.state().sends'), 0);
+  await evaluate('__panel.reset(null,"paused")');
+  await evaluate("__panel.mode('error')"); await evaluate('__panel.refresh()');
+  assert.equal(await evaluate("document.querySelector('#purchase').hidden"), false);
+  assert.equal(await evaluate("__panel.controls().some(b=>b.text==='Refresh status')"), true);
+  await evaluate('__panel.reset()'); await evaluate("__panel.mode('blocked-prepare')"); await evaluate('__panel.prepare()');
+  const discardedId = await evaluate('__panel.saved()[0].intentId'); await click('Discard unsent request');
+  await until("__panel.text().includes('Unsent request discarded')");
+  assert.equal(await evaluate('__panel.saved()[0].status'), 'DISCARDED');
+  assert.ok((await evaluate('__panel.state().gets.at(-1)')).endsWith(`?intentId=${discardedId}`));
+  await evaluate("__panel.mode('normal')"); await evaluate('__panel.prepare()');
+  assert.equal(await evaluate('__panel.saved().length'), 2);
   await evaluate('__panel.reset()'); await evaluate('__panel.prepare()');
   await until("__panel.controls().some(b=>b.text==='Confirm in wallet'&&!b.disabled)");
   for (const width of [1440, 375, 320]) await screenshot('review', width);
@@ -189,6 +201,7 @@ try {
     manualUnobservedHashNotBound: true, rejectedWalletRemainsReserved: true, terminalCardsHaveNoReviewActions: true,
     ownershipChangeDropsStaleViewPreservesJournal: true, storageFailurePreventsPreparation: true,
     noHtmlInjection: true, unreleasedIdleHasNoRequests: true, pausedReleaseReadsServerHistoryWithoutLocalJournal: true,
+    pausedReadFailureHasRecoveryAction: true, blockedUnattemptedDraftCanBeDiscardedAfterExactRead: true,
     publicRequests: 0, publicTransactions: 0,
     limitations: ['All API, release and wallet responses are controlled in-memory browser fixtures.',
       'The real browser panel and reviewed wallet helper/codec run; SQL CAS, live wallet behavior and public release remain separate gates.'] };

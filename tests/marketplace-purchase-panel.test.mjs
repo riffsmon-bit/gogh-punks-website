@@ -23,14 +23,18 @@ function fixture(t, { release = PANEL_RELEASE, initial = null } = {}) {
   const container = new Element('div', document), values = new Map(), requests = [], events = [], settlements = [];
   let selected = { tokenId: '93', chainId: 4663, owner: PANEL_OWNER, preview: false }, owner = PANEL_OWNER;
   let server = initial, transaction = null, sends = 0, storageFailure = false, hold = null, losePrepare = false, walletError = null;
+  let blockPrepare = false, readError = null;
   const storage = { getItem: key => values.get(key) ?? null, setItem: (key, value) => { if (storageFailure) throw Error('storage denied'); values.set(key, value); } };
   const api = async (path, options) => {
     const input = options.body ? JSON.parse(options.body) : null; requests.push({ path, input });
     const requestedOwner = owner;
     if (hold) await hold;
+    if (!input && readError) throw readError;
     if (!input) return server ? structuredClone(server) : { ...marketplacePanelFixture({ owner: requestedOwner }).envelope,
       entry: null, availability: 'EMPTY' };
     if (input.operation === 'prepare') {
+      if (blockPrepare) return { ...marketplacePanelFixture({ owner: requestedOwner }).envelope,
+        entry: null, availability: 'RELEASE_BLOCKED', blockers: ['LISTING_UNAVAILABLE'] };
       const scope = { chainId: 4663, owner: requestedOwner, punkId: selected.tokenId, requestId: input.input.requestId };
       const intentId = createHash('sha256').update(JSON.stringify(scope)).digest('hex');
       assert.ok([...values.values()].some(raw => JSON.parse(raw).requestId === input.input.requestId), 'UUID was not persisted before prepare');
@@ -68,6 +72,7 @@ function fixture(t, { release = PANEL_RELEASE, initial = null } = {}) {
     setServer: value => { server = value; }, setOwner: value => { owner = value; }, setSelected: value => { selected = { ...selected, ...value }; },
     losePrepare: () => { losePrepare = true; }, failStorage: () => { storageFailure = true; },
     walletError: value => { walletError = value; }, hold: value => { hold = value; },
+    blockPrepare: value => { blockPrepare = value; }, readError: value => { readError = value; },
     remount(purchaseRelease = release) { panel.destroy(); panel = createMarketplacePurchasePanel({ ...options, purchaseRelease }); return panel; } };
 }
 
@@ -89,6 +94,44 @@ test('known paused release reads a server purchase on a new device without grant
 test('paused release with no server history stays hidden after one scoped read', async t => {
   const f = fixture(t, { release: { ...PANEL_RELEASE, status: 'PAUSED' } });
   await f.panel.refresh(); assert.equal(f.requests.length, 1); assert.equal(f.container.hidden, true);
+});
+
+test('known paused release exposes a failed server recovery read with a retry action', async t => {
+  const f = fixture(t, { release: { ...PANEL_RELEASE, status: 'PAUSED' } }); f.readError(Error('offline'));
+  await f.panel.refresh(); assert.equal(f.container.hidden, false); assert.match(f.text(), /could not be verified/);
+  assert.ok(f.button('Refresh status')); assert.equal(f.button('Confirm in wallet'), undefined);
+});
+
+test('discard verifies absence of an unattempted draft, retains history and permits corrected input', async t => {
+  const f = fixture(t); f.blockPrepare(true); await f.panel.prepare(f.input);
+  const [key, raw] = [...f.values.entries()].find(([key]) => key.includes(':intent:')), original = JSON.parse(raw);
+  f.button('Discard unsent request').click(); await waitFor(() => f.text().includes('Unsent request discarded'));
+  assert.ok(f.requests.at(-1).path.endsWith(`?intentId=${original.intentId}`));
+  assert.equal(f.requests.at(-1).input, null); assert.equal(JSON.parse(f.values.get(key)).status, 'DISCARDED');
+  assert.equal(JSON.parse(f.values.get(key)).attempted, false); assert.equal(f.sends(), 0);
+  f.blockPrepare(false); await f.panel.prepare({ ...f.input, budget: { ...f.input.budget, maxTotalPriceWei: '1200000000000000' } });
+  assert.notEqual(f.server().entry.intentId, original.intentId);
+  assert.equal(JSON.parse(f.values.get(key)).status, 'DISCARDED');
+  assert.equal(f.requests.filter(value => value.input?.operation === 'prepare').length, 2);
+});
+
+for (const status of ['PREPARED', 'WALLET_REQUESTED']) test(`discard adopts a late ${status} server entry instead of abandoning it`, async t => {
+  const f = fixture(t); f.blockPrepare(true); await f.panel.prepare(f.input);
+  const [key, raw] = [...f.values.entries()].find(([key]) => key.includes(':intent:')), original = JSON.parse(raw);
+  f.setServer(marketplacePanelFixture({ status, intentId: original.intentId }).envelope);
+  f.button('Discard unsent request').click(); await waitFor(() => JSON.parse(f.values.get(key)).status === status);
+  assert.doesNotMatch(f.text(), /Unsent request discarded/); assert.equal(f.sends(), 0);
+  assert.equal(f.button('Discard unsent request'), undefined);
+});
+
+test('discard fails closed when the exact lookup fails or the local draft is already attempted', async t => {
+  const f = fixture(t); f.blockPrepare(true); await f.panel.prepare(f.input);
+  const [key, raw] = [...f.values.entries()].find(([key]) => key.includes(':intent:'));
+  f.readError(Error('offline')); f.button('Discard unsent request').click();
+  await waitFor(() => f.text().includes('could not be verified')); assert.equal(f.values.get(key), raw);
+  f.readError(null); f.values.set(key, JSON.stringify({ ...JSON.parse(raw), attempted: true }));
+  f.button('Discard unsent request').click(); await waitFor(() => f.text().includes('Check or cancel the original purchase'));
+  assert.equal(JSON.parse(f.values.get(key)).status, 'DRAFT'); assert.equal(f.sends(), 0);
 });
 
 test('prepare persists its UUID and exact server-compatible intent ID before requesting a review', async t => {

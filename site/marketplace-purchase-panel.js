@@ -93,7 +93,7 @@ export function createMarketplacePurchasePanel({ container, api, getSelected, ge
     check(value && value.schema === 1 && value.owner === selected.owner && value.punkId === selected.tokenId
       && value.chainId === 4663 && value.intentId === intentId && DIGEST.test(intentId)
       && typeof value.attempted === 'boolean' && (value.transactionHash === null || HASH.test(value.transactionHash))
-      && ['DRAFT', 'PREPARED', 'WALLET_REQUESTED', ...TERMINAL].includes(value.status), 'PURCHASE_STORAGE_UNAVAILABLE');
+      && ['DRAFT', 'DISCARDED', 'PREPARED', 'WALLET_REQUESTED', ...TERMINAL].includes(value.status), 'PURCHASE_STORAGE_UNAVAILABLE');
     if (value.input !== null) { check(UUID.test(value.requestId), 'PURCHASE_STORAGE_UNAVAILABLE'); inputFor(value.input); }
     else check(value.requestId === null, 'PURCHASE_STORAGE_UNAVAILABLE');
     return value;
@@ -211,7 +211,7 @@ export function createMarketplacePurchasePanel({ container, api, getSelected, ge
     const normalized = inputFor(input), existing = currentJournal(context.selected);
     check(!storageBlocked, 'PURCHASE_STORAGE_UNAVAILABLE');
     check(context.selected.holdsSelectedPunk, 'PURCHASE_SELECTION_CHANGED');
-    if (existing && !TERMINAL.has(existing.status)) {
+    if (existing && !TERMINAL.has(existing.status) && existing.status !== 'DISCARDED') {
       check(existing.input && sameInput(existing.input, normalized), 'PURCHASE_UNRESOLVED');
       await load(context); return;
     }
@@ -229,6 +229,19 @@ export function createMarketplacePurchasePanel({ container, api, getSelected, ge
   const cancel = () => run(async context => {
     const entry = envelope?.entry; check(entry?.status === 'PREPARED');
     const payload = await request(context, cas(entry, 'cancel')); await adopt(context, payload, entry.intentId);
+  });
+  const discard = () => run(async context => {
+    const saved = currentJournal(context.selected);
+    check(saved?.status === 'DRAFT' && !saved.attempted && !saved.transactionHash, 'PURCHASE_UNRESOLVED');
+    const payload = await request(context, null, saved.intentId);
+    // A late prepare response belongs to the original request. Expose its real
+    // server state instead of abandoning a request that has been registered.
+    if (payload.entry) { await adopt(context, payload, saved.intentId); return; }
+    check(payload.entry === null);
+    const latest = currentJournal(context.selected);
+    check(latest?.intentId === saved.intentId && latest.status === 'DRAFT' && !latest.attempted && !latest.transactionHash, 'PURCHASE_UNRESOLVED');
+    persist(context.selected, { ...latest, status: 'DISCARDED' });
+    envelope = payload; verificationFailed = false;
   });
   const recover = () => run(async context => {
     const entry = envelope?.entry; check(entry?.status === 'WALLET_REQUESTED');
@@ -277,16 +290,17 @@ export function createMarketplacePurchasePanel({ container, api, getSelected, ge
 
   function render() {
     view.clearTimeout(expiryTimer); mount.replaceChildren();
-    const entry = envelope?.entry, show = !destroyed && scope && (entry || journal || errorText && (released() || explicitPreparation));
+    const entry = envelope?.entry, show = !destroyed && scope && (entry || journal || errorText && (purchaseRelease != null || explicitPreparation));
     container.hidden = !show; if (!show) return;
-    const status = entry?.status ?? 'DRAFT', done = TERMINAL.has(status), uncertain = journal?.attempted || status === 'WALLET_REQUESTED';
+    const status = entry?.status ?? (journal?.status === 'DISCARDED' ? 'DISCARDED' : 'DRAFT');
+    const done = TERMINAL.has(status) || status === 'DISCARDED', uncertain = journal?.attempted || status === 'WALLET_REQUESTED';
     const card = node('section', null, 'card'); card.setAttribute('aria-label', 'Selected NFT purchase');
     const body = node('div', null, 'body'), head = node('div', null, 'head'), heading = node('div');
     heading.append(node('p', `Punk #${scope.tokenId} · selected purchase`, 'eyebrow'));
-    const titles = { DRAFT: 'Your purchase is saved', PREPARED: uncertain ? 'Check the original purchase' : 'Review your purchase',
+    const titles = { DRAFT: 'Your purchase is saved', DISCARDED: 'Unsent request discarded', PREPARED: uncertain ? 'Check the original purchase' : 'Review your purchase',
       WALLET_REQUESTED: 'Track your purchase', COMPLETED: 'Purchase complete', REVERTED: 'Purchase reverted', CANCELLED: 'Review cancelled' };
-    heading.append(node('h2', titles[status]));
-    const badge = node('span', busy ? 'Checking' : ({ DRAFT: 'Saved', PREPARED: uncertain ? 'Recovery' : 'Owner review',
+    heading.append(node('h2', !entry && !journal ? 'Check your purchases' : titles[status]));
+    const badge = node('span', busy ? 'Checking' : !entry && !journal ? 'Unavailable' : ({ DRAFT: 'Saved', DISCARDED: 'Discarded', PREPARED: uncertain ? 'Recovery' : 'Owner review',
       WALLET_REQUESTED: 'Pending', COMPLETED: 'Confirmed', REVERTED: 'Reverted', CANCELLED: 'Cancelled' })[status],
     `badge${status === 'COMPLETED' ? ' done' : uncertain || status === 'REVERTED' ? ' warning' : ''}`);
     head.append(heading, badge); body.append(head);
@@ -332,7 +346,8 @@ export function createMarketplacePurchasePanel({ container, api, getSelected, ge
         input.addEventListener('input', () => { recoveryDraft = input.value; }); label.append(input); body.append(label);
       }
     } else {
-      body.append(node('p', journal ? 'The preparation response is unresolved. Check this saved request to continue with the same purchase.'
+      body.append(node('p', status === 'DISCARDED' ? 'The unsent request was discarded. You can select new listings.'
+        : journal ? 'The preparation response is unresolved. Check this saved request to continue with the same purchase.'
         : 'Check your original purchase to continue.', 'muted'));
       if (journal) body.append(node('p', journal.intentId, 'hash'));
     }
@@ -357,6 +372,8 @@ export function createMarketplacePurchasePanel({ container, api, getSelected, ge
         button('Check original transaction', recover, storageBlocked, true);
       } else if (entry?.status === 'PREPARED' && uncertain) {
         button('Cancel unclaimed review', cancel, storageBlocked);
+      } else if (!entry && journal?.status === 'DRAFT' && !journal.attempted && !journal.transactionHash) {
+        button('Discard unsent request', discard, storageBlocked);
       }
       button(busy ? 'Checking…' : 'Refresh status', refresh);
     }
