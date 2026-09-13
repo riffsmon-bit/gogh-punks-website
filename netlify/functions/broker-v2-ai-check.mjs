@@ -81,7 +81,9 @@ export async function handleV2AiCheck(request, { environment = process.env, pool
         ? probe.reason : null;
       const safeCodes = ["PROVIDER_REQUEST_FAILED", "PROVIDER_TIMEOUT", "PROVIDER_UNAVAILABLE",
         "INVALID_PROVIDER_RESPONSE", "INVALID_STRUCTURED_OUTPUT", "PROVIDER_RESPONSE_TOO_LARGE",
-        "PROVIDER_NOT_CONFIGURED", "AI_REQUEST_TIMEOUT", "AI_QUOTA_EXCEEDED", "GOGH_INTELLIGENCE_UNAVAILABLE"];
+        "PROVIDER_NOT_CONFIGURED", "AI_REQUEST_TIMEOUT", "AI_QUOTA_EXCEEDED", "GOGH_INTELLIGENCE_UNAVAILABLE",
+        "PROVIDER_INPUT_REJECTED", "PROVIDER_AUTHENTICATION_FAILED", "PROVIDER_CREDIT_LIMIT",
+        "PROVIDER_ACCESS_DENIED", "PROVIDER_RATE_LIMIT", "PROVIDER_OUTPUT_INCOMPLETE"];
       return { kind: index === 0 ? "CHAT" : "STRUCTURED_OUTPUT", verified,
         provider: result?.provider ?? null,
         ...(providerError?.httpStatus ? { httpStatus: providerError.httpStatus } : {}),

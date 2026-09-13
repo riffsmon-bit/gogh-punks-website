@@ -1,10 +1,10 @@
 # Free AI provider enablement — September 13, 2026
 
-Groq is the selected free addition. Its adapter is implemented and tested. A live response and the deployed runtime check are still required before declaring it ready. Bankr remains disabled by the owner's explicit choice; none of this work activates Bankr or a paid plan.
+Groq is the selected free addition. Its adapter, registry, runtime, preference UI and database constraint are implemented and tested. Actual chat and strict JSON responses passed; the deployed quota-backed runtime check is still required before declaring production ready. Bankr remains disabled by the owner's explicit choice; none of this work activates Bankr or a paid plan.
 
 ## Current account and credential evidence
 
-On September 13, the existing Groq console session for the project owner's authorized email showed **Free / $0 / Current Plan**. The owner subsequently created a key named `gogh`. This agent did not create or read that key and did not alter other applications' keys. The key's secure location is pending owner input.
+On September 13, the existing Groq console session for the project owner's authorized email showed **Free / $0 / Current Plan**. The owner subsequently created a key named `gogh`. The owner explicitly authorized reading that key from the clipboard. The lead stored it as secret `GROQ_API_KEY` in Netlify Functions for production and deploy-preview, without displaying it or writing it to a local file. Other applications' keys were unchanged.
 
 A read-only Netlify inventory returned HTTP 200 and no Bankr-, Groq-, OpenRouter- or Cloudflare-named variables. Narrow checks of exact project Keychain service names also found no matching credentials. This does not prove no credentials exist under other names. No keychain dump or unrelated credential lookup was performed. A new Bankr tab was opened, but no account email, signup, top-up or payment was submitted.
 
@@ -58,4 +58,12 @@ This command requires existing server environment values; it does not fetch secr
 
 Focused adapter/probe and existing AI regression suite: **74/74 passed**, zero failures, skipped or cancelled (2.213 seconds). Command: `node --test tests/groq-provider.test.mjs tests/bankr-enablement.test.mjs tests/v2-swarm-ai.test.mjs tests/v2-hardening-ai.test.mjs`. Both operator scripts also passed Node syntax checks and `git diff --check` passed. New tests cover exact model/origin binding, dedicated credential preference, no network without configuration/free-plan verification, no arbitrary tool routing, actual provider identity, strict JSON output, truncated/refused/tool-call responses, sanitized limits, two fixed read-only Bankr checks, daily budget/credit rejection, bounded stalled streams and the distinction between configuration, local live proof and deployed readiness.
 
-No new contracts, wallet permissions, skills, database migrations, frontend controls or production environment changes are included in this specialist branch. Root integrates the approved shared seams separately. Bankr remains disabled; Groq is pending secure credential handoff and live probes.
+No new contracts, wallet permissions, skills, database migrations, frontend controls or production environment changes are included in this specialist branch. Root integrates the approved shared seams separately. Bankr remains disabled; Groq has completed secure credential handoff and direct live probes; deployed verification remains pending.
+
+## Lead integration evidence
+
+The provider is wired into the existing runtime and explicit preference selector. Auto prioritizes it for ordinary text tasks; image capability remains false. A terminal free-tier rate limit does not trigger another provider charge. A key alone does not activate a model. The additive migration `20260913200000_add_groq_provider.sql` adds GROQ only to the two provider CHECK constraints, preserving existing data, quotas, privileges and wallet permissions.
+
+At 2026-09-13T19:58:57Z the fixed direct live probes passed: chat 213 ms and strict intent JSON 125 ms, both reporting the exact reviewed `openai/gpt-oss-20b` model. See [sanitized proof](groq-live-adapter-proof.json). These times are two observed requests, not a production latency guarantee.
+
+The integrated focused suite passed 105 tests. Native disposable PostgreSQL passed 28 assertions, including the actual migration, Groq registry insertion and usage finalization under the restricted request role, exactly-once accounting, shared quota enforcement, concurrency and disk restart. No live database was used by that test.

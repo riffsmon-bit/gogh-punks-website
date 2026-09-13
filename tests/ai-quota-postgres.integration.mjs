@@ -47,6 +47,7 @@ try {
     original.indexOf('CREATE TABLE IF NOT EXISTS broker_v2_legacy_links')));
   const added = await readFile(new URL('../netlify/database/migrations/20260906030000_add_v2_punk_skills.sql', import.meta.url), 'utf8');
   await admin.query(added.slice(0, added.indexOf('CREATE TABLE IF NOT EXISTS broker_v2_punk_skills')));
+  await admin.query(await readFile(new URL('../netlify/database/migrations/20260913200000_add_groq_provider.sql', import.meta.url), 'utf8'));
   await admin.query('CREATE ROLE ai_request_role LOGIN');
   await admin.query('GRANT CONNECT ON DATABASE postgres TO ai_request_role');
   await admin.query('GRANT USAGE ON SCHEMA public TO ai_request_role');
@@ -101,6 +102,26 @@ try {
   await fallback.router.run('CHAT', { prompt: 'Fallback.' }, { ownerFingerprint: 'fallback-owner', punkTokenId: '95' });
   check(fallbackCalls.length === 2 && await count() === baseline + 2, 'Failed attempt and fallback each reserve and retain one quota row');
   check(await count("WHERE result_code = 'PROVIDER_REQUEST_FAILED' AND input_tokens IS NULL") === 1, 'Failed generation is counted without fabricating zero-token cost');
+  let groqCalls = 0;
+  const groq = createDatabaseBackedGoghIntelligence(pool, {
+    GOGH_GROQ_MODEL: 'openai/gpt-oss-20b', GROQ_API_KEY: 'local-mock-no-provider-key',
+    GOGH_GROQ_INPUT_COST_USD_PER_MILLION_TOKENS: '0', GOGH_GROQ_OUTPUT_COST_USD_PER_MILLION_TOKENS: '0',
+  }, async url => {
+    assert.equal(url, 'https://api.groq.com/openai/v1/chat/completions'); groqCalls++;
+    return new Response(JSON.stringify({ model: 'openai/gpt-oss-20b',
+      choices: [{ finish_reason: 'stop', message: { content: 'Free model reply.' } }],
+      usage: { prompt_tokens: 3, completion_tokens: 5 } }));
+  });
+  const groqContext = { ownerFingerprint: 'groq-owner', punkTokenId: '93', preference: 'GROQ' };
+  check((await groq.router.run('CHAT', { prompt: 'Local Groq fixture.' }, groqContext)).provider === 'GROQ',
+    'Migrated request role can register Groq, reserve quota and record its response');
+  check(await count("WHERE provider = 'GROQ' AND input_tokens = 3 AND output_tokens = 5 AND result_code = 'OK' AND estimated_cost_microusd = 0") === 1,
+    'Verified free-plan price and exact Groq usage are stored once');
+  const groqBurst = await Promise.allSettled(Array.from({ length: 30 }, () => groq.router.run('CHAT', { prompt: 'Local fixture.' }, groqContext)));
+  check(groqBurst.filter(x => x.status === 'fulfilled').length === 24 && groqCalls === 25,
+    'Groq follows the same durable per-Punk quota before network calls');
+  check(groqBurst.filter(x => x.status === 'rejected').every(x => x.reason.code === 'AI_QUOTA_EXCEEDED'),
+    'Groq quota failures remain explicit and do not bypass accounting');
   await admin.query('REVOKE UPDATE ON broker_v2_provider_usage FROM ai_request_role');
   const reducedPrivileges = await readV2AiDatabasePrivileges(pool);
   check(reducedPrivileges.usageUpdate === false && reducedPrivileges.usageSelect === true && reducedPrivileges.usageInsert === true, "Actual pool privilege probe detects revoked UPDATE without granting access");

@@ -10,7 +10,8 @@ The user requested continued implementation of burn/training, remaining skills, 
 |---|---|---|---|
 | Burn, credits, skill progression and interactive practice | forge_completion | `broker/src/v4/skill-forge` excluding market readers; `site/forge-*`, `site/broker-v2-forge.*`; Forge functions/runtime; dedicated tests/scripts | RUNNING |
 | Marketplace purchase/sweep/offer lifecycle | market_execution | New `broker/src/v4/marketplace/**`, new marketplace contracts/tests/scripts | RUNNING — wallet/Seaport compatibility audit and interface proposal first |
-| Bankr credentials/API compatibility | bankr_enablement | `broker/src/v4/ai/bankr.mjs`, dedicated tests/probes/docs; registry changes require coordination | RUNNING |
+| Free AI / Bankr disabled | bankr_enablement + lead | Groq/Bankr adapters, registry/runtime/preference seams, provider constraint migration, tests/probes/docs | INTEGRATED — 105 focused tests, 28 native PostgreSQL assertions and two real Groq responses passed; deployed check pending |
+| Versioned real skills | real_skill_completion | Versioned packages/adapters and research runtime; shared MCP context integration owned by lead | RUNNING |
 | Integration, core UI, API/chat seams, cosmetic fix | lead | `site/broker-v2.js/.css`, core page, integration docs and shared seams | RUNNING |
 
 Reuse `ArtBrokerAIProvider`, existing exact review/receipt/idempotency contracts, fixed current-owner checks, Skill Registry hashes and `EffectiveCapabilities`. Marketplace interfaces must be proposed and accepted before another scope consumes them. Accepted v1 skill packages and hashes cannot silently change.
