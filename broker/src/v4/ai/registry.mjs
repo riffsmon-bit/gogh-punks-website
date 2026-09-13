@@ -70,7 +70,7 @@ export function modelRegistryFromEnvironment(environment = process.env) {
     typeof environment[variable] === "string" && environment[variable].trim()
   )).map(([provider, variable, registryKey, displayName, costTier, speedTier], index) => ({
     provider, registryKey, displayName, modelId: environment[variable].trim(), costTier, speedTier,
-    capabilities: { supportsImages: provider !== "GROQ", supportsTools: false, supportsStructuredOutput: true },
+    capabilities: { supportsImages: !["GROQ", "BANKR"].includes(provider), supportsTools: false, supportsStructuredOutput: true },
     enabled: true, fallbackPriority: index + 1,
     inputCostMicrousdPerMillionTokens: configuredCost(environment, provider, "INPUT"),
     outputCostMicrousdPerMillionTokens: configuredCost(environment, provider, "OUTPUT"),
