@@ -2,10 +2,10 @@ import {encodeFunctionData,keccak256,parseTransaction,recoverTransactionAddress}
 import {PAID_ABI,paidAssert,paidSame,paidHex,paidJson,paidRead,readPaidState,missionMatches,
  paidEvents,verifyPaidTransaction,paidReceiptPending,validatePaidRelease} from './directed-paid-mint.mjs';
 
-// The caller holds the SAME application-database advisory lock (4663,8004)
+// The caller holds the SAME application-database transaction lease
 // used by the existing free-mint relay. A raw transaction is committed before
 // its first broadcast; retries can only broadcast those identical bytes.
-export async function runDirectedPaidWorker({clients,relay,signer,release,store,coordinator,now=Date.now,allowBroadcast=true}) {
+export async function runDirectedPaidWorker({clients,relay,signer,release,store,coordinator,now=Date.now,allowBroadcast=true,assertLease=async()=>{}}) {
  const r=validatePaidRelease(release),pool=store.pool;
  paidAssert(paidSame(signer.address,r.executor)&&await relay.getChainId()===4663,'PAID_EXECUTOR_CHANGED');
  const summarize=(status,extra={})=>({status,tokenId:'93',submitted:false,...extra});
@@ -68,6 +68,7 @@ export async function runDirectedPaidWorker({clients,relay,signer,release,store,
   // passed. Never create a new signed payload/nonce as a recovery shortcut.
   await verifyContinuity(record,current);
   for(const c of [...clients,relay])paidAssert(await c.getTransactionCount({address:r.executor,blockTag:'latest'})<=Number(BigInt(job.transaction_json.nonce)),'PAID_SIGNER_NONCE_AMBIGUOUS');
+  await assertLease();
   const reported=await relay.sendRawTransaction({serializedTransaction:job.raw_transaction});
   paidAssert(paidSame(reported,job.transaction_hash),'PAID_BROADCAST_HASH_MISMATCH');
   if(job.status==='SIGNED')await updateExecution(job,'SUBMITTED');
@@ -102,8 +103,10 @@ export async function runDirectedPaidWorker({clients,relay,signer,release,store,
  for(const c of clients)paidAssert(await c.getBalance({address:r.executor})>=gas*gasPrice+200000000000000n,'PAID_WORKER_UNFUNDED');
  // Recheck after simulation/nonce reads, immediately before signing.
  await verifyContinuity(record,await readPaidState(clients,r,now));
+ await assertLease();
  const raw=await signer.signTransaction({chainId:4663,type:'legacy',to:r.vault,data,value:0n,gas,gasPrice,nonce:nonces[0]});
  const expected={from:r.executor,to:r.vault,data,value:'0x0',chainId:'0x1237',type:'0x0',gas:paidHex(gas),gasPrice:paidHex(gasPrice),nonce:paidHex(nonces[0])};
+ await assertLease();
  const job=(await pool.query(`INSERT INTO broker_selected_paid_executions(intent_id,status,transaction_json,raw_transaction,transaction_hash)
   VALUES($1,'SIGNED',$2,$3,$4) RETURNING *`,[row.intent_id,paidJson(expected),raw,keccak256(raw)])).rows[0];
  return reconcile(job);

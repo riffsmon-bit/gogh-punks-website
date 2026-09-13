@@ -179,6 +179,7 @@ export function createPunkAgentDirectRelay({
   account = null,
   receiptLookbackBlocks = DEFAULT_RECEIPT_LOOKBACK_BLOCKS,
   minimumBalanceWei = DEFAULT_MINIMUM_RELAY_BALANCE_WEI,
+  assertLease = async () => {},
 } = {}) {
   const endpoint = cleanHttpsUrl(url);
   const signer = account ?? (PRIVATE_KEY.test(privateKey ?? "")
@@ -300,6 +301,7 @@ export function createPunkAgentDirectRelay({
           args: [estimated.packed] })).toLowerCase();
         if (!HASH.test(userOpHash)) fail("DIRECT_RELAY_HASH_INVALID",
           "EntryPoint returned an invalid UserOperation hash");
+        await assertLease();
         const transactionHash = await writer.sendTransaction({ account: signer,
           to: ENTRY_POINT_V08, data: estimated.data,
           gas: bufferedGas });

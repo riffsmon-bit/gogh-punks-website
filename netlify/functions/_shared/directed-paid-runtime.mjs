@@ -22,12 +22,13 @@ export async function directedPaidRuntime(role,environment=process.env){
  const store=createPaidStore(pool),coordinator=createPaidCoordinator({clients,release:r,store});
  return {release:r,clients,store,coordinator};
 }
-// Called only while the existing worker owns advisory lock (4663,8004).
-export async function runConfiguredDirectedPaidWorker({environment,signer}){
+// Called only while the existing worker owns the shared transaction lease.
+export async function runConfiguredDirectedPaidWorker({environment,signer,assertLease}){
+ paidAssert(typeof assertLease==='function','WORKER_LEASE_REQUIRED');
  const runtime=await directedPaidRuntime('worker',environment);
  paidAssert(environment.PUNK_AGENT_BUNDLER_MODE==='DIRECT_PRIVATE_RELAY','PAID_PRIVATE_RELAY_REQUIRED');
  const url=new URL(environment.PUNK_AGENT_DIRECT_RELAY_RPC_URL);
  paidAssert(url.protocol==='https:','PAID_PRIVATE_RELAY_REQUIRED');
  const relay=createPublicClient({cacheTime:0,transport:http(url.href,{timeout:12000,retryCount:0})});
- return runDirectedPaidWorker({...runtime,relay,signer,allowBroadcast:environment.PUNK_AGENT_DIRECTED_PAID_MINT_ENABLED==='true'});
+ return runDirectedPaidWorker({...runtime,relay,signer,assertLease,allowBroadcast:environment.PUNK_AGENT_DIRECTED_PAID_MINT_ENABLED==='true'});
 }

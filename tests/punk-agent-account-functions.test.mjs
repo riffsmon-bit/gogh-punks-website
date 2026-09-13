@@ -223,7 +223,7 @@ test("a no-match scan rotates the mission; failed scans record a public reason a
       }] };
       return { rows: [] };
     }, async connect() { return { async query(sql) {
-      return { rows: sql.includes("pg_try_advisory_lock") ? [{ acquired: true }] : [] };
+      return { rows: sql.includes("pg_try_advisory_xact_lock") ? [{ acquired: true }] : [] };
     }, release() { released = true; } }; } };
     const run = runScheduledPunkAgentWorker({ pool, now: NOW, manifest: deployment,
       environment: { PUNK_AGENT_WORKER_ENABLED: "true" }, bundler: {}, signer: {},
@@ -260,7 +260,7 @@ for (const code of ["OWNERSHIP_CHANGED_SINCE_AUTHORIZATION", "OWNERSHIP_HISTORY_
       }] };
       return { rows: [] };
     }, async connect() { return { async query(sql) {
-      return { rows: sql.includes("pg_try_advisory_lock") ? [{ acquired: true }] : [] };
+      return { rows: sql.includes("pg_try_advisory_xact_lock") ? [{ acquired: true }] : [] };
     }, release() {} }; } };
     const result = await runScheduledPunkAgentWorker({ pool, now: NOW, manifest: deployment,
       environment: { PUNK_AGENT_WORKER_ENABLED: "true" }, bundler: {}, signer: {},

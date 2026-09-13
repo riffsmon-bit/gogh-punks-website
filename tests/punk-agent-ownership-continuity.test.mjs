@@ -71,6 +71,7 @@ function fixture() {
       expectedNftReceiver: ACCOUNT, unexpectedApprovals: false, unexpectedTransfers: false,
       createdAt: now.toISOString(), updatedAt: now.toISOString() } };
   f.run = hooks => runPunkAgentMissionOnce({ deployment: manifest, client: f.client, now,
+    assertLease: hooks?.assertLease,
     signer: { address: SIGNER, signMessage: async () => { f.signatures++; return `0x${"12".repeat(64)}1b`; } },
     gas: { verificationGasLimit: "100000", callGasLimit: "150000", preVerificationGas: "50000", maxPriorityFeePerGas: "1", maxFeePerGas: "2" },
     bundler: { request: async ({ method }) => {
@@ -114,6 +115,14 @@ test('pinned epoch worker validates authorization event without polling original
   const f = epochFixture(); const result = await f.run();
   assert.equal(result.status, 'SUBMITTED'); assert.equal(f.signatures, 1); assert.equal(f.submissions, 1);
   assert.equal(f.queries.length, 0);
+});
+for(const point of ['sign','send'])test(`lost database lease blocks free worker ${point}`,async()=>{
+  const f=fixture();let checks=0;
+  await assert.rejects(f.run({assertLease:async()=>{
+    checks++;if(checks===(point==='sign'?1:2))throw Object.assign(Error('lost'),{code:'WORKER_LEASE_LOST'});
+  }}),{code:'WORKER_LEASE_LOST'});
+  assert.equal(f.signatures,point==='sign'?0:1);assert.equal(f.submissions,0);
+  if(point==='send'){assert.equal(f.reserved,1);assert.equal(f.failures[0].terminal,false);assert.equal(f.failures[0].code,'WORKER_LEASE_LOST');}
 });
 for (const point of ['initial', 'candidate', 'estimate', 'reserve']) {
   test(`epoch worker rejects round trip at ${point}`, async () => {

@@ -21,7 +21,7 @@ function operation(overrides = {}) {
 }
 
 function fixture({ estimateGas = 300_000n, balance = 1_000_000_000_000_000n,
-  archiveError = false, receiptPublicClient = null } = {}) {
+  archiveError = false, receiptPublicClient = null, assertLease } = {}) {
   const calls = [];
   const event = { transactionHash: TRANSACTION_HASH, blockNumber: 100n, args: {
     userOpHash: USER_OP_HASH, sender: SENDER,
@@ -45,7 +45,7 @@ function fixture({ estimateGas = 300_000n, balance = 1_000_000_000_000_000n,
     calls.push({ method: "sendTransaction", input }); return TRANSACTION_HASH;
   } };
   const relay = createPunkAgentDirectRelay({ url: "https://robinhood-rpc.publicnode.com",
-    expectedAddress: SIGNER, account: { address: SIGNER }, publicClient, walletClient, receiptPublicClient });
+    expectedAddress: SIGNER, account: { address: SIGNER }, publicClient, walletClient, receiptPublicClient, assertLease });
   return { relay, calls, publicClient };
 }
 
@@ -110,4 +110,11 @@ test("private relay binds its signer to the configured public address", () => {
     expectedAddress: "0x0000000000000000000000000000000000000005",
     account: { address: SIGNER }, publicClient: {}, walletClient: {},
   }), { code: "DIRECT_RELAY_SIGNER_MISMATCH" });
+});
+
+test('a lost worker lease prevents the relay wallet send after estimation', async () => {
+  const {relay,calls}=fixture({assertLease:async()=>{throw Object.assign(Error('lost'),{code:'WORKER_LEASE_LOST'});}});
+  await assert.rejects(relay.request({method:'eth_sendUserOperation',params:[operation(),ENTRY_POINT_V08]}),{code:'WORKER_LEASE_LOST'});
+  assert.ok(calls.some(c=>c.method==='estimateGas'));
+  assert.equal(calls.some(c=>c.method==='sendTransaction'),false);
 });
