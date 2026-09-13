@@ -16,7 +16,7 @@ import { createV2McpResearch } from "./_shared/v2-mcp-research.mjs";
 import { readV2McpRoster } from "./_shared/v2-mcp-roster.mjs";
 
 export function v2McpDependencies(pool, principal, { authorityReader = readV2PunkAuthority,
-  research = createV2McpResearch() } = {}) {
+  research = createV2McpResearch({ pool }) } = {}) {
   const authority = (tokenId) => authorityReader(tokenId, { expectedOwner: principal.walletAddress });
   const opportunity = async (id) => {
     const result = await pool.query("SELECT normalized FROM broker_v2_opportunities WHERE opportunity_id = $1", [id]);

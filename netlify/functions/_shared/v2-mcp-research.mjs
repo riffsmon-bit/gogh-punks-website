@@ -1,19 +1,30 @@
 import { pathToFileURL } from 'node:url';
-import { createPublicClient, http } from 'viem';
 import releaseArtifact from '../../../deployments/robinhood-forge-training.json' with { type: 'json' };
 import { ROBINHOOD } from '../../../broker/src/config.mjs';
 import { validateTrainingRelease } from '../../../broker/src/v4/skill-forge/training-release.mjs';
 import { readReviewedTrainingState, assertTrainingOwnerContinuity } from '../../../broker/src/v4/skill-forge/training-state.mjs';
 import { createProgressionReader, skillKey } from '../../../broker/src/v4/skill-forge/capability-resolver.mjs';
 import { createResearchSkillRuntime, loadResearchSkillCatalog } from '../../../broker/src/v4/skill-forge/research-runtime.mjs';
+import { createForgeRpcClients } from '../../../broker/src/v4/skill-forge/rpc-clients.mjs';
+import { createMintResearchContextReader } from './v2-mint-research-context.mjs';
 
-const TOOLS = ['inspect_contract', 'get_metadata', 'rank_trait_sample', 'get_market_listings'];
+const TOOLS = ['inspect_contract', 'get_metadata', 'rank_trait_sample', 'get_market_listings', 'inspect_mint_link', 'inspect_mint', 'simulate_mint', 'prepare_mint'];
 const fail = code => { throw Error(code); };
 function researchArguments(name, tokenId, args, collection) {
+  const mint = ['inspect_mint', 'simulate_mint', 'prepare_mint'].includes(name);
+  const link = name === 'inspect_mint_link';
   const sample = ['get_metadata', 'rank_trait_sample'].includes(name);
   if (!TOOLS.includes(name) || !args || Object.getPrototypeOf(args) !== Object.prototype
-    || Reflect.ownKeys(args).some(key => key !== (sample ? 'sampleTokenIds' : null))
+    || Reflect.ownKeys(args).some(key => key !== (sample ? 'sampleTokenIds' : mint ? 'opportunityId' : link ? 'url' : null))
     || Object.values(Object.getOwnPropertyDescriptors(args)).some(item => !Object.hasOwn(item, 'value'))) fail('MCP_RESEARCH_ARGUMENTS');
+  if (mint) {
+    if (typeof args.opportunityId !== 'string' || !/^[a-zA-Z0-9:_-]{8,256}$/.test(args.opportunityId)) fail('MCP_RESEARCH_ARGUMENTS');
+    return { opportunityId: args.opportunityId };
+  }
+  if (link) {
+    if (typeof args.url !== 'string' || args.url.length > 2048 || args.url.length < 1) fail('MCP_RESEARCH_ARGUMENTS');
+    return { url: args.url };
+  }
   const fixed = { contract: collection };
   if (sample) {
     const ids = args.sampleTokenIds;
@@ -24,15 +35,25 @@ function researchArguments(name, tokenId, args, collection) {
   return name === 'get_market_listings' ? { ...fixed, slug: 'gogh-punks-255843210', limit: 5 } : fixed;
 }
 
-// This read-only bridge never constructs a training coordinator, database store,
-// signer, transaction, or wallet request. Configuration and packages are server
-// owned, with exactly the existing release's owner, collection and version pins.
-export function createV2McpResearch({ releaseReader = () => validateTrainingRelease(releaseArtifact),
-  clientFactory = () => createPublicClient({ transport: http(ROBINHOOD.rpcUrl, { timeout: 5000, retryCount: 0 }), cacheTime: 0 }),
+// Exact registry versions choose reviewed local packages. No implicit v1 fallback.
+const REVIEWED_PACKAGES = Object.freeze([
+  [3, 1, 'contract-detective'], [4, 1, 'rarity-eye'], [8, 1, 'market-scout'],
+  [8, 2, 'market-scout'], [2, 1, 'link-sniper'], [1, 1, 'mint-hunter'],
+]);
+export function mcpResearchPackageSelection(release) {
+  return REVIEWED_PACKAGES.filter(([id, version]) => release.skills.some(skill => skill.key === skillKey(id, version)))
+    .map(([, version, slug]) => ({ slug, version }));
+}
+
+// This read-only bridge never requests signing, submission or database writes.
+// Mint context uses the restricted Forge database reader only when needed.
+// Server-owned configuration retains the release's exact owner, collection and version pins.
+export function createV2McpResearch({ pool, releaseReader = () => validateTrainingRelease(releaseArtifact),
+  clientFactory = () => createForgeRpcClients(environment)[1],
   stateReader = readReviewedTrainingState, continuityReader = assertTrainingOwnerContinuity,
-  packageLoader = () => loadResearchSkillCatalog({ root: pathToFileURL(`${process.cwd()}/`) }),
+  packageLoader = ({ selection }) => loadResearchSkillCatalog({ root: pathToFileURL(`${process.cwd()}/`), selection }),
   progressionFactory = createProgressionReader, researchFactory = createResearchSkillRuntime,
-  environment = process.env,
+  environment = process.env, mintContextFactory = createMintResearchContextReader,
 } = {}) {
   function released(owner) {
     const release = releaseReader();
@@ -55,11 +76,14 @@ export function createV2McpResearch({ releaseReader = () => validateTrainingRele
     await continuityReader({ client, release, owner, tokenId, anchor: before.anchor });
   }
   async function runtime({ client, release }) {
-    const packages = (await packageLoader()).filter(pack => release.skills.some(skill =>
+    const selection = mcpResearchPackageSelection(release);
+    const packages = (selection.length ? await packageLoader({ selection }) : []).filter(pack => release.skills.some(skill =>
       skill.key === skillKey(pack.manifest.skillId, pack.manifest.version)
       && skill.manifestHash === pack.manifestHash && skill.instructionHash === pack.instructionHash))
       .map(pack => ({ ...pack, status: 'READY', approved: true }));
-    return researchFactory({ client, packages, apiKey: environment.OPENSEA_API_KEY,
+    return researchFactory({ client, packages, apiKey: environment.OPENSEA_API_KEY, environment,
+      mintContextReader: pool && packages.some(pack => pack.slug === 'mint-hunter')
+        ? mintContextFactory({ pool, client, environment }) : undefined,
       readState: progressionFactory({ client, chainId: release.chainId, collection: release.collection,
         registry: release.registry, progression: release.progression, registryCodeHash: release.registryCodeHash,
         progressionCodeHash: release.progressionCodeHash }) });

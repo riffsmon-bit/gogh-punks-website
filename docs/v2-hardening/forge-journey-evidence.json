@@ -1,11 +1,11 @@
 {
   "schema": "GOGH_FORGE_COMPOSED_JOURNEY_V1",
   "status": "PASS",
-  "checkedAt": "2026-09-13T18:54:24.911Z",
+  "checkedAt": "2026-09-13T20:05:21.758Z",
   "environment": "OWNED_DISPOSABLE_ANVIL_FORK_AND_NATIVE_POSTGRES",
   "publicAnchor": {
-    "number": "62184384",
-    "hash": "0x160b806d1f813e1d99e803972c9aaf99314601db49911bb024051016f56a849e"
+    "number": "62226235",
+    "hash": "0x162fad56857665427fd66c6876da85d997361c947db7114de89f04fad3a71405"
   },
   "deployedRuntimePinsVerified": true,
   "selectedSource": "1753",
@@ -26,8 +26,8 @@
     "implementationSha256": "53322cbbcfa71c34e210548e9e10db99ab0da63dc39516ad1a144024b3c39c98",
     "sampleSize": 3,
     "metadataEvidence": {
-      "blockNumber": "62184953",
-      "blockHash": "0x8e07a266bf163339beb24b1ce925fa168d578720c616f5471773894e05171eee",
+      "blockNumber": "62226804",
+      "blockHash": "0x6c47200fae2a0f1aa4547aab2be91e289f449e3b6e5fa9f82126b8c0e90cdaa9",
       "metadataHash": "35fb4d91a5c92646bc63faa42e23dbfcbc65aac01227c1641496ff81c58ba7f3"
     }
   },
@@ -47,7 +47,7 @@
   "sellerAuthorityDenied": true,
   "privateSellerReviewHiddenFromBuyer": true,
   "transfer": {
-    "forkTransactionHash": "0x5e48fb0a1534016a186cfbecb7e01973d7c970f31b8b21dcf1683a086a2df30f",
+    "forkTransactionHash": "0x630a6ad5c3f6db68e82aa71e7f7044d7954020850ea5a1d2061cc0160fd2318c",
     "learnedSkillsPersist": true,
     "slotsPersist": true,
     "loadoutPersists": true,
@@ -147,7 +147,7 @@
   "visualBrowserProof": "SEPARATE_EXISTING_BROWSER_HARNESSES; THIS_SCRIPT_USES_REAL_BROWSER_ENVELOPE_MODULES_WITH_LOCAL_PROVIDER",
   "forkTransactions": 16,
   "reviewedTrainingSends": 8,
-  "publicRequests": 213,
+  "publicRequests": 212,
   "publicMethods": [
     "eth_call",
     "eth_chainId",
@@ -169,29 +169,29 @@
   "ownedAnvilHistoryStatesRetained": 10000,
   "ownedAnvilCacheIsolated": true,
   "metrics": {
-    "elapsedMs": 45398
+    "elapsedMs": 52429
   },
   "steps": [
     {
       "action": "ENABLE_FORGE",
       "status": "CONFIRMED",
-      "forkTransactionHash": "0x684d85783f953d79ade9f4f0041973c616a275ec24ded8bd9a65006880feea1f"
+      "forkTransactionHash": "0x1963be1ce0ec6262140688dec2936c24d7cf43403c50afc731eb3f7c20a9e9ca"
     },
     {
       "action": "APPROVE",
       "status": "CONFIRMED",
-      "forkTransactionHash": "0x85e49335e88cbed0a596834dfb7b4417cc2bad6c86a78a0db7e1dfbc1890c95f"
+      "forkTransactionHash": "0x8f3d9f55ff31f3a1e8b6247dbef19f114122bb46f4964b8f760c7f8e42a8041a"
     },
     {
       "action": "BURN",
       "status": "CONFIRMED",
-      "forkTransactionHash": "0xde0475921e64e14cdea08b6881777502b2ca054806c112f6185f79e9736b2282"
+      "forkTransactionHash": "0xe0b718e1f149389c4b74532397e39ea55ae0bbc006ad358856d7becd6577c7e4"
     },
     {
       "action": "learn",
       "owner": "0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6",
       "status": "SETTLED_SUCCESS",
-      "forkTransactionHash": "0x6d508f867c7802b1a918ca8c7478a23c61cf9ca121547e11294f0e146bc79deb"
+      "forkTransactionHash": "0x0d9e8462bf4911806da94a22074eefd05c3eb7dff794820b2fb714398318c302"
     },
     {
       "action": "APPROVE_SECOND_COPY",
@@ -201,49 +201,49 @@
     {
       "action": "BURN_SECOND_COPY",
       "status": "CONFIRMED",
-      "forkTransactionHash": "0x86e36fb938133c49d5cf16ed83b299fa22bfa748977c51d435f7e9d1a79967e8"
+      "forkTransactionHash": "0x875b6fe1a1140fb197033f77badd8edcd0f713d4846dd8f1c9a638f2f470eeb0"
     },
     {
       "action": "claim_rarity",
       "owner": "0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6",
       "status": "SETTLED_SUCCESS",
-      "forkTransactionHash": "0x277b566c66516a324558fbbf5d3a0fc3cf866f3c7fbaa98c2a0d83c5ad4b32ea"
+      "forkTransactionHash": "0xf711f19e92271239660cd3abcda66a06d1cc9d06537b39a2c38192965c9cb557"
     },
     {
       "action": "unlock",
       "owner": "0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6",
       "status": "SETTLED_SUCCESS",
-      "forkTransactionHash": "0x047fd71d75d565a260eb7b5358f9680fb187fc1a0989b25acbe8b0799f5228b5"
+      "forkTransactionHash": "0x176fe00f23281da5b34b15b2cb2d3f0c01b9213e64d9e0c3277a735e0317e2d8"
     },
     {
       "action": "equip",
       "owner": "0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6",
       "status": "SETTLED_SUCCESS",
-      "forkTransactionHash": "0xeb7906bdc4f1a76b46233180fda19b5522c4424508fcae838464c121bc7e457b"
+      "forkTransactionHash": "0x68494962d3c2f250762ba4e5719b09e5f5aab681dccd8db23b7c4599c927f640"
     },
     {
       "action": "unequip",
       "owner": "0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6",
       "status": "SETTLED_SUCCESS",
-      "forkTransactionHash": "0x1c22ef96e2a85d199de6e325d9f5e6cea79257dc58b1160de1280d2c3d6644a4"
+      "forkTransactionHash": "0xc2d52db7e8b44d51bf24b1bd8cdad2bd43840b7a5a0f71ec29ca489ea665bd63"
     },
     {
       "action": "equip",
       "owner": "0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6",
       "status": "SETTLED_SUCCESS",
-      "forkTransactionHash": "0xeb1dcb668444857e8493af6be0cf5aa205c0276f43c7c15044370c891db55dd6"
+      "forkTransactionHash": "0x743fdda5b1ffde61f388103e9507303ce86476e5954626cfcd30638c5577dc3b"
     },
     {
       "action": "unequip",
-      "owner": "0xb72e0bd0502a2b24519b0b8bc7befe33fa450693",
+      "owner": "0x635ddcac5e35361c0d1d1df91974992efd3f87fa",
       "status": "SETTLED_SUCCESS",
-      "forkTransactionHash": "0x633ada63cf68ab57417b36e0d34d63c5131060201ce37b5f7413297c26c0b953"
+      "forkTransactionHash": "0x020fe8bd191f8784e0ca9df336e6461fcd9198c4e225247ef79584bc3d6bb20d"
     },
     {
       "action": "equip",
-      "owner": "0xb72e0bd0502a2b24519b0b8bc7befe33fa450693",
+      "owner": "0x635ddcac5e35361c0d1d1df91974992efd3f87fa",
       "status": "SETTLED_SUCCESS",
-      "forkTransactionHash": "0xe8c6a40a637e1dffa7edc317463801c67b91c43acad094b831fc103d2e71e94e"
+      "forkTransactionHash": "0x60d54ea8432da58aa2fbf012a064deac63f213ba7b2f6da8bf8d0c2fb1ea6031"
     }
   ]
 }

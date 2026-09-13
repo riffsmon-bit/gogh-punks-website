@@ -1,0 +1,35 @@
+{
+  "schema": "GOGH_CAPABILITY_INTEGRATION_VALIDATION_V1",
+  "sourceCommit": "59504cf07affd147e7de2569cf5cb35a2e89e5fa",
+  "site": {
+    "command": "npm run site:check",
+    "exitCode": 0,
+    "tests": 2732,
+    "passed": 2732,
+    "failed": 0,
+    "skipped": 0,
+    "durationMs": 211283.848586
+  },
+  "contracts": {
+    "command": "npm run contracts:check",
+    "exitCode": 0,
+    "tests": 305,
+    "passed": 305,
+    "fuzzRuns": 1024
+  },
+  "controlCenterBrowser": {
+    "scenarios": 25,
+    "screenshots": 59,
+    "findings": 0
+  },
+  "marketplaceBrowser": {
+    "scenarios": 9,
+    "screenshots": 7,
+    "publicTransactions": 0
+  },
+  "logSha256": {
+    "site": "f50959b96f22b4105b512526f29ed574d775ea159d420764bb933dfa09685034",
+    "contracts": "088b17c698d73f1f55ec550ea0352410cc108eff0c2793785f7d1dd0d98d1b8f"
+  },
+  "note": "Specialist targeted and native PostgreSQL counts are separately recorded; overlapping suites are not summed."
+}

@@ -1,0 +1,33 @@
+{
+  "schema": "GOGH_SKILL_PACKAGE_V1",
+  "version": 1,
+  "chainId": 4663,
+  "requiredWalletCapabilities": [],
+  "requiredExecutorCapabilities": [],
+  "riskTier": 0,
+  "equipCost": 1,
+  "trainingCost": 1,
+  "maxSkillLevel": 1,
+  "sourceAudit": "docs/v2-hardening/real-skill-completion.md",
+  "walletAuthority": "NONE",
+  "skillId": 1,
+  "name": "Mint Hunter",
+  "capabilities": [
+    "FREE_MINT"
+  ],
+  "requiredMcpTools": [
+    "inspect_mint",
+    "simulate_mint",
+    "prepare_mint"
+  ],
+  "implementation": "broker/src/v4/skill-forge/mint-hunter-v1.mjs",
+  "implementationSha256": "9e150735f4a31aceec0950b0fac5f271930dd9e8d376632d4eaf9c32c4c0c8dc",
+  "dependenciesSha256": {
+    "broker/src/v4/owner-assisted-seadrop-mint.mjs": "c73bc16425344501449adc2ab81ea8daba67db9d68b7b0294e8aeddfad70b910",
+    "broker/src/v4/policy-matcher.mjs": "45f8547bac48dfa6ba9f36e798ca30b9aae7598b3d6677baf8c8d2cb84a88857",
+    "broker/src/v4/collecting-intent.mjs": "6015782f355b2e2fba07ab227d08d9b639804bb2eb49dd7a9c3b5769ade81438",
+    "broker/src/v4/opportunity.mjs": "3c0d44a50d6e509ae350c2b7e22e65b2ab6bf20cd73fbb6f287143e883f03722",
+    "broker/src/v4/discovery/seadrop-ingestor.mjs": "a7cb6c4e49eae11c37707f8ead2d1769f3fa8b0d0424bb5c10c10b5b37a66676",
+    "broker/src/config.mjs": "a78cbb7000755b4dc84a36551b38b9311b3fe86251a652fe29196bcfc9fc6256"
+  }
+}

@@ -2,6 +2,7 @@
 // The public provider is behind a read-only method allowlist. Every write targets
 // THIS invocation's dynamically allocated loopback Anvil, after identity/pin checks.
 import assert from 'node:assert/strict';
+import { serveOriginalForgePractice } from './dev/skill-forge/original-practice-server.mjs';
 import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -37,8 +38,8 @@ import { validateSelectedBurnEnvelope } from '../site/forge-selected-burn-wallet
 import { createDurableTrainingWallet, validateDurableTrainingSnapshot } from '../site/forge-durable-wallet.js';
 
 const args = process.argv.slice(2);
-if (![2, 3, 4].includes(args.length) || args[0] !== '--disposable-only' || !args[1].startsWith('--postgres-bin=')
-  || args.slice(2).some(arg => !['--archive-keychain', '--inspect-failure'].includes(arg))) throw Error('Requires --disposable-only --postgres-bin=/absolute/bin [--archive-keychain] [--inspect-failure]');
+if (![2, 3, 4, 5].includes(args.length) || args[0] !== '--disposable-only' || !args[1].startsWith('--postgres-bin=')
+  || args.slice(2).some(arg => !['--archive-keychain', '--inspect-failure', '--interactive'].includes(arg))) throw Error('Requires --disposable-only --postgres-bin=/absolute/bin [--archive-keychain] [--inspect-failure] [--interactive]');
 const bin = args[1].slice('--postgres-bin='.length);
 if (!isAbsolute(bin)) throw Error('POSTGRES_ABSOLUTE_BIN_REQUIRED');
 const run = promisify(execFile), owner = SELECTED_BURN_OWNER, target = '93', source = '1753', extraSource = '94';
@@ -89,8 +90,8 @@ try {
     try {
       let body = ''; for await (const chunk of req) { body += chunk; if (body.length > 1000000) throw Error('TOO_LARGE'); }
       const input = JSON.parse(body); const result = await publicRead(input);
-      res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ jsonrpc: '2.0', id: input.id, result }));
-    } catch { res.writeHead(502); res.end('{"error":"READ_ONLY_FORK_SOURCE_UNAVAILABLE"}'); }
+      res.writeHead(200, { 'content-type': 'application/json', connection: 'close' }); res.end(JSON.stringify({ jsonrpc: '2.0', id: input.id, result }));
+    } catch { res.writeHead(502, { connection: 'close' }); res.end('{"error":"READ_ONLY_FORK_SOURCE_UNAVAILABLE"}'); }
   });
   await new Promise(r => proxy.listen(0, '127.0.0.1', r));
   const proxyPort = proxy.address().port; assert.ok(!forbiddenPorts.has(proxyPort));
@@ -182,6 +183,22 @@ try {
     await assert.rejects(browser.query(`SELECT * FROM ${table}`), e => e.code === '42501');
   await assert.rejects(requests.query("UPDATE broker_forge_training_intents SET settlement='{}'"), e => e.code === '42501');
 
+  if (args.includes('--interactive')) {
+    markStage('INTERACTIVE_DISPOSABLE_PRACTICE');
+    // Historical standard-token logs use the same read-only fork-source proxy;
+    // copied local logs after the fork are joined explicitly, never fabricated.
+    const sourceClients = clients.map(c => ({ ...c, request: async input => {
+      if (input.method !== 'eth_getLogs') return c.request(input);
+      const filter = input.params[0], from = BigInt(filter.fromBlock), to = BigInt(filter.toBlock), logs = [];
+      if (from <= anchor.number) logs.push(...await publicRead({ method: input.method, params: [{ ...filter,
+        toBlock: `0x${(to < anchor.number ? to : anchor.number).toString(16)}` }] }));
+      if (to > anchor.number) logs.push(...await c.request({ method: input.method, params: [{ ...filter,
+        fromBlock: `0x${(from > anchor.number ? from : anchor.number + 1n).toString(16)}` }] }));
+      return logs;
+    } }));
+    await serveOriginalForgePractice({ clients, client, sourceClients, release, binding, requests, workers,
+      fresh, send: transaction => local('eth_sendTransaction', [transaction]), finalize, anchor, forbiddenPorts });
+  } else {
   markStage('BURN_SOURCE_GATES');
   const empty = () => ({ chainId: 4663, owner, burnOwner: owner, trainOwner: owner, punkToBurn: source, punkToTrain: target,
     burnTokenExists: true, trainTokenExists: true, checkedAt: 1000, blockHash: anchor.hash,
@@ -443,6 +460,7 @@ try {
     ownedAnvilHistoryStatesRetained: 10000, ownedAnvilCacheIsolated: true, metrics, steps };
   await writeFile(new URL('../docs/v2-hardening/forge-journey-evidence.json', import.meta.url), JSON.stringify(result, null, 2) + '\n');
   console.log(JSON.stringify(result, null, 2));
+  }
 } catch (error) {
   // Provider URLs, database credentials, and raw RPC errors are never printed.
   console.error(JSON.stringify({ status: 'FAILED', stage, type: error.name, code: error.code ?? null,

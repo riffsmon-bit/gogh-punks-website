@@ -69,13 +69,27 @@ export const ART_BROKER_MCP_RESEARCH_TOOLS = Object.freeze([
   ["get_metadata", "Read inline metadata for three selected Punks with an equipped Rarity Eye skill.", true],
   ["rank_trait_sample", "Compare traits within three selected Punks with an equipped Rarity Eye skill; not collection-wide rarity.", true],
   ["get_market_listings", "Read up to five Gogh listings with an equipped Market Scout skill; no bids or purchases.", false],
+  ["skill_inspect_mint_link", "Inspect a Robinhood mint link using equipped Link Sniper; no wallet requests.", 'url'],
+  ["skill_inspect_mint", "Check one shared free-mint opportunity against the equipped Mint Hunter and current Punk rules.", 'opportunity'],
+  ["skill_simulate_mint", "Run an exact free-mint call check with equipped Mint Hunter; no transaction submission.", 'opportunity'],
+  ["skill_prepare_mint", "Prepare a Mint Hunter recommendation requiring a separate owner review; no signing bytes.", 'opportunity'],
 ].map(([name, description, sample]) => {
   const properties = Object.freeze({ tokenId: stringProperty(TOKEN_ID.source, "The authenticated owner's selected Punk"),
-    ...(sample ? { sampleTokenIds: Object.freeze({ type: "array", minItems: 3, maxItems: 3, uniqueItems: true,
-      items: stringProperty("^[1-9][0-9]{0,3}$", "Punk ID; the sample must include the selected Punk") }) } : {}) });
+    ...(sample === true ? { sampleTokenIds: Object.freeze({ type: "array", minItems: 3, maxItems: 3, uniqueItems: true,
+      items: stringProperty("^[1-9][0-9]{0,3}$", "Punk ID; the sample must include the selected Punk") }) } : {}),
+    ...(sample === 'url' ? { url: Object.freeze({ type: "string", format: "uri", maxLength: 2048 }) } : {}),
+    ...(sample === 'opportunity' ? { opportunityId: stringProperty(OPPORTUNITY_ID.source, "Shared opportunity ID") } : {}) });
   return Object.freeze({ name, scope: "analysis:read", description, inputSchema: Object.freeze({ type: "object",
     properties, required: Object.freeze(Object.keys(properties)), additionalProperties: false }) });
 }));
+
+// Baseline diagnostics retain their names and semantics. Only these explicit
+// aliases enter the learned/equipped package gate; clients cannot supply a map.
+const RESEARCH_INTERNAL_NAMES = Object.freeze({
+  skill_inspect_mint_link: 'inspect_mint_link', skill_inspect_mint: 'inspect_mint',
+  skill_simulate_mint: 'simulate_mint', skill_prepare_mint: 'prepare_mint',
+});
+const researchName = name => RESEARCH_INTERNAL_NAMES[name] ?? name;
 
 export const FORBIDDEN_ART_BROKER_MCP_TOOLS = Object.freeze([
   "send_arbitrary_transaction", "sign_arbitrary_transaction", "execute_arbitrary_calldata",
@@ -137,7 +151,7 @@ export class GoghArtBrokerMcpServer {
     // The injected runtime is server-owned. No HTTP/LLM capability object enters
     // this path; the canonical resolver enforces package, owner and slot state.
     return [...ART_BROKER_MCP_TOOLS, ...ART_BROKER_MCP_RESEARCH_TOOLS.filter(tool =>
-      capabilities?.effectiveMcpTools.includes(tool.name))];
+      capabilities?.effectiveMcpTools.includes(researchName(tool.name)))];
   }
 
   async call({ accessToken, name, arguments: rawArguments = {} }) {
@@ -154,7 +168,7 @@ export class GoghArtBrokerMcpServer {
       const id = tokenId(input.tokenId);
       await this.#deps.requireCurrentOwner(id, principal.owner);
       if (!this.#deps.research) fail("RESEARCH_UNAVAILABLE", "Equipped research is unavailable.");
-      return this.#deps.research.call({ tokenId: id, owner: principal.owner, name,
+      return this.#deps.research.call({ tokenId: id, owner: principal.owner, name: researchName(name),
         arguments: Object.fromEntries(Object.entries(input).filter(([key]) => key !== "tokenId")) });
     }
     if (name === "get_my_punks") {

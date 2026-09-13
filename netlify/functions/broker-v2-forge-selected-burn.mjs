@@ -9,6 +9,7 @@ import { SELECTED_BURN_OWNER } from '../../broker/src/v4/skill-forge/selected-bu
 const FIELDS={prepare:['operation','action'],claim:['operation','intentId','revision','reviewHash','confirmation','obligationsReviewed'],
   recover:['operation','intentId','revision','transactionHash'],cancel:['operation','intentId','revision'],decline:['operation','intentId','revision','rejectionCode']};
 const messages={TRAINING_PAUSED:'Enable Forge first.',RECOVER_EXISTING_BURN_REVIEW:'Recover or cancel the existing review before preparing another.',
+  BURN_HISTORY_REFRESH_REQUIRED:'The saved source history needs a fresh review before burning. No wallet request was made.',
   BURN_REVIEW_EXPIRED:'This review expired. Cancel the unsent review and prepare it again.',
   BURN_OWNER_REVIEW_REQUIRED:'Review the source wallets and any obligations before continuing.',
   BURN_CONFIRMATION_REQUIRED:'Type BURN 1753 to confirm the selected burn.',
