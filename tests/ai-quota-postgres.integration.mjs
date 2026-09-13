@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import net from 'node:net';
 import pg from 'pg';
+import { readV2AiDatabasePrivileges } from "../netlify/functions/broker-v2-ai-check.mjs";
 import { createDatabaseBackedGoghIntelligence } from '../netlify/functions/_shared/v2-ai-runtime.mjs';
 
 if (process.argv.length !== 4 || process.argv[2] !== '--disposable-only'
@@ -51,6 +52,7 @@ try {
   await admin.query('GRANT USAGE ON SCHEMA public TO ai_request_role');
   await admin.query('GRANT SELECT, INSERT, UPDATE ON broker_v2_model_registry, broker_v2_provider_usage TO ai_request_role');
   pool = new pg.Pool({ ...config, user: 'ai_request_role' });
+  check(Object.values(await readV2AiDatabasePrivileges(pool)).every(x => x === true), "Actual request connection verifies all required SQL grants");
   const runtimes = Array.from({ length: 8 }, () => createDatabaseBackedGoghIntelligence(pool, environment, mockFetch));
   const run = (owner, punk, i) => runtimes[i % runtimes.length].router.run('CHAT', { prompt: 'Local fixture.' },
     { ownerFingerprint: owner, punkTokenId: String(punk), preference: 'OPENAI' });
@@ -100,6 +102,8 @@ try {
   check(fallbackCalls.length === 2 && await count() === baseline + 2, 'Failed attempt and fallback each reserve and retain one quota row');
   check(await count("WHERE result_code = 'PROVIDER_REQUEST_FAILED' AND input_tokens IS NULL") === 1, 'Failed generation is counted without fabricating zero-token cost');
   await admin.query('REVOKE UPDATE ON broker_v2_provider_usage FROM ai_request_role');
+  const reducedPrivileges = await readV2AiDatabasePrivileges(pool);
+  check(reducedPrivileges.usageUpdate === false && reducedPrivileges.usageSelect === true && reducedPrivileges.usageInsert === true, "Actual pool privilege probe detects revoked UPDATE without granting access");
   const deniedCalls = [];
   const noUpdate = createDatabaseBackedGoghIntelligence(pool, environment, async url => { deniedCalls.push(url); return mockFetch(url); });
   await assert.rejects(noUpdate.router.run('CHAT', { prompt: 'Role proof.' }, { ownerFingerprint: 'restricted-owner', punkTokenId: '96' })); assertions++;

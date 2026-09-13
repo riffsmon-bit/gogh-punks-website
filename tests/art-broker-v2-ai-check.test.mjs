@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import test, { after } from "node:test";
-import { handleV2AiCheck } from "../netlify/functions/broker-v2-ai-check.mjs";
+import { handleV2AiCheck as handleAiCheck } from "../netlify/functions/broker-v2-ai-check.mjs";
 import { ArtBrokerProviderError } from "../broker/src/v4/ai/provider.mjs";
 
+const readPrivileges = async () => ({ usageSelect: true, usageInsert: true, usageUpdate: true,
+  registrySelect: true, registryInsert: true, registryUpdate: true });
+const handleV2AiCheck = (request, options) => handleAiCheck(request, { readPrivileges, ...options });
 const secret = "connection-check-only-test-credential";
 const originalSiteUrl = process.env.SITE_URL;
 process.env.SITE_URL = "https://goghpunks.xyz";

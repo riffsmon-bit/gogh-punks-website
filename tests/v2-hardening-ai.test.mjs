@@ -8,8 +8,10 @@ import { GoghIntelligenceRouter } from '../broker/src/v4/ai/router.mjs';
 import { ArtBrokerModelRegistry } from '../broker/src/v4/ai/registry.mjs';
 import { ArtBrokerProviderError } from '../broker/src/v4/ai/provider.mjs';
 import { handleV2Chat } from '../netlify/functions/broker-v2-chat.mjs';
-import { handleV2AiCheck } from '../netlify/functions/broker-v2-ai-check.mjs';
+import { handleV2AiCheck, readV2AiDatabasePrivileges } from '../netlify/functions/broker-v2-ai-check.mjs';
 
+const readPrivileges = async () => ({ usageSelect: true, usageInsert: true, usageUpdate: true,
+  registrySelect: true, registryInsert: true, registryUpdate: true });
 const gateway = 'https://gogh-punks.netlify.app/.netlify/ai/';
 const secret = 'mock-secret-never-public';
 const schema = { type: 'object', properties: { answer: { type: 'string' } }, required: ['answer'], additionalProperties: false };
@@ -153,9 +155,89 @@ test('fixed admin provider probe cannot accept another provider as proof', async
     headers: { origin: 'https://goghpunks.xyz', authorization: `Bearer ${secret}` }, body: JSON.stringify({ action: 'check', provider }) });
   const calls = [];
   const createRuntime = () => ({ router: { run: async (...args) => { calls.push(args); return { provider: 'GEMINI', text: 'GOGH_CONNECTION_OK', value: { answer: 'PIXEL_ART' } }; } } });
-  const response = await handleV2AiCheck(make('OPENAI'), { environment, createRuntime });
+  const response = await handleV2AiCheck(make('OPENAI'), { environment, createRuntime, readPrivileges });
   assert.equal(response.status, 503); assert.ok((await response.json()).checks.every(x => !x.verified));
   assert.ok(calls.every(x => x[2].preference === 'OPENAI' && x[1].maxOutputTokens === 256));
-  assert.equal((await handleV2AiCheck(make('arbitrary'), { environment, createRuntime })).status, 400);
+  assert.equal((await handleV2AiCheck(make('arbitrary'), { environment, createRuntime, readPrivileges })).status, 400);
   assert.equal(calls.length, 2);
+});
+
+test('OpenAI accepts exactly one gateway v1 prefix; Anthropic retains its unversioned base', async () => {
+  for (const base of [gateway, gateway.slice(0, -1), gateway + 'v1', gateway + 'v1/']) {
+    let url;
+    const provider = new OpenAIArtBrokerProvider({ modelId: 'configured-model',
+      environment: { OPENAI_API_KEY: secret, OPENAI_BASE_URL: base, NETLIFY_AI_GATEWAY_URL: gateway },
+      fetchImpl: async value => { url = value; return new Response(JSON.stringify({ status: 'completed',
+        output: [{ type: 'message', content: [{ type: 'output_text', text: 'Ready.' }] }] })); } });
+    await provider.chat({ prompt: 'Check.' });
+    assert.equal(url, gateway + 'v1/responses');
+  }
+  for (const base of [gateway + 'v1/v1', gateway + 'v1/../v1', gateway + '%76%31', gateway + 'v2',
+    gateway + 'v1?api_key=secret', gateway + 'v1#fragment',
+    'https://different.netlify.app/.netlify/ai/v1']) {
+    assert.throws(() => new OpenAIArtBrokerProvider({ modelId: 'model', environment: {
+      OPENAI_BASE_URL: base, NETLIFY_AI_GATEWAY_URL: gateway } }));
+  }
+  // The authoritative gateway URL itself is never treated as a versioned URL.
+  for (const Provider of [OpenAIArtBrokerProvider, AnthropicArtBrokerProvider]) {
+    const variable = Provider === OpenAIArtBrokerProvider ? 'OPENAI_BASE_URL' : 'ANTHROPIC_BASE_URL';
+    assert.throws(() => new Provider({ modelId: 'model', environment: {
+      [variable]: gateway + 'v1', NETLIFY_AI_GATEWAY_URL: gateway + 'v1' } }));
+  }
+  for (const base of [gateway + 'v1', gateway + 'v1/', 'https://api.anthropic.com/v1']) {
+    assert.throws(() => new AnthropicArtBrokerProvider({ modelId: 'model', environment: {
+      ANTHROPIC_BASE_URL: base, NETLIFY_AI_GATEWAY_URL: gateway } }));
+  }
+});
+
+test('admin privilege check exposes only fixed booleans and blocks every missing grant before providers', async () => {
+  const environment = { GOGH_V2_AI_CHECK_TOKEN: secret };
+  const request = () => new Request('https://goghpunks.xyz/api/v2/admin/ai/check', { method: 'POST',
+    headers: { origin: 'https://goghpunks.xyz', authorization: `Bearer ${secret}` },
+    body: JSON.stringify({ action: 'check', provider: 'OPENAI' }) });
+  const all = await readPrivileges();
+  let providerCalls = 0;
+  const createRuntime = () => { providerCalls++; throw Error('Provider must not start.'); };
+  for (const name of Object.keys(all)) {
+    const response = await handleV2AiCheck(request(), { environment, createRuntime,
+      readPrivileges: async () => ({ ...all, [name]: false, database: secret, connectionString: secret }) });
+    const body = await response.json();
+    assert.equal(response.status, 503); assert.equal(body.code, 'AI_DATABASE_PRIVILEGES_UNAVAILABLE');
+    assert.equal(body.databasePrivileges[name], false); assert.equal(body.databasePrivileges.checked, true);
+    assert.deepEqual(body.checks, []); assert.equal(JSON.stringify(body).includes(secret), false);
+  }
+  const response = await handleV2AiCheck(request(), { environment, createRuntime,
+    readPrivileges: async () => { throw Error('postgres://user:' + secret + '@private.example'); } });
+  const body = await response.json(); assert.equal(response.status, 503);
+  assert.equal(body.databasePrivileges.checked, false); assert.equal(JSON.stringify(body).includes(secret), false);
+  assert.equal(providerCalls, 0);
+});
+
+test('actual database privilege helper uses only fixed read-only catalog SQL and fail-closed fields', async () => {
+  let query;
+  const result = await readV2AiDatabasePrivileges({ query: async sql => {
+    query = sql; return { rows: [{ usageSelect: true, usageInsert: true, usageUpdate: false,
+      registrySelect: 'true', registryInsert: true, registryUpdate: null, unexpected: secret }] };
+  } });
+  assert.match(query, /^SELECT/); assert.match(query, /has_table_privilege/);
+  assert.doesNotMatch(query, /GRANT|REVOKE|INSERT INTO|UPDATE broker/);
+  assert.deepEqual(result, { usageSelect: true, usageInsert: true, usageUpdate: false,
+    registrySelect: false, registryInsert: true, registryUpdate: false });
+});
+
+test('stalled database privilege check is bounded and cannot start paid probes later', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let begin, finish, calls = 0;
+  const started = new Promise(resolve => { begin = resolve; });
+  const request = new Request('https://goghpunks.xyz/api/v2/admin/ai/check', { method: 'POST',
+    headers: { origin: 'https://goghpunks.xyz', authorization: `Bearer ${secret}` },
+    body: JSON.stringify({ action: 'check', provider: 'OPENAI' }) });
+  const pending = handleV2AiCheck(request, { environment: { GOGH_V2_AI_CHECK_TOKEN: secret },
+    readPrivileges: () => { begin(); return new Promise(resolve => { finish = resolve; }); },
+    createRuntime: () => { calls++; throw Error('must not start'); } });
+  await started; t.mock.timers.tick(3_000);
+  const response = await pending; assert.equal(response.status, 503);
+  assert.equal((await response.json()).databasePrivileges.checked, false);
+  finish(await readPrivileges()); await Promise.resolve(); await Promise.resolve();
+  assert.equal(calls, 0);
 });
