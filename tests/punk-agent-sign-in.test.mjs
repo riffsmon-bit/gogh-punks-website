@@ -44,7 +44,7 @@ function sessionFixture(request,provider) {
   const state={wallet:{account:owner,chainId:4663}};
   const context=vm.createContext({PREVIEW:false,CHAIN_ID:4663,state,jsonRequest:request,
     window:{__GOGH_WALLET_PROVIDER__:{request:provider}}});
-  vm.runInContext(source.slice(source.indexOf('async function ensureV2Session('),source.indexOf('\nasync function activatePunkAgentMission(')),context);
+  vm.runInContext(source.slice(source.indexOf('const sessionRequests = new Map();'),source.indexOf('\nasync function activatePunkAgentMission(')),context);
   return context;
 }
 test('sign-in verifies the cookie before returning and sends no transaction',async()=>{
@@ -80,4 +80,18 @@ for(const origin of ['https://goghpunks.xyz','https://deploy-preview-47.preview.
   const queries=[],client={release(){},query:async sql=>{queries.push(sql);return {rows:sql.startsWith('SELECT')?[{wallet_address:owner,message:row[2],expires_at:row[3],purpose:'SESSION'}]:[]};}};
   await assert.rejects(completeV2Session({connect:async()=>client},{walletAddress:owner,challengeId:challenge.challengeId,signature:`0x${'1'.repeat(130)}`},now,'https://deploy-preview-48.preview.goghpunks.xyz'),{code:'SESSION_ORIGIN_MISMATCH'});
   assert.ok(queries.includes('ROLLBACK'));assert.equal(queries.some(sql=>sql.startsWith('INSERT INTO broker_v2_sessions')),false);
+});
+
+test('concurrent collection and profile reads share one login and failed reads can be retried',async()=>{
+  const login=deferred();let reads=0,prompts=0;
+  const f=sessionFixture(async(path,options)=>{
+    if(!options){if(++reads===1)throw unauthorized();return {walletAddress:owner};}
+    return JSON.parse(options.body).action==='prepare'?{challenge:{message:'Login',challengeId:'fixture'}}:{walletAddress:owner};
+  },async()=>{prompts++;return login.promise;});
+  const calls=[f.ensureV2Session(),f.ensureV2Session()];
+  await new Promise(resolve=>setImmediate(resolve));assert.equal(prompts,1);
+  login.resolve('0xfixture');await Promise.all(calls);assert.equal(reads,2);
+  f.jsonRequest=async()=>{throw Object.assign(Error('Temporary outage'),{code:'SERVICE_UNAVAILABLE'});};
+  await assert.rejects(f.ensureV2Session(),/Temporary outage/);
+  f.jsonRequest=async()=>({walletAddress:owner});assert.equal((await f.ensureV2Session()).walletAddress,owner);
 });

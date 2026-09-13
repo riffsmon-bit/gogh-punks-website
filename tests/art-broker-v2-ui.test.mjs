@@ -92,7 +92,8 @@ test("live collection and activity panels hydrate real authenticated API states"
   assert.match(script, /REVIEW_DISCOVERY_BACKOFF_MS = 5 \* 60_000/);
   assert.match(script, /last confirmed queue/);
   assert.match(script, /ensureV2Session/);
-  assert.match(script, /GALLERY UNAVAILABLE/);
+  assert.match(script, /Your collection couldn’t be loaded/);
+  assert.match(html, /data-collection-refresh/);
   assert.doesNotMatch(script, /dangerouslySetInnerHTML|innerHTML\s*=/);
   assert.match(script, /api\/broker\/nft-withdrawal-assets\?\$\{params\}/);
   assert.match(script, /assets\.owner !== state\.wallet\?\.account/);

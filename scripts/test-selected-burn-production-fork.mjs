@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import {execFile,spawn} from 'node:child_process';import {promisify} from 'node:util';
 import {mkdtemp,readFile,rm,writeFile} from 'node:fs/promises';import {tmpdir,userInfo} from 'node:os';import {join} from 'node:path';import {createServer} from 'node:net';
-import pg from 'pg';import {createPublicClient,http} from 'viem';
+import pg from 'pg';import {createPublicClient,http,encodeFunctionData,parseAbi} from 'viem';
 import release from '../deployments/robinhood-forge-training.json' with {type:'json'};
 import {createSelectedBurnStore} from '../broker/src/v4/skill-forge/selected-burn-store.mjs';
-import {createSelectedBurnCoordinator} from '../broker/src/v4/skill-forge/selected-burn-coordinator.mjs';
+import {createSelectedBurnCoordinator,SELECTED_FORGE_DISABLED_MASK} from '../broker/src/v4/skill-forge/selected-burn-coordinator.mjs';
 import {SELECTED_BURN_OWNER} from '../broker/src/v4/skill-forge/selected-burn-source.mjs';
 import {validateSelectedBurnEnvelope} from '../site/forge-selected-burn-wallet.js';
 if(process.argv.length!==4||process.argv[2]!=='--disposable-only'||!process.argv[3].startsWith('--postgres-bin=/'))throw Error('Requires --disposable-only --postgres-bin=/absolute/path');
@@ -34,6 +34,13 @@ try {
  for(let i=0;i<80;i++){if(startupError||child.exitCode!==null)throw Error('OWNED_FORK_START_FAILED');try{if(await c.getChainId()===4663)break;}catch{}await new Promise(r=>setTimeout(r,250));}
  assert.match(await c.request({method:'web3_clientVersion'}),/anvil/i);assert.equal((await c.getBlock({blockNumber:anchor.number})).hash,anchor.hash);
  await c.request({method:'anvil_impersonateAccount',params:[SELECTED_BURN_OWNER]});
+ // Production may already be enabled. Establish the paused prerequisite only
+ // on the owned loopback Anvil, after its identity and fork anchor are verified.
+ const pauseHash=await c.request({method:'eth_sendTransaction',params:[{
+  from:SELECTED_BURN_OWNER,to:release.registry,value:'0x0',
+  data:encodeFunctionData({abi:parseAbi(['function setEmergencyControls(bool,uint256)']),
+   functionName:'setEmergencyControls',args:[true,SELECTED_FORGE_DISABLED_MASK]})}]});
+ assert.equal((await c.waitForTransactionReceipt({hash:pauseHash})).status,'success');
  let at=Number((await c.getBlock()).timestamp)*1000,checks=0;
  const sourceEvidence={scope:'DISPOSABLE_FORK_FIXTURE',clear:true};
  const store=createSelectedBurnStore(requestPool,SELECTED_BURN_OWNER,'1753');
@@ -78,7 +85,7 @@ try {
  const events=(await admin.query('SELECT count(*)::int AS n FROM broker_selected_burn_events')).rows[0].n;assert.equal(events,15);
  await assert.rejects(requestPool.query("UPDATE broker_selected_burn_reviews SET review_json='{}'"),e=>e.code==='42501');
  const result={status:'PASS',environment:'DISPOSABLE_POSTGRES_AND_ANVIL_FORK',publicAnchor:{number:String(anchor.number),hash:anchor.hash},
-  realDeployedContracts:true,sourceChecks:'MOCKED_IN_FORK_SEE_FRESH_SOURCE_CHECK_FOR_LIVE_EVIDENCE',source:'1753',recipient:'93',steps:completed.map(v=>({action:v.action,status:v.receipt.status})),
+  realDeployedContracts:true,pausedPrerequisite:'SET_ON_DISPOSABLE_FORK_ONLY',sourceChecks:'MOCKED_IN_FORK_SEE_FRESH_SOURCE_CHECK_FOR_LIVE_EVIDENCE',source:'1753',recipient:'93',steps:completed.map(v=>({action:v.action,status:v.receipt.status})),
   creditsGained:1,concurrentClaimWinner:1,persistedHashDuringProviderLag:true,recreatedServerRecovery:true,browserDatabaseDenied:true,auditEvents:events,publicTransactions:0};
  await writeFile(new URL('../docs/review/2026-09-12/selected-launch/production-burn-integration-fork.json',import.meta.url),JSON.stringify(result,null,2)+'\n');console.log(JSON.stringify(result));
 }catch(e){console.log(JSON.stringify({status:'FAILED',type:e.name,code:e.code??null,message:e.shortMessage??e.message}));process.exitCode=1;}

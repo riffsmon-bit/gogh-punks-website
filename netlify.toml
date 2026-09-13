@@ -32,6 +32,9 @@
 [functions."broker-v2-forge"]
   included_files = ["broker/skills/**", "broker/src/v4/skill-forge/*.mjs", "deployments/robinhood-skill-forge.json"]
 
+[functions."broker-v2-mcp"]
+  included_files = ["broker/skills/**", "broker/src/v4/skill-forge/*.mjs", "deployments/robinhood-forge-training.json"]
+
 [functions."broker-v2-forge-training"]
   included_files = ["deployments/robinhood-forge-training.json", "deployments/certificates/supabase-prod-ca-2021.crt", "artifacts/skill-forge/rarity/gogh-opensea-rarity-*.json"]
 

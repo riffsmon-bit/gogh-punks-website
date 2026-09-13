@@ -1,0 +1,38 @@
+{
+  "schema": "GOGH_FREE_ARCHIVE_NETLIFY_CONFIGURATION_V1",
+  "configuredAt": "2026-09-13T16:34:27.698Z",
+  "site": "gogh-punks",
+  "productionUrl": "https://goghpunks.xyz",
+  "variables": [
+    {
+      "key": "ROBINHOOD_ARCHIVE_RPC_URL",
+      "scopes": [
+        "functions"
+      ],
+      "isSecret": true,
+      "contexts": [
+        "production"
+      ],
+      "hostname": "mainnet.robinhood.validationcloud.io"
+    },
+    {
+      "key": "ROBINHOOD_ARCHIVE_SECONDARY_RPC_URL",
+      "scopes": [
+        "functions"
+      ],
+      "isSecret": true,
+      "contexts": [
+        "production"
+      ],
+      "hostname": "rpc-robinhood.blockmachine.io"
+    }
+  ],
+  "previousProductionCommit": "eec456222bc8028df1f91b3191ce0ff8874c467e",
+  "previousProductionDeploy": "6aa6a7f80bea850008cb5b8c",
+  "deploymentPending": false,
+  "generalAndRelayRpcChanged": false,
+  "publicTransactions": 0,
+  "productionCommit": "3b534724094aad9a775e60fe147db196272d0539",
+  "productionDeploy": "6aa6d3419922850008a6a428",
+  "productionAcceptance": "free-rpc-production-acceptance.json"
+}

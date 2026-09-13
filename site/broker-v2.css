@@ -303,7 +303,8 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .agent-account-card dd { margin: 6px 0 0; overflow-wrap: anywhere; font-size: .72rem; font-weight: 900; }
 .agent-account-card > button { margin-top: 14px; }
 
-.fund-layout { display: grid; grid-template-columns: minmax(270px, .8fr) 1fr; gap: 30px; align-items: center; }
+.fund-layout { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1fr); gap: 30px; align-items: center; }
+.fund-layout > * { min-width: 0; }
 .balance-readout { padding: 34px; border-left: 6px solid var(--acid); background: var(--ink); }
 .balance-readout span { display: block; color: var(--muted); font-size: .65rem; font-weight: 900; letter-spacing: .13em; }
 .balance-readout strong { display: inline-block; margin-top: 8px; font-family: var(--font-display); font-size: clamp(4rem, 8vw, 7.5rem); line-height: .85; }
@@ -317,7 +318,8 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 [data-agent-gas-form] { margin-top: 18px; }
 .fund-form { grid-column: 1 / -1; padding: 22px; border: 1px solid var(--line); }
 .fund-form label { display: block; margin-bottom: 8px; color: var(--muted); font-size: .62rem; font-weight: 900; }
-.fund-form > div { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.fund-form > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.fund-form input { min-width: 0; width: 100%; }
 .transaction-confirm { display: flex !important; gap: 10px; align-items: flex-start; margin: 14px 0 10px !important;
   color: var(--text) !important; font-size: .7rem !important; line-height: 1.45; letter-spacing: 0 !important; }
 .transaction-confirm input { width: 18px !important; min-height: 18px !important; margin: 1px 0 0; accent-color: var(--acid); }
@@ -457,7 +459,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   .v2-brand b, .header-state, .wallet-actions .text-button { display: none; }
   .v2-brand span { font-size: .7rem; }
   .v2-brand img { width: 34px; height: 34px; }
-  .wallet-actions .primary-button { min-height: 40px; padding: 0 12px; font-size: .68rem; }
+  .wallet-actions .primary-button { min-height: 44px; padding: 0 12px; font-size: .68rem; }
   .preview-ribbon { align-items: flex-start; justify-content: flex-start; flex-direction: column; gap: 2px; }
   .broker-shell { padding: 20px 14px; }
   .section-heading { align-items: start; }
@@ -494,7 +496,11 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   .review-live-mint { grid-template-columns: 1fr; }
   .review-live-mint > p, .review-live-mint > a { grid-column: auto; }
   .safety-card, .fund-form { grid-column: auto; }
+  .fund-layout { grid-template-columns: minmax(0, 1fr); }
+  .fund-form > div { grid-template-columns: minmax(0, 1fr); }
+  .fund-form button { min-height: 48px; }
   .balance-readout { padding: 24px; }
+  .balance-readout strong { max-width: 100%; font-size: clamp(2.75rem, 14vw, 4rem); overflow-wrap: anywhere; }
   .wrapped-funding { padding: 18px; }
   .wrapped-funding > header { align-items: start; flex-direction: column; }
   .wrapped-form { grid-template-columns: 1fr; }
@@ -533,3 +539,37 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .directed-paid-panel input { width:100%; min-width:0; padding:12px; color:inherit; background:#0b1117; border:1px solid #536277; }
 .directed-paid-panel pre { max-height:280px; overflow:auto; white-space:pre-wrap; font-size:12px; }
 .directed-paid-panel a { display:inline-block; margin:8px 0; color:var(--acid,#dfff3f); }
+
+.agent-recovery-panel { margin-top: 28px; padding: clamp(18px, 3vw, 28px); border: 1px solid var(--acid); scroll-margin: 100px; overflow-wrap: anywhere; }
+.agent-recovery-panel h3 { margin: 0 0 16px; font-family: var(--font-display); font-size: clamp(1.6rem, 4vw, 2.4rem); }
+.agent-recovery-panel p { color: var(--muted); line-height: 1.6; }
+.agent-recovery-panel [role="status"] { color: var(--text); padding: 12px; border-left: 3px solid var(--acid); background: var(--surface); }
+.agent-recovery-fields, .agent-recovery-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.agent-recovery-panel label { display: grid; gap: 8px; margin: 14px 0; font-size: .75rem; }
+.agent-recovery-panel input:not([type="checkbox"]), .agent-recovery-panel select { min-height: 44px; width: 100%; min-width: 0; padding: 12px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); }
+.agent-recovery-panel .transaction-confirm { display: flex; align-items: flex-start; gap: 12px; font-size: .82rem; line-height: 1.5; }
+.agent-recovery-panel input[type="checkbox"] { flex: 0 0 20px; width: 20px; height: 20px; accent-color: var(--acid); }
+.agent-recovery-facts div { padding: 12px; min-width: 0; border: 1px solid var(--line); }
+.agent-recovery-facts dt { color: var(--muted); font-size: .65rem; }
+.agent-recovery-facts dd { margin: 8px 0 0; font-size: .82rem; }
+.agent-recovery-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0; }
+.agent-recovery-actions button { min-height: 44px; max-width: 100%; white-space: normal; }
+.agent-recovery-panel a { display: inline-block; min-height: 44px; color: var(--acid); }
+.agent-recovery-panel :focus-visible { outline: 2px solid var(--acid); outline-offset: 4px; }
+.agent-recovery-panel [hidden] { display: none; }
+@media (max-width: 720px) {
+  .agent-recovery-fields, .agent-recovery-facts { grid-template-columns: 1fr; gap: 8px; }
+  .agent-recovery-actions { flex-direction: column; }
+  .agent-recovery-panel { scroll-margin: 20px; }
+}
+
+/* Collection state is text, separate from verified NFT cards. */
+.collection-header-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.collection-header-actions button { min-height: 44px; }
+.collection-status { color: var(--muted); line-height: 1.5; overflow-wrap: anywhere; }
+.collection-status:empty { display: none; }
+.gallery-grid > .panel-empty { grid-column: 1 / -1; min-height: 100px; }
+.gallery-item .gallery-actions { flex-wrap: wrap; }
+.gallery-actions a, .gallery-actions button { min-height: 44px; max-width: 100%; padding: 8px 10px; overflow-wrap: anywhere; }
+
+.collection-recovery a { display: inline-block; margin: 8px 12px 0 0; }

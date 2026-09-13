@@ -1,4 +1,4 @@
-import { inspectArtBrokerLink } from "../../broker/src/v4/link-scanner.mjs";
+import { ArtBrokerLinkError, inspectArtBrokerLink } from "../../broker/src/v4/link-scanner.mjs";
 import { PublicError, json, readJson } from "./_shared/http.mjs";
 import { v2Failure } from "./_shared/v2-http.mjs";
 import { readV2PunkAuthority } from "./_shared/v2-ownership.mjs";
@@ -6,6 +6,9 @@ import { requireV2DeployPreview } from "./_shared/v2-review.mjs";
 
 const TOKEN = /^(?:0|[1-9]\d{0,3})$/;
 const OWNER = /^0x[0-9a-f]{40}$/;
+const LINK_INPUT_ERRORS = new Set([
+  "INVALID_URL", "PRIVATE_URL_BLOCKED", "UNSUPPORTED_URL", "UNSUPPORTED_CHAIN",
+]);
 
 export async function handleV2ReviewInspectUrl(request, {
   readAuthority = readV2PunkAuthority, inspect = inspectArtBrokerLink } = {}) {
@@ -29,6 +32,9 @@ export async function handleV2ReviewInspectUrl(request, {
       message: "Link normalized for review. No external transaction data was accepted.",
       transactionPrepared: false, externalCalldataAccepted: false });
   } catch (error) {
+    if (error instanceof ArtBrokerLinkError && LINK_INPUT_ERRORS.has(error.code)) {
+      return json({ ok: false, code: error.code, message: error.message }, 400);
+    }
     return v2Failure(error);
   }
 }

@@ -6,5 +6,5 @@
   <circle cx="188" cy="180" r="38" fill="#56cfc3" opacity=".75"/>
   <path d="M96 392l112-128 72 72 48-56 88 112z" fill="#d4ad35" opacity=".45"/>
   <path d="M96 392l112-128 72 72 48-56 88 112" fill="none" stroke="#f2e8cb" stroke-width="8" stroke-linejoin="round"/>
-  <text x="256" y="438" fill="#f2e8cb" font-family="Georgia,serif" font-size="24" text-anchor="middle">ARTWORK LOADING</text>
+  <text x="256" y="438" fill="#f2e8cb" font-family="Georgia,serif" font-size="20" text-anchor="middle">ARTWORK UNAVAILABLE</text>
 </svg>

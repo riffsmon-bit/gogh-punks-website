@@ -1,6 +1,7 @@
 import { verifyOwnedPunkIds } from "./broker-v2-ownership.js";
 import { createForgeControl } from './broker-v2-forge.js';
 import { createDirectedPaidPanel } from './directed-paid-panel.js';
+import { createAgentRecoveryPanel, recoveryEth } from './punk-agent-recovery-panel.js';
 import { createOwnerRefresh } from "./broker-v2-owner-refresh.js";
 import { prepareAgentGasFunding, submitAgentGasFunding } from "./punk-agent-gas-funding.js";
 import { punkChatAction, agentChatStatus } from "./punk-chat-actions.js";
@@ -28,6 +29,8 @@ import {
 } from "./owner-assisted-seadrop-mint.js";
 
 const PREVIEW = new URLSearchParams(location.search).get("preview") === "1";
+const REQUESTED_PUNK = new URLSearchParams(location.search).get('tokenId');
+let requestedRecovery = location.hash === '#agent-recovery';
 const REVIEW_HOST = location.protocol === "https:" && /^(?:deploy-preview-[1-9][0-9]*--gogh-punks\.netlify\.app|deploy-preview-[1-9][0-9]*\.preview\.goghpunks\.xyz)$/.test(location.hostname);
 const CHAIN_ID = 4663;
 const COLLECTION = "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6";
@@ -56,6 +59,7 @@ const state = { wallet: null, punks: [], selected: null, localStrategy: null, lo
   dispatchAfterActivation: false,
   gallery: [], activity: [], hydratedTokenId: null, lastInspection: null,
   ownershipAccount: null, ownershipLoadingAccount: null, ownershipRequestId: 0,
+  galleryStatus: "idle", galleryNote: "", galleryRequestId: 0,
   balanceRequestId: 0, galleryTokenId: null, galleryLoadingTokenId: null,
   fundingPlan: null, gasFundingPlan: null, gasFundingBusy: false, wrappedPlan: null, withdrawalAsset: null,
   withdrawalAmount: "1", withdrawalPlan: null, withdrawalBusy: false,
@@ -76,6 +80,7 @@ const punkRecall = createPunkRecall();
 let reviewMissionTimer = null;
 let forgeControl = null;
 let directedPaidControl = null;
+let agentRecoveryControl = null;
 const one = (selector) => document.querySelector(selector);
 const all = (selector) => [...document.querySelectorAll(selector)];
 const set = (selector, value) => { const target = one(selector); if (target) target.textContent = String(value); };
@@ -83,7 +88,7 @@ const setAll = (selector, value) => all(selector).forEach((target) => { target.t
 const short = (value) => typeof value === "string" && value.length === 42
   ? `${value.slice(0, 6)}…${value.slice(-4)}` : "NOT ACTIVATED";
 
-function cleanImage(value, fallback = "/assets/gogh-punks-pfp.png") {
+function cleanImage(value, fallback = "/assets/nft-placeholder.svg") {
   if (typeof value !== "string") return fallback;
   if (/^data:image\/(?:svg\+xml|png);base64,[A-Za-z0-9+/]+={0,2}$/.test(value)
     && value.length <= 256_000) return value;
@@ -244,6 +249,10 @@ function renderAgentAccount() {
           : "Readiness not verified. Use CHECK AUTONOMOUS READINESS.");
   if (!status) {
     set("[data-agent-account-status]", "CHECKING READINESS");
+    set("[data-agent-account-address]", "NOT VERIFIED");
+    set("[data-agent-account-balance]", "NOT VERIFIED");
+    set("[data-agent-account-mission]", "NOT VERIFIED");
+    set("[data-agent-account-worker]", "NOT VERIFIED");
     return;
   }
   if (status.error) {
@@ -268,7 +277,7 @@ function renderAgentAccount() {
   set("[data-agent-account-address]", status.runtime?.account
     ? short(status.runtime.account) : "NOT ACTIVATED");
   set("[data-agent-account-balance]", status.runtime?.nativeBalance != null
-    ? `${ethFromWei(status.runtime.nativeBalance)} ETH` : "0 ETH");
+    ? recoveryEth(status.runtime.nativeBalance) : "NOT VERIFIED");
   set("[data-agent-account-mission]", status.mission
     ? `${status.mission.status} · ${status.mission.totalLimit} MAX` : "NOT AUTHORIZED");
   set("[data-agent-account-worker]", status.readiness?.manualExecutionReady
@@ -281,8 +290,8 @@ function renderAgentGasFunding(status = selectedAgentAccount()) {
   const verified = runtime?.accountCreated === true && !status?.error;
   set("[data-agent-gas-punk-balance]", state.selected?.balanceLoaded === false
     ? "CHECKING…" : `${state.selected?.balanceEth ?? "—"} ETH`);
-  set("[data-agent-gas-native]", verified && runtime.nativeBalance != null ? `${ethFromWei(runtime.nativeBalance)} ETH` : "NOT VERIFIED");
-  set("[data-agent-gas-deposit]", verified && runtime.entryPointDeposit != null ? `${ethFromWei(runtime.entryPointDeposit)} ETH` : "NOT VERIFIED");
+  set("[data-agent-gas-native]", verified ? recoveryEth(runtime.nativeBalance) : "NOT VERIFIED");
+  set("[data-agent-gas-deposit]", verified ? recoveryEth(runtime.entryPointDeposit) : "NOT VERIFIED");
   set("[data-agent-gas-destination]", verified ? runtime.account : "NOT VERIFIED");
   set("[data-agent-gas-readiness]", status?.error
     ? `READINESS UNAVAILABLE · ${status.error} Use RECHECK / SIGN IN; gas funding and mission activation are separate.`
@@ -1081,7 +1090,10 @@ async function runOwnerAssistedLiveMint() {
 function renderRoster() {
   forgeControl?.selectionChanged();
   directedPaidControl?.selectionChanged();
+  agentRecoveryControl?.selectionChanged();
   const roster = one("[data-punk-roster]");
+  const restoreFocus = roster.contains(document.activeElement);
+  roster.setAttribute('aria-orientation', 'horizontal');
   roster.replaceChildren();
   set("[data-roster-count]", state.punks.length);
   one("[data-roster-empty]").hidden = state.punks.length > 0;
@@ -1098,16 +1110,27 @@ function renderRoster() {
     const button = document.createElement("button");
     button.type = "button"; button.className = "roster-slot"; button.setAttribute("role", "option");
     button.setAttribute("aria-selected", String(punk.tokenId === state.selected?.tokenId));
+    button.tabIndex = punk.tokenId === state.selected?.tokenId ? 0 : -1;
     button.dataset.tokenId = punk.tokenId;
     const image = document.createElement("img"); image.alt = `Gogh Punk #${punk.tokenId}`;
-    image.src = cleanImage(punk.image);
+    image.src = cleanImage(punk.image); image.loading = "lazy"; image.decoding = "async";
     const label = document.createElement("span");
     const name = document.createElement("b"); name.textContent = `#${punk.tokenId}`;
     const mode = document.createElement("small"); mode.textContent = reviewModeForPunk(punk);
     label.append(name, mode); button.append(image, label);
-    button.addEventListener("click", () => selectPunk(punk.tokenId));
+    button.addEventListener("click", event => selectPunk(punk.tokenId, { focusRoster: event.detail === 0 }));
+    button.addEventListener('keydown', event => {
+      const index = state.punks.findIndex(item => item.tokenId === punk.tokenId);
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? state.punks.length - 1
+        : event.key === 'ArrowRight' ? (index + 1) % state.punks.length
+          : event.key === 'ArrowLeft' ? (index - 1 + state.punks.length) % state.punks.length : null;
+      if (next === null) return;
+      event.preventDefault();
+      if (next !== index) selectPunk(state.punks[next].tokenId, { focusRoster: true });
+    });
     roster.append(button);
   }
+  if (restoreFocus) roster.querySelector('[aria-selected="true"]')?.focus({ preventScroll: true });
 }
 
 function renderSelected() {
@@ -1124,7 +1147,7 @@ function renderSelected() {
   const fundDestination = fundingAgent ? agentRuntime.account : punk.account;
   set("[data-fund-wallet]", short(fundDestination));
   set("[data-fund-balance-label]", fundingAgent
-    ? "CURRENT PUNK AGENT GAS BALANCE" : "CURRENT PUNK WALLET BALANCE");
+    ? "CURRENT PUNK AGENT GAS BALANCE" : "CURRENT V3 PUNK WALLET BALANCE");
   set("[data-fund-destination-name]", fundingAgent
     ? "Punk Agent Account gas balance" : "selected Punk Wallet");
   const balance = Number(punk.balanceEth ?? 0); const reserve = Number(punk.reserveEth ?? 0);
@@ -1139,7 +1162,8 @@ function renderSelected() {
   set("[data-wrap-weth-balance]", wethDisplay);
   set("[data-collection-eth]", nativeDisplay);
   set("[data-collection-weth]", wethDisplay);
-  set("[data-punk-nfts]", punk.nfts ?? 0); set("[data-gallery-count]", state.gallery.length);
+  set("[data-punk-nfts]", punk.acquisitionCount ?? (PREVIEW ? punk.nfts : '—'));
+  set("[data-gallery-count]", state.gallery.filter(entry => Array.isArray(entry) || entry.tokenId != null).length);
   set("[data-punk-reserve]", `${reserve.toFixed(4)} ETH`);
   set("[data-fund-reserve]", `${reserve.toFixed(4)} ETH`);
   set("[data-available-budget]", `${available.toFixed(4)} ETH AVAILABLE`);
@@ -1159,13 +1183,13 @@ function renderSelected() {
   }
 }
 
-function selectPunk(tokenId) {
+function selectPunk(tokenId, { focusRoster = false } = {}) {
   const punk = state.punks.find((item) => item.tokenId === tokenId);
   if (!punk) return;
   state.selected = punk; state.localStrategy = null; state.localSkill = null; state.lastInspection = null;
   const key = selectedReviewKey();
   state.lastInspection = key ? state.reviewInspections.get(key) ?? null : null;
-  state.hydratedTokenId = null; state.galleryTokenId = null; state.galleryLoadingTokenId = null;
+  state.hydratedTokenId = null; resetGallery();
   state.fundingPlan = null; state.wrappedPlan = null; state.withdrawalAsset = null;
   state.gasFundingPlan = null;
   one("[data-agent-gas-confirm]").checked = false;
@@ -1179,14 +1203,50 @@ function selectPunk(tokenId) {
   state.withdrawalAmount = "1"; state.withdrawalPlan = null; state.withdrawalBusy = false;
   if (!PREVIEW) { state.gallery = []; state.activity = []; }
   renderSelected(); renderCollectionWithdrawal(); scheduleSelectedReviewMissionCheck();
-  one("[data-selected-stage]").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+  const activeTab = one('[data-v2-tab][aria-selected="true"]')?.dataset.v2Tab;
+  if (!PREVIEW && activeTab) void hydrateSelected(activeTab);
+  if (focusRoster) {
+    const option = one('[data-punk-roster] [aria-selected="true"]');
+    option?.focus({ preventScroll: true });
+    option?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  } else one("[data-selected-stage]").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+}
+
+function resetGallery() {
+  state.galleryRequestId += 1;
+  state.galleryTokenId = null; state.galleryLoadingTokenId = null;
+  state.galleryStatus = "idle"; state.galleryNote = "";
+}
+
+function beginCollectionRead(punk) {
+  const owner = state.wallet?.account, requestId = ++state.galleryRequestId;
+  state.galleryLoadingTokenId = punk.tokenId; state.galleryStatus = "loading";
+  state.galleryNote = `Checking Punk #${punk.tokenId}’s collection…`;
+  state.gallery = []; renderGallery();
+  return () => state.galleryRequestId === requestId && state.selected?.tokenId === punk.tokenId
+    && state.wallet?.account === owner && state.wallet?.chainId === CHAIN_ID;
+}
+
+function collectionFailed() {
+  state.gallery = []; state.galleryStatus = "error";
+  state.galleryNote = "Your collection couldn’t be loaded. Nothing was moved. Choose Refresh collection to try again.";
 }
 
 function renderGallery() {
   const grid = one("[data-gallery-grid]"); grid.replaceChildren();
+  const loading = state.galleryStatus === "loading";
+  grid.setAttribute("aria-busy", String(loading));
+  const refresh = one('[data-collection-refresh]');
+  if (refresh) { refresh.disabled = loading || !state.selected; refresh.textContent = loading ? 'REFRESHING…' : 'REFRESH COLLECTION'; }
+  set('[data-gallery-status]', state.galleryNote);
+  set('[data-gallery-count]', PREVIEW || state.galleryStatus === 'ready' ? state.gallery.length : '—');
   if (!state.gallery.length) {
     const empty = document.createElement("p"); empty.className = "panel-empty";
-    empty.textContent = PREVIEW ? "This Punk has no displayed pieces." : "Open COLLECTION to load this Punk Wallet gallery.";
+    empty.textContent = loading ? "Checking which NFTs your Punk holds. Artwork will appear when available."
+      : state.galleryStatus === 'error' ? "Your NFTs remain in their wallets while the collection is unavailable."
+      : PREVIEW ? "This Punk has no displayed pieces."
+      : state.galleryStatus === 'ready' ? "No current NFTs were verified in this check. Refresh, or check a missing item using its OpenSea link."
+      : "Your Punk’s verified NFTs will appear here.";
     grid.append(empty); return;
   }
   for (const entry of state.gallery) {
@@ -1194,12 +1254,12 @@ function renderGallery() {
       image: entry[0], title: entry[1], provenance: entry[2], detail: entry[3],
     } : entry;
     const item = document.createElement("article"); item.className = "gallery-item";
-    const image = document.createElement("img"); image.src = cleanImage(itemData.image); image.alt = itemData.title;
+    const image = document.createElement("img"); image.src = cleanImage(itemData.image); image.alt = itemData.title; image.loading = "lazy"; image.decoding = "async";
     const copy = document.createElement("div"); const type = document.createElement("span"); type.textContent = itemData.provenance;
     const heading = document.createElement("h3"); heading.textContent = itemData.title;
     const text = document.createElement("p"); text.textContent = itemData.detail;
     copy.append(type, heading, text);
-    if (itemData.tokenId && state.selected) {
+    if (itemData.tokenId != null && state.selected) {
       const actions = document.createElement("div"); actions.className = "gallery-actions";
       if (typeof itemData.openSeaUrl === "string") {
         try {
@@ -1210,11 +1270,25 @@ function renderGallery() {
           }
         } catch { /* Invalid display links are omitted. */ }
       }
-      const withdraw = document.createElement("button"); withdraw.type = "button";
-      withdraw.textContent = "WITHDRAW"; withdraw.setAttribute("aria-label", `Withdraw ${itemData.title}`);
-      withdraw.disabled = state.withdrawalBusy;
-      withdraw.addEventListener("click", () => selectCollectionWithdrawal(itemData));
-      actions.append(withdraw); copy.append(actions);
+      if (itemData.custodyType === 'PUNK_AGENT_ACCOUNT') {
+        if (itemData.ownershipStatus === 'LIVE_VERIFIED' && ['ERC721', 'ERC1155'].includes(itemData.standard)) {
+          const recover = document.createElement('button'); recover.type = 'button'; recover.textContent = 'WITHDRAW NFT';
+          recover.setAttribute('aria-label', `Review Agent withdrawal of ${itemData.title}`);
+          recover.addEventListener('click', () => { activateTab('fund'); agentRecoveryControl?.openAsset(itemData);
+            one('#agent-recovery')?.scrollIntoView({ block: 'start' }); });
+          actions.append(recover);
+        }
+      } else if (itemData.withdrawControlUrl === `/broker/punk/${state.selected.tokenId}?tab=assets`) {
+        const withdraw = document.createElement('a'); withdraw.textContent = 'MANAGE V3 NFT'; withdraw.href = itemData.withdrawControlUrl;
+        actions.append(withdraw);
+      } else if (!itemData.custodyType && ['ERC721', 'ERC1155'].includes(itemData.standard)) {
+        const withdraw = document.createElement("button"); withdraw.type = "button";
+        withdraw.textContent = "WITHDRAW"; withdraw.setAttribute("aria-label", `Withdraw ${itemData.title}`);
+        withdraw.disabled = state.withdrawalBusy;
+        withdraw.addEventListener("click", () => selectCollectionWithdrawal(itemData));
+        actions.append(withdraw);
+      }
+      copy.append(actions);
     }
     item.append(image, copy); grid.append(item);
   }
@@ -1278,11 +1352,20 @@ function activateTab(name) {
     one("[data-fund-gas-home]").append(one("[data-agent-gas-panel]"));
     one("[data-talk-gas-host]").hidden = true;
   }
-  all("[data-v2-tab]").forEach((button) => button.setAttribute("aria-selected", String(button.dataset.v2Tab === name)));
+  all("[data-v2-tab]").forEach((button) => {
+    const selected = button.dataset.v2Tab === name;
+    button.setAttribute("aria-selected", String(selected)); button.tabIndex = selected ? 0 : -1;
+    if (selected && matchMedia('(max-width: 720px)').matches) {
+      const nav = button.parentElement;
+      nav.scrollLeft += button.getBoundingClientRect().left - nav.getBoundingClientRect().left
+        - (nav.clientWidth - button.offsetWidth) / 2;
+    }
+  });
   all("[data-v2-panel]").forEach((panel) => { panel.hidden = panel.dataset.v2Panel !== name; });
   if (name === "activity") renderActivity();
   if (name === "forge") forgeControl?.selectionChanged();
-  history.replaceState(null, "", `${location.pathname}?${new URLSearchParams({ ...(PREVIEW ? { preview: "1" } : {}), tab: name })}`);
+  history.replaceState(null, "", `${location.pathname}?${new URLSearchParams({ ...(PREVIEW ? { preview: "1" } : {}), tab: name,
+    ...(state.selected?.tokenId || REQUESTED_PUNK ? { tokenId: state.selected?.tokenId ?? REQUESTED_PUNK } : {}) })}`);
   const reviewRead = REVIEW_HOST && ["fund", "collection", "activity"].includes(name);
   const productRead = !REVIEW_HOST && ["strategy", "fund", "collection", "activity"].includes(name);
   if (!PREVIEW && (reviewRead || productRead)) {
@@ -1333,7 +1416,7 @@ async function loadPunkBalances(punk) {
   }
   const provider = window.__GOGH_WALLET_PROVIDER__;
   if (!provider?.request) throw new Error("Wallet provider unavailable.");
-  const requestId = ++state.balanceRequestId;
+  const requestId = ++state.balanceRequestId; const owner = state.wallet?.account;
   const tokenId = punk.tokenId; const account = punk.account.toLowerCase();
   const [nativeRaw, wrappedRaw] = await Promise.all([
     provider.request({ method: "eth_getBalance", params: [account, "latest"] }),
@@ -1344,7 +1427,8 @@ async function loadPunkBalances(punk) {
     throw new Error("Punk ETH balance response is invalid.");
   }
   const nativeWei = BigInt(nativeRaw); const wrappedWei = decodeUint256(wrappedRaw);
-  if (requestId !== state.balanceRequestId || state.selected?.tokenId !== tokenId
+  if (requestId !== state.balanceRequestId || state.wallet?.account !== owner
+    || state.wallet?.chainId !== CHAIN_ID || state.selected?.tokenId !== tokenId
     || state.selected?.account?.toLowerCase() !== account) return;
   punk.nativeBalanceWei = nativeWei.toString(); punk.wethBalanceWei = wrappedWei.toString();
   punk.balanceEth = ethFromWei(punk.nativeBalanceWei);
@@ -1355,10 +1439,7 @@ async function loadPunkBalances(punk) {
 async function loadReviewCollection(punk, exactAsset = null) {
   if (!exactAsset && (state.galleryTokenId === punk.tokenId
     || state.galleryLoadingTokenId === punk.tokenId)) return;
-  const tokenId = punk.tokenId; state.galleryLoadingTokenId = tokenId;
-  state.gallery = [{ image: punk.image, title: `LOADING PUNK #${tokenId}…`,
-    provenance: "LIVE OWNERSHIP CHECK", detail: "Reading the current Punk Wallet inventory." }];
-  renderGallery(); set("[data-gallery-count]", 0);
+  const tokenId = punk.tokenId; const isCurrent = beginCollectionRead(punk);
   try {
     const params = new URLSearchParams({ tokenId });
     if (exactAsset) {
@@ -1375,9 +1456,9 @@ async function loadReviewCollection(punk, exactAsset = null) {
       || (punk.account && assets.account !== punk.account.toLowerCase())) {
       throw new Error("The live-owned NFT inventory could not be verified.");
     }
-    if (state.selected?.tokenId !== tokenId) return;
+    if (!isCurrent()) return;
     const verifiedItems = validateWithdrawableNftAssets(assets, tokenId);
-    punk.account = assets.account; punk.nfts = verifiedItems.length;
+    punk.account = assets.account;
     state.gallery = verifiedItems.map((asset) => ({
       image: asset.imageUrl ?? "/assets/nft-placeholder.svg",
       title: asset.name ?? `${asset.collectionName ?? short(asset.collection)} #${asset.tokenId}`,
@@ -1386,9 +1467,12 @@ async function loadReviewCollection(punk, exactAsset = null) {
       tokenId: asset.tokenId, collection: asset.collection, openSeaUrl: asset.openSeaUrl,
       standard: asset.standard, amount: asset.amount, collectionName: asset.collectionName,
     }));
-    state.galleryTokenId = tokenId; renderSelected();
+    state.galleryTokenId = tokenId; state.galleryStatus = 'ready';
+    state.galleryNote = 'Current ownership checked. Some NFTs may not be indexed yet.'; renderSelected();
+  } catch {
+    if (isCurrent()) collectionFailed();
   } finally {
-    if (state.galleryLoadingTokenId === tokenId) state.galleryLoadingTokenId = null;
+    if (isCurrent()) { state.galleryLoadingTokenId = null; renderGallery(); }
   }
 }
 
@@ -1524,9 +1608,48 @@ function dateLabel(value) {
   }).toUpperCase();
 }
 
+async function loadProductionCollection(punk, { force = false } = {}) {
+  if (state.galleryLoadingTokenId === punk.tokenId || (!force && state.galleryTokenId === punk.tokenId)) return;
+  const tokenId = punk.tokenId, isCurrent = beginCollectionRead(punk);
+  try {
+    await ensureV2Session();
+    if (!isCurrent()) return;
+    const payload = await jsonRequest(`/api/v2/punks/${tokenId}/collection`, { timeoutMs: 25_000 });
+    if (!isCurrent()) return;
+    if (!Array.isArray(payload.holdings)) throw new Error('Collection response unavailable.');
+      state.gallery = payload.holdings.map((holding) => ({
+        image: cleanImage(holding.artwork?.imageUrl),
+        title: holding.artwork?.name ?? `${short(holding.collection)} #${holding.tokenId}`,
+        provenance: `${holding.provenance === "RECEIVED" ? "RECEIVED NFT" : holding.provenance === "V1" ? "EARLIER ART BROKER" : "CURRENT ART BROKER"} · ${holding.ownershipStatus === "LIVE_VERIFIED" ? "OWNERSHIP VERIFIED" : holding.acquisitionType}`,
+        detail: `TOKEN #${holding.tokenId} · ${holding.mintCostWei == null ? "ACQUISITION COST UNKNOWN" : holding.mintCostWei === "0" ? "FREE" : `${ethFromWei(holding.mintCostWei)} ETH`} · ${holding.custodyType === "PUNK_AGENT_ACCOUNT" ? "held in this Punk’s Agent wallet" : "held in this Punk Wallet"}${holding.acquiredAt ? ` · acquired ${dateLabel(holding.acquiredAt)}` : ""}`,
+        tokenId: holding.tokenId, collection: holding.collection, standard: holding.standard,
+        custodyType: holding.custodyType, ownershipStatus: holding.ownershipStatus,
+        withdrawControlUrl: holding.withdrawControlUrl, amount: holding.amount,
+        openSeaUrl: /^0x[0-9a-f]{40}$/i.test(holding.collection) && /^(0|[1-9][0-9]*)$/.test(holding.tokenId)
+          ? `https://opensea.io/item/robinhood/${holding.collection}/${holding.tokenId}` : null,
+      }));
+    state.galleryTokenId = tokenId; state.galleryStatus = 'ready';
+    state.galleryNote = [payload.inventoryNote || 'Current ownership checked. Some NFTs may not be indexed yet.',
+      payload.ownershipChecksUnavailable ? 'Some ownership checks are unavailable. Refresh to check again.' : '',
+      payload.paidMintHistoryAvailable === false ? 'Recent mint history is temporarily unavailable.' : '',
+      payload.discoverySourcesUnavailable?.length ? 'Some collection sources are still unavailable; verified NFTs are shown.' : '',
+      payload.metadataUnavailable ? 'Some artwork is unavailable; verified NFTs are still shown.' : '',
+    ].filter(Boolean).join(' ');
+  } catch {
+    if (isCurrent()) collectionFailed();
+  } finally {
+    if (isCurrent()) { state.galleryLoadingTokenId = null; renderGallery(); }
+  }
+}
+
 async function hydrateSelected(tab) {
   const punk = state.selected; if (!punk) return;
-  const tokenId = punk.tokenId;
+  const tokenId = punk.tokenId, owner = state.wallet?.account;
+  const isCurrent = () => state.selected === punk && state.wallet?.account === owner && state.wallet?.chainId === CHAIN_ID;
+  if (!REVIEW_HOST && tab === 'collection') {
+    void hydrateSelected('fund');
+    return loadProductionCollection(punk);
+  }
   try {
     if (REVIEW_HOST) {
       if (tab === "collection") {
@@ -1541,6 +1664,7 @@ async function hydrateSelected(tab) {
       else if (tab === "activity") {
         await ensureV2Session();
         const payload = await jsonRequest(`/api/v2/punks/${tokenId}/activity`);
+        if (!isCurrent()) return;
         state.activity = payload.entries.map((entry) => [dateLabel(entry.occurredAt), entry.type,
           `CURRENT ART BROKER · ${String(entry.type).replaceAll("_", " ")}`,
           activityDetail(entry), entry.detail?.transactionHash]);
@@ -1551,13 +1675,13 @@ async function hydrateSelected(tab) {
     await ensureV2Session();
     const profilePayload = state.hydratedTokenId === tokenId ? null
       : await jsonRequest(`/api/v2/punks/${tokenId}`);
-    if (state.selected?.tokenId !== tokenId) return;
+    if (!isCurrent()) return;
     if (profilePayload?.profile) {
       punk.account = profilePayload.profile.punkWallet;
       punk.balanceEth = ethFromWei(profilePayload.profile.nativeBalanceWei);
       punk.nativeBalanceWei = profilePayload.profile.nativeBalanceWei;
       punk.balanceLoaded = true;
-      punk.nfts = profilePayload.profile.collectionCount;
+      punk.acquisitionCount = profilePayload.profile.collectionCount;
       punk.mode = profilePayload.profile.strategy?.state === "PAUSED" ? "PAUSED"
         : profilePayload.profile.strategy?.intent?.operatingMode ?? "ASK";
       if (profilePayload.profile.strategy?.intent?.minimumReserveWei) {
@@ -1565,22 +1689,9 @@ async function hydrateSelected(tab) {
       }
       state.hydratedTokenId = tokenId; renderSelected();
     }
-    if (tab === "collection") {
-      const payload = await jsonRequest(`/api/v2/punks/${tokenId}/collection`);
-      if (state.selected?.tokenId !== tokenId) return;
-      state.gallery = payload.holdings.map((holding) => [
-        cleanImage(holding.artwork?.imageUrl),
-        holding.artwork?.name ?? `${short(holding.collection)} #${holding.tokenId}`,
-        `${holding.provenance === "RECEIVED" ? "RECEIVED NFT" : holding.provenance === "V1" ? "EARLIER ART BROKER" : "CURRENT ART BROKER"} · ${holding.ownershipStatus === "LIVE_VERIFIED" ? "OWNERSHIP VERIFIED" : holding.acquisitionType}`,
-        `${holding.mintCostWei == null ? "ACQUISITION COST UNKNOWN" : holding.mintCostWei === "0" ? "FREE" : `${holding.mintCostWei} WEI`} · ${holding.custodyType === "PUNK_AGENT_ACCOUNT" ? "held by Punk Agent Account" : "held by Punk Wallet"}${holding.acquiredAt ? ` · acquired ${dateLabel(holding.acquiredAt)}` : ""}`,
-      ]);
-      renderGallery(); set("[data-gallery-count]", state.gallery.length);
-      const inventoryNote = document.createElement('p'); inventoryNote.className = 'panel-empty';
-      inventoryNote.textContent = `${payload.inventoryNote ?? ''}${payload.ownershipChecksUnavailable ? ` ${payload.ownershipChecksUnavailable} ownership checks unavailable; retry to refresh.` : ''}${payload.paidMintHistoryAvailable===false?' Paid-mint history is temporarily unavailable; recheck in Talk.':''}`;
-      one('[data-gallery-grid]').append(inventoryNote);
-    }
     if (tab === "activity") {
       const payload = await jsonRequest(`/api/v2/punks/${tokenId}/activity`);
+      if (!isCurrent()) return;
       state.activity = payload.entries.map((entry) => [dateLabel(entry.occurredAt), entry.type,
         `${entry.provenance === "V1" ? "EARLIER ART BROKER" : "CURRENT ART BROKER"} · ${String(entry.type).replaceAll("_", " ")}`,
         activityDetail(entry), entry.detail?.transactionHash]);
@@ -1588,8 +1699,9 @@ async function hydrateSelected(tab) {
       if(payload.paidMintHistoryAvailable===false){const note=document.createElement('p');note.className='panel-empty';note.textContent='Paid-mint history is temporarily unavailable. Recheck Directed Paid Mint in Talk.';one('[data-activity-feed]').append(note);}
     }
   } catch (error) {
-    const message = `${error?.message ?? "V2 data unavailable."} No authority was assumed.`;
-    if (tab === "collection") { state.gallery = [["/assets/gogh-punks-pfp.png", "GALLERY UNAVAILABLE", "SAFE FAILURE", message]]; renderGallery(); }
+    if (!isCurrent()) return;
+    const message = error?.message ?? "Your Punk’s details couldn’t be loaded. Please try again.";
+    if (tab === "collection") { collectionFailed(); renderGallery(); }
     if (tab === "activity") { state.activity = [["NOW", "UNAVAILABLE", "HISTORY NOT LOADED", message]]; renderActivity(); }
     if (!["collection", "activity"].includes(tab)) set("[data-wallet-state]", message);
   }
@@ -1635,7 +1747,18 @@ async function jsonRequest(path, options = {}) {
   }
 }
 
+const sessionRequests = new Map();
 async function ensureV2Session(report = () => {}) {
+  if (PREVIEW) return null;
+  const key = `${state.wallet?.chainId}:${state.wallet?.account}`;
+  if (sessionRequests.has(key)) return sessionRequests.get(key);
+  const read = readV2Session(report);
+  sessionRequests.set(key, read);
+  try { return await read; }
+  finally { if (sessionRequests.get(key) === read) sessionRequests.delete(key); }
+}
+
+async function readV2Session(report = () => {}) {
   if (PREVIEW) return null;
   const owner = state.wallet?.account;
   const assertCurrent = () => {
@@ -1805,6 +1928,55 @@ function showSkillConfirmation(skill) {
   if (typeof dialog.showModal === "function") dialog.showModal(); else dialog.setAttribute("open", "");
 }
 
+const rosterArtworkCache = new Map();
+const rosterArtworkPending = new Map();
+
+async function hydrateRosterArtwork() {
+  if (PREVIEW || !state.wallet?.account || state.wallet.chainId !== CHAIN_ID) return;
+  const owner = state.wallet.account;
+  const missing = state.punks.filter(punk => !punk.image);
+  const apply = (tokenId, imageUrl) => {
+    if (!imageUrl || state.wallet?.account !== owner || state.wallet.chainId !== CHAIN_ID) return;
+    const punk = state.punks.find(item => item.tokenId === tokenId);
+    if (!punk) return;
+    punk.image = imageUrl;
+    const image = one(`[data-punk-roster] [data-token-id="${tokenId}"] img`);
+    if (image) image.src = imageUrl;
+    if (state.selected?.tokenId === tokenId) {
+      all('[data-hero-art], [data-chat-avatar]').forEach(node => { node.src = imageUrl; });
+    }
+  };
+  const uncached = [];
+  for (const punk of missing) {
+    const entry = rosterArtworkCache.get(punk.tokenId);
+    if (entry?.expiresAt > Date.now()) apply(punk.tokenId, entry.image);
+    else if (rosterArtworkPending.has(punk.tokenId)) {
+      void rosterArtworkPending.get(punk.tokenId).then(() => apply(punk.tokenId, rosterArtworkCache.get(punk.tokenId)?.image));
+    } else uncached.push(punk.tokenId);
+  }
+  // At most two batches per refresh. Large rosters remain usable while pictures fill in.
+  await Promise.all([uncached.slice(0, 32), uncached.slice(32, 64)].filter(ids => ids.length).map(ids => {
+    const read = (async () => {
+      let entries = [];
+      try {
+        const payload = await jsonRequest(`/api/broker/punk-artwork?tokenIds=${ids.join(',')}`, { timeoutMs: 15_000 });
+        if (payload.chainId !== CHAIN_ID || payload.collection !== COLLECTION || !Array.isArray(payload.artworks)
+          || payload.artworks.length !== ids.length || new Set(payload.artworks.map(item => item?.tokenId)).size !== ids.length
+          || payload.artworks.some(item => !ids.includes(item?.tokenId))) throw new Error('Artwork response mismatch.');
+        entries = payload.artworks;
+      } catch { /* Artwork cannot grant authority or remove a verified owned Punk. */ }
+      for (const id of ids) {
+        const image = cleanImage(entries.find(item => item.tokenId === id)?.artwork?.imageUrl, null);
+        rosterArtworkCache.set(id, { image, expiresAt: Date.now() + (image ? 3_600_000 : 15_000) });
+        apply(id, image);
+      }
+      while (rosterArtworkCache.size > 512) rosterArtworkCache.delete(rosterArtworkCache.keys().next().value);
+    })();
+    for (const id of ids) rosterArtworkPending.set(id, read);
+    return read.finally(() => { for (const id of ids) if (rosterArtworkPending.get(id) === read) rosterArtworkPending.delete(id); });
+  }));
+}
+
 async function fetchOwnedPunks(account) {
   const response = await fetch(`/api/broker/owner-punks?owner=${encodeURIComponent(account)}&view=indexed`, {
     headers: { accept: "application/json" }, cache: "no-store",
@@ -1821,23 +1993,27 @@ async function fetchOwnedPunks(account) {
     const item = candidates.get(ownedTokenId) ?? {};
     return { tokenId: ownedTokenId,
       account: item.agentSummary?.account ?? null,
-      image: item.artwork?.imageUrl ?? "/assets/gogh-punks-pfp.png",
+      image: item.artwork?.imageUrl ?? null,
       balanceEth: "0", reserveEth: "0", balanceLoaded: false, wethBalanceEth: null,
-      nfts: item.agentSummary?.lifetimeMints ?? 0, mode: "ASK" };
+      acquisitionCount: null, mode: "ASK" };
   });
 }
 
 function applyOwnedPunks(punks) {
-  const selectedTokenId = state.selected?.tokenId ?? null;
+  const selectedTokenId = state.selected?.tokenId ?? REQUESTED_PUNK;
   state.punks = punks;
   state.selected = punks.find((punk) => punk.tokenId === selectedTokenId) ?? punks[0] ?? null;
   const reviewKey = selectedReviewKey();
   state.lastInspection = reviewKey ? state.reviewInspections.get(reviewKey) ?? null : null;
   state.gallery = []; state.activity = [];
-  state.hydratedTokenId = null; state.galleryTokenId = null; state.galleryLoadingTokenId = null;
+  state.hydratedTokenId = null; resetGallery();
   renderRoster(); renderSelected(); scheduleSelectedReviewMissionCheck();
+  void hydrateRosterArtwork();
   const activeTab = all("[data-v2-tab]").find((button) => button.getAttribute("aria-selected") === "true")?.dataset.v2Tab;
   if (state.selected && activeTab) void hydrateSelected(activeTab);
+  if (requestedRecovery && state.selected?.tokenId === REQUESTED_PUNK && agentRecoveryControl) {
+    requestedRecovery = false; one('#agent-recovery')?.scrollIntoView({ block: 'start' });
+  }
 }
 
 function clearTransferredPunkReview() {
@@ -1855,11 +2031,23 @@ function clearTransferredPunkReview() {
 
 function setup() {
   restoreReviewSessionState();
+  document.addEventListener('error', event => {
+    const image = event.target;
+    if (image instanceof HTMLImageElement && !image.src.endsWith('/assets/nft-placeholder.svg')) {
+      image.src = '/assets/nft-placeholder.svg';
+    }
+  }, true);
+  one('[data-collection-refresh]')?.addEventListener('click', () => {
+    if (!state.selected || PREVIEW) return;
+    if (REVIEW_HOST) { state.galleryTokenId = null; void loadReviewCollection(state.selected); }
+    else void loadProductionCollection(state.selected, { force: true });
+  });
   const ownerRefresh = createOwnerRefresh({
     getContext: () => ({ owner: PREVIEW ? null : state.wallet?.account, chainId: state.wallet?.chainId,
       visible: !document.hidden, loading: Boolean(state.ownershipLoadingAccount) }),
     getPunks: () => state.punks,
-    readOwned: fetchOwnedPunks,
+    readOwned: async account => { const punks = await fetchOwnedPunks(account);
+      if (state.wallet?.account === account) void hydrateRosterArtwork(); return punks; },
     onChanged: punks => {
       const retained = new Set(punks.map(punk => punk.tokenId));
       const removed = state.punks.filter(punk => !retained.has(punk.tokenId));
@@ -1874,7 +2062,7 @@ function setup() {
       // Keep already-loaded balances/preferences for still-owned Punks; new purchases
       // are hydrated from token-bound account state, never the seller's cached policy.
       const prior = new Map(state.punks.map(punk => [punk.tokenId, punk]));
-      applyOwnedPunks(punks.map(punk => prior.get(punk.tokenId) ?? punk));
+      applyOwnedPunks(punks.map(punk => ({ ...punk, ...prior.get(punk.tokenId), image: punk.image ?? prior.get(punk.tokenId)?.image ?? null })));
       set('[data-ownership-sync]', 'Original NFT ownership refreshed automatically. No claim or migration needed.');
     },
     onUnavailable: () => {
@@ -1961,7 +2149,26 @@ function setup() {
       renderReviewAgent();
     }
   });
-  all("[data-v2-tab]").forEach((button) => button.addEventListener("click", () => activateTab(button.dataset.v2Tab)));
+  const actionTabs = all('[data-v2-tab]');
+  one('.broker-tabs').setAttribute('role', 'tablist');
+  actionTabs.forEach((button, index) => {
+    const name = button.dataset.v2Tab, panel = one(`[data-v2-panel="${name}"]`);
+    button.setAttribute('role', 'tab'); button.id = `punk-tab-${name}`;
+    button.setAttribute('aria-controls', `punk-panel-${name}`);
+    button.tabIndex = button.getAttribute('aria-selected') === 'true' ? 0 : -1;
+    panel.id = `punk-panel-${name}`; panel.setAttribute('role', 'tabpanel');
+    panel.setAttribute('aria-labelledby', button.id);
+    button.addEventListener('click', () => activateTab(name));
+    button.addEventListener('keydown', event => {
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? actionTabs.length - 1
+        : event.key === 'ArrowRight' ? (index + 1) % actionTabs.length
+          : event.key === 'ArrowLeft' ? (index - 1 + actionTabs.length) % actionTabs.length : null;
+      if (next === null) return;
+      event.preventDefault();
+      actionTabs.forEach((tab, at) => { tab.tabIndex = at === next ? 0 : -1; });
+      actionTabs[next].focus();
+    });
+  });
   all("[data-suggestion]").forEach((button) => button.addEventListener("click", () => {
     const input = one("#punk-prompt"); input.value = button.dataset.suggestion; input.focus();
   }));
@@ -2627,6 +2834,7 @@ function setup() {
     state.wallet = { ...wallet, account };
     if (account !== previousAccount || wallet.chainId !== previousChain) {
       ownerRefresh.invalidate(); clearTransferredPunkReview();
+      resetGallery(); state.gallery = []; state.activity = []; state.balanceRequestId += 1; state.hydratedTokenId = null;
     }
     if (!account) {
       if (wallet.restoring || wallet.status === "pending") return;
@@ -2682,6 +2890,26 @@ function setup() {
   directedPaidControl = createDirectedPaidPanel({root:one('[data-directed-paid-panel]'),
     getSelection:()=>state.selected?{tokenId:String(state.selected.tokenId),owner:state.wallet?.account??null,chainId:state.wallet?.chainId,preview:PREVIEW}:null,
     ensureSession:ensureV2Session,request:jsonRequest});
+  const recoveryRoot = document.createElement('section'); one('[data-v2-panel="fund"]').append(recoveryRoot);
+  agentRecoveryControl = createAgentRecoveryPanel({ root: recoveryRoot,
+    getSelection: () => state.selected ? { tokenId: String(state.selected.tokenId), owner: state.wallet?.account,
+      chainId: state.wallet?.chainId, preview: PREVIEW } : null, ensureSession: ensureV2Session });
+  // The profile count is acquisition history; live custody is shown in Collection.
+  const acquisitionValue = one('[data-punk-nfts]');
+  if (acquisitionValue) {
+    acquisitionValue.closest('div').querySelector('dt').textContent = 'ACQUISITION HISTORY';
+    acquisitionValue.parentNode.replaceChildren(acquisitionValue, document.createTextNode(' RECORDS'));
+  }
+  for (const [selector, label] of [['[data-punk-wallet]', 'V3 PUNK WALLET'], ['[data-punk-balance]', 'V3 WALLET ETH']]) {
+    one(selector)?.closest('div').querySelector('dt')?.replaceChildren(document.createTextNode(label));
+  }
+  for (const [selector, label] of [['[data-collection-eth]', 'V3 WALLET ETH'], ['[data-collection-weth]', 'V3 WALLET WETH']]) {
+    one(selector)?.closest('article').querySelector('span')?.replaceChildren(document.createTextNode(label));
+  }
+  const recoveryLink = document.createElement('a'); recoveryLink.href = '#agent-recovery'; recoveryLink.textContent = 'MANAGE AGENT ETH · GAS · NFTS';
+  recoveryLink.addEventListener('click', event => { event.preventDefault(); activateTab('fund');
+    recoveryRoot.scrollIntoView({ block: 'start' }); recoveryRoot.querySelector('h3').focus(); });
+  one('.collection-recovery')?.append(recoveryLink);
   if (["talk", "strategy", "fund", "collection", "activity", "forge", "settings"].includes(requestedTab)) {
     activateTab(requestedTab);
   }

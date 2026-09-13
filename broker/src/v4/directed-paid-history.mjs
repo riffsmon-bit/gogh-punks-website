@@ -17,7 +17,8 @@ export async function readDirectedPaidHistory(pool,release){
     &&paidSame(receipt.recipient,r.recipient)&&receipt.verifiedProviders===2&&/^[0-9]+$/.test(receipt.tokenId),'PAID_HISTORY_CHANGED');
    candidates.push({collection:r.targetCollection,tokenId:receipt.tokenId,standard:'ERC721',amount:'1',acquiredAt,
     provenance:'V2',acquisitionType:'V2_DIRECTED_PAID_MINT',mintCostWei:review.priceWei,executionFeeWei:review.executionFeeWei,
-    custodyAccount:r.recipient,custodyType:'PUNK_AGENT_ACCOUNT',transactionHash:row.transaction_hash,artwork:null,withdrawControlUrl:null});
+    custodyAccount:r.recipient,custodyType:'PUNK_AGENT_ACCOUNT',transactionHash:row.transaction_hash,artwork:null,
+    withdrawControlUrl:'/broker/v2/?tab=fund&tokenId=93#agent-recovery'});
   }
   activity.push({id:`paid:${row.intent_id}`,type:`PAID_MINT_${row.status}`,provenance:'V2',occurred_at:acquiredAt,
    detail:{collection:r.targetCollection,tokenId:receipt?.tokenId??null,priceWei:review.priceWei,executionFeeWei:review.executionFeeWei,

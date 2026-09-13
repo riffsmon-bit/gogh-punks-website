@@ -1,0 +1,12 @@
+{
+  "status": "PASS",
+  "scope": "Integrated reviewed swarm and collection/artwork repair",
+  "javascript": {"passed": 2238, "failed": 0, "skipped": 0, "durationMs": 276789.727407},
+  "deploymentChecks": {"passed": 140, "failed": 0},
+  "build": {"scopedTypecheck": "PASS", "walletBundle": "PASS", "siteAndSecrets": "PASS", "syntax": "PASS"},
+  "browser": {"scenarios": 14, "widths": [1440, 375, 320], "runtimeErrors": 0, "realWalletCalls": 0, "publicTransactions": 0},
+  "liveCollectionShadow": {"mainRpcMs": 1614, "archiveRpcMs": 1165, "verifiedNft": "1599", "session": "MOCKED", "applicationDiscovery": "PARTIAL_ALTERNATE_READ_ONLY_DATABASE"},
+  "retainedUnchangedContractEvidence": {"tests": 284, "suites": 27, "sourceChanges": false},
+  "productionDeployment": "PENDING",
+  "finalHardeningVerdict": "NOT_READY"
+}

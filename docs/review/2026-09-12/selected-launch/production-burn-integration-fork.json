@@ -2,10 +2,11 @@
   "status": "PASS",
   "environment": "DISPOSABLE_POSTGRES_AND_ANVIL_FORK",
   "publicAnchor": {
-    "number": "61655248",
-    "hash": "0x1f75f55e59099e3b4c3cec102b6d67cce6679c5fd86272fecacdfbaa03f80970"
+    "number": "62056499",
+    "hash": "0x1a5b69a189d58a3db30cc1d72d9800a04ed80a8156e8a555cc9dd2296a07fa10"
   },
   "realDeployedContracts": true,
+  "pausedPrerequisite": "SET_ON_DISPOSABLE_FORK_ONLY",
   "sourceChecks": "MOCKED_IN_FORK_SEE_FRESH_SOURCE_CHECK_FOR_LIVE_EVIDENCE",
   "source": "1753",
   "recipient": "93",
