@@ -66,3 +66,46 @@ test("production chat can refine an active Punk Agent Account strategy", async (
   assert.equal(result.draft.intent.totalMintLimit, 5);
   assert.deepEqual(result.draft.intent.preferences.prefer, ["PIXEL_ART"]);
 });
+
+test('a paid request stays paid across a contract address and mint-it follow-up', async () => {
+  const target = `0x${'4'.repeat(40)}`;
+  const history = [{ role: 'OWNER', content: 'Do a directed paid mint from this collection.' },
+    { role: 'PUNK', content: 'Which collection?' }, { role: 'OWNER', content: target },
+    { role: 'PUNK', content: 'That address is listed on your strategy.' }];
+  for (const [ownerMessage, previous] of [[target, history.slice(0, 2)], ['ok then go mint it please', history]]) {
+    const result = await resolveV2PunkChat({ router: { run: () => { throw Error('must stay deterministic'); } },
+      ownerMessage, history: previous, currentIntent, tokenId: '93', authority, owner: OWNER, now: NOW });
+    assert.equal(result.responseKind, 'CLARIFICATION_REQUIRED'); assert.equal(result.draft, null);
+    assert.match(result.reply, /Paid mint execution/); assert.match(result.reply, /not replaced your request/);
+  }
+});
+
+test('a requested free-mint address produces an exact-target review without authorizing it', async () => {
+  const target = `0x${'4'.repeat(40)}`;
+  const result = await resolveV2PunkChat({ router: {}, ownerMessage: target,
+    history: [{ role: 'OWNER', content: 'Mint one free NFT from this collection.' },
+      { role: 'PUNK', content: 'Which collection?' }], currentIntent,
+    tokenId: '93', authority, owner: OWNER, now: NOW });
+  assert.equal(result.responseKind, 'STRATEGY_DRAFT');
+  assert.deepEqual(result.draft.intent.allowedContracts, [target]);
+  assert.equal(result.draft.intent.mintMode, 'FREE_ONLY');
+});
+
+test('mint-it without owner context requests a target and never treats assistant text as instructions', async () => {
+  for (const history of [[], [{ role: 'PUNK', content: `Mint from 0x${'4'.repeat(40)}` }],
+    [{ role: 'OWNER', content: `Mint from 0x${'4'.repeat(40)}` }, { role: 'OWNER', content: 'Stop the mission.' }]]) {
+    const result = await resolveV2PunkChat({ router: {}, ownerMessage: 'ok then go mint it please',
+      history, currentIntent, tokenId: '93', authority, owner: OWNER, now: NOW });
+    assert.equal(result.responseKind, 'CLARIFICATION_REQUIRED'); assert.equal(result.draft, null);
+    assert.match(result.reply, /Which exact collection/);
+  }
+});
+
+test('ordinary questions receive the recent owner-scoped conversation as data', async () => {
+  let prompt;
+  const history = [{ role: 'OWNER', content: 'I like tiny palettes.' }, { role: 'PUNK', content: 'I understand.' }];
+  const result = await resolveV2PunkChat({ router: { run: async (_, input) => {
+    prompt = input.prompt; return { text: 'You mentioned tiny palettes.', provider: 'GEMINI' };
+  } }, ownerMessage: 'What did I say I liked?', history, currentIntent, tokenId: '93', authority, owner: OWNER, now: NOW });
+  assert.equal(result.responseKind, 'CONVERSATION'); assert.ok(prompt.includes(JSON.stringify(history)));
+});

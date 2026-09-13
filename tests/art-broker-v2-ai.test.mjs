@@ -91,6 +91,34 @@ test("Gemini chat uses the broadly supported stateless generateContent endpoint"
   assert.equal(result.usage.inputTokens, 8);
 });
 
+test('Gemini never publishes a reply cut off by its output limit', async () => {
+  const provider = new GeminiArtBrokerProvider({ modelId: 'gemini-3.8-flash',
+    environment: { GEMINI_API_KEY: 'test-only' }, fetchImpl: async () => response({
+      candidates: [{ finishReason: 'MAX_TOKENS', content: { parts: [{ text: "I can mint if you" }] } }],
+    }) });
+  await assert.rejects(provider.chat({ prompt: 'Can you mint this?' }), { code: 'PROVIDER_OUTPUT_INCOMPLETE' });
+});
+
+test('Gemini returns only completed answer parts, excluding thought parts', async () => {
+  const provider = new GeminiArtBrokerProvider({ modelId: 'gemini-3.8-flash',
+    environment: { GEMINI_API_KEY: 'test-only' }, fetchImpl: async () => response({
+      candidates: [{ finishReason: 'STOP', content: { parts: [
+        { thought: true, text: 'Internal thought summary.' }, { text: 'Review the exact mint first.' },
+      ] } }],
+    }) });
+  assert.equal((await provider.chat({ prompt: 'Can you mint this?' })).text, 'Review the exact mint first.');
+});
+
+test('chat reserves room for a complete answer and falls back instead of slicing a sentence', async () => {
+  let maximum;
+  const result = await answerPunkConversation({ router: { run: async (_, input) => {
+    maximum = input.maxOutputTokens; return { provider: 'GEMINI', text: 'unfinished '.repeat(200) };
+  } }, message: 'What do you think about pixel art?', intent: defaultAskIntent({ punkTokenId: '93',
+    expectedOwner: OWNER, punkWallet: PUNK_WALLET }, NOW), punkTokenId: '93', now: NOW });
+  assert.ok(maximum >= 1024); assert.equal(result.providerAvailable, false);
+  assert.match(result.reply, /Pixel art rewards/); assert.ok(!result.reply.includes('unfinished'));
+});
+
 test("Gemini uses Netlify's injected gateway for chat and structured requests", async () => {
   const gateway = "https://gogh-punks.netlify.app/.netlify/ai/";
   for (const chat of [true, false]) {

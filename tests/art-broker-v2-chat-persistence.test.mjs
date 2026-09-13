@@ -78,6 +78,11 @@ for (const state of ["PAUSED", "PENDING_OWNER_CONFIRMATION"]) {
       method: "POST", headers: { origin, "content-type": "application/json" },
       body: JSON.stringify({ message: "Find and mint one eligible free NFT." }),
     }), { pool: { connect: async () => client, query: async (sql, args) => {
+      if (sql.includes('SELECT m.role, m.content')) {
+        assert.match(sql, /c.owner_snapshot = \$4/); assert.match(sql, /c.state = 'ACTIVE'/);
+        assert.match(sql, /INTERVAL '30 minutes'/); assert.equal(args[3], owner);
+        return { rows: [] };
+      }
       assert.match(sql, /configured_by = \$4/); assert.equal(args[3], owner); return { rows: [{ intent }] };
     } }, requireSession: async () => ({ walletAddress: owner }), readAuthority: async () => authority,
     checkAuthority: async value => { assert.equal(value, authority); queries.push('CONTINUITY_CHECKED'); },

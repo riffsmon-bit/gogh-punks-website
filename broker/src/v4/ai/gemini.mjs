@@ -4,9 +4,14 @@ import {
 } from "./provider.mjs";
 
 function generatedText(payload) {
-  const parts = payload?.candidates?.[0]?.content?.parts;
+  const candidate = payload?.candidates?.[0];
+  if (candidate?.finishReason === "MAX_TOKENS") {
+    throw new ArtBrokerProviderError("PROVIDER_OUTPUT_INCOMPLETE", "Gemini could not finish the reply.");
+  }
+  if (candidate?.finishReason && candidate.finishReason !== "STOP") return null;
+  const parts = candidate?.content?.parts;
   if (!Array.isArray(parts)) return null;
-  const text = parts.filter((part) => typeof part?.text === "string")
+  const text = parts.filter((part) => part?.thought !== true && typeof part?.text === "string")
     .map((part) => part.text).join("");
   return text || null;
 }
