@@ -6,10 +6,18 @@ import { createMarketReader } from './market-reader.mjs';
 import { createMarketReaderV2 } from './market-reader-v2.mjs';
 import { createLinkSniperV1 } from './link-sniper-v1.mjs';
 import { createMintHunterV1 } from './mint-hunter-v1.mjs';
+import { createFloorHunterV1 } from './floor-hunter-v1.mjs';
+import { createCollectionResearcherV1 } from './collection-researcher-v1.mjs';
+import { createArtCuratorV1 } from './art-curator-v1.mjs';
 import { skillKey } from './capability-resolver.mjs';
 
 const DEFAULT_SELECTION = Object.freeze([
   { slug: 'contract-detective', version: 1 }, { slug: 'rarity-eye', version: 1 }, { slug: 'market-scout', version: 1 },
+]);
+export const PLANNED_RESEARCH_SELECTION = Object.freeze([
+  Object.freeze({ slug: 'floor-hunter', version: 1 }),
+  Object.freeze({ slug: 'collection-researcher', version: 1 }),
+  Object.freeze({ slug: 'art-curator', version: 1 }),
 ]);
 const REVIEWED = Object.freeze({
   'contract-detective/1': [3, 'broker/src/v4/skill-forge/research-tools.mjs'],
@@ -18,6 +26,9 @@ const REVIEWED = Object.freeze({
   'market-scout/2': [8, 'broker/src/v4/skill-forge/market-reader-v2.mjs'],
   'link-sniper/1': [2, 'broker/src/v4/skill-forge/link-sniper-v1.mjs'],
   'mint-hunter/1': [1, 'broker/src/v4/skill-forge/mint-hunter-v1.mjs'],
+  'floor-hunter/1': [9, 'broker/src/v4/skill-forge/floor-hunter-v1.mjs'],
+  'collection-researcher/1': [11, 'broker/src/v4/skill-forge/collection-researcher-v1.mjs'],
+  'art-curator/1': [6, 'broker/src/v4/skill-forge/art-curator-v1.mjs'],
 });
 const DEPENDENCIES = Object.freeze({
   'link-sniper/1': ['broker/src/v4/discovery/robinhood-link-resolver.mjs', 'broker/src/v4/link-scanner.mjs',
@@ -25,6 +36,10 @@ const DEPENDENCIES = Object.freeze({
   'mint-hunter/1': ['broker/src/v4/owner-assisted-seadrop-mint.mjs', 'broker/src/v4/policy-matcher.mjs',
     'broker/src/v4/collecting-intent.mjs', 'broker/src/v4/opportunity.mjs',
     'broker/src/v4/discovery/seadrop-ingestor.mjs', 'broker/src/config.mjs'],
+  'floor-hunter/1': ['broker/src/v4/skill-forge/market-reader-v2.mjs'],
+  'collection-researcher/1': ['broker/src/v4/skill-forge/collection-evidence-v1.mjs', 'broker/src/v4/skill-forge/research-tools.mjs'],
+  'art-curator/1': ['broker/src/v4/skill-forge/collection-evidence-v1.mjs', 'broker/src/v4/skill-forge/research-tools.mjs',
+    'broker/src/v4/collecting-intent.mjs'],
 });
 const ROOT = new URL('../../../../', import.meta.url);
 export async function loadResearchSkillCatalog({ root = ROOT, selection = DEFAULT_SELECTION } = {}) {
@@ -74,6 +89,10 @@ export function createResearchSkillRuntime({ readState, packages, client, apiKey
     ? createLinkSniperV1({ fetchImpl, environment, now }) : null;
   const mint = typeof mintContextReader === 'function' && packages.some(p => p.manifest.skillId === 1 && p.manifest.version === 1)
     ? createMintHunterV1({ client, readContext: mintContextReader, now }) : null;
+  const has = id => packages.some(p => p.manifest.skillId === id && p.manifest.version === 1);
+  const floor = apiKey && has(9) ? createFloorHunterV1({ apiKey, fetchImpl, now: () => Number(now()) }) : null;
+  const collection = client && has(11) ? createCollectionResearcherV1({ client }) : null;
+  const art = client && has(6) ? createArtCuratorV1({ client }) : null;
   function selectedVersion(context, id) {
     const selected = packages.filter(p => p.manifest.skillId === id
       && context.instructionPackages.some(item => item.key === skillKey(id, p.manifest.version)));
@@ -81,6 +100,21 @@ export function createResearchSkillRuntime({ readState, packages, client, apiKey
     return selected[0].manifest.version;
   }
   const implementations = {
+    ...(floor ? { rank_observed_listings: async (args, context) => {
+      argsOnly(args, ['slug', 'contract', 'limit']);
+      if (selectedVersion(context, 9) !== 1) throw Error('UNREVIEWED_SKILL_VERSION');
+      return floor.rankObservedListings({ slug: args.slug, contract: args.contract, limit: args.limit });
+    } } : {}),
+    ...(collection ? { research_collection: async (args, context) => {
+      argsOnly(args, ['contract', 'tokenIds']);
+      if (selectedVersion(context, 11) !== 1) throw Error('UNREVIEWED_SKILL_VERSION');
+      return collection.researchCollection({ contract: args.contract, tokenIds: args.tokenIds });
+    } } : {}),
+    ...(art ? { classify_collection: async (args, context) => {
+      argsOnly(args, ['contract', 'tokenIds', 'preferredStyles']);
+      if (selectedVersion(context, 6) !== 1) throw Error('UNREVIEWED_SKILL_VERSION');
+      return art.classifyCollection({ contract: args.contract, tokenIds: args.tokenIds, preferredStyles: args.preferredStyles });
+    } } : {}),
     inspect_contract: async args => { argsOnly(args, ['contract']); return inspectContract({ client, contract: args.contract }); },
     get_metadata: async args => { argsOnly(args, ['contract', 'tokenIds']); return retrieveInlineMetadata({ client, contract: args.contract, tokenIds: args.tokenIds }); },
     rank_trait_sample: async args => {
