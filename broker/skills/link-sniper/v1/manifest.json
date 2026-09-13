@@ -1,0 +1,29 @@
+{
+  "schema": "GOGH_SKILL_PACKAGE_V1",
+  "version": 1,
+  "chainId": 4663,
+  "requiredWalletCapabilities": [],
+  "requiredExecutorCapabilities": [],
+  "riskTier": 0,
+  "equipCost": 1,
+  "trainingCost": 1,
+  "maxSkillLevel": 1,
+  "sourceAudit": "docs/v2-hardening/real-skill-completion.md",
+  "walletAuthority": "NONE",
+  "skillId": 2,
+  "name": "Link Sniper",
+  "capabilities": [
+    "LINK_REVIEW"
+  ],
+  "requiredMcpTools": [
+    "inspect_mint_link"
+  ],
+  "implementation": "broker/src/v4/skill-forge/link-sniper-v1.mjs",
+  "implementationSha256": "7e19640081ba4440b9b1710238d95ddae7d005c4e3aa767ace3e2aa44d2854cd",
+  "dependenciesSha256": {
+    "broker/src/v4/discovery/robinhood-link-resolver.mjs": "e252a62a7e0f1b558268b923d22683cac697134be48ac30fd45e068422ead719",
+    "broker/src/v4/link-scanner.mjs": "b5f3345972e6b86c58f2d832cbc2a80599e4f688c9c17f2c46cc02b2ae3f98a9",
+    "broker/src/v4/skill-forge/research-tools.mjs": "53322cbbcfa71c34e210548e9e10db99ab0da63dc39516ad1a144024b3c39c98",
+    "broker/src/v4/discovery/seadrop-ingestor.mjs": "a7cb6c4e49eae11c37707f8ead2d1769f3fa8b0d0424bb5c10c10b5b37a66676"
+  }
+}
