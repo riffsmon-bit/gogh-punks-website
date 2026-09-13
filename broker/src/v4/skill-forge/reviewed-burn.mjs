@@ -24,14 +24,15 @@ const freeze = value => { if (value && typeof value === 'object') { Object.value
 
 // Preparation and verification only. This module never sends, signs, claims a live
 // inventory is complete, or promotes an undeployed release to production authority.
-export function createReviewedBurnPreparation({ client, deployment, now = Date.now }) {
+export function createReviewedBurnPreparation({ client, deployment, now = Date.now, reviewStore = new Map() }) {
   const pins = structuredClone(deployment);
   const roles = ['collection', 'registry', 'progression', 'burnSource'];
   if (![31337, 4663].includes(pins?.chainId) || roles.some(role => !ADDRESS.test(pins[role]) || same(pins[role], zeroAddress)
     || !HASH.test(pins[`${role}CodeHash`]) || /^0x0{64}$/i.test(pins[`${role}CodeHash`]))
     || new Set(roles.map(role => pins[role].toLowerCase())).size !== 4
     || !/^[1-9]\d{0,15}$/.test(pins.feeCeilingWei) || BigInt(pins.feeCeilingWei) > 10n ** 15n) throw Error('PINNED_BURN_DEPLOYMENT_REQUIRED');
-  const reviews = new Map();
+  if (typeof reviewStore?.get !== 'function' || typeof reviewStore?.set !== 'function') throw Error('BURN_REVIEW_STORE_REQUIRED');
+  const reviews = reviewStore;
   const read = (address, functionName, args, blockNumber) => client.readContract({ address, abi: ABI, functionName, args, blockNumber });
   async function stateFor(owner, sourceTokenId, targetTokenId) {
     const source = token(sourceTokenId), target = token(targetTokenId);
@@ -103,14 +104,14 @@ export function createReviewedBurnPreparation({ client, deployment, now = Date.n
       productionAuthority: false, walletInventoryReviewed: false,
       warning: 'Burning destroys the source NFT and can remove access to assets in its wallets, including later deposits. Assets do not move to the recipient.',
       approvalWarning: action === 'APPROVE' ? 'Approval has no on-chain expiry. Revoke it if you abandon the burn. Approval does not burn or create a credit.' : null });
-    reviews.set(review.intentId, review); return review;
+    await reviews.set(review.intentId, review); return review;
   }
-  const stored = review => {
-    const saved = reviews.get(review?.intentId);
+  const stored = async review => {
+    const saved = await reviews.get(review?.intentId);
     if (!saved || serial(saved) !== serial(review)) throw Error('BURN_REVIEW_TAMPERED'); return saved;
   };
   async function recheck(review) {
-    const saved = stored(review);
+    const saved = await stored(review);
     if (now() >= saved.expiresAt) throw Error('BURN_REVIEW_EXPIRED');
     await unchanged(saved.state, await stateFor(saved.state.owner, saved.state.sourceTokenId, saved.state.targetTokenId));
     const [nonce, latestNonce] = await Promise.all([client.getTransactionCount({ address: saved.state.owner, blockTag: 'pending' }),
@@ -124,7 +125,7 @@ export function createReviewedBurnPreparation({ client, deployment, now = Date.n
     return { status: 'REVIEW_RECHECKED', transaction: saved.transaction, productionAuthority: false, walletInventoryReviewed: false };
   }
   async function verifyReceipt(review, transactionHash) {
-    const saved = stored(review);
+    const saved = await stored(review);
     if (!HASH.test(transactionHash)) throw Error('INVALID_BURN_TRANSACTION_HASH');
     if (await client.getChainId() !== pins.chainId) throw Error('BURN_CHAIN_CHANGED');
     let receipt;
@@ -137,6 +138,7 @@ export function createReviewedBurnPreparation({ client, deployment, now = Date.n
       || !same(block.hash, receipt.blockHash) || !same(block.hash, transaction.blockHash)
       || !same(transaction.from, expected.from) || !same(transaction.to, expected.to) || transaction.input !== expected.data
       || transaction.value !== 0n || transaction.chainId !== pins.chainId || transaction.nonce !== Number(BigInt(expected.nonce))
+      || transaction.authorizationList?.length
       || transaction.gas !== BigInt(expected.gas) || transaction.gasPrice !== BigInt(expected.gasPrice)
       || receipt.gasUsed > BigInt(expected.gas) || receipt.effectiveGasPrice > BigInt(expected.gasPrice)) throw Error('BURN_RECEIPT_MISMATCH');
     if (receipt.status === 'reverted') return { status: 'REVERTED', transactionHash };

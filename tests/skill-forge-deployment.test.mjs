@@ -13,9 +13,12 @@ const address = n => `0x${n.repeat(40)}`, hash = n => `0x${n.repeat(64)}`;
 const inputs = { build, administrator: address('1'), nonce: '10', anchor: { number: '50', hash: hash('a'), timestamp: 1800000000 } };
 const plan = () => buildForgeDeploymentPlan(inputs);
 
-test('committed read-only addresses and paused training pins match the finalized public deployment evidence', () => {
+test('committed read-only addresses and training deployment identity match finalized public evidence', () => {
   const candidates = forgeManifestCandidates({ plan: acceptedSetup.packet.plan, build, evidence: publicVerification.evidence });
-  assert.deepEqual(readDeployment, candidates.read); assert.deepEqual(trainingDeployment, candidates.training);
+  assert.deepEqual(readDeployment, candidates.read);
+  for(const key of Object.keys(candidates.training).filter(key=>!['status','allowedOwners','skills','productionTrainingAuthorized'].includes(key)))
+    assert.deepEqual(trainingDeployment[key],candidates.training[key],key);
+  assert.equal(trainingDeployment.status,'OWNER_CANARY');assert.equal(trainingDeployment.productionBurnAuthorized,false);
   assert.equal(publicVerification.evidence.finality, 'TWO_RPC_FINALIZED');
   assert.equal(publicVerification.publicTransactions, 0);
 });

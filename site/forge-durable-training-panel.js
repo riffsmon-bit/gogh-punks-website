@@ -144,7 +144,7 @@ export function createDurableTrainingPanel({root,getSelection,ensureSession,requ
     s.equipped.forEach((skillKey,slot)=>{if(skillKey!==ZERO)button(root,`REVIEW UNEQUIP · SLOT ${slot+1}`,()=>prepare({operation:'unequip',slot}));});
     if(researchResult){const details=element('details');details.append(element('summary','View equipped research result'),
       element('p',`Observed ${new Date(researchResult.observedAt).toLocaleString()}. Re-run for a fresh result.`),element('pre',JSON.stringify(researchResult.result,null,2)));root.append(details);}
-    root.append(element('p','Sacrifice remains locked. Training never starts a mint mission or grants spending permission.'));
+    root.append(element('p','Use the selected burn review above to earn a credit. Training does not grant spending permission.'));
   }
   const timer=window.setInterval(()=>{if(available()&&journal?.attempted&&!busy&&!document.hidden&&!root.closest('[hidden]'))void work(refresh);},30000);
   selectionChanged();render();

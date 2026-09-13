@@ -1,0 +1,19 @@
+{
+  "schema": "GOGH_DIRECTED_PAID_MINT_RELEASE_V1",
+  "status": "DEPLOYED_INTEGRATION_PENDING",
+  "chainId": 4663,
+  "collection": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+  "collectionCodeHash": "0x3222e4925f77909e6370e17fe071d2774d43e191f6bc72c3a97c97209c6e2e93",
+  "factory": "0x9f6750857663b77facdebaccdd9025ac168881a5",
+  "factoryCodeHash": "0xeda2bec74a8cfae0e2e9e5ffd2b052d694d677abeb66e1b627c76c2590a144ca",
+  "adapter": "0x5e9a4f10b1b4e616f9577932024a0f6001f8cc0b",
+  "adapterCodeHash": "0x7711a5c6aa2ec906ef9987fe8dd8440f9b9ed92414accbf3c4308a20d4dee640",
+  "agentRegistry": "0x3253adc3bbd5b0010c1bf9ce8def26b7e0db5844",
+  "agentRegistryCodeHash": "0x5a1001edb812b6ec2e233cbba6db4b7c680d0832453927696cf1ef623fff8e22",
+  "executor": "0xf20064ae9d41097669049bb059b2510ff1f62083",
+  "allowedOwners": [],
+  "productionPaidMintAuthorized": false,
+  "deploymentTransaction": "0xf21f10c41a2fe576f908a173a158ece4028fe7a16e74aaa16e763c7e92f99789",
+  "deploymentBlock": "61624895",
+  "deploymentEvidence": "docs/review/2026-09-12/selected-launch/deployed-contracts.json"
+}

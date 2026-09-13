@@ -1,0 +1,72 @@
+{
+  "schema": "GOGH_SELECTED_LAUNCH_DEPLOYMENT_V1",
+  "status": "VERIFIED_SETUP_INTEGRATION_PENDING",
+  "checkedAt": "2026-09-13T03:13:56.277Z",
+  "chainId": 4663,
+  "owner": "0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6",
+  "anchor": {
+    "number": "61628478",
+    "hash": "0xd3e85fdcd7aac18cff4d27b9be9f577920ddd60551983d897b2aaa1b03ad9317",
+    "timestamp": "1789269231"
+  },
+  "factory": "0x9f6750857663b77facdebaccdd9025ac168881a5",
+  "adapter": "0x5e9a4f10b1b4e616f9577932024a0f6001f8cc0b",
+  "factoryCodeHash": "0xeda2bec74a8cfae0e2e9e5ffd2b052d694d677abeb66e1b627c76c2590a144ca",
+  "adapterCodeHash": "0x7711a5c6aa2ec906ef9987fe8dd8440f9b9ed92414accbf3c4308a20d4dee640",
+  "paused": true,
+  "factoryArtifact": "GoghPunkDirectedPaidMintFactory",
+  "adapterArtifact": "AutomatedSeaDropStudioPaidMintAdapter",
+  "compiledRuntimeAndImmutableBindingsVerified": true,
+  "registry": "0x3253adc3bbd5b0010c1bf9ce8def26b7e0db5844",
+  "registryCodeHash": "0x5a1001edb812b6ec2e233cbba6db4b7c680d0832453927696cf1ef623fff8e22",
+  "rarityEye": {
+    "slug": "rarity-eye",
+    "skillId": 4,
+    "version": 1,
+    "key": "0x2109a1600733ac7484f1358fcf5a116586a8e66b993ae96f479098fffbb7b1c1",
+    "manifestHash": "0x9f17224444ef8938c9d998754a6be4c9dce2029c5e6e6a5f918effdc276c0d26",
+    "instructionHash": "0x7f7baae864b35a8230361de2ac3a6abda099669a6659e3d76e5bdf105bf859f0",
+    "implementationHash": "0x53322cbbcfa71c34e210548e9e10db99ab0da63dc39516ad1a144024b3c39c98",
+    "capabilities": "8",
+    "riskTier": 0,
+    "status": "READY",
+    "walletAuthority": "NONE",
+    "packageCatalogStatus": "TESTING",
+    "registrationReceipts": [
+      {
+        "transactionHash": "0xfe805081cae3d785449be6bfea9cd4bb5d93584d4f5e8fe8c85705e957c6d698",
+        "status": "success",
+        "blockNumber": "61609210",
+        "blockHash": "0x77a75169bc434ea9822f889785b792b02959c01ce7c7171c3be1ec434123d000",
+        "contractAddress": null
+      },
+      {
+        "transactionHash": "0xc15ee598eb07cc22f47044420dda08ad94a6bf0378276c7ef37024ba4cbfe780",
+        "status": "success",
+        "blockNumber": "61612324",
+        "blockHash": "0x83e0d0e701595a26e653baa5437fdee6e30d7c7a3f5ebe6803a95c796ae934bd",
+        "contractAddress": null
+      },
+      {
+        "transactionHash": "0x878a3589ce61736d75811d9b5418e8a14e7022fd351fcb2ce759d3ca17fea4a9",
+        "status": "success",
+        "blockNumber": "61615503",
+        "blockHash": "0xec6a6c13f1e91da7cdc1cceb2255210db7209c044fc2fd1f9d7114a24affe99f",
+        "contractAddress": null
+      }
+    ]
+  },
+  "deploymentReceipt": {
+    "transactionHash": "0xf21f10c41a2fe576f908a173a158ece4028fe7a16e74aaa16e763c7e92f99789",
+    "status": "success",
+    "blockNumber": "61624895",
+    "blockHash": "0xebfd81caf6a1f175e13f2d544ff0da742c66e60ee2e71f9cdef97b6ab2f369bf",
+    "contractAddress": "0x9f6750857663b77facdebaccdd9025ac168881a5"
+  },
+  "sourceTokenId": "1753",
+  "targetTokenId": "93",
+  "bothOriginalPunksStillOwned": true,
+  "productionPaidMintAuthorized": false,
+  "productionBurnAuthorized": false,
+  "transactionsSentByVerifier": 0
+}
