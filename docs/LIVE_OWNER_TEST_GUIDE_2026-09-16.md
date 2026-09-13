@@ -52,6 +52,14 @@ have separate implementation and acceptance work.
 
 ## Your test setup
 
+**First live autonomous mint recorded:** #93 completed its existing one-mint
+mission on September 12 at 7:55 PM Detroit time. Its Agent wallet owns
+[Project Mars Plots #152](https://robinhoodchain.blockscout.com/tx/0xcbdcc88f9309fce5721326fa8e8e7c088012d6cf4f781e64a10f906d6c6f3b60).
+Open **Activity** and **Collection**, refresh, and verify the completed count and
+receiving account. This mint occurred before the correction to intermittent
+ownership-history failures. The completed mission must not submit another mint;
+review and approve a new bounded mission when testing another collection.
+
 In **Talk**, open **EXAMPLE PROMPTS** above the message composer. The menu covers
 33 missions and actions. Choose an entry to see its availability and instructions;
 **USE EXAMPLE** fills the composer without sending. Replace highlighted collection
