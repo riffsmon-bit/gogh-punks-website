@@ -1,0 +1,177 @@
+// Controlled fork proof. All public requests pass a read-only method allowlist;
+// every write uses only the randomly allocated Anvil process owned by this run.
+import assert from 'node:assert/strict';
+import { spawn, execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, isAbsolute } from 'node:path';
+import { createServer as tcpServer } from 'node:net';
+import { createServer } from 'node:http';
+import { createPublicClient, http, custom, parseAbi, encodeFunctionData, encodeDeployData, decodeEventLog, keccak256, toHex } from 'viem';
+import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
+import { MARKETPLACE_PINS as P, ACCOUNT_ABI, SEAPORT_ABI, MARKETPLACE_BID_ABI, ORDER_PARAMETERS, ORDER_COMPONENTS } from '../broker/src/v4/marketplace/contracts.mjs';
+import { reconcileMarketplaceReview } from '../broker/src/v4/marketplace/reconcile.mjs';
+import { prepareMarketplaceReview } from '../broker/src/v4/marketplace/review.mjs';
+const args = process.argv.slice(2);
+if (args[0] !== '--disposable-only' || args.some(a => !['--disposable-only','--archive-keychain'].includes(a) && !a.startsWith('--artifacts=') && !a.startsWith('--output='))) throw Error('Requires --disposable-only [--archive-keychain] --artifacts=/absolute/forge-out [--output=/absolute/evidence.json]');
+const artifacts = args.find(a => a.startsWith('--artifacts='))?.slice(12);
+if (!artifacts || !isAbsolute(artifacts)) throw Error('ABSOLUTE_ARTIFACTS_REQUIRED');
+const output = args.find(a => a.startsWith('--output='))?.slice(9);
+if (output && !isAbsolute(output)) throw Error('ABSOLUTE_OUTPUT_REQUIRED');
+const run = promisify(execFile), started = Date.now(), owner = '0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6';
+const seller = privateKeyToAccount(generatePrivateKey()), stranger = privateKeyToAccount(generatePrivateKey()).address.toLowerCase();
+const zero = `0x${'0'.repeat(40)}`, zeroHash = `0x${'0'.repeat(64)}`;
+const dir = await mkdtemp(join(tmpdir(), 'gogh-marketplace-')), steps = [], receipts = [];
+const allowed = new Set(['eth_chainId','net_version','eth_blockNumber','eth_getBlockByNumber','eth_getBlockByHash','eth_getCode','eth_getStorageAt','eth_getBalance','eth_getTransactionCount','eth_call','eth_getLogs','eth_getTransactionReceipt','eth_getTransactionByHash','eth_gasPrice','eth_feeHistory']);
+let upstream = 'https://rpc.mainnet.chain.robinhood.com';
+if (args.includes('--archive-keychain')) upstream = (await run('security',['find-generic-password','-w','-a','riffs.mon@gmail.com','-s','Gogh Punks Validation Cloud Robinhood archive RPC'],{maxBuffer:4096})).stdout.trim();
+let publicReads = 0, writes = 0, child, proxy, localClient;
+const publicRead = async ({method,params=[]}) => {
+  assert.ok(allowed.has(method),'PUBLIC_WRITE_FORBIDDEN'); publicReads++;
+  const r = await fetch(upstream,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method,params}),signal:AbortSignal.timeout(20000)});
+  if (!r.ok) throw Error('PUBLIC_READ_UNAVAILABLE'); const body = await r.json(); if (body.error || !Object.hasOwn(body,'result')) throw Error('PUBLIC_READ_REJECTED'); return body.result;
+};
+const p = createPublicClient({cacheTime:0,transport:custom({request:publicRead},{retryCount:0})});
+const artifact = async name => JSON.parse(await readFile(join(artifacts,`${name}.sol`,`${name}.json`),'utf8'));
+const nftABI = parseAbi(['function mint(address,uint256)','function ownerOf(uint256) view returns(address)','function setApprovalForAll(address,bool)','function transferFrom(address,address,uint256)']);
+const erc20 = parseAbi(['function balanceOf(address) view returns(uint256)','function allowance(address,address) view returns(uint256)']);
+const stage = name => console.log(JSON.stringify({phase:name}));
+try {
+  stage('READ_ONLY_PUBLIC_ANCHOR'); assert.equal(await p.getChainId(),4663);
+  const anchor = await p.getBlock();
+  assert.equal((await p.readContract({address:P.collection,abi:ACCOUNT_ABI,functionName:'ownerOf',args:[93n],blockNumber:anchor.number})).toLowerCase(),owner);
+  for (const key of ['seaport','weth','registry','implementation']) assert.equal(keccak256(await p.getCode({address:P[key],blockNumber:anchor.number})),P[`${key}CodeHash`]);
+  const probe = tcpServer(); await new Promise(r=>probe.listen(0,'127.0.0.1',r)); const port = probe.address().port; await new Promise(r=>probe.close(r));
+  assert.ok(![64343,64344,64345,64346,8549,8787].includes(port));
+  proxy = createServer(async(req,res)=>{try { let body='';for await (const chunk of req) {body+=chunk;if(body.length>1000000)throw Error('LIMIT');}const input=JSON.parse(body);const result=await publicRead(input);res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify({jsonrpc:'2.0',id:input.id,result}));} catch {res.writeHead(502);res.end('{"error":"PUBLIC_READ_FAILED"}');}});
+  await new Promise(r=>proxy.listen(0,'127.0.0.1',r));
+  child=spawn('anvil',['--silent','--host','127.0.0.1','--port',String(port),'--chain-id','4663','--mnemonic-random','--prune-history','10000','--cache-path',join(dir,'cache'),'--fork-url',`http://127.0.0.1:${proxy.address().port}`,'--fork-block-number',String(anchor.number)],{stdio:'ignore'});
+  const url=`http://127.0.0.1:${port}`;
+  const c=localClient=createPublicClient({cacheTime:0,transport:http(url,{timeout:60000,retryCount:0})});
+  for(let i=0;i<100;i++){try{if(await c.getChainId()===4663)break;}catch{}await new Promise(r=>setTimeout(r,200));}
+  assert.match(await c.request({method:'web3_clientVersion'}),/anvil/i);
+  assert.equal((await c.getBlock({blockNumber:anchor.number})).hash,anchor.hash);
+  const local=async(method,params=[])=>{assert.ok(child.pid>0&&child.exitCode===null);assert.match(url,/^http:\/\/127\.0\.0\.1:\d+$/);if(method==='eth_sendTransaction')writes++;return c.request({method,params});};
+  const send=async(from,to,data='0x',value=0n,extra={})=>{
+    const hash=await local('eth_sendTransaction',[{from,to,data,value:toHex(value),gas:'0xb71b00',...extra}]);const receipt=await c.waitForTransactionReceipt({hash});assert.equal(receipt.status,'success');receipts.push({hash,blockNumber:String(receipt.blockNumber),status:receipt.status});return receipt;
+  };
+  const sendReview=async(review)=>{assert.ok(review.transaction&&review.availability.endsWith('REVIEW_READY'));const {chainId,...tx}=review.transaction;assert.equal(chainId,'0x1237');const hash=await local('eth_sendTransaction',[tx]);const receipt=await c.waitForTransactionReceipt({hash});assert.equal(receipt.status,'success');receipts.push({hash,blockNumber:String(receipt.blockNumber),status:receipt.status});return receipt;};
+  const read=(address,abi,functionName,args=[])=>c.readContract({address,abi,functionName,args});
+  for(const address of [owner,seller.address,stranger]){await local('anvil_impersonateAccount',[address]);await local('anvil_setBalance',[address,toHex(10n**20n)]);}
+  const wallet=(await read(P.registry,ACCOUNT_ABI,'account',[93n])).toLowerCase();
+  await local('anvil_setBalance',[wallet,toHex(10n**18n)]);
+  const bidArtifact=await artifact('GoghPunkMarketplaceBid'),guardArtifact=await artifact('GoghPunkMarketplaceGuard'),nftArtifact=await artifact('MarketplaceTestNFT');
+  const deploy=async(a,args=[])=> (await send(owner,undefined,encodeDeployData({abi:a.abi,bytecode:a.bytecode.object,args}))).contractAddress.toLowerCase();
+  const collection=await deploy(nftArtifact),guard=await deploy(guardArtifact,[P.registry]),escrow=await deploy(bidArtifact,[P.registry,P.seaport,P.weth]);
+  const guardHash=keccak256(await c.getCode({address:guard})),escrowHash=keccak256(await c.getCode({address:escrow})),collectionHash=keccak256(await c.getCode({address:collection}));
+  const assertDisposable=async()=>{assert.ok(child.exitCode===null&&child.pid>0);assert.match(await c.request({method:'web3_clientVersion'}),/anvil/i);assert.equal((await c.getBlock({blockNumber:anchor.number})).hash,anchor.hash);};
+  const deps={client:c,purchaseGuardDeployment:{environment:'OWNED_DISPOSABLE_CHAIN',address:guard,codeHash:guardHash},disposableBidDeployment:{environment:'OWNED_DISPOSABLE_CHAIN',address:escrow,codeHash:escrowHash},assertDisposable,
+    screenCollection:async({collection:address,codeHash})=>({status:address===collection&&codeHash===collectionHash?'PASS':'BLOCKED',collection:address,codeHash}),
+    policyEvidence:async()=>({decision:'ALLOW',mode:'ASSIST',requiredSkillsEquipped:true,adapterApproved:true,budgetAllowed:true})};
+  const budget={maxTotalPriceWei:'10000000000000000',maxNetworkFeeWei:'10000000000000000',minimumReserveWei:'100000000000000'};
+  let salt=1n;
+  const orderTypes={OfferItem:[{name:'itemType',type:'uint8'},{name:'token',type:'address'},{name:'identifierOrCriteria',type:'uint256'},{name:'startAmount',type:'uint256'},{name:'endAmount',type:'uint256'}],ConsiderationItem:[{name:'itemType',type:'uint8'},{name:'token',type:'address'},{name:'identifierOrCriteria',type:'uint256'},{name:'startAmount',type:'uint256'},{name:'endAmount',type:'uint256'},{name:'recipient',type:'address'}],OrderComponents:[{name:'offerer',type:'address'},{name:'zone',type:'address'},{name:'offer',type:'OfferItem[]'},{name:'consideration',type:'ConsiderationItem[]'},{name:'orderType',type:'uint8'},{name:'startTime',type:'uint256'},{name:'endTime',type:'uint256'},{name:'zoneHash',type:'bytes32'},{name:'salt',type:'uint256'},{name:'conduitKey',type:'bytes32'},{name:'counter',type:'uint256'}]};
+  const makeListing=async(id,price=100000000000000n)=>{
+    await send(seller.address,collection,encodeFunctionData({abi:nftABI,functionName:'mint',args:[seller.address,id]}));
+    const now=(await c.getBlock()).timestamp;
+    const parameters={offerer:seller.address,zone:zero,offer:[{itemType:2,token:collection,identifierOrCriteria:id,startAmount:1n,endAmount:1n}],consideration:[{itemType:0,token:zero,identifierOrCriteria:0n,startAmount:price,endAmount:price,recipient:seller.address}],orderType:0,startTime:now-1n,endTime:now+3600n,zoneHash:zeroHash,salt:salt++,conduitKey:zeroHash,counter:await read(P.seaport,SEAPORT_ABI,'getCounter',[seller.address])};
+    const orderHash=await read(P.seaport,SEAPORT_ABI,'getOrderHash',[parameters]);
+    const signature=await seller.signTypedData({domain:{name:'Seaport',version:'1.6',chainId:4663,verifyingContract:P.seaport},types:orderTypes,primaryType:'OrderComponents',message:parameters});
+    return JSON.parse(JSON.stringify({chain:'robinhood',protocol_address:P.seaport,order_hash:orderHash,status:'ACTIVE',remaining_quantity:1,asset:{contract:collection,identifier:id},price:{current:{value:price,currency:'ETH',decimals:18}},protocol_data:{parameters:{...parameters,totalOriginalConsiderationItems:1},signature}},(_,v)=>typeof v==='bigint'?String(v):v));
+  };
+  await send(seller.address,collection,encodeFunctionData({abi:nftABI,functionName:'setApprovalForAll',args:[P.seaport,true]}));
+  const request=(action,selection)=>({action,owner,punkId:'93',walletRole:'AGENT',selection,budget});
+  stage('ATOMIC_NATIVE_SWEEP_AND_ADVERSE_REVIEWS');
+  const listings=[await makeListing(1n),await makeListing(2n)];deps.loadListings=async()=>listings;
+  const buyRequest=request('BUY_LISTINGS',{collection,orderHashes:listings.map(l=>l.order_hash)});
+  const review=await prepareMarketplaceReview(buyRequest,deps);
+  assert.equal(review.availability,'OWNER_REVIEW_READY');assert.equal(review.cost.totalPriceWei,'200000000000000');
+  const before=await c.getBalance({address:wallet});
+  await local('anvil_setBalance',[wallet,toHex(BigInt(review.cost.totalPriceWei)+BigInt(budget.minimumReserveWei)-1n)]);
+  await assert.rejects(c.call({account:owner,to:wallet,data:review.transaction.data}));
+  await local('anvil_setBalance',[wallet,toHex(before)]);
+  steps.push({test:'reserve changed after review atomically rejects',status:'PASS'});
+  await assert.rejects(prepareMarketplaceReview({...buyRequest,budget:{...budget,maxTotalPriceWei:'1'}},deps),/PRICE_BUDGET/);
+  await assert.rejects(prepareMarketplaceReview(buyRequest,{...deps,policyEvidence:async()=>({decision:'DENY'})}),/POLICY/);
+  await assert.rejects(prepareMarketplaceReview(buyRequest,{...deps,screenCollection:async()=>({status:'UNKNOWN'})}),/SCREEN/);
+  const oldState=await read(wallet,ACCOUNT_ABI,'state');
+  await send(owner,wallet,encodeFunctionData({abi:ACCOUNT_ABI,functionName:'execute',args:[collection,0n,encodeFunctionData({abi:nftABI,functionName:'mint',args:[seller.address,900n]}),0]}));
+  assert.equal(await read(wallet,ACCOUNT_ABI,'state'),oldState+1n);
+  await assert.rejects(c.call({account:owner,to:wallet,data:review.transaction.data}));steps.push({test:'interleaved owner or session account state invalidates purchase',status:'PASS'});
+  const fresh=await prepareMarketplaceReview(buyRequest,deps),buyReceipt=await sendReview(fresh);
+  assert.equal((await read(collection,nftABI,'ownerOf',[1n])).toLowerCase(),wallet);assert.equal((await read(collection,nftABI,'ownerOf',[2n])).toLowerCase(),wallet);
+  assert.equal(await c.getBalance({address:wallet}),before-200000000000000n);
+  const purchaseSettlement=await reconcileMarketplaceReview(fresh,{client:c,transactionHash:buyReceipt.transactionHash,minConfirmations:1});assert.equal(purchaseSettlement.status,'COMPLETED');
+  await assert.rejects(reconcileMarketplaceReview({...fresh,transaction:{...fresh.transaction,value:'0x1'}},{client:c,transactionHash:buyReceipt.transactionHash,minConfirmations:1}),/MISMATCH/);
+  assert.equal((await reconcileMarketplaceReview(fresh,{client:c,transactionHash:buyReceipt.transactionHash,minConfirmations:100})).status,'PENDING_FINALITY');
+  await assert.rejects(prepareMarketplaceReview(buyRequest,deps),/FILLED/);
+  steps.push({test:'two selected listings paid and received atomically; duplicate rejected',status:'PASS',transactionHash:buyReceipt.transactionHash});
+  const reverted=[await makeListing(3n),await makeListing(4n)];deps.loadListings=async()=>reverted;
+  const stale=await prepareMarketplaceReview(request('BUY_LISTINGS',{collection,orderHashes:reverted.map(l=>l.order_hash)}),deps);
+  await send(seller.address,P.seaport,encodeFunctionData({abi:SEAPORT_ABI,functionName:'cancel',args:[[reverted[1].protocol_data.parameters]]}));
+  const nftBefore=(await read(collection,nftABI,'ownerOf',[3n])).toLowerCase();
+  await assert.rejects(c.call({account:owner,to:wallet,data:stale.transaction.data}));assert.equal((await read(collection,nftABI,'ownerOf',[3n])).toLowerCase(),nftBefore);
+  steps.push({test:'one cancelled listing prevents any sweep item/payment',status:'PASS'});
+  stage('WETH_BID_CREATE_FULFILL_AND_RECONCILE');
+  const bidSelection=id=>({collection,tokenId:String(id),anyToken:false,priceWei:'100000000000000',deadline:String(anchor.timestamp+3600n)});
+  const createBid=async selection=>{
+    const prepared=await prepareMarketplaceReview(request('CREATE_WETH_BID',selection),deps);const receipt=await sendReview(prepared);
+    const settled=await reconcileMarketplaceReview(prepared,{client:c,transactionHash:receipt.transactionHash,minConfirmations:1});assert.equal(settled.status,'BID_ACTIVE');
+    const event=receipt.logs.flatMap(log=>{try{return [decodeEventLog({abi:bidArtifact.abi,data:log.data,topics:log.topics})];}catch{return [];}}).find(e=>e.eventName==='BidCreated');assert.ok(event);return event.args.orderHash;
+  };
+  const componentsAbi=parseAbi([`function orderComponents(bytes32) view returns(${ORDER_COMPONENTS})`]);
+  const orderFor=async hash=>{const components=await read(escrow,componentsAbi,'orderComponents',[hash]);const {counter,...parameters}=components;return {parameters:{...parameters,totalOriginalConsiderationItems:1n},numerator:1n,denominator:1n,signature:'0x',extraData:'0x'};};
+  const fulfill=async(order,criteria=[])=>send(seller.address,P.seaport,encodeFunctionData({abi:SEAPORT_ABI,functionName:'fulfillAdvancedOrder',args:[order,criteria,zeroHash,seller.address]}));
+  const bidHash=await createBid(bidSelection(3n));
+  assert.equal(await read(P.weth,erc20,'allowance',[escrow,P.seaport]),100000000000000n);
+  const order=await orderFor(bidHash),wethBefore=await read(P.weth,erc20,'balanceOf',[seller.address]);
+  const substituted=structuredClone(order);substituted.parameters.consideration[0].recipient=stranger;
+  await assert.rejects(c.call({account:seller.address,to:P.seaport,data:encodeFunctionData({abi:SEAPORT_ABI,functionName:'fulfillAdvancedOrder',args:[substituted,[],zeroHash,seller.address]})}));
+  const partial=structuredClone(order);partial.denominator=2n;
+  await assert.rejects(c.call({account:seller.address,to:P.seaport,data:encodeFunctionData({abi:SEAPORT_ABI,functionName:'fulfillAdvancedOrder',args:[partial,[],zeroHash,seller.address]})}));
+  const fillReceipt=await fulfill(order);assert.equal((await read(collection,nftABI,'ownerOf',[3n])).toLowerCase(),wallet);
+  assert.equal(await read(P.weth,erc20,'balanceOf',[seller.address]),wethBefore+100000000000000n);
+  assert.equal((await read(escrow,MARKETPLACE_BID_ABI,'bids',[bidHash]))[13],2);
+  await send(owner,escrow,encodeFunctionData({abi:MARKETPLACE_BID_ABI,functionName:'settleBid',args:[bidHash]}));
+  await assert.rejects(c.call({account:seller.address,to:P.seaport,data:encodeFunctionData({abi:SEAPORT_ABI,functionName:'fulfillAdvancedOrder',args:[order,[],zeroHash,seller.address]})}));
+  steps.push({test:'exact WETH offer fills once to Agent; substitution and partial fill rejected',status:'PASS',transactionHash:fillReceipt.transactionHash});
+  const collectionBid=await createBid({...bidSelection(0n),anyToken:true});
+  await fulfill(await orderFor(collectionBid),[{orderIndex:0n,side:1,index:0n,identifier:4n,criteriaProof:[]}]);
+  assert.equal((await read(collection,nftABI,'ownerOf',[4n])).toLowerCase(),wallet);steps.push({test:'quantity-one collection WETH bid resolves exact seller token',status:'PASS'});
+  stage('CACHED_SIGNATURE_TRANSFER_CANCEL_AND_BURN_RECOVERY');
+  const hold=await makeListing(5n),transferBid=await createBid(bidSelection(5n)),cachedOrder=await orderFor(transferBid);
+  const validateAbi=parseAbi([`function validate((${ORDER_PARAMETERS} parameters,bytes signature)[] orders) returns(bool validated)`]);
+  await send(seller.address,P.seaport,encodeFunctionData({abi:validateAbi,functionName:'validate',args:[[{parameters:cachedOrder.parameters,signature:'0x'}]]}));
+  await send(owner,P.collection,encodeFunctionData({abi:nftABI,functionName:'transferFrom',args:[owner,stranger,93n]}));
+  await assert.rejects(c.call({account:seller.address,to:P.seaport,data:encodeFunctionData({abi:SEAPORT_ABI,functionName:'fulfillAdvancedOrder',args:[cachedOrder,[],zeroHash,seller.address]})}));
+  await assert.rejects(c.call({account:stranger,to:escrow,data:encodeFunctionData({abi:MARKETPLACE_BID_ABI,functionName:'cancelBid',args:[transferBid]})}));
+  const refundBefore=await read(P.weth,erc20,'balanceOf',[owner]);
+  const cancel=await prepareMarketplaceReview(request('CANCEL_WETH_BID',{orderHash:transferBid}),{...deps,policyEvidence:async()=>{throw Error('No skill authority is needed for original-funder recovery');}});
+  const cancelReceipt=await sendReview(cancel);assert.equal((await reconcileMarketplaceReview(cancel,{client:c,transactionHash:cancelReceipt.transactionHash,minConfirmations:1})).status,'BID_CANCELLED');assert.equal(await read(P.weth,erc20,'balanceOf',[owner]),refundBefore+100000000000000n);
+  await send(owner,escrow,encodeFunctionData({abi:MARKETPLACE_BID_ABI,functionName:'cancelBid',args:[transferBid]}));
+  assert.equal(await read(P.weth,erc20,'balanceOf',[owner]),refundBefore+100000000000000n);
+  steps.push({test:'cached ERC1271 validation cannot bypass transfer; original funder cancels once',status:'PASS'});
+  await send(stranger,P.collection,encodeFunctionData({abi:nftABI,functionName:'transferFrom',args:[stranger,owner,93n]}));
+  const backBid=await createBid(bidSelection(5n)),backOrder=await orderFor(backBid);
+  await send(owner,P.collection,encodeFunctionData({abi:nftABI,functionName:'transferFrom',args:[owner,stranger,93n]}));
+  await send(stranger,P.collection,encodeFunctionData({abi:nftABI,functionName:'transferFrom',args:[stranger,owner,93n]}));
+  await c.call({account:seller.address,to:P.seaport,data:encodeFunctionData({abi:SEAPORT_ABI,functionName:'fulfillAdvancedOrder',args:[backOrder,[],zeroHash,seller.address]})});
+  // This passing eth_call proves the limitation, not readiness. Public creation
+  // remains blocked and no order is posted; cancel this copied-chain order now.
+  await send(owner,escrow,encodeFunctionData({abi:MARKETPLACE_BID_ABI,functionName:'cancelBid',args:[backBid]}));
+  steps.push({test:'away-and-back limitation reproduced and public WETH path blocked',status:'PASS_WITH_PUBLIC_RELEASE_BLOCKER'});
+  const burnBid=await createBid(bidSelection(5n));
+  // Burn only the copied NFT through its real public burn selector on our fork.
+  const burnAbi=parseAbi(['function burn(uint256 tokenId)']);
+  await send(owner,P.collection,encodeFunctionData({abi:burnAbi,functionName:'burn',args:[93n]}));
+  const burnedCancel=await prepareMarketplaceReview(request('CANCEL_WETH_BID',{orderHash:burnBid}),deps);await sendReview(burnedCancel);
+  assert.equal((await read(escrow,MARKETPLACE_BID_ABI,'bids',[burnBid]))[13],3);
+  steps.push({test:'original funder recovery works after copied Punk burn',status:'PASS'});
+  const evidence={schema:'GOGH_MARKETPLACE_DISPOSABLE_PROOF_V1',checkedAt:new Date().toISOString(),status:'PASS_CONTROLLED_ONLY',durationMs:Date.now()-started,publicTransactions:0,publicOrdersPosted:0,publicReads,localTransactions:writes,chainId:4663,anchor:{number:String(anchor.number),hash:anchor.hash},sourcePins:P,localContracts:{collection,guard,guardCodeHash:guardHash,escrow,escrowCodeHash:escrowHash},steps,receipts,
+    limitations:['PUBLIC_GUARD_AND_ESCROW_NOT_DEPLOYED','WETH_AWAY_AND_BACK_TRANSFER_NOT_DETECTABLE','NO_PUBLIC_OPENSEA_ORDER_POSTING','TEST_NFT_RUNTIME_USED','LOCAL_IMPERSONATION_AND_TEST_BALANCES_ONLY','SINGLE_ERC721_ORDERS_ONLY','NO_VERIFIED_COLLECTION_FLOOR']};
+  if(output)await writeFile(output,JSON.stringify(evidence,null,2)+'\n');
+  console.log(JSON.stringify(evidence,null,2));
+} catch(error) {
+  const message=String(error?.shortMessage??error?.message??error).replace(/https?:\/\/[^\s]+/g,'[URL]');console.error(JSON.stringify({status:'FAILED',message,publicTransactions:0,localTransactions:writes}));process.exitCode=1;
+} finally { if(child&&child.exitCode===null){child.kill('SIGTERM');await new Promise(r=>{child.once('exit',r);setTimeout(r,3000);});} if(proxy)await new Promise(r=>proxy.close(r));await rm(dir,{recursive:true,force:true}); }
