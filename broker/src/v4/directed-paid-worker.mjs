@@ -1,5 +1,5 @@
 import {encodeFunctionData,keccak256,parseTransaction,recoverTransactionAddress} from 'viem';
-import {paidHistoryRead,paidReceiptState} from './directed-paid-archive.mjs';
+import {paidHistoryRead,paidReceiptState,readPaidTransferHistory} from './directed-paid-archive.mjs';
 import {PAID_ABI,paidAssert,paidSame,paidHex,paidJson,paidRead,readPaidState,missionMatches,
  paidEvents,verifyPaidTransaction,paidReceiptPending,validatePaidRelease} from './directed-paid-mint.mjs';
 
@@ -27,8 +27,10 @@ export async function runDirectedPaidWorker({clients,relay,signer,release,store,
   const all=await paidHistoryRead(()=>Promise.all(historyClients().map(async c=>{
    paidAssert(paidSame((await c.getBlock({blockNumber:from})).hash,record.receipt.blockHash),'PAID_AUTHORIZATION_REORG');
    paidAssert(paidSame((await c.getBlock({blockNumber:to})).hash,current.anchor.hash),'PAID_PROVIDERS_DISAGREE');
-   const logs=await c.getLogs({address:r.collection,event:PAID_ABI.find(v=>v.type==='event'&&v.name==='Transfer'),args:{tokenId:93n},fromBlock:from,toBlock:to,strict:true});
+   const logs=await readPaidTransferHistory(c,r.collection,from,to);
    paidAssert(logs.length===0,'PAID_OWNERSHIP_CHANGED');
+   paidAssert(paidSame((await c.getBlock({blockNumber:from})).hash,record.receipt.blockHash),'PAID_AUTHORIZATION_REORG');
+   paidAssert(paidSame((await c.getBlock({blockNumber:to})).hash,current.anchor.hash),'PAID_PROVIDERS_DISAGREE');
   })));return all;
  }
  async function validateSigned(job,record){
