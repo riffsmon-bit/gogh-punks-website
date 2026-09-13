@@ -4,7 +4,7 @@ import { collectingIntentConfirmation, defaultAskIntent, normalizePunkCollecting
 } from "../../broker/src/v4/collecting-intent.mjs";
 import { interpretPunkCollectingIntent } from "../../broker/src/v4/ai/intent-interpreter.mjs";
 import { normalizeV2Opportunity } from "../../broker/src/v4/opportunity.mjs";
-import { inspectArtBrokerLink } from "../../broker/src/v4/link-scanner.mjs";
+import { inspectRobinhoodArtBrokerLink } from "../../broker/src/v4/discovery/robinhood-link-resolver.mjs";
 import { GoghArtBrokerMcpServer, handleArtBrokerMcpJsonRpc } from
   "../../broker/src/v4/mcp/art-broker-mcp.mjs";
 import { json, readJson } from "./_shared/http.mjs";
@@ -87,7 +87,7 @@ export function v2McpDependencies(pool, principal, { authorityReader = readV2Pun
       return { collectionContract: String(collectionContract).toLowerCase(),
         classification: result.rows[0] ?? null, cacheOnly: true };
     },
-    inspect_mint_link: async (url) => inspectArtBrokerLink(url),
+    inspect_mint_link: async (url) => inspectRobinhoodArtBrokerLink(url),
     estimate_mint_cost: async (tokenId, id) => {
       const value = await opportunity(id); const live = await authority(tokenId);
       return value ? { tokenId, opportunityId: id, mintPriceWei: value.priceWei,

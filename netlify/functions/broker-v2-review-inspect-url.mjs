@@ -1,4 +1,5 @@
-import { ArtBrokerLinkError, inspectArtBrokerLink } from "../../broker/src/v4/link-scanner.mjs";
+import { ArtBrokerLinkError } from "../../broker/src/v4/link-scanner.mjs";
+import { inspectRobinhoodArtBrokerLink } from "../../broker/src/v4/discovery/robinhood-link-resolver.mjs";
 import { PublicError, json, readJson } from "./_shared/http.mjs";
 import { v2Failure } from "./_shared/v2-http.mjs";
 import { readV2PunkAuthority } from "./_shared/v2-ownership.mjs";
@@ -11,7 +12,7 @@ const LINK_INPUT_ERRORS = new Set([
 ]);
 
 export async function handleV2ReviewInspectUrl(request, {
-  readAuthority = readV2PunkAuthority, inspect = inspectArtBrokerLink } = {}) {
+  readAuthority = readV2PunkAuthority, inspect = inspectRobinhoodArtBrokerLink } = {}) {
   if (request.method !== "POST") return json({ ok: false, code: "METHOD_NOT_ALLOWED" }, 405);
   try {
     requireV2DeployPreview(request);
@@ -29,7 +30,7 @@ export async function handleV2ReviewInspectUrl(request, {
     await readAuthority(tokenId, { expectedOwner: owner });
     const inspection = await inspect(body.url);
     return json({ ok: true, reviewMode: true, persistence: "NONE", inspection,
-      message: "Link normalized for review. No external transaction data was accepted.",
+      message: "Link checked for review. No external transaction data was accepted.",
       transactionPrepared: false, externalCalldataAccepted: false });
   } catch (error) {
     if (error instanceof ArtBrokerLinkError && LINK_INPUT_ERRORS.has(error.code)) {

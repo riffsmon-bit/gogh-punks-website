@@ -213,9 +213,10 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   padding: 10px; border: 1px solid var(--line-strong); background: var(--ink); }
 .chat-composer textarea { min-height: 58px; padding: 11px; border: 0; resize: vertical; color: var(--text); background: transparent; }
 .chat-composer > div { display: flex; gap: 8px; align-items: flex-end; }
-.link-composer { grid-template-columns: 1fr; }
+.link-composer { grid-template-columns: minmax(0, 1fr); }
 .link-composer label { color: var(--cyan); font-size: .62rem; font-weight: 900; letter-spacing: .12em; }
-.link-composer > div { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.link-composer > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; min-width: 0; }
+.link-composer input { min-width: 0; width: 100%; }
 .link-composer input, .fund-form input, .select-label select { min-height: 48px; padding: 0 13px; border: 1px solid var(--line);
   color: var(--text); background: var(--surface); }
 .link-composer button, .fund-form button { border: 0; padding: 0 18px; color: var(--ink); background: var(--cyan); font-weight: 900; cursor: pointer; }
@@ -492,6 +493,8 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   .talk-mode-control fieldset { grid-template-columns: 1fr; }
   .talk-layout { grid-template-columns: minmax(0, 1fr); }
   .link-findings dl > div { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .link-composer > div { grid-template-columns: minmax(0, 1fr); }
+  .link-composer button { min-height: 48px; }
   .quick-commands { display: grid; grid-template-columns: repeat(2, 1fr); }
   .quick-commands > span { grid-column: 1 / -1; }
   .quick-commands button { padding: 10px; border-right: 1px solid var(--line); }
