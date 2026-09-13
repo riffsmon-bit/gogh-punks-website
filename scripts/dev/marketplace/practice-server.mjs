@@ -14,7 +14,7 @@ const exact = (value, keys) => value && Object.getPrototypeOf(value) === Object.
 const requireFact = (value, code='PRACTICE_REQUEST_INVALID') => { if (!value) throw Error(code); };
 const same = (a,b) => typeof a === 'string' && typeof b === 'string' && a.toLowerCase() === b.toLowerCase();
 const hash = value => typeof value === 'string' && /^0x[0-9a-f]{64}$/i.test(value);
-const terminal = new Set(['COMPLETED','BID_ACTIVE','BID_FILLED','BID_CANCELLED','BID_ALREADY_CANCELLED','BID_ALREADY_SETTLED','REVERTED','CANCELLED']);
+const terminal = new Set(['COMPLETED','BID_ACTIVE','BID_EXPIRED','BID_FILLED','BID_CANCELLED','BID_ALREADY_CANCELLED','BID_ALREADY_SETTLED','REVERTED','CANCELLED']);
 const zeroHash = `0x${'0'.repeat(64)}`, MAX_RECORDS = 80, MAX_RECOVERY_BLOCKS = 128;
 const bidABI = parseAbi([`function orderComponents(bytes32) view returns (${ORDER_COMPONENTS})`]);
 const wethABI = parseAbi(['function balanceOf(address) view returns(uint256)']);
@@ -82,6 +82,9 @@ export async function startMarketplacePractice({client,owner,wallet,collection,e
     const row=await client.readContract({address:escrow,abi:MARKETPLACE_BID_ABI,functionName:'bids',args:[bid.orderHash],blockNumber:block.number,ccipRead:false});
     requireFact(same(row[0],owner)&&same(row[1],wallet)&&same(row[2],collection)&&row[3]===93n
       &&row[4]===BigInt(bid.anyToken?'0':bid.tokenId)&&row[5]===100000000000000n&&row[10]===bid.anyToken,'PRACTICE_BID_STATE_MISMATCH');
+    const offerExpiresAt=Number(row[9])*1000;
+    requireFact(Number.isSafeInteger(offerExpiresAt)&&offerExpiresAt>0,'PRACTICE_BID_STATE_MISMATCH');
+    bid.expiresAt=offerExpiresAt;
     if(row[13]===2) {
       const status=await client.readContract({address:P.seaport,abi:SEAPORT_ABI,functionName:'getOrderStatus',args:[bid.orderHash],blockNumber:block.number,ccipRead:false});
       const holder=await client.readContract({address:collection,abi:nftABI,functionName:'ownerOf',args:[BigInt(bid.tokenId)],blockNumber:block.number,ccipRead:false});
@@ -110,6 +113,9 @@ export async function startMarketplacePractice({client,owner,wallet,collection,e
     await currentBidState(bid);requireFact(bid.status==='FILLED','PRACTICE_BID_STATE_MISMATCH');bid.fillState='COMPLETED';
   }
   async function refresh() {
+    const verifyingClaim=Boolean(current?.claim);
+    if(verifyingClaim){current.status=current.hash?'RECONCILIATION_REQUIRED':'WALLET_REQUESTED';lastResult=null;await persist();}
+    try {
     if(current?.claim&&!current.hash&&!terminal.has(current.status)) {
       current.hash=await recoverPracticeTransaction({client,claim:current.claim,assertDisposable});
       if(current.hash)current.status='SUBMITTED';
@@ -130,8 +136,15 @@ export async function startMarketplacePractice({client,owner,wallet,collection,e
       const bid=[...bids.values()].find(b=>b.creationReview===current.id);
       if(bid?.status==='FILLED'){current.status='BID_FILLED';lastResult={status:'BID_FILLED',tokenId:bid.tokenId,orderHash:bid.orderHash,transactionHash:bid.fillHash,verifiedOnChain:true};}
       else if(bid?.status==='BID_CANCELLED'){current.status='BID_ALREADY_CANCELLED';lastResult={status:'BID_ALREADY_CANCELLED',refundedWethWei:'0',refundInThisTransaction:false};}
+      else if(bid?.status==='BID_EXPIRED'){current.status='BID_EXPIRED';lastResult={status:'BID_EXPIRED',orderHash:bid.orderHash,refundedWethWei:'0',refundInThisTransaction:false};}
     }
     await persist();
+    } catch(error) {
+      // A former success cannot authorize a replacement while its original
+      // receipt or related bid evidence is no longer verifiable.
+      if(verifyingClaim){current.status=current.hash?'RECONCILIATION_REQUIRED':'WALLET_REQUESTED';lastResult=null;await persist();}
+      throw error;
+    }
   }
   async function prepare(action,input) {
     requireFact(!current||terminal.has(current.status),'PRACTICE_TRANSACTION_CLAIMED');

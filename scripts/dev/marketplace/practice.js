@@ -1,9 +1,10 @@
 const $=selector=>document.querySelector(selector),text=(tag,value)=>{const e=document.createElement(tag);e.textContent=value;return e;};
 const eth=value=>{const n=BigInt(value),fraction=(n%10n**18n).toString().padStart(18,'0').replace(/0+$/,'');return `${n/10n**18n}${fraction?'.'+fraction:''}`;};
 let state=null,busy=false,reviewId=null,notice=null;
-const finished=new Set(['COMPLETED','BID_ACTIVE','BID_FILLED','BID_CANCELLED','BID_ALREADY_CANCELLED','BID_ALREADY_SETTLED','REVERTED','CANCELLED']);
+const finished=new Set(['COMPLETED','BID_ACTIVE','BID_EXPIRED','BID_FILLED','BID_CANCELLED','BID_ALREADY_CANCELLED','BID_ALREADY_SETTLED','REVERTED','CANCELLED']);
 const names={BUY_LISTINGS:'Buy selected practice NFTs',CREATE_WETH_BID:'Create a practice WETH offer',CANCEL_WETH_BID:'Cancel this practice offer'};
 const labels={COMPLETED:'Purchase complete. The copied Punk received its NFTs.',BID_ACTIVE:'Offer active. Play the seller below, or cancel it.',
+ BID_EXPIRED:'Offer expired. Cancel it to return the unused WETH; expiry alone does not refund it.',
  BID_CANCELLED:'Offer cancelled. Unused WETH was returned.',BID_ALREADY_CANCELLED:'This offer was already cancelled. No second refund was made.',
  BID_ALREADY_SETTLED:'This offer already filled. No refund was made.',BID_FILLED:'Offer filled. The practice NFT is in the copied Punk Wallet.',
  REVERTED:'The copied transaction reverted. No purchase completed; its network fee may have been paid.',REVIEW_CANCELLED:'Unsent review discarded. Choose another practice mission.'};
@@ -23,6 +24,7 @@ function render(){
   text('p',`Price: ${eth(r.cost.totalPriceWei)} ${r.action==='CANCEL_WETH_BID'?'ETH to cancel':'ETH in copied funds'}`),
   text('p',`Maximum network fee: ${eth(r.cost.maximumNetworkFeeWei)} ETH.`),text('p',expired?'Review expired. Discard it and prepare a fresh one.':`Review expires ${new Date(r.expiresAt).toLocaleTimeString()}.`));
   if(r.selection.items)detail.append(text('p',`Practice NFT${r.selection.items.length>1?'s':''}: ${r.selection.items.map(i=>'#'+i.tokenId).join(', ')}`));
+  if(r.action==='CREATE_WETH_BID')detail.append(text('p',`If funded, the offer ends ${new Date(Number(r.selection.deadline)*1000).toLocaleString()}. This is separate from the review expiry above.`));
   if(r.action==='CANCEL_WETH_BID')detail.append(text('p',`Up to ${eth(r.selection.maximumRefundWei)} WETH returns to the copied funder if this offer is still unfilled. A filled or previously cancelled offer does not pay another refund.`));
   $('[data-action="confirm"]').disabled=busy||state.busy||expired||$('#confirmation').value!=='CONFIRM COPY';}
  const error=notice??state?.lastError;
@@ -33,10 +35,11 @@ function render(){
  $('#result').replaceChildren();if(state?.lastResult?.items)$('#result').append(text('p',`Received ${state.lastResult.items.map(i=>'#'+i.tokenId).join(', ')}.`));
  if(state?.lastResult?.status==='BID_FILLED')$('#result').append(text('p',`Received practice NFT #${state.lastResult.tokenId}. Delivery checked on the copied chain.`));
  const list=$('#bid-list');list.replaceChildren();for(const bid of state?.bids??[]){const row=text('div','');row.className='bid';row.dataset.orderHash=bid.orderHash;
-  const status=bid.fillState==='REQUESTED'?'Checking original seller transaction':bid.status==='FILLED'?'Filled · NFT received':bid.status==='BID_CANCELLED'?'Cancelled':bid.status==='BID_EXPIRED'?'Expired · cancel to recover WETH':'Active';
+  const status=bid.status==='FILLED'?'Filled · NFT received':bid.status==='BID_CANCELLED'?'Cancelled':bid.fillState==='REQUESTED'?'Checking original seller transaction':bid.fillState==='REVERTED'?'Seller attempt reverted · cancel to recover WETH':bid.status==='BID_EXPIRED'?'Expired · cancel to recover WETH':'Active';
   row.append(text('p',`${bid.anyToken?'Collection offer':'NFT #'+bid.tokenId+' offer'} · ${status}`));
+  if(Number.isSafeInteger(bid.expiresAt))row.append(text('p',`Offer deadline: ${new Date(bid.expiresAt).toLocaleString()}.`));
   for(const [label,operation]of [['PLAY SELLER · FILL OFFER','fill_bid'],['REVIEW CANCELLATION','prepare_cancel']]){const b=text('button',label);b.dataset.operation=operation;
-   b.disabled=busy||state.busy||prepared||pending||(operation==='fill_bid'&&(bid.status!=='BID_ACTIVE'||bid.fillState==='REQUESTED'));
+   b.disabled=busy||state.busy||prepared||pending||(operation==='fill_bid'&&(bid.status!=='BID_ACTIVE'||bid.fillState!=null));
    b.addEventListener('click',()=>act(operation,{orderHash:bid.orderHash}));row.append(b);}list.append(row);}
 }
 async function fetchState(){const r=await fetch('/api/state',{signal:AbortSignal.timeout(20000),cache:'no-store'});if(!r.ok)throw Error('STATE_UNAVAILABLE');const next=await r.json();if(next.schema!=='GOGH_MARKETPLACE_PRACTICE_V1'||next.localOnly!==true||next.productionAuthority!==false)throw Error('STATE_UNAVAILABLE');return next;}
