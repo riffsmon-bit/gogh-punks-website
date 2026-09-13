@@ -128,18 +128,52 @@ const paidModule = await moduleWithMocks('directed-paid-panel.js', `const PAID_R
 const validatePaidEnvelope=value=>value, submitDirectedPaid=()=>{throw Error('UI tests cannot send');}, paidReviewStatus=()=> 'Saved review';`);
 const burnModule = await moduleWithMocks('forge-selected-burn-panel.js', `const TRAINING_RELEASE={status:'OWNER_CANARY',trainingSource:'${ACCOUNT}'},SELECTED_BURN_OWNER='${OWNER}';
 const validateSelectedBurnEnvelope=value=>value,submitSelectedBurn=()=>{throw Error('UI tests cannot burn');};`);
-function ownerFixture(module, kind, initial) {
-  const root = dom(); let envelope = initial, failure = null, selected = { owner: OWNER, tokenId: '93', chainId: 4663, preview: false };
+function ownerFixture(module, kind, initial, {autoLoad=false,initialFailure=null}={}) {
+  const root = dom(); let envelope = initial, failure = initialFailure, selected = { owner: OWNER, tokenId: '93', chainId: 4663, preview: false },signIns=0;
   const requests = [];
-  const panel = module[kind]({ root, getSelection: () => selected, ensureSession: async () => {}, request: async (path, options) => {
+  const panel = module[kind]({ root, autoLoad, getSelection: () => selected, ensureSession: async () => {signIns++;}, request: async (path, options) => {
     requests.push(options?.body ? JSON.parse(options.body) : 'get'); if (failure) throw failure; return structuredClone(envelope);
   } });
-  return { root, panel, requests, fail: error => { failure = error; }, response: value => { envelope = value; }, select: patch => { selected = { ...selected, ...patch }; panel.selectionChanged(); } };
+  return { root, panel, requests, signIns:()=>signIns, fail: error => { failure = error; }, response: value => { envelope = value; }, select: patch => { selected = { ...selected, ...patch }; panel.selectionChanged(); } };
 }
 const ownerEnvelope = (status, action = 'BURN', expiresAt = Date.now() + 90_000) => ({ record: { status, revision: 1, reviewHash: 'old', review: {
   intentId: 'original', action, expiresAt, maximumNetworkFeeWei: '21000', deadline: String(Math.floor(Date.now() / 1000) + 300),
   priceWei: '1', executionFeeWei: '1', targetCollection: ACCOUNT, recipient: ACCOUNT,
 } }, state: {} });
+
+test('returning holder automatically sees completed paid delivery without a sign-in or another budget',async()=>{
+ const envelope={...ownerEnvelope('CONFIRMED','AUTHORIZE'),state:{missionStatus:2,refundWei:'0'},
+  execution:{intent_id:'original',status:'COMPLETED',receipt:{tokenId:'1599'},transaction_hash:HASH}};
+ const f=ownerFixture(paidModule,'createDirectedPaidPanel',envelope,{autoLoad:true});await flush();
+ assert.match(f.root.textContent,/PAID MINT COMPLETE/);assert.match(f.root.textContent,/Delivered Peppies World #1599/);
+ assert.ok(walk(f.root).find(n=>n.tagName==='a'&&n.textContent==='VIEW IN COLLECTION'&&n.href.includes('tokenId=93')));
+ assert.ok(button(f.root,'REVIEW ANOTHER MINT'));assert.equal(button(f.root,'REVIEW ONE PEPPIES WORLD MINT'),undefined);
+ assert.deepEqual(f.requests,['get']);assert.equal(f.signIns(),0);
+ f.panel.selectionChanged();await flush();assert.deepEqual(f.requests,['get'],'same selection does not refetch');
+ f.select({tokenId:'94'});assert.equal(f.root.hidden,true);assert.doesNotMatch(f.root.textContent,/1599/);f.panel.destroy();
+});
+test('automatic paid status read cannot sign in, recover or offer a new mint when the session is missing',async()=>{
+ const f=ownerFixture(paidModule,'createDirectedPaidPanel',null,{autoLoad:true,
+  initialFailure:Object.assign(Error('Session expired'),{code:'V2_SESSION_EXPIRED'})});await flush();
+ assert.equal(f.signIns(),0);assert.deepEqual(f.requests,['get']);
+ assert.match(f.root.textContent,/Sign in to check your saved mint result/);
+ assert.equal(button(f.root,'REVIEW ONE PEPPIES WORLD MINT'),undefined);f.panel.destroy();
+});
+test('completed paid mint remains clear when a separate unsigned review expired',async()=>{
+ const envelope={...ownerEnvelope('PREPARED','AUTHORIZE',Date.now()-1),state:{missionStatus:2,refundWei:'0'},
+  execution:{intent_id:'earlier-mint',status:'COMPLETED',receipt:{tokenId:'1599'},transaction_hash:HASH}};
+ const f=ownerFixture(paidModule,'createDirectedPaidPanel',envelope,{autoLoad:true});await flush();
+ assert.match(f.root.textContent,/PAID MINT COMPLETE/);assert.match(f.root.textContent,/separate review for another mint expired/);
+ assert.ok(button(f.root,'DISMISS EXPIRED REVIEW'));assert.equal(button(f.root,'CONFIRM MINT BUDGET IN WALLET'),undefined);
+ assert.equal(button(f.root,'REVIEW ANOTHER MINT'),undefined);assert.deepEqual(f.requests,['get']);assert.equal(f.signIns(),0);
+ f.panel.destroy();
+});
+test('automatic paid status read does not recover a saved wallet request until explicit recheck',async()=>{
+ const envelope=ownerEnvelope('WALLET_REQUESTED','AUTHORIZE');envelope.record.reportedHash=HASH;
+ const f=ownerFixture(paidModule,'createDirectedPaidPanel',envelope,{autoLoad:true});await flush();
+ assert.equal(f.signIns(),0);assert.deepEqual(f.requests,['get']);
+ assert.ok(button(f.root,'RECOVER ORIGINAL TRANSACTION'));f.panel.destroy();
+});
 
 for (const [module, kind, check] of [[paidModule, 'createDirectedPaidPanel', 'RECHECK PAID MINT'], [burnModule, 'createSelectedBurnPanel', 'RECHECK SELECTED TEST']]) {
   test(`${kind}: typed recovery hash survives validation and failed rechecks`, async () => {

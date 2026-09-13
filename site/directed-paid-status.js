@@ -1,6 +1,8 @@
 export function paidReviewStatus(envelope,now=Date.now()) {
  const r=envelope?.record;
- if(!r)return 'Request a directed paid mint in chat, or review one Peppies World mint here.';
+ if(!r)return envelope?.execution?.status==='COMPLETED'
+  ?'Mint complete. Delivery was verified by both chain providers.'
+  :'No saved paid-mint mission. Request one in chat or review a new mint here.';
  const job=envelope.execution?.intent_id===r.review.intentId?envelope.execution:null;
  if(job?.status==='COMPLETED')return 'Mint complete. Delivery was verified by both chain providers.';
  if(['SIGNED','SUBMITTED'].includes(job?.status))return 'A mint transaction is awaiting verification. Recheck its receipt; do not fund a replacement.';
