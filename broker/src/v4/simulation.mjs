@@ -5,6 +5,8 @@ function validWei(value) {
   return typeof value === "string" && UINT.test(value);
 }
 
+/** @returns {Readonly<{status: 'FAILED' | 'PASSED', reasons: readonly string[],
+ * estimatedGasWei: string | null, expectedReceiver: string, executionAuthorized: false}>} */
 export function validateMintSimulation(value, expected) {
   if (!value || typeof value !== "object" || Array.isArray(value)
     || !expected || typeof expected !== "object" || Array.isArray(expected)) {
