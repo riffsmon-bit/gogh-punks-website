@@ -19,6 +19,10 @@ export const paidSame=(a,b)=>typeof a==='string'&&typeof b==='string'&&a.toLower
 export const paidAssert=(value,code)=>{if(!value)throw Object.assign(Error(code),{code});};
 export const paidHex=value=>`0x${BigInt(value).toString(16)}`;
 export const paidJson=value=>JSON.stringify(value,(_k,v)=>typeof v==='bigint'?String(v):v);
+export const PAID_RECEIPT_MISMATCH_FIELDS=Object.freeze([
+ 'TX_HASH','RECEIPT_HASH','TX_FROM','TX_TO','TX_DATA','TX_VALUE','TX_CHAIN','TX_NONCE','TX_GAS','TX_GAS_PRICE',
+ 'TX_AUTHORIZATION_LIST','TX_BLOCK_HASH','RECEIPT_BLOCK_HASH','RECEIPT_GAS_USED','RECEIPT_GAS_PRICE','RECEIPT_STATUS',
+]);
 export function validatePaidRelease(r) {
  paidAssert(r?.schema==='GOGH_DIRECTED_PAID_MINT_RELEASE_V1'&&r.status==='OWNER_CANARY'
   &&r.productionPaidMintAuthorized===true&&r.chainId===4663&&r.owner===PAID_OWNER&&r.tokenId==='93'
@@ -77,15 +81,22 @@ export function paidEvents(receipt,address,eventName) {
  });
 }
 export async function verifyPaidTransaction(clients,expected,hash,{confirmations=12n}={}) {
- const all=await Promise.all(clients.map(async c=>{
+ const all=await Promise.all(clients.map(async(c,providerIndex)=>{
   const [tx,receipt]=await Promise.all([c.getTransaction({hash}),c.getTransactionReceipt({hash})]);
   const block=await c.getBlock({blockNumber:receipt.blockNumber});
-  paidAssert(paidSame(tx.hash,hash)&&paidSame(receipt.transactionHash,hash)&&paidSame(tx.from,expected.from)
-   &&paidSame(tx.to,expected.to)&&tx.input===expected.data&&tx.value===BigInt(expected.value)
-   &&tx.chainId===4663&&tx.nonce===Number(BigInt(expected.nonce))&&tx.gas===BigInt(expected.gas)
-   &&tx.gasPrice===BigInt(expected.gasPrice)&&!tx.authorizationList?.length&&paidSame(tx.blockHash,block.hash)
-   &&paidSame(receipt.blockHash,block.hash)&&receipt.gasUsed<=tx.gas&&receipt.effectiveGasPrice<=tx.gasPrice
-   &&['success','reverted'].includes(receipt.status),'PAID_RECEIPT_MISMATCH');
+  // Preserve comparison order and short-circuiting. Report only the first
+  // failed check's fixed label, never transaction values or provider details.
+  const fields=[],check=(field,value)=>{if(!value)fields.push(field);return value;};
+  const matches=check('TX_HASH',paidSame(tx.hash,hash))&&check('RECEIPT_HASH',paidSame(receipt.transactionHash,hash))
+   &&check('TX_FROM',paidSame(tx.from,expected.from))&&check('TX_TO',paidSame(tx.to,expected.to))
+   &&check('TX_DATA',tx.input===expected.data)&&check('TX_VALUE',tx.value===BigInt(expected.value))
+   &&check('TX_CHAIN',tx.chainId===4663)&&check('TX_NONCE',tx.nonce===Number(BigInt(expected.nonce)))
+   &&check('TX_GAS',tx.gas===BigInt(expected.gas))&&check('TX_GAS_PRICE',tx.gasPrice===BigInt(expected.gasPrice))
+   &&check('TX_AUTHORIZATION_LIST',!tx.authorizationList?.length)&&check('TX_BLOCK_HASH',paidSame(tx.blockHash,block.hash))
+   &&check('RECEIPT_BLOCK_HASH',paidSame(receipt.blockHash,block.hash))&&check('RECEIPT_GAS_USED',receipt.gasUsed<=tx.gas)
+   &&check('RECEIPT_GAS_PRICE',receipt.effectiveGasPrice<=tx.gasPrice)&&check('RECEIPT_STATUS',['success','reverted'].includes(receipt.status));
+  if(!matches)throw Object.assign(Error('PAID_RECEIPT_MISMATCH'),{code:'PAID_RECEIPT_MISMATCH',
+   paidReceiptProviderIndex:providerIndex,paidReceiptMismatchFields:fields});
   paidAssert(await c.getBlockNumber()>=receipt.blockNumber+confirmations,'PAID_CONFIRMATIONS_PENDING');
   return {receipt,block};
  }));
