@@ -6,9 +6,9 @@ Only the lead edits this tracker and integrates commits. States: NOT_STARTED, RU
 
 | Specialist / prompt roles | State | Branch / worktree suffix | Owned scope | Dependencies | Integration commit |
 |---|---|---|---|---|---|
-| A Architecture | NOT_STARTED | architecture | `broker/src/v4/domain/`, shared-contract docs, dedicated schema tests | Repository map; reuse existing models | — |
-| D Source research | NOT_STARTED | sources | `docs/v2-swarm/skill-source-audit.md` | Existing source audit and primary upstream sources | — |
-| B Wallet / V1 | NOT_STARTED | wallet | Wallet/V1 audit first; scoped ownership fixes after interface review | Existing account/authority interfaces | — |
+| A Architecture (`/root/architecture`) | RUNNING | `v2/swarm-architecture` / `/private/tmp/gogh-swarm-architecture` | `broker/src/v4/domain/`, shared-contract docs, dedicated schema tests | Repository map; reuse existing models | — |
+| D Source research (`/root/skill_sources`) | RUNNING | `v2/swarm-sources` / `/private/tmp/gogh-swarm-sources` | `docs/v2-swarm/skill-source-audit.md` | Existing source audit and primary upstream sources | — |
+| B Wallet / V1 (`/root/wallet_v1`) | RUNNING | `v2/swarm-wallet` / `/private/tmp/gogh-swarm-wallet` | Wallet/V1 audit and offline authority proof tests first | Existing account/authority interfaces | — |
 | E AI | NOT_STARTED | ai | AI provider modules and dedicated provider tests | A approved | — |
 | F MCP | NOT_STARTED | mcp | MCP server/endpoint and dedicated tests | A approved; existing capability resolver | — |
 | G/I Discovery / links | NOT_STARTED | discovery | Discovery/link modules and dedicated tests | A approved | — |
