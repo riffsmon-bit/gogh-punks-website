@@ -12,9 +12,11 @@ import { createDatabaseBackedGoghIntelligence } from "./_shared/v2-ai-runtime.mj
 import { v2Failure } from "./_shared/v2-http.mjs";
 import { readV2PunkAuthority } from "./_shared/v2-ownership.mjs";
 import { requireV2Session } from "./_shared/v2-session.mjs";
+import { createV2McpResearch } from "./_shared/v2-mcp-research.mjs";
 
-function v2McpDependencies(pool, principal) {
-  const authority = (tokenId) => readV2PunkAuthority(tokenId, { expectedOwner: principal.walletAddress });
+export function v2McpDependencies(pool, principal, { authorityReader = readV2PunkAuthority,
+  research = createV2McpResearch() } = {}) {
+  const authority = (tokenId) => authorityReader(tokenId, { expectedOwner: principal.walletAddress });
   const opportunity = async (id) => {
     const result = await pool.query("SELECT normalized FROM broker_v2_opportunities WHERE opportunity_id = $1", [id]);
     return result.rows[0] ? normalizeV2Opportunity(result.rows[0].normalized) : null;
@@ -28,7 +30,9 @@ function v2McpDependencies(pool, principal) {
     return result.rows[0] ?? null;
   };
   return {
+    research,
     requireCurrentOwner: async (tokenId) => authority(tokenId),
+    get_punk_skills: async (tokenId) => research.getSkills({ tokenId, owner: principal.walletAddress }),
     getMyPunks: async () => {
       const result = await pool.query(`SELECT token_id::text, account_address FROM broker_punks
         WHERE chain_id = $1 AND collection_address = $2 AND owner_snapshot = $3 ORDER BY token_id`,
@@ -51,7 +55,11 @@ function v2McpDependencies(pool, principal) {
           asset_amount::text, acquisition_mode, acquired_at FROM broker_acquisitions
         WHERE chain_id = $1 AND punk_collection_address = $2 AND punk_token_id = $3::numeric
         ORDER BY acquired_at DESC LIMIT 250`, [ROBINHOOD.chainId, ROBINHOOD.canonicalCollection, tokenId]);
-      return { tokenId, holdings: result.rows };
+      return { tokenId, acquisitions: result.rows, holdings: result.rows,
+        collectionView: "ACQUISITION_HISTORY", currentHoldingsVerified: false,
+        holdingsSemantics: "DEPRECATED_ACQUISITION_HISTORY_ALIAS",
+        currentHoldingsApi: `/api/v2/punks/${tokenId}/collection`,
+        note: "Historical acquisitions may have been withdrawn or transferred. These rows do not prove current custody." };
     },
     get_punk_activity: async (tokenId) => {
       const result = await pool.query(`SELECT activity_type, public_detail, occurred_at
@@ -92,7 +100,8 @@ function v2McpDependencies(pool, principal) {
     estimate_mint_cost: async (tokenId, id) => {
       const value = await opportunity(id); const live = await authority(tokenId);
       return value ? { tokenId, opportunityId: id, mintPriceWei: value.priceWei,
-        estimatedGasCostWei: value.estimatedGasCostWei, punkBalanceWei: live.nativeBalanceWei } : null;
+        estimatedGasCostWei: value.estimatedGasCostWei, punkBalanceWei: live.nativeBalanceWei,
+        estimateSource: "STORED_OPPORTUNITY", freshEstimate: false } : null;
     },
     simulate_mint: async (tokenId, id) => {
       const live = await authority(tokenId);
@@ -101,14 +110,14 @@ function v2McpDependencies(pool, principal) {
         WHERE opportunity_id = $1 AND punk_account = $2 ORDER BY simulated_at DESC LIMIT 1`,
       [id, live.punkWallet]);
       return { tokenId, opportunityId: id, simulation: result.rows[0] ?? null,
-        submitted: false };
+        submitted: false, freshSimulation: false, simulationSource: "STORED_RECORD" };
     },
     prepare_mint: async (tokenId, id) => {
       const value = await opportunity(id); const live = await authority(tokenId);
       if (!value) return null;
       return { tokenId, opportunityId: id, punkWallet: live.punkWallet,
         status: "KNOWN_SAFE_ADAPTER_AND_FRESH_SIMULATION_REQUIRED", submitted: false,
-        arbitraryCalldataAccepted: false };
+        arbitraryCalldataAccepted: false, transactionPrepared: false };
     },
     draft_strategy: async (tokenId, message) => {
       const live = await authority(tokenId); const current = await strategy(tokenId);
@@ -139,21 +148,27 @@ function v2McpDependencies(pool, principal) {
   };
 }
 
-export default async function handler(request) {
+export async function handleV2Mcp(request, { poolFactory = () => getDatabase().pool,
+  sessionReader = requireV2Session, dependencyFactory = v2McpDependencies } = {}) {
   if (request.method !== "POST") return json({ ok: false, code: "METHOD_NOT_ALLOWED" }, 405);
-  const pool = getDatabase().pool;
   try {
     const body = await readJson(request, 32_768);
     let principal = null;
-    if (body?.method === "tools/call") principal = await requireV2Session(request, pool);
+    let pool;
+    if (body?.method === "tools/call" || (body?.method === "tools/list" && body.params?.tokenId !== undefined)) {
+      pool = poolFactory();
+      principal = await sessionReader(request, pool);
+    }
     const server = new GoghArtBrokerMcpServer({
       authenticate: async () => principal ? { owner: principal.walletAddress } : null,
-      dependencies: principal ? v2McpDependencies(pool, principal) : {},
+      dependencies: principal ? dependencyFactory(pool, principal) : {},
     });
     const response = await handleArtBrokerMcpJsonRpc(server, body, principal?.walletAddress ?? null);
     return json(response, response.error ? 400 : 200);
   } catch (error) { return v2Failure(error); }
 }
+
+export default request => handleV2Mcp(request);
 
 export const config = { path: "/api/v2/mcp", method: "POST", rateLimit: {
   action: "rate_limit", aggregateBy: ["ip"], windowLimit: 60, windowSize: 60,

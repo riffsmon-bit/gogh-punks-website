@@ -11,6 +11,7 @@ const INPUT_SCHEMAS = Object.freeze({
   get_punk_collection: Object.freeze({ tokenId: stringProperty(TOKEN_ID.source, "Gogh Punk token ID") }),
   get_punk_activity: Object.freeze({ tokenId: stringProperty(TOKEN_ID.source, "Gogh Punk token ID") }),
   get_punk_strategy: Object.freeze({ tokenId: stringProperty(TOKEN_ID.source, "Gogh Punk token ID") }),
+  get_punk_skills: Object.freeze({ tokenId: stringProperty(TOKEN_ID.source, "Gogh Punk token ID") }),
   get_opportunities: Object.freeze({ tokenId: stringProperty(TOKEN_ID.source, "Gogh Punk token ID") }),
   get_opportunity: Object.freeze({ opportunityId: stringProperty(OPPORTUNITY_ID.source, "Normalized opportunity ID") }),
   explain_opportunity: Object.freeze({ opportunityId: stringProperty(OPPORTUNITY_ID.source, "Normalized opportunity ID") }),
@@ -38,25 +39,41 @@ export const ART_BROKER_MCP_TOOLS = Object.freeze([
   ["get_punk", "punk:read", "Read one Gogh Punk profile."],
   ["get_punk_wallet", "punk:read", "Resolve one canonical Punk Wallet."],
   ["get_punk_balance", "punk:read", "Read one Punk Wallet balance."],
-  ["get_punk_collection", "punk:read", "Read one Punk's NFT collection."],
+  ["get_punk_collection", "punk:read", "Read one Punk's acquisition history; current NFT holdings are not verified."],
   ["get_punk_activity", "punk:read", "Read one Punk's V1 and V2 activity."],
   ["get_punk_strategy", "strategy:read", "Read one Punk's active structured strategy."],
+  ["get_punk_skills", "punk:read", "Read verified learned skills, equipped slots and training credits, or explicit unavailability."],
   ["get_opportunities", "opportunity:read", "List normalized screened opportunities."],
   ["get_opportunity", "opportunity:read", "Read one normalized opportunity."],
-  ["inspect_collection", "analysis:read", "Inspect a known collection without authorizing it."],
+  ["inspect_collection", "analysis:read", "Read cached collection inspection without authorizing it."],
   ["inspect_mint_link", "analysis:read", "Inspect a mint link without accepting its transaction data."],
-  ["estimate_mint_cost", "simulation:read", "Estimate known-safe mint value and gas."],
-  ["simulate_mint", "simulation:read", "Simulate a known-safe mint without submitting it."],
+  ["estimate_mint_cost", "simulation:read", "Read cached mint value and gas estimates; freshness is not guaranteed."],
+  ["simulate_mint", "simulation:read", "Read the latest stored mint simulation; does not run a fresh simulation."],
   ["draft_strategy", "strategy:draft", "Translate words into a strategy draft."],
   ["validate_strategy", "strategy:draft", "Validate a structured strategy draft."],
   ["prepare_strategy_update", "strategy:prepare", "Prepare an owner-confirmed strategy update."],
-  ["classify_collection", "analysis:read", "Read or create cached art classification."],
+  ["classify_collection", "analysis:read", "Read cached art classification; does not grant a learned skill."],
   ["explain_opportunity", "analysis:read", "Explain an opportunity using normalized evidence."],
-  ["prepare_mint", "mint:prepare", "Prepare a known-safe mint for owner approval without submitting it."],
+  ["prepare_mint", "mint:prepare", "Report requirements for owner-approved mint preparation; does not construct or submit a transaction."],
   ["prepare_strategy_activation", "strategy:prepare", "Prepare explicit strategy activation without activating it."],
 ].map(([name, scope, description]) => {
   const properties = INPUT_SCHEMAS[name];
   return Object.freeze({ name, scope, description, inputSchema: Object.freeze({ type: "object",
+    properties, required: Object.freeze(Object.keys(properties)), additionalProperties: false }) });
+}));
+
+// These are real native research implementations, distinct from basic owner
+// diagnostics. Only a fresh server-derived capability result can expose them.
+export const ART_BROKER_MCP_RESEARCH_TOOLS = Object.freeze([
+  ["inspect_contract", "Inspect the reviewed Gogh collection with an equipped Contract Detective skill.", false],
+  ["get_metadata", "Read inline metadata for three selected Punks with an equipped Rarity Eye skill.", true],
+  ["rank_trait_sample", "Compare traits within three selected Punks with an equipped Rarity Eye skill; not collection-wide rarity.", true],
+  ["get_market_listings", "Read up to five Gogh listings with an equipped Market Scout skill; no bids or purchases.", false],
+].map(([name, description, sample]) => {
+  const properties = Object.freeze({ tokenId: stringProperty(TOKEN_ID.source, "The authenticated owner's selected Punk"),
+    ...(sample ? { sampleTokenIds: Object.freeze({ type: "array", minItems: 3, maxItems: 3, uniqueItems: true,
+      items: stringProperty("^[1-9][0-9]{0,3}$", "Punk ID; the sample must include the selected Punk") }) } : {}) });
+  return Object.freeze({ name, scope: "analysis:read", description, inputSchema: Object.freeze({ type: "object",
     properties, required: Object.freeze(Object.keys(properties)), additionalProperties: false }) });
 }));
 
@@ -73,7 +90,10 @@ function fail(code, message) { throw new ArtBrokerMcpError(code, message); }
 function record(value, allowed, label) {
   if (!value || typeof value !== "object" || Array.isArray(value)
     || Object.getPrototypeOf(value) !== Object.prototype
-    || Object.keys(value).some((key) => !allowed.includes(key))) fail("INVALID_ARGUMENTS", `${label} is invalid.`);
+    || Reflect.ownKeys(value).some((key) => !allowed.includes(key))
+    || Object.values(Object.getOwnPropertyDescriptors(value)).some(item => !Object.hasOwn(item, "value"))) {
+    fail("INVALID_ARGUMENTS", `${label} is invalid.`);
+  }
   return value;
 }
 function tokenId(value) {
@@ -102,16 +122,41 @@ export class GoghArtBrokerMcpServer {
     this.#auth = authenticate; this.#deps = dependencies;
   }
 
-  listTools() { return ART_BROKER_MCP_TOOLS; }
+  listTools({ accessToken, tokenId: selectedTokenId } = {}) {
+    if (selectedTokenId === undefined) return ART_BROKER_MCP_TOOLS;
+    return this.#selectedTools(accessToken, selectedTokenId);
+  }
+
+  async #selectedTools(accessToken, selectedTokenId) {
+    const id = tokenId(selectedTokenId);
+    const principal = await this.#auth(accessToken, "punk:read");
+    if (!principal || typeof principal.owner !== "string") fail("UNAUTHORIZED", "Authentication is required.");
+    await this.#deps.requireCurrentOwner(id, principal.owner);
+    if (!this.#deps.research) return ART_BROKER_MCP_TOOLS;
+    const capabilities = await this.#deps.research.resolve({ tokenId: id, owner: principal.owner });
+    // The injected runtime is server-owned. No HTTP/LLM capability object enters
+    // this path; the canonical resolver enforces package, owner and slot state.
+    return [...ART_BROKER_MCP_TOOLS, ...ART_BROKER_MCP_RESEARCH_TOOLS.filter(tool =>
+      capabilities?.effectiveMcpTools.includes(tool.name))];
+  }
 
   async call({ accessToken, name, arguments: rawArguments = {} }) {
-    const tool = ART_BROKER_MCP_TOOLS.find((value) => value.name === name);
+    const tool = [...ART_BROKER_MCP_TOOLS, ...ART_BROKER_MCP_RESEARCH_TOOLS].find((value) => value.name === name);
     if (!tool) fail("UNKNOWN_TOOL", "This capability is not exposed by Gogh Art Broker.");
     const principal = await this.#auth(accessToken, tool.scope);
     if (!principal || typeof principal.owner !== "string") fail("UNAUTHORIZED", "Authentication is required.");
     const args = rawArguments ?? {};
     const punkRead = new Set(["get_punk", "get_punk_wallet", "get_punk_balance",
-      "get_punk_collection", "get_punk_activity", "get_punk_strategy"]);
+      "get_punk_collection", "get_punk_activity", "get_punk_strategy", "get_punk_skills"]);
+    const researchTool = ART_BROKER_MCP_RESEARCH_TOOLS.find(value => value.name === name);
+    if (researchTool) {
+      const input = record(args, Object.keys(researchTool.inputSchema.properties), "research request");
+      const id = tokenId(input.tokenId);
+      await this.#deps.requireCurrentOwner(id, principal.owner);
+      if (!this.#deps.research) fail("RESEARCH_UNAVAILABLE", "Equipped research is unavailable.");
+      return this.#deps.research.call({ tokenId: id, owner: principal.owner, name,
+        arguments: Object.fromEntries(Object.entries(input).filter(([key]) => key !== "tokenId")) });
+    }
     if (name === "get_my_punks") {
       record(args, [], "Punk list request");
       return this.#deps.getMyPunks(principal.owner);
@@ -169,6 +214,15 @@ export class GoghArtBrokerMcpServer {
   }
 }
 
+function rpcFailure(id, error) {
+  // Dependency/RPC/provider errors can contain authenticated URLs and response
+  // bodies. Only this module's deliberately public messages cross JSON-RPC.
+  const publicError = error instanceof ArtBrokerMcpError;
+  return { jsonrpc: "2.0", id, error: { code: -32000,
+    message: publicError ? error.message : "The requested Punk state or tool result could not be verified. Recheck shortly.",
+    data: { code: publicError ? error.code : "TOOL_CALL_FAILED" } } };
+}
+
 export async function handleArtBrokerMcpJsonRpc(server, request, accessToken = null) {
   if (!request || request.jsonrpc !== "2.0" || !["number", "string"].includes(typeof request.id)) {
     return { jsonrpc: "2.0", id: request?.id ?? null,
@@ -177,8 +231,14 @@ export async function handleArtBrokerMcpJsonRpc(server, request, accessToken = n
   if (request.method === "initialize") return { jsonrpc: "2.0", id: request.id, result: {
     protocolVersion: "2025-06-18", capabilities: { tools: {} },
     serverInfo: { name: "gogh-art-broker", version: "2.0.0" } } };
-  if (request.method === "tools/list") return { jsonrpc: "2.0", id: request.id,
-    result: { tools: server.listTools().map(({ scope: _scope, ...tool }) => tool) } };
+  if (request.method === "tools/list") {
+    try {
+      const params = record(request.params ?? {}, ["tokenId"], "tool list request");
+      const tools = await server.listTools({ accessToken, ...params });
+      return { jsonrpc: "2.0", id: request.id,
+        result: { tools: tools.map(({ scope: _scope, ...tool }) => tool) } };
+    } catch (error) { return rpcFailure(request.id, error); }
+  }
   if (request.method === "tools/call") {
     try {
       const output = await server.call({ accessToken, name: request.params?.name,
@@ -186,9 +246,7 @@ export async function handleArtBrokerMcpJsonRpc(server, request, accessToken = n
       return { jsonrpc: "2.0", id: request.id, result: { content: [
         { type: "text", text: JSON.stringify(output) }], structuredContent: output } };
     } catch (error) {
-      return { jsonrpc: "2.0", id: request.id, error: { code: -32000,
-        message: error?.message ?? "Gogh tool call failed safely.",
-        data: { code: error?.code ?? "TOOL_CALL_FAILED" } } };
+      return rpcFailure(request.id, error);
     }
   }
   return { jsonrpc: "2.0", id: request.id,
