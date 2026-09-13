@@ -22,8 +22,8 @@ Only the lead edits this tracker and integrates commits. States: NOT_STARTED, RU
 
 ## Known external blockers
 
-- Working independent Robinhood archive RPC endpoints: the latest configured read-only diagnostic reports primary historical-state JSON-RPC -32000 and secondary archive HTTP 403. New paid budgets are blocked before wallet confirmation.
-- macOS storage/memory pressure: sparse specialist worktrees, shared dependencies, serialized heavyweight validation.
+- Archive RPC rollout: Validation Cloud Free and Blockmachine passed the complete history window plus older positive controls; dedicated Production Functions settings are now configured. The 2,000-block paging hotfix is live as `3b53472`; scheduled production checks report READY. See [rollout](free-rpc-rollout.md).
+- macOS storage pressure was relieved by archiving old inactive session text and removing cached images; roughly 10 GB is available. Dependencies remain shared and large test runs are serialized.
 - Production adoption of additional skills, marketplace trading, migrations or contracts requires its own concrete reviewed deployment/owner authorization; test coverage is not production authority.
 
 ## Reviewed decisions
@@ -54,3 +54,14 @@ Only the lead edits this tracker and integrates commits. States: NOT_STARTED, RU
 - All thirteen completed specialist worktrees have been removed after checking for unrelated modifications; their branches and integration commits remain. The integration checkout and user practice/setup services remain available.
 
 - RPC follow-up: confirmed Netlify PublicNode automation/relay settings, absent dedicated archive variables, protected general RPC values unavailable through the API, no local Keychain RPC credential found, and public historical-state requests rejected. Configuration unchanged. See [rpc-configuration-audit.md](rpc-configuration-audit.md).
+
+
+## Free archive RPC follow-up
+
+| Specialist | State | Branch / worktree | Owned scope | Dependencies | Integration commit |
+|---|---|---|---|---|---|
+| Lead | INTEGRATED | `v2/swarm-integration-20260913` | Archive pagination, shared helper tests, Netlify configuration, rollout evidence | Live pair proof; Q release validation | `3b53472` production |
+| RPC fixture / research (`/root/free_rpc_research`) | INTEGRATED | Lead checkout; sole ownership of fork fixture | Later-page outage and transfer proof; isolated provider signup research | 2,000-block helper | `3b53472` production |
+| Release / security (`/root/security_review`) | INTEGRATED | `fix/paid-mint-archive-pages` / `/private/tmp/gogh-paid-archive-release` | Minimal production patch review and validation | Existing production base; fixture and live evidence | `3b53472` production |
+
+The free pair passed runtime-compatible historical reads and older positive controls. Netlify's dedicated archive settings are configured as protected Production Functions secrets. Final minimal-release JavaScript validation: 1,901 passed. Disposable PostgreSQL/Anvil integration and 140 deployment checks passed. Production deployment `6aa6d3419922850008a6a428` is live; scheduled worker logs confirm READY and no active paid mission for #93. See [rollout](free-rpc-rollout.md).

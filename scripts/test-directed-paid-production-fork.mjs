@@ -14,7 +14,7 @@ if(process.argv.length!==4||process.argv[2]!=='--disposable-only'||!process.argv
 const bin=process.argv[3].slice('--postgres-bin='.length),run=promisify(execFile),dir=await mkdtemp(join(tmpdir(),'gogh-directed-paid-test-')),data=join(dir,'data');
 const port=async()=>{const s=createServer();await new Promise(r=>s.listen(0,'127.0.0.1',r));const p=s.address().port;await new Promise(r=>s.close(r));return p;};
 const [dbPort,chainPort]=await Promise.all([port(),port()]),command=(name,args)=>run(join(bin,name),args,{timeout:60000,maxBuffer:100000});
-let started=false,child,admin,requestPool,workerPool,browserPool;
+let started=false,child,admin,requestPool,workerPool,browserPool,phase='DATABASE_SETUP';
 try {
  await command('initdb',['-D',data,'--no-locale','-E','UTF8','--auth=trust']);
  await command('pg_ctl',['-D',data,'-l',join(dir,'postgres.log'),'-o',`-h 127.0.0.1 -p ${dbPort} -k ${dir}`,'-w','start']);started=true;
@@ -44,8 +44,12 @@ try {
  await assert.rejects(requestPool.query('SELECT raw_transaction FROM broker_selected_paid_executions'),e=>e.code==='42501');
  await assert.rejects(requestPool.query('INSERT INTO broker_selected_paid_executions(intent_id,status) VALUES ($1,$2)',['a'.repeat(64),'SIGNED']),e=>e.code==='42501');
  await assert.rejects(workerPool.query("UPDATE broker_selected_paid_reviews SET review_json='{}'"),e=>e.code==='42501');
- const pub=createPublicClient({cacheTime:0,transport:http('https://rpc.mainnet.chain.robinhood.com',{timeout:12000,retryCount:0})}),anchor=await pub.getBlock();
- child=spawn('anvil',['--silent','--host','127.0.0.1','--port',String(chainPort),'--chain-id','4663','--gas-price',String(await pub.getGasPrice()),'--base-fee',String(anchor.baseFeePerGas??0n),'--fork-url','https://rpc.mainnet.chain.robinhood.com','--fork-block-number',String(anchor.number)],{stdio:'ignore'});
+ // Fork from an archive-capable public provider: fixture reads must remain
+ // available after mining enough local blocks to exercise multiple log pages.
+ phase='FORK_START';
+ const forkRpc='https://rpc-robinhood.blockmachine.io';
+ const pub=createPublicClient({cacheTime:0,transport:http(forkRpc,{timeout:12000,retryCount:0})}),anchor=await pub.getBlock();
+ child=spawn('anvil',['--silent','--host','127.0.0.1','--port',String(chainPort),'--chain-id','4663','--max-persisted-states','25000','--gas-price',String(await pub.getGasPrice()),'--base-fee',String(anchor.baseFeePerGas??0n),'--fork-url',forkRpc,'--fork-block-number',String(anchor.number)],{stdio:'ignore'});
  const clients=[0,1].map(()=>createPublicClient({cacheTime:0,transport:http(`http://127.0.0.1:${chainPort}`,{timeout:20000,retryCount:0})})),c=clients[0];
  for(let i=0;i<80;i++){try{if(await c.getChainId()===4663)break;}catch{}await new Promise(r=>setTimeout(r,250));}
  assert.match(await c.request({method:'web3_clientVersion'}),/anvil/i);assert.equal((await c.getBlock({blockNumber:anchor.number})).hash,anchor.hash);
@@ -68,12 +72,21 @@ try {
  // chain quote for this fee-bound test; execution still uses the real EVM.
  const observedGasPrice=await pub.getGasPrice();for(const client of clients)client.getGasPrice=async()=>observedGasPrice;
  const store=createPaidStore(requestPool),workerStore=createPaidStore(workerPool);
- let archiveUnavailable=false;
- // The disposable chain's storage history starts at its fork anchor. Test
- // the same archive checks over that available history; unit/live checks
- // exercise the production wrapper's full 20,000-block lookback separately.
- const options={clients,release:r,now:()=>at,checkHistoryAccess:(pair,release,current)=>verifyPaidHistoryRange(pair,release,current,anchor.number),historyClients:()=>{
-  if(archiveUnavailable)throw Object.assign(Error('PAID_HISTORY_UNAVAILABLE'),{code:'PAID_HISTORY_UNAVAILABLE'});return clients;
+ let archiveUnavailable=false,failHistoryFrom=null;
+ // Concurrent historical reads at the exact remote fork anchor can deadlock
+ // Anvil. Begin at the first retained local block, before any test mission;
+ // verify the real archive checks there and preserve every later log page.
+ // Unit/live checks cover the production wrapper's full 20,000-block lookback.
+ const historyStart=anchor.number+1n;
+ assert.equal(keccak256(await c.getCode({address:r.collection,blockNumber:historyStart})??'0x'),r.collectionCodeHash);
+ assert.equal((await paidRead(c,r.collection,'ownerOf',[93n],historyStart)).toLowerCase(),r.owner);
+ const checkHistoryAccess=(pair,release,current)=>verifyPaidHistoryRange(pair,release,current,historyStart);
+ const options={clients,release:r,now:()=>at,checkHistoryAccess,historyClients:()=>{
+  if(archiveUnavailable)throw Object.assign(Error('PAID_HISTORY_UNAVAILABLE'),{code:'PAID_HISTORY_UNAVAILABLE'});
+  return clients.map(client=>({...client,getLogs:async query=>{
+   if(failHistoryFrom!==null&&query.fromBlock>=failHistoryFrom)throw Error('FIXTURE_LATER_ARCHIVE_PAGE_UNAVAILABLE');
+   return client.getLogs(query);
+  }}));
  }};
  const coordinator=createPaidCoordinator({...options,store}),workerCoordinator=createPaidCoordinator({...options,store:workerStore});
  const relay={getChainId:()=>c.getChainId(),getTransactionCount:v=>c.getTransactionCount(v),sendRawTransaction:v=>c.sendRawTransaction(v)};
@@ -87,6 +100,7 @@ try {
  const mine=async()=>{await c.request({method:'anvil_mine',params:['0xc','0x1']});at=Number((await c.getBlock()).timestamp)*1000;};
  let ownerSends=0;
  async function authorize(action='AUTHORIZE'){
+  phase=`PREPARE_${action}`;
   at=Number((await c.getBlock()).timestamp)*1000;
   const review=(await coordinator.prepare({action,maximumPriceWei:action==='AUTHORIZE'?'100000000000000':null})).record;
   const input={intentId:review.review.intentId,revision:review.revision,reviewHash:review.reviewHash};
@@ -98,8 +112,10 @@ try {
   return reported.record.review.intentId;
  }
  archiveUnavailable=true;
+ phase='EXPECTED_INITIAL_ARCHIVE_OUTAGE';
  await assert.rejects(coordinator.prepare({action:'AUTHORIZE',maximumPriceWei:null}),{code:'PAID_HISTORY_UNAVAILABLE'});
  assert.equal(await store.current(),null);archiveUnavailable=false;
+ phase='INITIAL_HISTORY_PREPARE';
  const rejected=(await coordinator.prepare({action:'AUTHORIZE',maximumPriceWei:null})).record;
  archiveUnavailable=true;
  await assert.rejects(coordinator.claim({intentId:rejected.review.intentId,revision:rejected.revision,reviewHash:rejected.reviewHash}),{code:'PAID_HISTORY_UNAVAILABLE'});
@@ -108,12 +124,21 @@ try {
  await assert.rejects(coordinator.decline({intentId:rejected.review.intentId,revision:claim.record.revision,rejectionCode:4002}),/PAID_JOURNAL_CHANGED/);
  await coordinator.decline({intentId:rejected.review.intentId,revision:claim.record.revision,rejectionCode:4001});
  const id=await authorize();
+ // A second log page is required while wall-clock mission time is unchanged.
+ // These blocks are mined only on the verified disposable Anvil above.
+ await c.request({method:'anvil_mine',params:['0x7d0','0x0']});
  // Lose the actual database lease after durable signature, before broadcast.
  const normal=relay.sendRawTransaction;let broadcastCalls=0;
  relay.sendRawTransaction=async()=>{throw Error('MUST_NOT_BROADCAST_WITHOUT_LEASE');};
  loseLeaseBeforeBroadcast=true;await assert.rejects(tick(),{code:'WORKER_LEASE_LOST'});loseLeaseBeforeBroadcast=false;
  const signed=(await workerPool.query('SELECT * FROM broker_selected_paid_executions WHERE intent_id=$1',[id])).rows[0];
  assert.equal(signed.status,'SIGNED');assert.equal(keccak256(signed.raw_transaction),signed.transaction_hash);
+ const signedRecord=await store.get(id);failHistoryFrom=BigInt(signedRecord.receipt.blockNumber)+2000n;
+ await assert.rejects(tick(),{code:'PAID_HISTORY_UNAVAILABLE'});failHistoryFrom=null;
+ const afterPageFailure=(await workerPool.query('SELECT * FROM broker_selected_paid_executions WHERE intent_id=$1',[id])).rows[0];
+ assert.equal(afterPageFailure.status,'SIGNED');assert.equal(afterPageFailure.raw_transaction,signed.raw_transaction);
+ assert.equal(afterPageFailure.transaction_hash,signed.transaction_hash);
+ assert.equal(await c.getTransactionCount({address:signer.address}),initialSignerNonce);
  archiveUnavailable=true;await assert.rejects(tick(),{code:'PAID_HISTORY_UNAVAILABLE'});archiveUnavailable=false;
  assert.equal((await workerPool.query('SELECT raw_transaction FROM broker_selected_paid_executions WHERE intent_id=$1',[id])).rows[0].raw_transaction,signed.raw_transaction);
  relay.sendRawTransaction=async args=>{broadcastCalls++;assert.equal(args.serializedTransaction,signed.raw_transaction);const hash=await normal(args);throw Object.assign(Error('FIXTURE_RESPONSE_LOST'),{fixtureHash:hash});};
@@ -127,6 +152,8 @@ try {
  await assert.rejects(requestPool.query('DELETE FROM broker_selected_paid_reviews'),e=>e.code==='42501');
  await assert.rejects(workerPool.query("UPDATE broker_selected_paid_executions SET raw_transaction='0x00'"),e=>e.code==='42501');
  const second=await authorize();
+ await c.request({method:'anvil_mine',params:['0x7d0','0x0']});
+ const beforeTransferCheckNonce=await c.getTransactionCount({address:signer.address});
  // Transfer away and back must invalidate the worker's authority even though
  // the deployed original NFT has no on-chain ownership epoch.
  const tokenABI=[...PAID_ABI,{type:'function',name:'transferFrom',stateMutability:'nonpayable',inputs:[{type:'address'},{type:'address'},{type:'uint256'}],outputs:[]}];
@@ -135,6 +162,9 @@ try {
  await c.request({method:'eth_sendTransaction',params:[{from:signer.address,to:r.collection,data:encodeFunctionData({abi:tokenABI,functionName:'transferFrom',args:[signer.address,r.owner,93n]})}]});
  await mine();const stopped=await tick();assert.equal(stopped.status,'PAID_STOPPED');assert.equal(stopped.reason,'PAID_OWNERSHIP_CHANGED');
  assert.equal((await workerPool.query('SELECT raw_transaction FROM broker_selected_paid_executions WHERE intent_id=$1',[second])).rows[0].raw_transaction,null);
+ // Only the explicitly impersonated return transfer changed the signer's
+ // nonce; the worker did not sign or broadcast a mint.
+ assert.equal(await c.getTransactionCount({address:signer.address}),beforeTransferCheckNonce+1);
  const secondReview=await store.get(second);
  await authorize('CANCEL_MISSION');await tick();assert.equal((await coordinator.get()).state.refundWei,String(BigInt(secondReview.review.executionFeeWei)+100000000000000n));
  await authorize('WITHDRAW_REFUND');await tick();assert.equal((await coordinator.get()).state.refundWei,'0');
@@ -156,10 +186,13 @@ try {
  const result={status:'PASS',environment:'DISPOSABLE_POSTGRES_AND_ANVIL_FORK',publicAnchor:{number:String(anchor.number),hash:anchor.hash},
   deployedFactory:r.factory,compiledVaultRuntimeVerified:r.vaultCodeHash,oneOwnerConfirmationForMint:true,workerExecuted:true,deliveredToken:completed.receipt.tokenId,
   lostBroadcastRecovery:true,sameSignedBytes:true,concurrentClaimWinner:1,ownershipRoundTripBlocked:true,cancelAndRefundVerified:true,
+  laterPageTransferBlocksWorker:true,laterPageOutagePreservesSignedPayload:true,
   transactionLeaseConcurrentWinner:1,transactionLeaseTimeoutRecovered:true,lostLeasePreventsBroadcast:true,retiredSessionLockCannotBlock:true,
   runtimeDriftBlockedAndRefundable:true,expiredMissionNotSigned:true,collectionAndActivityHistoryVerified:true,publicGasQuoteWei:String(observedGasPrice),
   unavailableArchiveBlocksPrepareAndClaim:true,archiveOutagePreservesSignedPayload:true,expiredUnsentMissionStopsDuringArchiveOutage:true,refundWorksDuringArchiveOutage:true,
   browserDatabaseDenied:true,requestCannotReadOrWriteSignedTransactions:true,publicTransactions:0};
  await writeFile(new URL('../docs/review/2026-09-12/selected-launch/production-paid-integration-fork.json',import.meta.url),JSON.stringify(result,null,2)+'\n');console.log(JSON.stringify(result));
-}catch(e){console.log(JSON.stringify({status:'FAILED',type:e.name,code:e.code??null,message:e.shortMessage??e.message,stack:e.stack?.split('\n').slice(0,5)}));process.exitCode=1;}
-finally{await Promise.all([requestPool?.end(),workerPool?.end(),browserPool?.end(),admin?.end()]);if(child?.exitCode===null)child.kill('SIGTERM');if(started)await command('pg_ctl',['-D',data,'-m','immediate','-w','stop']);await rm(dir,{recursive:true,force:true});}
+}catch(e){console.log(JSON.stringify({status:'FAILED',phase,type:e.name,code:e.code??null,message:e.shortMessage??e.message,providerStatus:e.providerStatus??null,stack:e.stack?.split('\n').slice(0,5)}));process.exitCode=1;}
+finally{await Promise.all([requestPool?.end(),workerPool?.end(),browserPool?.end(),admin?.end()]);if(child?.exitCode===null&&child.signalCode===null){
+ await new Promise(resolve=>{const timer=setTimeout(()=>child.kill('SIGKILL'),2000);child.once('exit',()=>{clearTimeout(timer);resolve();});child.kill('SIGTERM');});
+ }if(started)await command('pg_ctl',['-D',data,'-m','immediate','-w','stop']);await rm(dir,{recursive:true,force:true});}

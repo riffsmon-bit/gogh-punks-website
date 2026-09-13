@@ -1,0 +1,40 @@
+{
+  "checkedAt": "2026-09-13T16:01:01.751Z",
+  "environment": "LOCAL_CANDIDATE_RPC_PAIR",
+  "publicTransactions": 0,
+  "databaseWrites": 0,
+  "configurationChanged": false,
+  "decision": "REJECTED_INSUFFICIENT_HISTORICAL_COVERAGE",
+  "reason": "The selected recent-window probe passed, but BlockReq's public endpoint rejected the older positive control. This pair was not configured or approved for production archive coverage.",
+  "elapsedMs": 2064,
+  "readiness": {
+    "scope": "SELECTED_PAID_HISTORY_ACCESS_ONLY",
+    "chainId": 4663,
+    "tokenId": "93",
+    "historyLookbackBlocks": 20000,
+    "productionAuthorized": false,
+    "continuityVerified": false,
+    "publicTransactions": 0,
+    "databaseWrites": 0,
+    "status": "READY",
+    "code": "PAID_HISTORY_ACCESS_READY",
+    "verifiedProviders": 2,
+    "anchor": {
+      "number": "62082445",
+      "hash": "0x3c97e71432f2ac7ca6a84c083a1fcd0780e835f402fea558d1e079002caf98bf",
+      "timestamp": "1789315259"
+    }
+  },
+  "positiveControls": [
+    {
+      "hostname": "robinhood-mainnet-rpc.blockreq.com",
+      "knownNonemptyLogMatched": false,
+      "errorCode": -32601
+    },
+    {
+      "hostname": "rpc-robinhood.blockmachine.io",
+      "knownNonemptyLogMatched": true,
+      "blockNumber": "0x3aa9007"
+    }
+  ]
+}

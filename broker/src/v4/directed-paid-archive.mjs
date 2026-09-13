@@ -1,6 +1,25 @@
 import {keccak256} from 'viem';
 import {PAID_ABI,paidAssert,paidJson,paidRead,paidSame} from './directed-paid-mint.mjs';
 
+// Public archive providers bound each log request. Preserve the complete
+// inclusive ownership window; an unavailable page must never become no logs.
+export async function readPaidTransferHistory(client,collection,from,to) {
+ paidAssert(typeof from==='bigint'&&typeof to==='bigint'&&from>=0n&&to>=from&&to-from<=20000n,'PAID_OWNERSHIP_WINDOW_EXCEEDED');
+ const logs=[];
+ for(let cursor=from;cursor<=to;){
+  const end=cursor+1999n<to?cursor+1999n:to;
+  const page=await client.getLogs({address:collection,event:PAID_ABI.find(e=>e.type==='event'&&e.name==='Transfer'),
+   args:{tokenId:93n},fromBlock:cursor,toBlock:end,strict:true});
+  paidAssert(Array.isArray(page),'PAID_HISTORY_UNAVAILABLE');
+  for(let i=0;i<page.length;i++){
+   paidAssert(Object.hasOwn(page,i)&&page[i]&&typeof page[i]==='object','PAID_HISTORY_UNAVAILABLE');
+   logs.push(page[i]);
+  }
+  cursor=end+1n;
+ }
+ return logs;
+}
+
 // Check the history methods the worker will need BEFORE reserving a wallet
 // request. A successful latest-state read does not establish archive access.
 export async function verifyPaidHistoryAccess(clients,release,anchor) {
@@ -23,8 +42,7 @@ export async function verifyPaidHistoryRange(clients,release,anchor,from) {
    const [code,owner,logs]=await Promise.all([
     c.getCode({address:release.collection,blockNumber:from}),
     paidRead(c,release.collection,'ownerOf',[93n],from),
-    c.getLogs({address:release.collection,event:PAID_ABI.find(e=>e.type==='event'&&e.name==='Transfer'),
-     args:{tokenId:93n},fromBlock:from,toBlock:to,strict:true}),
+    readPaidTransferHistory(c,release.collection,from,to),
    ]);
    paidAssert(keccak256(code??'0x')===release.collectionCodeHash&&/^0x[0-9a-f]{40}$/i.test(owner)
     &&paidSame((await c.getBlock({blockNumber:to})).hash,anchor.hash),'PAID_HISTORY_UNAVAILABLE');

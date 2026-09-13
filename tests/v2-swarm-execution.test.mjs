@@ -261,10 +261,17 @@ test("readiness uses both providers and the existing bounded archive validator w
   assert.equal(result.status, "READY"); assert.equal(result.verifiedProviders, 2);
   assert.equal(result.productionAuthorized, false); assert.equal(result.continuityVerified, false);
   assert.equal(result.databaseWrites, 0); assert.equal(result.publicTransactions, 0);
-  const logs = f.calls.filter((entry) => entry[1] === "logs"); assert.equal(logs.length, 2);
+  const logs = f.calls.filter((entry) => entry[1] === "logs"); assert.equal(logs.length, 22);
+  for (const index of [0, 1]) {
+    const pages = logs.filter(([provider]) => provider === index).map(([, , args]) =>
+      [args.fromBlock, args.toBlock]);
+    assert.deepEqual(pages, [[30000n, 31999n], [32000n, 33999n], [34000n, 35999n], [36000n, 37999n],
+      [38000n, 39999n], [40000n, 41999n], [42000n, 43999n], [44000n, 45999n], [46000n, 47999n],
+      [48000n, 49999n], [50000n, 50000n]]);
+  }
   for (const [, , args] of logs) {
     assert.equal(args.address, ROBINHOOD.canonicalCollection); assert.equal(args.args.tokenId, 93n);
-    assert.equal(args.fromBlock, 30000n); assert.equal(args.toBlock, 50000n); assert.equal(args.strict, true);
+    assert.equal(args.strict, true);
   }
   assert.doesNotMatch(JSON.stringify(result), /private-secret|secret-key|https:/);
 });
