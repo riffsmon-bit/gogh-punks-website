@@ -1,0 +1,218 @@
+{
+  "schema": "GOGH_V2_SWARM_VALIDATION_V1",
+  "validationDate": "2026-09-13",
+  "baseCommit": "eec456222bc8028df1f91b3191ce0ff8874c467e",
+  "reviewedCodeCommit": "a453391d33506871c2c26cea24b048adf60b2066",
+  "branch": "v2/swarm-integration-20260913",
+  "status": "LOCAL_VALIDATION_PASSED",
+  "productionDeployed": false,
+  "publicTransactions": 0,
+  "gates": {
+    "javascript": {
+      "status": "PASS",
+      "command": "node --test --test-concurrency=1 tests/*.test.mjs broker/test/*.test.mjs",
+      "passed": 2153,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 235057.971885
+    },
+    "siteDeployment": {
+      "status": "PASS",
+      "command": "npm run site:deploy-check",
+      "passed": 140,
+      "failed": 0,
+      "skipped": 0,
+      "includes": [
+        "Scoped TypeScript compiler",
+        "Wallet esbuild bundle",
+        "7 pages and 16 unique collection previews",
+        "Links, assets, dimensions and secret scan",
+        "Syntax checks for 718 JavaScript modules",
+        "Art Broker deployed-manifest and database-entity checks"
+      ],
+      "limits": [
+        "Local validation only; no Netlify deployment or production packaging proof.",
+        "These 140 tests overlap the complete JavaScript suite; counts are not additive."
+      ]
+    },
+    "compiler": {
+      "status": "PASS",
+      "command": "npm run typecheck:v2-domain",
+      "typescript": "5.9.3",
+      "scope": "Strict positive and negative domain consumers; checkJs false and skipLibCheck true. This is not a whole-repository TypeScript migration."
+    },
+    "contracts": {
+      "status": "PASS",
+      "command": "npm run contracts:check",
+      "passed": 284,
+      "suites": 27,
+      "failed": 0,
+      "skipped": 0,
+      "includes": [
+        "Forge format",
+        "High-severity Solidity lint",
+        "Offline build and sizes",
+        "ABI trust-boundary checks",
+        "Fuzz tests"
+      ],
+      "limits": [
+        "Contract sources and pinned deployment/package artifacts were unchanged by the swarm.",
+        "Existing ownership round-trip gap remains documented; managed history checks remain mandatory."
+      ]
+    },
+    "functionBundleSmoke": {
+      "status": "PASS",
+      "method": "In-memory esbuild, platform node, format esm, target node24, packages external",
+      "bundledBytes": {
+        "broker-v2-agent-account-recovery": 54405,
+        "broker-v2-mcp": 153690
+      },
+      "limits": [
+        "Not a Netlify packaging or deployment test."
+      ]
+    },
+    "paidIntegration": {
+      "status": "PASS",
+      "command": "node scripts/test-directed-paid-production-fork.mjs --disposable-only --postgres-bin=/private/tmp/gogh-postgres-native/bin",
+      "evidence": "../review/2026-09-12/selected-launch/production-paid-integration-fork.json",
+      "environment": "DISPOSABLE_POSTGRES_AND_ANVIL_FORK",
+      "publicTransactions": 0,
+      "limits": [
+        "Delivery, cancellation and refund occurred only on the disposable fork.",
+        "Fork-range history does not prove production archive access."
+      ]
+    },
+    "burnIntegration": {
+      "status": "PASS",
+      "command": "node scripts/test-selected-burn-production-fork.mjs --disposable-only --postgres-bin=/private/tmp/gogh-postgres-native/bin",
+      "evidence": "../review/2026-09-12/selected-launch/production-burn-integration-fork.json",
+      "environment": "DISPOSABLE_POSTGRES_AND_ANVIL_FORK",
+      "publicTransactions": 0,
+      "limits": [
+        "Paused prerequisite established only on the verified local Anvil.",
+        "Source inventory checks mocked explicitly; this is not live inventory clearance.",
+        "Approval, burn and credit creation occurred only on the disposable fork."
+      ]
+    },
+    "paidBrowser": {
+      "command": "node scripts/test-directed-paid-browser.mjs --mock-wallet-only",
+      "status": "PASS",
+      "widths": [
+        1440,
+        375,
+        320
+      ],
+      "chatDraftOpensQuote": true,
+      "expiredQuoteDisablesSend": true,
+      "expiredMissionShowsCancellation": true,
+      "explicitRejectionSurvivesFailedReadAndReload": true,
+      "lostReadThenReloadRecovery": true,
+      "mockWalletSends": 1,
+      "publicTransactions": 0
+    },
+    "burnBrowser": {
+      "command": "node scripts/test-selected-burn-browser.mjs --mock-wallet-only",
+      "status": "PASS",
+      "expiredReviewDisablesSendWithoutErasingInput": true,
+      "explicitRejectionSurvivesFailedReadAndReload": true,
+      "widths": [
+        1440,
+        375,
+        320
+      ],
+      "lostReadThenReloadRecovery": true,
+      "mockWalletSends": 1,
+      "publicTransactions": 0
+    },
+    "controlCenterForgeBrowser": {
+      "status": "PASS",
+      "command": "GOGH_UI_SITE_ROOT=/private/tmp/gogh-punk93-mint-stall/site GOGH_UI_OUTPUT_DIR=/private/tmp/gogh-v2-swarm-ux-fixed node scripts/test-v2-swarm-ui.mjs --mock-wallet-only",
+      "widths": [
+        1440,
+        768,
+        375,
+        320
+      ],
+      "publicTransactions": 0,
+      "walletCalls": 0,
+      "runtimeErrors": 0,
+      "externalRequests": 0,
+      "screenshots": 24,
+      "localEvidence": "/private/tmp/gogh-v2-swarm-ux-fixed/report.json",
+      "scope": "Actual page layout plus injected mock panel dependencies; no controller, wallet or chain proof"
+    },
+    "crossSubsystemAndSql": {
+      "status": "PASS",
+      "evidence": "integration-validation.md",
+      "includedInFullJavascriptSuite": true,
+      "coverage": [
+        "Actual recovery panel/controller/API composition",
+        "Fresh owner and custody gates",
+        "Transferable progression and equipped research",
+        "Wallet-result recovery without resubmission",
+        "Real PGlite migration expiry, CAS and nonrenewing replay"
+      ],
+      "limits": [
+        "Boundary fixtures replace real wallet/RPC calls.",
+        "Generic production table grants were not audited live."
+      ]
+    },
+    "securityReview": {
+      "status": "REVIEWED",
+      "evidence": "security-review.md",
+      "closed": [
+        "Q-01",
+        "Q-02",
+        "Q-04"
+      ],
+      "documentedLimitation": "Q-03: receipt and event verification do not prove current custody."
+    },
+    "uxReview": {
+      "status": "PASS_AFTER_CORRECTIONS",
+      "evidence": "ux-review.md",
+      "findingsClosed": 5
+    }
+  },
+  "productionBlockers": {
+    "selectedPaidArchiveReadiness": "UNAVAILABLE",
+    "evidence": "archive-readiness.json",
+    "errors": [
+      "PRIMARY ARCHIVE RPC -32000",
+      "SECONDARY ARCHIVE HTTP 403"
+    ],
+    "limits": [
+      "Read-only local-process diagnostic; no configuration change or production authority.",
+      "Floor sweeps, WETH bids and broader skill promotion are not live."
+    ]
+  },
+  "localLogs": {
+    "javascript": {
+      "localPath": "/private/tmp/gogh-swarm-full-js.log",
+      "sha256": "a57d0b308f1a8469c152e9757c6f8291567d47b53c4402675d20bb4881dfd15c"
+    },
+    "site_deployment": {
+      "localPath": "/private/tmp/gogh-swarm-final-deploy-check.log",
+      "sha256": "521cd76f4205c09895bd15cc80d4f4d3f879ad6940f6177749867e4c362f1670"
+    },
+    "contracts": {
+      "localPath": "/private/tmp/gogh-swarm-contracts.log",
+      "sha256": "1b2f2044e8dfca82e9ba346141edce84a3ff91f661f91d4366406e9337d20ae5"
+    },
+    "paid_fork": {
+      "localPath": "/private/tmp/gogh-swarm-paid-fork.log",
+      "sha256": "e46e49e79692cd4b75f1b739ec9037eb6620122137dd660b89e46f3f05e23e7e"
+    },
+    "burn_fork": {
+      "localPath": "/private/tmp/gogh-swarm-burn-fork.log",
+      "sha256": "7ba452a1f22541fcecbb214c49b2b9e78ee8187fb6fbf13acfd5929133ac422d"
+    },
+    "paid_browser": {
+      "localPath": "/private/tmp/gogh-swarm-paid-browser.log",
+      "sha256": "315f0ebb188206e3e8fd3a238962b6d187420bef7dba0526e7a62d3c3fa4904f"
+    },
+    "burn_browser": {
+      "localPath": "/private/tmp/gogh-swarm-burn-browser.log",
+      "sha256": "76775101c8ac79aeafc12fa532cb8cfdca881dc482fff55293f04304ce5d5fef"
+    }
+  }
+}
