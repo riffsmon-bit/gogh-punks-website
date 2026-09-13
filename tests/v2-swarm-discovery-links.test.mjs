@@ -8,15 +8,29 @@ import { readCurrentRobinhoodSeaDropObservations } from
 import { seaDropObservationToOpportunity, V2_SEADROP_CODE_HASH,
   V2_SEADROP_ADAPTER_CODE_HASH, V2_REVIEWED_COLLECTION_CODE_HASHES } from
   "../broker/src/v4/discovery/seadrop-ingestor.mjs";
-import { inspectArtBrokerLink, normalizeArtBrokerLink } from "../broker/src/v4/link-scanner.mjs";
+import { ArtBrokerLinkError, inspectArtBrokerLink, normalizeArtBrokerLink } from
+  "../broker/src/v4/link-scanner.mjs";
 import { PostgresV2OpportunityRepository } from
   "../broker/src/v4/postgres-opportunity-repository.mjs";
+import { handleV2InspectUrl } from "../netlify/functions/broker-v2-inspect-url.mjs";
+import { handleV2ReviewInspectUrl } from "../netlify/functions/broker-v2-review-inspect-url.mjs";
+import { PublicError } from "../netlify/functions/_shared/http.mjs";
 
 const NOW = new Date("2026-09-13T12:00:00.000Z");
 const COLLECTION = `0x${"ab".repeat(20)}`;
 const TX = `0x${"12".repeat(32)}`;
 const BLOCK_HASH = `0x${"34".repeat(32)}`;
 const PINNED_HASH = `0x${"56".repeat(32)}`;
+const OWNER = `0x${"78".repeat(20)}`;
+
+function configureInspectSite(t) {
+  const previous = process.env.SITE_URL;
+  process.env.SITE_URL = "https://goghpunks.xyz";
+  t.after(() => {
+    if (previous === undefined) delete process.env.SITE_URL;
+    else process.env.SITE_URL = previous;
+  });
+}
 
 function observation(overrides = {}) {
   const seconds = Math.floor(NOW.getTime() / 1_000);
@@ -278,3 +292,92 @@ test("PGlite: real discovery upserts preserve canonical identity, newest state a
     await database.close();
   }
 });
+
+for (const [label, handle, origin, review] of [
+  ["production", handleV2InspectUrl, "https://goghpunks.xyz", false],
+  ["review", handleV2ReviewInspectUrl, "https://deploy-preview-42.preview.goghpunks.xyz", true],
+]) {
+  const request = (url, requestOrigin = origin) => new Request(
+    `${origin}/api/v2/${review ? "review/" : ""}inspect-url`, {
+      method: "POST", headers: { origin: requestOrigin, "content-type": "application/json" },
+      body: JSON.stringify({ tokenId: "93", url, ...(review ? { owner: OWNER } : {}) }),
+    });
+  const dependencies = { pool: {}, requireSession: async () => ({ walletAddress: OWNER }),
+    readAuthority: async () => ({ owner: OWNER }) };
+
+  test(`${label} inspect endpoint returns typed link input errors as HTTP 400`, async (t) => {
+    configureInspectSite(t);
+    let authorities = 0;
+    for (const [url, code] of [
+      ["javascript:alert(1)", "INVALID_URL"],
+      ["https://[::1]/", "PRIVATE_URL_BLOCKED"],
+      ["https://opensea.io/assets/not-a-collection", "UNSUPPORTED_URL"],
+      [`https://explorer.testnet.chain.robinhood.com/address/${COLLECTION}`, "UNSUPPORTED_CHAIN"],
+    ]) {
+      const response = await handle(request(url), { ...dependencies,
+        readAuthority: async (tokenId, { expectedOwner }) => {
+          assert.equal(tokenId, "93"); assert.equal(expectedOwner, OWNER);
+          authorities += 1; return { owner: OWNER };
+        } });
+      assert.equal(response.status, 400, `${label}: ${url}`);
+      assert.equal(response.headers.get("cache-control"), "no-store");
+      const payload = await response.json();
+      assert.equal(payload.ok, false);
+      assert.equal(payload.code, code);
+      assert.equal(typeof payload.message, "string");
+      assert.ok(payload.message.length > 0);
+      assert.deepEqual(Object.keys(payload).sort(), ["code", "message", "ok"]);
+    }
+    assert.equal(authorities, 4, "authority still runs before link normalization");
+  });
+
+  test(`${label} inspect endpoint keeps unrelated and resolver failures private HTTP 503 errors`, async (t) => {
+    configureInspectSite(t);
+    const logged = t.mock.method(console, "error", () => {});
+    for (const error of [new Error("private upstream failure details"),
+      Object.assign(new Error("private same-code failure"), { code: "INVALID_URL" }),
+      new ArtBrokerLinkError("INVALID_RESOLVER_RESULT", "private resolver failure details")]) {
+      const response = await handle(request("https://example.org/mint"), { ...dependencies,
+        inspect: async () => { throw error; } });
+      assert.equal(response.status, 503);
+      const payload = await response.json();
+      assert.equal(payload.ok, false);
+      assert.equal(payload.code, "V2_SERVICE_UNAVAILABLE");
+      assert.doesNotMatch(JSON.stringify(payload), /private|resolver failure|same-code/);
+    }
+    assert.equal(logged.mock.callCount(), 3);
+  });
+
+  test(`${label} inspect endpoint preserves origin and ownership gates and read-only success`, async (t) => {
+    configureInspectSite(t);
+    let inspections = 0;
+    const inspect = async (url) => { inspections += 1; return inspectArtBrokerLink(url); };
+    const wrongOrigin = await handle(request("https://[::1]/", "https://example.org"), {
+      ...dependencies, inspect,
+    });
+    assert.equal(wrongOrigin.status, review ? 404 : 403);
+    const wrongOwner = await handle(request("https://[::1]/"), { ...dependencies, inspect,
+      readAuthority: async () => { throw new PublicError(403, "NOT_CURRENT_OWNER", "Owner changed."); } });
+    assert.equal(wrongOwner.status, 403);
+    assert.equal((await wrongOwner.json()).code, "NOT_CURRENT_OWNER");
+    if (!review) {
+      const unsigned = await handle(request("https://[::1]/"), { ...dependencies, inspect,
+        requireSession: async () => { throw new PublicError(401, "V2_SESSION_REQUIRED", "Sign in."); } });
+      assert.equal(unsigned.status, 401);
+      assert.equal((await unsigned.json()).code, "V2_SESSION_REQUIRED");
+    }
+    assert.equal(inspections, 0);
+    const valid = await handle(request(`https://robinhoodchain.blockscout.com/address/${COLLECTION}`),
+      { ...dependencies, inspect });
+    assert.equal(valid.status, 200);
+    const payload = await valid.json();
+    assert.equal(payload.ok, true);
+    assert.equal(payload.inspection.link.identity, COLLECTION);
+    assert.equal(payload.inspection.status, "NEEDS_REVIEW");
+    assert.equal(payload.inspection.executable, false);
+    assert.equal(payload.inspection.externalTransactionAccepted, false);
+    assert.equal(payload.transactionPrepared, false);
+    assert.equal(payload.externalCalldataAccepted, false);
+    assert.equal(inspections, 1);
+  });
+}

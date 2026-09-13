@@ -32,7 +32,16 @@ Link inspection remains advisory: missing resolvers return `NEEDS_REVIEW`, and
 inspection always returns `executable: false` and
 `externalTransactionAccepted: false`, even if injected trusted evidence claims
 otherwise. No fetcher, wallet request, external calldata path or resolver was
-added. Existing API handlers and MCP callers keep the same return shape.
+added. Existing API handlers and MCP callers keep the same successful return shape.
+
+The lead approved a follow-up endpoint-local HTTP error mapping in the production
+and review inspect handlers. `ArtBrokerLinkError` instances with the four known
+input-error codes now return HTTP 400 with their public code/message. Ordinary
+errors, errors merely claiming a matching code, and `INVALID_RESOLVER_RESULT`
+still use the existing safe 503 response. Global `v2Failure` is unchanged.
+Production exposes a named handler with injectable server dependencies for
+offline tests; its Netlify default wrapper supplies no overrides. Origin,
+session and current-owner checks still precede link inspection.
 
 The lead explicitly extended file ownership to
 `broker/src/v4/postgres-opportunity-repository.mjs` after the audit reproduced
@@ -103,16 +112,10 @@ behavior. There is no schema migration or new evidence clock.
    Existing corrupted JSON rows that are never ingested again need a separately
    reviewed data audit/repair. No migration, operational query or production
    write was performed here.
-6. **HTTP error presentation remains generic.** Existing inspect handlers pass
-   `ArtBrokerLinkError` into `v2Failure`, which does not recognize this error
-   class and emits a generic 503. This already affected malformed/private links
-   and also affects the new testnet rejection. The lead was notified to assign
-   an endpoint-local typed-error-to-400 mapping to the API/UX owner. No API or
-   global exception mapping was changed here.
 
 ## Validation and integration
 
-Added `tests/v2-swarm-discovery-links.test.mjs` with eight focused tests. URL
+Added `tests/v2-swarm-discovery-links.test.mjs` with fourteen focused tests. URL
 matrices cover the reproduced IPv6/CGNAT cases, numeric aliases, local suffixes,
 authority/path ambiguity, mainnet/testnet separation, canonical output and the
 advisory execution boundary. One integration test uses the real shared chain
@@ -135,8 +138,17 @@ tests/art-broker-v2-pipeline.test.mjs tests/art-broker-v2-discovery-ingestor.tes
 full build, browser, native PostgreSQL server, contract execution or network
 request was needed. The shared `node_modules` symlink remains untracked.
 
-Only the link scanner, approved opportunity repository, new test and this review
-document belong to this commit. API/shared-schema/AI/MCP/contracts/migrations/UI,
+The endpoint follow-up passed seven focused checks with
+`node --test --test-concurrency=1 --test-name-pattern='inspect endpoint|review link inspection'
+tests/v2-swarm-discovery-links.test.mjs tests/art-broker-v2-review-functions.test.mjs`.
+These cover all four input error codes in both real handlers, safe 503 handling,
+origin/session/owner rejection ordering and unchanged advisory success. The
+preview's existing wrong-origin 404 and production's 403 are preserved. This
+follow-up did not rerun PGlite or contact any service.
+
+Only the link scanner, approved opportunity repository, two approved inspect
+handlers, new test and this review document belong to these commits.
+Shared-schema/AI/MCP/contracts/migrations/UI,
 source readers, security/policy modules, dependencies and deployment settings
 remain unchanged. The lead owns integrated full validation. No production
 burn/refund/sweep, activation, wallet transaction or deployment was attempted.
