@@ -1,0 +1,54 @@
+{
+  "schema": "GOGH_FORGE_COMPLETION_READONLY_V1",
+  "checkedAt": "2026-09-13T19:45:58.497Z",
+  "anchor": {
+    "number": "62215286",
+    "hash": "0xf9716ff2c738fc5918a46d173f2314ddb2d5cb08a2b65319197746b65f05c0b2"
+  },
+  "chainId": 4663,
+  "deployedPinsVerified": true,
+  "registryOwner": "0xC7f55cE6A7dF9A79cc4A643a5081230F890c7AA6",
+  "paused": false,
+  "disabledCapabilities": "115792089237316195423570985008687907853269984665640564039457584007913129639927",
+  "source1753Owner": "0xC7f55cE6A7dF9A79cc4A643a5081230F890c7AA6",
+  "target93Credits": "0",
+  "packages": [
+    {
+      "name": "Contract Detective",
+      "key": "0x1a7bb5f14ab81288db8a451245c3aa880c3696e9f2aae4ca3e72171416f9a837",
+      "manifestHash": "0x80695d48a12865c2c633b4977cd8f24dd598dd8808eae5ebf733052f8091ba24",
+      "instructionHash": "0x1e283e611d6f72e8fa34d1412a5cbef8dd4d936f0138a5f18fdf519bafc93252",
+      "registered": false,
+      "definitionMatches": false,
+      "status": 0,
+      "available": false,
+      "learnedLevel": 0,
+      "releasedForTraining": false
+    },
+    {
+      "name": "Rarity Eye",
+      "key": "0x2109a1600733ac7484f1358fcf5a116586a8e66b993ae96f479098fffbb7b1c1",
+      "manifestHash": "0x9f17224444ef8938c9d998754a6be4c9dce2029c5e6e6a5f918effdc276c0d26",
+      "instructionHash": "0x7f7baae864b35a8230361de2ac3a6abda099669a6659e3d76e5bdf105bf859f0",
+      "registered": true,
+      "definitionMatches": true,
+      "status": 4,
+      "available": true,
+      "learnedLevel": 0,
+      "releasedForTraining": true
+    },
+    {
+      "name": "Market Scout",
+      "key": "0x5be308fd3ddc8decbc42d85408afb0c0251ed92e2b556457406fea9a0376cf34",
+      "manifestHash": "0x558793169f07ac6af696cb2ad2f1d2a2678cc29b03fe9887586fb6a0fb0948e3",
+      "instructionHash": "0x002f585d2764331cd2fbbe96b12a382143e8f698d066d2929993c84acff43cce",
+      "registered": false,
+      "definitionMatches": false,
+      "status": 0,
+      "available": false,
+      "learnedLevel": 0,
+      "releasedForTraining": false
+    }
+  ],
+  "publicTransactions": 0
+}

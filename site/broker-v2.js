@@ -1188,7 +1188,12 @@ function renderSelected() {
   set("[data-fund-reserve]", `${balanceKnown ? punk.reserveEth : "—"} ETH`);
   set("[data-available-budget]", `${balanceKnown ? displayEthBudget(punk.balanceEth, punk.reserveEth) : "—"} ETH AVAILABLE`);
   set("[data-fund-available]", `${balanceKnown ? displayEthBudget(punk.balanceEth, punk.reserveEth) : "—"} ETH`);
-  const meter = one("[data-budget-meter]"); if (meter) meter.style.width = `${balance ? Math.min(100, available / balance * 100) : 0}%`;
+  const meter = one("[data-budget-meter]");
+  if (meter) {
+    const meterKnown = balanceKnown && Number.isFinite(balance) && Number.isFinite(reserve);
+    meter.hidden = !meterKnown;
+    meter.style.width = `${meterKnown && balance > 0 ? Math.min(100, available / balance * 100) : 0}%`;
+  }
   all("[data-hero-art], [data-chat-avatar]").forEach((image) => { image.src = cleanImage(punk.image); });
   all("[data-legacy-vault]").forEach((link) => { link.href = `/broker/punk/${punk.tokenId}?tab=assets`; });
   renderRoster(); renderGallery(); renderActivity(); renderReviewAgent(); renderReviewSkills();

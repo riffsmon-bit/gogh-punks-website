@@ -1,6 +1,6 @@
 // Browser preferences never authorize a strategy, a wallet request or a mission.
 const LABELS = Object.freeze({ AUTO: 'Auto · choose for this task', GEMINI: 'Gemini',
-  OPENAI: 'GPT', ANTHROPIC: 'Claude', XAI: 'Grok', BANKR: 'Bankr' });
+  OPENAI: 'GPT', ANTHROPIC: 'Claude', XAI: 'Grok', BANKR: 'Bankr', GROQ: 'Groq · GPT OSS' });
 export const validProviderPreference = value => Object.hasOwn(LABELS, value) ? value : 'AUTO';
 function ownerKey(context) {
   return context?.chainId === 4663 && /^0x[0-9a-f]{40}$/i.test(context.owner ?? '')

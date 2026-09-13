@@ -1,0 +1,49 @@
+{
+  "schema": "GOGH_GROQ_FIXED_PROVIDER_PROBE_V1",
+  "checkedAt": "2026-09-13T19:58:57.704Z",
+  "provider": "GROQ",
+  "modelId": "openai/gpt-oss-20b",
+  "status": "ADAPTER_LIVE_VERIFIED",
+  "freePlanVerified": true,
+  "accountBillingChanged": false,
+  "walletAuthority": "NONE",
+  "publicTransactions": 0,
+  "probes": [
+    {
+      "task": "CHAT",
+      "status": "PASS",
+      "actualModel": "openai/gpt-oss-20b",
+      "latencyMs": 213,
+      "usage": {
+        "inputTokens": 99,
+        "outputTokens": 21,
+        "cachedInputTokens": null
+      }
+    },
+    {
+      "task": "INTERPRET_INTENT",
+      "status": "PASS",
+      "actualModel": "openai/gpt-oss-20b",
+      "latencyMs": 125,
+      "usage": {
+        "inputTokens": 187,
+        "outputTokens": 41,
+        "cachedInputTokens": null
+      }
+    }
+  ],
+  "productionRuntimeVerified": false,
+  "credentialStorage": {
+    "key": "GROQ_API_KEY",
+    "stored": true,
+    "scopes": [
+      "functions"
+    ],
+    "contexts": [
+      "deploy-preview",
+      "production"
+    ],
+    "isSecret": true,
+    "secretPrinted": false
+  }
+}

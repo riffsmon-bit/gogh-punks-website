@@ -1,7 +1,7 @@
 import { ArtBrokerProviderError, assertProviderTask } from "./provider.mjs";
 
 const HIGH_CAPABILITY_TASKS = new Set(["EXTRACT_PROJECT_DATA", "SUMMARIZE_RISK"]);
-export const PROVIDER_PREFERENCES = Object.freeze(["AUTO", "GEMINI", "OPENAI", "ANTHROPIC", "XAI", "BANKR"]);
+export const PROVIDER_PREFERENCES = Object.freeze(["AUTO", "GEMINI", "OPENAI", "ANTHROPIC", "XAI", "BANKR", "GROQ"]);
 export function providerPreference(value = "AUTO") {
   if (!PROVIDER_PREFERENCES.includes(value)) throw new TypeError("provider preference is invalid");
   return value;

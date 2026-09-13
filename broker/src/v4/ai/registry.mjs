@@ -1,4 +1,4 @@
-const PROVIDERS = new Set(["GEMINI", "OPENAI", "ANTHROPIC", "XAI", "BANKR"]);
+const PROVIDERS = new Set(["GEMINI", "OPENAI", "ANTHROPIC", "XAI", "BANKR", "GROQ"]);
 const CAPABILITIES = ["supportsImages", "supportsTools", "supportsStructuredOutput"];
 
 function registryEntry(value) {
@@ -59,6 +59,7 @@ export class ArtBrokerModelRegistry {
 
 export function modelRegistryFromEnvironment(environment = process.env) {
   const definitions = [
+    ["GROQ", "GOGH_GROQ_MODEL", "groq:auto", "Groq · GPT OSS", 1, 5],
     ["GEMINI", "GOGH_GEMINI_MODEL", "gemini:auto", "Gemini", 1, 5],
     ["OPENAI", "GOGH_OPENAI_MODEL", "openai:auto", "GPT", 2, 4],
     ["ANTHROPIC", "GOGH_ANTHROPIC_MODEL", "anthropic:auto", "Claude", 3, 3],
@@ -69,7 +70,7 @@ export function modelRegistryFromEnvironment(environment = process.env) {
     typeof environment[variable] === "string" && environment[variable].trim()
   )).map(([provider, variable, registryKey, displayName, costTier, speedTier], index) => ({
     provider, registryKey, displayName, modelId: environment[variable].trim(), costTier, speedTier,
-    capabilities: { supportsImages: true, supportsTools: false, supportsStructuredOutput: true },
+    capabilities: { supportsImages: !["GROQ", "BANKR"].includes(provider), supportsTools: false, supportsStructuredOutput: true },
     enabled: true, fallbackPriority: index + 1,
     inputCostMicrousdPerMillionTokens: configuredCost(environment, provider, "INPUT"),
     outputCostMicrousdPerMillionTokens: configuredCost(environment, provider, "OUTPUT"),

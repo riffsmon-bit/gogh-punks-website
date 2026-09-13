@@ -552,6 +552,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .directed-paid-panel input { width:100%; min-width:0; padding:12px; color:inherit; background:#0b1117; border:1px solid #536277; }
 .directed-paid-panel pre { max-height:280px; overflow:auto; white-space:pre-wrap; font-size:12px; }
 .directed-paid-panel a { display:inline-block; margin:8px 0; color:var(--acid,#dfff3f); }
+.directed-paid-panel a.filter-button { display:inline-flex; align-items:center; justify-content:center; margin-right:8px; text-decoration:none; }
 
 .agent-recovery-panel { margin-top: 28px; padding: clamp(18px, 3vw, 28px); border: 1px solid var(--acid); scroll-margin: 100px; overflow-wrap: anywhere; }
 .agent-recovery-panel h3 { margin: 0 0 16px; font-family: var(--font-display); font-size: clamp(1.6rem, 4vw, 2.4rem); }
