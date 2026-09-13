@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {keccak256} from 'viem';
-import {verifyPaidHistoryAccess,paidReceiptState} from '../broker/src/v4/directed-paid-archive.mjs';
+import {verifyPaidHistoryAccess,paidReceiptState,readPaidTransferHistory} from '../broker/src/v4/directed-paid-archive.mjs';
 import {directedPaidHistoryClients} from '../netlify/functions/_shared/directed-paid-history-runtime.mjs';
 import {paidReviewStatus} from '../site/directed-paid-status.js';
 
@@ -15,8 +15,41 @@ test('history readiness exercises old storage and the full ownership window on b
  assert.deepEqual(await verifyPaidHistoryAccess(clients,release,anchor),{status:'READY',verifiedProviders:2});
  for(const i of [0,1]){
   assert.equal(calls.find(v=>v.i===i&&v.method==='readContract').args.blockNumber,20000n);
-  const {args}=calls.find(v=>v.i===i&&v.method==='getLogs');assert.equal(args.fromBlock,20000n);assert.equal(args.toBlock,40000n);
+  const pages=calls.filter(v=>v.i===i&&v.method==='getLogs').map(v=>v.args);
+  assert.deepEqual(pages.map(p=>[p.fromBlock,p.toBlock]),[[20000n,21999n],[22000n,23999n],[24000n,25999n],[26000n,27999n],[28000n,29999n],
+   [30000n,31999n],[32000n,33999n],[34000n,35999n],[36000n,37999n],[38000n,39999n],[40000n,40000n]]);
+  for(const page of pages){assert.equal(page.address,release.collection);assert.equal(page.args.tokenId,93n);assert.equal(page.strict,true);}
  }
+});
+test('paged history preserves transfers at every page boundary and the final inclusive block',async()=>{
+ const events=[0n,1999n,2000n,3999n,4000n,5999n,6000n,7999n,8000n,9999n,10000n,11999n,12000n,13999n,14000n,
+  15999n,16000n,17999n,18000n,19999n,20000n].map(blockNumber=>({blockNumber,transactionHash:hash}));
+ const c={getLogs:async({fromBlock,toBlock})=>events.filter(e=>e.blockNumber>=fromBlock&&e.blockNumber<=toBlock)};
+ assert.deepEqual(await readPaidTransferHistory(c,owner,0n,20000n),events);
+ assert.deepEqual(await readPaidTransferHistory(c,owner,20000n,20000n),[events.at(-1)]);
+});
+test('a failed or malformed history page never returns a successful partial result',async()=>{
+ for(const failure of ['throw','null','sparse']){
+  let pages=0;const c={getLogs:async()=>{
+   if(++pages===2){if(failure==='throw')throw Error('private provider details');return failure==='null'?null:new Array(1);}
+   return [{blockNumber:0n}];
+  }};
+  await assert.rejects(readPaidTransferHistory(c,owner,0n,20000n));assert.equal(pages,2);
+ }
+});
+test('paged history rejects invalid or excessive ownership windows before RPC access',async()=>{
+ let calls=0;const c={getLogs:async()=>{calls++;return [];}};
+ for(const [from,to] of [[-1n,1n],[2n,1n],[0n,20001n],[0,1n],[0n,'1']]){
+  await assert.rejects(readPaidTransferHistory(c,owner,from,to),{code:'PAID_OWNERSHIP_WINDOW_EXCEEDED'});
+ }
+ assert.equal(calls,0);
+});
+test('readiness compares the final page from both providers and fails on a middle-page outage',async()=>{
+ const clients=[client(),client()];
+ clients[1].getLogs=async({fromBlock})=>fromBlock===40000n?[{transactionHash:hash}]:[];
+ await assert.rejects(verifyPaidHistoryAccess(clients,release,anchor),{code:'PAID_HISTORY_UNAVAILABLE'});
+ clients[1].getLogs=async({fromBlock})=>{if(fromBlock===30000n)throw Error('https://provider.example/secret');return [];};
+ await assert.rejects(verifyPaidHistoryAccess(clients,release,anchor),e=>e.code==='PAID_HISTORY_UNAVAILABLE'&&e.message==='PAID_HISTORY_UNAVAILABLE');
 });
 test('an archive denial, wrong chain, inconsistent logs or wrong pinned code blocks readiness without leaking credentials',async()=>{
  for(const mutation of [

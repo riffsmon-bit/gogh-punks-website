@@ -1,0 +1,51 @@
+{
+  "schema": "GOGH_FREE_ARCHIVE_RPC_VALIDATION_V1",
+  "checkedAt": "2026-09-13T16:33:26.006Z",
+  "status": "PASS",
+  "environment": "LOCAL_CLIENTS_MATCHING_NETLIFY_HISTORY_RUNTIME",
+  "readinessElapsedMs": 2912,
+  "logPageBlocks": 2000,
+  "readiness": {
+    "scope": "SELECTED_PAID_HISTORY_ACCESS_ONLY",
+    "chainId": 4663,
+    "tokenId": "93",
+    "historyLookbackBlocks": 20000,
+    "productionAuthorized": false,
+    "continuityVerified": false,
+    "publicTransactions": 0,
+    "databaseWrites": 0,
+    "status": "READY",
+    "code": "PAID_HISTORY_ACCESS_READY",
+    "verifiedProviders": 2,
+    "anchor": {
+      "number": "62101574",
+      "hash": "0x55da2569b4608c476d6248faa0ee3721eda589d4a8187c8279bab78068f6cb73",
+      "timestamp": "1789317203"
+    }
+  },
+  "positiveControls": [
+    {
+      "hostname": "mainnet.robinhood.validationcloud.io",
+      "status": "PASS",
+      "knownNonemptyLogMatched": true,
+      "oldPinnedCodeMatched": true,
+      "oldOwnerMatched": true,
+      "oldReceiptMatched": true,
+      "blockNumber": "61509639",
+      "blockHash": "0xf47beb6fa51a0e01abd7b73d486a961a742880adc89b84c865457e1f2368aa93"
+    },
+    {
+      "hostname": "rpc-robinhood.blockmachine.io",
+      "status": "PASS",
+      "knownNonemptyLogMatched": true,
+      "oldPinnedCodeMatched": true,
+      "oldOwnerMatched": true,
+      "oldReceiptMatched": true,
+      "blockNumber": "61509639",
+      "blockHash": "0xf47beb6fa51a0e01abd7b73d486a961a742880adc89b84c865457e1f2368aa93"
+    }
+  ],
+  "configurationChanged": false,
+  "publicTransactions": 0,
+  "databaseWrites": 0
+}
