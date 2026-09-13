@@ -1,0 +1,257 @@
+{
+  "schema": "GOGH_MARKETPLACE_GUARD_DEPLOYMENT_PROPOSAL_V1",
+  "action": "DEPLOY_PURCHASE_POSTCONDITION_GUARD",
+  "status": "OFFLINE_PROPOSAL_REQUIRES_FRESH_OWNER_REVIEW",
+  "chainId": 4663,
+  "productionAuthority": false,
+  "broadcastReady": false,
+  "deploymentAddress": null,
+  "deploymentTransactionHash": null,
+  "publicTransactions": 0,
+  "postedOrders": 0,
+  "purpose": "Final check in an owner-confirmed, exact ETH listing purchase batch. No custody or spending authority.",
+  "payer": {
+    "address": "0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6",
+    "role": "PROPOSED_DEPLOYMENT_FEE_PAYER_ONLY",
+    "contractAdmin": false
+  },
+  "constructor": {
+    "signature": "constructor(address registry_)",
+    "arguments": [
+      "0x3253adc3bbd5b0010c1bf9ce8def26b7e0db5844"
+    ]
+  },
+  "exactCreateTransaction": {
+    "from": "0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6",
+    "chainId": "0x1237",
+    "value": "0x0",
+    "data": "0x60c0346100b657601f61068738819003918201601f19168301916001600160401b038311848410176100ba578084926020946040528339810103126100b657516001600160a01b0381168082036100b65761123746148015906100ad575b61009e576080523f60a0526040516105b890816100cf82396080518181816103c60152818161044b01526104a8015260a05181818161042a015261050f0152f35b633580794360e21b5f5260045ffd5b50813b1561005d565b5f80fd5b634e487b7160e01b5f52604160045260245ffdfe6080806040526004361015610012575f80fd5b5f3560e01c9081630843f3c3146104fa5750806330da111a146104cc5780637b103999146104895763fd97d11214610048575f80fd5b346102bc576101003660031901126102bc57600435602435906001600160a01b0382168092036102bc576064356001600160a01b038116918282036102bc5760a4359167ffffffffffffffff83116102bc57366023840112156102bc5782600401359467ffffffffffffffff86116102bc576024840193602436918860051b0101116102bc5761123746149283159361047d575b8315610428575b83156103a1575b8315610398575b8315610322575b5082156102c8575b50811561025f575b8115610252575b8115610249575b811561023e575b8115610220575b8115610216575b8115610208575b506101c0575f5b83811061014257005b61014d818584610587565b6040516331a9108f60e11b815290356004820152602081602481875afa9081156101fd575f916101cf575b506001600160a01b03339116036101c0575f5b81811061019b5750600101610139565b6101a6828685610587565b356101b2828786610587565b35146101c05760010161018b565b633580794360e21b5f5260045ffd5b6101f0915060203d81116101f6575b6101e88183610532565b810190610568565b5f610178565b503d6101de565b6040513d5f823e3d90fd5b3f608435141590505f610132565b803b15915061012b565b73e0f92b3b0e6ded3654177fe3809cd300e5ffadf684149150610124565b60058511915061011d565b84159150610116565b60c435333110915061010f565b60405163c19d93fb60e01b8152909150602081600481335afa9081156101fd575f91610292575b50604435141590610108565b90506020813d6020116102c0575b816102ad60209383610532565b810103126102bc57515f610286565b5f80fd5b3d91506102a0565b604051638da5cb5b60e01b815291925090602081600481335afa80156101fd576001600160a01b03915f91610303575b50161415905f610100565b61031c915060203d6020116101f6576101e88183610532565b5f6102f8565b909250604051906331a9108f60e11b8252600482015260208160248173e0f92b3b0e6ded3654177fe3809cd300e5ffadf65afa9081156101fd5783916001600160a01b03915f91610379575b50161415915f6100f8565b610392915060203d6020116101f6576101e88183610532565b5f61036e565b811593506100f1565b92506040516305baf8cb60e31b81528360048201526020816024816001600160a01b037f0000000000000000000000000000000000000000000000000000000000000000165afa80156101fd576001600160a01b03915f91610409575b5016331415926100ea565b610422915060203d6020116101f6576101e88183610532565b5f6103fe565b7f00000000000000000000000000000000000000000000000000000000000000007f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03163f141593506100e3565b60e435421193506100dc565b346102bc575f3660031901126102bc5760206040516001600160a01b037f0000000000000000000000000000000000000000000000000000000000000000168152f35b346102bc575f3660031901126102bc57602060405173e0f92b3b0e6ded3654177fe3809cd300e5ffadf68152f35b346102bc575f3660031901126102bc576020907f00000000000000000000000000000000000000000000000000000000000000008152f35b90601f8019910116810190811067ffffffffffffffff82111761055457604052565b634e487b7160e01b5f52604160045260245ffd5b908160209103126102bc57516001600160a01b03811681036102bc5790565b91908110156105975760051b0190565b634e487b7160e01b5f52603260045260245ffdfea164736f6c6343000822000a0000000000000000000000003253adc3bbd5b0010c1bf9ce8def26b7e0db5844"
+  },
+  "transactionDataHash": "0xba334881343f01d3cf48d0ea2de649fb872bb686ece9b8b2c8e469a95041117d",
+  "pendingTransactionFields": [
+    "nonce",
+    "gas",
+    "gasPrice or EIP-1559 fee caps"
+  ],
+  "maximumNetworkFeeWei": null,
+  "liveAnchor": null,
+  "build": {
+    "contract": "GoghPunkMarketplaceGuard",
+    "source": "contracts/src/GoghPunkMarketplaceGuard.sol",
+    "sourceSha256": "cb9084cde5e785985c1dbd7ac06d68d884983b51fb81af578c0e97b9776af226",
+    "sourceKeccak256": "0x4cff37068d0341a50fe2427c09e38464889f1937ee4927394874ef5ca18b2ce3",
+    "compilerVersion": "0.8.34+commit.80d5c536",
+    "settings": {
+      "remappings": [
+        "@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/"
+      ],
+      "optimizer": {
+        "enabled": true,
+        "runs": 500
+      },
+      "metadata": {
+        "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+        "contracts/src/GoghPunkMarketplaceGuard.sol": "GoghPunkMarketplaceGuard"
+      },
+      "evmVersion": "cancun",
+      "libraries": {},
+      "viaIR": true
+    },
+    "abi": [
+      {
+        "type": "constructor",
+        "inputs": [
+          {
+            "name": "registry_",
+            "type": "address",
+            "internalType": "address"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "type": "function",
+        "name": "PUNKS",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "",
+            "type": "address",
+            "internalType": "address"
+          }
+        ],
+        "stateMutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "assertPurchase",
+        "inputs": [
+          {
+            "name": "punkId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "expectedOwner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "expectedAccountState",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "collection",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "collectionCodeHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "tokenIds",
+            "type": "uint256[]",
+            "internalType": "uint256[]"
+          },
+          {
+            "name": "minimumReserveWei",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "deadline",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ],
+        "outputs": [],
+        "stateMutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "registry",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "",
+            "type": "address",
+            "internalType": "contract IMarketplaceGuardRegistry"
+          }
+        ],
+        "stateMutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "registryCodeHash",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ],
+        "stateMutability": "view"
+      },
+      {
+        "type": "error",
+        "name": "InvalidPurchasePostcondition",
+        "inputs": []
+      }
+    ],
+    "abiHash": "0x3708466f85163cc5fcce5a5efac227666ad1c6081c9ecf5ce8edef43eb79ac2a",
+    "creationBytecodeHash": "0xddd3c2b98dc8fc16f23bf50c4334245fcbdf0b01028d4411379f4182eefddf2b",
+    "creationBytecodeBytes": 1671,
+    "runtimeTemplateHash": "0xbc2dc251a0ec38831293e419aec60017ad1f5c244cd830b5415990fb16340861",
+    "runtimeTemplate": "0x6080806040526004361015610012575f80fd5b5f3560e01c9081630843f3c3146104fa5750806330da111a146104cc5780637b103999146104895763fd97d11214610048575f80fd5b346102bc576101003660031901126102bc57600435602435906001600160a01b0382168092036102bc576064356001600160a01b038116918282036102bc5760a4359167ffffffffffffffff83116102bc57366023840112156102bc5782600401359467ffffffffffffffff86116102bc576024840193602436918860051b0101116102bc5761123746149283159361047d575b8315610428575b83156103a1575b8315610398575b8315610322575b5082156102c8575b50811561025f575b8115610252575b8115610249575b811561023e575b8115610220575b8115610216575b8115610208575b506101c0575f5b83811061014257005b61014d818584610587565b6040516331a9108f60e11b815290356004820152602081602481875afa9081156101fd575f916101cf575b506001600160a01b03339116036101c0575f5b81811061019b5750600101610139565b6101a6828685610587565b356101b2828786610587565b35146101c05760010161018b565b633580794360e21b5f5260045ffd5b6101f0915060203d81116101f6575b6101e88183610532565b810190610568565b5f610178565b503d6101de565b6040513d5f823e3d90fd5b3f608435141590505f610132565b803b15915061012b565b73e0f92b3b0e6ded3654177fe3809cd300e5ffadf684149150610124565b60058511915061011d565b84159150610116565b60c435333110915061010f565b60405163c19d93fb60e01b8152909150602081600481335afa9081156101fd575f91610292575b50604435141590610108565b90506020813d6020116102c0575b816102ad60209383610532565b810103126102bc57515f610286565b5f80fd5b3d91506102a0565b604051638da5cb5b60e01b815291925090602081600481335afa80156101fd576001600160a01b03915f91610303575b50161415905f610100565b61031c915060203d6020116101f6576101e88183610532565b5f6102f8565b909250604051906331a9108f60e11b8252600482015260208160248173e0f92b3b0e6ded3654177fe3809cd300e5ffadf65afa9081156101fd5783916001600160a01b03915f91610379575b50161415915f6100f8565b610392915060203d6020116101f6576101e88183610532565b5f61036e565b811593506100f1565b92506040516305baf8cb60e31b81528360048201526020816024816001600160a01b037f0000000000000000000000000000000000000000000000000000000000000000165afa80156101fd576001600160a01b03915f91610409575b5016331415926100ea565b610422915060203d6020116101f6576101e88183610532565b5f6103fe565b7f00000000000000000000000000000000000000000000000000000000000000007f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03163f141593506100e3565b60e435421193506100dc565b346102bc575f3660031901126102bc5760206040516001600160a01b037f0000000000000000000000000000000000000000000000000000000000000000168152f35b346102bc575f3660031901126102bc57602060405173e0f92b3b0e6ded3654177fe3809cd300e5ffadf68152f35b346102bc575f3660031901126102bc576020907f00000000000000000000000000000000000000000000000000000000000000008152f35b90601f8019910116810190811067ffffffffffffffff82111761055457604052565b634e487b7160e01b5f52604160045260245ffd5b908160209103126102bc57516001600160a01b03811681036102bc5790565b91908110156105975760051b0190565b634e487b7160e01b5f52603260045260245ffdfea164736f6c6343000822000a",
+    "immutableReferences": {
+      "17629": [
+        {
+          "start": 966,
+          "length": 32
+        },
+        {
+          "start": 1099,
+          "length": 32
+        },
+        {
+          "start": 1192,
+          "length": 32
+        }
+      ],
+      "17631": [
+        {
+          "start": 1066,
+          "length": 32
+        },
+        {
+          "start": 1295,
+          "length": 32
+        }
+      ]
+    },
+    "immutableBindings": [
+      {
+        "name": "registry",
+        "offsets": [
+          966,
+          1099,
+          1192
+        ],
+        "value": "0x0000000000000000000000003253adc3bbd5b0010c1bf9ce8def26b7e0db5844"
+      },
+      {
+        "name": "registryCodeHash",
+        "offsets": [
+          1066,
+          1295
+        ],
+        "value": "0x5a1001edb812b6ec2e233cbba6db4b7c680d0832453927696cf1ef623fff8e22"
+      }
+    ],
+    "expectedConstructorRuntimeHash": "0xf5a63f3ae0c40cb8c9f85b44aeab36d24b6a8f23da0b7df84fb70df4d813f9e7",
+    "expectedRuntimeEvidence": "Offline immutable substitution; matches the prior owned-fork constructor result in docs/v2-marketplace/disposable-repair-evidence.json. No public deployment is implied.",
+    "runtimeTemplateWarning": "This zero-immutable template hash is NOT a deployed runtime code hash. The constructor embeds registry address and its code hash.",
+    "inputArtifactSha256": "954a8b30189808ecb9d595dcf78a6b09d4273ab5621240470f9c915a66d6188f"
+  },
+  "expectedDependencies": {
+    "registry": {
+      "address": "0x3253adc3bbd5b0010c1bf9ce8def26b7e0db5844",
+      "runtimeCodeHash": "0x5a1001edb812b6ec2e233cbba6db4b7c680d0832453927696cf1ef623fff8e22"
+    },
+    "punkCollection": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+    "agentImplementation": {
+      "address": "0xfdb26c2ec70956227728414ff4ab7a5eda64d13b",
+      "runtimeCodeHash": "0x7d37d360014ce94902655062605b8318581097df100ab2573be52904afa6badc"
+    },
+    "seaport": {
+      "address": "0x0000000000000068f116a894984e2db1123eb395",
+      "runtimeCodeHash": "0x95809b70c9659c30188db5fdd87103e24b1a55379af8c851fca393aba0224a00"
+    }
+  },
+  "requiredBeforeWalletConfirmation": [
+    "Re-read chain 4663 and the registry runtime pin at one fresh canonical anchor.",
+    "Simulate this exact contract creation with the current registry code; capture the constructor-populated runtime.",
+    "Bind the intended payer, fresh pending nonce, gas estimate, maximum fee and review expiry.",
+    "Present the complete fee-bounded transaction for explicit owner approval."
+  ],
+  "requiredBeforePurchaseExposure": [
+    "Verify the exact creation receipt and canonical finality; runtime must match expectedConstructorRuntimeHash, and registry() and registryCodeHash() must match these pins.",
+    "Independently review and pin the observed deployed guard runtime; never use runtimeTemplateHash as the deployment pin.",
+    "Verify the current owner, canonical Agent, listing, skill, budget, reserve, simulation and durable review-journal gates."
+  ],
+  "exclusions": [
+    "WETH bid deployment",
+    "order publication",
+    "NFT transfer",
+    "Punk burn",
+    "refund",
+    "wallet module installation",
+    "autonomous execution enablement"
+  ]
+}
