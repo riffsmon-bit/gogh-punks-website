@@ -1,3 +1,9 @@
+/** @typedef {'INTERPRET_INTENT' | 'CLASSIFY_ART' | 'SUMMARIZE_COLLECTION' |
+ * 'EXPLAIN_OPPORTUNITY' | 'EXPLAIN_SIMULATION' | 'EXTRACT_PROJECT_DATA' |
+ * 'SUMMARIZE_RISK' | 'CHAT'} ArtBrokerAITask */
+/** @typedef {{prompt: string, instructions?: string, schema?: Record<string, unknown>,
+ * maxOutputTokens?: number}} ArtBrokerAIInput */
+/** @type {ReadonlyArray<ArtBrokerAITask>} */
 export const ART_BROKER_AI_TASKS = Object.freeze([
   "INTERPRET_INTENT", "CLASSIFY_ART", "SUMMARIZE_COLLECTION",
   "EXPLAIN_OPPORTUNITY", "EXPLAIN_SIMULATION", "EXTRACT_PROJECT_DATA",
@@ -197,7 +203,12 @@ export class ArtBrokerAIProvider {
 
   getCapabilities() { throw new Error("getCapabilities() must be implemented"); }
   healthCheck() { throw new Error("healthCheck() must be implemented"); }
-  invoke() { throw new Error("invoke() must be implemented"); }
+  /**
+   * @param {ArtBrokerAITask} _task
+   * @param {ArtBrokerAIInput} _input
+   * @returns {Promise<ReturnType<typeof providerResult>>}
+   */
+  invoke(_task, _input) { throw new Error("invoke() must be implemented"); }
   interpretIntent(input) { return this.invoke("INTERPRET_INTENT", input); }
   classifyArt(input) { return this.invoke("CLASSIFY_ART", input); }
   summarizeCollection(input) { return this.invoke("SUMMARIZE_COLLECTION", input); }
