@@ -58,7 +58,7 @@ This command requires existing server environment values; it does not fetch secr
 
 Focused adapter/probe and existing AI regression suite: **74/74 passed**, zero failures, skipped or cancelled (2.213 seconds). Command: `node --test tests/groq-provider.test.mjs tests/bankr-enablement.test.mjs tests/v2-swarm-ai.test.mjs tests/v2-hardening-ai.test.mjs`. Both operator scripts also passed Node syntax checks and `git diff --check` passed. New tests cover exact model/origin binding, dedicated credential preference, no network without configuration/free-plan verification, no arbitrary tool routing, actual provider identity, strict JSON output, truncated/refused/tool-call responses, sanitized limits, two fixed read-only Bankr checks, daily budget/credit rejection, bounded stalled streams and the distinction between configuration, local live proof and deployed readiness.
 
-No new contracts, wallet permissions, skills, database migrations, frontend controls or production environment changes are included in this specialist branch. Root integrates the approved shared seams separately. Bankr remains disabled; Groq has completed secure credential handoff and direct live probes; deployed verification remains pending.
+The original specialist branch added no contracts, wallet permissions, skills, database migrations or frontend controls. Root integrated the shared seams below. Bankr remains disabled. Groq has completed secure credential handoff, direct live probes and deployed preview verification; production verification follows publication.
 
 ## Lead integration evidence
 
@@ -71,3 +71,17 @@ The integrated focused suite passed 105 tests. Native disposable PostgreSQL pass
 The complete site gate passed 2,488 JavaScript tests, domain typechecking, wallet build, syntax/static/secret checks and broker checks. The real browser harness passed 25 scenarios and 59 screenshots, including clearing the stale balance meter. The fresh independent reviewer approved reversible deployment with 148 focused and eight adversarial tests; subsequent metadata/comment changes passed 57 tests. See [independent review](free-ai-security-review.md).
 
 Netlify applies the provider constraint migration to the preview database before availability and to production before publishing; migration failures block publication. [Netlify migration lifecycle](https://docs.netlify.com/build/data-and-storage/netlify-database/migrations/). No out-of-band production SQL was executed. Legacy V1 settlement source strings remain secondary/primary slot identifiers, not vendor provenance, to preserve saved evidence hashes and the existing training database constraint.
+
+The authenticated deployed preview check passed at 2026-09-13T20:18:28Z on
+`9fc8b02628b594ea372316d2308423e12def7130`, Netlify deploy
+`6aa7045f0044aa0008b74635`. Both actual Groq chat and structured-output checks
+passed through the durable quota-backed runtime, with all six usage/registry
+database privileges verified. The combined check took 3,163 ms; this is one
+observation, not a latency guarantee. [Sanitized preview proof](groq-preview-proof.json).
+No wallet authority, transaction submission, account upgrade or paid top-up was involved.
+
+The final paid-completion integration passed the complete site gate, including
+typechecking, wallet build, static/secret/syntax and broker checks. After adding
+the actual holder's separate expired-review case, the full JavaScript suite
+passed **2,501/2,501** with no failure, cancellation or skip (214.134 seconds).
+The focused paid-mint/recovery suite passed **32/32**. These counts overlap.
