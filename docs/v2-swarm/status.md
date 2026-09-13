@@ -6,11 +6,11 @@ Only the lead edits this tracker and integrates commits. States: NOT_STARTED, RU
 
 | Specialist / prompt roles | State | Branch / worktree suffix | Owned scope | Dependencies | Integration commit |
 |---|---|---|---|---|---|
-| A Architecture (`/root/architecture`) | RUNNING | `v2/swarm-architecture` / `/private/tmp/gogh-swarm-architecture` | `broker/src/v4/domain/`, shared-contract docs, dedicated schema tests | Repository map; reuse existing models | — |
-| D Source research (`/root/skill_sources`) | RUNNING | `v2/swarm-sources` / `/private/tmp/gogh-swarm-sources` | `docs/v2-swarm/skill-source-audit.md` | Existing source audit and primary upstream sources | — |
-| B Wallet / V1 (`/root/wallet_v1`) | RUNNING | `v2/swarm-wallet` / `/private/tmp/gogh-swarm-wallet` | Wallet/V1 audit and offline authority proof tests first | Existing account/authority interfaces | — |
-| E AI | NOT_STARTED | ai | AI provider modules and dedicated provider tests | A approved | — |
-| F MCP | NOT_STARTED | mcp | MCP server/endpoint and dedicated tests | A approved; existing capability resolver | — |
+| A Architecture (`/root/architecture`) | INTEGRATED | `v2/swarm-architecture` / `/private/tmp/gogh-swarm-architecture` | `broker/src/v4/domain/`, shared-contract docs, dedicated schema tests | Repository map; reuse existing models | `0195815` |
+| D Source research (`/root/skill_sources`) | INTEGRATED | `v2/swarm-sources` / `/private/tmp/gogh-swarm-sources` | `docs/v2-swarm/skill-source-audit.md` | Existing source audit and primary upstream sources | `54c7e5a` |
+| B Wallet / V1 (`/root/wallet_v1`) | RUNNING | `v2/swarm-wallet` / `/private/tmp/gogh-swarm-wallet` | Audit integrated; new typed Agent recovery core/API/browser modules and isolated tests | A approved; M mounts new UI | `f5fce5b` (audit); recovery pending |
+| E AI (`/root/ai`) | RUNNING | `v2/swarm-ai` / `/private/tmp/gogh-swarm-ai` | AI provider modules and dedicated provider tests | A approved | — |
+| F MCP (`/root/mcp`) | RUNNING | `v2/swarm-mcp` / `/private/tmp/gogh-swarm-mcp` | MCP server/endpoint and dedicated tests | A approved; existing capability resolver | — |
 | G/I Discovery / links | NOT_STARTED | discovery | Discovery/link modules and dedicated tests | A approved | — |
 | C Forge skills | NOT_STARTED | skills | Skill catalog/registry/resolver scope after coordination | A approved; no source-package hash mutation | — |
 | H Market | NOT_STARTED | market | Read-only market adapters, dedicated tests | A approved; D evidence | — |
@@ -27,3 +27,11 @@ Only the lead edits this tracker and integrates commits. States: NOT_STARTED, RU
 - Working independent Robinhood archive RPC endpoints: current production primary historical-state reads fail with JSON-RPC -32000; secondary archive access returns HTTP 403. New paid budgets are blocked before wallet confirmation.
 - macOS storage/memory pressure: sparse specialist worktrees, shared dependencies, serialized heavyweight validation.
 - Production adoption of additional skills, marketplace trading, migrations or contracts requires its own concrete reviewed deployment/owner authorization; test coverage is not production authority.
+
+## Reviewed decisions
+
+- Shared facade `0195815` is additive/server-only and reuses existing schemas. Binding checks never grant authority or replace chain reads.
+- Source audit `54c7e5a` rejects unreviewed wallet runtimes; native research adapters remain the integration path.
+- Wallet audit `f5fce5b` identifies Agent recovery controls as a launch gap. B owns new recovery modules; M owns mounting in the Control Center. Existing V3 recovery stays available.
+- The deployed Agent session can revive after an ownership round trip. Managed-worker history guards remain mandatory; no ownership-contract redesign or broadened execution is authorized.
+- Parent reran 10 shared-contract tests and 83 wallet/continuity/recovery tests before accepting those commits.
