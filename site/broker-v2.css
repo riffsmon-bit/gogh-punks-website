@@ -562,3 +562,14 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   .agent-recovery-actions { flex-direction: column; }
   .agent-recovery-panel { scroll-margin: 20px; }
 }
+
+/* Collection state is text, separate from verified NFT cards. */
+.collection-header-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.collection-header-actions button { min-height: 44px; }
+.collection-status { color: var(--muted); line-height: 1.5; overflow-wrap: anywhere; }
+.collection-status:empty { display: none; }
+.gallery-grid > .panel-empty { grid-column: 1 / -1; min-height: 100px; }
+.gallery-item .gallery-actions { flex-wrap: wrap; }
+.gallery-actions a, .gallery-actions button { min-height: 44px; max-width: 100%; padding: 8px 10px; overflow-wrap: anywhere; }
+
+.collection-recovery a { display: inline-block; margin: 8px 12px 0 0; }

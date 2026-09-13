@@ -81,3 +81,7 @@ Application reconciliation initially encountered production-only `PAID_RECEIPT_M
 Diagnostics PR #63 passed 1,942 JavaScript tests, 140 deployment checks, parent review and independent review. Production deployment `6aa6da6223a3df00084c0c21` published at 17:17:47 UTC. Its first ordinary scheduled run verified completion with unchanged checks; the original failed predicate was not captured, so its cause remains unproven. Subsequent worker logs show `IDLE`, `PAID_NO_MISSION`, `READY`. See [reconciliation evidence and limits](paid-receipt-reconciliation.md).
 
 After integrating both production follow-ups into the broader swarm candidate, all 2,198 JavaScript tests and 140 deployment checks passed. The scoped compiler, wallet bundle, site/secret checks and syntax checks for 719 modules also passed. Contract, SQL, fork and browser implementations remain unchanged; their earlier validation evidence is retained in [validation results](validation-results.json).
+
+## Final product hardening follow-up
+
+The user expanded acceptance to the complete holder journey and final test readiness. Work continues in the existing integration checkout; prior implementation is reused. Production display failures are being repaired first, alongside an evidence-based whole-product audit. See [hardening status](../v2-hardening/status.md). The broader candidate is not yet deployed and is not declared final-testing ready.

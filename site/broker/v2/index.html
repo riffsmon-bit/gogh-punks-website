@@ -223,9 +223,9 @@
           </section>
 
           <section class="broker-panel" data-v2-panel="collection" aria-labelledby="collection-title" hidden>
-            <header class="panel-header"><div><span class="kicker">PERSONAL GALLERY</span><h2 id="collection-title">PUNK COLLECTION</h2></div><span><b data-gallery-count>4</b> PIECES SHOWN</span></header>
+            <header class="panel-header"><div><span class="kicker">PERSONAL GALLERY</span><h2 id="collection-title">PUNK COLLECTION</h2></div><div class="collection-header-actions"><span><b data-gallery-count>—</b> NFTS SHOWN</span><button type="button" class="filter-button" data-collection-refresh>REFRESH COLLECTION</button></div></header>
             <div class="collection-assets" aria-label="Punk Wallet assets and recovery">
-              <article><span>NATIVE BALANCE</span><strong data-collection-eth>—</strong><small>Keep enough ETH available for gas.</small></article>
+              <article><span>ETH BALANCE</span><strong data-collection-eth>—</strong><small>Keep enough ETH available for gas.</small></article>
               <article><span>OFFER BALANCE</span><strong data-collection-weth>—</strong><small>Canonical Robinhood WETH for bids.</small></article>
               <article class="collection-recovery"><span>OWNER RECOVERY</span><strong>WITHDRAW FROM THE PIECE</strong><small>Each live-owned NFT includes its withdrawal action below.</small><a data-legacy-vault href="/broker/punk/">MANAGE ETH · WETH · TOKENS ↗</a></article>
             </div>
@@ -244,6 +244,7 @@
               <p data-v2-withdraw-state aria-live="polite">Select an NFT to begin.</p>
               <a class="transaction-link" data-v2-withdraw-transaction href="#" target="_blank" rel="noopener noreferrer" hidden>VIEW WITHDRAWAL TRANSACTION ↗</a>
             </section>
+            <p class="collection-status" data-gallery-status role="status" aria-live="polite"></p>
             <div class="gallery-grid" data-gallery-grid></div>
           </section>
 
