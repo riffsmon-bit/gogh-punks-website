@@ -58,7 +58,7 @@ export async function forgeTrainingRuntime(role, environment = process.env) {
   const clients = ['https://robinhood-rpc.publicnode.com','https://rpc.mainnet.chain.robinhood.com'].map(url =>
     createPublicClient({ transport: http(url,{ timeout: 5000,retryCount: 0 }), cacheTime: 0 }));
   const store = createPostgresTrainingStore({ pool, deployment: trainingDeploymentBinding(release) });
-  return { release,clients,store, ...(role === 'request' ? {
+  return { release,clients,store,pool, ...(role === 'request' ? {
     coordinator: createTrainingCoordinator({ pool, storeFactory: createPostgresTrainingStore,
       client: clients[1],release,allocationReader }),
   } : {}) };

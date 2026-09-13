@@ -1,0 +1,13 @@
+{
+  "schema": "GOGH_SELECTED_BURN_RELEASE_V1",
+  "status": "OWNER_CANARY",
+  "chainId": 4663,
+  "owner": "0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6",
+  "sourceTokenId": "1753",
+  "targetTokenId": "93",
+  "collection": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+  "registry": "0xc2a1bd47fbc0fe33e53c85f130be53591c898e83",
+  "progression": "0x08ada19edf9c387dc07a181069a1848c66ca2da4",
+  "burnSource": "0x7e4d6db6c96c7b09c78f49760d9eedb5dd4e1533",
+  "productionBurnAuthorized": true
+}

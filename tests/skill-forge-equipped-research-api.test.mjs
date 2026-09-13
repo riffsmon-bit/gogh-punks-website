@@ -26,7 +26,7 @@ function fixture(id=3){
 }
 test('unreleased equipped research cannot open a database or RPC client',async()=>{
   const never=()=>{throw Error('MUST_NOT_RUN');};
-  const result=await handleForgeSkill(request({}),{runtimeFactory:never,sessionPool:never});
+  const result=await handleForgeSkill(request({}),{runtimeFactory:never,sessionPool:never,releaseReader:()=>({status:'PAUSED'})});
   assert.equal(result.status,503);assert.equal((await result.json()).code,'FORGE_TRAINING_NOT_RELEASED');
   assert.equal((await handleForgeSkill(request(null,'GET'),{runtimeFactory:never})).status,405);
 });

@@ -10,7 +10,7 @@ import artifact from '../deployments/robinhood-forge-training.json' with { type:
 const word=value=>`0x${BigInt(value).toString(16).padStart(64,'0')}`;
 function fixture() {
   const initial=durableReviewFixture(),code='0x60016000';
-  const release=validateTrainingRelease({...artifact,status:'OWNER_CANARY',chainId:31337,
+  const release=validateTrainingRelease({...artifact,status:'OWNER_CANARY',chainId:31337,productionTrainingAuthorized:false,
     collection:initial.collection,registry:`0x${'5'.repeat(40)}`,progression:initial.progression,trainingSource:`0x${'6'.repeat(40)}`,
     collectionCodeHash:keccak256(code),registryCodeHash:keccak256(code),progressionCodeHash:keccak256(code),trainingSourceCodeHash:keccak256(code),
     allowedOwners:[initial.owner],skills:[{key:initial.action.skillKey,name:'Contract Detective',manifestHash:fixtureHash('e'),instructionHash:fixtureHash('f')}]},{localFixture:true});

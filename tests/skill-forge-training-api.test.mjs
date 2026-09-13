@@ -18,7 +18,7 @@ function fixture(){const calls=[];const record={intentId:'11111111-1111-4111-811
     }})};return {calls,deps,record};}
 test('paused production route and an undeployed scheduled worker never open databases or clients',async()=>{
   const runtimeFactory=()=>{throw Error('MUST_NOT_RUN');};
-  const response=await handleForgeTraining(request({},'GET'),{runtimeFactory,sessionPool:runtimeFactory});
+  const response=await handleForgeTraining(request({},'GET'),{runtimeFactory,sessionPool:runtimeFactory,releaseReader:()=>({status:'PAUSED'})});
   assert.equal(response.status,503);assert.equal((await response.json()).code,'FORGE_TRAINING_NOT_RELEASED');
   assert.equal((await runForgeTrainingReconciliation({runtimeFactory,releaseReader:()=>({status:'UNDEPLOYED'})})).skipped,true);
 });
@@ -29,9 +29,10 @@ test('paused workers still attempt receipt recovery and report missing restricte
   assert.equal(called,1);assert.equal(result.skipped,true);assert.equal(result.reason,'FORGE_TRAINING_DATABASE_UNAVAILABLE');
 });
 test('release flags alone cannot enable training and local fixtures cannot become production artifacts',()=>{
-  assert.equal(validateTrainingRelease(artifact).status,'PAUSED');
-  assert.equal(artifact.productionTrainingAuthorized,false); assert.deepEqual(artifact.allowedOwners,[]);
-  const undeployed={...artifact,status:'UNDEPLOYED',registry:null,registryCodeHash:null,
+  assert.equal(validateTrainingRelease(artifact).status,'OWNER_CANARY');
+  assert.equal(artifact.productionTrainingAuthorized,true);assert.equal(artifact.productionBurnAuthorized,false);
+  assert.deepEqual(artifact.allowedOwners,['0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6']);assert.equal(artifact.skills.length,1);assert.equal(artifact.skills[0].name,'Rarity Eye');
+  const undeployed={...artifact,status:'UNDEPLOYED',productionTrainingAuthorized:false,allowedOwners:[],skills:[],registry:null,registryCodeHash:null,
     progression:null,progressionCodeHash:null,trainingSource:null,trainingSourceCodeHash:null};
   for(const change of [{productionTrainingAuthorized:true},{productionBurnAuthorized:true},{status:'OWNER_CANARY'},
     {chainId:31337},{allocationRoot:HASH},{registry:OWNER},{allowedOwners:[OWNER]},{status:'READY'}])assert.throws(()=>validateTrainingRelease({...undeployed,...change}));

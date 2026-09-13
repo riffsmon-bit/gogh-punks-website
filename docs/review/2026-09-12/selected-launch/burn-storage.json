@@ -1,0 +1,31 @@
+{
+  "status": "PASS",
+  "checkedAt": "2026-09-13T03:50:42.444Z",
+  "database": "EXISTING_SUPABASE_PROJECT",
+  "journalRows": 0,
+  "restrictedExistingRole": "forge_request",
+  "credentialRotation": false,
+  "tlsCertificateAndHostnameVerified": true,
+  "deniedPrivileges": {
+    "deletes": false,
+    "writes_audit": false,
+    "anon": false,
+    "authenticated": false,
+    "broad_service": false
+  },
+  "sourceLegacyCounts": {
+    "gogh_broker_punk_jobs": 0,
+    "gogh_broker_punk_state": 0,
+    "gogh_broker_diagnostics": 0,
+    "gogh_broker_agent_activity": 0,
+    "broker_forge_training_intents": 0,
+    "gogh_broker_punk_agent_gas_usage": 0,
+    "gogh_broker_punk_agent_gas_refunds": 0,
+    "gogh_broker_punk_priority_attempts": 0,
+    "gogh_broker_punk_priority_sessions": 0,
+    "gogh_broker_punk_agent_gas_accounts": 0,
+    "gogh_broker_punk_agent_gas_deposits": 0,
+    "gogh_broker_legacy_reconciliation_entries": 0
+  },
+  "publicTransactions": 0
+}
