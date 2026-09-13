@@ -67,9 +67,20 @@ export function openSetupReviewJournal({ path, binding, migrateBinding }) {
     decline(revision, reviewHash) {
       return save(revision, state => {
         const last=state.records.at(-1);
-        valid(last?.status==='WALLET_REQUESTED' && !last.transactionHash && last.reviewHash===reviewHash);
+        valid(last?.status==='WALLET_REQUESTED' && !last.transactionHash && !last.reportedTransactionHash && last.reviewHash===reviewHash);
         last.status='DECLINED';
       });
+    },
+    report(revision, transactionHash) {
+      const current = snapshot(); valid(current.revision === revision);
+      const last = current.records.at(-1);
+      valid(last && ['WALLET_REQUESTED','SUBMITTED'].includes(last.status) && /^0x[0-9a-f]{64}$/i.test(transactionHash));
+      const hash = transactionHash.toLowerCase();
+      valid(!last.transactionHash || last.transactionHash === hash);
+      if (last.reportedTransactionHash === hash) return current;
+      // A reported hash is a recovery hint, never proof of submission or inclusion.
+      // Retain the wallet claim even when neither provider can see it yet.
+      return save(revision, state => { state.records.at(-1).reportedTransactionHash = hash; });
     },
     recover(revision, transactionHash) {
       return save(revision, state => {

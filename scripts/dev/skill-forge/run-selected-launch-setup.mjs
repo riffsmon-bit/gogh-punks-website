@@ -7,6 +7,7 @@ import { encodeFunctionData, encodeDeployData, getContractAddress, keccak256, pa
 import { loadRegistryCanaryInputs } from '../../../broker/src/v4/skill-forge/registry-canary.mjs';
 import { openSetupReviewJournal, setupDigest } from './setup-review-journal.mjs';
 import { createSetupReadClient, readSetupAnchor } from './setup-read-client.mjs';
+import { recoverSetupTransaction } from './setup-transaction-recovery.mjs';
 import release from '../../../deployments/robinhood-forge-training.json' with { type:'json' };
 
 if (process.argv.length!==3 || process.argv[2]!=='--live-owner-wallet') throw Error('Requires --live-owner-wallet');
@@ -125,7 +126,7 @@ const server=createServer(async(req,res)=>{
     const body=JSON.parse(raw);valid(body&&Number.isInteger(body.revision),'INVALID_SETUP_ACTION');
     busy=true;
     try {
-      let state=journal.snapshot();valid(state.revision===body.revision,'SETUP_REVISION_CHANGED');
+      let state=journal.snapshot(),pending=false;valid(state.revision===body.revision,'SETUP_REVISION_CHANGED');
       const record=state.records.at(-1);
       if(body.action==='prepare')state=await prepare(body.revision);
       else if(body.action==='claim') {
@@ -143,16 +144,22 @@ const server=createServer(async(req,res)=>{
       } else if(body.action==='recover') {
         valid(record&&['WALLET_REQUESTED','SUBMITTED'].includes(record.status),'RECOVERY_NOT_AVAILABLE');
         valid(/^0x[0-9a-f]{64}$/i.test(body.transactionHash??''),'INVALID_TRANSACTION_HASH');
-        // Bind the hash before saving, even if confirmations still need to accumulate.
-        const tx=await clients[0].getTransaction({hash:body.transactionHash}),expected=record.review.transaction;
-        valid(same(tx.from,owner)&&tx.chainId===4663&&tx.nonce===Number(BigInt(expected.nonce))&&tx.input===expected.data
-          &&tx.value===0n&&(expected.to?same(tx.to,expected.to):tx.to===null),'SETUP_RECOVERY_MISMATCH');
-        state=journal.recover(body.revision,body.transactionHash);
+        ({state,pending}=await recoverSetupTransaction({journal,revision:body.revision,transactionHash:body.transactionHash,clients}));
       } else if(body.action==='recheck') {
-        valid(record?.status==='SUBMITTED','RECOVER_TRANSACTION_HASH_FIRST');
-        state=journal.include(body.revision,await inspect(record.transactionHash,record.review));
+        if(record?.status==='WALLET_REQUESTED'&&record.reportedTransactionHash)
+          ({state,pending}=await recoverSetupTransaction({journal,revision:state.revision,transactionHash:record.reportedTransactionHash,clients}));
+        const current=state.records.at(-1);
+        valid(pending||current?.status==='SUBMITTED','RECOVER_TRANSACTION_HASH_FIRST');
+        if(!pending) {
+          try {state=journal.include(state.revision,await inspect(current.transactionHash,current.review));}
+          catch(error) {
+            if(['TransactionNotFoundError','TransactionReceiptNotFoundError','BlockNotFoundError'].includes(error.name)
+              || error.message==='SETUP_CONFIRMATIONS_PENDING')pending=true;
+            else throw error;
+          }
+        }
       } else throw Error('INVALID_SETUP_ACTION');
-      return json(200,{state});
+      return json(200,{state,pending});
     } finally {busy=false;}
   } catch(error) {
     console.warn(JSON.stringify({event:'SETUP_READ_FAILED',errorType:error.name,
