@@ -1091,6 +1091,8 @@ function renderRoster() {
   directedPaidControl?.selectionChanged();
   agentRecoveryControl?.selectionChanged();
   const roster = one("[data-punk-roster]");
+  const restoreFocus = roster.contains(document.activeElement);
+  roster.setAttribute('aria-orientation', 'horizontal');
   roster.replaceChildren();
   set("[data-roster-count]", state.punks.length);
   one("[data-roster-empty]").hidden = state.punks.length > 0;
@@ -1107,6 +1109,7 @@ function renderRoster() {
     const button = document.createElement("button");
     button.type = "button"; button.className = "roster-slot"; button.setAttribute("role", "option");
     button.setAttribute("aria-selected", String(punk.tokenId === state.selected?.tokenId));
+    button.tabIndex = punk.tokenId === state.selected?.tokenId ? 0 : -1;
     button.dataset.tokenId = punk.tokenId;
     const image = document.createElement("img"); image.alt = `Gogh Punk #${punk.tokenId}`;
     image.src = cleanImage(punk.image);
@@ -1114,9 +1117,19 @@ function renderRoster() {
     const name = document.createElement("b"); name.textContent = `#${punk.tokenId}`;
     const mode = document.createElement("small"); mode.textContent = reviewModeForPunk(punk);
     label.append(name, mode); button.append(image, label);
-    button.addEventListener("click", () => selectPunk(punk.tokenId));
+    button.addEventListener("click", event => selectPunk(punk.tokenId, { focusRoster: event.detail === 0 }));
+    button.addEventListener('keydown', event => {
+      const index = state.punks.findIndex(item => item.tokenId === punk.tokenId);
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? state.punks.length - 1
+        : event.key === 'ArrowRight' ? (index + 1) % state.punks.length
+          : event.key === 'ArrowLeft' ? (index - 1 + state.punks.length) % state.punks.length : null;
+      if (next === null) return;
+      event.preventDefault();
+      if (next !== index) selectPunk(state.punks[next].tokenId, { focusRoster: true });
+    });
     roster.append(button);
   }
+  if (restoreFocus) roster.querySelector('[aria-selected="true"]')?.focus({ preventScroll: true });
 }
 
 function renderSelected() {
@@ -1169,7 +1182,7 @@ function renderSelected() {
   }
 }
 
-function selectPunk(tokenId) {
+function selectPunk(tokenId, { focusRoster = false } = {}) {
   const punk = state.punks.find((item) => item.tokenId === tokenId);
   if (!punk) return;
   state.selected = punk; state.localStrategy = null; state.localSkill = null; state.lastInspection = null;
@@ -1189,7 +1202,11 @@ function selectPunk(tokenId) {
   state.withdrawalAmount = "1"; state.withdrawalPlan = null; state.withdrawalBusy = false;
   if (!PREVIEW) { state.gallery = []; state.activity = []; }
   renderSelected(); renderCollectionWithdrawal(); scheduleSelectedReviewMissionCheck();
-  one("[data-selected-stage]").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+  if (focusRoster) {
+    const option = one('[data-punk-roster] [aria-selected="true"]');
+    option?.focus({ preventScroll: true });
+    option?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  } else one("[data-selected-stage]").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
 }
 
 function renderGallery() {
@@ -1304,7 +1321,15 @@ function activateTab(name) {
     one("[data-fund-gas-home]").append(one("[data-agent-gas-panel]"));
     one("[data-talk-gas-host]").hidden = true;
   }
-  all("[data-v2-tab]").forEach((button) => button.setAttribute("aria-selected", String(button.dataset.v2Tab === name)));
+  all("[data-v2-tab]").forEach((button) => {
+    const selected = button.dataset.v2Tab === name;
+    button.setAttribute("aria-selected", String(selected)); button.tabIndex = selected ? 0 : -1;
+    if (selected && matchMedia('(max-width: 720px)').matches) {
+      const nav = button.parentElement;
+      nav.scrollLeft += button.getBoundingClientRect().left - nav.getBoundingClientRect().left
+        - (nav.clientWidth - button.offsetWidth) / 2;
+    }
+  });
   all("[data-v2-panel]").forEach((panel) => { panel.hidden = panel.dataset.v2Panel !== name; });
   if (name === "activity") renderActivity();
   if (name === "forge") forgeControl?.selectionChanged();
@@ -1994,7 +2019,26 @@ function setup() {
       renderReviewAgent();
     }
   });
-  all("[data-v2-tab]").forEach((button) => button.addEventListener("click", () => activateTab(button.dataset.v2Tab)));
+  const actionTabs = all('[data-v2-tab]');
+  one('.broker-tabs').setAttribute('role', 'tablist');
+  actionTabs.forEach((button, index) => {
+    const name = button.dataset.v2Tab, panel = one(`[data-v2-panel="${name}"]`);
+    button.setAttribute('role', 'tab'); button.id = `punk-tab-${name}`;
+    button.setAttribute('aria-controls', `punk-panel-${name}`);
+    button.tabIndex = button.getAttribute('aria-selected') === 'true' ? 0 : -1;
+    panel.id = `punk-panel-${name}`; panel.setAttribute('role', 'tabpanel');
+    panel.setAttribute('aria-labelledby', button.id);
+    button.addEventListener('click', () => activateTab(name));
+    button.addEventListener('keydown', event => {
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? actionTabs.length - 1
+        : event.key === 'ArrowRight' ? (index + 1) % actionTabs.length
+          : event.key === 'ArrowLeft' ? (index - 1 + actionTabs.length) % actionTabs.length : null;
+      if (next === null) return;
+      event.preventDefault();
+      actionTabs.forEach((tab, at) => { tab.tabIndex = at === next ? 0 : -1; });
+      actionTabs[next].focus();
+    });
+  });
   all("[data-suggestion]").forEach((button) => button.addEventListener("click", () => {
     const input = one("#punk-prompt"); input.value = button.dataset.suggestion; input.focus();
   }));
