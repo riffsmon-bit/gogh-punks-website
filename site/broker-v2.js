@@ -1103,6 +1103,16 @@ function renderRoster() {
   roster.replaceChildren();
   set("[data-roster-count]", state.punks.length);
   one("[data-roster-empty]").hidden = state.punks.length > 0;
+  if (!state.punks.length) {
+    const empty = one('[data-roster-empty]'), account = state.wallet?.account;
+    const verifiedEmpty = account && state.ownershipAccount === account && state.wallet?.chainId === CHAIN_ID;
+    empty.querySelector('strong').textContent = verifiedEmpty ? 'No Gogh Punks found in this wallet.'
+      : !account ? 'Your brokers enter here.' : state.wallet?.chainId !== CHAIN_ID ? 'Switch to Robinhood Chain.' : 'Checking your Gogh Punks…';
+    empty.querySelector('span').textContent = verifiedEmpty
+      ? 'Try another wallet, or refresh after a purchase or transfer.'
+      : !account ? 'Connect the wallet that holds your Gogh Punks. Ownership is checked on Robinhood Chain.'
+        : state.wallet?.chainId !== CHAIN_ID ? 'Use Switch network above to see your Punks.' : 'Your roster will appear after ownership is verified.';
+  }
   one("[data-selected-stage]").hidden = state.punks.length === 0;
   if (!state.selected) {
     window.dispatchEvent(new CustomEvent('gogh:owner-snapshot', { detail: {
@@ -1163,7 +1173,7 @@ function renderSelected() {
   const available = Math.max(0, balance - reserve);
   const balanceKnown = punk.balanceLoaded !== false;
   const nativeDisplay = balanceKnown ? `${punk.balanceEth} ETH` : "CHECKING…";
-  const wethDisplay = punk.wethBalanceEth == null ? "CHECKING…" : `${punk.wethBalanceEth} WETH`;
+  const wethDisplay = punk.wethBalanceEth == null ? punk.balanceError ? "UNAVAILABLE" : "CHECKING…" : `${punk.wethBalanceEth} WETH`;
   set("[data-punk-balance]", nativeDisplay);
   set("[data-fund-balance]", fundingAgent
     ? ethFromWei(agentRuntime.nativeBalance ?? "0") : balanceKnown ? punk.balanceEth : "—");
@@ -1208,6 +1218,7 @@ function selectPunk(tokenId, { focusRoster = false } = {}) {
   const punk = state.punks.find((item) => item.tokenId === tokenId);
   if (!punk) return;
   invalidateConversationRequests();
+  state.balanceRequestId += 1; state.balanceReads?.clear();
   state.selected = punk; state.localStrategy = null; state.localSkill = null; state.lastInspection = null;
   const key = selectedReviewKey();
   state.lastInspection = key ? state.reviewInspections.get(key) ?? null : null;
@@ -1438,13 +1449,21 @@ async function loadPunkBalances(punk) {
   }
   const provider = window.__GOGH_WALLET_PROVIDER__;
   if (!provider?.request) throw new Error("Wallet provider unavailable.");
+  state.balanceReads ??= new Map();
+  const readKey = `${state.wallet.account}:${punk.tokenId}:${punk.account.toLowerCase()}`;
+  if (state.balanceReads.has(readKey)) return state.balanceReads.get(readKey);
+  const pending = read(); state.balanceReads.set(readKey, pending);
+  try { return await pending; } finally { if (state.balanceReads.get(readKey) === pending) state.balanceReads.delete(readKey); }
+  async function read() {
   const requestId = ++state.balanceRequestId; const owner = state.wallet?.account;
   const tokenId = punk.tokenId; const account = punk.account.toLowerCase();
-  const [nativeRaw, wrappedRaw] = await Promise.all([
+  let timer;
+  try {
+  const [nativeRaw, wrappedRaw] = await Promise.race([Promise.all([
     provider.request({ method: "eth_getBalance", params: [account, "latest"] }),
     provider.request({ method: "eth_call", params: [{ to: ROBINHOOD_WETH,
       data: wrappedBalanceOfData(account) }, "latest"] }),
-  ]);
+  ]), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Balance checks took too long. Refresh to try again.')), 10_000); })]);
   if (typeof nativeRaw !== "string" || !/^0x[0-9a-fA-F]+$/.test(nativeRaw)) {
     throw new Error("Punk ETH balance response is invalid.");
   }
@@ -1455,7 +1474,15 @@ async function loadPunkBalances(punk) {
   punk.nativeBalanceWei = nativeWei.toString(); punk.wethBalanceWei = wrappedWei.toString();
   punk.balanceEth = ethFromWei(punk.nativeBalanceWei);
   punk.wethBalanceEth = ethFromWei(punk.wethBalanceWei);
-  punk.balanceLoaded = true; renderSelected();
+  punk.balanceLoaded = true; punk.balanceError = false; renderSelected();
+  } catch (error) {
+    if (requestId === state.balanceRequestId && state.wallet?.account === owner
+      && state.wallet?.chainId === CHAIN_ID && state.selected === punk) {
+      punk.balanceError = true; punk.wethBalanceEth = null; renderSelected();
+    }
+    throw error;
+  } finally { clearTimeout(timer); }
+  }
 }
 
 async function loadReviewCollection(punk, exactAsset = null) {
@@ -1714,6 +1741,7 @@ async function hydrateSelected(tab) {
       punk.reserveEth = walletRules ? ethFromWei(rules.intent.minimumReserveWei) : '0.0000';
       state.hydratedTokenId = tokenId; renderSelected();
     }
+    if (tab === 'fund' && punk.account) void loadPunkBalances(punk).catch(() => {});
     if (tab === "activity") {
       const payload = await jsonRequest(`/api/v2/punks/${tokenId}/activity`);
       if (!isCurrent()) return;
@@ -2075,6 +2103,7 @@ function setup() {
   }, true);
   one('[data-collection-refresh]')?.addEventListener('click', () => {
     if (!state.selected || PREVIEW) return;
+    if (state.selected.account) void loadPunkBalances(state.selected).catch(() => {});
     if (REVIEW_HOST) { state.galleryTokenId = null; void loadReviewCollection(state.selected); }
     else void loadProductionCollection(state.selected, { force: true });
   });
@@ -2922,7 +2951,7 @@ function setup() {
     brokerPreferences?.refresh(); gasFundingRecovery?.refresh();
     if (account !== previousAccount || wallet.chainId !== previousChain) {
       ownerRefresh.invalidate(); clearTransferredPunkReview();
-      resetGallery(); state.gallery = []; state.activity = []; state.activityLoaded = false; state.balanceRequestId += 1; state.hydratedTokenId = null;
+      resetGallery(); state.gallery = []; state.activity = []; state.activityLoaded = false; state.balanceRequestId += 1; state.balanceReads?.clear(); state.hydratedTokenId = null;
     }
     if (!account) {
       if (wallet.restoring || wallet.status === "pending") return;

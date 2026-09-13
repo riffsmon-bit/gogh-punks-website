@@ -408,7 +408,9 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .withdraw-grid p, .settings-grid p { min-height: 52px; color: var(--muted); font-size: .8rem; line-height: 1.5; }
 .withdraw-grid a { display: inline-flex; align-items: center; min-height: 44px; margin-top: 15px; color: var(--acid);
   font-size: .66rem; font-weight: 900; letter-spacing: .08em; }
-.settings-grid { grid-template-columns: 1.3fr .7fr; }
+.settings-grid { grid-template-columns: minmax(0, 1.3fr) minmax(0, .7fr); }
+.settings-grid article, .settings-grid .select-label { min-width: 0; }
+.settings-grid select { width: 100%; min-width: 0; }
 .settings-grid fieldset { display: grid; gap: 9px; padding: 0; margin: 18px 0 0; border: 0; }
 .settings-grid fieldset label { display: grid; grid-template-columns: auto 1fr; column-gap: 10px; padding: 13px;
   border: 1px solid var(--line); cursor: pointer; }
@@ -487,7 +489,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   .quick-commands button { padding: 10px; border-right: 1px solid var(--line); }
   .chat-composer { grid-template-columns: 1fr; }
   .chat-composer > div { justify-content: space-between; }
-  .strategy-grid, .fund-layout, .settings-grid, .collection-assets { grid-template-columns: 1fr; }
+  .strategy-grid, .fund-layout, .settings-grid, .collection-assets { grid-template-columns: minmax(0, 1fr); }
   .agent-account-card dl { grid-template-columns: 1fr 1fr; }
   .skill-card ul { grid-template-columns: 1fr; }
   .review-agent-console dl { grid-template-columns: repeat(2, 1fr); }
@@ -607,3 +609,6 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 [data-fund-available], [data-available-budget] { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
 @media (max-width: 720px) { .talk-panel > .quick-commands { margin-top: 1rem; } }
 .confirmation-dialog > .kicker { display: block; padding-right: 36px; }
+@media (max-width: 720px) {
+  .broker-panel input:not([type="checkbox"]):not([type="radio"]), .broker-panel select, .broker-panel textarea { font-size: 16px; }
+}
