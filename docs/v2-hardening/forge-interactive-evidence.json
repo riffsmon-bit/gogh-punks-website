@@ -1,7 +1,7 @@
 {
   "schema": "GOGH_ORIGINAL_FORGE_INTERACTIVE_BROWSER_V1",
   "status": "PASS",
-  "checkedAt": "2026-09-13T20:03:22.584Z",
+  "checkedAt": "2026-09-13T21:57:58.282Z",
   "widths": [
     1440,
     375,
@@ -10,8 +10,8 @@
   "copiedSource": "1753",
   "copiedTarget": "93",
   "forkAnchor": {
-    "number": "62223710",
-    "hash": "0x903f837f60d406e803bf67022184b89a88feca1350c31f0a3ce7309be1e08302"
+    "number": "62291709",
+    "hash": "0xe26a72ddce6d60912c1d70e536fb54f8af01f6206b4829af863e72e6edb3ab67"
   },
   "realBrowserClicks": true,
   "actualDeployedStackCopy": true,
@@ -19,6 +19,11 @@
   "applicationObligationsFixture": true,
   "independentPublicFinalityProven": false,
   "sourceCoverage": "Actual copied wallets and standard event history. Empty disposable jobs are a fixture. Nonstandard assets, later deposits and live obligations are not certified.",
+  "realReviewExpiry": true,
+  "expiredReviewSurvivesReload": true,
+  "expiredUnsentDiscardRestoresBurn": true,
+  "ambiguousConfirmationReservedUntilFreshRead": true,
+  "optionalSlotsCollapsed": true,
   "burnCreditExactlyOnceAcrossReload": true,
   "learnSpendsCredit": true,
   "equipEnablesResearch": true,
