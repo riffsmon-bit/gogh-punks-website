@@ -53,13 +53,22 @@ export async function reconcileMarketplaceReview(review,{client,transactionHash,
   if(receipt.status!=='success'&&receipt.status!=='reverted')fail('RECEIPT_STATUS_UNAVAILABLE');
   if(!positiveBigInt(receipt.gasUsed)||receipt.gasUsed>actual.gas||!positiveBigInt(receipt.effectiveGasPrice)
     ||receipt.effectiveGasPrice>actual.gasPrice)fail('RECEIPT_FEE_EVIDENCE_MISMATCH');
-  const block=await client.getBlock({blockNumber:receipt.blockNumber});
-  if (block.number!==receipt.blockNumber||!same(block.hash,receipt.blockHash)) fail('RECEIPT_NOT_CANONICAL');
+  const assertCanonicalReceipt = async () => {
+    const block = await client.getBlock({ blockNumber: receipt.blockNumber });
+    if (block.number !== receipt.blockNumber || !same(block.hash, receipt.blockHash)) fail('RECEIPT_NOT_CANONICAL');
+  };
+  await assertCanonicalReceipt();
   const head=await client.getBlockNumber();
   if(typeof head!=='bigint'||head<receipt.blockNumber)fail('RECEIPT_NOT_CANONICAL');
   const confirmations=head-receipt.blockNumber+1n;
   if(confirmations<BigInt(minConfirmations))return {status:'PENDING_FINALITY',transactionHash,confirmations:String(confirmations),publicTransactions:0};
-  if(receipt.status!=='success')return {status:'REVERTED',transactionHash,confirmations:String(confirmations),publicTransactions:0,warning:'Purchase did not complete. The transaction reverted; the wallet may have paid its network fee.'};
+  if(receipt.status!=='success') {
+    // A terminal revert releases the journal hold too. Recheck after the head
+    // read, just as on successful settlement, before allowing that transition.
+    await assertCanonicalReceipt();
+    return {status:'REVERTED',transactionHash,blockNumber:String(receipt.blockNumber),blockHash:receipt.blockHash,
+      confirmations:String(confirmations),publicTransactions:0,warning:'Purchase did not complete. The transaction reverted; the wallet may have paid its network fee.'};
+  }
   const result={status:'COMPLETED',action:review.action,transactionHash,blockNumber:String(receipt.blockNumber),blockHash:receipt.blockHash,confirmations:String(confirmations),publicTransactions:0};
   if(review.action==='BUY_LISTINGS') {
     const transfers=decode(receipt,review.selection.collection,'Transfer'),fills=decode(receipt,P.seaport,'OrderFulfilled');
@@ -108,6 +117,6 @@ export async function reconcileMarketplaceReview(review,{client,transactionHash,
       result.status='BID_ALREADY_SETTLED';result.refundedWethWei='0';result.refundInThisTransaction=false;
     } else fail('BID_RECOVERY_EVIDENCE_MISSING');
   } else fail('INVALID_MARKETPLACE_ACTION');
-  if(!same((await client.getBlock({blockNumber:receipt.blockNumber})).hash,receipt.blockHash))fail('RECEIPT_NOT_CANONICAL');
+  await assertCanonicalReceipt();
   return result;
 }
