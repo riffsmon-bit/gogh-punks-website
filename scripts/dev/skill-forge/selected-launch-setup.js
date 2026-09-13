@@ -2,7 +2,8 @@ let state,config,csrf,busy=false;
 const $=id=>document.getElementById(id);
 const status=text=>{$('status').textContent=text;$('status').hidden=!text;};
 const errors={SETUP_CONFIRMATIONS_PENDING:'Transaction found. Recheck its receipt shortly.',
-  LIVE_SETUP_READ_UNAVAILABLE:'A chain read is unavailable. Recheck shortly; the saved transaction was not resent.',
+  LIVE_SETUP_READ_UNAVAILABLE:'A chain read is temporarily unavailable. Retry the current step; any saved wallet request stays preserved.',
+  LOCAL_SETUP_ORIGIN_REQUIRED:'The setup server was updated. Refresh this page, then continue from the saved step.',
   SETUP_REVIEW_EXPIRED:'This review expired. Prepare a fresh review before opening your wallet.',
   SETUP_NONCE_CHANGED:'Your wallet activity changed. Check the original transaction before preparing another review.',
   RECOVER_EXISTING_WALLET_TRANSACTION:'Recover the saved wallet transaction before preparing another review.',
@@ -18,8 +19,9 @@ function render() {
   $('steps').replaceChildren(...config.steps.map(step=>{const li=document.createElement('li'),record=state.records.findLast(r=>r.review.action===step.action);li.textContent=step.label+' · '+(record?.status??'Pending');return li;}));
   const last=state.records.at(-1),review=last?.review;
   $('review').hidden=!review;
-  if(review){$('review-title').textContent=review.label;$('fee').textContent='Maximum network fee: '+eth(review.maximumNetworkFeeWei);$('target').textContent=review.transaction.to?'Contract: '+review.transaction.to:'New factory: '+review.predictedAddress;$('expiry').textContent='Wallet review expires: '+new Date(review.expiresAt).toLocaleTimeString();$('review-json').textContent=JSON.stringify(last,null,2);}
-  $('prepare').disabled=busy||!!last&&!['PREPARED','DECLINED','INCLUDED','REVERTED'].includes(last.status);
+  if(review){$('review-title').textContent=review.label;$('fee').textContent='Maximum network fee: '+eth(review.maximumNetworkFeeWei);$('target').textContent=review.transaction.to?'Contract: '+review.transaction.to:'New factory: '+review.predictedAddress;$('expiry').textContent=last.status==='PREPARED'&&Date.now()>=review.expiresAt?'This review expired. Select Prepare next transaction for a fresh review.':'Wallet review expires: '+new Date(review.expiresAt).toLocaleTimeString();$('review-json').textContent=JSON.stringify(last,null,2);}
+  const complete=config.steps.every(step=>state.records.some(r=>r.review.action===step.action&&r.status==='INCLUDED'));
+  $('prepare').disabled=busy||complete||!!last&&!['PREPARED','DECLINED','INCLUDED','REVERTED'].includes(last.status);
   $('send').disabled=busy||last?.status!=='PREPARED'||Date.now()>=review?.expiresAt;
   $('recover').disabled=busy||!['WALLET_REQUESTED','SUBMITTED'].includes(last?.status);
   $('recheck').disabled=busy||last?.status!=='SUBMITTED';
