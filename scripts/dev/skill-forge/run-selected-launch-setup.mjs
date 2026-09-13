@@ -6,7 +6,7 @@ import { randomBytes } from 'node:crypto';
 import { encodeFunctionData, encodeDeployData, getContractAddress, keccak256, parseAbi } from 'viem';
 import { loadRegistryCanaryInputs } from '../../../broker/src/v4/skill-forge/registry-canary.mjs';
 import { openSetupReviewJournal, setupDigest } from './setup-review-journal.mjs';
-import { createSetupReadClient } from './setup-read-client.mjs';
+import { createSetupReadClient, readSetupAnchor } from './setup-read-client.mjs';
 import release from '../../../deployments/robinhood-forge-training.json' with { type:'json' };
 
 if (process.argv.length!==3 || process.argv[2]!=='--live-owner-wallet') throw Error('Requires --live-owner-wallet');
@@ -51,8 +51,7 @@ const registryAbi=parseAbi(['function owner() view returns(address)','function g
 const config={owner,chainId:4663,sourceTokenId:'1753',targetTokenId:'93',skill:'Rarity Eye',rarity,reviewEvidenceHash,
   walletAuthority:'NONE',steps:steps.map(({action,label,to})=>({action,label,to})),burnEnabled:false};
 async function context() {
-  const c=clients[0],block=await c.getBlock();
-  valid(Math.abs(Date.now()/1000-Number(block.timestamp))<30,'LIVE_SETUP_STATE_STALE');
+  const block=await readSetupAnchor(clients);
   for(const client of clients) {
     valid(await client.getChainId()===4663 && same((await client.getBlock({blockNumber:block.number})).hash,block.hash),'SETUP_PROVIDERS_DISAGREE');
     valid(keccak256(await client.getCode({address:release.registry,blockNumber:block.number})??'0x')===release.registryCodeHash,'REGISTRY_CODE_CHANGED');
@@ -155,7 +154,11 @@ const server=createServer(async(req,res)=>{
       } else throw Error('INVALID_SETUP_ACTION');
       return json(200,{state});
     } finally {busy=false;}
-  } catch(error) {return json(409,{error:/^[A-Z_]+$/.test(error.message)?error.message:'LIVE_SETUP_READ_UNAVAILABLE'});}
+  } catch(error) {
+    console.warn(JSON.stringify({event:'SETUP_READ_FAILED',errorType:error.name,
+      code:/^[A-Z_]+$/.test(error.message)?error.message:'LIVE_SETUP_READ_UNAVAILABLE'}));
+    return json(409,{error:/^[A-Z_]+$/.test(error.message)?error.message:'LIVE_SETUP_READ_UNAVAILABLE'});
+  }
 });
 await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(64346,'127.0.0.1',resolve);});
 origin='http://127.0.0.1:64346';console.log(JSON.stringify({url:origin,owner,steps:config.steps,serverHasSigner:false,burnEnabled:false}));
