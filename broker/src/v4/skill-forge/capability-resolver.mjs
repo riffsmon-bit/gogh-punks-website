@@ -7,7 +7,7 @@ export const SKILL_CAPABILITIES = Object.freeze({ CONTRACT_READ: 1n, FREE_MINT: 
   ART_CLASSIFY: 64n, SOCIAL_READ: 128n, PAID_MINT: 256n });
 // These are approved tool identities, not dynamically trusted provider tool names.
 const TOOLS = Object.freeze({ CONTRACT_READ: ['inspect_contract'], FREE_MINT: ['inspect_mint', 'simulate_mint', 'prepare_mint'],
-  MARKET_READ: ['get_market_listings'], RARITY_READ: ['get_metadata', 'rank_trait_sample'], LINK_REVIEW: ['inspect_mint_link'],
+  MARKET_READ: ['get_market_listings', 'rank_observed_listings'], RARITY_READ: ['get_metadata', 'rank_trait_sample', 'research_collection'], LINK_REVIEW: ['inspect_mint_link'],
   SCHEDULED_MISSION: ['draft_scheduled_mission'], ART_CLASSIFY: ['classify_collection'], SOCIAL_READ: ['research_project'],
   PAID_MINT: [] });
 const HASH = /^0x[0-9a-f]{64}$/i;
@@ -97,9 +97,15 @@ export function resolvePunkCapabilities(state, { packages, owner, now = Date.now
     }
     if (mask !== BigInt(definition.capabilities)) throw new Error('REGISTRY_CAPABILITY_MISMATCH');
     if ((BigInt(state.mask) & mask) !== mask) continue;
+    const declaredTools = pack.manifest.requiredMcpTools;
+    if (!Array.isArray(declaredTools) || new Set(declaredTools).size !== declaredTools.length
+      || declaredTools.some(tool => typeof tool !== 'string'
+        || !pack.manifest.capabilities.some(name => TOOLS[name].includes(tool)))) throw new Error('PACKAGE_TOOL_MISMATCH');
     for (const name of pack.manifest.capabilities) {
       capabilities.add(name);
-      for (const tool of TOOLS[name]) if (availableTools.includes(tool)) tools.add(tool);
+      // Sharing a protocol bit does not teach another package's tool. The exact
+      // reviewed manifest and equipped key must both authorize its identity.
+      for (const tool of TOOLS[name]) if (declaredTools.includes(tool) && availableTools.includes(tool)) tools.add(tool);
     }
     selected.push({ key: item.key, level: item.level, instructions: pack.instructions,
       manifestHash: definition.manifestHash, instructionHash: definition.instructionHash });
