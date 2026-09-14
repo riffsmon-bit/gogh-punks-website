@@ -47,11 +47,13 @@ test('local Forge: contract snapshots, guarded local training and responsive bro
   await t.test('desktop/mobile, switching, details, warnings and error state', async browser => {
     const folder = await mkdtemp(join(tmpdir(), 'gogh-forge-browser-'));
     const profile = join(folder, 'profile');
-    const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', ['--headless=new', '--disable-background-networking',
+    const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', ['--headless=new', '--disable-gpu', '--disable-background-networking',
       '--disable-component-update', '--disable-default-apps', '--disable-sync', '--no-first-run', '--no-default-browser-check',
       '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1, EXCLUDE localhost',
       '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] });
-    let socket;
+    let socket, chromeStderr = '';
+    const documentRequests = [];
+    chrome.stderr.on('data', chunk => { chromeStderr = (chromeStderr + chunk.toString()).slice(-4000); });
     browser.after(async () => {
       // Complete the CDP close handshake while its browser is still alive.
       // Pending commands and owned processes each have a bounded cleanup path.
@@ -95,7 +97,11 @@ test('local Forge: contract snapshots, guarded local training and responsive bro
       if (message.sessionId && message.sessionId !== pageSession) return;
       if (message.method === 'Runtime.exceptionThrown') errors.push(message.params.exceptionDetails.text);
       if (message.method === 'Fetch.requestPaused') {
-        const { requestId, request } = message.params;
+        const { requestId, request, resourceType } = message.params;
+        if (resourceType === 'Document') {
+          documentRequests.push({ url: request.url, method: request.method });
+          if (documentRequests.length > 4) documentRequests.shift();
+        }
         const local = new URL(request.url).origin === preview.url;
         if (!local) errors.push(`Nonlocal browser request blocked: ${request.url}`);
         call(local ? 'Fetch.continueRequest' : 'Fetch.failRequest', { requestId, ...(!local && { errorReason: 'BlockedByClient' }) })
@@ -141,10 +147,22 @@ test('local Forge: contract snapshots, guarded local training and responsive bro
     // Page.navigate command acknowledgement intermittently stalls at startup
     // under the concurrent suite, before any of the product assertions run.
     const committed = new Promise((resolve, reject) => {
-      let frameId, contextFrameId;
-      const finish = error => {
+      let frameId, contextFrameId, settled = false;
+      const finish = async (error, diagnose = false) => {
+        if (settled) return;
+        settled = true;
         clearTimeout(timer); socket.removeEventListener('message', onMessage);
         socket.removeEventListener('close', onClose); browser.signal.removeEventListener('abort', onAbort);
+        if (diagnose) {
+          // Preserve the failed deadline while inspecting the still-owned tab.
+          // An unloaded document and a missed CDP event need different fixes.
+          let document;
+          try {
+            const result = await call('Runtime.evaluate', { expression: '({url:location.href,readyState:document.readyState,profileVisible:document.querySelector("#profile")?.hidden === false})', returnByValue: true }, 1000);
+            document = result.result?.value ?? { exception: result.exceptionDetails?.text };
+          } catch (failure) { document = { error: failure.message }; }
+          browser.diagnostic(`Navigation failure: ${JSON.stringify({ expectedUrl: preview.url, frameId, contextFrameId, documentRequests, document, errors: errors.slice(-4), chromeStderr })}`);
+        }
         error ? reject(error) : resolve();
       };
       const onClose = () => finish(new Error('CDP connection closed during navigation'));
@@ -163,7 +181,7 @@ test('local Forge: contract snapshots, guarded local training and responsive bro
         }
         if (frameId && frameId === contextFrameId) finish();
       };
-      const timer = setTimeout(() => finish(new Error(`Browser navigation did not commit: ${preview.url}`)), 24000);
+      const timer = setTimeout(() => finish(new Error(`Browser navigation did not commit: ${preview.url}`), true), 24000);
       socket.addEventListener('message', onMessage); socket.addEventListener('close', onClose, { once: true });
       browser.signal.addEventListener('abort', onAbort, { once: true });
     });
