@@ -62,3 +62,9 @@ The new general holder flow still lacks a production-ready complete-history boot
 - Preview/production served-file checks and administrator wallet confirmation for any registry mutation.
 
 No production database or blockchain state was changed by this review.
+
+## Account-code follow-up — `c8f4d16`
+
+Independently reviewed the helper and receipt-coordinator change. Only Viem's explicit no-code result (`undefined`) and exact `0x` now establish an empty account. Null, false, empty strings, zero, objects, malformed hex and unknown delegation code fail closed. A delegated implementation must also return nonempty even-length hex before hashing. Normalized account code is included in self-cancellation receipt proof, so the two providers must agree. Original registry receipt shapes remain unchanged; neither migration changed.
+
+The affected cancellation/coordinator test suites passed independently after the change. The prior native PostgreSQL proof remains applicable because the database schema/store were unchanged. This closes the malformed-provider-data finding without expanding wallet authority.
