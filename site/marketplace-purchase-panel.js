@@ -54,7 +54,7 @@ label{display:block;margin-top:18px;color:var(--muted,#a5b1c0);font-size:12px}in
 // Owner-only UI seam. API/session, wallet provider, storage and reviewed release
 // are injected. This module imports no transaction builder or production pins.
 export function createMarketplacePurchasePanel({ container, api, getSelected, getOwner, getProvider,
-  purchaseRelease, storage, onSettled = () => {} }) {
+  purchaseRelease, storage, authenticate, onSettled = () => {} }) {
   check(container?.attachShadow && typeof api === 'function' && typeof getSelected === 'function'
     && typeof getOwner === 'function', 'PURCHASE_PANEL_CONFIGURATION');
   const doc = container.ownerDocument, view = doc.defaultView, shadow = container.shadowRoot ?? container.attachShadow({ mode: 'open' });
@@ -63,7 +63,8 @@ export function createMarketplacePurchasePanel({ container, api, getSelected, ge
   const style = node('style', CSS), mount = node('div'); shadow.replaceChildren(style, mount);
   let scopeKey = '', scope = null, generation = 0, busy = false, destroyed = false;
   let envelope = null, journal = null, errorText = '', storageBlocked = false, verificationFailed = false, recoveryDraft = '', expiryTimer;
-  let explicitPreparation = false;
+  let explicitPreparation = false, authenticationRequired = false;
+  const needsSession = error => ['V2_SESSION_REQUIRED', 'V2_SESSION_EXPIRED'].includes(error?.code);
   const volatileHashes = new Map(), notified = new Set();
   const released = () => purchaseRelease?.status === 'OWNER_ASSIST' && purchaseRelease.chainId === 4663;
   const selection = () => {
@@ -113,16 +114,23 @@ export function createMarketplacePurchasePanel({ container, api, getSelected, ge
     const next = selection(), key = keyFor(next);
     if (key === scopeKey) return;
     ++generation; view.clearTimeout(expiryTimer); busy = false; scope = next; scopeKey = key;
-    envelope = null; journal = null; errorText = ''; storageBlocked = false; verificationFailed = false; recoveryDraft = ''; explicitPreparation = false;
+    envelope = null; journal = null; errorText = ''; storageBlocked = false; verificationFailed = false; recoveryDraft = ''; explicitPreparation = false; authenticationRequired = false;
     if (next) try { journal = currentJournal(next); }
     catch { storageBlocked = true; errorText = 'Saved purchase details could not be read. Restore browser storage before continuing.'; }
   }
   const request = async (context, body = null, intentId = null) => {
     check(context.current(), 'PURCHASE_SELECTION_CHANGED');
-    const payload = await api(`/api/v2/punks/${context.selected.tokenId}/marketplace${intentId ? `?intentId=${intentId}` : ''}`,
-      body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : { method: 'GET' });
+    let payload;
+    try {
+      payload = await api(`/api/v2/punks/${context.selected.tokenId}/marketplace${intentId ? `?intentId=${intentId}` : ''}`,
+        body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : { method: 'GET' });
+    } catch (error) {
+      if (context.current() && needsSession(error)) authenticationRequired = true;
+      throw error;
+    }
     check(context.current(), 'PURCHASE_SELECTION_CHANGED');
-    return validateMarketplaceEnvelope(payload, context.selected);
+    const validated = validateMarketplaceEnvelope(payload, context.selected);
+    authenticationRequired = false; return validated;
   };
   function message(error) {
     if (error?.message === 'PURCHASE_STORAGE_UNAVAILABLE') { storageBlocked = true;
@@ -131,8 +139,10 @@ export function createMarketplacePurchasePanel({ container, api, getSelected, ge
     if (error?.message === 'PURCHASE_UNRESOLVED') return 'Check or cancel the original purchase before preparing another.';
     if (error?.message === 'PURCHASE_RELEASE_UNAVAILABLE') return 'Purchases are paused. Saved purchases can still be checked.';
     if (error?.message === 'PURCHASE_HASH_REQUIRED') return 'Enter the full original transaction hash from your wallet.';
+    if (error?.message === 'PURCHASE_SIGN_IN_DECLINED') return 'Sign-in was declined. Your saved purchase is unchanged. Sign in when you are ready to check it.';
+    if (error?.message === 'PURCHASE_SIGN_IN_UNAVAILABLE') return 'Sign-in could not be completed. Your saved purchase is unchanged. Try signing in again.';
     if (error?.code === 4001) return 'Wallet confirmation was declined. The original purchase remains reserved until its outcome is checked.';
-    if (/SESSION|AUTH/.test(String(error?.code ?? ''))) return 'Reconnect the original owner wallet and sign in to check this purchase.';
+    if (needsSession(error)) return 'Reconnect the original owner wallet and sign in to check this purchase.';
     return 'This purchase could not be verified. Check the saved original review before continuing.';
   }
   async function run(operation) {
@@ -187,14 +197,14 @@ export function createMarketplacePurchasePanel({ container, api, getSelected, ge
     }
   }
   const cas = (entry, operation) => ({ operation, intentId: entry.intentId, revision: entry.revision, reviewHash: entry.reviewHash });
-  async function load(context, recover = true) {
+  async function load(context, { recover = true, retryPreparation = true } = {}) {
     const saved = currentJournal(context.selected); storageBlocked = false; journal = saved;
     // No public release means no idle work. A known paused release still reads
     // the scoped server journal, including on a device without local storage.
     if (purchaseRelease == null && !saved) { envelope = null; return; }
     let payload = await request(context, null, saved?.intentId);
     verifyEntry(payload, saved?.intentId, saved);
-    if (!payload.entry && saved?.status === 'DRAFT' && saved.input && released()) {
+    if (retryPreparation && !payload.entry && saved?.status === 'DRAFT' && saved.input && released()) {
       payload = await request(context, { operation: 'prepare', input: { requestId: saved.requestId, action: 'BUY_LISTINGS', ...saved.input } });
     }
     await adopt(context, payload, saved?.intentId);
@@ -206,6 +216,17 @@ export function createMarketplacePurchasePanel({ container, api, getSelected, ge
     }
   }
   const refresh = () => run(context => load(context));
+  const signInToRecover = () => run(async context => {
+    check(authenticationRequired && typeof authenticate === 'function');
+    const originalIntentId = currentJournal(context.selected)?.intentId ?? null;
+    try { await authenticate(); }
+    catch (error) { throw Error(error?.code === 4001 ? 'PURCHASE_SIGN_IN_DECLINED' : 'PURCHASE_SIGN_IN_UNAVAILABLE'); }
+    check(context.current(), 'PURCHASE_SELECTION_CHANGED');
+    check((currentJournal(context.selected)?.intentId ?? null) === originalIntentId, 'PURCHASE_UNRESOLVED');
+    // Signing in permits only lookup/recovery of the captured original scope.
+    // It must never replay a missing draft preparation, claim or wallet send.
+    await load(context, { retryPreparation: false });
+  });
   const prepare = input => run(async context => {
     explicitPreparation = true; check(released(), 'PURCHASE_RELEASE_UNAVAILABLE');
     const normalized = inputFor(input), existing = currentJournal(context.selected);
@@ -278,7 +299,7 @@ export function createMarketplacePurchasePanel({ container, api, getSelected, ge
     } catch (error) {
       if (context.current()) {
         try {
-          await load(context, false);
+          await load(context, { recover: false });
           if (error?.code === 4001 && envelope?.entry?.status === 'WALLET_REQUESTED' && !envelope.entry.reportedHash) {
             const payload = await request(context, cas(envelope.entry, 'decline')); await adopt(context, payload, envelope.entry.intentId);
           }
@@ -355,6 +376,7 @@ export function createMarketplacePurchasePanel({ container, api, getSelected, ge
     const actions = node('div', null, 'actions');
     const button = (label, action, disabled = false, primary = false) => { const control = node('button', label, primary ? 'primary' : '');
       control.type = 'button'; control.disabled = busy || disabled; control.addEventListener('click', () => { void action(); }); actions.append(control); };
+    if (authenticationRequired && typeof authenticate === 'function') button('Sign in to recover', signInToRecover, storageBlocked, true);
     if (!done) {
       if (entry?.status === 'PREPARED' && !uncertain) {
         const released = purchaseRelease?.status === 'OWNER_ASSIST' && purchaseRelease.chainId === 4663
@@ -366,14 +388,14 @@ export function createMarketplacePurchasePanel({ container, api, getSelected, ge
         if (expired) body.append(node('p', 'This review expired. Cancel it before preparing a fresh purchase.', 'notice'));
         button('Confirm in wallet', confirm, !released || expired || !journal?.input || storageBlocked || verificationFailed
           || !selection()?.holdsSelectedPunk || envelope.availability !== 'OWNER_REVIEW_READY' || envelope.blockers.length > 0, true);
-        button('Cancel review', cancel, storageBlocked);
+        button('Cancel review', cancel, storageBlocked || authenticationRequired);
         if (!expired) expiryTimer = view.setTimeout(render, Math.max(1, review.expiresAt - Date.now() - 5_000));
       } else if (entry?.status === 'WALLET_REQUESTED') {
-        button('Check original transaction', recover, storageBlocked, true);
+        button('Check original transaction', recover, storageBlocked || authenticationRequired, true);
       } else if (entry?.status === 'PREPARED' && uncertain) {
-        button('Cancel unclaimed review', cancel, storageBlocked);
+        button('Cancel unclaimed review', cancel, storageBlocked || authenticationRequired);
       } else if (!entry && journal?.status === 'DRAFT' && !journal.attempted && !journal.transactionHash) {
-        button('Discard unsent request', discard, storageBlocked);
+        button('Discard unsent request', discard, storageBlocked || authenticationRequired);
       }
       button(busy ? 'Checking…' : 'Refresh status', refresh);
     }
@@ -383,7 +405,7 @@ export function createMarketplacePurchasePanel({ container, api, getSelected, ge
     mount.append(card);
   }
   function clear() { ++generation; view.clearTimeout(expiryTimer); busy = false; envelope = null; journal = null;
-    scope = null; scopeKey = ''; errorText = ''; recoveryDraft = ''; explicitPreparation = false; container.hidden = true; mount.replaceChildren(); }
+    scope = null; scopeKey = ''; errorText = ''; recoveryDraft = ''; explicitPreparation = false; authenticationRequired = false; container.hidden = true; mount.replaceChildren(); }
   sync(); render();
   return Object.freeze({ refresh, prepare, clear, destroy() { clear(); destroyed = true; shadow.replaceChildren(); } });
 }

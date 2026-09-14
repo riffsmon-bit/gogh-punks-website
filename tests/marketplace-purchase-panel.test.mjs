@@ -18,7 +18,7 @@ class Element {
 const walk = node => [node, ...node.childNodes.flatMap(walk)];
 const waitFor = async predicate => { for (let i = 0; i < 80; i++) { if (predicate()) return; await new Promise(resolve => setTimeout(resolve, 5)); } assert.fail('Panel operation did not settle'); };
 
-function fixture(t, { release = PANEL_RELEASE, initial = null } = {}) {
+function fixture(t, { release = PANEL_RELEASE, initial = null, authenticate } = {}) {
   const document = { createElement: tag => new Element(tag, document), defaultView: { crypto: webcrypto, setTimeout, clearTimeout } };
   const container = new Element('div', document), values = new Map(), requests = [], events = [], settlements = [];
   let selected = { tokenId: '93', chainId: 4663, owner: PANEL_OWNER, preview: false }, owner = PANEL_OWNER;
@@ -58,7 +58,7 @@ function fixture(t, { release = PANEL_RELEASE, initial = null } = {}) {
     }
     return structuredClone(server);
   };
-  const options = { container, api, storage, purchaseRelease: release, getSelected: () => selected, getOwner: () => owner,
+  const options = { container, api, storage, authenticate, purchaseRelease: release, getSelected: () => selected, getOwner: () => owner,
     getProvider: () => ({ request: async ({ method }) => {
       if (method === 'eth_chainId') return '0x1237'; if (method === 'eth_accounts') return [owner];
       assert.equal(method, 'eth_sendTransaction'); sends++; events.push('send');
@@ -77,8 +77,118 @@ function fixture(t, { release = PANEL_RELEASE, initial = null } = {}) {
 }
 
 test('unreleased idle selection stays hidden and makes no API or wallet requests', async t => {
-  const f = fixture(t, { release: null }); await f.panel.refresh();
+  let signIns = 0;
+  const f = fixture(t, { release: null, authenticate: () => { signIns++; } }); await f.panel.refresh();
   assert.equal(f.container.hidden, true); assert.equal(f.requests.length, 0); assert.equal(f.sends(), 0);
+  assert.equal(signIns, 0);
+});
+
+const sessionError = code => Object.assign(Error('session unavailable'), { code });
+
+test('expired saved recovery offers explicit sign-in and never authenticates during refresh', async t => {
+  let signIns = 0, f;
+  f = fixture(t, { initial: marketplacePanelFixture({ status: 'WALLET_REQUESTED' }).envelope,
+    authenticate: async () => { signIns++; f.readError(null); } });
+  await f.panel.refresh(); const original = f.server().entry.intentId;
+  f.remount(null); f.readError(sessionError('V2_SESSION_EXPIRED'));
+  await f.panel.refresh(); await f.panel.refresh();
+  assert.equal(signIns, 0); assert.ok(f.button('Sign in to recover'));
+  const requestCount = f.requests.length, signIn = f.button('Sign in to recover'); signIn.click(); signIn.click();
+  await waitFor(() => f.text().includes('Track your purchase') && !f.button('Sign in to recover'));
+  assert.equal(signIns, 1); assert.equal(f.requests.length, requestCount + 1);
+  assert.equal(f.requests.at(-1).input, null); assert.ok(f.requests.at(-1).path.endsWith(`?intentId=${original}`));
+  assert.equal(f.sends(), 0); assert.equal(f.requests.filter(value => value.input?.operation === 'claim').length, 0);
+});
+
+test('known paused release can explicitly sign in to find its original server recovery on a new device', async t => {
+  let signIns = 0, f;
+  f = fixture(t, { release: { ...PANEL_RELEASE, status: 'PAUSED' },
+    initial: marketplacePanelFixture({ status: 'WALLET_REQUESTED' }).envelope,
+    authenticate: async () => { signIns++; f.readError(null); } });
+  f.readError(sessionError('V2_SESSION_REQUIRED')); await f.panel.refresh();
+  assert.equal(signIns, 0); f.button('Sign in to recover').click();
+  await waitFor(() => f.text().includes('Track your purchase'));
+  assert.equal(signIns, 1); assert.equal(f.requests.at(-1).path, '/api/v2/punks/93/marketplace');
+  assert.ok(f.requests.every(value => value.input === null)); assert.equal(f.sends(), 0);
+});
+
+test('explicit sign-in recovers a bound original hash without preparing, claiming or sending', async t => {
+  let f;
+  f = fixture(t, { initial: marketplacePanelFixture({ status: 'WALLET_REQUESTED' }).envelope,
+    authenticate: async () => { f.readError(null); } });
+  await f.panel.refresh(); f.server().entry.reportedHash = PANEL_HASH;
+  f.readError(sessionError('V2_SESSION_EXPIRED')); await f.panel.refresh();
+  const before = f.requests.length; f.button('Sign in to recover').click();
+  await waitFor(() => f.text().includes('Purchase complete'));
+  assert.deepEqual(f.requests.slice(before).map(value => value.input?.operation ?? 'GET'), ['GET', 'recover']);
+  assert.equal(f.requests.at(-1).input.transactionHash, PANEL_HASH); assert.equal(f.sends(), 0);
+  assert.equal(f.nodes().filter(node => node.localName === 'button').length, 0);
+});
+
+for (const change of ['Punk', 'owner', 'Punk round trip']) test(`selection change during explicit sign-in blocks recovery: ${change}`, async t => {
+  let releaseSignIn, signIns = 0;
+  const waiting = new Promise(resolve => { releaseSignIn = resolve; });
+  const f = fixture(t, { initial: marketplacePanelFixture({ status: 'WALLET_REQUESTED' }).envelope,
+    authenticate: async () => { signIns++; await waiting; } });
+  await f.panel.refresh(); f.readError(sessionError('V2_SESSION_EXPIRED')); await f.panel.refresh();
+  const requests = f.requests.length, saved = [...f.values.entries()]; f.button('Sign in to recover').click();
+  await waitFor(() => signIns === 1);
+  if (change === 'owner') { f.setOwner(PANEL_OTHER); f.setSelected({ owner: PANEL_OTHER }); }
+  else f.setSelected({ tokenId: '94' });
+  f.panel.clear();
+  if (change === 'Punk round trip') { f.setSelected({ tokenId: '93' }); f.panel.clear(); }
+  f.readError(null); releaseSignIn(); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(f.requests.length, requests); assert.deepEqual([...f.values.entries()], saved);
+  assert.equal(f.container.hidden, true); assert.equal(f.sends(), 0);
+});
+
+for (const declined of [true, false]) test(`failed explicit sign-in preserves recovery without automatic retry: ${declined ? 'declined' : 'unavailable'}`, async t => {
+  let signIns = 0;
+  const f = fixture(t, { initial: marketplacePanelFixture({ status: 'WALLET_REQUESTED' }).envelope,
+    authenticate: async () => { signIns++; throw declined ? Object.assign(Error('declined'), { code: 4001 }) : Error('<script>private error</script>'); } });
+  await f.panel.refresh(); f.readError(sessionError('V2_SESSION_EXPIRED')); await f.panel.refresh();
+  const saved = [...f.values.entries()], requests = f.requests.length;
+  f.button('Sign in to recover').click();
+  await waitFor(() => f.text().includes(declined ? 'Sign-in was declined' : 'Sign-in could not be completed'));
+  assert.equal(signIns, 1); assert.equal(f.requests.length, requests); assert.deepEqual([...f.values.entries()], saved);
+  assert.equal(f.button('Sign in to recover').disabled, false); assert.equal(f.sends(), 0);
+  assert.doesNotMatch(f.text(), /private error|Wallet confirmation was declined/);
+  await f.panel.refresh(); assert.equal(signIns, 1);
+});
+
+test('sign-in recovery cannot replay an unresolved draft preparation', async t => {
+  let f;
+  f = fixture(t, { authenticate: async () => { f.readError(null); } }); f.blockPrepare(true);
+  await f.panel.prepare(f.input); f.readError(sessionError('V2_SESSION_REQUIRED')); await f.panel.refresh();
+  const before = f.requests.length; f.button('Sign in to recover').click();
+  await waitFor(() => f.requests.length > before && !f.button('Sign in to recover'));
+  assert.equal(f.requests.length, before + 1); assert.equal(f.requests.at(-1).input, null);
+  assert.equal(f.requests.filter(value => value.input?.operation === 'prepare').length, 1);
+  assert.ok(f.button('Discard unsent request')); assert.equal(f.sends(), 0);
+});
+
+test('sign-in cannot switch to a different locally active purchase while authentication waits', async t => {
+  let releaseSignIn, signIns = 0;
+  const waiting = new Promise(resolve => { releaseSignIn = resolve; });
+  const f = fixture(t, { initial: marketplacePanelFixture({ status: 'WALLET_REQUESTED' }).envelope,
+    authenticate: async () => { signIns++; await waiting; } });
+  await f.panel.refresh(); f.readError(sessionError('V2_SESSION_EXPIRED')); await f.panel.refresh();
+  const requests = f.requests.length; f.button('Sign in to recover').click(); await waitFor(() => signIns === 1);
+  const [key, raw] = [...f.values.entries()].find(([key]) => key.includes(':intent:'));
+  const saved = JSON.parse(raw), newIntent = 'f'.repeat(64), prefix = key.split(':intent:')[0];
+  f.values.set(`${prefix}:intent:${newIntent}`, JSON.stringify({ ...saved, intentId: newIntent }));
+  f.values.set(`${prefix}:active`, JSON.stringify({ intentId: newIntent }));
+  f.readError(null); releaseSignIn(); await waitFor(() => f.text().includes('Check or cancel the original purchase'));
+  assert.equal(f.requests.length, requests); assert.equal(f.values.get(key), raw); assert.equal(f.sends(), 0);
+});
+
+test('sign-in action requires an authentication callback and an exact session-required API code', async t => {
+  const noCallback = fixture(t); noCallback.readError(sessionError('V2_SESSION_REQUIRED')); await noCallback.panel.refresh();
+  assert.equal(noCallback.button('Sign in to recover'), undefined);
+  let signIns = 0;
+  const unrelated = fixture(t, { authenticate: () => { signIns++; } });
+  unrelated.readError(sessionError('POLICY_AUTHORITY_DENIED')); await unrelated.panel.refresh();
+  assert.equal(unrelated.button('Sign in to recover'), undefined); assert.equal(signIns, 0);
 });
 
 test('known paused release reads a server purchase on a new device without granting send authority', async t => {

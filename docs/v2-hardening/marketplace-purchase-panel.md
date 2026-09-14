@@ -17,6 +17,7 @@ const panel = createMarketplacePurchasePanel({
   getProvider,                  // returns or resolves the owner's EIP-1193 provider
   purchaseRelease: null,        // explicit trusted reviewed release required for sending
   storage: localStorage,
+  authenticate: ensureV2Session, // optional; invoked only by explicit sign-in action
   onSettled                     // optional; receives { owner, punkId, chainId, entry }
 });
 
@@ -26,6 +27,8 @@ panel.destroy();                // invalidate view/awaits and remove shadow cont
 ```
 
 `refresh()` skips external work only when the release is absent/null **and** no scoped local journal exists. A known `PAUSED` release still reads the server's latest owner/Punk history on a new device. A saved journal is always checked by its exact original intent ID, even when the release is absent or paused. `clear()` does not erase saved requests or transaction hashes.
+
+When the injected API rejects with `V2_SESSION_REQUIRED` or `V2_SESSION_EXPIRED`, an available `authenticate()` callback enables an explicit **Sign in to recover** action. Background refresh never invokes this callback. The click captures the owner/Punk/chain generation and original local intent, waits for authentication, and rejects a changed selection (including a cleared A→B→A round trip) or active intent before any recovery read. This action performs only the scoped GET and, when an original hash is bound, the existing CAS recovery request. It does not replay a missing draft preparation, claim or wallet send. Declined/failed sign-in preserves the journal and offers an explicit retry; unrelated authorization errors do not enable authentication. The callback takes no arguments and can directly use the root application's `ensureV2Session`.
 
 A future reviewed selection consumer can call `await panel.prepare(input)` with exactly:
 
@@ -61,7 +64,7 @@ Received reviews are checked against saved collection, exact order hashes and in
 
 ## Verification
 
-- `node --test tests/marketplace-purchase-panel.test.mjs` — **22/22 PASS**. Covers persistence before preparation, exact intent replay after lost response, null/paused behavior, real helper invocation, terminal verification, transfer while awaiting, rejected wallet, concurrency, storage/input failures, and safe discard of blocked unsent drafts.
+- `node --test tests/marketplace-purchase-panel.test.mjs` — **33/33 PASS**. Covers persistence before preparation, exact intent replay after lost response, null/paused behavior, real helper invocation, terminal verification, transfer while awaiting, rejected wallet, concurrency, storage/input failures, safe discard of blocked unsent drafts, and explicit session recovery with selection/intent race checks.
 - `node scripts/test-marketplace-purchase-panel-browser.mjs --mock-wallet-only` — **PASS** in local Chrome at 1440, 375 and 320 pixels. The fixture uses the actual panel, actual reviewed helper, actual bundled calldata codec, and existing broker CSS. It checks lost prepare/claim/recovery responses, reload recovery, an unobserved manual hash, rejected wallet, concurrency, transfer, HTML-safe error display, local storage failure, paused new-device recovery, and no stale terminal actions. See [machine-readable result](marketplace-panel-evidence/result.json).
 - The earlier independent [wallet boundary review](marketplace-wallet-independent-review.md) and `tests/marketplace-wallet-boundary.test.mjs` cover the helper's order hash/counter binding, guard/release restrictions and malformed claims.
 
