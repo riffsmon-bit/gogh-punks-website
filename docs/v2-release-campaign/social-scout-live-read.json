@@ -1,0 +1,99 @@
+{
+  "checkedAt": "2026-09-14T02:28:29.069Z",
+  "elapsedMs": 279,
+  "externalGETs": 1,
+  "publicTransactions": 0,
+  "result": {
+    "schema": "GOGH_PUBLIC_PROJECT_RESEARCH_V1",
+    "chainId": 4663,
+    "slug": "gogh-punks-255843210",
+    "contract": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+    "status": "OBSERVED",
+    "project": {
+      "name": "Gogh Punks",
+      "description": "4,295 pixel-perfect fully on-chain portraits on Robinhood Chain.",
+      "references": [
+        {
+          "kind": "WEBSITE",
+          "url": "https://goghpunks.xyz/",
+          "status": "DECLARED_BY_COLLECTION",
+          "source": "https://api.opensea.io/api/v2/collections/gogh-punks-255843210",
+          "destinationFetched": false,
+          "ownershipVerified": false
+        },
+        {
+          "kind": "X",
+          "url": "https://x.com/goghpunks",
+          "status": "DECLARED_BY_COLLECTION",
+          "source": "https://api.opensea.io/api/v2/collections/gogh-punks-255843210",
+          "destinationFetched": false,
+          "ownershipVerified": false
+        },
+        {
+          "kind": "DISCORD",
+          "url": "https://discord.gg/NgRzPNra6s",
+          "status": "DECLARED_BY_COLLECTION",
+          "source": "https://api.opensea.io/api/v2/collections/gogh-punks-255843210",
+          "destinationFetched": false,
+          "ownershipVerified": false
+        }
+      ],
+      "collectionUrl": "https://opensea.io/collection/gogh-punks-255843210",
+      "declaredReferenceCount": 3
+    },
+    "provenance": {
+      "source": "OPENSEA_COLLECTION_API",
+      "endpoint": "https://api.opensea.io/api/v2/collections/gogh-punks-255843210",
+      "requestedAt": "2026-09-14T02:28:28.790Z",
+      "observedAt": "2026-09-14T02:28:29.056Z",
+      "identity": "PROVIDER_COLLECTION_CHAIN_AND_CONTRACT_MATCH"
+    },
+    "unavailable": null,
+    "socialActivity": "UNKNOWN",
+    "authenticity": "UNVERIFIED",
+    "walletAuthority": "NONE",
+    "executable": false,
+    "limitations": [
+      "PROJECT_DECLARED_REFERENCES_ONLY",
+      "NO_SOCIAL_POSTS_OR_ACTIVITY_FETCHED",
+      "NO_DESTINATION_OR_ACCOUNT_OWNERSHIP_VERIFICATION",
+      "PROVIDER_TEXT_IS_UNTRUSTED",
+      "NO_SECURITY_OR_VALUE_VERDICT"
+    ],
+    "summary": "Gogh Punks lists 3 supported project links. The accounts and their activity have not been verified."
+  },
+  "wrongChainSameNameProbe": {
+    "checkedAt": "2026-09-14T02:27:53.373Z",
+    "elapsedMs": 600,
+    "externalGETs": 1,
+    "publicTransactions": 0,
+    "result": {
+      "schema": "GOGH_PUBLIC_PROJECT_RESEARCH_V1",
+      "chainId": 4663,
+      "slug": "gogh-punks",
+      "contract": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+      "status": "UNAVAILABLE",
+      "project": null,
+      "provenance": {
+        "source": "OPENSEA_COLLECTION_API",
+        "endpoint": "https://api.opensea.io/api/v2/collections/gogh-punks",
+        "requestedAt": "2026-09-14T02:27:52.775Z",
+        "observedAt": "2026-09-14T02:27:53.372Z",
+        "identity": "UNVERIFIED"
+      },
+      "unavailable": "PROJECT_IDENTITY_MISMATCH",
+      "socialActivity": "UNKNOWN",
+      "authenticity": "UNVERIFIED",
+      "walletAuthority": "NONE",
+      "executable": false,
+      "limitations": [
+        "PROJECT_DECLARED_REFERENCES_ONLY",
+        "NO_SOCIAL_POSTS_OR_ACTIVITY_FETCHED",
+        "NO_DESTINATION_OR_ACCOUNT_OWNERSHIP_VERIFICATION",
+        "PROVIDER_TEXT_IS_UNTRUSTED",
+        "NO_SECURITY_OR_VALUE_VERDICT"
+      ],
+      "summary": "Project information is unavailable. Try again shortly; no wallet action was requested."
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "schema": "GOGH_SKILL_PACKAGE_V1",
+  "skillId": 7,
+  "version": 1,
+  "chainId": 4663,
+  "name": "Social Scout",
+  "capabilities": [
+    "SOCIAL_READ"
+  ],
+  "requiredMcpTools": [
+    "research_project"
+  ],
+  "requiredWalletCapabilities": [],
+  "requiredExecutorCapabilities": [],
+  "riskTier": 0,
+  "equipCost": 1,
+  "trainingCost": 1,
+  "maxSkillLevel": 1,
+  "implementation": "broker/src/v4/skill-forge/social-scout-v1.mjs",
+  "implementationSha256": "c9445fcdd4053154a598a544d564e22cb19f507618b01a12adcdd223f04a2d9e",
+  "sourceAudit": "docs/v2-release-campaign/sources.md",
+  "walletAuthority": "NONE"
+}
