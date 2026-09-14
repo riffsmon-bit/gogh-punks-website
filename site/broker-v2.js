@@ -3,6 +3,7 @@ import { linkFindings, createLinkFindingsCard } from './broker-v2-link-findings.
 import { mountBrokerPreferences } from "./broker-v2-preferences.js";
 import { verifyOwnedPunkIds } from "./broker-v2-ownership.js";
 import { createForgeControl } from './broker-v2-forge.js';
+import { createForgeSkillAdminPanel } from './forge-skill-admin-panel.js';
 import { createDirectedPaidPanel } from './directed-paid-panel.js';
 import { createMarketplacePurchasePanel } from './marketplace-purchase-panel.js';
 import { createAgentRecoveryPanel, recoveryEth } from './punk-agent-recovery-panel.js';
@@ -87,6 +88,7 @@ let reviewMissionTimer = null;
 let gasFundingRecovery = null;
 let brokerPreferences = null;
 let forgeControl = null;
+let forgeSkillAdminControl = null;
 let directedPaidControl = null;
 let marketplacePurchaseControl = null;
 let marketplaceSelectionKey = '';
@@ -1110,6 +1112,7 @@ function syncMarketplaceSelection() {
 }
 
 function renderRoster() {
+  forgeSkillAdminControl?.update();
   forgeControl?.selectionChanged();
   directedPaidControl?.selectionChanged();
   agentRecoveryControl?.selectionChanged();
@@ -2973,6 +2976,7 @@ function setup() {
     }
     const verifiedSameAccount = account && state.ownershipAccount === account;
     state.wallet = { ...wallet, account };
+    forgeSkillAdminControl?.update();
     brokerPreferences?.refresh(); gasFundingRecovery?.refresh();
     if (account !== previousAccount || wallet.chainId !== previousChain) {
       ownerRefresh.invalidate(); clearTransferredPunkReview();
@@ -3034,6 +3038,12 @@ function setup() {
     ensureSession:ensureV2Session,request:jsonRequest});
   let marketplaceStorage = null;
   try { marketplaceStorage = window.localStorage; } catch { /* Saved purchases fail closed if storage is unavailable. */ }
+  forgeSkillAdminControl = createForgeSkillAdminPanel({
+    root: one('[data-forge-skill-admin]'),
+    getSelection: () => ({ owner: state.wallet?.account, chainId: state.wallet?.chainId, preview: PREVIEW }),
+    ensureSession: ensureV2Session, request: jsonRequest,
+    getProvider: () => window.__GOGH_WALLET_PROVIDER__, storage: marketplaceStorage,
+  });
   marketplacePurchaseControl = createMarketplacePurchasePanel({
     container: one('[data-marketplace-purchase-panel]'),
     getSelected: () => state.selected ? { tokenId: String(state.selected.tokenId),
