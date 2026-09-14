@@ -1,0 +1,28 @@
+{
+  "schema": "GOGH_SKILL_PACKAGE_V1",
+  "skillId": 6,
+  "version": 1,
+  "chainId": 4663,
+  "name": "Art Curator",
+  "capabilities": [
+    "ART_CLASSIFY"
+  ],
+  "requiredMcpTools": [
+    "classify_collection"
+  ],
+  "requiredWalletCapabilities": [],
+  "requiredExecutorCapabilities": [],
+  "riskTier": 0,
+  "equipCost": 1,
+  "trainingCost": 1,
+  "maxSkillLevel": 1,
+  "implementation": "broker/src/v4/skill-forge/art-curator-v1.mjs",
+  "implementationSha256": "70a2b76c1f24e92c83f8ebf0af48a0c415f291a1167ac5192581fb6f3837e94e",
+  "dependenciesSha256": {
+    "broker/src/v4/skill-forge/collection-evidence-v1.mjs": "0ec1d53339f458c74f6147bb16dda4ea445b7e61e9d16e000f307f2846fa3ab2",
+    "broker/src/v4/skill-forge/research-tools.mjs": "53322cbbcfa71c34e210548e9e10db99ab0da63dc39516ad1a144024b3c39c98",
+    "broker/src/v4/collecting-intent.mjs": "6015782f355b2e2fba07ab227d08d9b639804bb2eb49dd7a9c3b5769ade81438"
+  },
+  "sourceAudit": "docs/v2-hardening/planned-research-skills.md",
+  "walletAuthority": "NONE"
+}

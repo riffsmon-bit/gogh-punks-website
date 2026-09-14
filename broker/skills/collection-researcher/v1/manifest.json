@@ -1,0 +1,28 @@
+{
+  "schema": "GOGH_SKILL_PACKAGE_V1",
+  "skillId": 11,
+  "version": 1,
+  "chainId": 4663,
+  "name": "Collection Researcher",
+  "capabilities": [
+    "CONTRACT_READ",
+    "RARITY_READ"
+  ],
+  "requiredMcpTools": [
+    "research_collection"
+  ],
+  "requiredWalletCapabilities": [],
+  "requiredExecutorCapabilities": [],
+  "riskTier": 0,
+  "equipCost": 1,
+  "trainingCost": 1,
+  "maxSkillLevel": 1,
+  "implementation": "broker/src/v4/skill-forge/collection-researcher-v1.mjs",
+  "implementationSha256": "c9e98e26cb5ff8c5695b68d5fc172c50953a97f1441416b3b4683cd7f2bbad38",
+  "dependenciesSha256": {
+    "broker/src/v4/skill-forge/collection-evidence-v1.mjs": "0ec1d53339f458c74f6147bb16dda4ea445b7e61e9d16e000f307f2846fa3ab2",
+    "broker/src/v4/skill-forge/research-tools.mjs": "53322cbbcfa71c34e210548e9e10db99ab0da63dc39516ad1a144024b3c39c98"
+  },
+  "sourceAudit": "docs/v2-hardening/planned-research-skills.md",
+  "walletAuthority": "NONE"
+}

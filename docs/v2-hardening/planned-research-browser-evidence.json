@@ -1,0 +1,30 @@
+{
+  "status": "PASS",
+  "environment": "LOCAL_FIXTURE_ONLY",
+  "screenshots": [
+    "/private/tmp/gogh-research-floor-hunter-1440.png",
+    "/private/tmp/gogh-research-floor-hunter-768.png",
+    "/private/tmp/gogh-research-floor-hunter-375.png",
+    "/private/tmp/gogh-research-floor-hunter-320.png",
+    "/private/tmp/gogh-research-collection-researcher-1440.png",
+    "/private/tmp/gogh-research-collection-researcher-768.png",
+    "/private/tmp/gogh-research-collection-researcher-375.png",
+    "/private/tmp/gogh-research-collection-researcher-320.png",
+    "/private/tmp/gogh-research-art-curator-1440.png",
+    "/private/tmp/gogh-research-art-curator-768.png",
+    "/private/tmp/gogh-research-art-curator-375.png",
+    "/private/tmp/gogh-research-art-curator-320.png"
+  ],
+  "scenarios": [
+    "Floor Hunter",
+    "Collection Researcher",
+    "Art Curator",
+    "failed chain read clears previous research",
+    "selection change clears result",
+    "untrusted metadata cannot create HTML",
+    "no wallet requests"
+  ],
+  "publicTransactions": 0,
+  "walletRequests": 0,
+  "checkedAt": "2026-09-13T23:35:31.242Z"
+}

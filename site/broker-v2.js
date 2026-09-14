@@ -4,6 +4,7 @@ import { mountBrokerPreferences } from "./broker-v2-preferences.js";
 import { verifyOwnedPunkIds } from "./broker-v2-ownership.js";
 import { createForgeControl } from './broker-v2-forge.js';
 import { createDirectedPaidPanel } from './directed-paid-panel.js';
+import { createMarketplacePurchasePanel } from './marketplace-purchase-panel.js';
 import { createAgentRecoveryPanel, recoveryEth } from './punk-agent-recovery-panel.js';
 import { createOwnerRefresh } from "./broker-v2-owner-refresh.js";
 import { createGasFundingRecovery } from "./punk-agent-gas-recovery-panel.js";
@@ -87,6 +88,9 @@ let gasFundingRecovery = null;
 let brokerPreferences = null;
 let forgeControl = null;
 let directedPaidControl = null;
+let marketplacePurchaseControl = null;
+let marketplaceSelectionKey = '';
+let marketplaceSelectionRevision = 0;
 let agentRecoveryControl = null;
 const one = (selector) => document.querySelector(selector);
 const all = (selector) => [...document.querySelectorAll(selector)];
@@ -1094,10 +1098,22 @@ async function runOwnerAssistedLiveMint() {
   }
 }
 
+function syncMarketplaceSelection() {
+  if (!marketplacePurchaseControl) return;
+  const key = JSON.stringify([state.wallet?.account?.toLowerCase() ?? null,
+    state.wallet?.chainId ?? null, state.selected?.tokenId ?? null, PREVIEW]);
+  if (key === marketplaceSelectionKey) return;
+  marketplaceSelectionKey = key;
+  marketplaceSelectionRevision++;
+  marketplacePurchaseControl.clear();
+  void marketplacePurchaseControl.refresh();
+}
+
 function renderRoster() {
   forgeControl?.selectionChanged();
   directedPaidControl?.selectionChanged();
   agentRecoveryControl?.selectionChanged();
+  syncMarketplaceSelection();
   const roster = one("[data-punk-roster]");
   const restoreFocus = roster.contains(document.activeElement);
   roster.setAttribute('aria-orientation', 'horizontal');
@@ -3016,6 +3032,38 @@ function setup() {
   directedPaidControl = createDirectedPaidPanel({root:one('[data-directed-paid-panel]'),
     getSelection:()=>state.selected?{tokenId:String(state.selected.tokenId),owner:state.wallet?.account??null,chainId:state.wallet?.chainId,preview:PREVIEW}:null,
     ensureSession:ensureV2Session,request:jsonRequest});
+  let marketplaceStorage = null;
+  try { marketplaceStorage = window.localStorage; } catch { /* Saved purchases fail closed if storage is unavailable. */ }
+  marketplacePurchaseControl = createMarketplacePurchasePanel({
+    container: one('[data-marketplace-purchase-panel]'),
+    getSelected: () => state.selected ? { tokenId: String(state.selected.tokenId),
+      owner: state.wallet?.account, chainId: state.wallet?.chainId, preview: PREVIEW } : null,
+    getOwner: () => state.wallet?.account,
+    getProvider: () => window.__GOGH_WALLET_PROVIDER__,
+    // No reviewed public purchase release exists. Never infer one from API data.
+    purchaseRelease: null,
+    storage: marketplaceStorage,
+    authenticate: ensureV2Session,
+    api: async (path, options) => {
+      if (options?.method === 'POST') {
+        const revision = marketplaceSelectionRevision, key = marketplaceSelectionKey;
+        await ensureV2Session();
+        const currentKey = JSON.stringify([state.wallet?.account?.toLowerCase() ?? null,
+          state.wallet?.chainId ?? null, state.selected?.tokenId ?? null, PREVIEW]);
+        if (revision !== marketplaceSelectionRevision || key !== currentKey) {
+          throw new Error('PURCHASE_SELECTION_CHANGED');
+        }
+      }
+      return jsonRequest(path, options);
+    },
+    onSettled: ({ owner, punkId, chainId }) => {
+      if (owner !== state.wallet?.account?.toLowerCase() || chainId !== state.wallet?.chainId
+        || punkId !== String(state.selected?.tokenId)) return;
+      state.galleryTokenId = null;
+      void loadAgentAccountStatus();
+    },
+  });
+  syncMarketplaceSelection();
   const recoveryRoot = document.createElement('section'); one('[data-v2-panel="fund"]').append(recoveryRoot);
   agentRecoveryControl = createAgentRecoveryPanel({ root: recoveryRoot,
     getSelection: () => state.selected ? { tokenId: String(state.selected.tokenId), owner: state.wallet?.account,

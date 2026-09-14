@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { request as httpRequest } from 'node:http';
@@ -44,29 +44,81 @@ test('local Forge: contract snapshots, guarded local training and responsive bro
     assert.match(page.headers.get('content-security-policy'), /frame-ancestors 'none'/);
     assert.equal(page.headers.get('cache-control'), 'no-store');
   });
-  await t.test('desktop/mobile, switching, details, warnings and error state', async () => {
+  await t.test('desktop/mobile, switching, details, warnings and error state', async browser => {
     const folder = await mkdtemp(join(tmpdir(), 'gogh-forge-browser-'));
-    const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', ['--headless=new', '--no-first-run', '--no-default-browser-check', '--remote-debugging-port=0', `--user-data-dir=${folder}`, 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] });
-    t.after(() => chrome.kill('SIGTERM'));
+    const profile = join(folder, 'profile');
+    const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', ['--headless=new', '--disable-gpu', '--disable-background-networking',
+      '--disable-component-update', '--disable-default-apps', '--disable-sync', '--no-first-run', '--no-default-browser-check',
+      '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1, EXCLUDE localhost',
+      '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] });
+    let socket, chromeStderr = '';
+    const documentRequests = [];
+    chrome.stderr.on('data', chunk => { chromeStderr = (chromeStderr + chunk.toString()).slice(-4000); });
+    browser.after(async () => {
+      // Complete the CDP close handshake while its browser is still alive.
+      // Pending commands and owned processes each have a bounded cleanup path.
+      if (socket && socket.readyState !== WebSocket.CLOSED) await new Promise(resolve => {
+        const timer = setTimeout(resolve, 2000);
+        socket.addEventListener('close', () => { clearTimeout(timer); resolve(); }, { once: true });
+        try { socket.close(); } catch { clearTimeout(timer); resolve(); }
+      });
+      const exited = () => chrome.exitCode !== null || chrome.signalCode !== null;
+      const waitForExit = () => new Promise(resolve => {
+        if (exited()) return resolve();
+        const timer = setTimeout(resolve, 2000);
+        chrome.once('exit', () => { clearTimeout(timer); resolve(); });
+      });
+      if (!exited()) { chrome.kill('SIGTERM'); await waitForExit(); }
+      if (!exited()) { chrome.kill('SIGKILL'); await waitForExit(); }
+      chrome.stderr.destroy(); chrome.unref();
+      assert.ok(exited(), 'Owned Chrome process did not exit');
+      await rm(profile, { recursive: true, force: true, maxRetries: 3 });
+    });
     const endpoint = await new Promise((resolve, reject) => {
       const timeout = setTimeout(() => reject(new Error('Chrome startup timeout')), 15000);
       let output = '';
       chrome.on('error', error => { clearTimeout(timeout); reject(error); });
+      chrome.once('exit', (code, signal) => { clearTimeout(timeout); reject(new Error(`Chrome exited before startup: ${code ?? signal}`)); });
       chrome.stderr.on('data', chunk => { output += chunk; const match = output.match(/DevTools listening on (ws:\/\/[^\s]+)/); if (match) { clearTimeout(timeout); resolve(match[1]); } });
     });
-    const host = new URL(endpoint).host;
-    const pages = await (await fetch(`http://${host}/json/list`)).json();
-    const socket = new WebSocket(pages.find(page => page.type === 'page').webSocketDebuggerUrl);
-    await new Promise((resolve, reject) => { socket.onopen = resolve; socket.onerror = reject; });
-    t.after(() => socket.close());
-    const pending = new Map(); let id = 0; const errors = [];
+    socket = new WebSocket(endpoint);
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('CDP connection timeout')), 5000);
+      socket.onopen = () => { clearTimeout(timer); resolve(); };
+      socket.onerror = () => { clearTimeout(timer); reject(new Error('CDP connection failed')); };
+    });
+    const pending = new Map(); let id = 0, pageSession; const errors = [];
+    const rejectPending = reason => { for (const task of pending.values()) task.reject(new Error(reason)); pending.clear(); };
+    socket.addEventListener('close', () => rejectPending('CDP connection closed'));
+    socket.addEventListener('error', () => rejectPending('CDP connection failed'));
+    browser.signal.addEventListener('abort', () => rejectPending('Browser test aborted'), { once: true });
     socket.onmessage = ({ data }) => {
       const message = JSON.parse(data);
+      if (message.sessionId && message.sessionId !== pageSession) return;
       if (message.method === 'Runtime.exceptionThrown') errors.push(message.params.exceptionDetails.text);
+      if (message.method === 'Fetch.requestPaused') {
+        const { requestId, request, resourceType } = message.params;
+        if (resourceType === 'Document') {
+          documentRequests.push({ url: request.url, method: request.method });
+          if (documentRequests.length > 4) documentRequests.shift();
+        }
+        const local = new URL(request.url).origin === preview.url;
+        if (!local) errors.push(`Nonlocal browser request blocked: ${request.url}`);
+        call(local ? 'Fetch.continueRequest' : 'Fetch.failRequest', { requestId, ...(!local && { errorReason: 'BlockedByClient' }) })
+          .catch(error => errors.push(error.message));
+      }
       const task = pending.get(message.id);
       if (task) { pending.delete(message.id); message.error ? task.reject(new Error(JSON.stringify(message.error))) : task.resolve(message.result); }
     };
-    const call = (method, params = {}) => new Promise((resolve, reject) => { const next = ++id; pending.set(next, { resolve, reject }); socket.send(JSON.stringify({ id: next, method, params })); });
+    const call = (method, params = {}, timeoutMs = 10000) => new Promise((resolve, reject) => {
+      if (socket.readyState !== WebSocket.OPEN || browser.signal.aborted) return reject(new Error('CDP connection unavailable'));
+      const next = ++id;
+      const timer = setTimeout(() => { pending.delete(next);
+        reject(new Error(`CDP command timed out: ${method}; ${JSON.stringify(params).slice(0, 240)}`)); }, timeoutMs);
+      pending.set(next, { resolve: result => { clearTimeout(timer); resolve(result); }, reject: error => { clearTimeout(timer); reject(error); } });
+      try { socket.send(JSON.stringify({ id: next, method, params, ...(pageSession && { sessionId: pageSession }) })); }
+      catch (error) { pending.get(next).reject(error); pending.delete(next); }
+    });
     const evaluate = async expression => {
       const result = await call('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
       if (result.exceptionDetails) throw new Error(JSON.stringify(result.exceptionDetails));
@@ -79,9 +131,63 @@ test('local Forge: contract snapshots, guarded local training and responsive bro
       const status = await evaluate("document.querySelector('#status')?.textContent");
       throw new Error(`DOM condition timed out: ${expression}; status: ${status}`);
     };
+    // Create and attach through the owned browser connection. Its startup tab
+    // and HTTP /json/new response can still be waiting on Chrome initialization.
+    const { targetId } = await call('Target.createTarget', { url: 'about:blank' });
+    ({ sessionId: pageSession } = await call('Target.attachToTarget', { targetId, flatten: true }));
+    assert.equal(typeof pageSession, 'string');
     await call('Page.enable'); await call('Runtime.enable');
+    // Initialize Network before Fetch interception on the fresh page session.
+    await call('Network.enable');
+    await call('Fetch.enable', { patterns: [{ urlPattern: '*', requestStage: 'Request' }] });
+    // A missing CDP response must fail the responsible command rather than
+    // silently consuming the entire 120-second parent deadline.
+    await assert.rejects(call('Runtime.evaluate', { expression: 'new Promise(resolve => globalThis.finishTimeoutProbe = resolve)', awaitPromise: true }, 25), /CDP command timed out: Runtime.evaluate/);
+    assert.equal(await evaluate('finishTimeoutProbe(); delete globalThis.finishTimeoutProbe; 1 + 1'), 2);
     await call('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
-    await call('Page.navigate', { url: preview.url });
+    // Navigate normally and require the exact main-frame commit. Waiting on a
+    // Page.navigate command acknowledgement intermittently stalls at startup
+    // under the concurrent suite, before any of the product assertions run.
+    const committed = new Promise((resolve, reject) => {
+      let frameId, contextFrameId, settled = false;
+      const finish = async (error, diagnose = false) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer); socket.removeEventListener('message', onMessage);
+        socket.removeEventListener('close', onClose); browser.signal.removeEventListener('abort', onAbort);
+        if (diagnose) {
+          // Preserve the failed deadline while inspecting the still-owned tab.
+          // An unloaded document and a missed CDP event need different fixes.
+          let document;
+          try {
+            const result = await call('Runtime.evaluate', { expression: '({url:location.href,readyState:document.readyState,profileVisible:document.querySelector("#profile")?.hidden === false})', returnByValue: true }, 1000);
+            document = result.result?.value ?? { exception: result.exceptionDetails?.text };
+          } catch (failure) { document = { error: failure.message }; }
+          browser.diagnostic(`Navigation failure: ${JSON.stringify({ expectedUrl: preview.url, frameId, contextFrameId, documentRequests, document, errors: errors.slice(-4), chromeStderr })}`);
+        }
+        error ? reject(error) : resolve();
+      };
+      const onClose = () => finish(new Error('CDP connection closed during navigation'));
+      const onAbort = () => finish(new Error('Browser test aborted during navigation'));
+      const onMessage = ({ data }) => {
+        const message = JSON.parse(data);
+        if (message.sessionId !== pageSession) return;
+        if (message.method === 'Page.frameNavigated' && !message.params.frame.parentId) {
+          const { url, id } = message.params.frame;
+          if (url !== `${preview.url}/`) return finish(new Error(`Unexpected browser navigation: ${url}`));
+          frameId = id;
+        }
+        if (message.method === 'Runtime.executionContextCreated') {
+          const { context } = message.params;
+          if (context.origin === preview.url && context.auxData?.isDefault) contextFrameId = context.auxData.frameId;
+        }
+        if (frameId && frameId === contextFrameId) finish();
+      };
+      const timer = setTimeout(() => finish(new Error(`Browser navigation did not commit: ${preview.url}`), true), 24000);
+      socket.addEventListener('message', onMessage); socket.addEventListener('close', onClose, { once: true });
+      browser.signal.addEventListener('abort', onAbort, { once: true });
+    });
+    await Promise.all([committed, evaluate(`setTimeout(() => location.assign(${JSON.stringify(preview.url)}), 0); true`)]);
     await until("document.querySelector('#profile')?.hidden === false");
     assert.equal(await evaluate("document.querySelectorAll('.skill').length"), 13);
     assert.match(await evaluate("document.querySelector('.roster .eyebrow').textContent"), /SELECT YOUR PUNK/);
@@ -199,6 +305,8 @@ test('local Forge: contract snapshots, guarded local training and responsive bro
     assert.match(await evaluate("document.querySelectorAll('.slot')[1].textContent"), /Sniper/);
     assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true);
     assert.deepEqual(errors, []);
+    const disconnected = assert.rejects(call('Runtime.evaluate', { expression: 'new Promise(() => {})', awaitPromise: true }), /CDP connection closed/);
+    socket.close(); await disconnected;
     console.log(`Browser screenshots: ${folder}/forge-{desktop,mobile}.png`);
   });
 });

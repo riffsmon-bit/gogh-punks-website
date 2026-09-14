@@ -113,11 +113,16 @@ const LINK_ABI = parseAbi(['function supportsInterface(bytes4) view returns(bool
   'function getPublicDrop(address) view returns((uint80 mintPrice,uint48 startTime,uint48 endTime,uint16 maxTotalMintableByWallet,uint16 feeBps,bool restrictFeeRecipients))',
   'function getMintStats(address) view returns(uint256,uint256,uint256)', 'function getFeeRecipientIsAllowed(address,address) view returns(bool)']);
 const SELECTORS = new Map(LINK_ABI.map(item => [toFunctionSelector(item), item.name]));
+const LINK_TIME = Date.parse('2026-09-13T12:00:00Z');
+const linkNow = () => new Date(LINK_TIME);
 function linkFetch(calls, afterRead) {
+  // Every response describing block 100 must retain its original timestamp.
+  // Recomputing Date.now() per RPC accidentally simulates a reorg whenever
+  // the initial and canonical reads straddle a wall-clock second.
+  const seconds = BigInt(LINK_TIME / 1000);
   return async (url, options) => {
     const { id, method, params } = JSON.parse(options.body); calls.push({ url, options, method });
     let result;
-    const seconds = BigInt(Math.floor(Date.now() / 1000));
     if (method === 'eth_chainId') result = '0x1237';
     else if (method === 'eth_getBlockByNumber') result = { number: '0x64', hash: HASH, timestamp: `0x${seconds.toString(16)}`, transactions: [] };
     else if (method === 'eth_getCode') result = params[0].toLowerCase() === V2_SEADROP ? CODE.seaDrop : CODE.peppies;
@@ -134,7 +139,7 @@ function linkFetch(calls, afterRead) {
 }
 
 test('equipped Link Sniper resolves real pinned contract/mint evidence without transaction authority', async () => {
-  const calls = [], f = runtime(await load('link-sniper'), { fetchImpl: linkFetch(calls), environment: {} });
+  const calls = [], f = runtime(await load('link-sniper'), { fetchImpl: linkFetch(calls), now: linkNow, environment: {} });
   const result = await f.call('inspect_mint_link', { url: `https://robinhoodchain.blockscout.com/address/${COLLECTION}` });
   assert.equal(result.reason, 'SEADROP_STATE_OBSERVED'); assert.equal(result.evidence.mint.priceWei, '0');
   assert.equal(result.evidence.anchor.canonicalRechecked, true);
@@ -142,6 +147,31 @@ test('equipped Link Sniper resolves real pinned contract/mint evidence without t
   assert.equal(result.walletAuthority, 'NONE'); assert.equal(result.evidence.simulationStatus, 'UNAVAILABLE');
   assert.ok(calls.length > 5 && calls.length <= 20);
   assert.ok(calls.every(c => c.url === 'https://rpc.mainnet.chain.robinhood.com' && c.options.redirect === 'error'));
+});
+
+test('Link Sniper keeps one canonical fixture block while observation time crosses seconds', async () => {
+  const calls = []; let observedAt = LINK_TIME;
+  const f = runtime(await load('link-sniper'), { fetchImpl: linkFetch(calls, () => { observedAt += 1100; }),
+    now: () => new Date(observedAt), environment: {} });
+  const result = await f.call('inspect_mint_link', { url: `https://robinhoodchain.blockscout.com/address/${COLLECTION}` });
+  assert.equal(result.reason, 'SEADROP_STATE_OBSERVED');
+  assert.equal(result.evidence.anchor.blockTimestamp, String(LINK_TIME / 1000));
+  assert.equal(result.evidence.anchor.canonicalRechecked, true);
+  assert.ok(observedAt - LINK_TIME > 1000); assert.ok(calls.length > 5 && calls.length <= 20);
+});
+
+test('Link Sniper still rejects a genuinely changed canonical block timestamp', async () => {
+  const calls = [], source = linkFetch(calls);
+  const fetchImpl = async (url, options) => {
+    const response = await source(url, options), { method, params } = JSON.parse(options.body);
+    if (method !== 'eth_getBlockByNumber' || params[0] === 'latest') return response;
+    const payload = await response.json(); payload.result.timestamp = `0x${(BigInt(payload.result.timestamp) + 1n).toString(16)}`;
+    return Response.json(payload);
+  };
+  const f = runtime(await load('link-sniper'), { fetchImpl, now: linkNow, environment: {} });
+  const result = await f.call('inspect_mint_link', { url: `https://robinhoodchain.blockscout.com/address/${COLLECTION}` });
+  assert.equal(result.reason, 'INSPECTION_UNAVAILABLE'); assert.equal(result.evidence.anchor, null);
+  assert.equal(result.transactionPrepared, false); assert.equal(result.transactionSubmitted, false);
 });
 
 for (const event of ['unequip', 'oldOwner', 'hashMismatch', 'unlearned']) test(`Link Sniper denies ${event} before external reads`, async () => {
@@ -157,12 +187,12 @@ for (const event of ['unequip', 'oldOwner', 'hashMismatch', 'unlearned']) test(`
 
 test('Link Sniper withholds a result if the Punk transfers during its provider call', async () => {
   const calls = []; let f;
-  f = runtime(await load('link-sniper'), { fetchImpl: linkFetch(calls, () => { f.getState().owner = OTHER; }), environment: {} });
+  f = runtime(await load('link-sniper'), { fetchImpl: linkFetch(calls, () => { f.getState().owner = OTHER; }), now: linkNow, environment: {} });
   await assert.rejects(f.call('inspect_mint_link', { url: `https://robinhoodchain.blockscout.com/address/${COLLECTION}` }), /OWNER_CHANGED/);
 });
 
 test('Link Sniper rejects endpoint/calldata/identity injection and unresolved websites stay unresolved', async () => {
-  const calls = [], f = runtime(await load('link-sniper'), { fetchImpl: linkFetch(calls), environment: {} });
+  const calls = [], f = runtime(await load('link-sniper'), { fetchImpl: linkFetch(calls), now: linkNow, environment: {} });
   for (const extra of [{ rpcUrl: 'https://attacker.example' }, { calldata: '0x1234' }, { owner: OTHER }, { tokenId: '94' }]) {
     await assert.rejects(f.call('inspect_mint_link', { url: 'https://example.com', ...extra }), /INVALID_RESEARCH_ARGUMENTS|TOOL_IDENTITY_MISMATCH/);
   }

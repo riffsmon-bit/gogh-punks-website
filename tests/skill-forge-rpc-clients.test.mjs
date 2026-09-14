@@ -14,7 +14,7 @@ test('Forge prefers configured archive hosts without exposing URLs in client res
   assert.equal(options[1].transport.url, env.ROBINHOOD_ARCHIVE_RPC_URL);
   assert.equal(options[0].transport.url, env.ROBINHOOD_ARCHIVE_SECONDARY_RPC_URL);
   for (const option of options) {
-    assert.equal(option.cacheTime, 0); assert.equal(option.transport.config.retryCount, 0);
+    assert.equal(option.cacheTime, 0); assert.equal(option.ccipRead, false); assert.equal(option.transport.config.retryCount, 0);
     assert.equal(option.transport.config.fetchOptions.redirect, 'error');
     assert.equal(option.transport.config.batch.batchSize, 20);
   }

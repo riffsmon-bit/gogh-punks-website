@@ -1,0 +1,26 @@
+{
+  "schema": "GOGH_SKILL_PACKAGE_V1",
+  "skillId": 9,
+  "version": 1,
+  "chainId": 4663,
+  "name": "Floor Hunter",
+  "capabilities": [
+    "MARKET_READ"
+  ],
+  "requiredMcpTools": [
+    "rank_observed_listings"
+  ],
+  "requiredWalletCapabilities": [],
+  "requiredExecutorCapabilities": [],
+  "riskTier": 0,
+  "equipCost": 1,
+  "trainingCost": 1,
+  "maxSkillLevel": 1,
+  "implementation": "broker/src/v4/skill-forge/floor-hunter-v1.mjs",
+  "implementationSha256": "25b02ac23a4b4b9ff6da16d470126502677fc620b1e2c9c5ddbf9f85f5bae9b1",
+  "dependenciesSha256": {
+    "broker/src/v4/skill-forge/market-reader-v2.mjs": "f5d909cf444103b563ccbf506a4217d4043afb0d4d96a63a24a0e13774eff24d"
+  },
+  "sourceAudit": "docs/v2-hardening/planned-research-skills.md",
+  "walletAuthority": "NONE"
+}

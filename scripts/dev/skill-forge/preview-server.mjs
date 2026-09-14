@@ -129,7 +129,8 @@ export async function startPreview({ port = 0, researchClient, controlCenterTrai
     }
     const skills = [], packages = [];
     for (const entry of catalog) {
-      const manifest = { skillId: entry.id, version: 1, chainId: 31337, capabilities: [entry.capability], description: 'LOCAL FIXTURE ONLY — NOT PRODUCTION READY' };
+      const manifest = { skillId: entry.id, version: 1, chainId: 31337, capabilities: [entry.capability],
+        requiredMcpTools: [...entry.tools], description: 'LOCAL FIXTURE ONLY — NOT PRODUCTION READY' };
       const hash = manifestHash(manifest), instructions = instructionHash(entry.description);
       if (!resume) await write(reg, registry, 'register', [entry.id, 1, hash, instructions, zero, entry.bit, entry.id === 1 ? 1 : 0]);
       const key = await client.readContract({ address: registry, abi: reg.abi, functionName: 'skillKey', args: [entry.id, 1] });
@@ -283,7 +284,7 @@ export async function startPreview({ port = 0, researchClient, controlCenterTrai
         ['/burn-practice-ui.mjs', ['burn-practice-ui.mjs', 'text/javascript']],
         ['/burn-practice.css', ['burn-practice.css', 'text/css']],
       ] : []),
-      ...['broker-v2-forge.js', 'forge-profile-view.js', 'forge-library-state.js', 'forge-training.js', 'forge-training-transaction.js', 'forge-reviewed-training.js', 'forge-reviewed-calldata.js', 'forge-catalog.js', 'forge-durable-training-panel.js', 'forge-durable-wallet.js', 'forge-training-release.js', 'directed-paid-panel.js', 'directed-paid-wallet.js', 'directed-paid-release.js', 'forge-selected-burn-panel.js', 'forge-selected-burn-wallet.js', 'forge-burn-calldata.js', 'keccak256.js'].map(name => [`/${name}`, [`../../../site/${name}`, 'text/javascript']]),
+      ...['broker-v2-forge.js', 'forge-research-result.js', 'forge-research-actions.js', 'forge-profile-view.js', 'forge-library-state.js', 'forge-training.js', 'forge-training-transaction.js', 'forge-reviewed-training.js', 'forge-reviewed-calldata.js', 'forge-catalog.js', 'forge-durable-training-panel.js', 'forge-durable-wallet.js', 'forge-training-release.js', 'directed-paid-panel.js', 'directed-paid-wallet.js', 'directed-paid-release.js', 'forge-selected-burn-panel.js', 'forge-selected-burn-wallet.js', 'forge-burn-calldata.js', 'keccak256.js'].map(name => [`/${name}`, [`../../../site/${name}`, 'text/javascript']]),
       ['/broker-v2-forge.css', ['../../../site/broker-v2-forge.css', 'text/css']],
       ['/forge-training.css', ['../../../site/forge-training.css', 'text/css']],
       ['/', ['index.html', 'text/html']], ['/app.mjs', ['app.mjs', 'text/javascript']], ['/style.css', ['style.css', 'text/css']],

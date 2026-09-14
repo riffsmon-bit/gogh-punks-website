@@ -4,7 +4,7 @@ import { createSkillToolGate, createProgressionReader, resolvePunkCapabilities, 
 const owner = `0x${'11'.repeat(20)}`;
 const other = `0x${'22'.repeat(20)}`;
 function fixture() {
-  const pack = { manifest: { skillId: 3, version: 1, chainId: 31337, capabilities: ['CONTRACT_READ'] },
+  const pack = { manifest: { skillId: 3, version: 1, chainId: 31337, capabilities: ['CONTRACT_READ'], requiredMcpTools: ['inspect_contract'] },
     instructions: 'Use approved read-only contract inspection.', status: 'READY', approved: true };
   const item = { key: skillKey(3, 1), slot: 0, level: 1, available: true, definition: { status: 4,
     disabled: false, deprecated: false, manifestHash: manifestHash(pack.manifest), instructionHash: instructionHash(pack.instructions), capabilities: 1n } };
@@ -70,6 +70,34 @@ test('MCP calls re-resolve owner and equipment; identity cannot be substituted',
 });
 test('deployment reader refuses missing code pins', () => {
   assert.throws(() => createProgressionReader({}), /PINS_REQUIRED/);
+});
+
+test('a shared protocol bit exposes only the equipped exact package tool names', () => {
+  const f = fixture();
+  Object.assign(f.pack.manifest, { skillId: 8, capabilities: ['MARKET_READ'], requiredMcpTools: ['get_market_listings'] });
+  Object.assign(f.item, { key: skillKey(8, 1) });
+  Object.assign(f.item.definition, { capabilities: 4n, manifestHash: manifestHash(f.pack.manifest) });
+  f.state.mask = '4';
+  assert.deepEqual(resolve(f, { availableTools: ['get_market_listings', 'rank_observed_listings'] }).effectiveMcpTools, ['get_market_listings']);
+});
+
+test('missing, duplicate or out-of-capability tool declarations fail closed even with matching registry hashes', () => {
+  for (const tools of [null, ['inspect_contract', 'inspect_contract'], ['prepare_mint'], ['arbitrary_sign']]) {
+    const f = fixture(); f.pack.manifest.requiredMcpTools = tools;
+    f.item.definition.manifestHash = manifestHash(f.pack.manifest);
+    assert.throws(() => resolve(f), /PACKAGE_TOOL_MISMATCH/);
+  }
+});
+
+test('tool gate rejects accessors and exotic records before reading caller properties', async () => {
+  const f = fixture(); f.state.blockTime = Date.now(); let accessed = 0, called = 0;
+  const gate = createSkillToolGate({ readState: async () => f.state, packages: [f.pack],
+    implementations: { inspect_contract: () => { called++; } } });
+  for (const args of [Object.create({ tokenId: '93' }), { [Symbol('hidden')]: true },
+    Object.defineProperty({}, 'tokenId', { get() { accessed++; return '93'; }, enumerable: true })]) {
+    await assert.rejects(gate.call({ tokenId: '93', owner, name: 'inspect_contract', arguments: args }), /TOOL_IDENTITY_MISMATCH/);
+  }
+  assert.equal(accessed, 0); assert.equal(called, 0);
 });
 test('canonical hashing is key-order stable but value-sensitive', () => {
   assert.equal(manifestHash({ a: 1, b: 2 }), manifestHash({ b: 2, a: 1 }));

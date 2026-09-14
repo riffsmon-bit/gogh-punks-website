@@ -9,6 +9,12 @@ await writeFile('site/directed-paid-release.js',`// Generated from the reviewed 
 await writeFile('site/forge-training-release.js', `// Generated from the reviewed server release artifact by wallet:build.\nexport const TRAINING_RELEASE = Object.freeze(${JSON.stringify(release,null,2)});\nexport const TRAINING_BINDING = ${release.status === 'OWNER_CANARY' ? `Object.freeze(${JSON.stringify(trainingDeploymentBinding(release))})` : 'null'};\n`);
 
 await build({
+  entryPoints: ['client/marketplace-wallet-codec.js'],
+  outfile: 'site/marketplace-wallet-codec.js', bundle: true, format: 'esm', platform: 'browser',
+  target: ['safari16.4', 'chrome110', 'firefox110'], minify: true, sourcemap: false, legalComments: 'none',
+});
+
+await build({
   entryPoints: ["client/reown-wallet-app.js"],
   outfile: "site/reown-wallet-app.js",
   bundle: true,

@@ -1,0 +1,213 @@
+{
+  "schema": "GOGH_PLANNED_RESEARCH_COMPOSED_JOURNEY_V1",
+  "status": "PASS",
+  "checkedAt": "2026-09-13T23:09:02.460Z",
+  "sourceCommit": "87c59e3f3a274b0dd4c4cc195e460ebb18b70c01",
+  "forkAnchor": {
+    "number": "62335063",
+    "hash": "0x18b1f33755abdf970d29edfa51b4a394c0c12396fc9d86d1a1f37b9798a8cb1d"
+  },
+  "copiedDeploymentPinsVerified": true,
+  "targetTokenId": "93",
+  "copiedSacrifices": [
+    "1753",
+    "94",
+    "95"
+  ],
+  "copiedCreditGain": 3,
+  "creditsSpentLearning": 3,
+  "duplicateBurnAndTrainingReplayRejected": true,
+  "learnedWithoutEquippedDenied": true,
+  "unequippedDenied": true,
+  "results": [
+    {
+      "skill": "Floor Hunter",
+      "version": 1,
+      "key": "0x06bc3f25d3f333e9317bce16741bdef285f4a55d00de11b43db7614f5d27b230",
+      "tool": "rank_observed_listings",
+      "status": "PASS",
+      "resultSchema": "GOGH_OBSERVED_LISTING_RANKS_V1",
+      "coverage": {
+        "status": "BOUNDED_SAMPLE",
+        "requestedLimit": 5,
+        "maxPages": 2,
+        "pagesRead": 1,
+        "listingsRead": 5,
+        "supportedCount": 5,
+        "excluded": {},
+        "providerPaginationExhausted": false,
+        "collectionFloorVerified": false,
+        "collectionFloor": null,
+        "unavailable": null
+      },
+      "observedOrders": 5,
+      "recognizedTokenCount": null,
+      "unknownTokenCount": null,
+      "evidenceHash": "10a8c3bf6a999556ba6938867fa97a3e20becdbaef12dc2382cfbe01ce8d2f40",
+      "manifestHash": "0xf5f61885bbf3ba023970de11ab86756144a3350858ef93e42500e156a506c3c9",
+      "instructionHash": "0x86e45147308a07fa367bac81239a214b09d627abd8c45c1498b52c100f1d384b",
+      "implementationSha256": "25b02ac23a4b4b9ff6da16d470126502677fc620b1e2c9c5ddbf9f85f5bae9b1"
+    },
+    {
+      "skill": "Collection Researcher",
+      "version": 1,
+      "key": "0x2040f8777bd900d065ac2ba4a2df7b49e6bd6625196d859057d5dfd7f05d0480",
+      "tool": "research_collection",
+      "status": "PASS",
+      "resultSchema": "GOGH_COLLECTION_RESEARCH_V1",
+      "coverage": {
+        "status": "BOUNDED_SAMPLE",
+        "requestedCount": 3,
+        "observedCount": 3,
+        "unavailableCount": 0,
+        "collectionComplete": false,
+        "sampleSelection": "CALLER_SELECTED_TOKEN_IDS",
+        "tokenExistenceVerified": false
+      },
+      "observedOrders": null,
+      "recognizedTokenCount": null,
+      "unknownTokenCount": null,
+      "evidenceHash": "5ce5412925c5629fcfe3d3a296edb61e4f7238f5dc0bbc4e7def4f76333dd48d",
+      "manifestHash": "0x45448ac9ea41e308cf8206c555b844adac7c5c9602f35743f51a851e6561d89d",
+      "instructionHash": "0xd0b6ce87162a8efcdf003b1431c107badfcbf99ece2316c35dad7fffa9e67f23",
+      "implementationSha256": "c9e98e26cb5ff8c5695b68d5fc172c50953a97f1441416b3b4683cd7f2bbad38"
+    },
+    {
+      "skill": "Art Curator",
+      "version": 1,
+      "key": "0xef3df33dded5f7e7d58f37ca5ecd4ce095803bfa298d391740897de071ea2ae2",
+      "tool": "classify_collection",
+      "status": "PASS",
+      "resultSchema": "GOGH_DECLARED_ART_STYLE_MATCHES_V1",
+      "coverage": {
+        "status": "BOUNDED_SAMPLE",
+        "requestedCount": 3,
+        "observedCount": 3,
+        "unavailableCount": 0,
+        "collectionComplete": false,
+        "sampleSelection": "CALLER_SELECTED_TOKEN_IDS",
+        "tokenExistenceVerified": false
+      },
+      "observedOrders": null,
+      "recognizedTokenCount": 0,
+      "unknownTokenCount": 3,
+      "evidenceHash": "2ede12fbb59db47d93ceec6fcb8ee5289a3350998bfad1c80fb0824d613854c6",
+      "manifestHash": "0xd28c0c762745ba86efd41fb9387a48ddbc8874e1f1c53acaa5eb54ec18dab808",
+      "instructionHash": "0x0775e25b3d7371df3e5e5f1fe4239960e50f55b6db939d6401730ca94ef55ed8",
+      "implementationSha256": "70a2b76c1f24e92c83f8ebf0af48a0c415f291a1167ac5192581fb6f3837e94e"
+    }
+  ],
+  "transfer": {
+    "transactionHash": "0x0479b71a1213600f675b18c31180c6d4a0a720a2fc33038aed0b66558779b13d",
+    "allLearnedSkillsPersist": true,
+    "slotsPersist": true,
+    "loadoutPersists": true,
+    "oldOwnerDenied": true,
+    "newOwnerResearchWorks": true,
+    "buyerUnequipDenies": true
+  },
+  "externalMarketRequests": 4,
+  "publicRequests": 188,
+  "publicMethods": [
+    "eth_call",
+    "eth_chainId",
+    "eth_gasPrice",
+    "eth_getBalance",
+    "eth_getBlockByNumber",
+    "eth_getCode",
+    "eth_getStorageAt",
+    "eth_getTransactionCount",
+    "eth_getTransactionReceipt"
+  ],
+  "localTransactions": 28,
+  "publicTransactions": 0,
+  "productionDatabaseAccessed": false,
+  "productionManifestsChanged": false,
+  "publicOriginalsUnchanged": true,
+  "sourceInventoryFixtureOnly": true,
+  "productionBurnAuthorized": false,
+  "durationMs": 33544,
+  "limitations": [
+    "Copied-chain fixture administration only; no public skill registration or READY transition.",
+    "Burn source inventory is not reviewed by this skill-specific harness; use the separate burn safety journey.",
+    "Floor Hunter uses actual read-only OpenSea listing observations, never a verified collection floor.",
+    "Collection and art adapters read original contract/metadata state copied at the fork anchor.",
+    "Art Curator matches declared labels only and does not classify images; unknown output is preserved.",
+    "No wallet transaction or owner-policy mutation is returned or performed.",
+    "Original token transfer continuity retains its separate restrictions."
+  ],
+  "steps": [
+    {
+      "action": "REGISTER_TESTING_READY_COPY",
+      "skill": "Floor Hunter",
+      "version": 1,
+      "key": "0x06bc3f25d3f333e9317bce16741bdef285f4a55d00de11b43db7614f5d27b230",
+      "transactionHash": "0xae2800126b26b57d8a899f2932bc23a9d5588fba1bf1e497b0b0a05a31165799"
+    },
+    {
+      "action": "REGISTER_TESTING_READY_COPY",
+      "skill": "Collection Researcher",
+      "version": 1,
+      "key": "0x2040f8777bd900d065ac2ba4a2df7b49e6bd6625196d859057d5dfd7f05d0480",
+      "transactionHash": "0x9778b12e03da6b4ea2f31e62dc237e8888c6813770aa1c718e14a8dc364777e7"
+    },
+    {
+      "action": "REGISTER_TESTING_READY_COPY",
+      "skill": "Art Curator",
+      "version": 1,
+      "key": "0xef3df33dded5f7e7d58f37ca5ecd4ce095803bfa298d391740897de071ea2ae2",
+      "transactionHash": "0x88b5ab8e5ac1a754c599b5f395748e3fd5489192c1d565921975f89627648db3"
+    },
+    {
+      "action": "APPROVE_COPY",
+      "sourceTokenId": "1753",
+      "targetTokenId": "93",
+      "transactionHash": "0xea503906e0119600d996b4fde8db55738b0063fda56ad459b500afe83fa89e20"
+    },
+    {
+      "action": "BURN_COPY",
+      "sourceTokenId": "1753",
+      "targetTokenId": "93",
+      "transactionHash": "0x26a16ca75d27ab00e8b97a3332da4a3ad3408974a98a7f811f3f3564dd148ac6"
+    },
+    {
+      "action": "APPROVE_COPY",
+      "sourceTokenId": "94",
+      "targetTokenId": "93",
+      "transactionHash": "0xf3d8d88bbf76639f36f89c506a532c345c5123d52c55d23a3a9812b6db695703"
+    },
+    {
+      "action": "BURN_COPY",
+      "sourceTokenId": "94",
+      "targetTokenId": "93",
+      "transactionHash": "0xf54ee6a969736cd9b7948442d5f6cde1236efe90ca40eb82984f3d584f09f829"
+    },
+    {
+      "action": "APPROVE_COPY",
+      "sourceTokenId": "95",
+      "targetTokenId": "93",
+      "transactionHash": "0x4a731b61d05d29c5a7121ba81696f2cbbf04fb23b034b7f99820560f42d22e9d"
+    },
+    {
+      "action": "BURN_COPY",
+      "sourceTokenId": "95",
+      "targetTokenId": "93",
+      "transactionHash": "0xd53e4388d3bdeb50401ed6bacadb8d58edcbc3521886edca1075af8f9ef9fd79"
+    },
+    {
+      "action": "LEARN_EQUIP_TOOL_UNEQUIP_DENIED",
+      "skill": "Floor Hunter",
+      "key": "0x06bc3f25d3f333e9317bce16741bdef285f4a55d00de11b43db7614f5d27b230"
+    },
+    {
+      "action": "LEARN_EQUIP_TOOL_UNEQUIP_DENIED",
+      "skill": "Collection Researcher",
+      "key": "0x2040f8777bd900d065ac2ba4a2df7b49e6bd6625196d859057d5dfd7f05d0480"
+    },
+    {
+      "action": "LEARN_EQUIP_TOOL_UNEQUIP_DENIED",
+      "skill": "Art Curator",
+      "key": "0xef3df33dded5f7e7d58f37ca5ecd4ce095803bfa298d391740897de071ea2ae2"
+    }
+  ]
+}

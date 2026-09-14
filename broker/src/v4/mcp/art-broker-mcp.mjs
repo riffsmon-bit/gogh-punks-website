@@ -73,6 +73,9 @@ export const ART_BROKER_MCP_RESEARCH_TOOLS = Object.freeze([
   ["skill_inspect_mint", "Check one shared free-mint opportunity against the equipped Mint Hunter and current Punk rules.", 'opportunity'],
   ["skill_simulate_mint", "Run an exact free-mint call check with equipped Mint Hunter; no transaction submission.", 'opportunity'],
   ["skill_prepare_mint", "Prepare a Mint Hunter recommendation requiring a separate owner review; no signing bytes.", 'opportunity'],
+  ["skill_rank_observed_listings", "Compare prices within up to five observed Gogh listings using equipped Floor Hunter; not a verified collection floor or purchase.", false],
+  ["skill_research_collection", "Summarize declared metadata for three selected Punks using equipped Collection Researcher; no external website requests.", true],
+  ["skill_classify_collection", "Read declared art-style metadata in three selected Punks using equipped Art Curator; does not analyze images or change collecting rules.", true],
 ].map(([name, description, sample]) => {
   const properties = Object.freeze({ tokenId: stringProperty(TOKEN_ID.source, "The authenticated owner's selected Punk"),
     ...(sample === true ? { sampleTokenIds: Object.freeze({ type: "array", minItems: 3, maxItems: 3, uniqueItems: true,
@@ -88,6 +91,8 @@ export const ART_BROKER_MCP_RESEARCH_TOOLS = Object.freeze([
 const RESEARCH_INTERNAL_NAMES = Object.freeze({
   skill_inspect_mint_link: 'inspect_mint_link', skill_inspect_mint: 'inspect_mint',
   skill_simulate_mint: 'simulate_mint', skill_prepare_mint: 'prepare_mint',
+  skill_rank_observed_listings: 'rank_observed_listings', skill_research_collection: 'research_collection',
+  skill_classify_collection: 'classify_collection',
 });
 const researchName = name => RESEARCH_INTERNAL_NAMES[name] ?? name;
 

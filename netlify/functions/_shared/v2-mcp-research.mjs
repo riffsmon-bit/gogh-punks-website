@@ -8,12 +8,13 @@ import { createResearchSkillRuntime, loadResearchSkillCatalog } from '../../../b
 import { createForgeRpcClients } from '../../../broker/src/v4/skill-forge/rpc-clients.mjs';
 import { createMintResearchContextReader } from './v2-mint-research-context.mjs';
 
-const TOOLS = ['inspect_contract', 'get_metadata', 'rank_trait_sample', 'get_market_listings', 'inspect_mint_link', 'inspect_mint', 'simulate_mint', 'prepare_mint'];
+const TOOLS = ['inspect_contract', 'get_metadata', 'rank_trait_sample', 'get_market_listings', 'inspect_mint_link', 'inspect_mint', 'simulate_mint', 'prepare_mint',
+  'rank_observed_listings', 'research_collection', 'classify_collection'];
 const fail = code => { throw Error(code); };
 function researchArguments(name, tokenId, args, collection) {
   const mint = ['inspect_mint', 'simulate_mint', 'prepare_mint'].includes(name);
   const link = name === 'inspect_mint_link';
-  const sample = ['get_metadata', 'rank_trait_sample'].includes(name);
+  const sample = ['get_metadata', 'rank_trait_sample', 'research_collection', 'classify_collection'].includes(name);
   if (!TOOLS.includes(name) || !args || Object.getPrototypeOf(args) !== Object.prototype
     || Reflect.ownKeys(args).some(key => key !== (sample ? 'sampleTokenIds' : mint ? 'opportunityId' : link ? 'url' : null))
     || Object.values(Object.getOwnPropertyDescriptors(args)).some(item => !Object.hasOwn(item, 'value'))) fail('MCP_RESEARCH_ARGUMENTS');
@@ -32,13 +33,14 @@ function researchArguments(name, tokenId, args, collection) {
       || ids.some(id => typeof id !== 'string' || !/^[1-9][0-9]{0,3}$/.test(id))) fail('MCP_RESEARCH_SAMPLE_INVALID');
     return { ...fixed, tokenIds: [...ids], ...(name === 'rank_trait_sample' ? { numericMode: 'categorical' } : {}) };
   }
-  return name === 'get_market_listings' ? { ...fixed, slug: 'gogh-punks-255843210', limit: 5 } : fixed;
+  return ['get_market_listings', 'rank_observed_listings'].includes(name) ? { ...fixed, slug: 'gogh-punks-255843210', limit: 5 } : fixed;
 }
 
 // Exact registry versions choose reviewed local packages. No implicit v1 fallback.
 const REVIEWED_PACKAGES = Object.freeze([
   [3, 1, 'contract-detective'], [4, 1, 'rarity-eye'], [8, 1, 'market-scout'],
   [8, 2, 'market-scout'], [2, 1, 'link-sniper'], [1, 1, 'mint-hunter'],
+  [9, 1, 'floor-hunter'], [11, 1, 'collection-researcher'], [6, 1, 'art-curator'],
 ]);
 export function mcpResearchPackageSelection(release) {
   return REVIEWED_PACKAGES.filter(([id, version]) => release.skills.some(skill => skill.key === skillKey(id, version)))

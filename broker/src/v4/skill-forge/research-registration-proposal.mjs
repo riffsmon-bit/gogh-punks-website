@@ -8,8 +8,8 @@ const SELECTION = Object.freeze([{ slug: 'market-scout', version: 2 }, { slug: '
 
 // A review artifact, not a transaction. No sender, destination, nonce, fee or
 // READY transition is encoded; the root must select and verify a deployment.
-export async function buildResearchRegistrationProposal({ root } = {}) {
-  const packages = await loadResearchSkillCatalog({ ...(root ? { root } : {}), selection: SELECTION });
+export async function buildResearchRegistrationProposal({ root, selection = SELECTION } = {}) {
+  const packages = await loadResearchSkillCatalog({ ...(root ? { root } : {}), selection });
   return {
     schema: 'GOGH_RESEARCH_SKILL_REGISTRATION_PROPOSAL_V1', chainId: 4663,
     status: 'REVIEW_REQUIRED', transactionSubmitted: false, productionAuthorized: false,
@@ -29,7 +29,7 @@ export async function buildResearchRegistrationProposal({ root } = {}) {
       'Current registry owner, code hashes, nonce, chain and registration state checks.',
       'Explicit administrator confirmation and a separate TESTING-to-READY evidence attestation.',
       'Server release must select the exact reviewed versions and pins.',
-      'Mint Hunter requires the current owner/confirmed strategy/shared opportunity context service.',
+      ...(packages.some(pack => pack.slug === 'mint-hunter') ? ['Mint Hunter requires the current owner/confirmed strategy/shared opportunity context service.'] : []),
       'Holder must learn and equip a skill; transfer continuity and owner authority remain separate checks.',
     ],
   };
