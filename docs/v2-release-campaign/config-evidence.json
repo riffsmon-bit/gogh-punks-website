@@ -1,0 +1,297 @@
+{
+  "schema": "GOGH_CAMPAIGN_CONFIG_AUDIT_V1",
+  "checkedAt": "2026-09-14T02:58:21.232Z",
+  "configuration": [
+    {
+      "name": "ROBINHOOD_ARCHIVE_RPC_URL",
+      "present": true,
+      "productionValuePresent": true,
+      "functionsScope": true,
+      "secret": true,
+      "validated": false
+    },
+    {
+      "name": "ROBINHOOD_ARCHIVE_SECONDARY_RPC_URL",
+      "present": true,
+      "productionValuePresent": true,
+      "functionsScope": true,
+      "secret": true,
+      "validated": false
+    },
+    {
+      "name": "FORGE_TRAINING_REQUEST_DATABASE_URL",
+      "present": true,
+      "productionValuePresent": true,
+      "functionsScope": true,
+      "secret": true,
+      "validated": false
+    },
+    {
+      "name": "FORGE_TRAINING_WORKER_DATABASE_URL",
+      "present": true,
+      "productionValuePresent": true,
+      "functionsScope": true,
+      "secret": true,
+      "validated": false
+    },
+    {
+      "name": "SUPABASE_DATABASE_URL",
+      "present": true,
+      "productionValuePresent": true,
+      "functionsScope": true,
+      "secret": false,
+      "validated": false
+    },
+    {
+      "name": "OPENSEA_API_KEY",
+      "present": true,
+      "productionValuePresent": true,
+      "functionsScope": true,
+      "secret": true,
+      "validated": false
+    },
+    {
+      "name": "GROQ_API_KEY",
+      "present": true,
+      "productionValuePresent": true,
+      "functionsScope": true,
+      "secret": true,
+      "validated": true
+    },
+    {
+      "name": "GOGH_V2_AI_CHECK_TOKEN",
+      "present": true,
+      "productionValuePresent": true,
+      "functionsScope": true,
+      "secret": true,
+      "validated": false
+    },
+    {
+      "name": "PUNK_AGENT_SESSION_PRIVATE_KEY",
+      "present": true,
+      "productionValuePresent": true,
+      "functionsScope": true,
+      "secret": true,
+      "validated": false
+    },
+    {
+      "name": "MARKETPLACE_REQUEST_DATABASE_URL",
+      "present": false,
+      "productionValuePresent": false,
+      "functionsScope": false,
+      "secret": false,
+      "validated": false
+    },
+    {
+      "name": "GOGH_ANTHROPIC_MODEL",
+      "present": true,
+      "productionValuePresent": true,
+      "functionsScope": true,
+      "secret": false,
+      "validated": false
+    },
+    {
+      "name": "GOGH_GEMINI_MODEL",
+      "present": true,
+      "productionValuePresent": true,
+      "functionsScope": true,
+      "secret": false,
+      "validated": false
+    },
+    {
+      "name": "GOGH_XAI_MODEL",
+      "present": true,
+      "productionValuePresent": true,
+      "functionsScope": true,
+      "secret": false,
+      "validated": false
+    },
+    {
+      "name": "GOGH_OPENAI_MODEL",
+      "present": true,
+      "productionValuePresent": true,
+      "functionsScope": true,
+      "secret": false,
+      "validated": false
+    },
+    {
+      "name": "GOGH_GROQ_MODEL",
+      "present": true,
+      "productionValuePresent": true,
+      "functionsScope": true,
+      "secret": false,
+      "validated": false
+    }
+  ],
+  "probes": {
+    "localArchive": [
+      {
+        "source": "PUBLICNODE_PUBLIC",
+        "productionConfigurationVerified": false,
+        "pass": false,
+        "code": "READ_UNAVAILABLE",
+        "latencyMs": 282
+      },
+      {
+        "source": "LOCAL_KEYCHAIN_VALIDATION_CLOUD",
+        "productionConfigurationVerified": false,
+        "pass": true,
+        "head": "62462527",
+        "historicalBlock": "61601377",
+        "latencyMs": 583
+      }
+    ],
+    "trainingDatabase": {
+      "validated": false,
+      "reason": "NETLIFY_SECRET_VALUES_REQUIRE_SERVER_SIDE_ROLE_PROBE"
+    },
+    "ai": [
+      {
+        "provider": "GROQ",
+        "status": 200,
+        "pass": true,
+        "checks": [
+          {
+            "kind": "CHAT",
+            "verified": true,
+            "provider": "GROQ",
+            "code": "PASS"
+          },
+          {
+            "kind": "STRUCTURED_OUTPUT",
+            "verified": true,
+            "provider": "GROQ",
+            "code": "PASS"
+          }
+        ],
+        "databasePrivileges": {
+          "checked": true,
+          "usageSelect": true,
+          "usageInsert": true,
+          "usageUpdate": true,
+          "registrySelect": true,
+          "registryInsert": true,
+          "registryUpdate": true
+        },
+        "latencyMs": 2461
+      },
+      {
+        "provider": "GEMINI",
+        "status": 200,
+        "pass": true,
+        "checks": [
+          {
+            "kind": "CHAT",
+            "verified": true,
+            "provider": "GEMINI",
+            "code": "PASS"
+          },
+          {
+            "kind": "STRUCTURED_OUTPUT",
+            "verified": true,
+            "provider": "GEMINI",
+            "code": "PASS"
+          }
+        ],
+        "databasePrivileges": {
+          "checked": true,
+          "usageSelect": true,
+          "usageInsert": true,
+          "usageUpdate": true,
+          "registrySelect": true,
+          "registryInsert": true,
+          "registryUpdate": true
+        },
+        "latencyMs": 1639
+      },
+      {
+        "provider": "OPENAI",
+        "status": 200,
+        "pass": true,
+        "checks": [
+          {
+            "kind": "CHAT",
+            "verified": true,
+            "provider": "OPENAI",
+            "code": "PASS"
+          },
+          {
+            "kind": "STRUCTURED_OUTPUT",
+            "verified": true,
+            "provider": "OPENAI",
+            "code": "PASS"
+          }
+        ],
+        "databasePrivileges": {
+          "checked": true,
+          "usageSelect": true,
+          "usageInsert": true,
+          "usageUpdate": true,
+          "registrySelect": true,
+          "registryInsert": true,
+          "registryUpdate": true
+        },
+        "latencyMs": 3226
+      },
+      {
+        "provider": "ANTHROPIC",
+        "status": 200,
+        "pass": true,
+        "checks": [
+          {
+            "kind": "CHAT",
+            "verified": true,
+            "provider": "ANTHROPIC",
+            "code": "PASS"
+          },
+          {
+            "kind": "STRUCTURED_OUTPUT",
+            "verified": true,
+            "provider": "ANTHROPIC",
+            "code": "PASS"
+          }
+        ],
+        "databasePrivileges": {
+          "checked": true,
+          "usageSelect": true,
+          "usageInsert": true,
+          "usageUpdate": true,
+          "registrySelect": true,
+          "registryInsert": true,
+          "registryUpdate": true
+        },
+        "latencyMs": 2982
+      },
+      {
+        "provider": "XAI",
+        "status": 200,
+        "pass": true,
+        "checks": [
+          {
+            "kind": "CHAT",
+            "verified": true,
+            "provider": "XAI",
+            "code": "PASS"
+          },
+          {
+            "kind": "STRUCTURED_OUTPUT",
+            "verified": true,
+            "provider": "XAI",
+            "code": "PASS"
+          }
+        ],
+        "databasePrivileges": {
+          "checked": true,
+          "usageSelect": true,
+          "usageInsert": true,
+          "usageUpdate": true,
+          "registrySelect": true,
+          "registryInsert": true,
+          "registryUpdate": true
+        },
+        "latencyMs": 4378
+      }
+    ]
+  },
+  "valuesDisclosed": false
+}

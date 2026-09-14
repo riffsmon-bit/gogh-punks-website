@@ -7,7 +7,7 @@ import { TRAINING_RELEASE } from './forge-training-release.js';
 import { forgeLibraryState } from './forge-library-state.js';
 import { renderPlannedResearchResult } from './forge-research-result.js';
 const SAMPLE_ACTIONS = ['rank_trait_sample', 'research_collection', 'classify_collection'];
-const PLANNED_ACTIONS = ['rank_observed_listings', 'research_collection', 'classify_collection'];
+const PLANNED_ACTIONS = ['rank_observed_listings', 'research_collection', 'classify_collection', 'research_project'];
 const el = (tag, text, cls) => { const node = document.createElement(tag); if (text != null) node.textContent = text; if (cls) node.className = cls; return node; };
 export function createForgeControl({ root, getSelection, ensureSession, request, trainingAdapter }) {
   if (trainingAdapter) return createTrainingControl({ root, getSelection, request: trainingAdapter.request, localOnly: trainingAdapter.localOnly });
@@ -63,7 +63,7 @@ export function createForgeControl({ root, getSelection, ensureSession, request,
         card.append(view, el('small', 'Training checks the current skill and credits before each review. Research tests below do not teach or equip it.'));
       }
       const button = el('button', skill.test ? 'RUN READ-ONLY TEST' : 'COMING SOON', 'filter-button'); button.type = 'button';
-      button.disabled = busy || !snapshot?.labAvailable || !skill.test || ['get_market_listings', 'rank_observed_listings'].includes(skill.test) && !snapshot.marketAvailable;
+      button.disabled = busy || !snapshot?.labAvailable || !skill.test || ['get_market_listings', 'rank_observed_listings', 'research_project'].includes(skill.test) && !snapshot.marketAvailable;
       if (skill.test) button.addEventListener('click', () => run(skill.test));
       card.append(button); grid.append(card);
     }

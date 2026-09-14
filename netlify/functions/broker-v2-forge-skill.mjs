@@ -27,7 +27,7 @@ export async function handleForgeSkill(request,{releaseReader=currentTrainingRel
     if(!release.allowedOwners.includes(owner))throw new PublicError(403,'FORGE_SKILL_LOCKED','Research is not enabled for this owner.');
     const body=await readJson(request,1024);
     if(!body || Array.isArray(body) || Object.keys(body).some(key=>!['action','skillKey','sampleTokenIds'].includes(key))
-      || !['inspect_contract','rank_trait_sample','get_market_listings','rank_observed_listings','research_collection','classify_collection'].includes(body.action)
+      || !['inspect_contract','rank_trait_sample','get_market_listings','rank_observed_listings','research_collection','classify_collection','research_project'].includes(body.action)
       || !/^0x[0-9a-f]{64}$/.test(body.skillKey??'')
       || (!SAMPLE_ACTIONS.includes(body.action) && body.sampleTokenIds!==undefined))throw new PublicError(400,'FORGE_SKILL_ARGUMENTS','Choose an available equipped research action.');
     const runtime=await runtimeFactory(),client=runtime.clients[1],coordinator=runtime.coordinator;
@@ -52,6 +52,7 @@ export async function handleForgeSkill(request,{releaseReader=currentTrainingRel
         ||ids.some(id=>typeof id!=='string'||!/^[1-9][0-9]{0,3}$/.test(id)))throw new PublicError(400,'FORGE_SAMPLE_INVALID','Choose three distinct Punk IDs including this Punk.');
       args={...args,tokenIds:ids,...(body.action==='rank_trait_sample'?{numericMode:'categorical'}:{})};
     }else if(['get_market_listings','rank_observed_listings'].includes(body.action))args={...args,slug:'gogh-punks-255843210',limit:5};
+    else if(body.action==='research_project')args={...args,slug:'gogh-punks-255843210'};
     const result=await research.call({tokenId,owner,name:body.action,arguments:args});
     const after=await coordinator.get({owner,tokenId});
     if(after.state.nonce!==before.state.nonce||after.state.stateHash!==before.state.stateHash)throw Error('FORGE_SKILL_CHANGED');

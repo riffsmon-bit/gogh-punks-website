@@ -9,6 +9,7 @@ export function forgeSkillKey(skillId, version) {
 const ACTIONS = new Map([
   [3, 1, 'inspect_contract'], [4, 1, 'rank_trait_sample'], [8, 1, 'get_market_listings'], [8, 2, 'get_market_listings'],
   [9, 1, 'rank_observed_listings'], [11, 1, 'research_collection'], [6, 1, 'classify_collection'],
+  [7, 1, 'research_project'],
 ].map(([id, version, action]) => [forgeSkillKey(id, version), action]));
 // A UI affordance only. The API still checks the exact released/learned/equipped
 // package, current owner and continuity before and after executing the tool.
