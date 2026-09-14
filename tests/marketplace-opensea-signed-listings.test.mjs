@@ -54,6 +54,17 @@ test('all-five selected hashes are fetched once, with no discovery, pagination o
   assert.equal(result.length, 5); assert.equal(calls.length, 5); assert.equal(new Set(calls).size, 5);
 });
 
+test('core may pass its canonical Agent wallet while legacy calls remain supported', async () => {
+  let calls = 0;
+  const reader = setup(async () => { calls++; return json({ order: order() }); });
+  await reader.loadListings({ ...input([order()]), wallet: address('5') });
+  assert.equal(calls, 1);
+  for (const wallet of [undefined, null, address('0'), address('a').toUpperCase(), 'http://127.0.0.1']) {
+    await assert.rejects(() => reader.loadListings({ ...input([order()]), wallet }), /SELECTION_INVALID/);
+  }
+  assert.equal(calls, 1);
+});
+
 test('SSRF, URL and authority fields cannot enter request paths or trigger any fetch', async () => {
   let calls = 0; const reader = setup(async () => { calls++; throw Error('UNREACHABLE'); }), base = input([order()]);
   for (const field of ['url', 'endpoint', 'protocol', 'chain', 'fetchImpl', 'apiKey', 'fulfiller', 'review', 'calldata']) {

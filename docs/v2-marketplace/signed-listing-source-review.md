@@ -15,7 +15,9 @@ const originals = await loadListings({
 });
 ```
 
-The request record accepts exactly those keys; it cannot supply a transport, credential, chain, RPC, URL, protocol, listing record, signature, review, wallet, fulfillment callback or calldata. Owner authentication and selection authorization remain responsibilities of the existing server coordinator. The source never discovers or chooses orders for an owner.
+The request record accepts those keys and the optional server wallet described below. It cannot supply a transport, credential, chain, RPC, URL, protocol, listing record, signature, review, fulfillment callback or calldata. Owner authentication and selection authorization remain responsibilities of the existing server coordinator. The source never discovers or chooses orders for an owner.
+
+The extended core dependency may also supply its already resolved `wallet`. The GET reader accepts this optional field only as a lowercase nonzero address and ignores it; legacy three-field calls remain valid. Browser requests still cannot supply wallet authority. The separate [staged fulfillment reader](fulfillment-listing-source-review.md) requires this server-derived wallet because its signature retrieval body binds the actual Agent caller and recipient.
 
 Each selected hash uses precisely `GET https://api.opensea.io/api/v2/orders/chain/robinhood/protocol/0x0000000000000068f116a894984e2db1123eb395/{order_hash}`. This is OpenSea's documented single-order lookup; the response's `order` wrapper agrees with the official SDK. Robinhood and Seaport 1.6 come from the repository's existing pins. [OpenSea order API](https://docs.opensea.io/reference/get_order), [official SDK order reader](https://github.com/ProjectOpenSea/opensea-sdk/blob/main/src/api/orders.ts), [Seaport deployment addresses](https://github.com/ProjectOpenSea/seaport#deployments).
 
@@ -42,9 +44,9 @@ On 2026-09-13, the existing project OpenSea credential was read into process mem
 
 These exact GET facts were reconfirmed at 23:45:05.980 and 23:45:06.080 UTC. Both responses had original `asset`, `price`, `remaining_quantity`, parameter counter and consideration-count fields. Their absent signatures are a real blocker, not a transport authentication failure. The actual new adapter was also invoked against the native order at 23:35:24 UTC and rejected with `OPENSEA_SIGNED_SIGNATURE_UNAVAILABLE`. That diagnostic used an explicitly noncanonical zero-height/hash anchor with wall-clock time; it was a source transport check, not a chain review, owner selection, safety check or purchase permission. No RPC, fulfillment POST, order creation or public transaction occurred.
 
-## Documented next option: fulfillment lookup, not implemented
+## Separate fulfillment lookup, staged only
 
-OpenSea documents `POST https://api.opensea.io/api/v2/listings/fulfillment_data` to retrieve fulfillment information including signatures. A future deliberate extension could use this exact server-constructed body for a verified quantity-one selected listing:
+OpenSea documents `POST https://api.opensea.io/api/v2/listings/fulfillment_data` to retrieve fulfillment information including signatures. The separate staged fulfillment reader constructs this exact body after validating every original in the quantity-one selection:
 
 ```json
 {
@@ -64,9 +66,9 @@ The optional `consideration` object uses `asset_contract_address` and `token_id`
 
 This documented operation retrieves data; it is separate from listing creation and transaction broadcasting. However, signature vending should not be described as universally free of offchain effects: OpenSea states that SignedZone cancellation is assured only if a fulfillment signature was not already vended. No fulfillment POST was called in this work. [OpenSea cancellation semantics](https://docs.opensea.io/reference/cancel_order).
 
-The canonical Agent must be both fulfiller and recipient because it is the actual Seaport caller inside the owner-authorized account batch. The external owner signer is not the inner fulfiller. The current `loadListings` dependency has no trusted wallet argument, so this requires an explicit reviewed interface extension after the server verifies the Agent binding.
+The canonical Agent must be both fulfiller and recipient because it is the actual Seaport caller inside the owner-authorized account batch. The external owner signer is not the inner fulfiller. The core's reviewed interface extension now passes the server-resolved `wallet` after verifying the Agent binding (root integration `fa6d1d9`). The [staged fulfillment adapter review](fulfillment-listing-source-review.md) describes its validation and remaining live-canary limitations.
 
-A future implementation must extract and validate the signed original, independently recompute the selected full order hash with counter, bind all asset/fee/currency/amount/expiry/zone/conduit fields, and reuse pinned on-chain checks. Generated API transaction fields are untrusted evidence, never wallet instructions. The current supported call is only `fulfillAdvancedOrder` with selector `0xe7acab24`, numerator/denominator 1/1, empty criteria resolvers, empty extraData, zero fulfiller conduit, exact Agent recipient, canonical Seaport target, chain 4663 and exact native consideration value. It must be independently encoded/decoded and byte-bound to the stored review; alternate functions, extra calls, fee changes, approvals, token swaps, restricted-zone data and unsupported suffixes require rejection or a separate reviewed scope change. Returning a signature for orderType 2 would not make that restricted sample eligible under today's core.
+The staged implementation extracts and validates the signed original, independently recomputes the selected full order hash with counter, binds all asset/fee/currency/amount/expiry/zone/conduit fields, and leaves pinned on-chain checks to core preparation. Generated API transaction fields are untrusted evidence, never wallet instructions. The supported call is only `fulfillAdvancedOrder` with selector `0xe7acab24`, numerator/denominator 1/1, empty criteria resolvers, empty extraData, zero fulfiller conduit, exact Agent recipient, canonical Seaport target, chain 4663 and exact native consideration value. It is independently encoded/decoded and compared with the fixed call; alternate functions, extra calls, fee changes, approvals, token swaps and restricted-zone data are rejected. Exactly four-byte attribution metadata may be recorded, but is never appended to the execution bytes. Returning a signature for orderType 2 would not make that restricted sample eligible under today's core.
 
 ## Validation and remaining boundaries
 

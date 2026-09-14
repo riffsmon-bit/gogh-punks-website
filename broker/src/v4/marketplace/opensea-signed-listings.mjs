@@ -20,7 +20,9 @@ const freeze = value => { if (value && typeof value === 'object') { Object.value
 
 function selection(value) {
   try {
-    const input = snapshotExactRecord(value, ['collection', 'orderHashes', 'anchor']);
+    const input = snapshotExactRecord(value, ['collection', 'orderHashes', 'anchor', ...(Object.hasOwn(value ?? {}, 'wallet') ? ['wallet'] : [])]);
+    if (Object.hasOwn(input, 'wallet') && (typeof input.wallet !== 'string' || !/^0x[0-9a-f]{40}$/.test(input.wallet)
+      || input.wallet === `0x${'0'.repeat(40)}`)) fail('OPENSEA_SIGNED_SELECTION_INVALID');
     const anchor = snapshotExactRecord(input.anchor, ['number', 'hash', 'timestamp']);
     if (typeof input.collection !== 'string' || !ADDRESS.test(input.collection)
       || input.collection.toLowerCase() === `0x${'0'.repeat(40)}` || !uint(anchor.number) || !uint(anchor.timestamp)
