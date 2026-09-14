@@ -90,6 +90,7 @@ let forgeControl = null;
 let directedPaidControl = null;
 let marketplacePurchaseControl = null;
 let marketplaceSelectionKey = '';
+let marketplaceSelectionRevision = 0;
 let agentRecoveryControl = null;
 const one = (selector) => document.querySelector(selector);
 const all = (selector) => [...document.querySelectorAll(selector)];
@@ -1103,6 +1104,7 @@ function syncMarketplaceSelection() {
     state.wallet?.chainId ?? null, state.selected?.tokenId ?? null, PREVIEW]);
   if (key === marketplaceSelectionKey) return;
   marketplaceSelectionKey = key;
+  marketplaceSelectionRevision++;
   marketplacePurchaseControl.clear();
   void marketplacePurchaseControl.refresh();
 }
@@ -3042,7 +3044,15 @@ function setup() {
     purchaseRelease: null,
     storage: marketplaceStorage,
     api: async (path, options) => {
-      if (options?.method === 'POST') await ensureV2Session();
+      if (options?.method === 'POST') {
+        const revision = marketplaceSelectionRevision, key = marketplaceSelectionKey;
+        await ensureV2Session();
+        const currentKey = JSON.stringify([state.wallet?.account?.toLowerCase() ?? null,
+          state.wallet?.chainId ?? null, state.selected?.tokenId ?? null, PREVIEW]);
+        if (revision !== marketplaceSelectionRevision || key !== currentKey) {
+          throw new Error('PURCHASE_SELECTION_CHANGED');
+        }
+      }
       return jsonRequest(path, options);
     },
     onSettled: ({ owner, punkId, chainId }) => {
