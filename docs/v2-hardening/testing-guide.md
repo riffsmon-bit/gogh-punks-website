@@ -2,7 +2,7 @@
 
 Open **[Gogh Punks Art Broker V2](https://goghpunks.xyz/broker/v2/)**. Start with **Punk #93** on Robinhood Chain. You can connect, explore, talk and review your collecting rules without funding anything.
 
-This guide is dated September 13, 2026. The artwork and Collection repair is already live. The latest verified production release is PR #67 (`8c84817`): the completed paid-mint display, free Groq provider, funding recovery, supported contract inspection and mobile refinements are published. Refresh an already-open tab. [Release verification](release-acceptance.json). **The preview is not a practice chain.** Use the separate disposable environment supplied for transaction practice.
+This guide is dated September 13, 2026. Production was verified at PR #69 (`1063614`), published at 22:05 UTC, before this continuation. The completed paid-mint display, free Groq provider, funding recovery and earlier skill/marketplace practice work are published. The new continuation's publication and validation are recorded in [continuation status](../v2-next-capabilities/continuation-status.md); local tests alone do not make a feature live. Refresh an already-open tab after a release. **The preview is not a practice chain.** Use the separate disposable environment supplied for transaction practice.
 
 ## What is already confirmed
 
@@ -108,6 +108,9 @@ The current composed test passed this sequence using copied #1753 → #93, then 
 | Rarity Eye | Registered v1; full learn/equip/research/transfer sequence passed on the disposable deployed-stack copy. Real #93 has no recorded public learned/equipped completion from this phase. |
 | Contract Detective | Existing read-only research lab/package; laboratory availability is not permanent skill acceptance or purchase permission. |
 | Market Scout | Read-only research exists. New exact-price v2 passed real bounded listing reads but remains TESTING, and is available in the controlled lab; separate package/runtime/registry review is required before promotion. A listing sample is not a guaranteed floor quote. |
+| Floor Hunter | New controlled tool orders a bounded listing sample by exact price, separately for each payment currency. It does not establish the collection floor or prepare a purchase. Public learning/registration is pending. |
+| Collection Researcher | New controlled tool summarizes declared traits across three selected Gogh Punks. Missing metadata remains unknown. Public learning/registration is pending. |
+| Art Curator | New controlled tool counts recognized art-style labels declared in metadata. It does not analyze artwork images; the real Gogh sample had no recognized style labels. Public learning/registration is pending. |
 | Chat playbook skills | Reviewable scouting routines; they do not spend permanent credits or authorize purchases. |
 | Mint Hunter, Link Sniper and other roadmap skills | Existing related tools do not mean all named Forge packages are accepted, learnable and equipped. Follow the actual released/available label. |
 | Free missions | Existing bounded supported-mint lane; review-only prompts and disposable tests are appropriate here. No eligible current mint is a valid outcome. A new broad autonomous mission is outside this phase. |
@@ -152,3 +155,33 @@ Market Scout, Link Sniper and Mint Hunter's inspection/simulation paths behind
 actual learned/equipped gates. Those new packages have **not** been publicly
 registered/released. Mint preparation returns a recommendation without signing
 or execution authority. [Skill proof and limits](real-skill-completion.md).
+
+## Continue the completed practice without repeating a burn
+
+At the start of this continuation, the holder's Forge practice was at
+**http://127.0.0.1:51952** and marketplace practice at
+**http://127.0.0.1:50652**. These addresses work only on this Mac while their
+existing launchers are running; the swarm preserves both sessions.
+
+The Forge record already shows copied #1753 burned and copied #93 learned
+Rarity Eye. Its credit balance is **zero because the learning used the credit**.
+The final recorded action was **unequip**. To use that learned skill again,
+review **Equip**, confirm on the copied chain, then run its research. Another
+burn is unnecessary. The marketplace record already shows the collection offer
+filled and practice NFT #10001 delivered; use **Recheck original result** to
+inspect it without making another offer.
+
+In a build containing the new research increment, open Forge and expand
+**Explore skills · Research examples**. Check Forge access, keep #93 selected,
+and enter two other existing Punk IDs, such as #94 and #95. Try Floor Hunter,
+Collection Researcher and Art Curator. The result should come into view and
+remain readable on a phone. These preview tools do not spend credits, learn or
+equip a skill. Their separately tested permanent progression is documented in
+[the composed skill proof](planned-research-skills.md).
+
+The new selected-purchase review panel is staged for a reviewed release. When
+enabled in a controlled test, check the exact NFT numbers, total ETH price,
+maximum network fee and remaining reserve. A successful receipt replaces the
+purchase controls with the received items. An interrupted confirmation keeps
+the original review reserved and offers recovery; it must not reopen the wallet
+request. An idle, unreleased purchase panel stays hidden.

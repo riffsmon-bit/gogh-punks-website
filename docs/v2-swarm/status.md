@@ -85,3 +85,9 @@ After integrating both production follow-ups into the broader swarm candidate, a
 ## Final product hardening follow-up
 
 The user expanded acceptance to the complete holder journey and final test readiness. Work continues in the existing integration checkout; prior implementation is reused. Production display failures are being repaired first, alongside an evidence-based whole-product audit. See [hardening status](../v2-hardening/status.md). The broader candidate is not yet deployed and is not declared final-testing ready.
+
+## Continued skill and marketplace hardening
+
+The active continuation begins at merged PR #69 (`1063614`), with three specialists in isolated worktrees and the lead integrating agreed interfaces. See [current assignments, branches and integration commits](../v2-next-capabilities/continuation-status.md) and [the continuation report](../v2-next-capabilities/continuation-report.md). The prior sections are historical evidence, not the current deployment verdict.
+
+This increment fixes actual registry-key/tool exposure and adds three bounded research skills, durable selected-purchase reviews, a recovery UI and staged OpenSea source adapters. No public burn, trade, refund, contract deployment, skill registration or database migration was performed. Public WETH and purchase release gates remain explicit; controlled test success is not public release approval.

@@ -44,3 +44,9 @@ its completed #1599 mint separately from an expired unsigned review. Full JS:
 The new skill and marketplace expansion is tracked separately in
 [remaining capability status](../v2-next-capabilities/status.md); this publication
 does not activate those financial operations.
+
+## Continued skill and marketplace hardening
+
+The active continuation begins at merged PR #69 (`1063614`), with three specialists in isolated worktrees and the lead integrating agreed interfaces. See [current assignments, branches and integration commits](../v2-next-capabilities/continuation-status.md) and [the continuation report](../v2-next-capabilities/continuation-report.md). The prior sections are historical evidence, not the current deployment verdict.
+
+This increment fixes actual registry-key/tool exposure and adds three bounded research skills, durable selected-purchase reviews, a recovery UI and staged OpenSea source adapters. No public burn, trade, refund, contract deployment, skill registration or database migration was performed. Public WETH and purchase release gates remain explicit; controlled test success is not public release approval.

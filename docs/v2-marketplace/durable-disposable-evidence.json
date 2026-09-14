@@ -1,7 +1,7 @@
 {
   "schema": "GOGH_DURABLE_MARKETPLACE_DISPOSABLE_PROOF_V1",
   "status": "PASS_CONTROLLED_ONLY",
-  "checkedAt": "2026-09-13T23:20:04.187Z",
+  "checkedAt": "2026-09-13T23:45:55.251Z",
   "chainId": 4663,
   "owner": "0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6",
   "punkId": "93",
@@ -16,28 +16,28 @@
   "databaseRestarted": true,
   "coordinatorRestarted": true,
   "releasePausedAtRecovery": true,
-  "reviewHash": "30995820fd061e5bf7b9a0832bcb9187b7538d0def7974b56a6b849fc007c44a",
+  "reviewHash": "1188ce52f2c66a1d44513f1fd3cdc6c37023f2f816e0c80e88250aa4cde8e084",
   "receipt": {
     "items": [
       {
         "counter": "0",
         "tokenId": "8101",
         "totalWei": "100000000000000",
-        "orderHash": "0xcf2e66d37663149d4cd071b7de58baa9d195b828a787ca5c0ecfe4bd9e4ee755"
+        "orderHash": "0xb26ca38563cb8a14322ece2433b99f2c1cd09c223d3749c3fc9fb32b379644eb"
       },
       {
         "counter": "0",
         "tokenId": "8102",
         "totalWei": "100000000000000",
-        "orderHash": "0xec272762f1d6d76347d83c71ba5df6939bbcbc937459b657844e708639d63173"
+        "orderHash": "0xd542fe169b48d30346306e10ddf50b0e1f7782b2e3ef0c38b0cf60ad0dce199c"
       }
     ],
     "action": "BUY_LISTINGS",
     "status": "COMPLETED",
-    "blockHash": "0x0fd94e4bb872470129dda3e4cbf32381cc68605b86c01e7762df7325ea37e3d4",
-    "blockNumber": "62341647",
+    "blockHash": "0x973e7c73b09131d5592e97b9b51b50ada600a6334d938c00b65cbf56b3a97257",
+    "blockNumber": "62357095",
     "confirmations": "13",
-    "transactionHash": "0x2c5a32992e23aafcce26fd55e668d53e0fab16a353592634fdba1782daeade23",
+    "transactionHash": "0x2c59ac51dd35911ec8961c852e3e959f6224a94ba901c0a379e905f04161c3a2",
     "publicTransactions": 0
   },
   "audit": [

@@ -324,8 +324,8 @@ try {
   await until("document.querySelector('[data-forge-status]').textContent.includes('OWNER VERIFIED')");
   assert.equal(await evaluate("document.querySelectorAll('.forge-socket-unknown').length"),7);
   assert.match(await evaluate("document.querySelector('[data-forge-profile-summary]').textContent"),/unknown—not zero/);
-  await evaluate("document.querySelector('.forge-skill button').click();");
-  await until("document.querySelector('[data-forge-report]').textContent.includes('Test completed—not a learned skill')");
+  await evaluate("document.querySelector('.forge-research-examples > summary').click();document.querySelector('.forge-skill button').click();");
+  await until("document.querySelector('[data-forge-report]').textContent.includes('Research check finished. Training credits and loadout remain unchanged.')");
   assert.equal(await evaluate("document.querySelectorAll('.forge-socket-equipped').length"),0);
   forgeMode='verified';
   await evaluate("document.querySelector('[data-forge-connect]').click();");
