@@ -4,8 +4,15 @@ const IMPLEMENTATION='0x63c0c19a282a1b52b07dd5a65b58948a07dae32b';
 const CODE_HASH='0xa06befcb6f1d7b6c566a607d9d5d932f9b267f3470e55940225c6ee9c4c5e6b0';
 const fail=code=>{throw Error(code);};
 export async function verifySkillAdminSelfCallCode(client,code,blockNumber){
-  if(code&&code!=='0x'&&(code.toLowerCase()!==DELEGATION
-    ||keccak256(await client.getCode({address:IMPLEMENTATION,blockNumber})??'0x')!==CODE_HASH))fail('SKILL_ADMIN_SELF_CALL_NOT_REVIEWED');
+  // Viem represents an RPC "0x" bytecode result as undefined. No other falsy
+  // result establishes an empty account; malformed provider data fails closed.
+  if(code===undefined||code==='0x')return '0x';
+  if(typeof code!=='string'||!/^0x(?:[0-9a-f]{2})+$/i.test(code)||code.toLowerCase()!==DELEGATION)
+    fail('SKILL_ADMIN_SELF_CALL_NOT_REVIEWED');
+  const implementation=await client.getCode({address:IMPLEMENTATION,blockNumber});
+  if(typeof implementation!=='string'||!/^0x(?:[0-9a-f]{2})+$/i.test(implementation)||keccak256(implementation)!==CODE_HASH)
+    fail('SKILL_ADMIN_SELF_CALL_NOT_REVIEWED');
+  return DELEGATION;
 }
 // Only empty-data, zero-value self transactions at the already-reserved nonce.
 // The pinned MetaMask implementation has an empty receive() function; other code is not assumed inert.
@@ -23,8 +30,7 @@ export function createSkillAdminCancellationReview({clients,now=Date.now}) {
         client.getTransactionCount({address:owner,blockTag:'latest'}),client.getCode({address:owner,blockNumber:anchor.number})]);
       if(block.hash!==anchor.hash)fail('SKILL_ADMIN_RECEIPT_REORG');
       if(BigInt(latest)!==nonce)fail('SKILL_ADMIN_NONCE_ALREADY_CONSUMED');
-      await verifySkillAdminSelfCallCode(client,code,anchor.number);
-      return{accountCode:code??'0x'};
+      return{accountCode:await verifySkillAdminSelfCallCode(client,code,anchor.number)};
     }));
     if(observations[0].accountCode!==observations[1].accountCode)fail('SKILL_ADMIN_PROVIDERS_DISAGREE');
     const base={account:owner,to:owner,data:'0x',value:0n,nonce:Number(nonce)};

@@ -74,7 +74,7 @@ test('canonical zero-value same-nonce replacement releases original only after t
   assert.equal(result.record.status,'WALLET_REQUESTED');assert.equal(result.record.recoveryHash,TX);assert.equal((await prepare(c)).record.id,record.id);
   for(const client of f.clients)client.getBlockNumber=async()=>111n;
   result=await c.recover({administrator:ADMIN,id:record.id});assert.equal(result.record.status,'REPLACED');
-  assert.equal(result.record.receipt.assetMovement,'NONE_EXCEPT_NETWORK_FEE');assert.equal(result.record.receipt.registryActionConfirmed,false);
+  assert.equal(result.record.receipt.selfAccountCode,'0x');assert.equal(result.record.receipt.assetMovement,'NONE_EXCEPT_NETWORK_FEE');assert.equal(result.record.receipt.registryActionConfirmed,false);
   assert.equal(result.transaction,undefined);assert.notEqual((await prepare(c)).record.id,record.id);
 });
 test('exact original speed-up confirms while preserving the originally submitted hash',async()=>{
@@ -112,4 +112,11 @@ test('replacement that transfers value is observed accurately and never reported
   const{f,c}=create();const{record}=await prepare(c);await claim(c,record);f.observed.to=`0x${'2'.repeat(40)}`;f.receipt.to=f.observed.to;f.observed.value=100n;f.observed.input='0x';
   const{record:done}=await c.recover({administrator:ADMIN,id:record.id,transactionHash:TX});
   assert.equal(done.status,'REPLACED');assert.equal(done.receipt.valueWei,'100');assert.equal(done.receipt.assetMovement,'OWNER_REPLACEMENT_REVIEW_WALLET_ACTIVITY');
+});
+
+test('malformed self-account code during replacement receipt recovery cannot release original request',async()=>{
+  const{f,c}=create();const{record}=await prepare(c);await claim(c,record);f.observed.to=ADMIN;f.observed.input='0x';f.receipt.to=ADMIN;
+  f.clients[0].getCode=async()=>undefined;f.clients[1].getCode=async()=>null;
+  await assert.rejects(c.recover({administrator:ADMIN,id:record.id,transactionHash:TX}),/SELF_CALL_NOT_REVIEWED/);
+  assert.equal(f.row.status,'WALLET_REQUESTED');assert.equal((await prepare(c)).record.id,record.id);
 });

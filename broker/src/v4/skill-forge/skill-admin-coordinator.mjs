@@ -51,14 +51,16 @@ export function createSkillAdminCoordinator({ review, store, clients, now = Date
       const [block, latest] = await Promise.all([client.getBlock({ blockNumber: receipt.blockNumber }), client.getBlockNumber()]);
       if (block.hash !== receipt.blockHash) fail('SKILL_ADMIN_RECEIPT_REORG');
       if (latest < receipt.blockNumber + 11n) return null;
+      let selfAccountCode;
       let assetMovement=kind==='ORIGINAL'||receipt.status==='reverted'?'NONE_EXCEPT_NETWORK_FEE':'OWNER_REPLACEMENT_REVIEW_WALLET_ACTIVITY';
       if(kind==='REPLACEMENT'&&tx.to?.toLowerCase()===row.administrator&&tx.value===0n&&tx.input==='0x'){
         const code=await client.getCode({address:row.administrator,blockNumber:receipt.blockNumber});
-        await verifySkillAdminSelfCallCode(client,code,receipt.blockNumber);assetMovement='NONE_EXCEPT_NETWORK_FEE';
+        selfAccountCode=await verifySkillAdminSelfCallCode(client,code,receipt.blockNumber);assetMovement='NONE_EXCEPT_NETWORK_FEE';
       }
       if (await client.getChainId() !== 4663 || (await client.getBlock({ blockNumber: receipt.blockNumber })).hash !== block.hash) fail('SKILL_ADMIN_RECEIPT_REORG');
       return { transactionHash: hash, blockHash: block.hash, blockNumber: String(receipt.blockNumber),
         status: receipt.status, minimumConfirmations: 12,kind,valueWei:String(tx.value),assetMovement,
+        ...(selfAccountCode?{selfAccountCode}:{}),
         registryActionConfirmed:kind==='ORIGINAL'&&receipt.status==='success',
         gasLimit:String(tx.gas),gasPriceWei:String(tx.gasPrice),
         feeWithinOriginalReview:tx.gas<=BigInt(row.preparation.transaction.gas)&&tx.gasPrice<=BigInt(row.preparation.transaction.gasPrice) };
