@@ -137,6 +137,8 @@ test('local Forge: contract snapshots, guarded local training and responsive bro
     ({ sessionId: pageSession } = await call('Target.attachToTarget', { targetId, flatten: true }));
     assert.equal(typeof pageSession, 'string');
     await call('Page.enable'); await call('Runtime.enable');
+    // Initialize Network before Fetch interception on the fresh page session.
+    await call('Network.enable');
     await call('Fetch.enable', { patterns: [{ urlPattern: '*', requestStage: 'Request' }] });
     // A missing CDP response must fail the responsible command rather than
     // silently consuming the entire 120-second parent deadline.
