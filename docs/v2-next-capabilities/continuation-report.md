@@ -1,8 +1,8 @@
 # Capability continuation and release review
 
-This report covers the increment after merged PR #69 (`1063614`). The original dirty checkout and existing holder practice sessions were preserved. Final validation and publication results are recorded below as they complete.
+This report covers the increment after merged PR #69 (`1063614`). The original dirty checkout and existing holder practice sessions were preserved. Final site validation passed at `99d5376`: 3,105 tests passed, zero failures, zero cancellations and two optional native cases skipped (covered separately). The contract gate passed 310 tests. Publication is tracked in [PR #70](https://github.com/riffsmon-bit/gogh-punks-website/pull/70); a successful preview alone is not production publication.
 
-**Public marketplace verdict: NOT_READY.** No public NFT was burned, no funds were moved, no order or refund was broadcast, and Bankr remains disabled. Passing controlled tests does not clear the known public WETH transfer-continuity defect or promote unregistered skills.
+**Public marketplace verdict: NOT_READY.** This code release does not activate public NFT burns, purchases, refunds or fund movements. Bankr remains disabled. Passing controlled tests does not clear the known public WETH transfer-continuity defect or promote unregistered skills.
 
 ## Delivered behavior
 
@@ -24,6 +24,8 @@ This report covers the increment after merged PR #69 (`1063614`). The original d
 
 Three specialists worked in isolated branches: marketplace journal/source, research skills/UI, and independent security/QA. The lead owned shared interfaces, capability resolution, API/MCP/UI seams, packaging and integration. Specialists reviewed other authors' work and returned regression evidence. Exact assignments and integration commits are in [continuation status](continuation-status.md).
 
+The review loop also closed an expired-session recovery dead end: an explicit Sign in to recover action now authenticates and checks the original intent without preparing, claiming or sending a purchase. The independent integrated review passed 99 focused cases, including five new actual-mount regressions; its earlier 212-case run overlaps and is not additive. See [the final independent review](continuation-final-security-review.md).
+
 The review loop closed the registry-key mismatch, missing packaged dependency, wallet/order commitment gap, asynchronous database durability gap, reverted-receipt reorg gap, blocked-draft dead end, invisible paused-history error and selection change during sign-in. The WETH ownership round-trip finding remains a public release blocker. Review documents distinguish independent evidence from author tests.
 
 ## Validation
@@ -35,9 +37,9 @@ The review loop closed the registry-key mismatch, missing packaged dependency, w
 - New research browser: seven scenarios, 12 screenshots at 1440/768/375/320, no wallet requests. Actual handlers/adapters use fixed provider fixtures; this is not public skill-registration evidence.
 - Control Center: 25 actual browser journeys, 59 screenshots at 1440/1280/768/430/375/320, no reported functional/layout findings, no external requests or real wallet calls. Covers roster, ownership changes, collection, exact balances, chat, rules, stale replies, links, funding recovery and Forge.
 - Staged source adapter: 113 author cases and 23 independent adversarial cases pass. Final controller/component independent suite: 16 cases pass, including the sign-in race, owner/Punk/chain switches and A→B→A.
-- Full final JavaScript/build results: pending final gate at report preparation.
+- Full site gate (`npm run site:check`) at `99d5376`: PASS, exit 0; 3,107 total tests, 3,105 passed, zero failed/cancelled, two optional native cases skipped and covered by separate native runs. Test phase: 224.259 seconds. Includes domain typecheck, wallet build, site/secret checks, all 837 JavaScript syntax checks, broker manifest checks and the full test suite. The previously failing Forge browser journey passed in 19.50 seconds, with its desktop/mobile subtest passing in 17.50 seconds.
 
-The first full JavaScript attempt exposed old local fixture manifests that omitted explicit tool declarations. Their fixture definitions were corrected without weakening production checks; all 64 affected Forge tests pass. A browser launch initially timed out in Chrome navigation before the app loaded; the unchanged harness rerun completed all 25 journeys. Neither failed attempt is counted as passing evidence. A later full run reproduced a separate test clock bug (the same mocked block changed its timestamp between reads) and an unbounded Chrome/CDP cleanup path. Test-only fixes pin the mock block while preserving changed-block rejection, bound CDP diagnostics and clean up only the owned browser. The original 120-second test limit is retained; 68 focused concurrent cases pass, and the full gate is rerunning.
+The first full JavaScript attempt exposed old local fixture manifests that omitted explicit tool declarations. Their fixture definitions were corrected without weakening production checks; all 64 affected Forge tests pass. A browser launch initially timed out in Chrome navigation before the app loaded; the unchanged harness rerun completed all 25 journeys. Neither failed attempt is counted as passing evidence. A later full run reproduced a separate test clock bug (the same mocked block changed its timestamp between reads) and an unbounded Chrome/CDP cleanup path. Test-only fixes pin the mock block while preserving changed-block rejection, bound CDP diagnostics and clean up only the owned browser. The original 120-second test limit is retained; 68 focused concurrent cases passed; the final full gate now passes after the protocol initialization correction described below.
 
 ## Performance and user experience
 
@@ -45,11 +47,21 @@ The idle purchase mount adds zero API calls and clears stale views on identity c
 
 The local controlled browser measured a 3.90-second disconnected usable shell, 5.50-second connected roster/selected shell, and 0.34-second 140-Punk fixture roster update under shared Mac load. These are single fixture samples, not production p95 measurements or before/after improvement claims. The unchanged published ownership/artwork baseline remains in the historical performance audit. Phone-size screenshots cannot prove real mobile-wallet handoff or keyboard behavior.
 
+The syntax checker now runs at most two Node processes concurrently while retaining all 837 modules, the same parser, ordered diagnostics and nonzero failure behavior. A counterbalanced 48-file sample improved from 9.039 seconds to 5.784 seconds on average (36%); a full 837-module run passed in 101.55 seconds. This improves local validation speed, not product load time.
+
 ## Remaining release gates
 
 1. **WETH public P1:** current-owner checks can revive a stale offer after Alice→Bob→Alice, including a single-transaction transfer round trip. The collection provides no required ownership epoch. The candidate stays rejected for public offers; a watcher or deployment flag cannot repair this on-chain condition. Restricted-order marketplace acceptance is also unproven.
-2. **Public native purchases:** a real supported signed listing, actual reviewed collection screening, marketplace-specific owner policy/equipped-skill composition, a deployed verified guard and a restricted production journal connection are required. Local test callbacks cannot fill these roles. The [composition gap assessment](../v2-marketplace/production-composition-gaps.md) names reusable existing APIs and separates code, evidence and authorization dependencies.
+2. **Public native purchases:** a real supported signed listing, actual reviewed collection screening, marketplace-specific owner policy/equipped-skill composition, a deployed verified guard, a restricted production journal connection, and original-owner history navigation after a Punk leaves the owner's roster are required. Local test callbacks cannot fill these roles. The [composition gap assessment](../v2-marketplace/production-composition-gaps.md) names reusable existing APIs and separates code, evidence and authorization dependencies.
 3. **Permanent new skills:** reviewed package/registry registration and release promotion have not been publicly executed. Lab availability grants no permanent skill, credit or execution permission.
 4. **Production owner actions:** no mainnet burn, contract deployment, registration, bid, purchase, refund, broad autonomy or asset movement is included in this build release. Any next wallet step requires its fresh exact transaction/fee review and the owner's explicit confirmation.
 
 The copied practice environment and reviewed research increment can be exercised without those public actions. Use the [holder testing guide](../v2-hardening/testing-guide.md), which includes how to continue the completed Forge session without sacrificing another Punk.
+
+## Browser reliability investigation
+
+The full software-rendered run retained the same startup failure: no document request or app frame/context was observed, and an independent one-second browser probe did not answer. All other 3,103 tests passed; the browser and its parent supplied the two failure counts, with two optional native cases skipped and covered separately. Reducing graphics load did not prove a full-suite fix. The passing diagnostic comparisons had also enabled the browser Network domain before Fetch interception. A controlled comparison isolated that missing initialization step: 6/10 passed without it and 10/10 passed with it. The final two-line fix then passed the complete focused journey (4/4 tests, all original product assertions). The unproven startup-retry refactor was discarded. The full gate passed against the integrated fix. No product assertion or training action is retried.
+
+A separate loaded diagnostic reached the old standalone local learn action and then displayed its conservative not-confirmed state; the exact HTTP status and server cause were not captured. Later hardware and software diagnostic groups each passed 19/19 without reproducing it. The cause remains unproven. This is separate from the guarded production training composition and completed holder copied-chain proofs; no receipt, credit or success was inferred from the failed diagnostic.
+
+The fresh source-only review of the final browser and syntax-check changes found no release blocker, preserved assertion text and timeouts, and confirmed exact syntax file coverage and failure handling. These test/build changes do not alter production wallet authority. The full gate resolves the release-test failure; the public marketplace gates above remain open.
