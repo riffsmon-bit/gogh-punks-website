@@ -3043,6 +3043,7 @@ function setup() {
     // No reviewed public purchase release exists. Never infer one from API data.
     purchaseRelease: null,
     storage: marketplaceStorage,
+    authenticate: ensureV2Session,
     api: async (path, options) => {
       if (options?.method === 'POST') {
         const revision = marketplaceSelectionRevision, key = marketplaceSelectionKey;
