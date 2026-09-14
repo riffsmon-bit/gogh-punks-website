@@ -76,6 +76,7 @@ export const ART_BROKER_MCP_RESEARCH_TOOLS = Object.freeze([
   ["skill_rank_observed_listings", "Compare prices within up to five observed Gogh listings using equipped Floor Hunter; not a verified collection floor or purchase.", false],
   ["skill_research_collection", "Summarize declared metadata for three selected Punks using equipped Collection Researcher; no external website requests.", true],
   ["skill_classify_collection", "Read declared art-style metadata in three selected Punks using equipped Art Curator; does not analyze images or change collecting rules.", true],
+  ["skill_research_project", "Read collection-declared project links using equipped Social Scout; social activity and account ownership remain unverified.", false],
 ].map(([name, description, sample]) => {
   const properties = Object.freeze({ tokenId: stringProperty(TOKEN_ID.source, "The authenticated owner's selected Punk"),
     ...(sample === true ? { sampleTokenIds: Object.freeze({ type: "array", minItems: 3, maxItems: 3, uniqueItems: true,
@@ -93,6 +94,7 @@ const RESEARCH_INTERNAL_NAMES = Object.freeze({
   skill_simulate_mint: 'simulate_mint', skill_prepare_mint: 'prepare_mint',
   skill_rank_observed_listings: 'rank_observed_listings', skill_research_collection: 'research_collection',
   skill_classify_collection: 'classify_collection',
+  skill_research_project: 'research_project',
 });
 const researchName = name => RESEARCH_INTERNAL_NAMES[name] ?? name;
 

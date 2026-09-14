@@ -142,7 +142,7 @@ export function createDurableTrainingPanel({root,getSelection,ensureSession,requ
     }
     s.equipped.forEach((skillKey,slot)=>{if(skillKey!==ZERO)button(root,`REVIEW UNEQUIP · SLOT ${slot+1}`,()=>prepare({operation:'unequip',slot}));});
     if(researchResult){
-      if(['rank_observed_listings','research_collection','classify_collection'].includes(researchResult.action))root.append(renderPlannedResearchResult({document:root.ownerDocument,action:researchResult.action,result:researchResult.result}));
+      if(['rank_observed_listings','research_collection','classify_collection','research_project'].includes(researchResult.action))root.append(renderPlannedResearchResult({document:root.ownerDocument,action:researchResult.action,result:researchResult.result}));
       const details=element('details');details.append(element('summary','View equipped research result'),
       element('p',`Observed ${new Date(researchResult.observedAt).toLocaleString()}. Re-run for a fresh result.`),element('pre',JSON.stringify(researchResult.result,null,2)));root.append(details);}
     root.append(element('p','Use the selected burn review above to earn a credit. Training does not grant spending permission.'));

@@ -9,6 +9,7 @@ import { createMintHunterV1 } from './mint-hunter-v1.mjs';
 import { createFloorHunterV1 } from './floor-hunter-v1.mjs';
 import { createCollectionResearcherV1 } from './collection-researcher-v1.mjs';
 import { createArtCuratorV1 } from './art-curator-v1.mjs';
+import { createSocialScoutV1 } from './social-scout-v1.mjs';
 import { skillKey } from './capability-resolver.mjs';
 
 const DEFAULT_SELECTION = Object.freeze([
@@ -18,6 +19,7 @@ export const PLANNED_RESEARCH_SELECTION = Object.freeze([
   Object.freeze({ slug: 'floor-hunter', version: 1 }),
   Object.freeze({ slug: 'collection-researcher', version: 1 }),
   Object.freeze({ slug: 'art-curator', version: 1 }),
+  Object.freeze({ slug: 'social-scout', version: 1 }),
 ]);
 const REVIEWED = Object.freeze({
   'contract-detective/1': [3, 'broker/src/v4/skill-forge/research-tools.mjs'],
@@ -29,6 +31,7 @@ const REVIEWED = Object.freeze({
   'floor-hunter/1': [9, 'broker/src/v4/skill-forge/floor-hunter-v1.mjs'],
   'collection-researcher/1': [11, 'broker/src/v4/skill-forge/collection-researcher-v1.mjs'],
   'art-curator/1': [6, 'broker/src/v4/skill-forge/art-curator-v1.mjs'],
+  'social-scout/1': [7, 'broker/src/v4/skill-forge/social-scout-v1.mjs'],
 });
 const DEPENDENCIES = Object.freeze({
   'link-sniper/1': ['broker/src/v4/discovery/robinhood-link-resolver.mjs', 'broker/src/v4/link-scanner.mjs',
@@ -93,6 +96,7 @@ export function createResearchSkillRuntime({ readState, packages, client, apiKey
   const floor = apiKey && has(9) ? createFloorHunterV1({ apiKey, fetchImpl, now: () => Number(now()) }) : null;
   const collection = client && has(11) ? createCollectionResearcherV1({ client }) : null;
   const art = client && has(6) ? createArtCuratorV1({ client }) : null;
+  const social = apiKey && has(7) ? createSocialScoutV1({ apiKey, fetchImpl, now: () => Number(now()) }) : null;
   function selectedVersion(context, id) {
     const selected = packages.filter(p => p.manifest.skillId === id
       && context.instructionPackages.some(item => item.key === skillKey(id, p.manifest.version)));
@@ -100,6 +104,11 @@ export function createResearchSkillRuntime({ readState, packages, client, apiKey
     return selected[0].manifest.version;
   }
   const implementations = {
+    ...(social ? { research_project: async (args, context) => {
+      argsOnly(args, ['slug', 'contract']);
+      if (selectedVersion(context, 7) !== 1) throw Error('UNREVIEWED_SKILL_VERSION');
+      return social.researchProject({ slug: args.slug, contract: args.contract });
+    } } : {}),
     ...(floor ? { rank_observed_listings: async (args, context) => {
       argsOnly(args, ['slug', 'contract', 'limit']);
       if (selectedVersion(context, 9) !== 1) throw Error('UNREVIEWED_SKILL_VERSION');

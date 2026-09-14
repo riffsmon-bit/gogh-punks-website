@@ -9,7 +9,7 @@ import { createForgeRpcClients } from '../../../broker/src/v4/skill-forge/rpc-cl
 import { createMintResearchContextReader } from './v2-mint-research-context.mjs';
 
 const TOOLS = ['inspect_contract', 'get_metadata', 'rank_trait_sample', 'get_market_listings', 'inspect_mint_link', 'inspect_mint', 'simulate_mint', 'prepare_mint',
-  'rank_observed_listings', 'research_collection', 'classify_collection'];
+  'rank_observed_listings', 'research_collection', 'classify_collection', 'research_project'];
 const fail = code => { throw Error(code); };
 function researchArguments(name, tokenId, args, collection) {
   const mint = ['inspect_mint', 'simulate_mint', 'prepare_mint'].includes(name);
@@ -33,6 +33,7 @@ function researchArguments(name, tokenId, args, collection) {
       || ids.some(id => typeof id !== 'string' || !/^[1-9][0-9]{0,3}$/.test(id))) fail('MCP_RESEARCH_SAMPLE_INVALID');
     return { ...fixed, tokenIds: [...ids], ...(name === 'rank_trait_sample' ? { numericMode: 'categorical' } : {}) };
   }
+  if (name === 'research_project') return { ...fixed, slug: 'gogh-punks-255843210' };
   return ['get_market_listings', 'rank_observed_listings'].includes(name) ? { ...fixed, slug: 'gogh-punks-255843210', limit: 5 } : fixed;
 }
 
@@ -41,6 +42,7 @@ const REVIEWED_PACKAGES = Object.freeze([
   [3, 1, 'contract-detective'], [4, 1, 'rarity-eye'], [8, 1, 'market-scout'],
   [8, 2, 'market-scout'], [2, 1, 'link-sniper'], [1, 1, 'mint-hunter'],
   [9, 1, 'floor-hunter'], [11, 1, 'collection-researcher'], [6, 1, 'art-curator'],
+  [7, 1, 'social-scout'],
 ]);
 export function mcpResearchPackageSelection(release) {
   return REVIEWED_PACKAGES.filter(([id, version]) => release.skills.some(skill => skill.key === skillKey(id, version)))

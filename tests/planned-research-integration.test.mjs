@@ -11,6 +11,7 @@ const packs = await loadResearchSkillCatalog({ selection: PLANNED_RESEARCH_SELEC
 const manifest = { ...deployment, status: 'UNDEPLOYED', registry: null, registryCodeHash: null,
   progression: null, progressionCodeHash: null, trainingSource: null, trainingSourceCodeHash: null };
 const pairs = [['research_collection', 'skill_research_collection', 'GOGH_COLLECTION_RESEARCH_V1'],
+  ['research_project', 'skill_research_project', 'GOGH_PUBLIC_PROJECT_RESEARCH_V1'],
   ['classify_collection', 'skill_classify_collection', 'GOGH_DECLARED_ART_STYLE_MATCHES_V1'],
   ['rank_observed_listings', 'skill_rank_observed_listings', 'GOGH_OBSERVED_LISTING_RANKS_V1']];
 function fixture() {
@@ -23,13 +24,17 @@ function fixture() {
         attributes: [{ trait_type: 'Style', value: 'Pixel Art' }] })).toString('base64')}`;
     } };
   const marketFetch = async url => Response.json(url.includes('/collections/')
-    ? { name: 'Gogh Punks', contracts: [{ chain: 'robinhood', address: GOGH }] } : { listings: [], next: null });
+    ? { collection: 'gogh-punks-255843210', name: 'Gogh Punks', description: 'Project-declared text', project_url: 'https://goghpunks.xyz', contracts: [{ chain: 'robinhood', address: GOGH }] } : { listings: [], next: null });
   return { calls, client, marketFetch };
 }
 function lab(f) {
   const deps = { manifest, pool: null, environment: { GOGH_FORGE_TEST_OWNER: OWNER, OPENSEA_API_KEY: 'LOCAL_FIXTURE_ONLY' },
     sessionReader: async () => ({ walletAddress: OWNER }), authorityReader: async () => ({ owner: OWNER, punkWallet: OWNER }),
     continuityReader: async () => {}, originCheck: () => {}, clientFactory: () => f.client,
+    socialFactory: options => ({ researchProject: async args => {
+      const { createSocialScoutV1 } = await import('../broker/src/v4/skill-forge/social-scout-v1.mjs');
+      return createSocialScoutV1({ ...options, fetchImpl: f.marketFetch }).researchProject(args);
+    } }),
     floorFactory: options => ({ rankObservedListings: async args => {
       const { createFloorHunterV1 } = await import('../broker/src/v4/skill-forge/floor-hunter-v1.mjs');
       return createFloorHunterV1({ ...options, fetchImpl: f.marketFetch }).rankObservedListings(args);
@@ -39,7 +44,7 @@ function lab(f) {
   return { deps, request };
 }
 for (const [action, , schema] of pairs) test(`owner lab invokes the real ${action} adapter without granting a learned skill`, async () => {
-  const f = fixture(), api = lab(f), response = await api.request({ action, ...(action !== 'rank_observed_listings' ? { sampleTokenIds: ['93', '94', '95'] } : {}) });
+  const f = fixture(), api = lab(f), response = await api.request({ action, ...(['research_collection','classify_collection'].includes(action) ? { sampleTokenIds: ['93', '94', '95'] } : {}) });
   assert.equal(response.status, 200, await response.clone().text());
   const result = await response.json(); assert.equal(result.result.schema, schema); assert.equal(result.result.executable, false);
   assert.equal(result.mode, 'READ_ONLY_RESEARCH_LAB'); assert.equal(result.canLearn, false); assert.equal(result.canEquip, false);
@@ -66,7 +71,7 @@ function mcpFixture() {
   const release = { status: 'OWNER_CANARY', chainId: 4663, collection: GOGH, allowedOwners: [OWNER],
     skills: packs.map(p => ({ key: skillKey(p.manifest.skillId, 1), manifestHash: p.manifestHash, instructionHash: p.instructionHash })) };
   const mask = p => p.manifest.capabilities.reduce((n, name) => n | SKILL_CAPABILITIES[name], 0n);
-  const state = { tokenId: '93', owner: OWNER, chainId: 4663, slots: 3, blockHash: HASH, blockTime: Date.now(),
+  const state = { tokenId: '93', owner: OWNER, chainId: 4663, slots: packs.length, blockHash: HASH, blockTime: Date.now(),
     mask: packs.reduce((n, p) => n | mask(p), 0n).toString(), equipped: packs.map((p, slot) => ({
       slot, key: skillKey(p.manifest.skillId, 1), level: 1, available: true, definition: {
         status: 4, disabled: false, deprecated: false, capabilities: String(mask(p)), manifestHash: p.manifestHash, instructionHash: p.instructionHash } })) };
@@ -79,7 +84,7 @@ function mcpFixture() {
   return { f, state, release, server };
 }
 for (const [action, name, schema] of pairs) test(`MCP ${name} uses exact released/equipped package and native adapter`, async () => {
-  const { server, state } = mcpFixture(), args = { tokenId: '93', ...(action !== 'rank_observed_listings' ? { sampleTokenIds: ['93', '94', '95'] } : {}) };
+  const { server, state } = mcpFixture(), args = { tokenId: '93', ...(['research_collection','classify_collection'].includes(action) ? { sampleTokenIds: ['93', '94', '95'] } : {}) };
   const tools = await server.listTools({ tokenId: '93' });
   assert.equal(tools.filter(t => t.name === name).length, 1);
   const output = await server.call({ name, arguments: args }); assert.equal(output.result.schema, schema); assert.equal(output.result.executable, false);
