@@ -83,7 +83,7 @@ export function renderPlannedResearchResult({ document: doc, action, result }) {
         if (reference.url) list.append(el('li', `${reference.kind === 'WEBSITE' ? 'Website' : reference.kind === 'DISCORD' ? 'Discord' : 'X'} · ${reference.url}`));
       }
       if (list.childNodes.length) root.append(list);
-      else paragraph('This collection did not declare supported project links.');
+      else paragraph('No usable project links were returned. Missing or unsupported links remain unknown.');
     }
     paragraph('These links come from the collection’s marketplace profile. Social Scout has not visited them, verified their owners or read social posts.');
   } else throw Error('Choose an available research action.');

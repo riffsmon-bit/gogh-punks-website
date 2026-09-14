@@ -59,6 +59,9 @@
 [functions."broker-forge-training-reconcile"]
   included_files = ["deployments/robinhood-forge-training.json", "deployments/certificates/supabase-prod-ca-2021.crt"]
 
+[functions."broker-v2-release-check"]
+  included_files = ["deployments/robinhood-forge-training.json", "deployments/certificates/supabase-prod-ca-2021.crt"]
+
 [functions."broker-autonomy-v3-status"]
   included_files = ["deployments/robinhood-automation-v3.json", "deployments/robinhood.json", "broker/src/**/*.mjs", "netlify/functions/_shared/*.mjs"]
 
