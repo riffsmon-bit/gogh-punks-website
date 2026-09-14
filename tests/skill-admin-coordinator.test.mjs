@@ -29,7 +29,7 @@ test('unrelated recovery hash does not poison the saved record',async()=>{
   await assert.rejects(c.recover({administrator:ADMIN,id:record.id,transactionHash:TX}),/TRANSACTION_MISMATCH/);
   assert.equal(f.row.transactionHash,null);assert.equal(f.row.status,'WALLET_REQUESTED');
 });
-for(const[field,value]of[['from',`0x${'2'.repeat(40)}`],['to',`0x${'2'.repeat(40)}`],['input','0x'],['value',1n],['chainId',1],['gas',100001n],['gasPrice',101n]])test(`recovery rejects changed ${field}`,async()=>{
+for(const[field,value]of[['from',`0x${'2'.repeat(40)}`],['chainId',1],['nonce',8]])test(`recovery rejects changed ${field}`,async()=>{
   const{f,c}=create();const{record}=await prepare(c);await claim(c,record);f.observed[field]=value;
   await assert.rejects(c.recover({administrator:ADMIN,id:record.id,transactionHash:TX}),/TRANSACTION_MISMATCH/);assert.equal(f.row.transactionHash,null);
 });
@@ -59,4 +59,57 @@ test('changed review, expired review, nonce change and increased fee prevent cla
     if(mode==='fee')f.preparation.maximumNetworkFeeWei='10000001';
     await assert.rejects(claim(c,record));assert.equal(f.row.status,'PREPARED');
   }
+});
+
+for(const field of ['gas','gasPrice'])test(`exact original with owner-adjusted ${field} remains an original confirmation`,async()=>{
+  const{f,c}=create();const{record}=await prepare(c);await claim(c,record);f.observed[field]+=1n;f.skill.registeredStatus=0;
+  const{record:done}=await c.recover({administrator:ADMIN,id:record.id,transactionHash:TX});
+  assert.equal(done.status,'CONFIRMED');assert.equal(done.receipt.kind,'ORIGINAL');assert.equal(done.receipt.feeWithinOriginalReview,false);
+});
+test('canonical zero-value same-nonce replacement releases original only after twelve matching confirmations',async()=>{
+  const{f,c}=create();const{record}=await prepare(c);await claim(c,record);
+  f.observed.to=ADMIN;f.observed.input='0x';f.receipt.to=ADMIN;
+  for(const client of f.clients)client.getBlockNumber=async()=>109n;
+  let result=await c.recover({administrator:ADMIN,id:record.id,transactionHash:TX});
+  assert.equal(result.record.status,'WALLET_REQUESTED');assert.equal(result.record.recoveryHash,TX);assert.equal((await prepare(c)).record.id,record.id);
+  for(const client of f.clients)client.getBlockNumber=async()=>111n;
+  result=await c.recover({administrator:ADMIN,id:record.id});assert.equal(result.record.status,'REPLACED');
+  assert.equal(result.record.receipt.assetMovement,'NONE_EXCEPT_NETWORK_FEE');assert.equal(result.record.receipt.registryActionConfirmed,false);
+  assert.equal(result.transaction,undefined);assert.notEqual((await prepare(c)).record.id,record.id);
+});
+test('exact original speed-up confirms while preserving the originally submitted hash',async()=>{
+  const{f,c}=create();const{record}=await prepare(c);await claim(c,record);
+  for(const client of f.clients)client.getBlockNumber=async()=>109n;
+  await c.recover({administrator:ADMIN,id:record.id,transactionHash:TX});
+  const sped=`0x${'8'.repeat(64)}`;f.observed.hash=sped;f.receipt.transactionHash=sped;f.observed.gasPrice=150n;f.skill.registeredStatus=0;
+  for(const client of f.clients)client.getBlockNumber=async()=>111n;
+  const{record:done}=await c.recover({administrator:ADMIN,id:record.id,transactionHash:sped});
+  assert.equal(done.transactionHash,TX);assert.equal(done.recoveryHash,sped);assert.equal(done.status,'CONFIRMED');assert.equal(done.receipt.kind,'ORIGINAL');
+});
+test('cancellation is separately reviewed/claimed, requires explicit confirmation and does not release original',async()=>{
+  const{f,c}=create();const{record}=await prepare(c);await claim(c,record);
+  const{cancellation}=await c.prepareCancellation({administrator:ADMIN,id:record.id,requestKey:randomUUID()});
+  assert.equal(cancellation.preparation.transaction.to,ADMIN);assert.equal(cancellation.preparation.transaction.data,'0x');
+  assert.equal(cancellation.preparation.transaction.value,'0x0');assert.equal(cancellation.preparation.originalNonce,'0x7');
+  const claims=await Promise.allSettled(Array.from({length:8},()=>c.claimCancellation({administrator:ADMIN,id:record.id,cancellationId:cancellation.id,
+    revision:cancellation.revision,reviewHash:cancellation.reviewHash})));
+  assert.equal(claims.filter(item=>item.status==='fulfilled').length,1);assert.equal(f.row.status,'WALLET_REQUESTED');
+  assert.equal((await prepare(c)).record.id,record.id);
+  const next=await c.prepareCancellation({administrator:ADMIN,id:record.id,requestKey:randomUUID()});
+  assert.notEqual(next.cancellation.id,cancellation.id);assert.equal(next.cancellation.preparation.originalNonce,'0x7');
+  assert.ok(BigInt(next.cancellation.preparation.transaction.gasPrice)>BigInt(cancellation.preparation.transaction.gasPrice));
+  assert.equal(f.row.transactionHash,null);
+});
+test('consumed nonce and unknown delegated account code prevent cancellation preparation',async()=>{
+  for(const kind of ['nonce','code']){const{f,c}=create();const{record}=await prepare(c);await claim(c,record);
+    if(kind==='nonce')for(const client of f.clients)client.getTransactionCount=async()=>8;
+    else for(const client of f.clients)client.getCode=async()=> '0xef01001234567890123456789012345678901234567890';
+    await assert.rejects(c.prepareCancellation({administrator:ADMIN,id:record.id,requestKey:randomUUID()}),/NONCE_ALREADY_CONSUMED|SELF_CALL_NOT_REVIEWED/);
+    assert.equal(f.cancellations.length,0);assert.equal(f.row.status,'WALLET_REQUESTED');
+  }
+});
+test('replacement that transfers value is observed accurately and never reported as zero asset movement',async()=>{
+  const{f,c}=create();const{record}=await prepare(c);await claim(c,record);f.observed.to=`0x${'2'.repeat(40)}`;f.receipt.to=f.observed.to;f.observed.value=100n;f.observed.input='0x';
+  const{record:done}=await c.recover({administrator:ADMIN,id:record.id,transactionHash:TX});
+  assert.equal(done.status,'REPLACED');assert.equal(done.receipt.valueWei,'100');assert.equal(done.receipt.assetMovement,'OWNER_REPLACEMENT_REVIEW_WALLET_ACTIVITY');
 });

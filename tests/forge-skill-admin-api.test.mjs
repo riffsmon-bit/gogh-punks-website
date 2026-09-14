@@ -17,3 +17,13 @@ test('same-origin and exact body rules precede mutation',async()=>{const f=setup
 test('provider error bodies and credentials never reach route response',async()=>{const f=setup();f.options.runtimeFactory=async()=>{throw Error('https://rpc.invalid/SECRET value');};const result=await f.call();assert.equal(result.status,503);assert.equal((await result.text()).includes('SECRET'),false);});
 test('duplicate query ids and unsupported methods are rejected',async()=>{const f=setup();const result=await handleForgeSkillAdmin(new Request(url+'?id=1&id=2'),f.options);assert.equal(result.status,400);
   assert.equal((await handleForgeSkillAdmin(new Request(url,{method:'DELETE'}),f.options)).status,405);});
+test('cancellation endpoints remain session-bound and return only an explicitly claimed zero-value self transaction',async()=>{
+  const f=setup();const{record}=await(await f.call({operation:'prepare',key:KEY,requestKey:randomUUID()})).json();
+  await f.call({operation:'claim',id:record.id,revision:record.revision,reviewHash:record.reviewHash});
+  const{cancellation}=await(await f.call({operation:'prepare_cancel',id:record.id,requestKey:randomUUID()})).json();
+  assert.equal(cancellation.status,'PREPARED');assert.equal(f.f.row.status,'WALLET_REQUESTED');
+  const response=await f.call({operation:'claim_cancel',id:record.id,cancellationId:cancellation.id,revision:cancellation.revision,reviewHash:cancellation.reviewHash});
+  assert.equal(response.status,200);const body=await response.json();assert.equal(body.transaction.to,ADMIN);assert.equal(body.transaction.data,'0x');assert.equal(body.transaction.value,'0x0');
+  assert.equal(body.cancellation.status,'WALLET_REQUESTED');assert.equal(body.record.status,'WALLET_REQUESTED');
+  f.setOwner(`0x${'2'.repeat(40)}`);assert.equal((await f.call({operation:'prepare_cancel',id:record.id,requestKey:randomUUID()})).status,403);
+});

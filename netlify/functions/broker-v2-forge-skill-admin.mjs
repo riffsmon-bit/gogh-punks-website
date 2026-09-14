@@ -3,6 +3,7 @@ import { forgeSkillAdminRuntime } from './_shared/forge-skill-admin-runtime.mjs'
 import { json,readJson,PublicError,requireSameOrigin } from './_shared/http.mjs';
 import { requireV2Session } from './_shared/v2-session.mjs';
 const FIELDS = {prepare:['operation','key','requestKey'],claim:['operation','id','revision','reviewHash'],
+  prepare_cancel:['operation','id','requestKey'],claim_cancel:['operation','id','cancellationId','revision','reviewHash'],
   cancel:['operation','id','revision'],recover:['operation','id','transactionHash']};
 export async function handleForgeSkillAdmin(request,{runtimeFactory=forgeSkillAdminRuntime,sessionPool=()=>getDatabase().pool,
   sessionReader=requireV2Session,originCheck=requireSameOrigin}={}) {
@@ -19,7 +20,7 @@ export async function handleForgeSkillAdmin(request,{runtimeFactory=forgeSkillAd
       const body = await readJson(request,2048),fields=FIELDS[body?.operation];
       if (!fields || Object.keys(body).length!==fields.length || fields.some(key=>!Object.hasOwn(body,key))) throw new PublicError(400,'SKILL_ADMIN_REQUEST_INVALID','Refresh the skill release review.');
       const {operation,...input}=body;
-      result = await coordinator[operation]({administrator,...input,...(operation==='recover' && input.transactionHash===null?{transactionHash:undefined}:{})});
+      result = await coordinator[({prepare_cancel:'prepareCancellation',claim_cancel:'claimCancellation'})[operation]??operation]({administrator,...input,...(operation==='recover' && input.transactionHash===null?{transactionHash:undefined}:{})});
     }
     return json({ok:true,...result});
   } catch(error) {

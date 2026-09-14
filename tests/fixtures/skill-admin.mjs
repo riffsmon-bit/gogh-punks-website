@@ -14,11 +14,17 @@ export function skillAdminFixture() {
     chainId:4663,anchor:{number:'99',hash:blockHash,timestamp:String(Math.floor(Date.now()/1000))},expiresAt:Date.now()+60000,
     maximumNetworkFeeWei:'10000000',transaction:{from:ADMIN,to:REGISTRY,data,value:'0x0',chainId:'0x1237',nonce:'0x7',gas:'0x186a0',gasPrice:'0x64'},
     walletConfirmationRequired:true,publicTransactions:0,serverReleaseActivated:false};
-  let row=null;const log=[];
+  let row=null;const log=[],cancellations=[];
   const store={
+    async getCancellation(owner,parent,id){return structuredClone(cancellations.findLast(c=>c.administrator===owner&&c.parentId===parent&&(!id||c.id===id))??null);},
+    async prepareCancellation(owner,parent,requestKey,preparation,reviewHash){
+      const prior=cancellations.find(c=>c.parentId===parent&&c.requestKey===requestKey);if(prior)return structuredClone(prior);
+      const c={id:randomUUID(),parentId:parent,administrator:owner,registry:REGISTRY,requestKey,preparation:structuredClone(preparation),reviewHash,status:'PREPARED',revision:0};cancellations.push(c);return structuredClone(c);},
+    async claimCancellation(owner,parent,id,revision){const c=cancellations.find(c=>c.administrator===owner&&c.parentId===parent&&c.id===id);
+      if(!c||c.revision!==revision||c.status!=='PREPARED')throw Error('SKILL_ADMIN_REVIEW_CONFLICT');c.status='WALLET_REQUESTED';c.revision++;return structuredClone(c);},
     async get(owner,id){return row&&row.administrator===owner&&(!id?['PREPARED','WALLET_REQUESTED','SUBMITTED'].includes(row.status):row.id===id)?structuredClone(row):null;},
     async prepare(owner,requestKey,value,hash){if(row&&['PREPARED','WALLET_REQUESTED','SUBMITTED'].includes(row.status))return structuredClone(row);
-      row={id:randomUUID(),administrator:owner,registry:REGISTRY,key:KEY,action:value.action,requestKey,preparation:structuredClone(value),reviewHash:hash,status:'PREPARED',revision:0,transactionHash:null,receipt:null};log.push('prepare');return structuredClone(row);},
+      row={id:randomUUID(),administrator:owner,registry:REGISTRY,key:KEY,action:value.action,requestKey,preparation:structuredClone(value),reviewHash:hash,status:'PREPARED',revision:0,transactionHash:null,recoveryHash:null,receipt:null};log.push('prepare');return structuredClone(row);},
     async update(owner,id,revision,from,to,patch={}){if(!row||row.administrator!==owner||row.id!==id||row.revision!==revision||!from.includes(row.status))throw Error('SKILL_ADMIN_REVIEW_CONFLICT');
       row={...row,status:to,revision:revision+1,...patch};log.push(to);return structuredClone(row);},
   };
@@ -27,7 +33,8 @@ export function skillAdminFixture() {
   const observed={hash:TX,from:ADMIN,to:REGISTRY,input:data,value:0n,chainId:4663,nonce:7,gas:100000n,gasPrice:100n,blockNumber:100n,blockHash};
   const receipt={transactionHash:TX,from:ADMIN,to:REGISTRY,blockNumber:100n,blockHash,status:'success'};
   const clients=[0,1].map(()=>({getChainId:async()=>4663,getTransaction:async()=>structuredClone(observed),
-    getTransactionReceipt:async()=>structuredClone(receipt),getBlock:async()=>({number:100n,hash:blockHash}),getBlockNumber:async()=>111n}));
-  return {store,review,state,skill,preparation,clients,observed,receipt,log,get row(){return row;},set row(value){row=value;},
+    getTransactionReceipt:async()=>structuredClone(receipt),getBlock:async()=>({number:100n,hash:blockHash,timestamp:BigInt(Math.floor(Date.now()/1000))}),getBlockNumber:async()=>111n,
+    getCode:async()=> '0x',getTransactionCount:async()=>7,getGasPrice:async()=>100n,getBalance:async()=>10n**18n,estimateGas:async()=>21000n,call:async()=>({data:'0x'})}));
+  return {store,review,state,skill,preparation,clients,observed,receipt,log,cancellations,get row(){return row;},set row(value){row=value;},
     prepared:()=>({record:row,transaction:preparation.transaction}),hash:()=>manifestHash(preparation)};
 }
