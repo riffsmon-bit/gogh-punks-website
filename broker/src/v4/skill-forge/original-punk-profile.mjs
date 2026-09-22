@@ -1,5 +1,6 @@
+import { paidCanonicalState, createCanonicalProgressionReader } from './paid-canonical.mjs';
 import { getAddress, keccak256, parseAbi } from 'viem';
-import { createProgressionReader, resolvePunkCapabilities, skillKey, manifestHash, instructionHash } from './capability-resolver.mjs';
+import { resolvePunkCapabilities, skillKey, manifestHash, instructionHash } from './capability-resolver.mjs';
 
 const ADDRESS = /^0x[0-9a-f]{40}$/i, HASH = /^0x[0-9a-f]{64}$/i;
 const ZERO = `0x${'0'.repeat(64)}`;
@@ -41,7 +42,7 @@ export const lockedOriginalForgeProfile = () => ({ status: 'NOT_DEPLOYED', owner
 
 export function createOriginalForgeProfileReader({ client, deployment, packages = [] }) {
   const config = validateOriginalForgeDeployment(deployment);
-  const readState = config.status === 'READ_ONLY_CANARY' ? createProgressionReader({ client,
+  const readState = config.status === 'READ_ONLY_CANARY' ? createCanonicalProgressionReader({ client,
     chainId: config.chainId, collection: config.collection, registry: config.registry, progression: config.progression,
     registryCodeHash: config.registryCodeHash, progressionCodeHash: config.progressionCodeHash }) : null;
   return async ({ tokenId, owner }) => {
@@ -64,6 +65,8 @@ export function createOriginalForgeProfileReader({ client, deployment, packages 
       || allocationChainId !== BigInt(config.chainId)) throw Error('FORGE_DEPLOYMENT_MISMATCH');
     // Bounded reader: a future expanded catalog needs a deliberate release, not unbounded RPC fan-out.
     if (typeof credits !== 'bigint' || credits < 0n || typeof count !== 'bigint' || count < 0n || count > 128n) throw Error('FORGE_PROGRESSION_INVALID');
+    const paid=await paidCanonicalState({client,release:config,owner,tokenId,
+      anchor:{number:state.blockNumber,hash:state.blockHash,timestamp:String(state.blockTime/1000)}});
     const learned = [], seen = new Set();
     for (let i = 0n; i < count; i++) {
       const key = await progress('learnedKeyAt', [...args, i]);
@@ -84,6 +87,16 @@ export function createOriginalForgeProfileReader({ client, deployment, packages 
         deprecated: definition.deprecated, manifestHash: definition.manifestHash,
         instructionHash: definition.instructionHash });
     }
+    if(paid)for(const skill of paid.skills){
+      if(skill.level===0 || seen.has(skill.key))continue;
+      const definition=await read(config.registry,'definition',[skill.key]);
+      const pack=packages.find(p=>skillKey(p.manifest.skillId,p.manifest.version)===skill.key);
+      const known=pack && manifestHash(pack.manifest)===definition.manifestHash && instructionHash(pack.instructions)===definition.instructionHash;
+      learned.push({key:skill.key,skillId:definition.skillId,version:definition.version,level:skill.level,
+        name:known?pack.manifest.name:skill.name,slug:known?(pack.slug??null):null,packageVerified:Boolean(known),
+        status:STATUS[definition.status],available:skill.available,disabled:definition.disabled,deprecated:definition.deprecated,
+        manifestHash:definition.manifestHash,instructionHash:definition.instructionHash});
+    }
     for (const item of state.equipped) {
       if (!learned.some(s => s.key === item.key && s.level === item.level)) throw Error('FORGE_PROGRESSION_INVALID');
     }
@@ -92,7 +105,7 @@ export function createOriginalForgeProfileReader({ client, deployment, packages 
     if ((await client.getBlock({ blockNumber })).hash !== state.blockHash) throw Error('FORGE_REORG_DURING_READ');
     return { status: 'VERIFIED_READ_ONLY', ownership: 'ORIGINAL_NFT', verified: true,
       tokenId, owner: state.owner, collection: config.collection, registry: config.registry, progression: config.progression,
-      trainingCredits: String(credits), learnedSkills: learned,
+      trainingCredits: String(credits), purchasedCredits:paid?.purchasedCredits??null, paidActivated:paid?.activated??false, learnedSkills: learned,
       equippedSkills: state.equipped.map(({ slot, key, level }) => ({ slot, key, level })),
       unlockedSlots: state.slots, claimedStartingSlots: claimed, slotCap: cap,
       blockNumber: state.blockNumber, blockHash: state.blockHash, blockTime: state.blockTime,

@@ -130,17 +130,19 @@ export function createDurableTrainingPanel({root,getSelection,ensureSession,requ
         if(!/^0x[0-9a-f]{64}$/.test(value))throw Error('Enter the full transaction hash from your wallet.');
         persist({...journal,transactionHash:value});await refresh(selected,current);}));return;}
     if(!snapshot || snapshot.held || journal)return;
-    const s=snapshot.state;root.append(element('p',`${s.credits} training credit(s) · ${s.slots} unlocked slot(s)`));
+    const s=snapshot.state;
+    if(s.paidActivated)root.append(element('p','Your active loadout is managed in Paid Training below. Burn-earned credits remain available here.'));
+    root.append(element('p',`${s.credits} training credit(s) · ${s.slots} unlocked slot(s)`));
     if(s.claimed===0)button(root,'REVIEW RARITY SLOTS',()=>prepare({operation:'claim_rarity'}));
-    button(root,'REVIEW UNLOCK SLOT · 1 CREDIT',()=>prepare({operation:'unlock'}),s.claimed===0||s.slots>=7||BigInt(s.credits)<1n);
+    button(root,'REVIEW UNLOCK SLOT · 1 CREDIT',()=>prepare({operation:'unlock'}),s.claimed===0||(s.canonicalSlots??s.slots)>=7||BigInt(s.credits)<1n);
     for(const skill of s.skills){const row=element('article');row.append(element('h4',skill.name));
-      if(skill.level===0)button(row,'REVIEW LEARN · 1 CREDIT',()=>prepare({operation:'learn',skillKey:skill.key}),!skill.available||BigInt(s.credits)<1n);
-      else{const label=element('label','Equip in slot');const select=element('select');for(let slot=0;slot<s.slots;slot++){const option=element('option',`Slot ${slot+1}`);option.value=String(slot);select.append(option);}label.append(select);row.append(label);
+      if(skill.level===0 && !s.combinedSkills?.some(item=>item.key===skill.key&&item.level>0))button(row,'REVIEW LEARN · 1 CREDIT',()=>prepare({operation:'learn',skillKey:skill.key}),!skill.available||BigInt(s.credits)<1n);
+      else if(!s.paidActivated){const label=element('label','Equip in slot');const select=element('select');for(let slot=0;slot<s.slots;slot++){const option=element('option',`Slot ${slot+1}`);option.value=String(slot);select.append(option);}label.append(select);row.append(label);
         button(row,'REVIEW EQUIP',()=>prepare({operation:'equip',skillKey:skill.key,slot:Number(select.value)}),!skill.available||s.equipped.includes(skill.key));}
-      if(skill.level===1&&skill.available&&s.equipped.includes(skill.key)&&forgeResearchAction(skill.key))button(row,'RUN EQUIPPED RESEARCH',()=>research(skill.key));
+      if(!s.paidActivated&&skill.level===1&&skill.available&&s.equipped.includes(skill.key)&&forgeResearchAction(skill.key))button(row,'RUN EQUIPPED RESEARCH',()=>research(skill.key));
       root.append(row);
     }
-    s.equipped.forEach((skillKey,slot)=>{if(skillKey!==ZERO)button(root,`REVIEW UNEQUIP · SLOT ${slot+1}`,()=>prepare({operation:'unequip',slot}));});
+    if(!s.paidActivated)s.equipped.forEach((skillKey,slot)=>{if(skillKey!==ZERO)button(root,`REVIEW UNEQUIP · SLOT ${slot+1}`,()=>prepare({operation:'unequip',slot}));});
     if(researchResult){
       if(['rank_observed_listings','research_collection','classify_collection','research_project'].includes(researchResult.action))root.append(renderPlannedResearchResult({document:root.ownerDocument,action:researchResult.action,result:researchResult.result}));
       const details=element('details');details.append(element('summary','View equipped research result'),
