@@ -1,0 +1,43 @@
+{
+  "schema": "GOGH_PUBLIC_PAID_READ_ONLY_EVIDENCE_V1",
+  "checkedAt": "2026-09-22T14:25:47.073Z",
+  "targetCollection": "0xb73f1d1aee57410d537d87b656e98b9d3df5b213",
+  "observations": [
+    {
+      "owner": "0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6",
+      "tokenId": "93",
+      "recipient": "0xcadcfd37e715bc031cf0cec7fa2335091c878c83",
+      "activated": true,
+      "recipientCodeHash": "0xb29422a63949d185a9a9e2823dbc6d34522ee16204b7407e6616294e7f58cf06",
+      "accountState": "6",
+      "priceWei": "100000000000000",
+      "available": false,
+      "unavailableReason": "ENDED",
+      "startsAt": "1789440600",
+      "endsAt": "1789872600",
+      "mintedByWallet": "0",
+      "walletLimit": "50",
+      "minted": "1786",
+      "supply": "2222",
+      "nextTokenId": "1787",
+      "anchor": {
+        "number": "69724700",
+        "hash": "0x015140fab7c0c0c9ad87f6ea07cfb296e5bacff0848543966b980f727506df9d",
+        "timestamp": "1790087144"
+      }
+    },
+    {
+      "owner": "0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6",
+      "tokenId": "94",
+      "recipient": "0xe2d865a18f10bcbc09ca2594ebb42d6573b7c3bc",
+      "activated": false,
+      "anchor": {
+        "number": "69724710",
+        "hash": "0xfd5d02b2b239a7059df575ffd96160cdb46d3f413698bf789828be9a9931e3e9",
+        "timestamp": "1790087145"
+      }
+    }
+  ],
+  "publicTransactions": 0,
+  "scope": "LIVE_READS_ONLY_NO_MINT_OR_WALLET_AUTHORIZATION"
+}

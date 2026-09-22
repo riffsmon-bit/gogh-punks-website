@@ -38,5 +38,18 @@
   "maximumExecutionFeeWei": "100000000000000",
   "recipientCodeHash": "0xb29422a63949d185a9a9e2823dbc6d34522ee16204b7407e6616294e7f58cf06",
   "recipientImplementation": "0xfdb26c2ec70956227728414ff4ab7a5eda64d13b",
-  "recipientImplementationCodeHash": "0x7d37d360014ce94902655062605b8318581097df100ab2573be52904afa6badc"
+  "recipientImplementationCodeHash": "0x7d37d360014ce94902655062605b8318581097df100ab2573be52904afa6badc",
+  "publicOwnerMint": {
+    "schema": "GOGH_PUBLIC_OWNER_PAID_MINT_V1",
+    "status": "TESTING",
+    "enabled": false,
+    "seaDrop": "0x00005ea00ac477b1030ce78506496e8c2de24bf5",
+    "seaDropCodeHash": "0x53e4b9339cf624803c9a7d0195576cca5b917920813508d86b3eb93dcbabeb5c",
+    "feeRecipient": "0x0000a26b00c1f0df003000390027140000faa719",
+    "maximumPriceWei": "1000000000000000",
+    "ownerFeeCeilingWei": "1000000000000000",
+    "execution": "CURRENT_OWNER_ATOMIC_WALLET",
+    "quantity": 1,
+    "collectionName": "Peppies World"
+  }
 }
