@@ -58,6 +58,10 @@ export class ArtBrokerModelRegistry {
 }
 
 export function modelRegistryFromEnvironment(environment = process.env) {
+  // FREE_ONLY is a server-owned allowlist, not a hint the browser can override.
+  // Groq account billing must separately remain on its Free plan.
+  const costMode = environment.GOGH_AI_COST_MODE ?? "STANDARD";
+  if (!["STANDARD", "FREE_ONLY", "OFF"].includes(costMode)) throw new TypeError("AI cost mode is invalid");
   const definitions = [
     ["GROQ", "GOGH_GROQ_MODEL", "groq:auto", "Groq · GPT OSS", 1, 5],
     ["GEMINI", "GOGH_GEMINI_MODEL", "gemini:auto", "Gemini", 1, 5],
@@ -66,7 +70,8 @@ export function modelRegistryFromEnvironment(environment = process.env) {
     ["XAI", "GOGH_XAI_MODEL", "xai:auto", "Grok", 3, 3],
     ["BANKR", "GOGH_BANKR_MODEL", "bankr:auto", "Bankr Routed", 2, 4],
   ];
-  return new ArtBrokerModelRegistry(definitions.filter(([, variable]) => (
+  return new ArtBrokerModelRegistry(definitions.filter(([provider, variable]) => (
+    costMode !== "OFF" && (costMode !== "FREE_ONLY" || provider === "GROQ") &&
     typeof environment[variable] === "string" && environment[variable].trim()
   )).map(([provider, variable, registryKey, displayName, costTier, speedTier], index) => ({
     provider, registryKey, displayName, modelId: environment[variable].trim(), costTier, speedTier,

@@ -1,10 +1,13 @@
 import { displayEth, displayEthBudget } from "./broker-v2-amounts.js";
 import { linkFindings, createLinkFindingsCard } from './broker-v2-link-findings.js';
-import { mountBrokerPreferences } from "./broker-v2-preferences.js";
+import { mountAgentOptions } from "./broker-agent-options.js";
 import { verifyOwnedPunkIds } from "./broker-v2-ownership.js";
 import { createForgeControl } from './broker-v2-forge.js';
 import { createForgeSkillAdminPanel } from './forge-skill-admin-panel.js';
 import { createDirectedPaidPanel } from './directed-paid-panel.js';
+import { createPublicDirectedPaidPanel } from './directed-paid-public-panel.js';
+import { createErc20WithdrawalPanel } from './erc20-withdraw-panel.js';
+import { createHolderBurnInspectionPanel } from './forge-holder-inspection-panel.js';
 import { createMarketplacePurchasePanel } from './marketplace-purchase-panel.js';
 import { createPersistentWatchMount } from './broker-persistent-watch-mount.js';
 import { createAgentRecoveryPanel, recoveryEth } from './punk-agent-recovery-panel.js';
@@ -13,7 +16,7 @@ import { createGasFundingRecovery } from "./punk-agent-gas-recovery-panel.js";
 import { prepareAgentGasFunding, submitAgentGasFunding, recheckAgentGasFunding } from "./punk-agent-gas-funding.js";
 import { punkChatAction, agentChatStatus } from "./punk-chat-actions.js";
 import { createPunkRecall } from "./punk-agent-recall.js";
-import { mountBrokerPromptLibrary } from "./broker-prompt-library.js";
+
 import {
   fetchPunkWalletFundsGate, preflightPunkWalletFunds, readPunkWalletFundsState,
   submitPunkWalletFunds, waitForPunkWalletTransactionReceipt,
@@ -91,6 +94,9 @@ let brokerPreferences = null;
 let forgeControl = null;
 let forgeSkillAdminControl = null;
 let directedPaidControl = null;
+let publicPaidControl = null;
+let erc20WithdrawalControl = null;
+let holderBurnInspectionControl = null;
 let marketplacePurchaseControl = null;
 let marketplaceSelectionKey = '';
 let marketplaceSelectionRevision = 0;
@@ -530,11 +536,11 @@ function renderWelcomeMessage() {
   } else if (agent?.status === "RETURNED") {
     target.textContent = `${greeting}. I’M BACK—MISSION COMPLETE WITH ${agent.mission.foundContracts.length}/${agent.mission.targetMatches} MATCHES.`;
   } else if (agent?.status === "PAUSED") {
-    target.textContent = `${greeting}. I’M PAUSED. Tell me when you want to set a new mission.`;
+    target.textContent = `${greeting}. I’M PAUSED. Choose new mission rules below when you are ready.`;
   } else if (agent?.status === "ACTIVE") {
     target.textContent = `${greeting}. MY RULES ARE READY. Send me out when you’re ready.`;
   } else {
-    target.textContent = `${greeting}. Give me a direction and I’ll turn it into rules you can review.`;
+    target.textContent = `${greeting}. Choose a mission and limits below, then review the complete rules.`;
   }
 }
 
@@ -1118,6 +1124,9 @@ function renderRoster() {
   forgeSkillAdminControl?.update();
   forgeControl?.selectionChanged();
   directedPaidControl?.selectionChanged();
+  publicPaidControl?.selectionChanged();
+  erc20WithdrawalControl?.selectionChanged();
+  holderBurnInspectionControl?.refresh();
   agentRecoveryControl?.selectionChanged();
   syncMarketplaceSelection();
   const roster = one("[data-punk-roster]");
@@ -2119,12 +2128,16 @@ function clearTransferredPunkReview() {
 
 function setup() {
   restoreReviewSessionState();
-  let preferenceStorage; try { preferenceStorage = window.localStorage; } catch { /* Optional preferences. */ }
-  brokerPreferences = mountBrokerPreferences({ select: one('#provider-setting'), status: one('[data-provider-status]'),
-    welcome: one('[data-broker-welcome]'), storage: preferenceStorage,
-    getContext: () => ({ owner: state.wallet?.account, chainId: state.wallet?.chainId, tokenId: state.selected?.tokenId }),
-    navigate: tab => { activateTab(tab); one(`[data-v2-panel="${tab}"]`)?.scrollIntoView({ block: 'start' });
-      if (tab === 'talk') one('#punk-prompt')?.focus(); } });
+  // AI and model discovery are disabled. Keep holder onboarding local.
+  let welcomeDismissed = false;
+  brokerPreferences = { preference: () => 'AUTO', refresh: () => {
+    const welcome = one('[data-broker-welcome]');
+    welcome.hidden = welcomeDismissed || !state.wallet?.account || !state.selected;
+    const token = welcome.querySelector('[data-welcome-token]');
+    if (token) token.textContent = state.selected?.tokenId ?? '';
+  } };
+  all('[data-welcome-action]').forEach(button => button.addEventListener('click', () => activateTab(button.dataset.welcomeAction)));
+  one('[data-welcome-dismiss]').addEventListener('click', () => { welcomeDismissed = true; brokerPreferences.refresh(); });
   brokerPreferences.refresh();
   document.addEventListener('error', event => {
     const image = event.target;
@@ -2267,7 +2280,7 @@ function setup() {
     });
   });
   all("[data-suggestion]").forEach((button) => button.addEventListener("click", () => {
-    const input = one("#punk-prompt"); input.value = button.dataset.suggestion; input.focus();
+    const input = one("#punk-prompt"); input.value = button.dataset.suggestion; one("[data-chat-form]").requestSubmit();
   }));
   all("[data-show-link]").forEach((button) => button.addEventListener("click", () => {
     one("[data-link-form]").hidden = false; one("#mint-link").focus();
@@ -2287,11 +2300,19 @@ function setup() {
       heading?.setAttribute("tabindex", "-1"); heading?.focus();
     }
   };
-  mountBrokerPromptLibrary({ root: one("[data-prompt-library]"), input: chatInput, openPanel: openPromptPanel });
+  const agentOptions = mountAgentOptions({ root: one('[data-agent-options]'),
+    canAutomate: () => !one('[data-operating-mode][value="AUTONOMOUS"]').disabled,
+    submit: command => { chatInput.value = command; chatForm.requestSubmit(); } });
+  all('[data-agent-navigate]').forEach(button => button.addEventListener('click', () => {
+    const target = button.dataset.agentNavigate;
+    if (target === 'options') one('[data-agent-options]').scrollIntoView({ block: 'start' });
+    else openPromptPanel(target);
+  }));
   const chatButton = chatForm.querySelector("button[type=submit]");
   const setChatBusy = (busy) => {
     chatForm.toggleAttribute("aria-busy", busy); chatButton.disabled = busy;
-    chatButton.textContent = busy ? "THINKING…" : "SEND ↗";
+    chatButton.textContent = busy ? "CHECKING…" : "REVIEW";
+    agentOptions.setBusy(busy);
   };
   chatInput.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
@@ -2318,7 +2339,7 @@ function setup() {
     const failed = error => {
       if (!isCurrent()) return;
       setBusy(false);
-      addMessage('punk', `${error?.message ?? 'I could not finish that reply.'} Your rules have not changed. Your message is below so you can try again.`);
+      addMessage('punk', `${error?.message ?? 'The action could not finish.'} Your rules have not changed. Choose the options again to retry.`);
       if (!input.value) input.value = message;
     };
     addMessage("owner", message); input.value = "";
@@ -2401,6 +2422,11 @@ function setup() {
           setBusy(false); return;
         }
         draft = payload.draft; reply = payload.reply;
+        if (payload.responseKind === 'PUBLIC_PAID_MINT_REVIEW') {
+          setBusy(false); addMessage('punk', reply);
+          await publicPaidControl?.openDraft(payload.paidDraft);
+          return;
+        }
         if (payload.responseKind === 'PAID_MINT_REVIEW') {
           setBusy(false); addMessage('punk',reply);
           await directedPaidControl?.openDraft(payload.paidDraft);
@@ -2417,8 +2443,7 @@ function setup() {
         }
         if (payload.responseKind === "CONVERSATION") {
           set("[data-intelligence-status]", payload.providerAvailable
-            ? `GOGH INTELLIGENCE · ${payload.provider.provider}`
-            : "GOGH INTELLIGENCE · SAFE FALLBACK");
+            ? "RULE-BASED AGENT" : "RULE-BASED AGENT");
         }
       } catch (error) {
         failed(error);
@@ -3043,6 +3068,21 @@ function setup() {
   directedPaidControl = createDirectedPaidPanel({root:one('[data-directed-paid-panel]'),
     getSelection:()=>state.selected?{tokenId:String(state.selected.tokenId),owner:state.wallet?.account??null,chainId:state.wallet?.chainId,preview:PREVIEW}:null,
     ensureSession:ensureV2Session,request:jsonRequest});
+  const holderSelection = () => state.selected ? { tokenId: String(state.selected.tokenId),
+    owner: state.wallet?.account ?? null, chainId: state.wallet?.chainId, preview: PREVIEW } : null;
+  publicPaidControl = createPublicDirectedPaidPanel({ root: one('[data-public-paid-panel]'),
+    getSelection: holderSelection, ensureSession: ensureV2Session, request: jsonRequest,
+    getProvider: () => window.__GOGH_WALLET_PROVIDER__ });
+  erc20WithdrawalControl = createErc20WithdrawalPanel({ root: one('[data-erc20-withdraw-panel]'),
+    getSelection: holderSelection, ensureSession: ensureV2Session, request: jsonRequest,
+    getProvider: () => window.__GOGH_WALLET_PROVIDER__ });
+  holderBurnInspectionControl = createHolderBurnInspectionPanel({ root: one('[data-holder-burn-inspection]'),
+    getSelection: holderSelection, getOwnedPunks: () => state.punks,
+    ensureSession: ensureV2Session, request: jsonRequest });
+  publicPaidControl.selectionChanged(); erc20WithdrawalControl.selectionChanged(); holderBurnInspectionControl.refresh();
+  one('[data-open-token-withdrawal]').addEventListener('click', () => {
+    activateTab('collection'); one('[data-erc20-withdraw-panel]').scrollIntoView({ block: 'start' });
+  });
   let marketplaceStorage = null;
   try { marketplaceStorage = window.localStorage; } catch { /* Saved purchases fail closed if storage is unavailable. */ }
   forgeSkillAdminControl = createForgeSkillAdminPanel({

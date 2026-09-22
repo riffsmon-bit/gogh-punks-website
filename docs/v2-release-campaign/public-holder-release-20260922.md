@@ -76,3 +76,59 @@ one coherent preview and production batch; no cloud deploy is used to debug.
   root path while retaining origin restrictions.
 - Other implementation, independent review, integrated suite, preview and
   production results: pending; append exact evidence before release.
+
+## Owner revision: remove AI inference
+
+The owner first requested lower app/development costs, then explicitly requested
+removing AI and giving holders options. This release therefore sets
+`GOGH_AI_COST_MODE=OFF` in Netlify Functions (verified configuration update) and
+in the checked-in configuration. No AI providers are eligible under OFF,
+including explicit provider preferences. Existing keys are preserved, not used.
+
+Actions replaces the chat entry point. A structured form creates deterministic
+free-mint rule drafts for ASK, ASSIST or permission-gated AUTONOMOUS mode. Holders
+choose art preference, reserve, gas cap, daily limit and total limit. The existing
+confirmation and execution permissions still apply. Mint reviews, link checks,
+funding, collection, withdrawals, skills and pause controls remain available.
+No additional agents were started after this cost instruction.
+
+## Integrated evidence
+
+- 15 local Chrome captures across 1440, 375 and 320 px: no exceptions, console
+  errors, failed requests or horizontal overflow. New options mounted; provider
+  picker removed and free-text chat hidden. This was simulated roster state,
+  not a real wallet transaction.
+- Options/routing/UI targeted regressions: 25 passed. All three mode drafts
+  produced the exact entered limits without a model invocation.
+- Native PostgreSQL public paid journal proof: 37 assertions passed. Reviewed
+  additive migration applied to Supabase; production metadata verifies forced
+  RLS, owner policy, restricted request-role grants and immutable review data.
+  Existing records and escrow were not modified.
+- Netlify secrets are masked by Secrets Controller. Production request secret
+  remains intact. Its masked management value was not copied into preview.
+  Authenticated public-mint preview therefore still needs that existing restricted
+  credential supplied securely; local native proof and production role metadata
+  do not establish authenticated cloud preview success.
+- Public mint/withdrawal independent source review: zero open P0/P1 findings in
+  the explicitly reviewed manual owner-confirmed scopes. General burning remains
+  blocked and was not included in that approval.
+- Full local suite initially: 3,494 passed, 5 failed, 2 skipped (3 old UI label
+  expectations; two time-sensitive local tests under concurrent compile load).
+  UI expectations were corrected; exact final targeted recheck and contract
+  results will be appended. No full-suite clean pass is claimed yet.
+
+### Release gate limits
+
+Three new Netlify bundles passed isolated import and method-rejection checks with
+no node_modules symlinks. The full contract rebuild was stopped after prolonged
+compilation under severe disk/CPU pressure; it did not pass. Contract source was
+unchanged by the public-holder additions: the earlier paid-training candidate had
+346 passing contract tests, and the specialists separately ran 13 new actual-account
+and burn-boundary contract tests. These are separate executed proofs, not a new
+combined full-suite result.
+
+The two outstanding full-JavaScript failures are local copied-chain review expiry
+and a read-only CLI subprocess deadline under resource pressure. Neither is a
+new transaction authorization bypass. Source UI expectation fixes and public
+release behavior are checked separately. Cloud deployment acceptance must remain
+explicit about these local limits.

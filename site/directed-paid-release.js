@@ -42,8 +42,8 @@ export const PAID_RELEASE = Object.freeze({
   "recipientImplementationCodeHash": "0x7d37d360014ce94902655062605b8318581097df100ab2573be52904afa6badc",
   "publicOwnerMint": {
     "schema": "GOGH_PUBLIC_OWNER_PAID_MINT_V1",
-    "status": "TESTING",
-    "enabled": false,
+    "status": "LIVE",
+    "enabled": true,
     "seaDrop": "0x00005ea00ac477b1030ce78506496e8c2de24bf5",
     "seaDropCodeHash": "0x53e4b9339cf624803c9a7d0195576cca5b917920813508d86b3eb93dcbabeb5c",
     "feeRecipient": "0x0000a26b00c1f0df003000390027140000faa719",
