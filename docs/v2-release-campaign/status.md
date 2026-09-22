@@ -1,4 +1,36 @@
-# Current Netlify resumption — 22 September 2026
+# Current paid-training integration — 22 September 2026
+
+**Whole-product verdict: NOT_READY.** Netlify maintenance is deployed; optional
+paid training is locally implemented and tested, with payments disabled. Vercel
+remains paused. The current source of holder-facing status is
+[the functionality rundown](functionality-rundown-20260922.md).
+
+| Workstream | Status | Owner / branch | Evidence / remaining gate |
+|---|---|---|---|
+| Netlify maintenance release | LIVE | Release lead / main | Commit `109b57fde726fdc2b2f461a85a4cef38e3888c11`; deploy `6ab27c0df8b88a0008b98e73`, published 13:02:59 UTC; served-file and signed-out desktop/mobile acceptance passed |
+| Administrator skill recovery | LIVE | Forge specialist / main | Protected production endpoints reject unsigned requests; restricted DB configuration verified; registry mutations still need administrator wallet confirmation |
+| Persistent research watching | DEPLOYED, OFF | Watch specialist / main | Additive migration applied among 46 production migrations; activation flag remains off; no spending authority |
+| Optional paid Training Credit contract | TESTED | Contract specialist / feat/paid-skill-training | Price 0.0005 ETH; fixed confirmed treasury; 36 new contract tests, 346 full-suite pass; no deployment or payment |
+| Paid API, canonical skills and burn coexistence | TESTED | Release lead / feat/paid-skill-training | 3,358 full JavaScript tests pass, two existing optional skips; private-chain purchase/learning/transfer/recovery pass |
+| Paid browser flow | TESTED | Frontend specialist / feat/paid-skill-training | 24 desktop/mobile captures, all six operations and failure/recovery cases; synthetic wallet/API |
+| Independent paid security review | READY_FOR_REVIEW | Independent reviewer / feat/paid-skill-training | No open P0/P1 in disabled implementation; release gates and residual immutable-contract limitations documented |
+| Paid production release | BLOCKED | Release lead / feat/paid-skill-training | Reviewed usable registry catalog, exact constructor allowlist, owner-reviewed deployment, runtime pinning, production activation and live wallet acceptance remain |
+| General holder burn | BLOCKED | Existing staged holder branch | Exhaustive source inventory/obligations and pending-confirmation safety boundary |
+| Public purchases / floor sweeps | BLOCKED | Existing marketplace implementation | Production source, screening, limits, pending spend, guard, storage and live wallet acceptance |
+| Public WETH bids | BLOCKED | Authority specialist | Original-account ownership round-trip revival; public bids remain off |
+
+Burn remains available only through the existing selected-owner test flow. The
+new paid extension does not alter the deployed burn ledger, accept legacy credits,
+or grant wallet execution authority. Its committed release status is UNDEPLOYED,
+with no extension address and productionPaymentsAuthorized false.
+
+No production blockchain transaction was sent by this integration. The original
+dirty checkout and paused migration worktree were preserved. The following
+sections are historical and do not supersede the current record above.
+
+---
+
+# Earlier Netlify resumption — 22 September 2026
 
 **Whole-product verdict: NOT_READY.** Vercel work remains paused. The active integration branch is `release/netlify-v2-main` in `/private/tmp/gogh-netlify-main`. Current evidence and gates are in [the Netlify resumption record](netlify-resume-20260922.md); [the release plan](../NETLIFY_V2_RELEASE_PLAN.md) supersedes earlier estimates.
 

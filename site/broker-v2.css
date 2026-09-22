@@ -103,6 +103,9 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .roster-empty { margin-top: 24px; min-height: 145px; display: grid; place-content: center; gap: 8px;
   border: 1px dashed var(--line-strong); color: var(--muted); text-align: center; }
 .roster-empty strong { color: var(--text); font-size: 1.1rem; }
+.holder-links { display: flex; flex-wrap: wrap; gap: 8px 24px; margin-top: 14px; }
+.holder-links a { display: inline-flex; min-height: 44px; align-items: center; color: var(--cyan);
+  font-size: .75rem; font-weight: 800; text-underline-offset: 4px; }
 
 .selected-stage { margin-top: clamp(30px, 5vw, 70px); }
 .punk-hero { min-height: 520px; display: grid; grid-template-columns: minmax(300px, 520px) 1fr; gap: clamp(30px, 5vw, 80px);
@@ -624,3 +627,11 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 @media (max-width: 720px) {
   .broker-panel input:not([type="checkbox"]):not([type="radio"]), .broker-panel select, .broker-panel textarea { font-size: 16px; }
 }
+
+.agent-options { margin: 1.25rem 0; padding: 1.25rem; border: 1px solid var(--line, #34404a); }
+.agent-options form { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1rem; }
+.agent-options h3, .agent-options p, .agent-options button { grid-column: 1 / -1; }
+.agent-options label { display: grid; gap: .5rem; min-width: 0; }
+.agent-options select, .agent-options input { width: 100%; min-width: 0; min-height: 44px; color: #f3f4ee; background: #0b1117; border: 1px solid #536370; padding: .65rem; font: inherit; }
+[data-chat-form][hidden], .prompt-library[hidden] { display: none !important; }
+@media(max-width:600px) { .agent-options form { grid-template-columns: minmax(0,1fr); } }

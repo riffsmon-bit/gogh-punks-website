@@ -32,7 +32,7 @@ test("V2 Control Center exposes the complete selected-Punk action architecture",
   assert.match(html, /WHAT ARE WE HUNTING/);
   assert.match(html, /Funds go directly into this Punk Wallet/);
   assert.match(html, /ALL HISTORY/);
-  assert.match(html, /GOGH INTELLIGENCE · AUTO/);
+  assert.match(html, /RULE-BASED AGENT/);
   assert.match(html, /data-welcome-message/);
   assert.match(html, /data-talk-mode-control/);
   assert.equal((html.match(/data-operating-mode/g) ?? []).length, 6);
@@ -179,7 +179,7 @@ test("the hosted PR review runs bounded tab agents while owner transactions stay
   assert.match(html, /CONFIRMED MAX MINTS \/ MISSION/);
   assert.match(html, /data-review-daily-limit>NOT SET/);
   assert.match(html, /data-review-total-limit>NOT SET/);
-  assert.match(html, /Set every mission parameter in chat/);
+  assert.match(html, /Choose your mission parameters in Actions/);
   assert.doesNotMatch(html, /UPDATE VIA CHAT|data-review-agent-limit-form/);
   assert.match(script, /chatForm\.requestSubmit\(\)/);
   assert.match(script, /api\/v2\/review\/run/);
@@ -245,7 +245,7 @@ test("link checks show progress and ground conversational follow-up questions", 
   assert.match(script, /state\.lastInspection = inspection/);
   assert.match(script, /state\.localStrategy = null; state\.localSkill = null; state\.lastInspection = null/);
   assert.match(script, /const reviewSurface = PREVIEW;/);
-  assert.match(script, /GOGH INTELLIGENCE · SAFE FALLBACK/);
+  assert.match(script, /RULE-BASED AGENT/);
   assert.match(script, /The review service timed out\. Try again/);
   assert.match(script, /No transaction was prepared/);
 });

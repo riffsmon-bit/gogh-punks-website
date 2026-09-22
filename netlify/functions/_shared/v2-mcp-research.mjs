@@ -1,9 +1,10 @@
+import { readCanonicalTrainingState, createCanonicalProgressionReader } from '../../../broker/src/v4/skill-forge/paid-canonical.mjs';
 import { pathToFileURL } from 'node:url';
 import releaseArtifact from '../../../deployments/robinhood-forge-training.json' with { type: 'json' };
 import { ROBINHOOD } from '../../../broker/src/config.mjs';
 import { validateTrainingRelease } from '../../../broker/src/v4/skill-forge/training-release.mjs';
-import { readReviewedTrainingState, assertTrainingOwnerContinuity } from '../../../broker/src/v4/skill-forge/training-state.mjs';
-import { createProgressionReader, skillKey } from '../../../broker/src/v4/skill-forge/capability-resolver.mjs';
+import { assertTrainingOwnerContinuity } from '../../../broker/src/v4/skill-forge/training-state.mjs';
+import { skillKey } from '../../../broker/src/v4/skill-forge/capability-resolver.mjs';
 import { createResearchSkillRuntime, loadResearchSkillCatalog } from '../../../broker/src/v4/skill-forge/research-runtime.mjs';
 import { createForgeRpcClients } from '../../../broker/src/v4/skill-forge/rpc-clients.mjs';
 import { createMintResearchContextReader } from './v2-mint-research-context.mjs';
@@ -54,9 +55,9 @@ export function mcpResearchPackageSelection(release) {
 // Server-owned configuration retains the release's exact owner, collection and version pins.
 export function createV2McpResearch({ pool, releaseReader = () => validateTrainingRelease(releaseArtifact),
   clientFactory = () => createForgeRpcClients(environment)[1],
-  stateReader = readReviewedTrainingState, continuityReader = assertTrainingOwnerContinuity,
+  stateReader = readCanonicalTrainingState, continuityReader = assertTrainingOwnerContinuity,
   packageLoader = ({ selection }) => loadResearchSkillCatalog({ root: pathToFileURL(`${process.cwd()}/`), selection }),
-  progressionFactory = createProgressionReader, researchFactory = createResearchSkillRuntime,
+  progressionFactory = createCanonicalProgressionReader, researchFactory = createResearchSkillRuntime,
   environment = process.env, mintContextFactory = createMintResearchContextReader,
 } = {}) {
   function released(owner) {
@@ -121,7 +122,7 @@ export function createV2McpResearch({ pool, releaseReader = () => validateTraini
       const { before, tokenId } = context;
       await unchanged(context);
       return { tokenId, status: 'VERIFIED', chainId: context.release.chainId, owner: context.owner,
-        trainingCredits: before.credits, unlockedSlots: before.slots,
+        trainingCredits: before.credits, purchasedCredits: before.purchasedCredits ?? null, unlockedSlots: before.slots,
         learnedSkills: before.skills.filter(skill => skill.level > 0),
         equippedSkills: before.equipped.map((key, slot) => ({ slot, key })).filter(item => item.key !== `0x${'0'.repeat(64)}`),
         skillCoverage: 'CURRENT_SERVER_RELEASE', anchor: before.anchor, walletAuthority: 'NONE' };

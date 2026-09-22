@@ -6,6 +6,7 @@ import { createSelectedBurnPanel } from './forge-selected-burn-panel.js';
 import { TRAINING_RELEASE } from './forge-training-release.js';
 import { forgeLibraryState } from './forge-library-state.js';
 import { renderPlannedResearchResult } from './forge-research-result.js';
+import { createPaidTrainingPanel } from './forge-paid-panel.js';
 const SAMPLE_ACTIONS = ['rank_trait_sample', 'research_collection', 'classify_collection'];
 const PLANNED_ACTIONS = ['rank_observed_listings', 'research_collection', 'classify_collection', 'research_project'];
 const el = (tag, text, cls) => { const node = document.createElement(tag); if (text != null) node.textContent = text; if (cls) node.className = cls; return node; };
@@ -13,6 +14,7 @@ export function createForgeControl({ root, getSelection, ensureSession, request,
   if (trainingAdapter) return createTrainingControl({ root, getSelection, request: trainingAdapter.request, localOnly: trainingAdapter.localOnly });
   const training = createDurableTrainingPanel({ root: root.querySelector('[data-forge-training]'),getSelection,ensureSession,request });
   const burn = createSelectedBurnPanel({root:root.querySelector('[data-forge-selected-burn]'),getSelection,ensureSession,request});
+  const paid = createPaidTrainingPanel({root:root.querySelector('[data-forge-paid-training]'),getSelection,ensureSession,request});
   let key = '', snapshot = null, busy = false, sequence = 0, lastCheck = 0;
   const status = root.querySelector('[data-forge-status]');
   const report = root.querySelector('[data-forge-report]');
@@ -21,6 +23,7 @@ export function createForgeControl({ root, getSelection, ensureSession, request,
   function selectionChanged() {
     training?.selectionChanged();
     burn?.selectionChanged();
+    paid?.selectionChanged();
     const current = context(); if (current === key) return;
     key = current; ++sequence; busy = false; snapshot = null; report.replaceChildren();
     const s = getSelection();
@@ -137,6 +140,7 @@ export function createForgeControl({ root, getSelection, ensureSession, request,
   return { selectionChanged, destroy() {
     training?.destroy();
     burn?.destroy();
+    paid?.destroy();
     ++sequence; window.clearInterval(timer); window.removeEventListener('gogh:owner-snapshot', selectionChanged);
     window.removeEventListener('focus', refreshIfVisible); document.removeEventListener('visibilitychange', refreshIfVisible);
   } };

@@ -1,0 +1,17 @@
+.erc20-withdraw { margin-top: 24px; padding: clamp(18px, 3vw, 28px); border: 1px solid var(--line, #34414d); background: var(--ink, #080c0f); color: var(--text, #f6f8ed); }
+.erc20-withdraw h3 { margin-top: 0; font-family: var(--font-display, sans-serif); font-size: clamp(1.5rem, 4vw, 2rem); }
+.erc20-withdraw p { font-size: .875rem; line-height: 1.6; overflow-wrap: anywhere; }
+.erc20-withdraw label { display: block; margin: 18px 0; font-size: .85rem; font-weight: 700; }
+.erc20-withdraw input, .erc20-withdraw select { display: block; width: 100%; box-sizing: border-box; min-height: 48px; margin-top: 7px; padding: 12px; border: 1px solid var(--line, #34414d); background: var(--surface, #111821); color: inherit; font: inherit; }
+.erc20-withdraw select { max-width: 100%; }
+.erc20-withdraw-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.erc20-withdraw button { min-height: 48px; padding: 12px 18px; border: 1px solid var(--line, #34414d); background: var(--acid, #d7ff3f); color: #0a0e10; font: inherit; font-weight: 800; cursor: pointer; }
+.erc20-withdraw button:disabled { opacity: .45; cursor: not-allowed; }
+.erc20-withdraw :focus-visible { outline: 3px solid var(--cyan, #6dedff); outline-offset: 3px; }
+.erc20-withdraw-review { display: grid; gap: 12px; margin: 22px 0; }
+.erc20-withdraw-review dt { font-size: .75rem; color: var(--muted, #a3aebd); }
+.erc20-withdraw-review dd { margin: 5px 0; overflow-wrap: anywhere; font-size: .875rem; }
+.erc20-withdraw a { color: var(--cyan, #6dedff); display: inline-block; min-height: 44px; padding-top: 12px; overflow-wrap: anywhere; }
+.erc20-withdraw-recovery { padding: 16px; border: 1px solid var(--acid, #d7ff3f); }
+.erc20-withdraw [hidden] { display: none !important; }
+@media (max-width: 480px) { .erc20-withdraw-actions { flex-direction: column; } .erc20-withdraw input, .erc20-withdraw select { font-size: 16px; } .erc20-withdraw-recovery button { width: 100%; } }

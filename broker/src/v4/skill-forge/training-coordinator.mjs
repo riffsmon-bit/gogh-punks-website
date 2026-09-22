@@ -1,3 +1,4 @@
+import { paidCanonicalState, guardLegacyPaidAction } from './paid-canonical.mjs';
 import { validateTrainingRelease, trainingDeploymentBinding } from './training-release.mjs';
 import { readReviewedTrainingState, assertTrainingOwnerContinuity } from './training-state.mjs';
 import { allocationLeaf, verifyAllocationProof } from './rarity-allocation.mjs';
@@ -34,6 +35,7 @@ export function createTrainingCoordinator({ pool, storeFactory, client, release:
     return current;
   };
   async function verifyAction(action, current) {
+    guardLegacyPaidAction(action,await paidCanonicalState({client,release,owner:current.owner,tokenId:current.tokenId,now}));
     const skill = current.skills.find(item => item.key === action.skillKey);
     if (['learn','equip'].includes(action.operation) && (!skill?.available || (action.operation === 'learn' ? skill.level !== 0 : skill.level !== 1))) fail('FORGE_TRAINING_SKILL_UNAVAILABLE');
     if (['learn','unlock'].includes(action.operation) && BigInt(current.credits) < 1n) fail('FORGE_TRAINING_NO_CREDIT');
@@ -122,7 +124,8 @@ export function createTrainingCoordinator({ pool, storeFactory, client, release:
     if(record?.status==='PREPARED' && record.expired)record=await store.cancelPrepared(scope(identity),record.revision);
     const held = await store.hasUnresolvedTraining(identity.tokenId);
     await continuity({ ...identity, anchor: current.anchor });
-    return { record, held, state: current, release: { ...binding, registry: release.registry,
+    const paid=await paidCanonicalState({client,release,owner:identity.owner,tokenId:identity.tokenId,now});
+    return { record, held, state: {...current,...(paid?{paidActivated:paid.activated,purchasedCredits:paid.purchasedCredits,canonicalSlots:paid.unlockedSlots,combinedSkills:paid.skills}: {})}, release: { ...binding, registry: release.registry,
       progressionCodeHash: release.progressionCodeHash, snapshotHash: release.snapshotHash } };
   }
   async function mutate(identity, operation, revision, transactionHash) {

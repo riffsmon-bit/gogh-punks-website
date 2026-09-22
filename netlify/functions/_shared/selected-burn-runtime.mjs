@@ -3,6 +3,7 @@ import { createSelectedBurnStore } from '../../../broker/src/v4/skill-forge/sele
 import { createSelectedBurnCoordinator } from '../../../broker/src/v4/skill-forge/selected-burn-coordinator.mjs';
 import { checkSelectedBurnSource,SELECTED_BURN_OWNER,SELECTED_SOURCE_WALLETS } from '../../../broker/src/v4/skill-forge/selected-burn-source.mjs';
 import burnRelease from '../../../deployments/robinhood-selected-burn.json' with {type:'json'};
+import { assertNoPaidBurnCredits } from '../../../broker/src/v4/skill-forge/paid-canonical.mjs';
 
 const CHECKS={broker_v2_agent_sessions:'punk_token_id',broker_v2_execution_attempts:'punk_token_id',broker_v2_strategies:'token_id',
   broker_paid_mint_jobs:'punk_token_id',broker_v4_execution_attempts:'punk_token_id',broker_v4_punk_policy_proposals:'punk_token_id',
@@ -33,5 +34,13 @@ export async function selectedBurnRuntime(applicationPool) {
     return {clear:[...Object.values(counts),...Object.values(legacy)].every(n=>n===0),application:counts,legacy};
   };
   const store=createSelectedBurnStore(pool,SELECTED_BURN_OWNER,'1753');
-  return createSelectedBurnCoordinator({clients,release,store,checkSource:()=>checkSelectedBurnSource({clients,checkObligations})});
+  return createSelectedBurnCoordinator({clients,release,store,checkSource:async()=>{
+    const evidence=await checkSelectedBurnSource({clients,checkObligations});
+    // Paid credits attach to the NFT, not any wallet address. An empty wallet
+    // inventory cannot prove these credits are safe to abandon in a burn.
+    const paid=await Promise.all(clients.map(client=>assertNoPaidBurnCredits({client,release,
+      owner:SELECTED_BURN_OWNER,tokenId:'1753'})));
+    if(JSON.stringify(paid[0])!==JSON.stringify(paid[1]))throw Error('BURN_SOURCE_PROVIDERS_DISAGREE');
+    return {...evidence,...(paid[0]?{paidTraining:paid[0]}:{})};
+  }});
 }

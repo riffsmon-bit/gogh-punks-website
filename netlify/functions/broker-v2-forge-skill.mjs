@@ -1,22 +1,25 @@
+import { readCanonicalTrainingState, createCanonicalProgressionReader } from '../../broker/src/v4/skill-forge/paid-canonical.mjs';
 import { getDatabase } from '@netlify/database';
 import { pathToFileURL } from 'node:url';
 import { currentTrainingRelease, forgeTrainingRuntime } from './_shared/forge-training-runtime.mjs';
 import { json, readJson, PublicError, requireSameOrigin } from './_shared/http.mjs';
 import { requireV2Session } from './_shared/v2-session.mjs';
 import { v2TokenIdFrom } from './_shared/v2-route.mjs';
-import { createProgressionReader, skillKey } from '../../broker/src/v4/skill-forge/capability-resolver.mjs';
+import { skillKey } from '../../broker/src/v4/skill-forge/capability-resolver.mjs';
 import { createResearchSkillRuntime, loadResearchSkillCatalog } from '../../broker/src/v4/skill-forge/research-runtime.mjs';
 import { assertTrainingOwnerContinuity } from '../../broker/src/v4/skill-forge/training-state.mjs';
 import { mcpResearchPackageSelection } from './_shared/v2-mcp-research.mjs';
+const defaultRuntimeFactory=()=>forgeTrainingRuntime('request');
 const SAMPLE_ACTIONS = ['rank_trait_sample','research_collection','classify_collection'];
 
 // Separate from the diagnostic lab: this path requires a released, learned AND
 // equipped capability, fresh before/after the tool call. It can never spend/sign.
 export async function handleForgeSkill(request,{releaseReader=currentTrainingRelease,
-  runtimeFactory=()=>forgeTrainingRuntime('request'),sessionPool=()=>getDatabase().pool,
+  runtimeFactory=defaultRuntimeFactory,sessionPool=()=>getDatabase().pool,
   sessionReader=requireV2Session,originCheck=requireSameOrigin,
   packageLoader=selection=>loadResearchSkillCatalog({root:pathToFileURL(`${process.cwd()}/`),selection}),
-  researchFactory=createResearchSkillRuntime,progressionFactory=createProgressionReader,
+  researchFactory=createResearchSkillRuntime,progressionFactory=createCanonicalProgressionReader,
+  canonicalStateReader=null,
   continuity=assertTrainingOwnerContinuity,environment=process.env}={}) {
   if(request.method!=='POST')return json({ok:false,code:'METHOD_NOT_ALLOWED'},405);
   try{
@@ -31,7 +34,8 @@ export async function handleForgeSkill(request,{releaseReader=currentTrainingRel
       || !/^0x[0-9a-f]{64}$/.test(body.skillKey??'')
       || (!SAMPLE_ACTIONS.includes(body.action) && body.sampleTokenIds!==undefined))throw new PublicError(400,'FORGE_SKILL_ARGUMENTS','Choose an available equipped research action.');
     const runtime=await runtimeFactory(),client=runtime.clients[1],coordinator=runtime.coordinator;
-    const before=await coordinator.get({owner,tokenId});
+    const canonical=canonicalStateReader??(runtimeFactory===defaultRuntimeFactory?readCanonicalTrainingState:null);
+    const before=canonical?{state:await canonical({client,release,owner,tokenId})}:await coordinator.get({owner,tokenId});
     const selected=before.state.skills.find(skill=>skill.key===body.skillKey);
     if(!selected?.available || selected.level!==1 || !before.state.equipped.includes(body.skillKey))throw new PublicError(403,'FORGE_SKILL_NOT_EQUIPPED','Learn and equip the accepted skill before using it.');
     const packages=(await packageLoader(mcpResearchPackageSelection(release))).filter(pack=>release.skills.some(skill=>skill.key===skillKey(pack.manifest.skillId,pack.manifest.version)
@@ -54,7 +58,7 @@ export async function handleForgeSkill(request,{releaseReader=currentTrainingRel
     }else if(['get_market_listings','rank_observed_listings'].includes(body.action))args={...args,slug:'gogh-punks-255843210',limit:5};
     else if(body.action==='research_project')args={...args,slug:'gogh-punks-255843210'};
     const result=await research.call({tokenId,owner,name:body.action,arguments:args});
-    const after=await coordinator.get({owner,tokenId});
+    const after=canonical?{state:await canonical({client,release,owner,tokenId})}:await coordinator.get({owner,tokenId});
     if(after.state.nonce!==before.state.nonce||after.state.stateHash!==before.state.stateHash)throw Error('FORGE_SKILL_CHANGED');
     await continuity({client,release,owner,tokenId,anchor:before.state.anchor});
     return json({ok:true,mode:'EQUIPPED_RESEARCH',owner,tokenId,chainId:4663,skillKey:body.skillKey,

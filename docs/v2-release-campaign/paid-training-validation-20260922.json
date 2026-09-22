@@ -1,0 +1,196 @@
+{
+  "schema": "GOGH_PAID_TRAINING_LOCAL_VALIDATION_V1",
+  "recordedAt": "2026-09-22T14:03:28.818Z",
+  "branch": "feat/paid-skill-training",
+  "productionBaseCommit": "109b57fde726fdc2b2f461a85a4cef38e3888c11",
+  "status": "LOCAL_TESTED_PAYMENTS_DISABLED",
+  "tests": {
+    "javascript": {
+      "total": 3360,
+      "passed": 3358,
+      "failed": 0,
+      "skipped": 2,
+      "skipScope": "Existing optional marketplace PostgreSQL journal cases"
+    },
+    "contracts": {
+      "total": 346,
+      "passed": 346,
+      "failed": 0,
+      "skipped": 0,
+      "fuzzRuns": 1024
+    },
+    "siteDeploymentGate": {
+      "passed": 140,
+      "failed": 0
+    },
+    "paidBackendAndPrivateChain": {
+      "passed": 27,
+      "failed": 0
+    }
+  },
+  "browser": {
+    "status": "PASS",
+    "output": "/private/tmp/gogh-paid-browser-evidence-Biph01",
+    "startedAt": "2026-09-22T13:48:06.499Z",
+    "screenshots": [
+      "undeployed-1440.png",
+      "undeployed-375.png",
+      "disconnected-1440.png",
+      "disconnected-375.png",
+      "burn-approval-blocked-1440.png",
+      "burn-approval-blocked-375.png",
+      "buy-review-1440.png",
+      "buy-review-375.png",
+      "submitted-1440.png",
+      "submitted-375.png",
+      "activation-review-1440.png",
+      "activation-review-375.png",
+      "canonical-equipped-1440.png",
+      "canonical-equipped-375.png",
+      "equipped-research-1440.png",
+      "equipped-research-375.png",
+      "lost-wallet-reload-1440.png",
+      "lost-wallet-reload-375.png",
+      "confirmed-revert-1440.png",
+      "confirmed-revert-375.png",
+      "expired-unused-proof-1440.png",
+      "expired-unused-proof-375.png",
+      "long-safe-error-1440.png",
+      "long-safe-error-375.png"
+    ],
+    "scenarios": [
+      "UNDEPLOYED price/help only; zero session/API/RPC",
+      "active sacrifice approval blocks purchase before wallet access",
+      "exact purchase and successful receipt",
+      "explicit activation, learn, slot unlock, equip, unequip",
+      "lost wallet response survives reload; included and reverted receipt recovery",
+      "user rejection held until explicit finalized unused proof",
+      "chain switch during verify never prompts",
+      "long error safe text and responsive layout"
+    ],
+    "exceptions": [],
+    "externalRequests": [],
+    "browser": "Chrome/150.0.7871.125",
+    "finishedAt": "2026-09-22T13:48:15.163Z"
+  },
+  "packaging": {
+    "bundlerVersion": "14.5.4",
+    "cloudRequests": 0,
+    "results": [
+      {
+        "name": "broker-v2-forge-paid-training",
+        "path": "/private/tmp/gogh-paid-netlify-isolated-MlKBAv/broker-v2-forge-paid-training.zip",
+        "runtimeAPIVersion": 2,
+        "archiveEntries": 952,
+        "symlinks": 0
+      },
+      {
+        "name": "broker-v2-forge-skill",
+        "path": "/private/tmp/gogh-paid-netlify-isolated-MlKBAv/broker-v2-forge-skill.zip",
+        "runtimeAPIVersion": 2,
+        "archiveEntries": 1118,
+        "symlinks": 0
+      },
+      {
+        "name": "broker-v2-mcp",
+        "path": "/private/tmp/gogh-paid-netlify-isolated-MlKBAv/broker-v2-mcp.zip",
+        "runtimeAPIVersion": 2,
+        "archiveEntries": 1118,
+        "symlinks": 0
+      },
+      {
+        "name": "broker-v2-persistent-watch",
+        "path": "/private/tmp/gogh-paid-netlify-isolated-MlKBAv/broker-v2-persistent-watch.zip",
+        "runtimeAPIVersion": 2,
+        "archiveEntries": 1118,
+        "symlinks": 0
+      },
+      {
+        "name": "broker-v2-discovery-worker",
+        "path": "/private/tmp/gogh-paid-netlify-isolated-MlKBAv/broker-v2-discovery-worker.zip",
+        "runtimeAPIVersion": 2,
+        "archiveEntries": 1118,
+        "symlinks": 0
+      },
+      {
+        "name": "broker-v2-forge-training",
+        "path": "/private/tmp/gogh-paid-netlify-isolated-MlKBAv/broker-v2-forge-training.zip",
+        "runtimeAPIVersion": 2,
+        "archiveEntries": 955,
+        "symlinks": 0
+      },
+      {
+        "name": "broker-v2-forge-selected-burn",
+        "path": "/private/tmp/gogh-paid-netlify-isolated-MlKBAv/broker-v2-forge-selected-burn.zip",
+        "runtimeAPIVersion": 2,
+        "archiveEntries": 967,
+        "symlinks": 0
+      }
+    ]
+  },
+  "isolatedInvocation": {
+    "status": "PASS",
+    "isolated": true,
+    "getStatus": 200,
+    "postStatus": 503,
+    "releaseStatus": "UNDEPLOYED",
+    "externalRequests": 0
+  },
+  "logEvidence": {
+    "javascript": {
+      "path": "/private/tmp/gogh-paid-final-full-js-20260922.log",
+      "sha256": "246a47cf83b38f906d195f9c7092dde47e131e72d8b6fa7f6c9511afc5039196"
+    },
+    "contracts": {
+      "path": "/private/tmp/gogh-paid-final-contracts-20260922.log",
+      "sha256": "39a0497bd6d03038bce18a5c4c49cd104a0cb683b819f57d3d33acdf373210b4"
+    },
+    "deployCheck": {
+      "path": "/private/tmp/gogh-paid-deploy-check-20260922.log",
+      "sha256": "fe0638bcc073e642314ab4203f7179831a3c37f22b26e71027762285a67e9ae1"
+    },
+    "paidChain": {
+      "path": "/private/tmp/gogh-paid-final-chain-20260922.log",
+      "sha256": "c534319a0e11e0e4a14adf23aeb5c1e995278558c733a6fb3c71a4f457ad5969"
+    }
+  },
+  "sourceHashes": {
+    "broker/src/v4/skill-forge/paid-canonical.mjs": "b76b89093a7b770df495c86f657a48909ce33d34f41ee53ae7974dcd67fa7fa6",
+    "broker/src/v4/skill-forge/paid-training.mjs": "50021eb47b28e1bb5fa5682d90edbece401f607636f38dbb3c705893a3b7f3b6",
+    "contracts/src/GoghPaidSkillTraining.sol": "69d238cd86fded46c22816141d7aa2b76af9c753266acff85e5e3c40a3b991a7",
+    "contracts/test/GoghPaidSkillTraining.t.sol": "c85ac9481c9e3af898bc03411a337126548c36eceb6d9361e84d362e6cd68f6f",
+    "deployments/robinhood-paid-training.json": "9597e3ca227042a59aed353ea3ce124b8d81fac9d80ebc8cd1f4dfcc7e38845d",
+    "netlify/functions/_shared/forge-paid-training-runtime.mjs": "da7246749cc316e693c706aabab9c0ba4dc5f37a8fd40334c1140c0ebc717ae2",
+    "netlify/functions/broker-v2-forge-paid-training.mjs": "8c3f80e7f676332e6d588f6f02105a3361e13546eb855550472f0fe2e53e5507",
+    "scripts/test-forge-paid-browser.mjs": "9cdb994215a8384fd89ffcbe440b6b961c2bae1a4a21cee35320f0d5b859a4b5",
+    "site/forge-paid-panel.js": "a2b5b295b22fbd14519082ed400d37822614d2919f9a44a646da7440c6769606",
+    "site/forge-paid-release.js": "015d7274137ee2a880b9a8e9d1540bfe88af3bbc440bebe9d9a2ba66dcb04d60",
+    "site/forge-paid-wallet.js": "8f0b5acf64a2386942f9135f86d2082aed0f4ccb4c27a4d1b4c6a5f30984971a",
+    "tests/fixtures/paid-training-ui.mjs": "8df9ab651ee3423d6da5ed102bfaae195e7ceae8ef57a6da4579ee48ddd77488",
+    "tests/fixtures/paid-training.mjs": "b4681ccf467bfff2cf96a325ed38d93a22e623c233bdb383af787dc7d5eee442",
+    "tests/forge-paid-panel.test.mjs": "c8573c0266eb84f11b14639f84ea0341acfe785f3f4cca80faf161e4d7c2a298",
+    "tests/forge-paid-wallet.test.mjs": "c78d238c78fe6c367b930b88e30fd10a63542f2d0401bb075cd3384d9ab073ae",
+    "tests/paid-training-local-chain.test.mjs": "898fef5777cab299abbc1bb83533096b1c9ca6775fde8a4b98fa93063a048c73",
+    "tests/paid-training.test.mjs": "aff1aef56c0b2af952dc654d4eca2aedac86066997e88d4f124cabcc34954511",
+    "broker/src/v4/skill-forge/original-punk-profile.mjs": "b367a9fec249c6d2e2c9240f182bdb2052a11ef055646dc0768bea72dd5d10e2",
+    "broker/src/v4/skill-forge/training-coordinator.mjs": "1b3e7ab3d87f7bef9cbae22425551789aba362effe317c647c9e6c5c4b842ca9",
+    "netlify/functions/_shared/selected-burn-runtime.mjs": "f1f3a749cec16293809ab4fea88dab09b5db3e60559a70bac58c511fc7a44958",
+    "netlify/functions/_shared/v2-mcp-research.mjs": "95660e354977baf7d5d5d641db15e4e338c2f06dfe08e11e4954d12dbe166814",
+    "netlify/functions/broker-v2-forge-selected-burn.mjs": "2aa2002665e8776de95a00776de3a76fd58c3e1026a62b15fd50339fda7d6f2a",
+    "netlify/functions/broker-v2-forge-skill.mjs": "90d53873d0900da93882d087f9fe79cf2500bbedf7d4d91a8e978bbc403a8d65",
+    "scripts/dev/skill-forge/preview-server.mjs": "75821a0134efebd1666b1ff8f7ddcb67f4030811fadc3d9c9d7de07f17084806",
+    "site/broker-v2-forge.js": "ca62505bef5f1b7b1b9870814dedd117dcf58f6bb96278e8da26f3a0a2f0b975",
+    "site/broker/v2/index.html": "6e71dcc089630fdcc292ef51b209a9242188ee8f9cae6758e6a2e003fed96d6b",
+    "site/forge-durable-training-panel.js": "cb9a046444cbd6d9c32155af3b897249def7470a8c03cedd1d16718428fdbef9"
+  },
+  "publicBlockchainTransactions": 0,
+  "livePaymentTest": false,
+  "limitations": [
+    "Synthetic browser wallet/API",
+    "Private local-chain contract tests, not public deployment",
+    "Exact deployment/catalog/guardian/runtime review required",
+    "Owner wallet confirmation and live acceptance still required",
+    "No unconditional ownership epoch on original collection",
+    "Direct custom immutable legacy calls can bypass supported-flow credit guards"
+  ]
+}

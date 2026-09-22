@@ -221,7 +221,8 @@ async function handleMcp(request, response) {
 function localPath(urlValue) {
   const url = new URL(urlValue, `http://127.0.0.1:${port}`);
   let pathname = decodeURIComponent(url.pathname);
-  if (/^\/broker\/punk\/\d+\/?$/.test(pathname)) pathname = "/broker/punk/index.html";
+  if (pathname === "/" || pathname === "/index.html") pathname = "/broker/v2/index.html";
+  else if (/^\/broker\/punk\/\d+\/?$/.test(pathname)) pathname = "/broker/punk/index.html";
   else if (/^\/punk\/\d+\/?$/.test(pathname)) pathname = "/punk/index.html";
   else if (pathname.endsWith("/")) pathname += "index.html";
   const target = resolve(root, `.${pathname}`);

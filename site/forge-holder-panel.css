@@ -1,0 +1,16 @@
+.forge-holder-panel { border: 1px solid var(--line, #344451); padding: clamp(1rem, 3vw, 2rem); background: var(--panel, #10171d); }
+.forge-holder-panel h3, .forge-holder-panel h4 { color: var(--text, #f6f7ef); }
+.forge-holder-panel p { max-width: 70ch; line-height: 1.55; }
+.forge-holder-panel label { display: block; margin-block: 1rem; line-height: 1.5; }
+.forge-holder-panel select, .forge-holder-panel input[type="text"] { display: block; width: 100%; min-height: 48px; padding: .75rem;
+  margin-block: .5rem; color: inherit; background: #090e12; border: 1px solid #546674; font: inherit; box-sizing: border-box; }
+.forge-holder-panel input[type="checkbox"] { width: 1.25rem; height: 1.25rem; vertical-align: middle; margin-inline-end: .5rem; }
+.forge-holder-panel button { min-height: 48px; margin: .35rem .5rem .35rem 0; padding: .7rem 1rem; font: inherit;
+  font-weight: 700; cursor: pointer; color: #0b1114; background: #dbfa45; border: 1px solid #dbfa45; }
+.forge-holder-panel button:disabled { opacity: .5; cursor: default; }
+.forge-holder-panel :focus-visible { outline: 3px solid #68e6fa; outline-offset: 3px; }
+.forge-holder-panel ul { padding-inline-start: 1.25rem; }
+.forge-holder-panel li { padding-block: .45rem; overflow-wrap: anywhere; }
+.forge-holder-panel a { color: #68e6fa; }
+.forge-holder-panel [role="status"] { padding: .85rem; border-inline-start: 3px solid #68e6fa; overflow-wrap: anywhere; }
+@media (max-width: 480px) { .forge-holder-panel button { display: block; width: 100%; margin-inline: 0; } }

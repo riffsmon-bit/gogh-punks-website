@@ -3,7 +3,13 @@
 Status: **NOT READY FOR THE FULL PUBLIC FEATURE SET**. Updated 22 September 2026.
 Vercel migration is paused. This campaign preserves Netlify production and uses local validation before a coherent deployment.
 
-## Verified starting point
+## Production published 22 September 2026
+
+The reviewed maintenance release is now published at commit `109b57fde726fdc2b2f461a85a4cef38e3888c11`, Netlify deploy `6ab27c0df8b88a0008b98e73` (13:02:59 UTC), through merged PR #72. Desktop/mobile signed-out browser checks matched all seven served-file hashes with no JS/CSP/HTTP errors. Protected production routes returned expected 401 responses. The production database has 46 migrations, including persistent watch. The watch execution flag remains off. This is not full public feature completion.
+
+The optional paid Training Credit route is being added separately at **0.0005 ETH** per credit, treasury `0xC7f55cE6A7dF9A79cc4A643a5081230F890c7AA6`. Its release artifact is UNDEPLOYED and payments are disabled. See [paid training](v2-release-campaign/paid-training-implementation.md) and [holder feature rundown](v2-release-campaign/functionality-rundown-20260922.md).
+
+## Preserved starting point
 
 - Production: `https://goghpunks.xyz/broker/v2/`.
 - Published Netlify deployment: `6aa7546a75582e0008ecf57b`, commit `b442b4425bf21b16d5186ed76333e2c42d3a6121` (14 September).
@@ -35,7 +41,7 @@ Estimates assume the current credentials remain accessible, one coherent preview
 
 | Milestone | Planning allowance from completion of this integration batch | Dependency |
 | --- | --- | --- |
-| Reviewed Netlify maintenance / holder test build | 1–2 working days | Integrated full-suite, database setup, preview and served-route verification |
+| Reviewed Netlify maintenance / holder test build | Delivered 22 September | Published PR #72; full maintenance tests, database setup, preview and served-route checks passed |
 | Broader usable read-only skills and research watching | 2–4 working days | Administrator confirmations, safe activation path and exact holder capability tests |
 | General Forge and supported paid missions | Approximately 1–2 weeks | Inventory bootstrap and burn boundary accepted; supported adapters and controlled wallet tests |
 | Public purchases, bounded floor sweeps, WETH bids and broader autonomy | At least 2–4 weeks of additional implementation/review/canaries | WETH authority design first; the current original-account path cannot meet the transfer invariant merely by changing a flag |

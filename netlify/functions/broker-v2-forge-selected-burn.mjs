@@ -14,6 +14,7 @@ const messages={TRAINING_PAUSED:'Enable Forge first.',RECOVER_EXISTING_BURN_REVI
   BURN_OWNER_REVIEW_REQUIRED:'Review the source wallets and any obligations before continuing.',
   BURN_CONFIRMATION_REQUIRED:'Type BURN 1753 to confirm the selected burn.',
   BURN_SOURCE_OBLIGATIONS_PENDING:'The source Punk has application records that need review before burning.',
+  BURN_SOURCE_PURCHASED_CREDITS_REMAIN:'This Punk still has purchased Training Credits. Keep it, or use those credits before preparing a sacrifice. Credits do not move to the Punk you train.',
   BURN_SOURCE_ASSETS_OR_ACTIVITY:'The source wallets have assets or activity that need review before burning.',
   BURN_SOURCE_TOKEN_RECEIPT_FOUND:'The source wallets received tokens. Review and move those assets before burning.',
   BURN_SOURCE_CHECK_STALE:'The source check took too long. Run a fresh review.',BURN_JOURNAL_CHANGED:'The saved review changed. Recheck its current state.'};

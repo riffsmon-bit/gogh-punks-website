@@ -1,0 +1,27 @@
+{
+  "schema": "GOGH_PAID_TRAINING_RELEASE_V1",
+  "status": "UNDEPLOYED",
+  "chainId": 4663,
+  "collection": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+  "collectionCodeHash": "0x3222e4925f77909e6370e17fe071d2774d43e191f6bc72c3a97c97209c6e2e93",
+  "registry": "0xc2a1bd47fbc0fe33e53c85f130be53591c898e83",
+  "registryCodeHash": "0x6a061b9d291e4402e32f93e7815cb2fe2242e725fe4052740f2be0a78049d3c3",
+  "legacyProgression": "0x08ada19edf9c387dc07a181069a1848c66ca2da4",
+  "legacyProgressionCodeHash": "0x1e4a242384f6081dddc5b7bb0020b247d0107082edb14e9d4368a8f346dcd51d",
+  "extension": null,
+  "extensionCodeHash": null,
+  "treasury": "0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6",
+  "priceWei": "500000000000000",
+  "allowedOwners": [],
+  "skills": [
+    {
+      "key": "0x2109a1600733ac7484f1358fcf5a116586a8e66b993ae96f479098fffbb7b1c1",
+      "name": "Rarity Eye",
+      "manifestHash": "0x9f17224444ef8938c9d998754a6be4c9dce2029c5e6e6a5f918effdc276c0d26",
+      "instructionHash": "0x7f7baae864b35a8230361de2ac3a6abda099669a6659e3d76e5bdf105bf859f0"
+    }
+  ],
+  "feeCeilingWei": "100000000000000",
+  "canonicalReadersReviewed": false,
+  "productionPaymentsAuthorized": false
+}
