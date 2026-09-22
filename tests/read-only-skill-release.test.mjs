@@ -26,7 +26,8 @@ function context() {
       if (functionName === 'skillCount') return state.countOverride ?? (state.existing ? 1n : 0n);
       if (functionName === 'keyAt') return key;
       if (functionName === 'definition') { assert.equal(args[0], key); return { ...state.existing }; }
-      if (functionName === 'available') return state.existing.status === 4;
+      if (functionName === 'available') return state.existing.status === 4 && !state.globallyDisabled
+        && !state.existing.disabled && !state.existing.deprecated && (state.disabledCapabilities & 128n) === 0n;
       throw Error('unexpected read');
     },
     call: async tx => { calls.push('simulate'); assert.equal(tx.value, 0n); assert.equal(tx.to, registry); },
@@ -89,7 +90,8 @@ for (const [name, change, expected] of [
   ['pending administrator transaction', { pending: 8 }, /PENDING_ADMIN_TRANSACTION/],
   ['missing gas', { balance: 0n }, /ADMIN_GAS_REQUIRED/], ['fee too high', { gasPrice: 10n ** 12n }, /FEE_CEILING/],
   ['zero estimate', { estimate: 0n }, /FEE_UNAVAILABLE/], ['global pause', { globallyDisabled: true }, /EMERGENCY_DISABLED/],
-  ['capability pause', { disabledCapabilities: 128n }, /EMERGENCY_DISABLED/],
+  ['malformed capability mask', { disabledCapabilities: '128' }, /REGISTRY_INVALID/],
+  ['out-of-range capability mask', { disabledCapabilities: 1n << 256n }, /REGISTRY_INVALID/],
 ]) test(`rejects ${name}`, async () => {
   const c = context(); Object.assign(c.state, change);
   await assert.rejects(c.review().prepareNext({ key, administrator: owner }), expected);
@@ -136,4 +138,47 @@ test('old chain snapshot and regressed clock fail closed', async () => {
   for (const now of [() => 1_031_001, () => -1, () => NaN]) {
     const c = context(); c.options.now = now; await assert.rejects(c.review().inspect(), /STALE_CHAIN/);
   }
+});
+
+test('read-only registration, testing and READY proceed under a capability pause without enabling any mask', async () => {
+  const c = context(), review = c.review(), mask = ((1n << 256n) - 1n) ^ 8n;
+  c.state.disabledCapabilities = mask;
+  for (const [status, action, method] of [[null, 'REGISTER', 'register'], [0, 'MARK_TESTING', 'setStatus'], [3, 'MARK_READY', 'setStatus']]) {
+    c.state.existing = status === null ? null : c.definition(status);
+    const before = await review.inspect();
+    assert.equal(before.skills[0].action, action);
+    assert.equal(before.skills[0].capabilityPaused, true);
+    assert.equal(before.skills[0].available, false);
+    const prepared = await review.prepareNext({ key, administrator: owner });
+    assert.equal(prepared.capabilityPaused, true);
+    assert.equal(prepared.disabledCapabilities, String(mask));
+    assert.equal(decodeFunctionData({ abi: ABI, data: prepared.transaction.data }).functionName, method);
+    assert.equal(c.state.disabledCapabilities, mask);
+    assert.equal(c.state.globallyDisabled, false);
+  }
+  c.state.existing = c.definition(4);
+  const ready = await review.inspect();
+  assert.equal(ready.skills[0].action, 'READY_CAPABILITY_PAUSED');
+  assert.equal(ready.skills[0].available, false);
+  assert.equal(ready.skills[0].nextCalldata, null);
+  await assert.rejects(review.prepareNext({ key, administrator: owner }), /CAPABILITY_ACTIVATION_UNAVAILABLE/);
+  assert.equal(c.calls.filter(value => value === 'simulate').length, 3);
+});
+
+test('global pause prevents all registration and review steps even when capabilities are paused', async () => {
+  for (const status of [null, 0, 3, 4]) {
+    const c = context(); c.state.globallyDisabled = true; c.state.disabledCapabilities = 128n;
+    c.state.existing = status === null ? null : c.definition(status);
+    const review = c.review(), snapshot = await review.inspect();
+    assert.equal(snapshot.skills[0].action, 'EMERGENCY_DISABLED');
+    assert.equal(snapshot.skills[0].nextCalldata, null);
+    await assert.rejects(review.prepareNext({ key, administrator: owner }), /EMERGENCY_DISABLED/);
+    assert.equal(c.calls.includes('simulate'), false);
+  }
+});
+
+test('a capability-mask change during preparation invalidates unchanged registration calldata', async () => {
+  const c = context(); c.state.disabledCapabilities = 128n;
+  c.client.estimateGas = async () => { c.state.disabledCapabilities |= 2n; return 100_000n; };
+  await assert.rejects(c.review().prepareNext({ key, administrator: owner }), /STATE_CHANGED/);
 });

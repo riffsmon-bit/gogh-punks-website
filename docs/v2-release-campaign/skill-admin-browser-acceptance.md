@@ -1,6 +1,6 @@
 # Skill administrator browser acceptance
 
-**PASS**, executed at `2026-09-22T12:15:14.989Z` with `Chrome/150.0.7871.125`. Eleven scenarios passed and nineteen screenshots were captured at widths **1440, 375 and 320 CSS pixels**. Every captured page had `scrollWidth === innerWidth`; visible buttons, inputs and the administration summary were at least 44 pixels high and remained inside the viewport. There were zero page exceptions, external page requests or public transactions. Visual inspection of the registration, cancellation and long-error captures found no clipping or unreadable controls.
+**PASS**, executed at `2026-09-22T12:24:28.081Z` with `Chrome/150.0.7871.125`. Twelve scenarios passed and twenty-five screenshots were captured at widths **1440, 375 and 320 CSS pixels**. Every captured page had `scrollWidth === innerWidth`; visible buttons, inputs and the administration summary were at least 44 pixels high and remained inside the viewport. There were zero page exceptions, external page requests or public transactions. Visual inspection of registration, cancellation, long-error and capability-paused READY captures found no clipping or unreadable controls.
 
 Run from the repository with Node 24, installed dependencies and Google Chrome at the standard macOS application path:
 
@@ -23,26 +23,27 @@ The harness starts its own loopback HTTP server and Chrome profile. It serves th
 9. Account and chain switches clear stale reviews. A chain round trip during pending sign-in cannot claim or send.
 10. An account round trip discards an outstanding administrator API response.
 11. A long untrusted error renders as literal text, creates no image element, removes stale wallet actions and remains within all three viewport widths.
+12. REGISTER, TESTING and READY each require a separate reviewed mock wallet transaction while the exact capability mask remains paused. The final READY view explicitly says holder use is unavailable and offers no activation transaction, including after reload.
 
 ## Evidence
 
 Final local evidence directory:
 
 ```text
-/var/folders/4m/68pfyqlj18v5bncgqqhf2n580000gn/T/gogh-skill-admin-browser-evidence-vfdz08
+/var/folders/4m/68pfyqlj18v5bncgqqhf2n580000gn/T/gogh-skill-admin-browser-evidence-XAu1HS
 ```
 
-`result.json` records every scenario, screenshot path and layout measurement. Representative captures are `registration-review-375.png`, `nonce-cancellation-review-1440.png`, `nonce-cancellation-review-320.png`, `lost-wallet-response-recovery-375.png` and `long-error-320.png`. The final run also repeats the successful registration and cancellation layouts at desktop and small-phone sizes.
+`result.json` records every scenario, screenshot path and layout measurement. Representative captures are `registration-review-375.png`, `nonce-cancellation-review-1440.png`, `nonce-cancellation-review-320.png`, `lost-wallet-response-recovery-375.png`, `long-error-320.png`, `capability-paused-mark_ready-375.png` and `ready-capability-paused-375.png`. The final run also repeats the successful registration, cancellation and paused READY layouts at desktop and small-phone sizes.
 
 SHA-256 of executed source:
 
 | File | SHA-256 |
 | --- | --- |
-| `scripts/test-forge-skill-admin-browser.mjs` | `8a567f7d087c568480a8e8eb1f748280641d328cf492e2433e4b25928df8e6c1` |
-| `site/forge-skill-admin-panel.js` | `2e195e4ef7fea2762d95e20ef72538c2c1a719bf9e3e515d2cc7951d40ff6450` |
+| `scripts/test-forge-skill-admin-browser.mjs` | `0c45536ddce82723b6b51fd8295b6c416f00d7eacb047d2a9ce7049b9167bc65` |
+| `site/forge-skill-admin-panel.js` | `43a29ac5919b46f981263e9f1058895124fb58ec1b76a484bfcc339de48c84dd` |
 | `site/broker-v2-forge.css` | `5dfb71850538fcbfd64d6652c52c3c00a1bc359f12219e83635a66a60a4ca283` |
-| `broker/src/v4/skill-forge/skill-admin-coordinator.mjs` | `09006d61e9017bf3f56224ba3eba7da45603f0f562ebd12255d935a6f3235633` |
+| `broker/src/v4/skill-forge/skill-admin-coordinator.mjs` | `26efeede8e307b359d509c6f637b13ce7308ffb921bb475b38c88f452aafd496` |
 
-`node --check scripts/test-forge-skill-admin-browser.mjs` and `git diff --check` also passed. No product-code change was needed for this browser acceptance.
+`node --check scripts/test-forge-skill-admin-browser.mjs` and `git diff --check` also passed. The initial eleven-scenario run passed before the safe capability-paused staging extension; this final run includes that extension.
 
 This is Chrome acceptance of the locally mounted administration section. It does not prove a real wallet extension/signature, all three live registry steps, the complete broker shell, deployed Netlify responses, production role provisioning or native SQL durability. Those remain separate acceptance evidence.

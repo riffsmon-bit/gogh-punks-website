@@ -87,6 +87,11 @@ export function createSkillAdminCoordinator({ review, store, clients, now = Date
       if (row.status !== 'PREPARED' || row.revision !== revision || row.reviewHash !== reviewHash) fail('SKILL_ADMIN_REVIEW_CONFLICT');
       if (now() >= row.preparation.expiresAt) fail('SKILL_ADMIN_REVIEW_EXPIRED');
       const fresh = await review.prepareNext({ key:row.key, administrator });
+      // Older saved reviews predate these fields. New reviews also bind the
+      // exact observed capability pause so a changed mask requires a new review.
+      if (Object.hasOwn(row.preparation, 'disabledCapabilities')
+        && (fresh.disabledCapabilities !== row.preparation.disabledCapabilities
+          || fresh.capabilityPaused !== row.preparation.capabilityPaused)) fail('SKILL_ADMIN_REVIEW_CHANGED');
       for (const field of ['from','to','data','value','chainId','nonce']) {
         if (fresh.transaction[field] !== row.preparation.transaction[field]) fail('SKILL_ADMIN_REVIEW_CHANGED');
       }

@@ -13,6 +13,11 @@ export function validateSkillAdminWalletReview(record,snapshot,owner,now=Date.no
     ||t.from?.toLowerCase()!==owner||t.to?.toLowerCase()!==REGISTRY||t.chainId!=='0x1237'||t.value!=='0x0'
     ||Object.keys(t).sort().join(',')!=='chainId,data,from,gas,gasPrice,nonce,to,value'
     ||!['nonce','gas','gasPrice'].every(key=>/^0x(?:0|[1-9a-f][0-9a-f]*)$/i.test(t[key])))throw Error('The exact skill release review could not be verified. Recheck it.');
+  if(Object.hasOwn(p,'disabledCapabilities')&&(typeof p.disabledCapabilities!=='string'||!/^(0|[1-9][0-9]*)$/.test(p.disabledCapabilities)
+    ||BigInt(p.disabledCapabilities)>=(1n<<256n)||p.disabledCapabilities!==snapshot.disabledCapabilities
+    ||typeof p.capabilityPaused!=='boolean'||p.capabilityPaused!==skill.capabilityPaused
+    ||p.capabilityPaused!==((BigInt(p.disabledCapabilities)&BigInt(skill.capabilities))!==0n)))
+    throw Error('Capability controls changed. Recheck the saved skill review before continuing.');
   const expected=record.action==='REGISTER'?'0x63576a2c'+[word(skill.skillId),word(skill.version),skill.manifestHash.slice(2),
     skill.instructionHash.slice(2),'0'.repeat(64),word(skill.capabilities),word(0)].join('')
     :['MARK_TESTING','MARK_READY'].includes(record.action)?'0x9a956214'+skill.key.slice(2)+word(record.action==='MARK_TESTING'?3:4)+skill.evidenceHash.slice(2):null;
@@ -139,8 +144,9 @@ export function createForgeSkillAdminPanel({root,getSelection,ensureSession,requ
     button(root,busy?'CHECKING…':'RECHECK SKILL RELEASES',check,!identity);
     if(!snapshot)return;
     if(record&&!TERMINAL.has(record.status)){
-      const p=record.preparation;root.append(element('h4',`${p.name} · ${{REGISTER:'Register skill',MARK_TESTING:'Record testing',MARK_READY:'Make available'}[record.action]??record.action}`),
+      const p=record.preparation;root.append(element('h4',`${p.name} · ${{REGISTER:'Register skill',MARK_TESTING:'Record testing',MARK_READY:'Record READY status'}[record.action]??record.action}`),
         element('p',`Maximum network fee: ${eth(p.maximumNetworkFeeWei)}. No ETH is sent to the registry.`));
+      if(p.capabilityPaused)root.append(element('p','The read capability is currently paused. This registry step does not change capability controls or enable holder use.'));
       if(record.status==='PREPARED'){
         root.append(element('p',`Review expires ${new Date(p.expiresAt).toLocaleTimeString()}.`));
         button(root,'CONFIRM REGISTRY STEP IN WALLET',confirm,journal?.attempted||Date.now()+5000>=p.expiresAt);
@@ -159,7 +165,9 @@ export function createForgeSkillAdminPanel({root,getSelection,ensureSession,requ
     if(record?.status==='REPLACED'&&record.receipt?.assetMovement==='OWNER_REPLACEMENT_REVIEW_WALLET_ACTIVITY')root.append(element('p',`The administrator replacement sent ${eth(record.receipt.valueWei)}. Check its wallet activity for any other effects.`));
     for(const skill of snapshot.skills){const row=element('article');row.append(element('h4',skill.name));
       row.append(element('p',skill.action==='REGISTERED_READY'?'Registry ready. Holder learning and equipment still follow the active app release.':skill.action==='EMERGENCY_DISABLED'?'Temporarily disabled by the safety controls.':
-        ({REGISTER:'Next: register this reviewed version.',MARK_TESTING:'Next: record its testing evidence.',MARK_READY:'Next: make this reviewed skill available.'}[skill.action]??'Release unavailable.')));
+        skill.action==='READY_CAPABILITY_PAUSED'?'Registry READY; read capability still paused. Holder use is unavailable. A separately reviewed activation path is required; this app cannot enable it.':
+        ({REGISTER:'Next: register this reviewed version.',MARK_TESTING:'Next: record its testing evidence.',MARK_READY:'Next: record this reviewed version as READY.'}[skill.action]??'Release unavailable.')));
+      if(skill.capabilityPaused&&skill.nextCalldata)row.append(element('p','The read capability is currently paused. Registration and review do not change capability controls or enable holder use.'));
       if(skill.nextCalldata)button(row,'REVIEW NEXT REGISTRY STEP',()=>prepare(skill.key));root.append(row);
     }
   }

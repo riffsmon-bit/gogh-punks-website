@@ -75,6 +75,8 @@ export function createReadOnlySkillReleaseReview({ client, deployment, packages,
       read('disabledCapabilities'), read('skillCount'),
     ]);
     if (keccak256(code ?? '0x') !== expectedCodeHash) fail('SKILL_RELEASE_DEPLOYMENT_MISMATCH');
+    if (typeof globallyDisabled !== 'boolean' || typeof disabledCapabilities !== 'bigint'
+      || disabledCapabilities < 0n || disabledCapabilities >= (1n << 256n)) fail('SKILL_RELEASE_REGISTRY_INVALID');
     if (typeof count !== 'bigint' || count < 0n || count > 128n) fail('SKILL_RELEASE_REGISTRY_BOUNDS');
     const keys = [];
     for (let start = 0n; start < count; start += 4n) {
@@ -93,13 +95,17 @@ export function createReadOnlySkillReleaseReview({ client, deployment, packages,
       // removes preparation authority for this version, not visibility of the
       // current administrator or another version's already-sent transaction.
       const reviewBlocked = existing && (existing.disabled || existing.deprecated || [5, 6].includes(existing.status));
-      const blocked = globallyDisabled || (BigInt(disabledCapabilities) & expected.capabilities) !== 0n;
-      const action = reviewBlocked ? 'REVIEW_BLOCKED' : blocked ? 'EMERGENCY_DISABLED' : !existing ? 'REGISTER' : existing.status === 4 ? 'REGISTERED_READY'
+      const capabilityPaused = (disabledCapabilities & expected.capabilities) !== 0n;
+      // Registration and review attestations do not change emergency controls.
+      // The deployed full-mask setter has no atomic expected-state guard, so
+      // capability activation must not become a transaction in this service.
+      const action = reviewBlocked ? 'REVIEW_BLOCKED' : globallyDisabled ? 'EMERGENCY_DISABLED'
+        : !existing ? 'REGISTER' : existing.status === 4 ? capabilityPaused ? 'READY_CAPABILITY_PAUSED' : 'REGISTERED_READY'
         : existing.status === 3 ? 'MARK_READY' : 'MARK_TESTING';
       const args = action === 'REGISTER' ? [expected.skillId, expected.version, expected.manifestHash,
         expected.instructionHash, expected.prerequisite, expected.capabilities, expected.riskTier]
         : ['MARK_TESTING', 'MARK_READY'].includes(action) ? [expected.key, action === 'MARK_TESTING' ? 3 : 4, expected.evidenceHash] : null;
-      skills.push({ ...expected, capabilities: String(expected.capabilities), action, available,
+      skills.push({ ...expected, capabilities: String(expected.capabilities), action, available, capabilityPaused,
         registeredStatus: existing?.status ?? null, existingReviewEvidenceHash: existing?.reviewEvidenceHash ?? null,
         nextCalldata: args ? encodeFunctionData({ abi: ABI, functionName: action === 'REGISTER' ? 'register' : 'setStatus', args }) : null });
     }
@@ -107,7 +113,7 @@ export function createReadOnlySkillReleaseReview({ client, deployment, packages,
     if (closing.hash !== block.hash || await client.getChainId() !== 4663) fail('SKILL_RELEASE_CHAIN_CHANGED');
     return { schema: 'GOGH_READ_ONLY_SKILL_RELEASE_STATE_V1', chainId: 4663, registry, registryCodeHash: expectedCodeHash,
       administrator: getAddress(owner), anchor: { number: String(block.number), hash: block.hash, timestamp: String(block.timestamp) },
-      skills, publicTransactions: 0, serverReleaseActivated: false };
+      skills, globallyDisabled, disabledCapabilities: String(disabledCapabilities), publicTransactions: 0, serverReleaseActivated: false };
   }
   return Object.freeze({
     inspect: () => safe(readState),
@@ -118,7 +124,8 @@ export function createReadOnlySkillReleaseReview({ client, deployment, packages,
       if (getAddress(administrator) !== state.administrator) fail('SKILL_RELEASE_ADMINISTRATOR_CHANGED');
       const step = state.skills.find(item => item.key === key);
       if (!step.nextCalldata) fail(step.action === 'REGISTERED_READY' ? 'SKILL_RELEASE_ALREADY_READY'
-        : step.action === 'REVIEW_BLOCKED' ? 'SKILL_RELEASE_REVIEW_BLOCKED' : 'SKILL_RELEASE_EMERGENCY_DISABLED');
+        : step.action === 'REVIEW_BLOCKED' ? 'SKILL_RELEASE_REVIEW_BLOCKED'
+        : step.action === 'READY_CAPABILITY_PAUSED' ? 'SKILL_RELEASE_CAPABILITY_ACTIVATION_UNAVAILABLE' : 'SKILL_RELEASE_EMERGENCY_DISABLED');
       const transaction = { account: state.administrator, to: registry, data: step.nextCalldata, value: 0n };
       await client.call({ ...transaction, blockNumber: BigInt(state.anchor.number) });
       const [estimate, gasPrice, latest, pending] = await Promise.all([client.estimateGas(transaction), client.getGasPrice(),
@@ -131,6 +138,7 @@ export function createReadOnlySkillReleaseReview({ client, deployment, packages,
       if (fee > maximumFeeWei) fail('SKILL_RELEASE_FEE_CEILING');
       const checked = await readState(), timestamp = now();
       if (checked.administrator !== state.administrator
+        || checked.disabledCapabilities !== state.disabledCapabilities
         || checked.skills.find(item => item.key === key)?.nextCalldata !== step.nextCalldata
         || !validTime(timestamp)) fail('SKILL_RELEASE_STATE_CHANGED');
       const [closingLatest, closingPending, balance] = await Promise.all([
@@ -143,11 +151,12 @@ export function createReadOnlySkillReleaseReview({ client, deployment, packages,
       const hex = value => `0x${BigInt(value).toString(16)}`;
       return { schema: 'GOGH_READ_ONLY_SKILL_RELEASE_PREPARATION_V1', key, name: step.name, action: step.action,
         reviewEvidenceHash: step.evidenceHash, manifestHash: step.manifestHash, instructionHash: step.instructionHash,
+        capabilityPaused: step.capabilityPaused, disabledCapabilities: checked.disabledCapabilities,
         chainId: 4663, anchor: checked.anchor, expiresAt: timestamp + 60_000, maximumNetworkFeeWei: String(fee),
         transaction: { from: state.administrator, to: registry, data: step.nextCalldata, value: '0x0', chainId: '0x1237',
           nonce: hex(latest), gas: hex(gas), gasPrice: hex(price) },
         walletConfirmationRequired: true, publicTransactions: 0, serverReleaseActivated: false,
-        instructions: 'Confirm this exact registry step in your administrator wallet. Verify its receipt, then prepare the next step. Registration does not teach or equip a holder skill.' };
+        instructions: 'Confirm this exact registry step in your administrator wallet. Verify its receipt, then prepare the next step. This does not change capability controls, teach or equip a holder skill.' };
       });
     },
   });

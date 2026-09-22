@@ -108,11 +108,11 @@ for (const [label, block] of [
     assert.equal(done.record.status, 'CONFIRMED');
     assert.equal(done.record.receipt.registryActionConfirmed, true);
     assert.equal(done.transaction, undefined);
-    await assert.rejects(c.prepareTarget(), /REVIEW_BLOCKED|EMERGENCY_DISABLED/);
+    await assert.rejects(c.prepareTarget(), /REVIEW_BLOCKED|EMERGENCY_DISABLED|CAPABILITY_ACTIVATION_UNAVAILABLE/);
 
     const unsent = context('MARK_READY'), { record: prepared } = await unsent.prepareTarget();
     block(unsent);
-    await assert.rejects(unsent.claim(prepared), /REVIEW_BLOCKED|EMERGENCY_DISABLED/);
+    await assert.rejects(unsent.claim(prepared), /REVIEW_BLOCKED|EMERGENCY_DISABLED|REVIEW_CHANGED/);
     assert.equal(unsent.f.row.status, 'PREPARED');
     assert.equal(unsent.f.log.includes('WALLET_REQUESTED'), false);
     await unsent.coordinator.cancel({ administrator: ADMIN, id: prepared.id, revision: prepared.revision });
@@ -135,6 +135,30 @@ test('blocked package keeps explicit nonce cancellation and exact replacement re
   assert.equal(done.record.status, 'REPLACED');
   assert.equal(done.record.receipt.registryActionConfirmed, false);
   assert.equal(done.record.receipt.selfAccountCode, '0x');
+});
+
+test('a review prepared while capability-paused can claim and settle READY without offering activation', async () => {
+  const c = context('MARK_READY'); c.chain.disabledCapabilities = ((1n << 256n) - 1n) ^ 8n;
+  const record = await c.submitted();
+  assert.equal(record.preparation.capabilityPaused, true);
+  assert.equal(record.preparation.disabledCapabilities, String(c.chain.disabledCapabilities));
+  const done = await c.recover(record);
+  assert.equal(done.record.status, 'CONFIRMED');
+  const snapshot = (await c.coordinator.get({ administrator: ADMIN, id: record.id })).snapshot;
+  assert.equal(snapshot.skills.find(skill => skill.key === KEY).action, 'READY_CAPABILITY_PAUSED');
+  assert.equal(snapshot.skills.find(skill => skill.key === KEY).nextCalldata, null);
+  assert.equal(snapshot.skills.find(skill => skill.key === KEY).available, false);
+  await assert.rejects(c.prepareTarget(), /CAPABILITY_ACTIVATION_UNAVAILABLE/);
+});
+
+test('any changed capability bit between preparation and claim requires a new review', async () => {
+  for (const nextMask of [0n, 130n]) {
+    const c = context('MARK_READY'); c.chain.disabledCapabilities = 128n;
+    const { record } = await c.prepareTarget();
+    c.chain.disabledCapabilities = nextMask;
+    await assert.rejects(c.claim(record), /REVIEW_CHANGED/);
+    assert.equal(c.f.row.status, 'PREPARED');
+  }
 });
 
 for (const status of [5, 6]) test(`an unsent review cannot be claimed after registry status ${status}`, async () => {

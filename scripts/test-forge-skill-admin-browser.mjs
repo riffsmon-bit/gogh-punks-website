@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process';
 import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { encodeFunctionData, parseAbi } from 'viem';
 import { createSkillAdminCoordinator } from '../broker/src/v4/skill-forge/skill-admin-coordinator.mjs';
 import { handleForgeSkillAdmin } from '../netlify/functions/broker-v2-forge-skill-admin.mjs';
 import { PublicError } from '../netlify/functions/_shared/http.mjs';
@@ -16,6 +17,27 @@ const profile = await mkdtemp(join(tmpdir(), 'gogh-skill-admin-browser-profile-'
 const OTHER = `0x${'2'.repeat(40)}`;
 let fixture = skillAdminFixture(), coordinator = createSkillAdminCoordinator(fixture), origin;
 let backendSends = 0, backendRequests = [];
+let dormant = false;
+const pausedMask = String(((1n << 256n) - 1n) ^ 8n);
+const statusAbi = parseAbi(['function setStatus(bytes32,uint8,bytes32)']);
+function nextDormantStep(status) {
+  fixture.skill.capabilityPaused = true;
+  fixture.skill.available = false;
+  fixture.skill.registeredStatus = status;
+  fixture.skill.existingReviewEvidenceHash = fixture.skill.evidenceHash;
+  fixture.state.disabledCapabilities = pausedMask;
+  fixture.state.globallyDisabled = false;
+  fixture.preparation.disabledCapabilities = pausedMask;
+  fixture.preparation.capabilityPaused = true;
+  fixture.preparation.expiresAt = Date.now() + 60000;
+  fixture.skill.action = status === null ? 'REGISTER' : status === 0 ? 'MARK_TESTING' : status === 3 ? 'MARK_READY' : 'READY_CAPABILITY_PAUSED';
+  if (status === 0 || status === 3) {
+    fixture.preparation.action = fixture.skill.action;
+    fixture.preparation.transaction.data = encodeFunctionData({ abi: statusAbi, functionName: 'setStatus',
+      args: [fixture.skill.key, status === 0 ? 3 : 4, fixture.skill.evidenceHash] });
+  }
+  fixture.skill.nextCalldata = status === 4 ? null : fixture.preparation.transaction.data;
+}
 
 function browserFixture({ administrator, other, hash }, createPanel) {
   const defaults = () => ({ owner: administrator, chainId: 4663, mode: 'normal', sessionOwner: null,
@@ -42,9 +64,9 @@ function browserFixture({ administrator, other, hash }, createPanel) {
     if (method !== 'eth_sendTransaction') throw Error('UNEXPECTED_WALLET_METHOD');
     state.sends++; save();
     if (state.mode === 'wallet-reject') throw Object.assign(Error('Local fixture user rejected confirmation'), { code: 4001 });
-    await control('send', { transaction: params[0], outcome: state.mode });
+    const sent = await control('send', { transaction: params[0], outcome: state.mode });
     if (state.mode === 'lost-wallet-response') throw Error('Local fixture wallet response lost. Recover the transaction hash from wallet activity.');
-    return hash;
+    return sent.transactionHash;
   } };
   const ensureSession = async () => {
     if (!state.owner || state.chainId !== 4663) throw Error('Connect the current administrator on Robinhood Chain.');
@@ -81,6 +103,7 @@ function browserFixture({ administrator, other, hash }, createPanel) {
       await control('reset'); localStorage.clear(); state = { ...defaults(), owner }; save();
       document.querySelector('details').open = true; mount();
     },
+    dormant: () => control('dormant'),
     mode(value) { state.mode = value; if (value === 'hold-sign-in') state.sessionOwner = null; save(); },
     select(owner, chainId = 4663) { state.owner = owner; state.chainId = chainId; save(); panel.update(); },
     waiting: () => waiters.length,
@@ -115,7 +138,9 @@ const server = createServer(async (request, response) => {
     if (request.url === '/fixture/control' && request.method === 'POST') {
       const input = JSON.parse(body);
       if (input.action === 'reset') {
-        fixture = skillAdminFixture(); coordinator = createSkillAdminCoordinator(fixture); backendSends = 0; backendRequests = [];
+        fixture = skillAdminFixture(); coordinator = createSkillAdminCoordinator(fixture); backendSends = 0; backendRequests = []; dormant = false;
+      } else if (input.action === 'dormant') {
+        assert.equal(fixture.row, null); dormant = true; nextDormantStep(null);
       } else if (input.action === 'send') {
         assert.equal(fixture.row?.status, 'WALLET_REQUESTED');
         const cancellation = input.transaction.data === '0x';
@@ -124,15 +149,23 @@ const server = createServer(async (request, response) => {
         assert.deepEqual(input.transaction, expected, 'Mock wallet must receive exact claimed transaction');
         backendSends++;
         Object.assign(fixture.observed, { to: input.transaction.to, input: input.transaction.data,
+          nonce: Number(BigInt(input.transaction.nonce)),
           gas: BigInt(input.transaction.gas), gasPrice: BigInt(input.transaction.gasPrice) });
         fixture.receipt.to = input.transaction.to;
         fixture.receipt.status = input.outcome === 'reverted' ? 'reverted' : 'success';
         fixture.skill.registeredStatus = cancellation ? null : 0;
+        if (dormant && !cancellation) {
+          fixture.observed.hash = `0x${String(backendSends).padStart(64, '0')}`;
+          fixture.receipt.transactionHash = fixture.observed.hash;
+          nextDormantStep({ REGISTER: 0, MARK_TESTING: 3, MARK_READY: 4 }[fixture.row.action]);
+          fixture.preparation.transaction.nonce = `0x${(BigInt(input.transaction.nonce) + 1n).toString(16)}`;
+        }
         for (const client of fixture.clients) client.getBlockNumber = async () => input.outcome === 'pending' ? 109n : 111n;
       } else if (input.action === 'confirm') {
         for (const client of fixture.clients) client.getBlockNumber = async () => 111n;
       } else if (input.action !== 'state') throw Error('LOCAL_CONTROL_INVALID');
-      send({ row: fixture.row, cancellations: fixture.cancellations, backendSends, backendRequests }); return;
+      send({ row: fixture.row, cancellations: fixture.cancellations, backendSends, backendRequests,
+        transactionHash: fixture.observed.hash, disabledCapabilities: fixture.state.disabledCapabilities }); return;
     }
     if (request.url?.startsWith('/api/v2/admin/forge/skills') && ['GET', 'POST'].includes(request.method)) {
       backendRequests.push(body ? JSON.parse(body).operation : 'get');
@@ -253,6 +286,25 @@ try {
   await reload(); assert.equal(await evaluate('__admin.state().sends'), 1);
   await check(); assert.equal(await evaluate('__admin.state().sends'), 1);
   scenario('explicit mock sign-in, exact claimed registration and confirmed receipt; reload does not resend');
+
+  await reset(); await evaluate('__admin.dormant()');
+  for (const action of ['REGISTER', 'MARK_TESTING', 'MARK_READY']) {
+    await review(); assert.equal(fixture.row.action, action);
+    assert.match(await evaluate('__admin.text()'), /capability is currently paused/);
+    assert.equal(fixture.row.preparation.disabledCapabilities, pausedMask);
+    await screenshot(`capability-paused-${action.toLowerCase()}`, 375);
+    await click('CONFIRM REGISTRY STEP IN WALLET'); await until("__admin.text().includes('Registry step confirmed')");
+    assert.equal(fixture.row.status, 'CONFIRMED'); assert.equal(fixture.state.disabledCapabilities, pausedMask);
+  }
+  assert.match(await evaluate('__admin.text()'), /Registry READY; read capability still paused/);
+  assert.match(await evaluate('__admin.text()'), /Holder use is unavailable/);
+  assert.equal(await evaluate("__admin.controls().some(b=>b.text==='REVIEW NEXT REGISTRY STEP')"), false);
+  assert.equal(backendSends, 3); assert.equal(await evaluate('__admin.state().sends'), 3);
+  for (const width of [1440, 375, 320]) await screenshot('ready-capability-paused', width);
+  await reload(); await check();
+  assert.equal(await evaluate('__admin.state().sends'), 3);
+  assert.equal(await evaluate("__admin.controls().some(b=>b.text==='REVIEW NEXT REGISTRY STEP')"), false);
+  scenario('three reviewed read-only registry steps preserve capability pause; READY has no activation or holder-availability claim');
 
   await reset(); await review(); await evaluate("__admin.mode('wallet-reject')");
   await click('CONFIRM REGISTRY STEP IN WALLET'); await until("__admin.text().includes('Wallet confirmation was rejected')");

@@ -55,6 +55,20 @@ test('browser independently rejects recipient, data, value and fee changes',()=>
     const changed=structuredClone(record);Object.assign(changed.preparation.transaction,patch);assert.throws(()=>validateSkillAdminWalletReview(changed,f.state,ADMIN));
   }
 });
+test('browser binds capability-paused staging to the current reviewed mask and cannot encode activation',()=>{
+  const f=skillAdminFixture();f.state.disabledCapabilities='128';f.skill.capabilityPaused=true;
+  const record={id:'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',administrator:ADMIN,registry:f.state.registry,key:KEY,action:'REGISTER',status:'PREPARED',
+    preparation:{...f.preparation,capabilityPaused:true,disabledCapabilities:'128'}};
+  assert.deepEqual(validateSkillAdminWalletReview(record,f.state,ADMIN),f.preparation.transaction);
+  for(const patch of[{disabledCapabilities:'0'},{disabledCapabilities:'130'},{disabledCapabilities:'01'},
+    {disabledCapabilities:String(1n<<256n)},{capabilityPaused:false},{capabilityPaused:'true'}]){
+    const changed=structuredClone(record);Object.assign(changed.preparation,patch);
+    assert.throws(()=>validateSkillAdminWalletReview(changed,f.state,ADMIN),/Capability controls changed/);
+  }
+  const activation=structuredClone(record);activation.action='ENABLE_CAPABILITY';activation.preparation.action='ENABLE_CAPABILITY';
+  activation.preparation.transaction.data='0xdeadbeef';
+  assert.throws(()=>validateSkillAdminWalletReview(activation,f.state,ADMIN),/does not match/);
+});
 test('non-administrator read cannot reveal another saved wallet review',async t=>{const f=setup(t);await review(f);f.select(`0x${'2'.repeat(40)}`);await f.panel.refresh();
   assert.equal(f.text().includes('Social Scout'),false);assert.equal(f.sends(),0);});
 
