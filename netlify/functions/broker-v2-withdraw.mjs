@@ -14,7 +14,11 @@ export default async function handler(request) {
     const authority = await readV2PunkAuthority(tokenId, { expectedOwner: session.walletAddress });
     return json({ ok: true, tokenId, punkWallet: authority.punkWallet,
       currentOwner: authority.owner, requiresAI: false, requiresDiscovery: false,
-      requiresExecutor: false, supported: ["NATIVE", "ERC721", "ERC1155", "CANONICAL_WETH"],
+      requiresExecutor: false, supported: ["NATIVE", "ERC721", "ERC1155", "CANONICAL_WETH", "ERC20"],
+      tokenWithdrawal: { url: `/api/v2/punks/${tokenId}/erc20-withdraw`,
+        wallets: ["V3", "AGENT"], destination: "CURRENT_OWNER", requiresExactTransferSimulation: true,
+        unsupportedSemantics: ["FEE_ON_TRANSFER", "REBASING", "FALSE_RETURN", "NO_RETURN"],
+        transactionPrepared: false },
       controlCenterUrl: `/broker/punk/${tokenId}?tab=assets`,
       agentRecovery: { controlCenterUrl: `/broker/v2/?tab=fund&tokenId=${tokenId}#agent-recovery`,
         supported: ["NATIVE", "ENTRY_POINT", "ERC721", "ERC1155"],
