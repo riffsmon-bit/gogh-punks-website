@@ -1,8 +1,11 @@
 # Public holder release — 22 September 2026
 
-Status: IMPLEMENTING. No new public transaction feature is declared live by this
-record until production acceptance is appended. Netlify remains the host; Vercel
-migration is paused.
+Status: LIMITED RELEASE DEPLOYED AND BROWSER-VERIFIED. Production is
+<https://goghpunks.xyz/> at commit `6d03fa800e708fe1edb573e6295f86a5b645343a`,
+Netlify deploy `6ab2a6ada57dfe000840503e`, published 2026-09-22 16:05:02 UTC.
+Netlify remains the host; Vercel migration is paused. This is not completion of
+all requested public V2 functionality or a live wallet transaction acceptance.
+See [current holder rundown](public-holder-rundown-20260922.md).
 
 Owner request: public paid-mint missions, burn for Training Credit, general ERC20
 withdrawal, and V2 as the main Gogh Punks page.
@@ -16,10 +19,10 @@ UNDEPLOYED optional paid Training Credit implementation. Payments remain off.
 
 | Workstream | Agent | Branch / owned subsystem | Status |
 |---|---|---|---|
-| Homepage, guide, integration, deployment | Release lead | release/netlify-public-holders; Netlify routing, main UI seams, docs | IMPLEMENTING |
-| Public owner-confirmed paid mint | public_paid_missions | feat/public-directed-paid; dedicated public mint API/coordinator/journal/panel/tests | IMPLEMENTING |
-| General sacrifice eligibility / protection | public_holder_forge | feat/public-holder-forge; holder inspection, staged burn journal, inventory/obligation protections | IMPLEMENTING; actual general burn BLOCKED |
-| ERC20 owner withdrawals | public_erc20_withdraw | feat/public-erc20-withdraw; token inspection/review/wallet/panel/tests | IMPLEMENTING |
+| Homepage, guide, integration, deployment | Release lead | release/netlify-public-holders; Netlify routing, main UI seams, docs | DEPLOYED; production browser PASS |
+| Public owner-confirmed paid mint | public_paid_missions | feat/public-directed-paid; dedicated public mint API/coordinator/journal/panel/tests | DEPLOYED; live wallet acceptance outstanding |
+| General sacrifice eligibility / protection | public_holder_forge | feat/public-holder-forge; holder inspection, staged burn journal, inventory/obligation protections | Inspection DEPLOYED; actual general burn BLOCKED |
+| ERC20 owner withdrawals | public_erc20_withdraw | feat/public-erc20-withdraw; token inspection/review/wallet/panel/tests | DEPLOYED; live wallet acceptance outstanding |
 
 Specialists work in separate git worktrees. The lead owns shared main HTML,
 application mounting, Netlify configuration and release integration. No edits to
@@ -74,8 +77,8 @@ one coherent preview and production batch; no cloud deploy is used to debug.
 - Homepage local HTTP test: passed; both aliases serve the V2 document and retain
   bookmarked recovery/guide routes. Loopback wallet referer check accepts the new
   root path while retaining origin restrictions.
-- Other implementation, independent review, integrated suite, preview and
-  production results: pending; append exact evidence before release.
+- Implementation, independent review, integrated-suite limits and cloud
+  acceptance are recorded below.
 
 ## Owner revision: remove AI inference
 
@@ -114,8 +117,8 @@ No additional agents were started after this cost instruction.
   blocked and was not included in that approval.
 - Full local suite initially: 3,494 passed, 5 failed, 2 skipped (3 old UI label
   expectations; two time-sensitive local tests under concurrent compile load).
-  UI expectations were corrected; exact final targeted recheck and contract
-  results will be appended. No full-suite clean pass is claimed yet.
+  UI expectations were corrected. Final targeted results appear below. No
+  single clean run of the entire updated suite is claimed.
 
 ### Release gate limits
 
@@ -127,8 +130,34 @@ unchanged by the public-holder additions: the earlier paid-training candidate ha
 and burn-boundary contract tests. These are separate executed proofs, not a new
 combined full-suite result.
 
-The two outstanding full-JavaScript failures are local copied-chain review expiry
-and a read-only CLI subprocess deadline under resource pressure. Neither is a
-new transaction authorization bypass. Source UI expectation fixes and public
-release behavior are checked separately. Cloud deployment acceptance must remain
-explicit about these local limits.
+The two time-sensitive JavaScript failures were local copied-chain review expiry
+and a read-only CLI subprocess deadline under resource pressure. The final serial
+recheck of both affected files passed all 58 tests. Together with the UI recheck,
+every initially failing case was rerun successfully. This does not replace the
+uncompleted full contract rebuild.
+
+## Final deployment acceptance
+
+- PR [73](https://github.com/riffsmon-bit/gogh-punks-website/pull/73) merged through
+  the normal reviewed pipeline. The production source tree matches the reviewed
+  release head `c09d11c00888f3bd0274ec3f10906aee8810a28d`.
+- One controlled preview (`6ab2a515cfbf370008a2107d`) and one production deployment.
+  Netlify production reports ready with no deployment error. No extra deployment
+  is triggered for this final evidence update.
+- Preview: 15 captures at 1440, 375 and 320 px, no application exceptions or
+  overflow. Only Netlify's injected preview toolbar differed from source and was
+  blocked by the existing CSP. The CSP was not weakened.
+- Production: 15 captures at the same sizes; zero exceptions, console/log errors,
+  failed or blocked requests, and no horizontal overflow. All 12 checked HTML,
+  JavaScript and CSS files exactly match production commit bytes. Root V2,
+  `/broker/v2/` and `/guide/` return HTTP 200.
+- `/api/v2/providers` returns an empty provider list. Public mint, general-burn
+  inspection and correctly shaped ERC20 inspection each return 401 without a
+  signed wallet session. ERC20 requests without the same-origin header return
+  403. These checks establish deployed routing and authorization rejection, not
+  authenticated transaction success.
+- Production evidence: `/private/tmp/gogh-preview-browser-evidence-ozP5IA/result.json`.
+  Final serial regression evidence: `/private/tmp/gogh-public-serial-recheck.log`.
+  Config/schema evidence: `/private/tmp/gogh-public-production-config-result.json`.
+- No real NFT burn, mint, withdrawal, refund, bid, purchase or contract deployment
+  was submitted. No AI inference was needed for these release checks.
