@@ -1,12 +1,13 @@
 import { getDatabase } from '@netlify/database';
 import { forgeSkillAdminRuntime } from './_shared/forge-skill-admin-runtime.mjs';
-import { json,readJson,PublicError,requireSameOrigin } from './_shared/http.mjs';
+import { json,readJson,PublicError } from './_shared/http.mjs';
 import { requireV2Session } from './_shared/v2-session.mjs';
+import { requireV2OwnerOrigin } from './_shared/v2-review.mjs';
 const FIELDS = {prepare:['operation','key','requestKey'],claim:['operation','id','revision','reviewHash'],
   prepare_cancel:['operation','id','requestKey'],claim_cancel:['operation','id','cancellationId','revision','reviewHash'],
   cancel:['operation','id','revision'],recover:['operation','id','transactionHash']};
 export async function handleForgeSkillAdmin(request,{runtimeFactory=forgeSkillAdminRuntime,sessionPool=()=>getDatabase().pool,
-  sessionReader=requireV2Session,originCheck=requireSameOrigin}={}) {
+  sessionReader=requireV2Session,originCheck=requireV2OwnerOrigin}={}) {
   if (!['GET','POST'].includes(request.method)) return json({ok:false,code:'METHOD_NOT_ALLOWED'},405);
   try {
     if (request.method==='POST') originCheck(request);

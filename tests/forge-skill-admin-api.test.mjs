@@ -27,3 +27,53 @@ test('cancellation endpoints remain session-bound and return only an explicitly 
   assert.equal(body.cancellation.status,'WALLET_REQUESTED');assert.equal(body.record.status,'WALLET_REQUESTED');
   f.setOwner(`0x${'2'.repeat(40)}`);assert.equal((await f.call({operation:'prepare_cancel',id:record.id,requestKey:randomUUID()})).status,403);
 });
+
+test('default admin origin guard permits production and exact trusted preview origins',async t=>{
+  const previous=process.env.SITE_URL;process.env.SITE_URL='https://goghpunks.xyz';
+  t.after(()=>{if(previous===undefined)delete process.env.SITE_URL;else process.env.SITE_URL=previous;});
+  for(const origin of ['https://goghpunks.xyz','https://app.goghpunks.xyz',
+    'https://deploy-preview-71--gogh-punks.netlify.app','https://deploy-preview-71.preview.goghpunks.xyz']){
+    const f=setup();delete f.options.originCheck;
+    const response=await handleForgeSkillAdmin(new Request(`${origin}/api/v2/admin/forge/skills`,{
+      method:'POST',headers:{origin},body:JSON.stringify({operation:'prepare',key:KEY,requestKey:randomUUID()})}),f.options);
+    assert.equal(response.status,200,origin);assert.equal((await response.json()).record.status,'PREPARED');
+    assert.equal(f.f.row.administrator,ADMIN);
+  }
+});
+
+test('default admin origin guard rejects cross-preview, arbitrary, missing and non-HTTPS origins before session or runtime',async t=>{
+  const previous=process.env.SITE_URL;process.env.SITE_URL='https://goghpunks.xyz';
+  t.after(()=>{if(previous===undefined)delete process.env.SITE_URL;else process.env.SITE_URL=previous;});
+  const preview='https://deploy-preview-71--gogh-punks.netlify.app';
+  for(const [host,origin] of [[preview,'https://deploy-preview-72--gogh-punks.netlify.app'],
+    [preview,'https://goghpunks.xyz'],[preview,'https://attacker.invalid'],[preview,null],
+    ['https://candidate--gogh-punks.netlify.app','https://candidate--gogh-punks.netlify.app'],
+    ['https://deploy-preview-71--attacker.netlify.app','https://deploy-preview-71--attacker.netlify.app'],
+    ['http://deploy-preview-71--gogh-punks.netlify.app','http://deploy-preview-71--gogh-punks.netlify.app'],
+    ['https://deploy-preview-71--gogh-punks.netlify.app:8443','https://deploy-preview-71--gogh-punks.netlify.app:8443'],
+    ['https://goghpunks.xyz',preview],['https://goghpunks.xyz','https://attacker.invalid']]){
+    const f=setup();delete f.options.originCheck;let sessions=0,runtimes=0;
+    f.options.sessionReader=async()=>{sessions++;return{walletAddress:ADMIN};};
+    f.options.runtimeFactory=async()=>{runtimes++;throw Error('UNEXPECTED_RUNTIME');};
+    const response=await handleForgeSkillAdmin(new Request(`${host}/api/v2/admin/forge/skills`,{
+      method:'POST',headers:origin?{origin}:{},body:JSON.stringify({operation:'prepare',key:KEY,requestKey:randomUUID()})}),f.options);
+    assert.ok([403,404].includes(response.status),`${host} ${origin}`);
+    assert.ok(['ORIGIN_REJECTED','V2_REVIEW_ONLY'].includes((await response.json()).code));
+    assert.equal(sessions,0);assert.equal(runtimes,0);assert.equal(f.f.row,null);
+  }
+});
+
+test('trusted preview origin never substitutes for signed-in current administrator authority',async()=>{
+  const origin='https://deploy-preview-71--gogh-punks.netlify.app';
+  const request=()=>new Request(`${origin}/api/v2/admin/forge/skills`,{method:'POST',headers:{origin},
+    body:JSON.stringify({operation:'prepare',key:KEY,requestKey:randomUUID()})});
+  const signedOut=setup();delete signedOut.options.originCheck;let runtimes=0;
+  signedOut.options.sessionReader=async()=>{throw new PublicError(401,'V2_SESSION_REQUIRED','Sign in.');};
+  signedOut.options.runtimeFactory=async()=>{runtimes++;throw Error('UNEXPECTED_RUNTIME');};
+  assert.equal((await handleForgeSkillAdmin(request(),signedOut.options)).status,401);
+  assert.equal(runtimes,0);assert.equal(signedOut.f.row,null);
+  const wrongOwner=setup();delete wrongOwner.options.originCheck;wrongOwner.setOwner(`0x${'2'.repeat(40)}`);
+  const denied=await handleForgeSkillAdmin(request(),wrongOwner.options);
+  assert.equal(denied.status,403);assert.equal((await denied.json()).code,'SKILL_ADMIN_NOT_ADMINISTRATOR');
+  assert.equal(wrongOwner.f.row,null);
+});
