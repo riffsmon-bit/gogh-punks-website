@@ -6,7 +6,7 @@ import { skillKey } from '../broker/src/v4/skill-forge/capability-resolver.mjs';
 import { PublicError } from '../netlify/functions/_shared/http.mjs';
 
 const OWNER=`0x${'1'.repeat(40)}`,COLLECTION=`0x${'2'.repeat(40)}`,HASH=`0x${'a'.repeat(64)}`;
-const catalog=await loadResearchSkillCatalog();
+const catalog=[...await loadResearchSkillCatalog(),...await loadResearchSkillCatalog({selection:[{slug:'social-scout',version:1}]})];
 const request=(body,method='POST')=>new Request('https://goghpunks.xyz/api/v2/punks/93/forge/skill',{
   method,...(method==='POST'?{headers:{'content-type':'application/json',origin:'https://goghpunks.xyz'},body:JSON.stringify(body)}:{})});
 function fixture(id=3){
@@ -20,7 +20,7 @@ function fixture(id=3){
     progressionFactory:options=>{assert.equal(options.client,client);return 'CANONICAL_READER';},
     researchFactory:options=>{calls.push(['factory',options]);return {call:async input=>{calls.push(['tool',input]);return {evidenceHash:HASH};}};},
     continuity:async input=>{calls.push(['continuity',input]);}};
-  const body={action:id===3?'inspect_contract':id===4?'rank_trait_sample':'get_market_listings',skillKey:key,
+  const body={action:id===3?'inspect_contract':id===4?'rank_trait_sample':id===7?'research_project':'get_market_listings',skillKey:key,
     ...(id===4?{sampleTokenIds:['93','44','119']}:{})};
   return {deps,calls,state,release,body,key,run:()=>handleForgeSkill(request(body),deps)};
 }
@@ -77,6 +77,15 @@ test('Rarity Eye restricts a three-Punk sample and never accepts arbitrary metad
 test('market research fixes collection scope and listing count',async()=>{
   const f=fixture(8);assert.equal((await f.run()).status,200);
   assert.deepEqual(f.calls.find(call=>call[0]==='tool')[1].arguments,{contract:COLLECTION,slug:'gogh-punks-255843210',limit:5});
+});
+test('Social Scout uses its exact released key, fixed collection identity, and no caller URLs',async()=>{
+  const f=fixture(7);assert.equal((await f.run()).status,200);
+  assert.deepEqual(f.calls.find(call=>call[0]==='tool')[1],{tokenId:'93',owner:OWNER,name:'research_project',arguments:{contract:COLLECTION,slug:'gogh-punks-255843210'}});
+  for(const extra of [{slug:'other'},{url:'https://example.com'},{sampleTokenIds:['93','44','119']}]){
+    const invalid=fixture(7);Object.assign(invalid.body,extra);assert.equal((await invalid.run()).status,400);
+    assert.ok(!invalid.calls.some(call=>call[0]==='tool'));
+  }
+  const wrong=fixture(3);wrong.body.action='research_project';assert.equal((await wrong.run()).status,403);
 });
 test('a changed loadout, owner continuity failure or tool error withholds the entire result',async()=>{
   for(const failure of ['nonce','stateHash','continuity','tool']){

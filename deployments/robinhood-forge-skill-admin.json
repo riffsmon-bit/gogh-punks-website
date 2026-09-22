@@ -1,0 +1,62 @@
+{
+  "schema": "GOGH_READ_ONLY_SKILL_ADMIN_RELEASE_V1",
+  "status": "REVIEWED_ADMIN_RELEASE",
+  "chainId": 4663,
+  "registry": "0xc2a1bd47fbc0fe33e53c85f130be53591c898e83",
+  "registryCodeHash": "0x6a061b9d291e4402e32f93e7815cb2fe2242e725fe4052740f2be0a78049d3c3",
+  "independentReview": {
+    "path": "docs/v2-release-campaign/read-services-review.md",
+    "sha256": "0x0e69fae60cd13b01240e456ea020a6e88b9cd9ac68868c1cc4180cc7092b5f9f"
+  },
+  "skills": [
+    {
+      "slug": "contract-detective",
+      "version": 1,
+      "manifestHash": "0x80695d48a12865c2c633b4977cd8f24dd598dd8808eae5ebf733052f8091ba24",
+      "instructionHash": "0x1e283e611d6f72e8fa34d1412a5cbef8dd4d936f0138a5f18fdf519bafc93252",
+      "evidenceHash": "0x0e69fae60cd13b01240e456ea020a6e88b9cd9ac68868c1cc4180cc7092b5f9f"
+    },
+    {
+      "slug": "rarity-eye",
+      "version": 1,
+      "manifestHash": "0x9f17224444ef8938c9d998754a6be4c9dce2029c5e6e6a5f918effdc276c0d26",
+      "instructionHash": "0x7f7baae864b35a8230361de2ac3a6abda099669a6659e3d76e5bdf105bf859f0",
+      "evidenceHash": "0x0e69fae60cd13b01240e456ea020a6e88b9cd9ac68868c1cc4180cc7092b5f9f"
+    },
+    {
+      "slug": "market-scout",
+      "version": 2,
+      "manifestHash": "0x16453f218e08bc65d1ff0323759f4885616a4547a4fc39d36b25271161151d32",
+      "instructionHash": "0x33e760db794e833ac2ef0b6804bc326954d100b49cf812f2108dd578c4358b0b",
+      "evidenceHash": "0x0e69fae60cd13b01240e456ea020a6e88b9cd9ac68868c1cc4180cc7092b5f9f"
+    },
+    {
+      "slug": "floor-hunter",
+      "version": 1,
+      "manifestHash": "0xf5f61885bbf3ba023970de11ab86756144a3350858ef93e42500e156a506c3c9",
+      "instructionHash": "0x86e45147308a07fa367bac81239a214b09d627abd8c45c1498b52c100f1d384b",
+      "evidenceHash": "0x0e69fae60cd13b01240e456ea020a6e88b9cd9ac68868c1cc4180cc7092b5f9f"
+    },
+    {
+      "slug": "collection-researcher",
+      "version": 1,
+      "manifestHash": "0x45448ac9ea41e308cf8206c555b844adac7c5c9602f35743f51a851e6561d89d",
+      "instructionHash": "0xd0b6ce87162a8efcdf003b1431c107badfcbf99ece2316c35dad7fffa9e67f23",
+      "evidenceHash": "0x0e69fae60cd13b01240e456ea020a6e88b9cd9ac68868c1cc4180cc7092b5f9f"
+    },
+    {
+      "slug": "art-curator",
+      "version": 1,
+      "manifestHash": "0xd28c0c762745ba86efd41fb9387a48ddbc8874e1f1c53acaa5eb54ec18dab808",
+      "instructionHash": "0x0775e25b3d7371df3e5e5f1fe4239960e50f55b6db939d6401730ca94ef55ed8",
+      "evidenceHash": "0x0e69fae60cd13b01240e456ea020a6e88b9cd9ac68868c1cc4180cc7092b5f9f"
+    },
+    {
+      "slug": "social-scout",
+      "version": 1,
+      "manifestHash": "0xebba5f2aca5f762aec3179ed44776c2e8038fe6451ae92b32658654a1eafe7d2",
+      "instructionHash": "0x796985fd3e3075380104af2f93fc6dbad295bd81c60909004d238f981b52feed",
+      "evidenceHash": "0x0e69fae60cd13b01240e456ea020a6e88b9cd9ac68868c1cc4180cc7092b5f9f"
+    }
+  ]
+}

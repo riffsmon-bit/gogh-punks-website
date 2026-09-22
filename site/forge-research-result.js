@@ -59,6 +59,33 @@ export function renderPlannedResearchResult({ document: doc, action, result }) {
       paragraph(`${style.style.replaceAll('_', ' ')} · ${style.tokenCount} sampled Punk${style.tokenCount === 1 ? '' : 's'}`);
     }
     paragraph('Art Curator reads style labels declared in metadata. It has not analyzed the artwork images. Missing labels are unknown, not a judgment about the art.');
+  } else if (action === 'research_project') {
+    requireResult(result.schema === 'GOGH_PUBLIC_PROJECT_RESEARCH_V1'
+      && result.socialActivity === 'UNKNOWN' && result.authenticity === 'UNVERIFIED'
+      && ['OBSERVED', 'UNAVAILABLE'].includes(result.status));
+    if (result.status === 'UNAVAILABLE') {
+      requireResult(result.project === null);
+      paragraph('Project information could not be checked. Try again shortly.');
+    } else {
+      const project = result.project;
+      requireResult(project && (project.name === null || typeof project.name === 'string' && project.name.length <= 160)
+        && (project.description === null || typeof project.description === 'string' && project.description.length <= 2000)
+        && Array.isArray(project.references) && project.references.length <= 8);
+      root.append(el('h4', project.name || 'Collection project links'));
+      if (project.description) paragraph(project.description);
+      const list = doc.createElement('ul');
+      for (const reference of project.references) {
+        requireResult(['WEBSITE', 'X', 'DISCORD'].includes(reference.kind)
+          && (reference.url === null || typeof reference.url === 'string' && reference.url.length <= 2048)
+          && reference.destinationFetched === false && reference.ownershipVerified === false);
+        // Even a reviewed source can carry hostile publisher content. Display
+        // the declaration as text; visiting it is never required by this tool.
+        if (reference.url) list.append(el('li', `${reference.kind === 'WEBSITE' ? 'Website' : reference.kind === 'DISCORD' ? 'Discord' : 'X'} · ${reference.url}`));
+      }
+      if (list.childNodes.length) root.append(list);
+      else paragraph('No usable project links were returned. Missing or unsupported links remain unknown.');
+    }
+    paragraph('These links come from the collection’s marketplace profile. Social Scout has not visited them, verified their owners or read social posts.');
   } else throw Error('Choose an available research action.');
   return root;
 }

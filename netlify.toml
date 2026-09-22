@@ -35,6 +35,14 @@
 [functions."broker-v2-mcp"]
   included_files = ["broker/skills/**", "broker/src/v4/skill-forge/*.mjs", "broker/src/v4/discovery/*.mjs", "broker/src/v4/*.mjs", "broker/src/config.mjs", "deployments/robinhood-forge-training.json", "deployments/certificates/supabase-prod-ca-2021.crt"]
 
+# Watch activation and the shared worker resolve the same hash-pinned packages.
+# Raw files are needed at runtime even when their modules are bundled.
+[functions."broker-v2-persistent-watch"]
+  included_files = ["broker/skills/**", "broker/src/v4/skill-forge/*.mjs", "broker/src/v4/discovery/*.mjs", "broker/src/v4/*.mjs", "broker/src/config.mjs", "deployments/robinhood-forge-training.json", "deployments/certificates/supabase-prod-ca-2021.crt"]
+
+[functions."broker-v2-discovery-worker"]
+  included_files = ["broker/skills/**", "broker/src/v4/skill-forge/*.mjs", "broker/src/v4/discovery/*.mjs", "broker/src/v4/*.mjs", "broker/src/config.mjs", "deployments/robinhood-forge-training.json", "deployments/certificates/supabase-prod-ca-2021.crt"]
+
 [functions."broker-v2-forge-training"]
   included_files = ["deployments/robinhood-forge-training.json", "deployments/certificates/supabase-prod-ca-2021.crt", "artifacts/skill-forge/rarity/gogh-opensea-rarity-*.json"]
 
@@ -58,6 +66,12 @@
 
 [functions."broker-forge-training-reconcile"]
   included_files = ["deployments/robinhood-forge-training.json", "deployments/certificates/supabase-prod-ca-2021.crt"]
+
+[functions."broker-v2-release-check"]
+  included_files = ["deployments/robinhood-forge-training.json", "deployments/certificates/supabase-prod-ca-2021.crt"]
+
+[functions."broker-v2-forge-skill-admin"]
+  included_files = ["broker/skills/**", "broker/src/v4/skill-forge/*.mjs", "broker/src/v4/collecting-intent.mjs", "deployments/robinhood-forge-skill-admin.json", "deployments/certificates/supabase-prod-ca-2021.crt"]
 
 [functions."broker-autonomy-v3-status"]
   included_files = ["deployments/robinhood-automation-v3.json", "deployments/robinhood.json", "broker/src/**/*.mjs", "netlify/functions/_shared/*.mjs"]

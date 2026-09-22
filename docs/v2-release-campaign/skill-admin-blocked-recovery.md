@@ -1,0 +1,9 @@
+# Administrator recovery after skill governance changes
+
+The release reader now reports disabled, deprecated, BLOCKED and REJECTED versions as `REVIEW_BLOCKED`, with no next transaction calldata. It still verifies the current administrator, registry runtime, canonical block and every immutable reviewed definition. A governance change to one package therefore cannot hide a saved review for another package. New preparation and claims for the blocked package remain rejected.
+
+For an exact successful `MARK_READY` receipt, settlement continues to require the same immutable package definition, current READY status and exact review evidence hash. Current availability may be false because the administrator later paused, disabled or deprecated the skill. This mutable availability no longer prevents recording the earlier confirmed action. Confirmation does not restore availability or authorize a new wallet request. A changed status or evidence hash still fails closed.
+
+The existing same-administrator, same-chain, same-nonce replacement checks, twelve confirmations, two-provider receipt agreement, canonical block rechecks and original-hash preservation are unchanged. Explicit zero-value nonce cancellation remains separately reviewed and claimed. No SQL, deployment authorization, browser wiring or package manifest is changed.
+
+Validation uses the actual release reader and coordinator together with synthetic registry/receipt transport and the existing in-memory journal fixture. Regression cases cover unrelated blocked versions, READY recovery after disable/deprecation/global or capability pause, denied new preparation and claims, cancellation/replacement recovery, insufficient confirmations and changed administrator, runtime, immutable definition, review evidence, saved envelope, nonce, provider receipt or canonical receipt block. These tests establish local behavior, not a production wallet transaction.

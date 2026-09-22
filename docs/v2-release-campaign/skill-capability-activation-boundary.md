@@ -1,0 +1,27 @@
+# Read-only skill staging and capability activation boundary
+
+Reviewed read-only packages can now progress through REGISTER, TESTING and READY while their read capability is paused. Global pause, package disable/deprecation/BLOCKED/REJECTED, mismatched immutable definitions, unreviewed packages and economic capabilities remain blocked. These transactions call only the existing `register` and `setStatus` methods; they do not write either emergency-control field.
+
+Inspection and each new immutable preparation record include the exact observed capability mask and whether the selected capability is paused. Preparation rechecks the mask, claim rejects a changed mask, and the browser independently binds those fields and reconstructs only approved registration/status calldata. Existing saved reviews retain their recovery compatibility. No SQL migration or new journal action is introduced.
+
+When a version reaches READY under a capability pause, the server reports `READY_CAPABILITY_PAUSED` with `available: false` and no next calldata. The administrator UI explicitly says holder use is unavailable and a separately reviewed activation path is required. Requests to prepare activation fail with `SKILL_RELEASE_CAPABILITY_ACTIVATION_UNAVAILABLE`. A global pause still prevents all new registration/status preparation. No global-unpause or capability-enabling transaction is exposed.
+
+## Why direct activation is withheld
+
+`GoghSkillRegistry.setEmergencyControls(bool,uint256)` unconditionally replaces both `globallyDisabled` and the entire `disabledCapabilities` mask. Its immutable implementation accepts no expected prior mask, registry-state hash, definition count or expiry. Therefore a transaction prepared as `setEmergencyControls(false, oldMask & ~reviewedBits)` cannot reject an intervening pause, additional disabled bit or newly registered version that shares an enabled capability. It can overwrite that later emergency state when eventually executed. A server claim check or database review hash does not add an on-chain precondition.
+
+For example, a reviewed mask `128` would become `0` after enabling SOCIAL_READ. If an authorized administrator operation changes the live mask to `130` or globally pauses the registry before that pending transaction executes, its fixed arguments still write `false,0`, clearing the later FREE_MINT restriction or global pause. This is a contract-level boundary, not a claim that an unauthorized party can call the setter.
+
+An EOA nonce alone does not establish exclusive administrator serialization for the recorded delegated wallet. The pinned MetaMask implementation supports EntryPoint execution and DelegationManager execution, with EntryPoint nonce methods separate from the EOA transaction nonce. An authorized account operation can therefore precede a pending EOA transaction without consuming its reserved nonce. This follows from the pinned [execute, executor and nonce methods](https://github.com/MetaMask/delegation-framework/blob/bfbdf9795a976833ed2fa000baf42fbb83958b03/src/EIP7702/EIP7702DeleGatorCore.sol); this task neither audits existing off-chain delegations nor changes account authority.
+
+## Concrete alternative requiring separate review
+
+A separately reviewed on-chain assertion contract could validate the registry's pinned runtime, `globallyDisabled == false`, exact expected old mask and complete affected registry state. The same administrator account would then execute an **atomic reverting batch**: first that assertion, then the exact emergency-control setter. The assertion must bind all affected reviewed READY definitions and evidence, including other versions sharing enabled bits and any availability effects through prerequisites. A changed registry count or affected definition/state must make the batch revert. The new mask must equal `oldMask & ~enableMask`, with nonzero `enableMask` restricted to `1 | 4 | 8 | 64 | 128` and every unrelated bit preserved.
+
+This requires an actually deployed, independently reviewed assertion contract plus fresh verification of the installed administrator delegation, its implementation/runtime and exact reverting batch semantics. The UI and journal would have to bind and reconstruct that complete fixed batch. A general-purpose arbitrary-call wrapper, a non-reverting batch, an assumed wallet capability or an off-chain warning does not satisfy the condition. No guard, delegation installation, batch support or activation is implemented or authorized by this change.
+
+## Validation
+
+The focused release, coordinator, cancellation, API and administrator UI suites passed **111 tests**, including actual-helper/coordinator cases for dormant staging, changed-mask refusal, global pause and continued receipt recovery. The Chrome harness passed **12 scenarios with 25 screenshots** at 1440/375/320 pixels; its three mock registry steps preserve the mask and finish at a paused READY view with no activation action. See [browser acceptance](skill-admin-browser-acceptance.md) for exact source hashes and local evidence paths.
+
+Both existing administrator migration files and the SQL store are unchanged. The separately reported native PostgreSQL proof remains evidence for that existing journal schema; this extension adds no database privilege and does not claim a new live database or blockchain acceptance. No production database, environment, registry flag or chain transaction changed during this work.

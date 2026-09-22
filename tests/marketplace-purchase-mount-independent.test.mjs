@@ -9,6 +9,7 @@ const ROOT = process.env.GOGH_PURCHASE_PANEL_REVIEW_ROOT
   ? resolve(process.env.GOGH_PURCHASE_PANEL_REVIEW_ROOT) : fileURLToPath(new URL('../', import.meta.url));
 const load = path => import(pathToFileURL(join(ROOT, path)).href);
 const { createMarketplacePurchasePanel } = await load('site/marketplace-purchase-panel.js');
+const { createForgeSkillAdminPanel } = await load('site/forge-skill-admin-panel.js');
 const { marketplacePanelFixture, PANEL_OWNER, PANEL_OTHER } = await load('tests/fixtures/marketplace-panel.mjs');
 const source = await readFile(join(ROOT, 'site/broker-v2.js'), 'utf8');
 // Execute the actual controller mount and identity synchronizer, unchanged. This
@@ -44,12 +45,15 @@ function fixture(t, { seedJournal = false } = {}) {
   let bindings, authGate = null, sessions = 0, reads = null, settleRead;
   if (seedJournal) reads = new Promise(resolve => { settleRead = resolve; });
   const context = { state, PREVIEW: false, window: { localStorage: storage, __GOGH_WALLET_PROVIDER__: { request() { throw Error('NO_WALLET_REQUEST'); } } },
-    one: selector => { assert.equal(selector, '[data-marketplace-purchase-panel]'); return container; },
+    // No Settings root in this fixture; exercise the real no-root admin mount.
+    one: selector => { if (selector === '[data-forge-skill-admin]') return null;
+      assert.equal(selector, '[data-marketplace-purchase-panel]'); return container; },
+    createForgeSkillAdminPanel,
     createMarketplacePurchasePanel: options => { bindings = options; return createMarketplacePurchasePanel(options); },
     ensureV2Session: async () => { sessions++; if (authGate) await authGate; },
     jsonRequest: async (path, options) => { requests.push({ path, options }); if (reads) return reads; return { fixtureResponse: true }; },
     loadAgentAccountStatus: async () => { statusReads.push({ owner: state.wallet?.account, punkId: state.selected?.tokenId }); } };
-  runInNewContext(`${declarations}\n${identity}\n${mount}\nglobalThis.fixtureMount={control:marketplacePurchaseControl,sync:syncMarketplaceSelection};`, context);
+  runInNewContext(`${declarations}\nlet forgeSkillAdminControl = null;\n${identity}\n${mount}\nglobalThis.fixtureMount={control:marketplacePurchaseControl,sync:syncMarketplaceSelection};`, context);
   t.after(() => context.fixtureMount.control.destroy());
   const change = ({ owner, punkId, chainId }, synchronize = true) => {
     if (owner !== undefined) state.wallet.account = owner;

@@ -8,6 +8,7 @@
     <title>Art Broker V2 · Gogh Punks</title>
     <link rel="icon" href="/assets/favicon.png" type="image/png" />
     <link rel="stylesheet" href="/broker-v2.css" />
+    <link rel="stylesheet" href="/broker-persistent-watch.css" />
     <link rel="stylesheet" href="/broker-v2-forge.css" />
     <script src="/wallet.js?v=reown-10" type="module"></script>
     <script src="/broker-v2.js" type="module"></script>
@@ -195,6 +196,7 @@
               <button class="outline-button" type="button" data-fund-agent-account hidden>FUND AGENT GAS</button>
             </div>
             <div class="autonomy-boundary"><strong>OWNER-BOUNDED AUTONOMY</strong><p>After setup, the Punk Agent Account can spend only its deposited ETH for gas, only on screened and simulated free mints, within the exact mission limits you approve. Call the Punk back at any time to revoke its session on chain.</p></div>
+            <section data-persistent-watch aria-label="Continuous research watching"></section>
           </section>
 
           <section class="broker-panel" data-v2-panel="fund" aria-labelledby="fund-title" hidden>
@@ -296,6 +298,11 @@
           <section class="broker-panel" data-v2-panel="settings" aria-labelledby="settings-title" hidden>
             <header class="panel-header"><div><span class="kicker">BROKER PROFILE</span><h2 id="settings-title">SETTINGS</h2></div></header>
             <div class="settings-grid"><article><span>OPERATING MODE</span><fieldset><legend class="sr-only">Operating mode</legend><label><input type="radio" name="settings-mode" value="ASK" data-operating-mode checked /><b>ASK</b><small>Discover and recommend. You decide.</small></label><label><input type="radio" name="settings-mode" value="ASSIST" data-operating-mode /><b>ASSIST</b><small>Screen and prepare. You approve.</small></label><label class="mode-locked" data-autonomous-mode><input type="radio" name="settings-mode" value="AUTONOMOUS" data-operating-mode disabled /><b data-autonomous-mode-label>AUTONOMOUS · LOCKED</b><small data-autonomous-mode-detail>Waiting for Punk Agent Account readiness.</small></label></fieldset></article><article><span>GOGH INTELLIGENCE</span><label class="select-label" for="provider-setting">ROUTING<select id="provider-setting" aria-describedby="provider-status"><option value="AUTO">Auto · choose for this task</option></select></label><p id="provider-status" data-provider-status role="status">Connect your wallet to choose an available model.</p></article></div>
+            <details class="forge-admin-settings">
+              <summary>Project administration</summary>
+              <p>For the current Skill Forge administrator. To train your own Punk, open Skills.</p>
+              <div data-forge-skill-admin></div>
+            </details>
           </section>
         </div>
       </section>

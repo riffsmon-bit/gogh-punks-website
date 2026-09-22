@@ -30,7 +30,7 @@ test('authenticated Forge read returns locked deployment and unknown progress, w
   assert.equal(d.profile.status, 'NOT_DEPLOYED'); assert.equal(d.trainingCredits, null); assert.equal(d.unlockedSlots, null);
   assert.equal(d.canBurn, false); assert.equal(d.canEquip, false); assert.equal(d.canLearn, false);
   assert.equal(d.productionReadyCount, 0); assert.deepEqual(d.catalog.filter(s => s.test).map(s => s.test),
-    ['inspect_contract', 'rank_trait_sample', 'get_market_listings', 'rank_observed_listings', 'classify_collection', 'research_collection']);
+    ['inspect_contract', 'rank_trait_sample', 'get_market_listings', 'rank_observed_listings', 'classify_collection', 'research_project', 'research_collection']);
 });
 test('authenticated deployed profile returns verified credits and slots, and failed state reads return no profile', async () => {
   const d = deps(), code = Object.fromEntries(['collection', 'registry', 'progression', 'trainingSource']

@@ -11,6 +11,7 @@ import { createMarketReaderV2 } from '../../broker/src/v4/skill-forge/market-rea
 import { createFloorHunterV1 } from '../../broker/src/v4/skill-forge/floor-hunter-v1.mjs';
 import { createCollectionResearcherV1 } from '../../broker/src/v4/skill-forge/collection-researcher-v1.mjs';
 import { createArtCuratorV1 } from '../../broker/src/v4/skill-forge/art-curator-v1.mjs';
+import { createSocialScoutV1 } from '../../broker/src/v4/skill-forge/social-scout-v1.mjs';
 import { getRpcUrl } from './_shared/config.mjs';
 import { json, readJson, PublicError, requireSameOrigin } from './_shared/http.mjs';
 import { v2Failure } from './_shared/v2-http.mjs';
@@ -18,7 +19,7 @@ import { requireV2Session } from './_shared/v2-session.mjs';
 import { readV2ChatAuthority, assertV2ChatAuthorityUnchanged } from './_shared/v2-ownership.mjs';
 import { v2TokenIdFrom } from './_shared/v2-route.mjs';
 const SAMPLE_ACTIONS = ['rank_trait_sample', 'research_collection', 'classify_collection'];
-const PLANNED_PACKAGE = Object.freeze({ rank_observed_listings: 'floor-hunter', research_collection: 'collection-researcher', classify_collection: 'art-curator' });
+const PLANNED_PACKAGE = Object.freeze({ rank_observed_listings: 'floor-hunter', research_collection: 'collection-researcher', classify_collection: 'art-curator', research_project: 'social-scout' });
 
 // Merge seam for the existing V2 lab: diagnostics remain distinct from learned capabilities.
 // No POST in this function can learn, equip, mint, burn, enroll or call a wallet.
@@ -32,6 +33,7 @@ export async function handleForge(request, { pool, environment = process.env, ma
   metadataReader = retrieveInlineMetadata, marketFactory = createMarketReaderV2,
   plannedPackageLoader = selection => loadResearchSkillCatalog({ root: pathToFileURL(`${process.cwd()}/`), selection }),
   floorFactory = createFloorHunterV1, collectionFactory = createCollectionResearcherV1, curatorFactory = createArtCuratorV1,
+  socialFactory = createSocialScoutV1,
 } = {}) {
   if (!['GET', 'POST'].includes(request.method)) return json({ ok: false, code: 'METHOD_NOT_ALLOWED' }, 405);
   try {
@@ -89,7 +91,9 @@ export async function handleForge(request, { pool, environment = process.env, ma
       } else {
         if (!environment.OPENSEA_API_KEY) throw new PublicError(503, 'FORGE_MARKET_UNAVAILABLE', 'The market read credential is unavailable. No sample data substituted.');
         const options = { slug: 'gogh-punks-255843210', contract: ROBINHOOD.canonicalCollection, limit: 5 };
-        result = action === 'rank_observed_listings'
+        result = action === 'research_project'
+          ? await socialFactory({ apiKey: environment.OPENSEA_API_KEY }).researchProject({ slug: options.slug, contract: options.contract })
+          : action === 'rank_observed_listings'
           ? await floorFactory({ apiKey: environment.OPENSEA_API_KEY }).rankObservedListings(options)
           : await marketFactory({ apiKey: environment.OPENSEA_API_KEY }).getListings(options);
       }

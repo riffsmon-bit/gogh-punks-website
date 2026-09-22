@@ -18,6 +18,7 @@ const identities = [
   [3, 1, 'inspect_contract'], [4, 1, 'rank_trait_sample'], [8, 1, 'get_market_listings'],
   [8, 2, 'get_market_listings'], [9, 1, 'rank_observed_listings'],
   [11, 1, 'research_collection'], [6, 1, 'classify_collection'],
+  [7, 1, 'research_project'],
 ];
 const canonicalKey = (id, version) => keccak256(encodeAbiParameters(
   parseAbiParameters('string,uint32,uint16'), ['GOGH_SKILL', id, version]));
@@ -63,7 +64,7 @@ for (const functionName of ['broker-v2-forge', 'broker-v2-forge-skill', 'broker-
         }
       }
       const catalog = await loadResearchSkillCatalog({ root: pathToFileURL(`${packaged}/`), selection: PLANNED_RESEARCH_SELECTION });
-      assert.deepEqual(catalog.map(pack => pack.manifest.skillId), [9, 11, 6]);
+      assert.deepEqual(catalog.map(pack => pack.manifest.skillId), [9, 11, 6, 7]);
       assert.ok(catalog.every(pack => !pack.approved && pack.status === 'TESTING'));
       assert.ok((await readFile(join(packaged, 'broker/src/v4/collecting-intent.mjs'))).length > 0,
         'Art Curator hashes the original raw collecting-intent source');
@@ -96,6 +97,7 @@ function browserFixture(id, version, action, { delayResearch = false } = {}) {
     result: { marker: 'CURRENT_RESEARCH_RESULT', chainId: 4663, walletAuthority: 'NONE', executable: false,
       ...(action === 'rank_observed_listings' ? { schema: 'GOGH_OBSERVED_LISTING_RANKS_V1', rankedGroups: [], collectionFloor: null, collectionFloorVerified: false } : {}),
       ...(action === 'research_collection' ? { schema: 'GOGH_COLLECTION_RESEARCH_V1', coverage: { requestedCount: 3, observedCount: 0 }, traitCoverage: [] } : {}),
+      ...(action === 'research_project' ? { schema: 'GOGH_PUBLIC_PROJECT_RESEARCH_V1', status: 'OBSERVED', socialActivity: 'UNKNOWN', authenticity: 'UNVERIFIED', project: { name: 'Gogh Punks', description: null, references: [{kind:'X',url:null,destinationFetched:false,ownershipVerified:false}] } } : {}),
       ...(action === 'classify_collection' ? { schema: 'GOGH_DECLARED_ART_STYLE_MATCHES_V1', visualClassification: 'UNAVAILABLE', recognizedTokenCount: 0, unknownTokenCount: 3, declaredStyleCounts: [] } : {}) } };
   const savedGlobals = Object.fromEntries(['window', 'document', 'localStorage'].map(name => [name, globalThis[name]]));
   globalThis.document = document;

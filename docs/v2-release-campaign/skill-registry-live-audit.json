@@ -1,0 +1,138 @@
+{
+  "schema": "GOGH_CAMPAIGN_SKILL_REGISTRY_AUDIT_V1",
+  "checkedAt": "2026-09-14T02:31:56.208Z",
+  "chainId": 4663,
+  "provider": "Validation Cloud (credential omitted)",
+  "registry": "0xc2a1bd47fbc0fe33e53c85f130be53591c898e83",
+  "registryCodeHash": "0x6a061b9d291e4402e32f93e7815cb2fe2242e725fe4052740f2be0a78049d3c3",
+  "administrator": "0xC7f55cE6A7dF9A79cc4A643a5081230F890c7AA6",
+  "anchor": {
+    "number": "62455333",
+    "hash": "0x7f8643605b592f3deee46fe102abe89b299fb425965d371a0915c63e75db66b4",
+    "timestamp": "1789353115"
+  },
+  "globallyDisabled": false,
+  "disabledCapabilities": "115792089237316195423570985008687907853269984665640564039457584007913129639927",
+  "registered": [
+    {
+      "key": "0x2109a1600733ac7484f1358fcf5a116586a8e66b993ae96f479098fffbb7b1c1",
+      "definition": {
+        "manifestHash": "0x9f17224444ef8938c9d998754a6be4c9dce2029c5e6e6a5f918effdc276c0d26",
+        "instructionHash": "0x7f7baae864b35a8230361de2ac3a6abda099669a6659e3d76e5bdf105bf859f0",
+        "prerequisite": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "capabilities": "8",
+        "skillId": 4,
+        "version": 1,
+        "riskTier": 0,
+        "status": 4,
+        "disabled": false,
+        "deprecated": false,
+        "replacement": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "reviewEvidenceHash": "0x27088cd7cf255ec786e279da60095c4ca7235d0b0f311924a2a1790727e2b1ed"
+      },
+      "available": true
+    }
+  ],
+  "packages": [
+    {
+      "slug": "contract-detective",
+      "version": 1,
+      "key": "0x1a7bb5f14ab81288db8a451245c3aa880c3696e9f2aae4ca3e72171416f9a837",
+      "manifestHash": "0x80695d48a12865c2c633b4977cd8f24dd598dd8808eae5ebf733052f8091ba24",
+      "instructionHash": "0x1e283e611d6f72e8fa34d1412a5cbef8dd4d936f0138a5f18fdf519bafc93252",
+      "registered": false,
+      "onChainAvailable": false,
+      "hashesMatch": null,
+      "status": null
+    },
+    {
+      "slug": "rarity-eye",
+      "version": 1,
+      "key": "0x2109a1600733ac7484f1358fcf5a116586a8e66b993ae96f479098fffbb7b1c1",
+      "manifestHash": "0x9f17224444ef8938c9d998754a6be4c9dce2029c5e6e6a5f918effdc276c0d26",
+      "instructionHash": "0x7f7baae864b35a8230361de2ac3a6abda099669a6659e3d76e5bdf105bf859f0",
+      "registered": true,
+      "onChainAvailable": true,
+      "hashesMatch": true,
+      "status": 4
+    },
+    {
+      "slug": "market-scout",
+      "version": 2,
+      "key": "0xf9e55d813fbee91e69b57f90249ab5bb4b482e4028ebdfd6d26b90e12b770b22",
+      "manifestHash": "0x16453f218e08bc65d1ff0323759f4885616a4547a4fc39d36b25271161151d32",
+      "instructionHash": "0x33e760db794e833ac2ef0b6804bc326954d100b49cf812f2108dd578c4358b0b",
+      "registered": false,
+      "onChainAvailable": false,
+      "hashesMatch": null,
+      "status": null
+    },
+    {
+      "slug": "art-curator",
+      "version": 1,
+      "key": "0xef3df33dded5f7e7d58f37ca5ecd4ce095803bfa298d391740897de071ea2ae2",
+      "manifestHash": "0xd28c0c762745ba86efd41fb9387a48ddbc8874e1f1c53acaa5eb54ec18dab808",
+      "instructionHash": "0x0775e25b3d7371df3e5e5f1fe4239960e50f55b6db939d6401730ca94ef55ed8",
+      "registered": false,
+      "onChainAvailable": false,
+      "hashesMatch": null,
+      "status": null
+    },
+    {
+      "slug": "collection-researcher",
+      "version": 1,
+      "key": "0x2040f8777bd900d065ac2ba4a2df7b49e6bd6625196d859057d5dfd7f05d0480",
+      "manifestHash": "0x45448ac9ea41e308cf8206c555b844adac7c5c9602f35743f51a851e6561d89d",
+      "instructionHash": "0xd0b6ce87162a8efcdf003b1431c107badfcbf99ece2316c35dad7fffa9e67f23",
+      "registered": false,
+      "onChainAvailable": false,
+      "hashesMatch": null,
+      "status": null
+    },
+    {
+      "slug": "floor-hunter",
+      "version": 1,
+      "key": "0x06bc3f25d3f333e9317bce16741bdef285f4a55d00de11b43db7614f5d27b230",
+      "manifestHash": "0xf5f61885bbf3ba023970de11ab86756144a3350858ef93e42500e156a506c3c9",
+      "instructionHash": "0x86e45147308a07fa367bac81239a214b09d627abd8c45c1498b52c100f1d384b",
+      "registered": false,
+      "onChainAvailable": false,
+      "hashesMatch": null,
+      "status": null
+    },
+    {
+      "slug": "link-sniper",
+      "version": 1,
+      "key": "0x73eba8fe2a968be1b207d159f21e119f98a6efc707cb0647ce8c16659e697571",
+      "manifestHash": "0x9b7ff18e20e6ac7f7aeaab1b2cfbca466a0ed4f14a4919a64ed18dcd3efbf05c",
+      "instructionHash": "0x07b68cacf1e01c2f864dbcb90ae873ba36dd620d2f34def2dfa27fbf32f43067",
+      "registered": false,
+      "onChainAvailable": false,
+      "hashesMatch": null,
+      "status": null
+    },
+    {
+      "slug": "mint-hunter",
+      "version": 1,
+      "key": "0x2005e6de496529ac7703c747ed6674d300b85a217f2321d257aa208cf1e5ab3e",
+      "manifestHash": "0xd4c22b3fcf551ef6fca30d685fa92db6ae47722b2d4c50255f21df5385d2567c",
+      "instructionHash": "0xecd97b76de0cb0236e9ee952ab3ecef84cb096bab285d6b2fe12fa8f96a0e150",
+      "registered": false,
+      "onChainAvailable": false,
+      "hashesMatch": null,
+      "status": null
+    },
+    {
+      "slug": "social-scout",
+      "version": 1,
+      "key": "0xf37cf3a8d630bcf10e0bbd78566b9327875f9674b1a65aa8a78286a14274a7bf",
+      "manifestHash": "0xebba5f2aca5f762aec3179ed44776c2e8038fe6451ae92b32658654a1eafe7d2",
+      "instructionHash": "0x796985fd3e3075380104af2f93fc6dbad295bd81c60909004d238f981b52feed",
+      "registered": false,
+      "onChainAvailable": false,
+      "hashesMatch": null,
+      "status": null
+    }
+  ],
+  "publicTransactions": 0
+}

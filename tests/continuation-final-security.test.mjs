@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { webcrypto } from 'node:crypto';
 import { runInNewContext } from 'node:vm';
 import { createMarketplacePurchasePanel } from '../site/marketplace-purchase-panel.js';
+import { createForgeSkillAdminPanel } from '../site/forge-skill-admin-panel.js';
 import { marketplacePanelFixture, PANEL_OWNER, PANEL_OTHER } from './fixtures/marketplace-panel.mjs';
 
 const source = await readFile(new URL('../site/broker-v2.js', import.meta.url), 'utf8');
@@ -43,7 +44,9 @@ function fixture(t) {
   const context = { state, PREVIEW: false,
     window: { localStorage: { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) },
       __GOGH_WALLET_PROVIDER__: { request() { walletRequests++; throw Error('UNEXPECTED_WALLET_REQUEST'); } } },
-    one: selector => { assert.equal(selector, '[data-marketplace-purchase-panel]'); return container; },
+    one: selector => { if (selector === '[data-forge-skill-admin]') return null;
+      assert.equal(selector, '[data-marketplace-purchase-panel]'); return container; },
+    createForgeSkillAdminPanel,
     createMarketplacePurchasePanel: options => { bindings = options; return createMarketplacePurchasePanel(options); },
     ensureV2Session: async () => { authentications++; if (authGate) await authGate; signedIn = true; },
     jsonRequest: async (path, options) => {
@@ -54,7 +57,7 @@ function fixture(t) {
       return structuredClone(original);
     },
     loadAgentAccountStatus: async () => { throw Error('UNEXPECTED_SETTLEMENT'); } };
-  runInNewContext(`${declarations}\n${identity}\n${mount}\nglobalThis.mounted={control:marketplacePurchaseControl,sync:syncMarketplaceSelection};`, context);
+  runInNewContext(`${declarations}\nlet forgeSkillAdminControl = null;\n${identity}\n${mount}\nglobalThis.mounted={control:marketplacePurchaseControl,sync:syncMarketplaceSelection};`, context);
   t.after(() => context.mounted.control.destroy());
   const walk = node => [node, ...node.childNodes.flatMap(walk)];
   return { state, values, requests, bindings, container, original, mounted: context.mounted,

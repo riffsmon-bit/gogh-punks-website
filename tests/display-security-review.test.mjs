@@ -26,7 +26,7 @@ const session = body('const sessionRequests = new Map();', 'async function activ
 const art = body('const rosterArtworkCache = new Map();', 'async function fetchOwnedPunks(');
 function deferred() { let resolve, reject; const promise = new Promise((a,b) => {resolve=a;reject=b;}); return {promise,resolve,reject}; }
 function context(extra = {}) {
-  const sandbox = { URL, PREVIEW:false, CHAIN_ID:4663, COLLECTION:collection,
+  const sandbox = { URL, PREVIEW:false, CHAIN_ID:4663, COLLECTION:collection,persistentWatchControl:null,
     location:{origin:'https://goghpunks.com'}, state:{wallet:{account:ownerA,chainId:4663},
       selected:{tokenId:'93'}, punks:[], gallery:[],galleryRequestId:0,galleryLoadingTokenId:null,galleryTokenId:null},
     renderGallery(){}, one(){return null;},all(){return [];},ensureV2Session:async()=>{},
