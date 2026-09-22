@@ -164,19 +164,63 @@ test('Runtime refuses RLS-filtered storage and late skill responses instead of a
 
 test('Shared research skips malformed feed rows and stops before new work when its batch budget expires', async () => {
   const { createPersistentWatchCoordinator } = await import('../broker/src/v4/autonomy/persistent-coordinator.mjs');
-  let at = NOW, claims = 0;
+  let at = NOW, claims = 0, continuity = 0, economicsReads = 0;
   const store = { opportunities: async () => [{ malformed: true }, opportunity()], active: async () => [watch()],
-    checkpoint: async w => w, claim: async () => { claims++; return true; } };
+    touch: async () => {}, checkpoint: async w => w, claim: async () => { claims++; return true; } };
   const coordinator = createPersistentWatchCoordinator({ store, now: () => at,
-    readAuthority: async () => { at += 1100; return anchor(); }, readContinuity: async () => {}, readEconomics: async () => economics() });
+    readAuthority: async () => { at += 1100; return anchor(); }, readContinuity: async () => { continuity++; },
+    readEconomics: async () => { economicsReads++; return economics(); } });
   const result = await coordinator.batch({ maxDurationMs: 1000 });
   assert.equal(result.invalidOpportunities, 1); assert.equal(result.opportunities, 1);
   assert.equal(result.status, 'PARTIAL'); assert.equal(claims, 0); assert.equal(result.transactionSubmitted, false);
+  assert.equal(continuity, 0); assert.equal(economicsReads, 0);
+});
+test('An exhausted watch phase prevents every subsequent RPC or new observation', async t => {
+  const { createPersistentWatchCoordinator } = await import('../broker/src/v4/autonomy/persistent-coordinator.mjs');
+  const phases = ['opportunities', 'active', 'touch', 'authority', 'continuity', 'checkpoint', 'economics'];
+  for (const stop of phases) await t.test(stop, async () => {
+    let at = NOW; const calls = [];
+    const phase = (name, value) => async () => { calls.push(name); if (name === stop) at += 1000; return value; };
+    const store = { opportunities: phase('opportunities', [opportunity()]), active: phase('active', [watch(), watch({ tokenId: '94' })]),
+      touch: phase('touch'), checkpoint: phase('checkpoint', watch()), claim: phase('claim', true), finish: phase('finish', true) };
+    const coordinator = createPersistentWatchCoordinator({ store, now: () => at, readAuthority: phase('authority', anchor()),
+      readContinuity: phase('continuity'), readEconomics: phase('economics', economics()) });
+    const result = await coordinator.batch({ maxDurationMs: 1000 });
+    assert.deepEqual(calls, phases.slice(0, phases.indexOf(stop) + 1));
+    assert.equal(result.status, 'PARTIAL'); assert.equal(result.decisions, 0);
+    assert.equal(result.executionAuthorized, false); assert.equal(result.transactionSubmitted, false);
+  });
+});
+test('Slow ownership history rotates the attempted watch without advancing its checkpoint or starving the next Punk', async () => {
+  const { createPersistentWatchCoordinator } = await import('../broker/src/v4/autonomy/persistent-coordinator.mjs');
+  let at = NOW; const pending = [watch(), watch({ tokenId: '94' })], owners = [], checkpoints = [], economicsReads = [];
+  const store = { opportunities: async () => [opportunity()], active: async limit => pending.slice(0, limit),
+    touch: async w => { pending.splice(pending.findIndex(x => x.tokenId === w.tokenId), 1); pending.push(w); },
+    checkpoint: async w => { checkpoints.push(w.tokenId); return w; } };
+  const coordinator = createPersistentWatchCoordinator({ store, now: () => at,
+    readAuthority: async tokenId => { owners.push(tokenId); return anchor({ tokenId }); },
+    readContinuity: async () => { at += 1000; }, readEconomics: async ({ tokenId }) => { economicsReads.push(tokenId); return economics(); } });
+  for (let n = 0; n < 2; n++) assert.equal((await coordinator.batch({ limit: 1, maxDurationMs: 1000 })).status, 'PARTIAL');
+  assert.deepEqual(owners, ['93', '94']); assert.deepEqual(checkpoints, []); assert.deepEqual(economicsReads, []);
+  assert.ok(pending.every(w => w.version === 1 && w.state === 'ACTIVE' && w.anchor.blockNumber === '100'));
+});
+test('A claimed observation finishes after a slow SQL claim without starting the next observation', async () => {
+  const { createPersistentWatchCoordinator } = await import('../broker/src/v4/autonomy/persistent-coordinator.mjs');
+  let at = NOW; const completed = [], claimed = [];
+  const store = { opportunities: async () => [opportunity(), opportunity({ opportunityId: 'opportunity_other' })],
+    active: async () => [watch()], touch: async () => {}, checkpoint: async w => w,
+    claim: async (_, id) => { claimed.push(id); at += 1000; return true; },
+    finish: async (_, key, result) => { completed.push(result); return true; } };
+  const coordinator = createPersistentWatchCoordinator({ store, now: () => at, readAuthority: async () => anchor(),
+    readContinuity: async () => {}, readEconomics: async () => economics() });
+  const result = await coordinator.batch({ maxDurationMs: 1000 });
+  assert.equal(result.status, 'PARTIAL'); assert.equal(result.decisions, 1); assert.equal(completed.length, 1);
+  assert.deepEqual(claimed, ['opportunity_123']); assert.equal(completed[0].executionAuthorized, false);
 });
 test('A missing economics/AI dependency still permits research but cannot broaden authority', async () => {
   const { createPersistentWatchCoordinator } = await import('../broker/src/v4/autonomy/persistent-coordinator.mjs');
   let saved;
-  const store = { opportunities: async () => [opportunity()], active: async () => [watch()], checkpoint: async w => w,
+  const store = { opportunities: async () => [opportunity()], active: async () => [watch()], touch: async () => {}, checkpoint: async w => w,
     claim: async () => true, finish: async (_, __, result) => { saved = result; return true; } };
   const coordinator = createPersistentWatchCoordinator({ store, now: () => NOW, readAuthority: async () => anchor(),
     readContinuity: async () => {}, readEconomics: async () => { throw Error('provider unavailable'); } });

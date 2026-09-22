@@ -10,9 +10,17 @@ export const persistentWatchView = row => !row ? null : ({ tokenId: row.token_id
 export function createPersistentWatchStore(pool) {
   const transaction = async run => {
     const client = await pool.connect();
-    try { await client.query('BEGIN'); const result = await run(client); await client.query('COMMIT'); return result; }
+    try {
+      await client.query('BEGIN');
+      // Server-enforced bounds end with this transaction, including rollback after a timeout.
+      // Never abandon an in-flight pooled query with Promise.race or change session defaults.
+      await client.query("SET LOCAL statement_timeout = '3s'");
+      await client.query("SET LOCAL lock_timeout = '500ms'");
+      const result = await run(client); await client.query('COMMIT'); return result;
+    }
     catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
   };
+  const boundedQuery = (sql, values) => transaction(client => client.query(sql, values));
   const get = async tokenId => persistentWatchView((await pool.query(
     'SELECT * FROM broker_v2_persistent_watches WHERE token_id=$1', [tokenId])).rows[0]);
   return {
@@ -57,28 +65,29 @@ export function createPersistentWatchStore(pool) {
     },
     async pause(tokenId, owner, version, state = 'PAUSED') {
       if (!['PAUSED', 'OWNER_ACTION_REQUIRED'].includes(state)) throw Error('WATCH_INVALID_PAUSE');
-      const rows = await pool.query(`UPDATE broker_v2_persistent_watches SET state=$4,version=version+1,updated_at=now()
+      const rows = await boundedQuery(`UPDATE broker_v2_persistent_watches SET state=$4,version=version+1,updated_at=now()
         WHERE token_id=$1 AND owner_snapshot=$2 AND version=$3 RETURNING *`, [tokenId, owner, version, state]);
       if (!rows.rows[0]) stale();
       return persistentWatchView(rows.rows[0]);
     },
     async checkpoint(watch, anchor) {
-      const rows = await pool.query(`UPDATE broker_v2_persistent_watches SET checkpoint_block=$4::numeric,
+      const rows = await boundedQuery(`UPDATE broker_v2_persistent_watches SET checkpoint_block=$4::numeric,
         checkpoint_hash=$5,last_checked_at=now() WHERE token_id=$1 AND owner_snapshot=$2 AND version=$3
         AND checkpoint_block<=$4::numeric RETURNING *`, [watch.tokenId, watch.owner, watch.version, anchor.blockNumber, anchor.blockHash]);
       return persistentWatchView(rows.rows[0]);
     },
     async touch(watch) {
-      await pool.query(`UPDATE broker_v2_persistent_watches SET last_checked_at=now()
+      await boundedQuery(`UPDATE broker_v2_persistent_watches SET last_checked_at=now()
         WHERE token_id=$1 AND version=$2`, [watch.tokenId, watch.version]);
     },
     async active(limit = 25) {
       if (!Number.isInteger(limit) || limit < 1 || limit > 25) throw Error('WATCH_INVALID_BATCH');
-      return (await pool.query(`SELECT * FROM broker_v2_persistent_watches WHERE state='ACTIVE'
+      return (await boundedQuery(`SELECT * FROM broker_v2_persistent_watches WHERE state='ACTIVE'
+        AND (config->>'expiresAt' IS NULL OR (config->>'expiresAt')::timestamptz>now())
         ORDER BY last_checked_at ASC NULLS FIRST,token_id LIMIT $1`, [limit])).rows.map(persistentWatchView);
     },
     async opportunities(ids = []) {
-      return (await pool.query(`SELECT normalized FROM broker_v2_opportunities WHERE chain_id=4663
+      return (await boundedQuery(`SELECT normalized FROM broker_v2_opportunities WHERE chain_id=4663
         AND (cardinality($1::text[])=0 OR opportunity_id=ANY($1::text[]))
         AND (expires_at IS NULL OR expires_at>now()) ORDER BY updated_at DESC LIMIT 25`, [ids])).rows.map(row => row.normalized);
     },

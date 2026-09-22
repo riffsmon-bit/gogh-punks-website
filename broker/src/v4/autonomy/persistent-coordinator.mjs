@@ -62,28 +62,44 @@ export function createPersistentWatchCoordinator({ store, readAuthority, readCon
       if (!Array.isArray(opportunities) || opportunities.length > 100) throw Error('WATCH_INVALID_OPPORTUNITY_BATCH');
       const ids = [...new Set(opportunities.map(x => x?.opportunityId))];
       if (ids.some(id => typeof id !== 'string' || !/^[a-zA-Z0-9:_-]{8,256}$/.test(id))) throw Error('WATCH_INVALID_OPPORTUNITY_BATCH');
+      const result = { status: 'COMPLETE', checked: 0, decisions: 0, matched: 0, pausedForTransfer: 0,
+        unavailable: 0, invalidOpportunities: 0, opportunities: 0, executionAuthorized: false, transactionSubmitted: false };
+      const exhausted = () => {
+        if (now() - startedAt < maxDurationMs) return false;
+        result.status = 'PARTIAL'; return true;
+      };
       // The feed returns summaries. Resolve normalized records once, shared across all selected Punks.
-      const shared = []; let invalidOpportunities = 0;
+      const shared = [];
       for (const value of await store.opportunities(ids)) {
         try { shared.push(normalizeV2Opportunity(value, new Date(now()))); }
-        catch { invalidOpportunities++; } // One malformed feed record does not stop other research.
+        catch { result.invalidOpportunities++; } // One malformed feed record does not stop other research.
       }
+      result.opportunities = shared.length;
+      if (exhausted()) return result;
       const watches = await store.active(limit);
-      const result = { status: 'COMPLETE', checked: 0, decisions: 0, matched: 0, pausedForTransfer: 0,
-        unavailable: 0, invalidOpportunities, opportunities: shared.length, executionAuthorized: false, transactionSubmitted: false };
+      if (exhausted()) return result;
       watchLoop: for (const snapshot of watches) {
-        if (now() - startedAt >= maxDurationMs) { result.status = 'PARTIAL'; break; }
+        if (exhausted()) break;
         let watch = snapshot;
         try {
+          // Rotate attempted work before RPC, even if that RPC consumes the remaining budget.
+          // Touch never advances ownership evidence, changes the version or reactivates a watch.
+          await store.touch(snapshot);
+          if (exhausted()) break;
           const anchor = await readAuthority(watch.tokenId);
+          if (exhausted()) break;
           await readContinuity(watch.anchor, anchor);
+          if (exhausted()) break;
           watch = await store.checkpoint(watch, anchor);
+          if (exhausted()) break;
           if (!watch || !persistentStatus(watch, {}, now()).watching) continue;
           const context = await economics(watch.tokenId, watch.owner, anchor);
+          if (exhausted()) break;
           for (const opportunity of shared) {
-            if (now() - startedAt >= maxDurationMs) { result.status = 'PARTIAL'; break watchLoop; }
+            if (exhausted()) break watchLoop;
             const at = now(), key = persistentObservationKey(watch, opportunity, at);
             if (!await store.claim(watch, opportunity.opportunityId, key, new Date(at).toISOString().slice(0, 10))) continue;
+            // Complete an already-claimed observation with bounded SQL; no further RPC is started.
             const decision = evaluatePersistentOpportunity({ watch, opportunity, economics: context, now: at });
             if (await store.finish(watch, key, decision)) {
               result.decisions++; if (decision.matchesTaste) result.matched++;
@@ -95,9 +111,9 @@ export function createPersistentWatchCoordinator({ store, readAuthority, readCon
             try { await store.pause(snapshot.tokenId, snapshot.owner, snapshot.version, 'OWNER_ACTION_REQUIRED'); result.pausedForTransfer++; }
             catch { result.unavailable++; }
           } else result.unavailable++;
-          await store.touch(snapshot); // Fair bounded rotation even when one provider/token fails.
         }
       }
+      exhausted();
       return result;
     },
   };

@@ -18,7 +18,7 @@ await new Promise(resolve => listener.listen(0, '127.0.0.1', resolve)); const po
 await new Promise(resolve => listener.close(resolve));
 const command = (name, args) => execFileSync(path.join(bin, name), args, { stdio: 'pipe', timeout: 30000 });
 const config = { host: '127.0.0.1', port, database: 'postgres', max: 4, connectionTimeoutMillis: 3000, idleTimeoutMillis: 1000 };
-let running = false, pool, browser, limited, assertions = 0;
+let running = false, pool, browser, limited, boundedPool, assertions = 0;
 const check = (value, label) => { assert.ok(value, label); assertions++; };
 const rejects = async (action, matcher) => { await assert.rejects(action, matcher); assertions++; };
 const readMigration = name => readFile(new URL(`../netlify/database/migrations/${name}`, import.meta.url), 'utf8');
@@ -124,17 +124,79 @@ try {
   check(await store.claim(newOwner.watch, first.opportunityId, 'e'.repeat(64), utcDay) === false, 'Expired watch cannot claim even from a pre-expiry worker snapshot');
   check(!await store.finish(newOwner.watch, key, result), 'Expired watch cannot finalize an existing claim');
   await rejects(store.assertVersion({ tokenId: '93', owner, watchVersion: newOwner.watch.version }), { code: 'WATCH_VERSION_CHANGED' });
+  at = Date.now();
   const expiry = await coordinator.current('93', owner); check(!expiry.status.watching && expiry.watch.config.likes[0] === 'generative', 'Expiration preserves inherited taste');
+  const expiredHistory = await store.history('93');
+  check((await store.active()).length === 0, 'Duration-expired ACTIVE rows are excluded by the database clock');
+  const expiredSnapshot = await store.get('93');
+  check(expiredSnapshot.state === 'ACTIVE' && expiredSnapshot.version === newOwner.watch.version,
+    'Selection does not silently mutate or reactivate the expired watch');
   const indexes = await pool.query("SELECT indexname FROM pg_indexes WHERE tablename='broker_v2_persistent_watches'");
   check(indexes.rows.some(x => x.indexname === 'broker_v2_persistent_active'), 'Bounded fair active index is installed');
   const usedDraft = await prepare(0, {}, '94'), usedWatch = await confirm(usedDraft);
   await coordinator.pause({ tokenId: '94', owner, expectedVersion: usedWatch.watch.version });
   const usedReplay = await confirm(usedDraft);
   check(!usedReplay.applied && usedReplay.watch.state === 'PAUSED', 'An unsuperseded used draft replay returns paused state without activating');
+  // Older expired rows must be filtered before LIMIT, so all five worker slots remain useful.
+  for (let token = 100; token < 106; token++) await confirm(await prepare(0,
+    token === 105 ? { expiresAt: new Date(at + 60000).toISOString() } : {}, String(token)));
+  await pool.query(`UPDATE broker_v2_persistent_watches SET last_checked_at=now()
+    WHERE token_id::integer BETWEEN 100 AND 105`);
+  await pool.query(`INSERT INTO broker_v2_persistent_watches
+    (token_id,owner_snapshot,version,state,config,checkpoint_block,checkpoint_hash)
+    SELECT n::text,owner_snapshot,version,state,config,checkpoint_block,checkpoint_hash
+    FROM broker_v2_persistent_watches CROSS JOIN generate_series(200,204) n WHERE token_id='93'`);
+  const selected = await store.active(5);
+  check(selected.map(w => w.tokenId).join(',') === '100,101,102,103,104',
+    'Expired rows with older NULL checked timestamps consume none of the five slots');
+  const ownerReads = [];
+  const selectionBatch = createPersistentWatchCoordinator({ store,
+    // A skewed worker clock cannot make database-expired configurations eligible again.
+    now: () => at - 60000,
+    readAuthority: async (...args) => { ownerReads.push(args[0]); return readAuthority(...args); },
+    readContinuity, readEconomics: async () => context() });
+  check((await selectionBatch.batch({ limit: 5 })).checked === 5, 'Five eligible watches are processed');
+  check(ownerReads.join(',') === '100,101,102,103,104', 'No ownership RPC is spent on expired watches');
+  check((await store.active(5))[0].tokenId === '105', 'The sixth active watch rotates ahead on the next bounded page');
+  const expiredAfter = await coordinator.current('93', owner);
+  check(!expiredAfter.status.watching && expiredAfter.watch.version === expiredSnapshot.version
+    && expiredAfter.watch.state === expiredSnapshot.state
+    && JSON.stringify(expiredAfter.watch.config) === JSON.stringify(expiredSnapshot.config)
+    && JSON.stringify(expiredAfter.history) === JSON.stringify(expiredHistory),
+  'Excluded expired watch remains visible with its exact saved config, version and history');
+
+  // Use one known pooled backend, so both successful and timed-out transactions prove settings restoration.
+  boundedPool = new pg.Pool({ ...config, user: 'gogh_watch_admin', max: 1 });
+  const boundedStore = createPersistentWatchStore(boundedPool), timeoutWatch = await store.get('100');
+  const settings = async () => (await boundedPool.query(`SELECT pg_backend_pid() AS pid,
+    current_setting('statement_timeout') AS statement_timeout,current_setting('lock_timeout') AS lock_timeout`)).rows[0];
+  const defaults = await settings();
+  await boundedStore.active(5);
+  check(JSON.stringify(await settings()) === JSON.stringify(defaults), 'Successful bounded SQL restores the same pooled connection defaults');
+  const blocker = await pool.connect();
+  try {
+    await blocker.query('BEGIN');
+    await blocker.query("SELECT token_id FROM broker_v2_persistent_watches WHERE token_id='100' FOR UPDATE");
+    await rejects(boundedStore.touch(timeoutWatch), { code: '55P03' });
+  } finally { await blocker.query('ROLLBACK'); blocker.release(); }
+  check(JSON.stringify(await settings()) === JSON.stringify(defaults), 'Lock timeout rolls back before release without leaking settings or an aborted transaction');
+  await boundedStore.touch(timeoutWatch);
+  check(Boolean((await store.get('100')).lastCheckedAt), 'The timed-out pooled connection can complete subsequent watch work');
+  await pool.query(`CREATE FUNCTION watch_test_slow_touch() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN PERFORM pg_sleep(4); RETURN NEW; END $$;
+    CREATE TRIGGER watch_test_slow_touch BEFORE UPDATE ON broker_v2_persistent_watches
+    FOR EACH ROW WHEN (OLD.token_id='100') EXECUTE FUNCTION watch_test_slow_touch()`);
+  const beforeTimeout = await store.get('100');
+  try { await rejects(boundedStore.touch(timeoutWatch), { code: '57014' }); }
+  finally { await pool.query('DROP TRIGGER watch_test_slow_touch ON broker_v2_persistent_watches; DROP FUNCTION watch_test_slow_touch()'); }
+  check(JSON.stringify(await settings()) === JSON.stringify(defaults), 'Statement timeout restores defaults on the same pooled connection');
+  check((await store.get('100')).lastCheckedAt === beforeTimeout.lastCheckedAt, 'Timed-out statement leaves no background or partial touch mutation');
+  await boundedStore.touch(timeoutWatch);
+  check(JSON.stringify(await settings()) === JSON.stringify(defaults), 'Connection remains usable after the timed-out statement is fully rolled back');
   console.log(JSON.stringify({ status: 'PASS', assertions, engine: 'native PostgreSQL', productionQueries: 0, transactionsSubmitted: 0,
-    coverage: ['draft-confirm', 'CAS', 'parallel-retry', 'pause-claim-finish', 'restart', 'future-shared-opportunity', 'transfer-reactivation', 'reserve', 'expiry', 'RLS', 'no-economic-authority'] }));
+    coverage: ['draft-confirm', 'CAS', 'parallel-retry', 'pause-claim-finish', 'restart', 'future-shared-opportunity', 'transfer-reactivation', 'reserve', 'expiry', 'expired-selection', 'fair-rotation', 'local-SQL-timeouts', 'RLS', 'no-economic-authority'] }));
 } finally {
-  await Promise.allSettled([pool?.end(), browser?.end(), limited?.end()]);
+  await Promise.allSettled([pool?.end(), browser?.end(), limited?.end(), boundedPool?.end()]);
   if (running) command('pg_ctl', ['-D', data, '-m', 'immediate', '-w', 'stop']);
   await rm(base, { recursive: true, force: true });
 }
