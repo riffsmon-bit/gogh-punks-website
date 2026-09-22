@@ -82,6 +82,20 @@
 [functions."broker-nft-withdrawal-assets"]
   included_files = ["deployments/robinhood-automation-v3.json", "deployments/robinhood.json", "broker/src/**/*.mjs", "netlify/functions/_shared/*.mjs", "netlify/functions/broker-nft-withdrawal-status.mjs"]
 
+# V2 is the main holder experience. Force the rewrite over the preserved legacy
+# index file, and retain /broker/v2/ links and all legacy asset-recovery routes.
+[[redirects]]
+  from = "/"
+  to = "/broker/v2/index.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/index.html"
+  to = "/broker/v2/index.html"
+  status = 200
+  force = true
+
 [[redirects]]
   from = "/broker/punk/*"
   to = "/broker/punk/index.html"

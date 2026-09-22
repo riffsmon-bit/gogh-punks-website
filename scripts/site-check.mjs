@@ -7,6 +7,8 @@ const pages = [
   "index.html",
   "404.html",
   "broker/index.html",
+  "broker/v2/index.html",
+  "guide/index.html",
   "broker/punk/index.html",
   "discover/index.html",
   "pepemfers/index.html",
@@ -62,6 +64,23 @@ for (const page of pages) {
 }
 
 const index = readFileSync(join(root, "index.html"), "utf8");
+// The previous collection landing remains in source for rollback. Netlify must
+// serve the holder application at both homepage aliases, even though it exists.
+const netlify = readFileSync(resolve(process.cwd(), "netlify.toml"), "utf8");
+const routes = netlify.split("[[redirects]]").slice(1);
+for (const alias of ["/", "/index.html"]) {
+  const rule = routes.find(section => section.match(/\bfrom\s*=\s*"([^"]+)"/)?.[1] === alias);
+  if (!rule || !/to\s*=\s*"\/broker\/v2\/index\.html"/.test(rule)
+    || !/status\s*=\s*200\b/.test(rule) || !/force\s*=\s*true\b/.test(rule)) {
+    fail(`homepage ${alias} must force-serve the V2 application`);
+  }
+}
+const holderHome = readFileSync(join(root, "broker/v2/index.html"), "utf8");
+for (const value of ['data-v2-control-center', 'data-wallet-connect', 'data-punk-roster',
+  'data-v2-panel="talk"', 'data-v2-panel="forge"', 'href="/guide/"',
+  'rel="canonical" href="https://goghpunks.xyz/"']) {
+  if (!holderHome.includes(value)) fail(`V2 homepage is missing ${value}`);
+}
 for (const required of [
   "https://discord.gg/NgRzPNra6s",
   "https://opensea.io/collection/gogh-punks-255843210",

@@ -3025,7 +3025,7 @@ function setup() {
   window.setInterval(renderMissionMonitor, 1_000);
   window.setInterval(renderWelcomeMessage, 60_000);
   window.setInterval(() => {
-    if (!PREVIEW && state.selected && state.wallet?.account && state.wallet.chainId === CHAIN_ID) {
+    if (!PREVIEW && !document.hidden && state.selected && state.wallet?.account && state.wallet.chainId === CHAIN_ID) {
       void loadAgentAccountStatus();
     }
   }, 30_000);
