@@ -6,6 +6,7 @@ import { createForgeControl } from './broker-v2-forge.js';
 import { createForgeSkillAdminPanel } from './forge-skill-admin-panel.js';
 import { createDirectedPaidPanel } from './directed-paid-panel.js';
 import { createMarketplacePurchasePanel } from './marketplace-purchase-panel.js';
+import { createPersistentWatchMount } from './broker-persistent-watch-mount.js';
 import { createAgentRecoveryPanel, recoveryEth } from './punk-agent-recovery-panel.js';
 import { createOwnerRefresh } from "./broker-v2-owner-refresh.js";
 import { createGasFundingRecovery } from "./punk-agent-gas-recovery-panel.js";
@@ -93,6 +94,7 @@ let directedPaidControl = null;
 let marketplacePurchaseControl = null;
 let marketplaceSelectionKey = '';
 let marketplaceSelectionRevision = 0;
+let persistentWatchControl = null;
 let agentRecoveryControl = null;
 const one = (selector) => document.querySelector(selector);
 const all = (selector) => [...document.querySelectorAll(selector)];
@@ -1112,6 +1114,7 @@ function syncMarketplaceSelection() {
 }
 
 function renderRoster() {
+  void persistentWatchControl?.selectionChanged();
   forgeSkillAdminControl?.update();
   forgeControl?.selectionChanged();
   directedPaidControl?.selectionChanged();
@@ -1856,6 +1859,7 @@ async function readV2Session(report = () => {}) {
   assertCurrent();
   if (current?.walletAddress?.toLowerCase() === owner) {
     report("Wallet session confirmed.");
+    void persistentWatchControl?.sessionChanged(current);
     return current;
   }
   report("Preparing a wallet sign-in message…");
@@ -1880,6 +1884,7 @@ async function readV2Session(report = () => {}) {
   if (confirmed.walletAddress?.toLowerCase() !== owner) {
     throw new Error("The signed-in wallet changed. Sign in again with the current owner.");
   }
+  void persistentWatchControl?.sessionChanged(confirmed);
   return confirmed;
 }
 
@@ -2976,6 +2981,8 @@ function setup() {
     }
     const verifiedSameAccount = account && state.ownershipAccount === account;
     state.wallet = { ...wallet, account };
+    // Invalidate watch drafts before any pending/wrong-chain early return.
+    void persistentWatchControl?.selectionChanged();
     forgeSkillAdminControl?.update();
     brokerPreferences?.refresh(); gasFundingRecovery?.refresh();
     if (account !== previousAccount || wallet.chainId !== previousChain) {
@@ -3078,6 +3085,20 @@ function setup() {
   agentRecoveryControl = createAgentRecoveryPanel({ root: recoveryRoot,
     getSelection: () => state.selected ? { tokenId: String(state.selected.tokenId), owner: state.wallet?.account,
       chainId: state.wallet?.chainId, preview: PREVIEW } : null, ensureSession: ensureV2Session });
+  persistentWatchControl = createPersistentWatchMount({ root: one('[data-persistent-watch]'),
+    getSelection: () => {
+      const context = REVIEW_HOST ? 'DEPLOY_PREVIEW' : location.protocol === 'https:'
+        && ['goghpunks.xyz', 'www.goghpunks.xyz', 'gogh-punks.netlify.app'].includes(location.hostname) ? 'PRODUCTION' : null;
+      return { owner: state.wallet?.account, chainId: state.wallet?.chainId, context, preview: PREVIEW,
+        tokenId: state.ownershipAccount === state.wallet?.account && state.selected?.tokenId != null
+          ? String(state.selected.tokenId) : null };
+    },
+    request: jsonRequest, ensureSession: ensureV2Session,
+    onFund: () => activateTab('fund'),
+    onReviewPermission: () => { activateTab('strategy'); one('[data-agent-account-status]')?.scrollIntoView({ block: 'center' }); },
+  });
+  void persistentWatchControl.selectionChanged();
+  window.addEventListener('gogh:v2-session', event => { void persistentWatchControl?.sessionChanged(event.detail); });
   // The profile count is acquisition history; live custody is shown in Collection.
   const acquisitionValue = one('[data-punk-nfts]');
   if (acquisitionValue) {
