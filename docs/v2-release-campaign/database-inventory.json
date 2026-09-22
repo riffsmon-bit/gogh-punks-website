@@ -1,0 +1,4589 @@
+{
+  "schema": "GOGH_RELEASE_DATABASE_AUDIT_V1",
+  "checkedAt": "2026-09-14T03:08:58.967Z",
+  "databases": [
+    {
+      "label": "APPLICATION",
+      "available": true,
+      "tlsVerified": true,
+      "meta": [
+        {
+          "name": "broker_agent_authorizations",
+          "rls": false,
+          "force_rls": false,
+          "estimated_rows": "-1"
+        },
+        {
+          "name": "broker_automation_v3_enrollments",
+          "rls": false,
+          "force_rls": false,
+          "estimated_rows": "274"
+        },
+        {
+          "name": "broker_canary_execution_reviews",
+          "rls": false,
+          "force_rls": false,
+          "estimated_rows": "-1"
+        },
+        {
+          "name": "broker_directed_mint_intents",
+          "rls": false,
+          "force_rls": false,
+          "estimated_rows": "-1"
+        },
+        {
+          "name": "broker_forge_training_intent_events",
+          "rls": true,
+          "force_rls": false,
+          "estimated_rows": "-1"
+        },
+        {
+          "name": "broker_forge_training_intents",
+          "rls": true,
+          "force_rls": false,
+          "estimated_rows": "-1"
+        },
+        {
+          "name": "broker_marketplace_reviews",
+          "rls": true,
+          "force_rls": false,
+          "estimated_rows": "-1"
+        },
+        {
+          "name": "broker_paid_mint_jobs",
+          "rls": false,
+          "force_rls": false,
+          "estimated_rows": "-1"
+        },
+        {
+          "name": "broker_proposals",
+          "rls": false,
+          "force_rls": false,
+          "estimated_rows": "-1"
+        },
+        {
+          "name": "broker_scouting_schedules",
+          "rls": false,
+          "force_rls": false,
+          "estimated_rows": "54"
+        },
+        {
+          "name": "broker_selected_burn_reviews",
+          "rls": true,
+          "force_rls": false,
+          "estimated_rows": "-1"
+        },
+        {
+          "name": "broker_v2_agent_sessions",
+          "rls": false,
+          "force_rls": false,
+          "estimated_rows": "3"
+        },
+        {
+          "name": "broker_v2_execution_attempts",
+          "rls": false,
+          "force_rls": false,
+          "estimated_rows": "-1"
+        },
+        {
+          "name": "broker_v2_strategies",
+          "rls": false,
+          "force_rls": false,
+          "estimated_rows": "-1"
+        },
+        {
+          "name": "broker_v4_execution_attempts",
+          "rls": false,
+          "force_rls": false,
+          "estimated_rows": "-1"
+        },
+        {
+          "name": "broker_v4_punk_policy_proposals",
+          "rls": false,
+          "force_rls": false,
+          "estimated_rows": "-1"
+        }
+      ],
+      "columns": [
+        {
+          "table_name": "broker_agent_authorizations",
+          "column_name": "chain_id",
+          "data_type": "bigint",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_agent_authorizations",
+          "column_name": "account_address",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_agent_authorizations",
+          "column_name": "agent_address",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_agent_authorizations",
+          "column_name": "authorizing_owner",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_agent_authorizations",
+          "column_name": "authorization_generation",
+          "data_type": "bigint",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_agent_authorizations",
+          "column_name": "active",
+          "data_type": "boolean",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_agent_authorizations",
+          "column_name": "valid_until",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_agent_authorizations",
+          "column_name": "observed_block",
+          "data_type": "bigint",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_agent_authorizations",
+          "column_name": "transaction_hash",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_agent_authorizations",
+          "column_name": "log_index",
+          "data_type": "integer",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_automation_v3_enrollments",
+          "column_name": "chain_id",
+          "data_type": "bigint",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_automation_v3_enrollments",
+          "column_name": "collection_address",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_automation_v3_enrollments",
+          "column_name": "token_id",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_automation_v3_enrollments",
+          "column_name": "account_address",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_automation_v3_enrollments",
+          "column_name": "owner_snapshot",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_automation_v3_enrollments",
+          "column_name": "enrolled_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_automation_v3_enrollments",
+          "column_name": "last_requested_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_automation_v3_enrollments",
+          "column_name": "agent_address",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_automation_v3_enrollments",
+          "column_name": "agent_lane",
+          "data_type": "smallint",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "column_name": "artifact_sha256",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "column_name": "chain_id",
+          "data_type": "bigint",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "column_name": "expected_owner",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "column_name": "account_address",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "column_name": "policy_module",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "column_name": "punk_collection",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "column_name": "punk_token_id",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "column_name": "adapter_address",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "column_name": "venue_address",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "column_name": "collection_address",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "column_name": "output_token_id",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "column_name": "function_selector",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "column_name": "mint_selector",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "column_name": "transaction_value",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "column_name": "data_keccak256",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "column_name": "intent_digest",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "column_name": "account_runtime_code_hash",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "column_name": "adapter_runtime_code_hash",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "column_name": "art_runtime_code_hash",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "column_name": "core_manifest_sha256",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "column_name": "canary_manifest_sha256",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "column_name": "acquisition_nonce",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "column_name": "policy_version",
+          "data_type": "bigint",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "column_name": "expires_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "column_name": "reviewed_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "column_name": "revoked_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "column_name": "execution_artifact_json",
+          "data_type": "text",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_directed_mint_intents",
+          "column_name": "intent_id",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_directed_mint_intents",
+          "column_name": "wallet_address",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_directed_mint_intents",
+          "column_name": "punk_token_id",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_directed_mint_intents",
+          "column_name": "source_url",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_directed_mint_intents",
+          "column_name": "review_id",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_directed_mint_intents",
+          "column_name": "review_sha256",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_directed_mint_intents",
+          "column_name": "review_body",
+          "data_type": "jsonb",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_directed_mint_intents",
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_directed_mint_intents",
+          "column_name": "expires_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_directed_mint_intents",
+          "column_name": "consumed_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_forge_training_intent_events",
+          "column_name": "intent_id",
+          "data_type": "uuid",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intent_events",
+          "column_name": "revision",
+          "data_type": "integer",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intent_events",
+          "column_name": "status",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intent_events",
+          "column_name": "transaction_hash",
+          "data_type": "text",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_forge_training_intent_events",
+          "column_name": "observation",
+          "data_type": "jsonb",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_forge_training_intent_events",
+          "column_name": "recorded_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intent_events",
+          "column_name": "settlement",
+          "data_type": "jsonb",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "intent_id",
+          "data_type": "uuid",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "request_key",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "chain_id",
+          "data_type": "integer",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "collection_address",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "progression_address",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "deployment_hash",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "owner_address",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "punk_token_id",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "owner_nonce",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "review_json",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "review_hash",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "status",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "revision",
+          "data_type": "integer",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "transaction_hash",
+          "data_type": "text",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "observation",
+          "data_type": "jsonb",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "expires_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "updated_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "settlement",
+          "data_type": "jsonb",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_marketplace_reviews",
+          "column_name": "intent_id",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_marketplace_reviews",
+          "column_name": "owner_address",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_marketplace_reviews",
+          "column_name": "punk_id",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_marketplace_reviews",
+          "column_name": "chain_id",
+          "data_type": "integer",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_marketplace_reviews",
+          "column_name": "expires_at_ms",
+          "data_type": "bigint",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_marketplace_reviews",
+          "column_name": "review_json",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_marketplace_reviews",
+          "column_name": "review_hash",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_marketplace_reviews",
+          "column_name": "revision",
+          "data_type": "integer",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_marketplace_reviews",
+          "column_name": "status",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_marketplace_reviews",
+          "column_name": "reported_hash",
+          "data_type": "text",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_marketplace_reviews",
+          "column_name": "receipt",
+          "data_type": "jsonb",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_marketplace_reviews",
+          "column_name": "reason",
+          "data_type": "text",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_marketplace_reviews",
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_paid_mint_jobs",
+          "column_name": "chain_id",
+          "data_type": "bigint",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_paid_mint_jobs",
+          "column_name": "punk_token_id",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_paid_mint_jobs",
+          "column_name": "utc_day",
+          "data_type": "date",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_paid_mint_jobs",
+          "column_name": "job_id",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_paid_mint_jobs",
+          "column_name": "status",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_paid_mint_jobs",
+          "column_name": "amount_wei",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_paid_mint_jobs",
+          "column_name": "mint_contract",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_paid_mint_jobs",
+          "column_name": "collection_address",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_paid_mint_jobs",
+          "column_name": "received_token_id",
+          "data_type": "numeric",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_paid_mint_jobs",
+          "column_name": "transaction_hash",
+          "data_type": "text",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_paid_mint_jobs",
+          "column_name": "block_number",
+          "data_type": "bigint",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_paid_mint_jobs",
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_paid_mint_jobs",
+          "column_name": "updated_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_proposals",
+          "column_name": "id",
+          "data_type": "uuid",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_proposals",
+          "column_name": "recommendation_id",
+          "data_type": "uuid",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_proposals",
+          "column_name": "account_address",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_proposals",
+          "column_name": "expected_owner",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_proposals",
+          "column_name": "intent_hash",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_proposals",
+          "column_name": "nonce",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_proposals",
+          "column_name": "policy_version",
+          "data_type": "bigint",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_proposals",
+          "column_name": "typed_intent",
+          "data_type": "jsonb",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_proposals",
+          "column_name": "status",
+          "data_type": "character varying",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_proposals",
+          "column_name": "expires_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_proposals",
+          "column_name": "transaction_hash",
+          "data_type": "character",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_proposals",
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_proposals",
+          "column_name": "updated_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_scouting_schedules",
+          "column_name": "chain_id",
+          "data_type": "integer",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_scouting_schedules",
+          "column_name": "collection_address",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_scouting_schedules",
+          "column_name": "token_id",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_scouting_schedules",
+          "column_name": "owner_snapshot",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_scouting_schedules",
+          "column_name": "enabled",
+          "data_type": "boolean",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_scouting_schedules",
+          "column_name": "start_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_scouting_schedules",
+          "column_name": "end_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_scouting_schedules",
+          "column_name": "timezone",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_scouting_schedules",
+          "column_name": "updated_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "column_name": "intent_id",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "column_name": "owner_address",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "column_name": "source_token_id",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "column_name": "review_json",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "column_name": "review_hash",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "column_name": "revision",
+          "data_type": "integer",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "column_name": "status",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "column_name": "reported_hash",
+          "data_type": "text",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "column_name": "receipt",
+          "data_type": "jsonb",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "column_name": "session_id",
+          "data_type": "uuid",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "column_name": "chain_id",
+          "data_type": "bigint",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "column_name": "collection_address",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "column_name": "punk_token_id",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "column_name": "punk_account",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "column_name": "owner_snapshot",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "column_name": "strategy_version",
+          "data_type": "bigint",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "column_name": "strategy_hash",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "column_name": "session_key",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "column_name": "session_generation",
+          "data_type": "bigint",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "column_name": "adapter_address",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "column_name": "venue_address",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "column_name": "adapter_code_hash",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "column_name": "target_collection",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "column_name": "max_mints_per_day",
+          "data_type": "integer",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "column_name": "max_mints_total",
+          "data_type": "integer",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "column_name": "max_gas_cost_wei",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "column_name": "minimum_native_reserve_wei",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "column_name": "valid_after",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "column_name": "valid_until",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "column_name": "status",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "column_name": "setup_artifact_hash",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "column_name": "authorization_transaction_hash",
+          "data_type": "character",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "column_name": "activated_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "column_name": "updated_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_execution_attempts",
+          "column_name": "attempt_id",
+          "data_type": "uuid",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_execution_attempts",
+          "column_name": "idempotency_key",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_execution_attempts",
+          "column_name": "chain_id",
+          "data_type": "bigint",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_execution_attempts",
+          "column_name": "punk_token_id",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_execution_attempts",
+          "column_name": "punk_account",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_execution_attempts",
+          "column_name": "owner_snapshot",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_execution_attempts",
+          "column_name": "opportunity_id",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_execution_attempts",
+          "column_name": "strategy_version",
+          "data_type": "bigint",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_execution_attempts",
+          "column_name": "strategy_hash",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_execution_attempts",
+          "column_name": "account_nonce",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_execution_attempts",
+          "column_name": "operating_mode",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_execution_attempts",
+          "column_name": "state",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_execution_attempts",
+          "column_name": "transaction_envelope_hash",
+          "data_type": "character",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_v2_execution_attempts",
+          "column_name": "transaction_hash",
+          "data_type": "character",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_v2_execution_attempts",
+          "column_name": "rejection_code",
+          "data_type": "text",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_v2_execution_attempts",
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_execution_attempts",
+          "column_name": "updated_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_execution_attempts",
+          "column_name": "submitted_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_v2_execution_attempts",
+          "column_name": "confirmed_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_v2_execution_attempts",
+          "column_name": "approval_expires_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_v2_strategies",
+          "column_name": "chain_id",
+          "data_type": "bigint",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_strategies",
+          "column_name": "collection_address",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_strategies",
+          "column_name": "token_id",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_strategies",
+          "column_name": "version",
+          "data_type": "bigint",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_strategies",
+          "column_name": "schema_name",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_strategies",
+          "column_name": "intent_hash",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_strategies",
+          "column_name": "intent",
+          "data_type": "jsonb",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_strategies",
+          "column_name": "state",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_strategies",
+          "column_name": "configured_by",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_strategies",
+          "column_name": "ownership_block",
+          "data_type": "bigint",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_strategies",
+          "column_name": "owner_confirmation_hash",
+          "data_type": "character",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_v2_strategies",
+          "column_name": "expires_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_strategies",
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v2_strategies",
+          "column_name": "activated_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_v4_execution_attempts",
+          "column_name": "attempt_id",
+          "data_type": "uuid",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v4_execution_attempts",
+          "column_name": "idempotency_key",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v4_execution_attempts",
+          "column_name": "chain_id",
+          "data_type": "bigint",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v4_execution_attempts",
+          "column_name": "punk_collection_address",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v4_execution_attempts",
+          "column_name": "punk_token_id",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v4_execution_attempts",
+          "column_name": "punk_account_address",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v4_execution_attempts",
+          "column_name": "opportunity_id",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v4_execution_attempts",
+          "column_name": "policy_id",
+          "data_type": "uuid",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v4_execution_attempts",
+          "column_name": "state",
+          "data_type": "character varying",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v4_execution_attempts",
+          "column_name": "lease_token",
+          "data_type": "uuid",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_v4_execution_attempts",
+          "column_name": "lease_until",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_v4_execution_attempts",
+          "column_name": "account_nonce",
+          "data_type": "numeric",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_v4_execution_attempts",
+          "column_name": "transaction_value_wei",
+          "data_type": "numeric",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_v4_execution_attempts",
+          "column_name": "transaction_calldata_hash",
+          "data_type": "character",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_v4_execution_attempts",
+          "column_name": "submission_identity_hash",
+          "data_type": "character",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_v4_execution_attempts",
+          "column_name": "transaction_hash",
+          "data_type": "character",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_v4_execution_attempts",
+          "column_name": "result_code",
+          "data_type": "character varying",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_v4_execution_attempts",
+          "column_name": "reserved_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_v4_execution_attempts",
+          "column_name": "submitted_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_v4_execution_attempts",
+          "column_name": "confirmed_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_v4_execution_attempts",
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v4_execution_attempts",
+          "column_name": "updated_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "column_name": "policy_id",
+          "data_type": "uuid",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "column_name": "chain_id",
+          "data_type": "bigint",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "column_name": "punk_collection_address",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "column_name": "punk_token_id",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "column_name": "punk_account_address",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "column_name": "owner_snapshot",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "column_name": "policy_version",
+          "data_type": "bigint",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "column_name": "policy_hash",
+          "data_type": "character",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "column_name": "state",
+          "data_type": "character varying",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "column_name": "automation_enabled",
+          "data_type": "boolean",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "column_name": "mint_type",
+          "data_type": "character varying",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "column_name": "maximum_mint_price_wei",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "column_name": "maximum_gas_per_mint_wei",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "column_name": "daily_mint_limit",
+          "data_type": "integer",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "column_name": "total_remaining_mint_limit",
+          "data_type": "integer",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "column_name": "minimum_native_reserve_wei",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "column_name": "allowed_adapters",
+          "data_type": "jsonb",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "column_name": "blocked_contracts",
+          "data_type": "jsonb",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "column_name": "maximum_risk_score",
+          "data_type": "integer",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "column_name": "expires_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "column_name": "owner_authorization_hash",
+          "data_type": "character",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "column_name": "activation_transaction_hash",
+          "data_type": "character",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "column_name": "updated_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        }
+      ],
+      "checks": [
+        {
+          "table_name": "broker_agent_authorizations",
+          "name": "broker_agent_authorizations_account_address_check",
+          "definition": "CHECK (((account_address)::text = lower((account_address)::text)))"
+        },
+        {
+          "table_name": "broker_agent_authorizations",
+          "name": "broker_agent_authorizations_agent_address_check",
+          "definition": "CHECK (((agent_address)::text = lower((agent_address)::text)))"
+        },
+        {
+          "table_name": "broker_agent_authorizations",
+          "name": "broker_agent_authorizations_authorization_generation_check",
+          "definition": "CHECK ((authorization_generation >= 0))"
+        },
+        {
+          "table_name": "broker_agent_authorizations",
+          "name": "broker_agent_authorizations_authorizing_owner_check",
+          "definition": "CHECK (((authorizing_owner)::text = lower((authorizing_owner)::text)))"
+        },
+        {
+          "table_name": "broker_agent_authorizations",
+          "name": "broker_agent_authorizations_log_index_check",
+          "definition": "CHECK ((log_index >= 0))"
+        },
+        {
+          "table_name": "broker_agent_authorizations",
+          "name": "broker_agent_authorizations_observed_block_check",
+          "definition": "CHECK ((observed_block >= 0))"
+        },
+        {
+          "table_name": "broker_agent_authorizations",
+          "name": "broker_agent_authorizations_transaction_hash_check",
+          "definition": "CHECK (((transaction_hash)::text = lower((transaction_hash)::text)))"
+        },
+        {
+          "table_name": "broker_automation_v3_enrollments",
+          "name": "broker_automation_v3_enrollments_account_address_check",
+          "definition": "CHECK (((account_address)::text = lower((account_address)::text)))"
+        },
+        {
+          "table_name": "broker_automation_v3_enrollments",
+          "name": "broker_automation_v3_enrollments_agent_address_lowercase",
+          "definition": "CHECK (((agent_address)::text = lower((agent_address)::text)))"
+        },
+        {
+          "table_name": "broker_automation_v3_enrollments",
+          "name": "broker_automation_v3_enrollments_agent_lane_range",
+          "definition": "CHECK (((agent_lane >= 1) AND (agent_lane <= 6)))"
+        },
+        {
+          "table_name": "broker_automation_v3_enrollments",
+          "name": "broker_automation_v3_enrollments_chain_id_check",
+          "definition": "CHECK ((chain_id = 4663))"
+        },
+        {
+          "table_name": "broker_automation_v3_enrollments",
+          "name": "broker_automation_v3_enrollments_collection_address_check",
+          "definition": "CHECK (((collection_address)::text = lower((collection_address)::text)))"
+        },
+        {
+          "table_name": "broker_automation_v3_enrollments",
+          "name": "broker_automation_v3_enrollments_owner_snapshot_check",
+          "definition": "CHECK (((owner_snapshot)::text = lower((owner_snapshot)::text)))"
+        },
+        {
+          "table_name": "broker_automation_v3_enrollments",
+          "name": "broker_automation_v3_enrollments_token_id_check",
+          "definition": "CHECK ((token_id >= (0)::numeric))"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "name": "broker_canary_execution_artifact_size",
+          "definition": "CHECK (((execution_artifact_json IS NULL) OR ((octet_length(execution_artifact_json) > 0) AND (octet_length(execution_artifact_json) <= 2000000))))"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "name": "broker_canary_execution_reviews_account_address_check",
+          "definition": "CHECK (((account_address)::text = lower((account_address)::text)))"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "name": "broker_canary_execution_reviews_account_runtime_code_hash_check",
+          "definition": "CHECK (((account_runtime_code_hash)::text = lower((account_runtime_code_hash)::text)))"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "name": "broker_canary_execution_reviews_acquisition_nonce_check",
+          "definition": "CHECK ((acquisition_nonce = (0)::numeric))"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "name": "broker_canary_execution_reviews_adapter_address_check",
+          "definition": "CHECK (((adapter_address)::text = lower((adapter_address)::text)))"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "name": "broker_canary_execution_reviews_adapter_runtime_code_hash_check",
+          "definition": "CHECK (((adapter_runtime_code_hash)::text = lower((adapter_runtime_code_hash)::text)))"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "name": "broker_canary_execution_reviews_art_runtime_code_hash_check",
+          "definition": "CHECK (((art_runtime_code_hash)::text = lower((art_runtime_code_hash)::text)))"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "name": "broker_canary_execution_reviews_artifact_sha256_check",
+          "definition": "CHECK (((artifact_sha256)::text = lower((artifact_sha256)::text)))"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "name": "broker_canary_execution_reviews_canary_manifest_sha256_check",
+          "definition": "CHECK (((canary_manifest_sha256)::text = lower((canary_manifest_sha256)::text)))"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "name": "broker_canary_execution_reviews_chain_id_check",
+          "definition": "CHECK ((chain_id = 4663))"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "name": "broker_canary_execution_reviews_check",
+          "definition": "CHECK ((expires_at > reviewed_at))"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "name": "broker_canary_execution_reviews_check1",
+          "definition": "CHECK (((revoked_at IS NULL) OR (revoked_at >= reviewed_at)))"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "name": "broker_canary_execution_reviews_collection_address_check",
+          "definition": "CHECK (((collection_address)::text = lower((collection_address)::text)))"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "name": "broker_canary_execution_reviews_core_manifest_sha256_check",
+          "definition": "CHECK (((core_manifest_sha256)::text = lower((core_manifest_sha256)::text)))"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "name": "broker_canary_execution_reviews_data_keccak256_check",
+          "definition": "CHECK (((data_keccak256)::text = lower((data_keccak256)::text)))"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "name": "broker_canary_execution_reviews_expected_owner_check",
+          "definition": "CHECK (((expected_owner)::text = lower((expected_owner)::text)))"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "name": "broker_canary_execution_reviews_function_selector_check",
+          "definition": "CHECK (((function_selector)::text = lower((function_selector)::text)))"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "name": "broker_canary_execution_reviews_intent_digest_check",
+          "definition": "CHECK (((intent_digest)::text = lower((intent_digest)::text)))"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "name": "broker_canary_execution_reviews_mint_selector_check",
+          "definition": "CHECK (((mint_selector)::text = lower((mint_selector)::text)))"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "name": "broker_canary_execution_reviews_output_token_id_check",
+          "definition": "CHECK ((output_token_id >= (0)::numeric))"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "name": "broker_canary_execution_reviews_policy_module_check",
+          "definition": "CHECK (((policy_module)::text = lower((policy_module)::text)))"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "name": "broker_canary_execution_reviews_policy_version_check",
+          "definition": "CHECK ((policy_version = 11))"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "name": "broker_canary_execution_reviews_punk_collection_check",
+          "definition": "CHECK (((punk_collection)::text = lower((punk_collection)::text)))"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "name": "broker_canary_execution_reviews_punk_token_id_check",
+          "definition": "CHECK ((punk_token_id = (1797)::numeric))"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "name": "broker_canary_execution_reviews_transaction_value_check",
+          "definition": "CHECK ((transaction_value = (0)::numeric))"
+        },
+        {
+          "table_name": "broker_canary_execution_reviews",
+          "name": "broker_canary_execution_reviews_venue_address_check",
+          "definition": "CHECK (((venue_address)::text = lower((venue_address)::text)))"
+        },
+        {
+          "table_name": "broker_directed_mint_intents",
+          "name": "broker_directed_mint_intents_check",
+          "definition": "CHECK ((expires_at > created_at))"
+        },
+        {
+          "table_name": "broker_directed_mint_intents",
+          "name": "broker_directed_mint_intents_check1",
+          "definition": "CHECK (((consumed_at IS NULL) OR (consumed_at >= created_at)))"
+        },
+        {
+          "table_name": "broker_directed_mint_intents",
+          "name": "broker_directed_mint_intents_intent_id_check",
+          "definition": "CHECK ((intent_id ~ '^dmi_[0-9a-f-]{36}$'::text))"
+        },
+        {
+          "table_name": "broker_directed_mint_intents",
+          "name": "broker_directed_mint_intents_punk_token_id_check",
+          "definition": "CHECK ((punk_token_id >= (0)::numeric))"
+        },
+        {
+          "table_name": "broker_directed_mint_intents",
+          "name": "broker_directed_mint_intents_review_id_check",
+          "definition": "CHECK ((review_id ~ '^osr_[0-9a-f]{64}$'::text))"
+        },
+        {
+          "table_name": "broker_directed_mint_intents",
+          "name": "broker_directed_mint_intents_review_sha256_check",
+          "definition": "CHECK ((review_sha256 ~ '^[0-9a-f]{64}$'::text))"
+        },
+        {
+          "table_name": "broker_directed_mint_intents",
+          "name": "broker_directed_mint_intents_source_url_check",
+          "definition": "CHECK ((length(source_url) <= 2048))"
+        },
+        {
+          "table_name": "broker_directed_mint_intents",
+          "name": "broker_directed_mint_intents_wallet_address_check",
+          "definition": "CHECK ((wallet_address ~ '^0x[0-9a-f]{40}$'::text))"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "broker_forge_training_intents_chain_id_check",
+          "definition": "CHECK ((chain_id = ANY (ARRAY[31337, 4663])))"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "broker_forge_training_intents_check",
+          "definition": "CHECK ((review_hash = encode(sha256(convert_to(review_json, 'UTF8'::name)), 'hex'::text)))"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "broker_forge_training_intents_check1",
+          "definition": "CHECK (((expires_at > created_at) AND (expires_at <= (created_at + '00:01:00'::interval))))"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "broker_forge_training_intents_check2",
+          "definition": "CHECK (((((((review_json)::jsonb ->> 'chainId'::text))::integer = chain_id) AND (((review_json)::jsonb ->> 'collection'::text) = collection_address) AND (((review_json)::jsonb ->> 'progression'::text) = progression_address) AND (((review_json)::jsonb ->> 'deploymentHash'::text) = deployment_hash) AND (((review_json)::jsonb ->> 'owner'::text) = owner_address) AND (((review_json)::jsonb ->> 'tokenId'::text) = (punk_token_id)::text) AND (((review_json)::jsonb #>> '{transaction,nonce}'::text[]) = (owner_nonce)::text) AND ((((review_json)::jsonb #>> '{guard,deadline}'::text[]))::numeric = EXTRACT(epoch FROM expires_at))) IS TRUE))"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "broker_forge_training_intents_collection_address_check",
+          "definition": "CHECK ((collection_address ~ '^0x[0-9a-f]{40}$'::text))"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "broker_forge_training_intents_deployment_hash_check",
+          "definition": "CHECK ((deployment_hash ~ '^0x[0-9a-f]{64}$'::text))"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "broker_forge_training_intents_owner_address_check",
+          "definition": "CHECK ((owner_address ~ '^0x[0-9a-f]{40}$'::text))"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "broker_forge_training_intents_owner_nonce_check",
+          "definition": "CHECK (((owner_nonce >= (0)::numeric) AND (owner_nonce < power((2)::numeric, (64)::numeric))))"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "broker_forge_training_intents_progression_address_check",
+          "definition": "CHECK ((progression_address ~ '^0x[0-9a-f]{40}$'::text))"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "broker_forge_training_intents_punk_token_id_check",
+          "definition": "CHECK (((punk_token_id >= (0)::numeric) AND (punk_token_id < power((2)::numeric, (256)::numeric))))"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "broker_forge_training_intents_request_key_check",
+          "definition": "CHECK ((request_key ~ '^[0-9a-f]{64}$'::text))"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "broker_forge_training_intents_review_json_check",
+          "definition": "CHECK (((octet_length(review_json) <= 16384) AND (jsonb_typeof((review_json)::jsonb) = 'object'::text)))"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "broker_forge_training_intents_revision_check",
+          "definition": "CHECK ((revision >= 0))"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "broker_forge_training_intents_transaction_hash_check",
+          "definition": "CHECK ((transaction_hash ~ '^0x[0-9a-f]{64}$'::text))"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "forge_training_hash_state",
+          "definition": "CHECK (\nCASE\n    WHEN (status = ANY (ARRAY['SUBMITTED'::text, 'INCLUDED_SUCCESS'::text, 'INCLUDED_REVERT'::text, 'REORGED'::text, 'SETTLED_SUCCESS'::text, 'SETTLED_REVERT'::text])) THEN (transaction_hash IS NOT NULL)\n    WHEN (status = ANY (ARRAY['NONCE_CONSUMED'::text, 'REVIEW_EXPIRED'::text])) THEN true\n    ELSE (transaction_hash IS NULL)\nEND)"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "forge_training_observation_state",
+          "definition": "CHECK (\nCASE\n    WHEN (status = ANY (ARRAY['INCLUDED_SUCCESS'::text, 'INCLUDED_REVERT'::text, 'REORGED'::text])) THEN (observation IS NOT NULL)\n    WHEN (status = ANY (ARRAY['SETTLED_SUCCESS'::text, 'SETTLED_REVERT'::text, 'NONCE_CONSUMED'::text, 'REVIEW_EXPIRED'::text])) THEN true\n    ELSE (observation IS NULL)\nEND)"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "forge_training_settlement_binding",
+          "definition": "CHECK (((settlement IS NULL) OR (((jsonb_typeof(settlement) = 'object'::text) AND ((settlement ->> 'schema'::text) = 'GOGH_TRAINING_SETTLEMENT_V1'::text) AND ((settlement ->> 'policy'::text) = 'RPC_FINALIZED_QUORUM_V1'::text) AND ((settlement ->> 'status'::text) = status) AND ((settlement ->> 'reviewHash'::text) = review_hash) AND (NOT ((settlement ->> 'transactionHash'::text) IS DISTINCT FROM transaction_hash)) AND ((settlement ->> 'finalizedBlockNumber'::text) ~ '^(0|[1-9][0-9]{0,19})$'::text) AND ((settlement ->> 'finalizedBlockHash'::text) ~ '^0x[0-9a-f]{64}$'::text) AND ((settlement ->> 'finalizedTimestamp'::text) ~ '^(0|[1-9][0-9]{0,19})$'::text) AND ((settlement ->> 'ownerNonce'::text) ~ '^(0|[1-9][0-9]{0,19})$'::text) AND\nCASE\n    WHEN (status = 'REVIEW_EXPIRED'::text) THEN (((settlement ->> 'ownerNonce'::text))::numeric <= owner_nonce)\n    ELSE (((settlement ->> 'ownerNonce'::text))::numeric > owner_nonce)\nEND AND (((settlement ->> 'ownerNonce'::text))::numeric < power((2)::numeric, (64)::numeric)) AND ((settlement -> 'sources'::text) = '[\"PUBLICNODE\", \"ROBINHOOD\"]'::jsonb) AND ((settlement ->> 'evidenceHash'::text) ~ '^0x[0-9a-f]{64}$'::text) AND\nCASE\n    WHEN (status = ANY (ARRAY['NONCE_CONSUMED'::text, 'REVIEW_EXPIRED'::text])) THEN ((((settlement ->> 'finalizedTimestamp'::text))::numeric > EXTRACT(epoch FROM expires_at)) AND (((settlement ->> 'finalizedBlockNumber'::text))::numeric >= (((review_json)::jsonb #>> '{anchor,number}'::text[]))::numeric) AND ((settlement -> 'receiptBlockNumber'::text) = 'null'::jsonb) AND ((settlement -> 'receiptBlockHash'::text) = 'null'::jsonb))\n    ELSE (((settlement ->> 'receiptBlockNumber'::text) ~ '^(0|[1-9][0-9]{0,19})$'::text) AND ((settlement ->> 'receiptBlockHash'::text) ~ '^0x[0-9a-f]{64}$'::text) AND (((settlement ->> 'receiptBlockNumber'::text))::numeric >= (((review_json)::jsonb #>> '{anchor,number}'::text[]))::numeric) AND (((settlement ->> 'receiptBlockNumber'::text))::numeric <= ((settlement ->> 'finalizedBlockNumber'::text))::numeric))\nEND) IS TRUE)))"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "forge_training_settlement_state",
+          "definition": "CHECK (((status = ANY (ARRAY['SETTLED_SUCCESS'::text, 'SETTLED_REVERT'::text, 'NONCE_CONSUMED'::text, 'REVIEW_EXPIRED'::text])) = (settlement IS NOT NULL)))"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "forge_training_valid_status",
+          "definition": "CHECK ((status = ANY (ARRAY['PREPARED'::text, 'WALLET_REQUESTED'::text, 'SUBMISSION_UNKNOWN'::text, 'SUBMITTED'::text, 'INCLUDED_SUCCESS'::text, 'INCLUDED_REVERT'::text, 'REORGED'::text, 'EXPIRED'::text, 'CANCELLED'::text, 'SETTLED_SUCCESS'::text, 'SETTLED_REVERT'::text, 'NONCE_CONSUMED'::text, 'REVIEW_EXPIRED'::text])))"
+        },
+        {
+          "table_name": "broker_marketplace_reviews",
+          "name": "broker_marketplace_reviews_chain_id_check",
+          "definition": "CHECK ((chain_id = 4663))"
+        },
+        {
+          "table_name": "broker_marketplace_reviews",
+          "name": "broker_marketplace_reviews_check",
+          "definition": "CHECK ((review_hash = encode(sha256(convert_to(review_json, 'UTF8'::name)), 'hex'::text)))"
+        },
+        {
+          "table_name": "broker_marketplace_reviews",
+          "name": "broker_marketplace_reviews_check1",
+          "definition": "CHECK ((((review_json)::jsonb ->> 'intentId'::text) = intent_id))"
+        },
+        {
+          "table_name": "broker_marketplace_reviews",
+          "name": "broker_marketplace_reviews_check2",
+          "definition": "CHECK (((((review_json)::jsonb -> 'review'::text) ->> 'owner'::text) = owner_address))"
+        },
+        {
+          "table_name": "broker_marketplace_reviews",
+          "name": "broker_marketplace_reviews_check3",
+          "definition": "CHECK (((((review_json)::jsonb -> 'review'::text) ->> 'punkId'::text) = punk_id))"
+        },
+        {
+          "table_name": "broker_marketplace_reviews",
+          "name": "broker_marketplace_reviews_check4",
+          "definition": "CHECK ((((((review_json)::jsonb -> 'review'::text) ->> 'chainId'::text))::integer = chain_id))"
+        },
+        {
+          "table_name": "broker_marketplace_reviews",
+          "name": "broker_marketplace_reviews_check5",
+          "definition": "CHECK ((((((review_json)::jsonb -> 'review'::text) ->> 'expiresAt'::text))::bigint = expires_at_ms))"
+        },
+        {
+          "table_name": "broker_marketplace_reviews",
+          "name": "broker_marketplace_reviews_check6",
+          "definition": "CHECK (((status = ANY (ARRAY['COMPLETED'::text, 'REVERTED'::text])) = (receipt IS NOT NULL)))"
+        },
+        {
+          "table_name": "broker_marketplace_reviews",
+          "name": "broker_marketplace_reviews_check7",
+          "definition": "CHECK (((status <> ALL (ARRAY['PREPARED'::text, 'CANCELLED'::text])) OR (reported_hash IS NULL)))"
+        },
+        {
+          "table_name": "broker_marketplace_reviews",
+          "name": "broker_marketplace_reviews_intent_id_check",
+          "definition": "CHECK ((intent_id ~ '^[0-9a-f]{64}$'::text))"
+        },
+        {
+          "table_name": "broker_marketplace_reviews",
+          "name": "broker_marketplace_reviews_owner_address_check",
+          "definition": "CHECK ((owner_address ~ '^0x[0-9a-f]{40}$'::text))"
+        },
+        {
+          "table_name": "broker_marketplace_reviews",
+          "name": "broker_marketplace_reviews_punk_id_check",
+          "definition": "CHECK (((punk_id ~ '^(0|[1-9][0-9]{0,3})$'::text) AND ((punk_id)::numeric <= (5016)::numeric)))"
+        },
+        {
+          "table_name": "broker_marketplace_reviews",
+          "name": "broker_marketplace_reviews_reason_check",
+          "definition": "CHECK ((reason ~ '^[A-Z][A-Z0-9_]{0,95}$'::text))"
+        },
+        {
+          "table_name": "broker_marketplace_reviews",
+          "name": "broker_marketplace_reviews_reported_hash_check",
+          "definition": "CHECK ((reported_hash ~ '^0x[0-9a-f]{64}$'::text))"
+        },
+        {
+          "table_name": "broker_marketplace_reviews",
+          "name": "broker_marketplace_reviews_review_json_check",
+          "definition": "CHECK ((octet_length(review_json) < 65536))"
+        },
+        {
+          "table_name": "broker_marketplace_reviews",
+          "name": "broker_marketplace_reviews_review_json_check1",
+          "definition": "CHECK (((jsonb_typeof((review_json)::jsonb) = 'object'::text) AND ((review_json)::jsonb ?& ARRAY['intentId'::text, 'releaseHash'::text, 'input'::text, 'review'::text])))"
+        },
+        {
+          "table_name": "broker_marketplace_reviews",
+          "name": "broker_marketplace_reviews_review_json_check2",
+          "definition": "CHECK (((jsonb_typeof(((review_json)::jsonb -> 'review'::text)) = 'object'::text) AND (((review_json)::jsonb -> 'review'::text) ?& ARRAY['schema'::text, 'owner'::text, 'punkId'::text, 'chainId'::text, 'expiresAt'::text, 'action'::text, 'transaction'::text])))"
+        },
+        {
+          "table_name": "broker_marketplace_reviews",
+          "name": "broker_marketplace_reviews_review_json_check3",
+          "definition": "CHECK ((jsonb_typeof((((review_json)::jsonb -> 'review'::text) -> 'transaction'::text)) = 'object'::text))"
+        },
+        {
+          "table_name": "broker_marketplace_reviews",
+          "name": "broker_marketplace_reviews_review_json_check4",
+          "definition": "CHECK (((((review_json)::jsonb -> 'review'::text) ->> 'schema'::text) = 'GOGH_MARKETPLACE_REVIEW_V1'::text))"
+        },
+        {
+          "table_name": "broker_marketplace_reviews",
+          "name": "broker_marketplace_reviews_review_json_check5",
+          "definition": "CHECK (((((review_json)::jsonb -> 'review'::text) ->> 'action'::text) = 'BUY_LISTINGS'::text))"
+        },
+        {
+          "table_name": "broker_marketplace_reviews",
+          "name": "broker_marketplace_reviews_revision_check",
+          "definition": "CHECK ((revision >= 0))"
+        },
+        {
+          "table_name": "broker_marketplace_reviews",
+          "name": "broker_marketplace_reviews_status_check",
+          "definition": "CHECK ((status = ANY (ARRAY['PREPARED'::text, 'WALLET_REQUESTED'::text, 'COMPLETED'::text, 'REVERTED'::text, 'CANCELLED'::text])))"
+        },
+        {
+          "table_name": "broker_paid_mint_jobs",
+          "name": "broker_paid_mint_jobs_amount_wei_check",
+          "definition": "CHECK ((amount_wei > (0)::numeric))"
+        },
+        {
+          "table_name": "broker_paid_mint_jobs",
+          "name": "broker_paid_mint_jobs_chain_id_check",
+          "definition": "CHECK ((chain_id = 4663))"
+        },
+        {
+          "table_name": "broker_paid_mint_jobs",
+          "name": "broker_paid_mint_jobs_collection_address_check",
+          "definition": "CHECK ((collection_address ~ '^0x[0-9a-f]{40}$'::text))"
+        },
+        {
+          "table_name": "broker_paid_mint_jobs",
+          "name": "broker_paid_mint_jobs_job_id_check",
+          "definition": "CHECK (((length(job_id) >= 8) AND (length(job_id) <= 160)))"
+        },
+        {
+          "table_name": "broker_paid_mint_jobs",
+          "name": "broker_paid_mint_jobs_mint_contract_check",
+          "definition": "CHECK ((mint_contract ~ '^0x[0-9a-f]{40}$'::text))"
+        },
+        {
+          "table_name": "broker_paid_mint_jobs",
+          "name": "broker_paid_mint_jobs_status_check",
+          "definition": "CHECK ((status = ANY (ARRAY['RESERVED'::text, 'CONFIRMED'::text, 'RELEASED'::text, 'REORGED'::text])))"
+        },
+        {
+          "table_name": "broker_paid_mint_jobs",
+          "name": "broker_paid_mint_jobs_transaction_hash_check",
+          "definition": "CHECK (((transaction_hash IS NULL) OR (transaction_hash ~ '^0x[0-9a-f]{64}$'::text)))"
+        },
+        {
+          "table_name": "broker_proposals",
+          "name": "broker_proposals_account_address_check",
+          "definition": "CHECK (((account_address)::text = lower((account_address)::text)))"
+        },
+        {
+          "table_name": "broker_proposals",
+          "name": "broker_proposals_expected_owner_check",
+          "definition": "CHECK (((expected_owner)::text = lower((expected_owner)::text)))"
+        },
+        {
+          "table_name": "broker_proposals",
+          "name": "broker_proposals_intent_hash_check",
+          "definition": "CHECK (((intent_hash)::text = lower((intent_hash)::text)))"
+        },
+        {
+          "table_name": "broker_proposals",
+          "name": "broker_proposals_status_check",
+          "definition": "CHECK (((status)::text = ANY ((ARRAY['PENDING'::character varying, 'APPROVED'::character varying, 'EXECUTED'::character varying, 'EXPIRED'::character varying, 'CANCELLED'::character varying, 'REJECTED'::character varying])::text[])))"
+        },
+        {
+          "table_name": "broker_scouting_schedules",
+          "name": "broker_scouting_schedules_timezone_check",
+          "definition": "CHECK ((timezone = 'UTC'::text))"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "name": "broker_selected_burn_reviews_check",
+          "definition": "CHECK ((review_hash = encode(sha256(convert_to(review_json, 'UTF8'::name)), 'hex'::text)))"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "name": "broker_selected_burn_reviews_check1",
+          "definition": "CHECK ((((review_json)::jsonb ->> 'intentId'::text) = intent_id))"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "name": "broker_selected_burn_reviews_check2",
+          "definition": "CHECK ((lower(((review_json)::jsonb #>> '{state,owner}'::text[])) = owner_address))"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "name": "broker_selected_burn_reviews_check3",
+          "definition": "CHECK ((((review_json)::jsonb #>> '{state,sourceTokenId}'::text[]) = source_token_id))"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "name": "broker_selected_burn_reviews_check4",
+          "definition": "CHECK (((status = ANY (ARRAY['CONFIRMED'::text, 'REVERTED'::text])) = (receipt IS NOT NULL)))"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "name": "broker_selected_burn_reviews_intent_id_check",
+          "definition": "CHECK ((intent_id ~ '^[0-9a-f]{64}$'::text))"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "name": "broker_selected_burn_reviews_owner_address_check",
+          "definition": "CHECK ((owner_address ~ '^0x[0-9a-f]{40}$'::text))"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "name": "broker_selected_burn_reviews_reported_hash_check",
+          "definition": "CHECK ((reported_hash ~ '^0x[0-9a-f]{64}$'::text))"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "name": "broker_selected_burn_reviews_review_json_check",
+          "definition": "CHECK ((octet_length(review_json) < 32768))"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "name": "broker_selected_burn_reviews_revision_check",
+          "definition": "CHECK ((revision >= 0))"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "name": "broker_selected_burn_reviews_source_token_id_check",
+          "definition": "CHECK ((source_token_id ~ '^[0-9]{1,4}$'::text))"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "name": "broker_selected_burn_reviews_status_check",
+          "definition": "CHECK ((status = ANY (ARRAY['PREPARED'::text, 'CANCELLED'::text, 'DECLINED'::text, 'WALLET_REQUESTED'::text, 'CONFIRMED'::text, 'REVERTED'::text])))"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "name": "broker_v2_agent_sessions_adapter_address_check",
+          "definition": "CHECK (((adapter_address)::text = lower((adapter_address)::text)))"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "name": "broker_v2_agent_sessions_adapter_code_hash_check",
+          "definition": "CHECK ((adapter_code_hash ~ '^0x[0-9a-f]{64}$'::text))"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "name": "broker_v2_agent_sessions_authorization_transaction_hash_check",
+          "definition": "CHECK (((authorization_transaction_hash IS NULL) OR (authorization_transaction_hash ~ '^0x[0-9a-f]{64}$'::text)))"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "name": "broker_v2_agent_sessions_chain_id_check",
+          "definition": "CHECK ((chain_id = 4663))"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "name": "broker_v2_agent_sessions_check",
+          "definition": "CHECK ((valid_until > valid_after))"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "name": "broker_v2_agent_sessions_check1",
+          "definition": "CHECK ((max_mints_per_day <= max_mints_total))"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "name": "broker_v2_agent_sessions_check2",
+          "definition": "CHECK (((status <> 'ACTIVE'::text) OR ((authorization_transaction_hash IS NOT NULL) AND (activated_at IS NOT NULL))))"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "name": "broker_v2_agent_sessions_collection_address_check",
+          "definition": "CHECK (((collection_address)::text = lower((collection_address)::text)))"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "name": "broker_v2_agent_sessions_max_gas_cost_wei_check",
+          "definition": "CHECK ((max_gas_cost_wei > (0)::numeric))"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "name": "broker_v2_agent_sessions_max_mints_per_day_check",
+          "definition": "CHECK (((max_mints_per_day >= 1) AND (max_mints_per_day <= 100)))"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "name": "broker_v2_agent_sessions_max_mints_total_check",
+          "definition": "CHECK (((max_mints_total >= 1) AND (max_mints_total <= 100)))"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "name": "broker_v2_agent_sessions_minimum_native_reserve_wei_check",
+          "definition": "CHECK ((minimum_native_reserve_wei >= (0)::numeric))"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "name": "broker_v2_agent_sessions_owner_snapshot_check",
+          "definition": "CHECK (((owner_snapshot)::text = lower((owner_snapshot)::text)))"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "name": "broker_v2_agent_sessions_punk_account_check",
+          "definition": "CHECK (((punk_account)::text = lower((punk_account)::text)))"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "name": "broker_v2_agent_sessions_punk_token_id_check",
+          "definition": "CHECK ((punk_token_id >= (0)::numeric))"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "name": "broker_v2_agent_sessions_session_generation_check",
+          "definition": "CHECK ((session_generation > 0))"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "name": "broker_v2_agent_sessions_session_key_check",
+          "definition": "CHECK (((session_key)::text = lower((session_key)::text)))"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "name": "broker_v2_agent_sessions_setup_artifact_hash_check",
+          "definition": "CHECK ((setup_artifact_hash ~ '^0x[0-9a-f]{64}$'::text))"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "name": "broker_v2_agent_sessions_status_check",
+          "definition": "CHECK ((status = ANY (ARRAY['PENDING_RECEIPT'::text, 'ACTIVE'::text, 'COMPLETED'::text, 'REVOKED'::text, 'EXPIRED'::text, 'OWNER_CHANGED'::text, 'PAUSED'::text])))"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "name": "broker_v2_agent_sessions_strategy_hash_check",
+          "definition": "CHECK ((strategy_hash ~ '^0x[0-9a-f]{64}$'::text))"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "name": "broker_v2_agent_sessions_strategy_version_check",
+          "definition": "CHECK ((strategy_version > 0))"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "name": "broker_v2_agent_sessions_target_collection_check",
+          "definition": "CHECK (((target_collection)::text = lower((target_collection)::text)))"
+        },
+        {
+          "table_name": "broker_v2_agent_sessions",
+          "name": "broker_v2_agent_sessions_venue_address_check",
+          "definition": "CHECK (((venue_address)::text = lower((venue_address)::text)))"
+        },
+        {
+          "table_name": "broker_v2_execution_attempts",
+          "name": "broker_v2_execution_attempts_account_nonce_check",
+          "definition": "CHECK ((account_nonce >= (0)::numeric))"
+        },
+        {
+          "table_name": "broker_v2_execution_attempts",
+          "name": "broker_v2_execution_attempts_approval_expiry",
+          "definition": "CHECK (((state <> 'OWNER_APPROVAL_PENDING'::text) OR (approval_expires_at IS NOT NULL)))"
+        },
+        {
+          "table_name": "broker_v2_execution_attempts",
+          "name": "broker_v2_execution_attempts_chain_id_check",
+          "definition": "CHECK ((chain_id = 4663))"
+        },
+        {
+          "table_name": "broker_v2_execution_attempts",
+          "name": "broker_v2_execution_attempts_check",
+          "definition": "CHECK (((state <> ALL (ARRAY['SUBMISSION_RESERVED'::text, 'SUBMITTED'::text, 'CONFIRMED'::text])) OR (transaction_envelope_hash IS NOT NULL)))"
+        },
+        {
+          "table_name": "broker_v2_execution_attempts",
+          "name": "broker_v2_execution_attempts_check1",
+          "definition": "CHECK (((state <> ALL (ARRAY['SUBMITTED'::text, 'CONFIRMED'::text])) OR ((transaction_hash IS NOT NULL) AND (submitted_at IS NOT NULL))))"
+        },
+        {
+          "table_name": "broker_v2_execution_attempts",
+          "name": "broker_v2_execution_attempts_check2",
+          "definition": "CHECK (((state <> 'CONFIRMED'::text) OR (confirmed_at IS NOT NULL)))"
+        },
+        {
+          "table_name": "broker_v2_execution_attempts",
+          "name": "broker_v2_execution_attempts_envelope_hash_format",
+          "definition": "CHECK (((transaction_envelope_hash IS NULL) OR (transaction_envelope_hash ~ '^[0-9a-f]{64}$'::text)))"
+        },
+        {
+          "table_name": "broker_v2_execution_attempts",
+          "name": "broker_v2_execution_attempts_idempotency_key_check",
+          "definition": "CHECK ((idempotency_key ~ '^[0-9a-f]{64}$'::text))"
+        },
+        {
+          "table_name": "broker_v2_execution_attempts",
+          "name": "broker_v2_execution_attempts_operating_mode_check",
+          "definition": "CHECK ((operating_mode = ANY (ARRAY['ASK'::text, 'ASSIST'::text, 'AUTONOMOUS'::text])))"
+        },
+        {
+          "table_name": "broker_v2_execution_attempts",
+          "name": "broker_v2_execution_attempts_owner_snapshot_check",
+          "definition": "CHECK (((owner_snapshot)::text = lower((owner_snapshot)::text)))"
+        },
+        {
+          "table_name": "broker_v2_execution_attempts",
+          "name": "broker_v2_execution_attempts_punk_account_check",
+          "definition": "CHECK (((punk_account)::text = lower((punk_account)::text)))"
+        },
+        {
+          "table_name": "broker_v2_execution_attempts",
+          "name": "broker_v2_execution_attempts_punk_token_id_check",
+          "definition": "CHECK ((punk_token_id >= (0)::numeric))"
+        },
+        {
+          "table_name": "broker_v2_execution_attempts",
+          "name": "broker_v2_execution_attempts_state_check",
+          "definition": "CHECK ((state = ANY (ARRAY['RESERVED'::text, 'SIMULATED'::text, 'OWNER_APPROVAL_PENDING'::text, 'OWNER_APPROVED'::text, 'SUBMISSION_RESERVED'::text, 'SUBMITTED'::text, 'CONFIRMED'::text, 'REVERTED'::text, 'RECONCILIATION_REQUIRED'::text, 'REJECTED'::text, 'CANCELLED'::text, 'EXPIRED'::text])))"
+        },
+        {
+          "table_name": "broker_v2_execution_attempts",
+          "name": "broker_v2_execution_attempts_strategy_hash_check",
+          "definition": "CHECK ((strategy_hash ~ '^0x[0-9a-f]{64}$'::text))"
+        },
+        {
+          "table_name": "broker_v2_execution_attempts",
+          "name": "broker_v2_execution_attempts_strategy_version_check",
+          "definition": "CHECK ((strategy_version > 0))"
+        },
+        {
+          "table_name": "broker_v2_strategies",
+          "name": "broker_v2_strategies_chain_id_check",
+          "definition": "CHECK ((chain_id = 4663))"
+        },
+        {
+          "table_name": "broker_v2_strategies",
+          "name": "broker_v2_strategies_check",
+          "definition": "CHECK (((state <> 'ACTIVE'::text) OR ((owner_confirmation_hash IS NOT NULL) AND (activated_at IS NOT NULL))))"
+        },
+        {
+          "table_name": "broker_v2_strategies",
+          "name": "broker_v2_strategies_collection_address_check",
+          "definition": "CHECK (((collection_address)::text = lower((collection_address)::text)))"
+        },
+        {
+          "table_name": "broker_v2_strategies",
+          "name": "broker_v2_strategies_configured_by_check",
+          "definition": "CHECK (((configured_by)::text = lower((configured_by)::text)))"
+        },
+        {
+          "table_name": "broker_v2_strategies",
+          "name": "broker_v2_strategies_intent_check",
+          "definition": "CHECK ((jsonb_typeof(intent) = 'object'::text))"
+        },
+        {
+          "table_name": "broker_v2_strategies",
+          "name": "broker_v2_strategies_intent_hash_check",
+          "definition": "CHECK ((intent_hash ~ '^0x[0-9a-f]{64}$'::text))"
+        },
+        {
+          "table_name": "broker_v2_strategies",
+          "name": "broker_v2_strategies_owner_confirmation_hash_check",
+          "definition": "CHECK (((owner_confirmation_hash IS NULL) OR (owner_confirmation_hash ~ '^0x[0-9a-f]{64}$'::text)))"
+        },
+        {
+          "table_name": "broker_v2_strategies",
+          "name": "broker_v2_strategies_ownership_block_check",
+          "definition": "CHECK ((ownership_block >= 0))"
+        },
+        {
+          "table_name": "broker_v2_strategies",
+          "name": "broker_v2_strategies_schema_name_check",
+          "definition": "CHECK ((schema_name = 'PUNK_COLLECTING_INTENT_V1'::text))"
+        },
+        {
+          "table_name": "broker_v2_strategies",
+          "name": "broker_v2_strategies_state_check",
+          "definition": "CHECK ((state = ANY (ARRAY['DRAFT'::text, 'PENDING_OWNER_CONFIRMATION'::text, 'ACTIVE'::text, 'PAUSED'::text, 'EXPIRED'::text, 'SUPERSEDED'::text])))"
+        },
+        {
+          "table_name": "broker_v2_strategies",
+          "name": "broker_v2_strategies_token_id_check",
+          "definition": "CHECK ((token_id >= (0)::numeric))"
+        },
+        {
+          "table_name": "broker_v2_strategies",
+          "name": "broker_v2_strategies_version_check",
+          "definition": "CHECK ((version > 0))"
+        },
+        {
+          "table_name": "broker_v4_execution_attempts",
+          "name": "broker_v4_execution_attempts_account_nonce_check",
+          "definition": "CHECK (((account_nonce IS NULL) OR (account_nonce >= (0)::numeric)))"
+        },
+        {
+          "table_name": "broker_v4_execution_attempts",
+          "name": "broker_v4_execution_attempts_chain_id_check",
+          "definition": "CHECK ((chain_id = 4663))"
+        },
+        {
+          "table_name": "broker_v4_execution_attempts",
+          "name": "broker_v4_execution_attempts_check",
+          "definition": "CHECK ((((state)::text <> ALL ((ARRAY['CLAIMED'::character varying, 'SIMULATED'::character varying])::text[])) OR ((lease_token IS NOT NULL) AND (lease_until IS NOT NULL))))"
+        },
+        {
+          "table_name": "broker_v4_execution_attempts",
+          "name": "broker_v4_execution_attempts_check1",
+          "definition": "CHECK ((((state)::text <> ALL ((ARRAY['SUBMISSION_RESERVED'::character varying, 'SUBMITTED'::character varying, 'CONFIRMED'::character varying, 'RECONCILIATION_REQUIRED'::character varying])::text[])) OR ((account_nonce IS NOT NULL) AND (transaction_value_wei IS NOT NULL) AND (transaction_calldata_hash IS NOT NULL) AND (submission_identity_hash IS NOT NULL) AND (reserved_at IS NOT NULL))))"
+        },
+        {
+          "table_name": "broker_v4_execution_attempts",
+          "name": "broker_v4_execution_attempts_check2",
+          "definition": "CHECK ((((state)::text <> ALL ((ARRAY['SUBMITTED'::character varying, 'CONFIRMED'::character varying])::text[])) OR ((transaction_hash IS NOT NULL) AND (submitted_at IS NOT NULL))))"
+        },
+        {
+          "table_name": "broker_v4_execution_attempts",
+          "name": "broker_v4_execution_attempts_check3",
+          "definition": "CHECK ((((state)::text <> 'CONFIRMED'::text) OR (confirmed_at IS NOT NULL)))"
+        },
+        {
+          "table_name": "broker_v4_execution_attempts",
+          "name": "broker_v4_execution_attempts_punk_token_id_check",
+          "definition": "CHECK ((punk_token_id >= (0)::numeric))"
+        },
+        {
+          "table_name": "broker_v4_execution_attempts",
+          "name": "broker_v4_execution_attempts_state_check",
+          "definition": "CHECK (((state)::text = ANY ((ARRAY['QUEUED'::character varying, 'CLAIMED'::character varying, 'SIMULATED'::character varying, 'SUBMISSION_RESERVED'::character varying, 'SUBMITTED'::character varying, 'CONFIRMED'::character varying, 'SAFE_FAILURE'::character varying, 'CANCELLED'::character varying, 'RECONCILIATION_REQUIRED'::character varying])::text[])))"
+        },
+        {
+          "table_name": "broker_v4_execution_attempts",
+          "name": "broker_v4_execution_attempts_transaction_value_wei_check",
+          "definition": "CHECK (((transaction_value_wei IS NULL) OR (transaction_value_wei >= (0)::numeric)))"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "name": "broker_v4_punk_policy_proposal_minimum_native_reserve_wei_check",
+          "definition": "CHECK ((minimum_native_reserve_wei >= (0)::numeric))"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "name": "broker_v4_punk_policy_proposal_total_remaining_mint_limit_check",
+          "definition": "CHECK (((total_remaining_mint_limit >= 0) AND (total_remaining_mint_limit <= 10000)))"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "name": "broker_v4_punk_policy_proposals_allowed_adapters_check",
+          "definition": "CHECK ((jsonb_typeof(allowed_adapters) = 'array'::text))"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "name": "broker_v4_punk_policy_proposals_blocked_contracts_check",
+          "definition": "CHECK ((jsonb_typeof(blocked_contracts) = 'array'::text))"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "name": "broker_v4_punk_policy_proposals_chain_id_check",
+          "definition": "CHECK ((chain_id = 4663))"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "name": "broker_v4_punk_policy_proposals_check",
+          "definition": "CHECK ((((state)::text <> ALL ((ARRAY['OWNER_AUTHORIZED'::character varying, 'ACTIVE'::character varying])::text[])) OR (owner_authorization_hash IS NOT NULL)))"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "name": "broker_v4_punk_policy_proposals_check1",
+          "definition": "CHECK ((((state)::text <> 'ACTIVE'::text) OR (activation_transaction_hash IS NOT NULL)))"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "name": "broker_v4_punk_policy_proposals_daily_mint_limit_check",
+          "definition": "CHECK (((daily_mint_limit > 0) AND (daily_mint_limit <= 100)))"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "name": "broker_v4_punk_policy_proposals_maximum_gas_per_mint_wei_check",
+          "definition": "CHECK ((maximum_gas_per_mint_wei > (0)::numeric))"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "name": "broker_v4_punk_policy_proposals_maximum_mint_price_wei_check",
+          "definition": "CHECK ((maximum_mint_price_wei >= (0)::numeric))"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "name": "broker_v4_punk_policy_proposals_maximum_risk_score_check",
+          "definition": "CHECK (((maximum_risk_score IS NULL) OR ((maximum_risk_score >= 0) AND (maximum_risk_score <= 100))))"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "name": "broker_v4_punk_policy_proposals_mint_type_check",
+          "definition": "CHECK (((mint_type)::text = ANY ((ARRAY['FREE_ONLY'::character varying, 'PAID_UP_TO_LIMIT'::character varying])::text[])))"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "name": "broker_v4_punk_policy_proposals_policy_version_check",
+          "definition": "CHECK ((policy_version > 0))"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "name": "broker_v4_punk_policy_proposals_punk_token_id_check",
+          "definition": "CHECK ((punk_token_id >= (0)::numeric))"
+        },
+        {
+          "table_name": "broker_v4_punk_policy_proposals",
+          "name": "broker_v4_punk_policy_proposals_state_check",
+          "definition": "CHECK (((state)::text = ANY ((ARRAY['DRAFT'::character varying, 'OWNER_AUTHORIZED'::character varying, 'ACTIVE'::character varying, 'REVOKED'::character varying, 'EXPIRED'::character varying])::text[])))"
+        }
+      ],
+      "roles": [],
+      "functions": [
+        {
+          "proname": "broker_selected_burn_audit",
+          "arguments": ""
+        },
+        {
+          "proname": "broker_selected_burn_guard",
+          "arguments": ""
+        }
+      ],
+      "missing": [
+        "broker_marketplace_purchase_reviews",
+        "broker_holder_burn_reviews",
+        "broker_holder_asset_history",
+        "broker_forge_skill_admin_reviews",
+        "gogh_broker_agent_activity",
+        "gogh_broker_diagnostics",
+        "gogh_broker_legacy_reconciliation_entries",
+        "gogh_broker_punk_agent_gas_accounts",
+        "gogh_broker_punk_agent_gas_deposits",
+        "gogh_broker_punk_agent_gas_refunds",
+        "gogh_broker_punk_agent_gas_usage",
+        "gogh_broker_punk_jobs",
+        "gogh_broker_punk_priority_sessions",
+        "gogh_broker_punk_state",
+        "gogh_broker_punk_priority_attempts"
+      ]
+    },
+    {
+      "label": "LEGACY_TRAINING",
+      "available": true,
+      "tlsVerified": true,
+      "meta": [
+        {
+          "name": "broker_forge_training_intent_events",
+          "rls": true,
+          "force_rls": false,
+          "estimated_rows": "-1"
+        },
+        {
+          "name": "broker_forge_training_intents",
+          "rls": true,
+          "force_rls": false,
+          "estimated_rows": "-1"
+        },
+        {
+          "name": "broker_selected_burn_reviews",
+          "rls": true,
+          "force_rls": false,
+          "estimated_rows": "-1"
+        },
+        {
+          "name": "gogh_broker_agent_activity",
+          "rls": true,
+          "force_rls": false,
+          "estimated_rows": "24200"
+        },
+        {
+          "name": "gogh_broker_diagnostics",
+          "rls": true,
+          "force_rls": false,
+          "estimated_rows": "-1"
+        },
+        {
+          "name": "gogh_broker_legacy_reconciliation_entries",
+          "rls": true,
+          "force_rls": false,
+          "estimated_rows": "-1"
+        },
+        {
+          "name": "gogh_broker_punk_agent_gas_accounts",
+          "rls": true,
+          "force_rls": false,
+          "estimated_rows": "-1"
+        },
+        {
+          "name": "gogh_broker_punk_agent_gas_deposits",
+          "rls": true,
+          "force_rls": false,
+          "estimated_rows": "-1"
+        },
+        {
+          "name": "gogh_broker_punk_agent_gas_refunds",
+          "rls": true,
+          "force_rls": false,
+          "estimated_rows": "-1"
+        },
+        {
+          "name": "gogh_broker_punk_agent_gas_usage",
+          "rls": true,
+          "force_rls": false,
+          "estimated_rows": "-1"
+        },
+        {
+          "name": "gogh_broker_punk_jobs",
+          "rls": true,
+          "force_rls": false,
+          "estimated_rows": "24241"
+        },
+        {
+          "name": "gogh_broker_punk_priority_attempts",
+          "rls": true,
+          "force_rls": false,
+          "estimated_rows": "5364"
+        },
+        {
+          "name": "gogh_broker_punk_priority_sessions",
+          "rls": true,
+          "force_rls": false,
+          "estimated_rows": "22"
+        },
+        {
+          "name": "gogh_broker_punk_state",
+          "rls": true,
+          "force_rls": false,
+          "estimated_rows": "234"
+        }
+      ],
+      "columns": [
+        {
+          "table_name": "broker_forge_training_intent_events",
+          "column_name": "intent_id",
+          "data_type": "uuid",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intent_events",
+          "column_name": "revision",
+          "data_type": "integer",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intent_events",
+          "column_name": "status",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intent_events",
+          "column_name": "transaction_hash",
+          "data_type": "text",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_forge_training_intent_events",
+          "column_name": "observation",
+          "data_type": "jsonb",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_forge_training_intent_events",
+          "column_name": "recorded_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intent_events",
+          "column_name": "settlement",
+          "data_type": "jsonb",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "intent_id",
+          "data_type": "uuid",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "request_key",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "chain_id",
+          "data_type": "integer",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "collection_address",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "progression_address",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "deployment_hash",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "owner_address",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "punk_token_id",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "owner_nonce",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "review_json",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "review_hash",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "status",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "revision",
+          "data_type": "integer",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "transaction_hash",
+          "data_type": "text",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "observation",
+          "data_type": "jsonb",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "expires_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "updated_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "column_name": "settlement",
+          "data_type": "jsonb",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "column_name": "intent_id",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "column_name": "owner_address",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "column_name": "source_token_id",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "column_name": "review_json",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "column_name": "review_hash",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "column_name": "revision",
+          "data_type": "integer",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "column_name": "status",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "column_name": "reported_hash",
+          "data_type": "text",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "column_name": "receipt",
+          "data_type": "jsonb",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_agent_activity",
+          "column_name": "event_id",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_agent_activity",
+          "column_name": "chain_id",
+          "data_type": "bigint",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_agent_activity",
+          "column_name": "punk_token_id",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_agent_activity",
+          "column_name": "job_id",
+          "data_type": "uuid",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_agent_activity",
+          "column_name": "worker_state",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_agent_activity",
+          "column_name": "result_code",
+          "data_type": "text",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_agent_activity",
+          "column_name": "transaction_hash",
+          "data_type": "text",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_agent_activity",
+          "column_name": "source",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_agent_activity",
+          "column_name": "occurred_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_agent_activity",
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_diagnostics",
+          "column_name": "diagnostic_id",
+          "data_type": "bigint",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_diagnostics",
+          "column_name": "category",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_diagnostics",
+          "column_name": "punk_token_id",
+          "data_type": "numeric",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_diagnostics",
+          "column_name": "owner_fingerprint",
+          "data_type": "text",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_diagnostics",
+          "column_name": "result_code",
+          "data_type": "text",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_diagnostics",
+          "column_name": "source_release",
+          "data_type": "text",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_diagnostics",
+          "column_name": "occurred_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_diagnostics",
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_legacy_reconciliation_entries",
+          "column_name": "entry_id",
+          "data_type": "uuid",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_legacy_reconciliation_entries",
+          "column_name": "reconciliation_id",
+          "data_type": "uuid",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_legacy_reconciliation_entries",
+          "column_name": "owner_wallet",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_legacy_reconciliation_entries",
+          "column_name": "owner_snapshot",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_legacy_reconciliation_entries",
+          "column_name": "punk_token_id",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_legacy_reconciliation_entries",
+          "column_name": "punk_wallet",
+          "data_type": "text",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_legacy_reconciliation_entries",
+          "column_name": "funding_source",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_legacy_reconciliation_entries",
+          "column_name": "deposit_transaction_hashes",
+          "data_type": "jsonb",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_legacy_reconciliation_entries",
+          "column_name": "deposit_amount_wei",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_legacy_reconciliation_entries",
+          "column_name": "recorded_credit_wei",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_legacy_reconciliation_entries",
+          "column_name": "gas_spent_wei",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_legacy_reconciliation_entries",
+          "column_name": "mint_value_spent_wei",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_legacy_reconciliation_entries",
+          "column_name": "priority_fees_spent_wei",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_legacy_reconciliation_entries",
+          "column_name": "refunds_already_issued_wei",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_legacy_reconciliation_entries",
+          "column_name": "remaining_user_balance_wei",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_legacy_reconciliation_entries",
+          "column_name": "project_subsidy_wei",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_legacy_reconciliation_entries",
+          "column_name": "classification",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_legacy_reconciliation_entries",
+          "column_name": "confidence",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_legacy_reconciliation_entries",
+          "column_name": "evidence",
+          "data_type": "jsonb",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_legacy_reconciliation_entries",
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_accounts",
+          "column_name": "chain_id",
+          "data_type": "bigint",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_accounts",
+          "column_name": "collection_address",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_accounts",
+          "column_name": "punk_token_id",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_accounts",
+          "column_name": "owner_snapshot",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_accounts",
+          "column_name": "credited_wei",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_accounts",
+          "column_name": "spent_wei",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_accounts",
+          "column_name": "updated_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_deposits",
+          "column_name": "transaction_hash",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_deposits",
+          "column_name": "chain_id",
+          "data_type": "bigint",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_deposits",
+          "column_name": "collection_address",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_deposits",
+          "column_name": "punk_token_id",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_deposits",
+          "column_name": "owner_address",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_deposits",
+          "column_name": "agent_address",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_deposits",
+          "column_name": "amount_wei",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_deposits",
+          "column_name": "block_number",
+          "data_type": "bigint",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_deposits",
+          "column_name": "confirmed_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_deposits",
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_refunds",
+          "column_name": "refund_id",
+          "data_type": "uuid",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_refunds",
+          "column_name": "session_id",
+          "data_type": "uuid",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_refunds",
+          "column_name": "punk_token_id",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_refunds",
+          "column_name": "owner_address",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_refunds",
+          "column_name": "agent_address",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_refunds",
+          "column_name": "requested_wei",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_refunds",
+          "column_name": "state",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_refunds",
+          "column_name": "transaction_hash",
+          "data_type": "text",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_refunds",
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_refunds",
+          "column_name": "updated_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_usage",
+          "column_name": "transaction_hash",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_usage",
+          "column_name": "session_id",
+          "data_type": "uuid",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_usage",
+          "column_name": "chain_id",
+          "data_type": "bigint",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_usage",
+          "column_name": "collection_address",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_usage",
+          "column_name": "punk_token_id",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_usage",
+          "column_name": "agent_address",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_usage",
+          "column_name": "gas_used",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_usage",
+          "column_name": "effective_gas_price_wei",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_usage",
+          "column_name": "actual_cost_wei",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_usage",
+          "column_name": "charged_wei",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_usage",
+          "column_name": "outcome",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_usage",
+          "column_name": "occurred_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_jobs",
+          "column_name": "job_id",
+          "data_type": "uuid",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_jobs",
+          "column_name": "idempotency_key",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_jobs",
+          "column_name": "chain_id",
+          "data_type": "bigint",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_jobs",
+          "column_name": "collection_address",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_jobs",
+          "column_name": "punk_token_id",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_jobs",
+          "column_name": "job_kind",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_jobs",
+          "column_name": "state",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_jobs",
+          "column_name": "available_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_jobs",
+          "column_name": "lease_owner",
+          "data_type": "text",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_punk_jobs",
+          "column_name": "lease_until",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_punk_jobs",
+          "column_name": "attempts",
+          "data_type": "integer",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_jobs",
+          "column_name": "max_attempts",
+          "data_type": "integer",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_jobs",
+          "column_name": "last_failure_code",
+          "data_type": "text",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_punk_jobs",
+          "column_name": "source",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_jobs",
+          "column_name": "source_release",
+          "data_type": "text",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_punk_jobs",
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_jobs",
+          "column_name": "started_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_punk_jobs",
+          "column_name": "completed_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_punk_jobs",
+          "column_name": "updated_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_jobs",
+          "column_name": "priority",
+          "data_type": "smallint",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "column_name": "attempt_id",
+          "data_type": "uuid",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "column_name": "session_id",
+          "data_type": "uuid",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "column_name": "attempt_number",
+          "data_type": "integer",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "column_name": "state",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "column_name": "worker_release",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "column_name": "lane_id",
+          "data_type": "smallint",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "column_name": "lease_token",
+          "data_type": "uuid",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "column_name": "lease_until",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "column_name": "account_address",
+          "data_type": "text",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "column_name": "target_collection",
+          "data_type": "text",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "column_name": "acquisition_nonce",
+          "data_type": "numeric",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "column_name": "transaction_hash",
+          "data_type": "text",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "column_name": "result_status",
+          "data_type": "text",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "column_name": "submitted",
+          "data_type": "boolean",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "column_name": "minted",
+          "data_type": "boolean",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "column_name": "gas_used",
+          "data_type": "numeric",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "column_name": "effective_gas_price_wei",
+          "data_type": "numeric",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "column_name": "transaction_gas_cost_wei",
+          "data_type": "numeric",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "column_name": "terminal_state",
+          "data_type": "text",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "column_name": "reserved_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "column_name": "submitted_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "column_name": "recorded_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "column_name": "updated_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_sessions",
+          "column_name": "session_id",
+          "data_type": "uuid",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_sessions",
+          "column_name": "chain_id",
+          "data_type": "bigint",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_sessions",
+          "column_name": "collection_address",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_sessions",
+          "column_name": "punk_token_id",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_sessions",
+          "column_name": "owner_snapshot",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_sessions",
+          "column_name": "deposit_transaction_hash",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_sessions",
+          "column_name": "requested_mints",
+          "data_type": "smallint",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_sessions",
+          "column_name": "completed_mints",
+          "data_type": "smallint",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_sessions",
+          "column_name": "duration_days",
+          "data_type": "smallint",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_sessions",
+          "column_name": "state",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_sessions",
+          "column_name": "starts_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_sessions",
+          "column_name": "expires_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_sessions",
+          "column_name": "last_attempt_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_sessions",
+          "column_name": "last_result",
+          "data_type": "text",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_sessions",
+          "column_name": "last_transaction_hash",
+          "data_type": "text",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_sessions",
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_sessions",
+          "column_name": "updated_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_state",
+          "column_name": "chain_id",
+          "data_type": "bigint",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_state",
+          "column_name": "collection_address",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_state",
+          "column_name": "punk_token_id",
+          "data_type": "numeric",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_state",
+          "column_name": "account_address",
+          "data_type": "text",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_punk_state",
+          "column_name": "owner_snapshot",
+          "data_type": "text",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_punk_state",
+          "column_name": "authorization_status",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_state",
+          "column_name": "worker_state",
+          "data_type": "text",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_state",
+          "column_name": "current_job_id",
+          "data_type": "uuid",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_punk_state",
+          "column_name": "last_scan_requested_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_punk_state",
+          "column_name": "last_worker_pickup_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_punk_state",
+          "column_name": "last_scan_started_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_punk_state",
+          "column_name": "last_scan_completed_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_punk_state",
+          "column_name": "last_result",
+          "data_type": "text",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_punk_state",
+          "column_name": "last_successful_mint",
+          "data_type": "text",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_punk_state",
+          "column_name": "next_eligible_scan_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_punk_state",
+          "column_name": "consecutive_failures",
+          "data_type": "integer",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_state",
+          "column_name": "source_release",
+          "data_type": "text",
+          "is_nullable": "YES"
+        },
+        {
+          "table_name": "gogh_broker_punk_state",
+          "column_name": "observed_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        },
+        {
+          "table_name": "gogh_broker_punk_state",
+          "column_name": "updated_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO"
+        }
+      ],
+      "checks": [
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "broker_forge_training_intents_chain_id_check",
+          "definition": "CHECK ((chain_id = ANY (ARRAY[31337, 4663])))"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "broker_forge_training_intents_check",
+          "definition": "CHECK ((review_hash = encode(sha256(convert_to(review_json, 'UTF8'::name)), 'hex'::text)))"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "broker_forge_training_intents_check1",
+          "definition": "CHECK (((expires_at > created_at) AND (expires_at <= (created_at + '00:01:00'::interval))))"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "broker_forge_training_intents_check2",
+          "definition": "CHECK (((((((review_json)::jsonb ->> 'chainId'::text))::integer = chain_id) AND (((review_json)::jsonb ->> 'collection'::text) = collection_address) AND (((review_json)::jsonb ->> 'progression'::text) = progression_address) AND (((review_json)::jsonb ->> 'deploymentHash'::text) = deployment_hash) AND (((review_json)::jsonb ->> 'owner'::text) = owner_address) AND (((review_json)::jsonb ->> 'tokenId'::text) = (punk_token_id)::text) AND (((review_json)::jsonb #>> '{transaction,nonce}'::text[]) = (owner_nonce)::text) AND ((((review_json)::jsonb #>> '{guard,deadline}'::text[]))::numeric = EXTRACT(epoch FROM expires_at))) IS TRUE))"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "broker_forge_training_intents_collection_address_check",
+          "definition": "CHECK ((collection_address ~ '^0x[0-9a-f]{40}$'::text))"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "broker_forge_training_intents_deployment_hash_check",
+          "definition": "CHECK ((deployment_hash ~ '^0x[0-9a-f]{64}$'::text))"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "broker_forge_training_intents_owner_address_check",
+          "definition": "CHECK ((owner_address ~ '^0x[0-9a-f]{40}$'::text))"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "broker_forge_training_intents_owner_nonce_check",
+          "definition": "CHECK (((owner_nonce >= (0)::numeric) AND (owner_nonce < power((2)::numeric, (64)::numeric))))"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "broker_forge_training_intents_progression_address_check",
+          "definition": "CHECK ((progression_address ~ '^0x[0-9a-f]{40}$'::text))"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "broker_forge_training_intents_punk_token_id_check",
+          "definition": "CHECK (((punk_token_id >= (0)::numeric) AND (punk_token_id < power((2)::numeric, (256)::numeric))))"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "broker_forge_training_intents_request_key_check",
+          "definition": "CHECK ((request_key ~ '^[0-9a-f]{64}$'::text))"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "broker_forge_training_intents_review_json_check",
+          "definition": "CHECK (((octet_length(review_json) <= 16384) AND (jsonb_typeof((review_json)::jsonb) = 'object'::text)))"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "broker_forge_training_intents_revision_check",
+          "definition": "CHECK ((revision >= 0))"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "broker_forge_training_intents_transaction_hash_check",
+          "definition": "CHECK ((transaction_hash ~ '^0x[0-9a-f]{64}$'::text))"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "forge_training_hash_state",
+          "definition": "CHECK (\nCASE\n    WHEN (status = ANY (ARRAY['SUBMITTED'::text, 'INCLUDED_SUCCESS'::text, 'INCLUDED_REVERT'::text, 'REORGED'::text, 'SETTLED_SUCCESS'::text, 'SETTLED_REVERT'::text])) THEN (transaction_hash IS NOT NULL)\n    WHEN (status = ANY (ARRAY['NONCE_CONSUMED'::text, 'REVIEW_EXPIRED'::text])) THEN true\n    ELSE (transaction_hash IS NULL)\nEND)"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "forge_training_observation_state",
+          "definition": "CHECK (\nCASE\n    WHEN (status = ANY (ARRAY['INCLUDED_SUCCESS'::text, 'INCLUDED_REVERT'::text, 'REORGED'::text])) THEN (observation IS NOT NULL)\n    WHEN (status = ANY (ARRAY['SETTLED_SUCCESS'::text, 'SETTLED_REVERT'::text, 'NONCE_CONSUMED'::text, 'REVIEW_EXPIRED'::text])) THEN true\n    ELSE (observation IS NULL)\nEND)"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "forge_training_settlement_binding",
+          "definition": "CHECK (((settlement IS NULL) OR (((jsonb_typeof(settlement) = 'object'::text) AND ((settlement ->> 'schema'::text) = 'GOGH_TRAINING_SETTLEMENT_V1'::text) AND ((settlement ->> 'policy'::text) = 'RPC_FINALIZED_QUORUM_V1'::text) AND ((settlement ->> 'status'::text) = status) AND ((settlement ->> 'reviewHash'::text) = review_hash) AND (NOT ((settlement ->> 'transactionHash'::text) IS DISTINCT FROM transaction_hash)) AND ((settlement ->> 'finalizedBlockNumber'::text) ~ '^(0|[1-9][0-9]{0,19})$'::text) AND ((settlement ->> 'finalizedBlockHash'::text) ~ '^0x[0-9a-f]{64}$'::text) AND ((settlement ->> 'finalizedTimestamp'::text) ~ '^(0|[1-9][0-9]{0,19})$'::text) AND ((settlement ->> 'ownerNonce'::text) ~ '^(0|[1-9][0-9]{0,19})$'::text) AND\nCASE\n    WHEN (status = 'REVIEW_EXPIRED'::text) THEN (((settlement ->> 'ownerNonce'::text))::numeric <= owner_nonce)\n    ELSE (((settlement ->> 'ownerNonce'::text))::numeric > owner_nonce)\nEND AND (((settlement ->> 'ownerNonce'::text))::numeric < power((2)::numeric, (64)::numeric)) AND ((settlement -> 'sources'::text) = '[\"PUBLICNODE\", \"ROBINHOOD\"]'::jsonb) AND ((settlement ->> 'evidenceHash'::text) ~ '^0x[0-9a-f]{64}$'::text) AND\nCASE\n    WHEN (status = ANY (ARRAY['NONCE_CONSUMED'::text, 'REVIEW_EXPIRED'::text])) THEN ((((settlement ->> 'finalizedTimestamp'::text))::numeric > EXTRACT(epoch FROM expires_at)) AND (((settlement ->> 'finalizedBlockNumber'::text))::numeric >= (((review_json)::jsonb #>> '{anchor,number}'::text[]))::numeric) AND ((settlement -> 'receiptBlockNumber'::text) = 'null'::jsonb) AND ((settlement -> 'receiptBlockHash'::text) = 'null'::jsonb))\n    ELSE (((settlement ->> 'receiptBlockNumber'::text) ~ '^(0|[1-9][0-9]{0,19})$'::text) AND ((settlement ->> 'receiptBlockHash'::text) ~ '^0x[0-9a-f]{64}$'::text) AND (((settlement ->> 'receiptBlockNumber'::text))::numeric >= (((review_json)::jsonb #>> '{anchor,number}'::text[]))::numeric) AND (((settlement ->> 'receiptBlockNumber'::text))::numeric <= ((settlement ->> 'finalizedBlockNumber'::text))::numeric))\nEND) IS TRUE)))"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "forge_training_settlement_state",
+          "definition": "CHECK (((status = ANY (ARRAY['SETTLED_SUCCESS'::text, 'SETTLED_REVERT'::text, 'NONCE_CONSUMED'::text, 'REVIEW_EXPIRED'::text])) = (settlement IS NOT NULL)))"
+        },
+        {
+          "table_name": "broker_forge_training_intents",
+          "name": "forge_training_valid_status",
+          "definition": "CHECK ((status = ANY (ARRAY['PREPARED'::text, 'WALLET_REQUESTED'::text, 'SUBMISSION_UNKNOWN'::text, 'SUBMITTED'::text, 'INCLUDED_SUCCESS'::text, 'INCLUDED_REVERT'::text, 'REORGED'::text, 'EXPIRED'::text, 'CANCELLED'::text, 'SETTLED_SUCCESS'::text, 'SETTLED_REVERT'::text, 'NONCE_CONSUMED'::text, 'REVIEW_EXPIRED'::text])))"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "name": "broker_selected_burn_reviews_check",
+          "definition": "CHECK ((review_hash = encode(sha256(convert_to(review_json, 'UTF8'::name)), 'hex'::text)))"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "name": "broker_selected_burn_reviews_check1",
+          "definition": "CHECK ((((review_json)::jsonb ->> 'intentId'::text) = intent_id))"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "name": "broker_selected_burn_reviews_check2",
+          "definition": "CHECK ((lower(((review_json)::jsonb #>> '{state,owner}'::text[])) = owner_address))"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "name": "broker_selected_burn_reviews_check3",
+          "definition": "CHECK ((((review_json)::jsonb #>> '{state,sourceTokenId}'::text[]) = source_token_id))"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "name": "broker_selected_burn_reviews_check4",
+          "definition": "CHECK (((status = ANY (ARRAY['CONFIRMED'::text, 'REVERTED'::text])) = (receipt IS NOT NULL)))"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "name": "broker_selected_burn_reviews_intent_id_check",
+          "definition": "CHECK ((intent_id ~ '^[0-9a-f]{64}$'::text))"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "name": "broker_selected_burn_reviews_owner_address_check",
+          "definition": "CHECK ((owner_address ~ '^0x[0-9a-f]{40}$'::text))"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "name": "broker_selected_burn_reviews_reported_hash_check",
+          "definition": "CHECK ((reported_hash ~ '^0x[0-9a-f]{64}$'::text))"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "name": "broker_selected_burn_reviews_review_json_check",
+          "definition": "CHECK ((octet_length(review_json) < 32768))"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "name": "broker_selected_burn_reviews_revision_check",
+          "definition": "CHECK ((revision >= 0))"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "name": "broker_selected_burn_reviews_source_token_id_check",
+          "definition": "CHECK ((source_token_id ~ '^[0-9]{1,4}$'::text))"
+        },
+        {
+          "table_name": "broker_selected_burn_reviews",
+          "name": "broker_selected_burn_reviews_status_check",
+          "definition": "CHECK ((status = ANY (ARRAY['PREPARED'::text, 'CANCELLED'::text, 'DECLINED'::text, 'WALLET_REQUESTED'::text, 'CONFIRMED'::text, 'REVERTED'::text])))"
+        },
+        {
+          "table_name": "gogh_broker_agent_activity",
+          "name": "gogh_broker_agent_activity_chain_id_check",
+          "definition": "CHECK ((chain_id = 4663))"
+        },
+        {
+          "table_name": "gogh_broker_agent_activity",
+          "name": "gogh_broker_agent_activity_event_id_check",
+          "definition": "CHECK (((length(event_id) >= 16) AND (length(event_id) <= 160)))"
+        },
+        {
+          "table_name": "gogh_broker_agent_activity",
+          "name": "gogh_broker_agent_activity_punk_token_id_check",
+          "definition": "CHECK ((punk_token_id >= (0)::numeric))"
+        },
+        {
+          "table_name": "gogh_broker_agent_activity",
+          "name": "gogh_broker_agent_activity_result_code_check",
+          "definition": "CHECK (((result_code IS NULL) OR (result_code ~ '^[A-Z0-9_]{3,128}$'::text)))"
+        },
+        {
+          "table_name": "gogh_broker_agent_activity",
+          "name": "gogh_broker_agent_activity_source_check",
+          "definition": "CHECK ((source = ANY (ARRAY['LEGACY_SHADOW'::text, 'QUEUE'::text, 'USER'::text, 'CONNECTOR'::text])))"
+        },
+        {
+          "table_name": "gogh_broker_agent_activity",
+          "name": "gogh_broker_agent_activity_transaction_hash_check",
+          "definition": "CHECK (((transaction_hash IS NULL) OR (transaction_hash ~ '^0x[0-9a-f]{64}$'::text)))"
+        },
+        {
+          "table_name": "gogh_broker_agent_activity",
+          "name": "gogh_broker_agent_activity_worker_state_check",
+          "definition": "CHECK ((worker_state = ANY (ARRAY['WAITING'::text, 'QUEUED'::text, 'SCANNING'::text, 'VERIFYING'::text, 'SIMULATING'::text, 'MINTING'::text, 'MINTED'::text, 'ERROR'::text])))"
+        },
+        {
+          "table_name": "gogh_broker_diagnostics",
+          "name": "gogh_broker_diagnostics_category_check",
+          "definition": "CHECK ((category ~ '^[A-Z0-9_]{3,128}$'::text))"
+        },
+        {
+          "table_name": "gogh_broker_diagnostics",
+          "name": "gogh_broker_diagnostics_owner_fingerprint_check",
+          "definition": "CHECK (((owner_fingerprint IS NULL) OR (owner_fingerprint ~ '^[0-9a-f]{16}$'::text)))"
+        },
+        {
+          "table_name": "gogh_broker_diagnostics",
+          "name": "gogh_broker_diagnostics_result_code_check",
+          "definition": "CHECK (((result_code IS NULL) OR (result_code ~ '^[A-Z0-9_]{3,128}$'::text)))"
+        },
+        {
+          "table_name": "gogh_broker_diagnostics",
+          "name": "gogh_broker_diagnostics_source_release_check",
+          "definition": "CHECK (((source_release IS NULL) OR (source_release ~ '^[0-9a-f]{40}$'::text)))"
+        },
+        {
+          "table_name": "gogh_broker_legacy_reconciliation_entries",
+          "name": "gogh_broker_legacy_reconciliat_deposit_transaction_hashes_check",
+          "definition": "CHECK ((jsonb_typeof(deposit_transaction_hashes) = 'array'::text))"
+        },
+        {
+          "table_name": "gogh_broker_legacy_reconciliation_entries",
+          "name": "gogh_broker_legacy_reconciliat_refunds_already_issued_wei_check",
+          "definition": "CHECK ((refunds_already_issued_wei >= (0)::numeric))"
+        },
+        {
+          "table_name": "gogh_broker_legacy_reconciliation_entries",
+          "name": "gogh_broker_legacy_reconciliat_remaining_user_balance_wei_check",
+          "definition": "CHECK ((remaining_user_balance_wei >= (0)::numeric))"
+        },
+        {
+          "table_name": "gogh_broker_legacy_reconciliation_entries",
+          "name": "gogh_broker_legacy_reconciliation_en_mint_value_spent_wei_check",
+          "definition": "CHECK ((mint_value_spent_wei >= (0)::numeric))"
+        },
+        {
+          "table_name": "gogh_broker_legacy_reconciliation_entries",
+          "name": "gogh_broker_legacy_reconciliation_ent_project_subsidy_wei_check",
+          "definition": "CHECK ((project_subsidy_wei >= (0)::numeric))"
+        },
+        {
+          "table_name": "gogh_broker_legacy_reconciliation_entries",
+          "name": "gogh_broker_legacy_reconciliation_ent_recorded_credit_wei_check",
+          "definition": "CHECK ((recorded_credit_wei >= (0)::numeric))"
+        },
+        {
+          "table_name": "gogh_broker_legacy_reconciliation_entries",
+          "name": "gogh_broker_legacy_reconciliation_entr_deposit_amount_wei_check",
+          "definition": "CHECK ((deposit_amount_wei >= (0)::numeric))"
+        },
+        {
+          "table_name": "gogh_broker_legacy_reconciliation_entries",
+          "name": "gogh_broker_legacy_reconciliation_entries_classification_check",
+          "definition": "CHECK ((classification = ANY (ARRAY['USER_REFUNDABLE'::text, 'USER_MIGRATABLE_TO_PUNK'::text, 'USER_CHOICE_PENDING'::text, 'PROJECT_FUNDED'::text, 'ALREADY_SPENT'::text, 'ALREADY_REFUNDED'::text, 'AMBIGUOUS_REQUIRES_REVIEW'::text])))"
+        },
+        {
+          "table_name": "gogh_broker_legacy_reconciliation_entries",
+          "name": "gogh_broker_legacy_reconciliation_entries_confidence_check",
+          "definition": "CHECK ((confidence = ANY (ARRAY['VERIFIED'::text, 'PARTIAL'::text, 'REQUIRES_REVIEW'::text])))"
+        },
+        {
+          "table_name": "gogh_broker_legacy_reconciliation_entries",
+          "name": "gogh_broker_legacy_reconciliation_entries_funding_source_check",
+          "definition": "CHECK ((funding_source ~ '^[A-Z0-9_]{3,128}$'::text))"
+        },
+        {
+          "table_name": "gogh_broker_legacy_reconciliation_entries",
+          "name": "gogh_broker_legacy_reconciliation_entries_gas_spent_wei_check",
+          "definition": "CHECK ((gas_spent_wei >= (0)::numeric))"
+        },
+        {
+          "table_name": "gogh_broker_legacy_reconciliation_entries",
+          "name": "gogh_broker_legacy_reconciliation_entries_owner_snapshot_check",
+          "definition": "CHECK ((owner_snapshot ~ '^0x[0-9a-f]{40}$'::text))"
+        },
+        {
+          "table_name": "gogh_broker_legacy_reconciliation_entries",
+          "name": "gogh_broker_legacy_reconciliation_entries_owner_wallet_check",
+          "definition": "CHECK ((owner_wallet ~ '^0x[0-9a-f]{40}$'::text))"
+        },
+        {
+          "table_name": "gogh_broker_legacy_reconciliation_entries",
+          "name": "gogh_broker_legacy_reconciliation_entries_punk_token_id_check",
+          "definition": "CHECK ((punk_token_id >= (0)::numeric))"
+        },
+        {
+          "table_name": "gogh_broker_legacy_reconciliation_entries",
+          "name": "gogh_broker_legacy_reconciliation_entries_punk_wallet_check",
+          "definition": "CHECK (((punk_wallet IS NULL) OR (punk_wallet ~ '^0x[0-9a-f]{40}$'::text)))"
+        },
+        {
+          "table_name": "gogh_broker_legacy_reconciliation_entries",
+          "name": "gogh_broker_legacy_reconciliation_priority_fees_spent_wei_check",
+          "definition": "CHECK ((priority_fees_spent_wei >= (0)::numeric))"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_accounts",
+          "name": "gogh_broker_punk_agent_gas_accounts_chain_id_check",
+          "definition": "CHECK ((chain_id = 4663))"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_accounts",
+          "name": "gogh_broker_punk_agent_gas_accounts_check",
+          "definition": "CHECK ((spent_wei <= credited_wei))"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_accounts",
+          "name": "gogh_broker_punk_agent_gas_accounts_collection_address_check",
+          "definition": "CHECK ((collection_address ~ '^0x[0-9a-f]{40}$'::text))"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_accounts",
+          "name": "gogh_broker_punk_agent_gas_accounts_credited_wei_check",
+          "definition": "CHECK ((credited_wei >= (0)::numeric))"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_accounts",
+          "name": "gogh_broker_punk_agent_gas_accounts_owner_snapshot_check",
+          "definition": "CHECK ((owner_snapshot ~ '^0x[0-9a-f]{40}$'::text))"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_accounts",
+          "name": "gogh_broker_punk_agent_gas_accounts_punk_token_id_check",
+          "definition": "CHECK ((punk_token_id >= (0)::numeric))"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_accounts",
+          "name": "gogh_broker_punk_agent_gas_accounts_spent_wei_check",
+          "definition": "CHECK ((spent_wei >= (0)::numeric))"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_deposits",
+          "name": "gogh_broker_punk_agent_gas_deposits_agent_address_check",
+          "definition": "CHECK ((agent_address ~ '^0x[0-9a-f]{40}$'::text))"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_deposits",
+          "name": "gogh_broker_punk_agent_gas_deposits_amount_wei_check",
+          "definition": "CHECK ((amount_wei > (0)::numeric))"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_deposits",
+          "name": "gogh_broker_punk_agent_gas_deposits_block_number_check",
+          "definition": "CHECK ((block_number >= 0))"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_deposits",
+          "name": "gogh_broker_punk_agent_gas_deposits_chain_id_check",
+          "definition": "CHECK ((chain_id = 4663))"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_deposits",
+          "name": "gogh_broker_punk_agent_gas_deposits_collection_address_check",
+          "definition": "CHECK ((collection_address ~ '^0x[0-9a-f]{40}$'::text))"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_deposits",
+          "name": "gogh_broker_punk_agent_gas_deposits_owner_address_check",
+          "definition": "CHECK ((owner_address ~ '^0x[0-9a-f]{40}$'::text))"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_deposits",
+          "name": "gogh_broker_punk_agent_gas_deposits_punk_token_id_check",
+          "definition": "CHECK ((punk_token_id >= (0)::numeric))"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_deposits",
+          "name": "gogh_broker_punk_agent_gas_deposits_transaction_hash_check",
+          "definition": "CHECK ((transaction_hash ~ '^0x[0-9a-f]{64}$'::text))"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_refunds",
+          "name": "gogh_broker_punk_agent_gas_refunds_agent_address_check",
+          "definition": "CHECK ((agent_address ~ '^0x[0-9a-f]{40}$'::text))"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_refunds",
+          "name": "gogh_broker_punk_agent_gas_refunds_owner_address_check",
+          "definition": "CHECK ((owner_address ~ '^0x[0-9a-f]{40}$'::text))"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_refunds",
+          "name": "gogh_broker_punk_agent_gas_refunds_punk_token_id_check",
+          "definition": "CHECK ((punk_token_id >= (0)::numeric))"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_refunds",
+          "name": "gogh_broker_punk_agent_gas_refunds_requested_wei_check",
+          "definition": "CHECK ((requested_wei > (0)::numeric))"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_refunds",
+          "name": "gogh_broker_punk_agent_gas_refunds_state_check",
+          "definition": "CHECK ((state = ANY (ARRAY['ELIGIBLE'::text, 'SUBMITTING'::text, 'CONFIRMED'::text, 'FAILED'::text, 'DUST'::text])))"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_usage",
+          "name": "gogh_broker_punk_agent_gas_usage_actual_cost_wei_check",
+          "definition": "CHECK ((actual_cost_wei > (0)::numeric))"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_usage",
+          "name": "gogh_broker_punk_agent_gas_usage_agent_address_check",
+          "definition": "CHECK ((agent_address ~ '^0x[0-9a-f]{40}$'::text))"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_usage",
+          "name": "gogh_broker_punk_agent_gas_usage_chain_id_check",
+          "definition": "CHECK ((chain_id = 4663))"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_usage",
+          "name": "gogh_broker_punk_agent_gas_usage_charged_wei_check",
+          "definition": "CHECK ((charged_wei >= (0)::numeric))"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_usage",
+          "name": "gogh_broker_punk_agent_gas_usage_check",
+          "definition": "CHECK ((actual_cost_wei = (gas_used * effective_gas_price_wei)))"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_usage",
+          "name": "gogh_broker_punk_agent_gas_usage_check1",
+          "definition": "CHECK ((charged_wei <= actual_cost_wei))"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_usage",
+          "name": "gogh_broker_punk_agent_gas_usage_collection_address_check",
+          "definition": "CHECK ((collection_address ~ '^0x[0-9a-f]{40}$'::text))"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_usage",
+          "name": "gogh_broker_punk_agent_gas_usage_effective_gas_price_wei_check",
+          "definition": "CHECK ((effective_gas_price_wei > (0)::numeric))"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_usage",
+          "name": "gogh_broker_punk_agent_gas_usage_gas_used_check",
+          "definition": "CHECK ((gas_used > (0)::numeric))"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_usage",
+          "name": "gogh_broker_punk_agent_gas_usage_outcome_check",
+          "definition": "CHECK ((outcome ~ '^[A-Z0-9_]{1,128}$'::text))"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_usage",
+          "name": "gogh_broker_punk_agent_gas_usage_punk_token_id_check",
+          "definition": "CHECK ((punk_token_id >= (0)::numeric))"
+        },
+        {
+          "table_name": "gogh_broker_punk_agent_gas_usage",
+          "name": "gogh_broker_punk_agent_gas_usage_transaction_hash_check",
+          "definition": "CHECK ((transaction_hash ~ '^0x[0-9a-f]{64}$'::text))"
+        },
+        {
+          "table_name": "gogh_broker_punk_jobs",
+          "name": "gogh_broker_punk_jobs_attempts_check",
+          "definition": "CHECK ((attempts >= 0))"
+        },
+        {
+          "table_name": "gogh_broker_punk_jobs",
+          "name": "gogh_broker_punk_jobs_chain_id_check",
+          "definition": "CHECK ((chain_id = 4663))"
+        },
+        {
+          "table_name": "gogh_broker_punk_jobs",
+          "name": "gogh_broker_punk_jobs_check",
+          "definition": "CHECK (((state = 'LEASED'::text) = ((lease_owner IS NOT NULL) AND (lease_until IS NOT NULL))))"
+        },
+        {
+          "table_name": "gogh_broker_punk_jobs",
+          "name": "gogh_broker_punk_jobs_check1",
+          "definition": "CHECK (((completed_at IS NULL) OR (state = ANY (ARRAY['SUCCEEDED'::text, 'FAILED'::text, 'CANCELLED'::text, 'SHADOWED'::text]))))"
+        },
+        {
+          "table_name": "gogh_broker_punk_jobs",
+          "name": "gogh_broker_punk_jobs_collection_address_check",
+          "definition": "CHECK ((collection_address ~ '^0x[0-9a-f]{40}$'::text))"
+        },
+        {
+          "table_name": "gogh_broker_punk_jobs",
+          "name": "gogh_broker_punk_jobs_idempotency_key_check",
+          "definition": "CHECK (((length(idempotency_key) >= 12) AND (length(idempotency_key) <= 200)))"
+        },
+        {
+          "table_name": "gogh_broker_punk_jobs",
+          "name": "gogh_broker_punk_jobs_job_kind_check",
+          "definition": "CHECK ((job_kind = ANY (ARRAY['SCOUT'::text, 'DIRECTED_MINT_RECHECK'::text])))"
+        },
+        {
+          "table_name": "gogh_broker_punk_jobs",
+          "name": "gogh_broker_punk_jobs_last_failure_code_check",
+          "definition": "CHECK (((last_failure_code IS NULL) OR (last_failure_code ~ '^[A-Z0-9_]{3,128}$'::text)))"
+        },
+        {
+          "table_name": "gogh_broker_punk_jobs",
+          "name": "gogh_broker_punk_jobs_lease_owner_check",
+          "definition": "CHECK (((lease_owner IS NULL) OR ((length(lease_owner) >= 8) AND (length(lease_owner) <= 160))))"
+        },
+        {
+          "table_name": "gogh_broker_punk_jobs",
+          "name": "gogh_broker_punk_jobs_max_attempts_check",
+          "definition": "CHECK (((max_attempts >= 1) AND (max_attempts <= 10)))"
+        },
+        {
+          "table_name": "gogh_broker_punk_jobs",
+          "name": "gogh_broker_punk_jobs_priority_check",
+          "definition": "CHECK (((priority >= 0) AND (priority <= 100)))"
+        },
+        {
+          "table_name": "gogh_broker_punk_jobs",
+          "name": "gogh_broker_punk_jobs_punk_token_id_check",
+          "definition": "CHECK ((punk_token_id >= (0)::numeric))"
+        },
+        {
+          "table_name": "gogh_broker_punk_jobs",
+          "name": "gogh_broker_punk_jobs_source_check",
+          "definition": "CHECK ((source = ANY (ARRAY['LEGACY_SHADOW'::text, 'SCHEDULER'::text, 'USER'::text, 'CONNECTOR'::text])))"
+        },
+        {
+          "table_name": "gogh_broker_punk_jobs",
+          "name": "gogh_broker_punk_jobs_source_release_check",
+          "definition": "CHECK (((source_release IS NULL) OR (source_release ~ '^[0-9a-f]{40}$'::text)))"
+        },
+        {
+          "table_name": "gogh_broker_punk_jobs",
+          "name": "gogh_broker_punk_jobs_state_check",
+          "definition": "CHECK ((state = ANY (ARRAY['QUEUED'::text, 'LEASED'::text, 'SUCCEEDED'::text, 'RETRY'::text, 'FAILED'::text, 'CANCELLED'::text, 'SHADOWED'::text])))"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "name": "gogh_broker_punk_priority_attemp_transaction_gas_cost_wei_check",
+          "definition": "CHECK (((transaction_gas_cost_wei IS NULL) OR (transaction_gas_cost_wei > (0)::numeric)))"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "name": "gogh_broker_punk_priority_attempt_effective_gas_price_wei_check",
+          "definition": "CHECK (((effective_gas_price_wei IS NULL) OR (effective_gas_price_wei > (0)::numeric)))"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "name": "gogh_broker_punk_priority_attempts_account_address_check",
+          "definition": "CHECK (((account_address IS NULL) OR (account_address ~ '^0x[0-9a-f]{40}$'::text)))"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "name": "gogh_broker_punk_priority_attempts_acquisition_nonce_check",
+          "definition": "CHECK (((acquisition_nonce IS NULL) OR (acquisition_nonce >= (0)::numeric)))"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "name": "gogh_broker_punk_priority_attempts_attempt_number_check",
+          "definition": "CHECK ((attempt_number > 0))"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "name": "gogh_broker_punk_priority_attempts_check",
+          "definition": "CHECK (((state <> ALL (ARRAY['SUBMISSION_RESERVED'::text, 'SUBMITTED'::text])) OR (reserved_at IS NOT NULL)))"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "name": "gogh_broker_punk_priority_attempts_check1",
+          "definition": "CHECK (((state <> 'SUBMITTED'::text) OR (submitted AND (transaction_hash IS NOT NULL))))"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "name": "gogh_broker_punk_priority_attempts_check2",
+          "definition": "CHECK (((state <> 'RECORDED'::text) OR (recorded_at IS NOT NULL)))"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "name": "gogh_broker_punk_priority_attempts_check3",
+          "definition": "CHECK ((((gas_used IS NULL) AND (effective_gas_price_wei IS NULL) AND (transaction_gas_cost_wei IS NULL)) OR ((gas_used IS NOT NULL) AND (effective_gas_price_wei IS NOT NULL) AND (transaction_gas_cost_wei = (gas_used * effective_gas_price_wei)))))"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "name": "gogh_broker_punk_priority_attempts_gas_used_check",
+          "definition": "CHECK (((gas_used IS NULL) OR (gas_used > (0)::numeric)))"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "name": "gogh_broker_punk_priority_attempts_lane_id_check",
+          "definition": "CHECK (((lane_id >= 1) AND (lane_id <= 6)))"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "name": "gogh_broker_punk_priority_attempts_result_status_check",
+          "definition": "CHECK (((result_status IS NULL) OR (result_status ~ '^[A-Z0-9_]{1,128}$'::text)))"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "name": "gogh_broker_punk_priority_attempts_state_check",
+          "definition": "CHECK ((state = ANY (ARRAY['CLAIMED'::text, 'SUBMISSION_RESERVED'::text, 'SUBMITTED'::text, 'RECORDED'::text])))"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "name": "gogh_broker_punk_priority_attempts_target_collection_check",
+          "definition": "CHECK (((target_collection IS NULL) OR (target_collection ~ '^0x[0-9a-f]{40}$'::text)))"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "name": "gogh_broker_punk_priority_attempts_terminal_state_check",
+          "definition": "CHECK (((terminal_state IS NULL) OR (terminal_state = ANY (ARRAY['OWNER_CHANGED'::text, 'CANCELLED'::text]))))"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "name": "gogh_broker_punk_priority_attempts_transaction_hash_check",
+          "definition": "CHECK (((transaction_hash IS NULL) OR (transaction_hash ~ '^0x[0-9a-f]{64}$'::text)))"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_attempts",
+          "name": "gogh_broker_punk_priority_attempts_worker_release_check",
+          "definition": "CHECK ((worker_release ~ '^[0-9a-f]{40}$'::text))"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_sessions",
+          "name": "gogh_broker_punk_priority_sessions_chain_id_check",
+          "definition": "CHECK ((chain_id = 4663))"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_sessions",
+          "name": "gogh_broker_punk_priority_sessions_check",
+          "definition": "CHECK ((completed_mints <= requested_mints))"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_sessions",
+          "name": "gogh_broker_punk_priority_sessions_check1",
+          "definition": "CHECK ((expires_at > starts_at))"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_sessions",
+          "name": "gogh_broker_punk_priority_sessions_collection_address_check",
+          "definition": "CHECK ((collection_address ~ '^0x[0-9a-f]{40}$'::text))"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_sessions",
+          "name": "gogh_broker_punk_priority_sessions_completed_mints_check",
+          "definition": "CHECK ((completed_mints >= 0))"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_sessions",
+          "name": "gogh_broker_punk_priority_sessions_duration_days_check",
+          "definition": "CHECK ((duration_days = ANY (ARRAY[1, 3, 7, 30])))"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_sessions",
+          "name": "gogh_broker_punk_priority_sessions_owner_snapshot_check",
+          "definition": "CHECK ((owner_snapshot ~ '^0x[0-9a-f]{40}$'::text))"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_sessions",
+          "name": "gogh_broker_punk_priority_sessions_punk_token_id_check",
+          "definition": "CHECK ((punk_token_id >= (0)::numeric))"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_sessions",
+          "name": "gogh_broker_punk_priority_sessions_requested_mints_check",
+          "definition": "CHECK ((requested_mints = ANY (ARRAY[1, 3, 5, 10])))"
+        },
+        {
+          "table_name": "gogh_broker_punk_priority_sessions",
+          "name": "gogh_broker_punk_priority_sessions_state_check",
+          "definition": "CHECK ((state = ANY (ARRAY['ACTIVE'::text, 'COMPLETE'::text, 'EXPIRED'::text, 'OWNER_CHANGED'::text, 'CANCELLED'::text])))"
+        },
+        {
+          "table_name": "gogh_broker_punk_state",
+          "name": "gogh_broker_punk_state_account_address_check",
+          "definition": "CHECK (((account_address IS NULL) OR (account_address ~ '^0x[0-9a-f]{40}$'::text)))"
+        },
+        {
+          "table_name": "gogh_broker_punk_state",
+          "name": "gogh_broker_punk_state_authorization_status_check",
+          "definition": "CHECK ((authorization_status = ANY (ARRAY['NOT_ACTIVATED'::text, 'AUTHORIZED'::text, 'PAUSED'::text, 'EXPIRED'::text, 'REVOKED'::text, 'OWNER_CHANGED'::text])))"
+        },
+        {
+          "table_name": "gogh_broker_punk_state",
+          "name": "gogh_broker_punk_state_chain_id_check",
+          "definition": "CHECK ((chain_id = 4663))"
+        },
+        {
+          "table_name": "gogh_broker_punk_state",
+          "name": "gogh_broker_punk_state_collection_address_check",
+          "definition": "CHECK ((collection_address ~ '^0x[0-9a-f]{40}$'::text))"
+        },
+        {
+          "table_name": "gogh_broker_punk_state",
+          "name": "gogh_broker_punk_state_consecutive_failures_check",
+          "definition": "CHECK ((consecutive_failures >= 0))"
+        },
+        {
+          "table_name": "gogh_broker_punk_state",
+          "name": "gogh_broker_punk_state_last_result_check",
+          "definition": "CHECK (((last_result IS NULL) OR (last_result ~ '^[A-Z0-9_]{3,128}$'::text)))"
+        },
+        {
+          "table_name": "gogh_broker_punk_state",
+          "name": "gogh_broker_punk_state_last_successful_mint_check",
+          "definition": "CHECK (((last_successful_mint IS NULL) OR (last_successful_mint ~ '^0x[0-9a-f]{64}$'::text)))"
+        },
+        {
+          "table_name": "gogh_broker_punk_state",
+          "name": "gogh_broker_punk_state_owner_snapshot_check",
+          "definition": "CHECK (((owner_snapshot IS NULL) OR (owner_snapshot ~ '^0x[0-9a-f]{40}$'::text)))"
+        },
+        {
+          "table_name": "gogh_broker_punk_state",
+          "name": "gogh_broker_punk_state_punk_token_id_check",
+          "definition": "CHECK ((punk_token_id >= (0)::numeric))"
+        },
+        {
+          "table_name": "gogh_broker_punk_state",
+          "name": "gogh_broker_punk_state_source_release_check",
+          "definition": "CHECK (((source_release IS NULL) OR (source_release ~ '^[0-9a-f]{40}$'::text)))"
+        },
+        {
+          "table_name": "gogh_broker_punk_state",
+          "name": "gogh_broker_punk_state_worker_state_check",
+          "definition": "CHECK ((worker_state = ANY (ARRAY['WAITING'::text, 'QUEUED'::text, 'SCANNING'::text, 'VERIFYING'::text, 'SIMULATING'::text, 'MINTING'::text, 'MINTED'::text, 'ERROR'::text])))"
+        }
+      ],
+      "roles": [
+        {
+          "rolname": "forge_request",
+          "rolcanlogin": false,
+          "rolsuper": false,
+          "rolbypassrls": false,
+          "rolcreatedb": false,
+          "rolcreaterole": false
+        },
+        {
+          "rolname": "forge_worker",
+          "rolcanlogin": false,
+          "rolsuper": false,
+          "rolbypassrls": false,
+          "rolcreatedb": false,
+          "rolcreaterole": false
+        },
+        {
+          "rolname": "gogh_forge_request_prod",
+          "rolcanlogin": true,
+          "rolsuper": false,
+          "rolbypassrls": false,
+          "rolcreatedb": false,
+          "rolcreaterole": false
+        },
+        {
+          "rolname": "gogh_forge_worker_prod",
+          "rolcanlogin": true,
+          "rolsuper": false,
+          "rolbypassrls": false,
+          "rolcreatedb": false,
+          "rolcreaterole": false
+        }
+      ],
+      "functions": [
+        {
+          "proname": "broker_selected_burn_audit",
+          "arguments": ""
+        },
+        {
+          "proname": "broker_selected_burn_guard",
+          "arguments": ""
+        },
+        {
+          "proname": "broker_selected_burn_obligations",
+          "arguments": ""
+        }
+      ],
+      "missing": [
+        "broker_v2_agent_sessions",
+        "broker_v2_strategies",
+        "broker_v2_execution_attempts",
+        "broker_automation_v3_enrollments",
+        "broker_paid_mint_jobs",
+        "broker_v4_execution_attempts",
+        "broker_v4_punk_policy_proposals",
+        "broker_directed_mint_intents",
+        "broker_scouting_schedules",
+        "broker_canary_execution_reviews",
+        "broker_agent_authorizations",
+        "broker_proposals",
+        "broker_marketplace_reviews",
+        "broker_marketplace_purchase_reviews",
+        "broker_holder_burn_reviews",
+        "broker_holder_asset_history",
+        "broker_forge_skill_admin_reviews"
+      ]
+    }
+  ],
+  "databaseWrites": 0,
+  "credentialsExposed": false
+}

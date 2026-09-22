@@ -8,7 +8,7 @@ export const FORGE_CATALOG = Object.freeze([
   ['mint-hunter', 'Mint Hunter', 'TESTING', 'Check free mints against your rules and simulate them. Public skill release pending.'],
   ['scheduled-hunter', 'Scheduled Hunter', 'UNDER_REVIEW', 'Bounded time-window missions.'],
   ['art-curator', 'Art Curator', 'TESTING', 'Read declared art styles from metadata. Does not analyze artwork images.', 'classify_collection'],
-  ['social-scout', 'Social Scout', 'UNDER_REVIEW', 'Public project research.'],
+  ['social-scout', 'Social Scout', 'TESTING', 'Find project links declared by the collection. Social activity and account ownership remain unverified.', 'research_project'],
   ['paid-mint-license', 'Paid Mint License', 'BLOCKED', 'Higher-risk paid mint capability; not enabled.'],
   ['collection-researcher', 'Collection Researcher', 'TESTING', 'Summarize declared metadata from your selected three-Punk sample.', 'research_collection'],
   ['listing-watcher', 'Listing Watcher', 'UNDER_REVIEW', 'Watch new marketplace listings.'],

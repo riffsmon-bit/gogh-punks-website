@@ -71,9 +71,9 @@ const argsByTool = {
   classify_collection: { contract: CONTRACT, tokenIds: ['1', '2'], preferredStyles: ['PIXEL_ART'] },
 };
 
-test('three planned packages have fixed identities, pins, dedicated tools and no readiness or economic grant', async () => {
+test('planned packages have fixed identities, pins, dedicated tools and no readiness or economic grant', async () => {
   const packages = await loadResearchSkillCatalog({ selection: PLANNED_RESEARCH_SELECTION });
-  assert.deepEqual(packages.map(pack => pack.manifest.skillId), [9, 11, 6]);
+  assert.deepEqual(packages.map(pack => pack.manifest.skillId), [9, 11, 6, 7]);
   for (const pack of packages) {
     assert.equal(pack.status, 'TESTING'); assert.equal(pack.approved, false);
     assert.equal(pack.manifest.version, 1); assert.equal(pack.manifest.riskTier, 0);
@@ -91,7 +91,7 @@ test('every new implementation and direct dependency rejects modified bytes', as
     for (const selection of PLANNED_RESEARCH_SELECTION) {
       const [pack] = await loadResearchSkillCatalog({ selection: [selection] });
       const packagePaths = [`broker/skills/${pack.slug}/v1/manifest.json`, `broker/skills/${pack.slug}/v1/SKILL.md`];
-      const paths = [pack.manifest.implementation, ...Object.keys(pack.manifest.dependenciesSha256)];
+      const paths = [pack.manifest.implementation, ...Object.keys(pack.manifest.dependenciesSha256 ?? {})];
       for (const path of [...packagePaths, ...paths]) {
         await mkdir(`${directory}/${path.slice(0, path.lastIndexOf('/'))}`, { recursive: true });
         await writeFile(`${directory}/${path}`, await readFile(new URL(path, ROOT)));
@@ -303,7 +303,7 @@ test('missing server credentials/client advertise no unavailable planned tools',
 test('planned registration proposal roundtrips exact keys/hashes without broadcast or READY', async () => {
   const proposal = await buildResearchRegistrationProposal({ selection: PLANNED_RESEARCH_SELECTION });
   assert.equal(proposal.transactionSubmitted, false); assert.equal(proposal.productionAuthorized, false);
-  assert.deepEqual(proposal.definitions.map(item => item.skillId), [9, 11, 6]);
+  assert.deepEqual(proposal.definitions.map(item => item.skillId), [9, 11, 6, 7]);
   const abi = parseAbi(['function register(uint32,uint16,bytes32,bytes32,bytes32,uint256,uint8) returns(bytes32)']);
   for (const item of proposal.definitions) {
     const call = decodeFunctionData({ abi, data: item.reviewOnlyRegisterCalldata });

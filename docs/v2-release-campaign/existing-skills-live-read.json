@@ -1,0 +1,1040 @@
+{
+  "schema": "GOGH_EXISTING_SKILL_SOURCE_READ_AUDIT_V1",
+  "checkedAt": "2026-09-14T02:36:01.987Z",
+  "chainId": 4663,
+  "contract": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+  "tokenIds": [
+    "93",
+    "96",
+    "97"
+  ],
+  "publicTransactions": 0,
+  "registryMutations": 0,
+  "probes": [
+    {
+      "name": "Contract Detective",
+      "status": "READ_RETURNED",
+      "elapsedMs": 898,
+      "result": {
+        "chainId": 4663,
+        "contract": "0xE0F92B3B0E6DeD3654177FE3809Cd300e5ffaDf6",
+        "blockNumber": "62457194",
+        "blockHash": "0x1f094753f5d2093b62721ffb16aa3de67f4dc0fb18fe62680a041bff2ffaa3eb",
+        "codeHash": "0x3222e4925f77909e6370e17fe071d2774d43e191f6bc72c3a97c97209c6e2e93",
+        "codeBytes": 18470,
+        "erc721": {
+          "status": "OBSERVED",
+          "value": true
+        },
+        "erc1155": {
+          "status": "OBSERVED",
+          "value": false
+        },
+        "eip1967Implementation": {
+          "status": "OBSERVED",
+          "value": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "nonzero": false
+        },
+        "eip1967Beacon": {
+          "status": "OBSERVED",
+          "value": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "nonzero": false
+        },
+        "minimalProxy": false,
+        "securityVerdict": "NOT_A_SECURITY_CLEARANCE",
+        "walletAuthority": "NONE",
+        "limitations": [
+          "Interface responses can lie.",
+          "Nonstandard proxies may not use these slots.",
+          "No verified source, approval enumeration, or comprehensive vulnerability analysis is claimed."
+        ],
+        "evidenceHash": "3b58e21ae5af393bf69c8d634ef2985289479f2dc498e906598354de54292f8e"
+      }
+    },
+    {
+      "name": "Rarity Eye",
+      "status": "READ_RETURNED",
+      "elapsedMs": 716,
+      "result": {
+        "metadata": {
+          "chainId": 4663,
+          "contract": "0xE0F92B3B0E6DeD3654177FE3809Cd300e5ffaDf6",
+          "blockNumber": "62457745",
+          "blockHash": "0xf381e3c3b64be9a96546daba7edacf838adb4c2aaf388157ed0976b80f9b56f4",
+          "coverage": "SAMPLE_ONLY",
+          "tokens": [
+            {
+              "tokenId": "93",
+              "attributes": [
+                {
+                  "trait_type": "Family",
+                  "value": "Mechanical + Cosmic"
+                },
+                {
+                  "trait_type": "Archetype",
+                  "value": "Gogh Archetype 069"
+                },
+                {
+                  "trait_type": "Colorway",
+                  "value": "Deep Midnight"
+                },
+                {
+                  "trait_type": "Sky Sign",
+                  "value": "Static Fragments"
+                },
+                {
+                  "trait_type": "Archetype Edition",
+                  "value": 68
+                }
+              ]
+            },
+            {
+              "tokenId": "96",
+              "attributes": [
+                {
+                  "trait_type": "Family",
+                  "value": "Mechanical + Cosmic"
+                },
+                {
+                  "trait_type": "Archetype",
+                  "value": "Gogh Archetype 052"
+                },
+                {
+                  "trait_type": "Colorway",
+                  "value": "Moonstone"
+                },
+                {
+                  "trait_type": "Sky Sign",
+                  "value": "Star Dust"
+                },
+                {
+                  "trait_type": "Archetype Edition",
+                  "value": 51
+                }
+              ]
+            },
+            {
+              "tokenId": "97",
+              "attributes": [
+                {
+                  "trait_type": "Family",
+                  "value": "Botanical + Dream"
+                },
+                {
+                  "trait_type": "Archetype",
+                  "value": "Gogh Archetype 090"
+                },
+                {
+                  "trait_type": "Colorway",
+                  "value": "Cypress Twilight"
+                },
+                {
+                  "trait_type": "Sky Sign",
+                  "value": "Solar Halo"
+                },
+                {
+                  "trait_type": "Archetype Edition",
+                  "value": 33
+                }
+              ]
+            }
+          ],
+          "metadataHash": "91671643a31a1dd4ffccce7bb4dffc23afbe803583feb84b44cce5b7ce38568b"
+        },
+        "ranking": {
+          "model": "GOGH_INVERSE_TRAIT_FREQUENCY_V1",
+          "numericMode": "categorical",
+          "coverage": "SAMPLE_ONLY",
+          "sampleSize": 3,
+          "frequencies": [
+            {
+              "trait": [
+                "Family",
+                "Mechanical + Cosmic"
+              ],
+              "count": 2
+            },
+            {
+              "trait": [
+                "Archetype",
+                "Gogh Archetype 069"
+              ],
+              "count": 1
+            },
+            {
+              "trait": [
+                "Colorway",
+                "Deep Midnight"
+              ],
+              "count": 1
+            },
+            {
+              "trait": [
+                "Sky Sign",
+                "Static Fragments"
+              ],
+              "count": 1
+            },
+            {
+              "trait": [
+                "Archetype Edition",
+                68
+              ],
+              "count": 1
+            },
+            {
+              "trait": [
+                "Archetype",
+                "Gogh Archetype 052"
+              ],
+              "count": 1
+            },
+            {
+              "trait": [
+                "Colorway",
+                "Moonstone"
+              ],
+              "count": 1
+            },
+            {
+              "trait": [
+                "Sky Sign",
+                "Star Dust"
+              ],
+              "count": 1
+            },
+            {
+              "trait": [
+                "Archetype Edition",
+                51
+              ],
+              "count": 1
+            },
+            {
+              "trait": [
+                "Family",
+                "Botanical + Dream"
+              ],
+              "count": 1
+            },
+            {
+              "trait": [
+                "Archetype",
+                "Gogh Archetype 090"
+              ],
+              "count": 1
+            },
+            {
+              "trait": [
+                "Colorway",
+                "Cypress Twilight"
+              ],
+              "count": 1
+            },
+            {
+              "trait": [
+                "Sky Sign",
+                "Solar Halo"
+              ],
+              "count": 1
+            },
+            {
+              "trait": [
+                "Archetype Edition",
+                33
+              ],
+              "count": 1
+            }
+          ],
+          "ranked": [
+            {
+              "tokenId": "97",
+              "score": 15,
+              "rank": 1
+            },
+            {
+              "tokenId": "93",
+              "score": 13.5,
+              "rank": 2
+            },
+            {
+              "tokenId": "96",
+              "score": 13.5,
+              "rank": 2
+            }
+          ],
+          "walletAuthority": "NONE",
+          "warning": "Sample ranks are not collection-wide rarity or a price estimate.",
+          "evidenceHash": "91671643a31a1dd4ffccce7bb4dffc23afbe803583feb84b44cce5b7ce38568b"
+        }
+      },
+      "probeCorrection": "Explicit numericMode categorical is required for numeric Archetype Edition traits; default reject behaved correctly."
+    },
+    {
+      "name": "Market Scout v2",
+      "status": "READ_RETURNED",
+      "elapsedMs": 253,
+      "result": {
+        "schema": "GOGH_MARKET_LISTING_OBSERVATIONS_V2",
+        "slug": "gogh-punks-255843210",
+        "chainId": 4663,
+        "contract": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+        "name": "Gogh Punks",
+        "identityVerified": true,
+        "observationStartedAt": "2026-09-14T02:35:05.793Z",
+        "observedAt": "2026-09-14T02:35:06.044Z",
+        "listings": [
+          {
+            "orderHash": "0xa118ef8842b7d09e58facf5ba03ad28fae3bd0e60e2b2960a5834f5253983669",
+            "chainId": 4663,
+            "protocolAddress": "0x0000000000000068f116a894984e2db1123eb395",
+            "asset": {
+              "chainId": 4663,
+              "contract": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+              "tokenId": "3514",
+              "standard": "ERC721"
+            },
+            "quantity": "1",
+            "remainingQuantity": "1",
+            "paymentToken": {
+              "chainId": 4663,
+              "address": "0x0000000000000000000000000000000000000000",
+              "symbol": "ETH",
+              "decimals": 18,
+              "kind": "NATIVE"
+            },
+            "price": {
+              "totalAmount": "1089400000000000",
+              "unitAmount": "1089400000000000",
+              "remainingTotalAmount": "1089400000000000",
+              "decimals": 18,
+              "currency": "ETH",
+              "basis": "FIXED_SINGLE_ITEM_CONSIDERATION_SUM",
+              "includesListedFees": true,
+              "includesGas": false
+            },
+            "startsAtUnix": "1789352926",
+            "expiresAtUnix": "1789353586",
+            "orderType": "FULL_RESTRICTED",
+            "zoneRestricted": true,
+            "zoneAddress": "0x000056f7000000ece9003ca63978907a00ffd100",
+            "providerStatus": "ACTIVE",
+            "validity": "UNVERIFIED_ON_CHAIN",
+            "executable": false
+          },
+          {
+            "orderHash": "0x6526113cdaab0d238c992a6f6b80eb50af3f6ad459485d8146ea57150f5312fd",
+            "chainId": 4663,
+            "protocolAddress": "0x0000000000000068f116a894984e2db1123eb395",
+            "asset": {
+              "chainId": 4663,
+              "contract": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+              "tokenId": "3513",
+              "standard": "ERC721"
+            },
+            "quantity": "1",
+            "remainingQuantity": "1",
+            "paymentToken": {
+              "chainId": 4663,
+              "address": "0x0000000000000000000000000000000000000000",
+              "symbol": "ETH",
+              "decimals": 18,
+              "kind": "NATIVE"
+            },
+            "price": {
+              "totalAmount": "1089400000000000",
+              "unitAmount": "1089400000000000",
+              "remainingTotalAmount": "1089400000000000",
+              "decimals": 18,
+              "currency": "ETH",
+              "basis": "FIXED_SINGLE_ITEM_CONSIDERATION_SUM",
+              "includesListedFees": true,
+              "includesGas": false
+            },
+            "startsAtUnix": "1789352928",
+            "expiresAtUnix": "1789353588",
+            "orderType": "FULL_RESTRICTED",
+            "zoneRestricted": true,
+            "zoneAddress": "0x000056f7000000ece9003ca63978907a00ffd100",
+            "providerStatus": "ACTIVE",
+            "validity": "UNVERIFIED_ON_CHAIN",
+            "executable": false
+          },
+          {
+            "orderHash": "0x4c0a851c45726fc9ee7feeaff5f0a1d970f877e37bc40d2db83ecf4a974c19ab",
+            "chainId": 4663,
+            "protocolAddress": "0x0000000000000068f116a894984e2db1123eb395",
+            "asset": {
+              "chainId": 4663,
+              "contract": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+              "tokenId": "2646",
+              "standard": "ERC721"
+            },
+            "quantity": "1",
+            "remainingQuantity": "1",
+            "paymentToken": {
+              "chainId": 4663,
+              "address": "0x0000000000000000000000000000000000000000",
+              "symbol": "ETH",
+              "decimals": 18,
+              "kind": "NATIVE"
+            },
+            "price": {
+              "totalAmount": "1089500000000000",
+              "unitAmount": "1089500000000000",
+              "remainingTotalAmount": "1089500000000000",
+              "decimals": 18,
+              "currency": "ETH",
+              "basis": "FIXED_SINGLE_ITEM_CONSIDERATION_SUM",
+              "includesListedFees": true,
+              "includesGas": false
+            },
+            "startsAtUnix": "1789352255",
+            "expiresAtUnix": "1804904255",
+            "orderType": "FULL_RESTRICTED",
+            "zoneRestricted": true,
+            "zoneAddress": "0x000056f7000000ece9003ca63978907a00ffd100",
+            "providerStatus": "ACTIVE",
+            "validity": "UNVERIFIED_ON_CHAIN",
+            "executable": false
+          },
+          {
+            "orderHash": "0xc7bf5c7176c5f862f0de1a74416cacf2faf107b7c336afd509fb98cf1570594f",
+            "chainId": 4663,
+            "protocolAddress": "0x0000000000000068f116a894984e2db1123eb395",
+            "asset": {
+              "chainId": 4663,
+              "contract": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+              "tokenId": "2646",
+              "standard": "ERC721"
+            },
+            "quantity": "1",
+            "remainingQuantity": "1",
+            "paymentToken": {
+              "chainId": 4663,
+              "address": "0x0000000000000000000000000000000000000000",
+              "symbol": "ETH",
+              "decimals": 18,
+              "kind": "NATIVE"
+            },
+            "price": {
+              "totalAmount": "1089700000000000",
+              "unitAmount": "1089700000000000",
+              "remainingTotalAmount": "1089700000000000",
+              "decimals": 18,
+              "currency": "ETH",
+              "basis": "FIXED_SINGLE_ITEM_CONSIDERATION_SUM",
+              "includesListedFees": true,
+              "includesGas": false
+            },
+            "startsAtUnix": "1789345432",
+            "expiresAtUnix": "1804897432",
+            "orderType": "FULL_RESTRICTED",
+            "zoneRestricted": true,
+            "zoneAddress": "0x000056f7000000ece9003ca63978907a00ffd100",
+            "providerStatus": "ACTIVE",
+            "validity": "UNVERIFIED_ON_CHAIN",
+            "executable": false
+          },
+          {
+            "orderHash": "0xae3209504503ab09b4db8d4efa773f0cce32544c5e92f4bea37bc9d223a2a4a7",
+            "chainId": 4663,
+            "protocolAddress": "0x0000000000000068f116a894984e2db1123eb395",
+            "asset": {
+              "chainId": 4663,
+              "contract": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+              "tokenId": "2442",
+              "standard": "ERC721"
+            },
+            "quantity": "1",
+            "remainingQuantity": "1",
+            "paymentToken": {
+              "chainId": 4663,
+              "address": "0x0000000000000000000000000000000000000000",
+              "symbol": "ETH",
+              "decimals": 18,
+              "kind": "NATIVE"
+            },
+            "price": {
+              "totalAmount": "1089900000000000",
+              "unitAmount": "1089900000000000",
+              "remainingTotalAmount": "1089900000000000",
+              "decimals": 18,
+              "currency": "ETH",
+              "basis": "FIXED_SINGLE_ITEM_CONSIDERATION_SUM",
+              "includesListedFees": true,
+              "includesGas": false
+            },
+            "startsAtUnix": "1789337471",
+            "expiresAtUnix": "1797113471",
+            "orderType": "FULL_RESTRICTED",
+            "zoneRestricted": true,
+            "zoneAddress": "0x000056f7000000ece9003ca63978907a00ffd100",
+            "providerStatus": "ACTIVE",
+            "validity": "UNVERIFIED_ON_CHAIN",
+            "executable": false
+          }
+        ],
+        "source": "OPENSEA_REST",
+        "walletAuthority": "NONE",
+        "executable": false,
+        "coverage": {
+          "status": "BOUNDED_SAMPLE",
+          "requestedLimit": 5,
+          "maxPages": 2,
+          "pagesRead": 1,
+          "listingsRead": 5,
+          "supportedCount": 5,
+          "excluded": {},
+          "providerPaginationExhausted": false,
+          "collectionFloorVerified": false,
+          "collectionFloor": null,
+          "unavailable": null
+        },
+        "limitations": [
+          "BOUNDED_OPENSEA_SAMPLE",
+          "ERC721_FIXED_PRICE_SINGLE_ITEM_ONLY",
+          "CANCELLATION_AND_OWNERSHIP_NOT_CHECKED",
+          "APPROVAL_AND_SIGNATURE_NOT_CHECKED",
+          "OBSERVATION_TIME_IS_SERVER_UTC_NOT_CHAIN_TIME",
+          "NOT_AN_EXECUTABLE_QUOTE"
+        ],
+        "warning": "Observed listings only. They may be cancelled or unfillable. This sample does not establish a collection floor or authorize a purchase."
+      }
+    },
+    {
+      "name": "Floor Hunter",
+      "status": "READ_RETURNED",
+      "elapsedMs": 80,
+      "result": {
+        "schema": "GOGH_OBSERVED_LISTING_RANKS_V1",
+        "chainId": 4663,
+        "slug": "gogh-punks-255843210",
+        "contract": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+        "name": "Gogh Punks",
+        "identityVerified": true,
+        "source": "OPENSEA_REST",
+        "observationStartedAt": "2026-09-14T02:35:06.046Z",
+        "observedAt": "2026-09-14T02:35:06.107Z",
+        "coverage": {
+          "status": "BOUNDED_SAMPLE",
+          "requestedLimit": 5,
+          "maxPages": 2,
+          "pagesRead": 1,
+          "listingsRead": 5,
+          "supportedCount": 5,
+          "excluded": {},
+          "providerPaginationExhausted": false,
+          "collectionFloorVerified": false,
+          "collectionFloor": null,
+          "unavailable": null
+        },
+        "rankedGroups": [
+          {
+            "paymentToken": {
+              "chainId": 4663,
+              "address": "0x0000000000000000000000000000000000000000",
+              "symbol": "ETH",
+              "decimals": 18,
+              "kind": "NATIVE"
+            },
+            "observedMinimumTotalAmount": "1089400000000000",
+            "listings": [
+              {
+                "orderHash": "0x6526113cdaab0d238c992a6f6b80eb50af3f6ad459485d8146ea57150f5312fd",
+                "chainId": 4663,
+                "protocolAddress": "0x0000000000000068f116a894984e2db1123eb395",
+                "asset": {
+                  "chainId": 4663,
+                  "contract": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+                  "tokenId": "3513",
+                  "standard": "ERC721"
+                },
+                "quantity": "1",
+                "remainingQuantity": "1",
+                "paymentToken": {
+                  "chainId": 4663,
+                  "address": "0x0000000000000000000000000000000000000000",
+                  "symbol": "ETH",
+                  "decimals": 18,
+                  "kind": "NATIVE"
+                },
+                "price": {
+                  "totalAmount": "1089400000000000",
+                  "unitAmount": "1089400000000000",
+                  "remainingTotalAmount": "1089400000000000",
+                  "decimals": 18,
+                  "currency": "ETH",
+                  "basis": "FIXED_SINGLE_ITEM_CONSIDERATION_SUM",
+                  "includesListedFees": true,
+                  "includesGas": false
+                },
+                "startsAtUnix": "1789352928",
+                "expiresAtUnix": "1789353588",
+                "orderType": "FULL_RESTRICTED",
+                "zoneRestricted": true,
+                "zoneAddress": "0x000056f7000000ece9003ca63978907a00ffd100",
+                "providerStatus": "ACTIVE",
+                "validity": "UNVERIFIED_ON_CHAIN",
+                "executable": false,
+                "observedRank": 1,
+                "premiumOverObservedMinimumAmount": "0"
+              },
+              {
+                "orderHash": "0xa118ef8842b7d09e58facf5ba03ad28fae3bd0e60e2b2960a5834f5253983669",
+                "chainId": 4663,
+                "protocolAddress": "0x0000000000000068f116a894984e2db1123eb395",
+                "asset": {
+                  "chainId": 4663,
+                  "contract": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+                  "tokenId": "3514",
+                  "standard": "ERC721"
+                },
+                "quantity": "1",
+                "remainingQuantity": "1",
+                "paymentToken": {
+                  "chainId": 4663,
+                  "address": "0x0000000000000000000000000000000000000000",
+                  "symbol": "ETH",
+                  "decimals": 18,
+                  "kind": "NATIVE"
+                },
+                "price": {
+                  "totalAmount": "1089400000000000",
+                  "unitAmount": "1089400000000000",
+                  "remainingTotalAmount": "1089400000000000",
+                  "decimals": 18,
+                  "currency": "ETH",
+                  "basis": "FIXED_SINGLE_ITEM_CONSIDERATION_SUM",
+                  "includesListedFees": true,
+                  "includesGas": false
+                },
+                "startsAtUnix": "1789352926",
+                "expiresAtUnix": "1789353586",
+                "orderType": "FULL_RESTRICTED",
+                "zoneRestricted": true,
+                "zoneAddress": "0x000056f7000000ece9003ca63978907a00ffd100",
+                "providerStatus": "ACTIVE",
+                "validity": "UNVERIFIED_ON_CHAIN",
+                "executable": false,
+                "observedRank": 2,
+                "premiumOverObservedMinimumAmount": "0"
+              },
+              {
+                "orderHash": "0x4c0a851c45726fc9ee7feeaff5f0a1d970f877e37bc40d2db83ecf4a974c19ab",
+                "chainId": 4663,
+                "protocolAddress": "0x0000000000000068f116a894984e2db1123eb395",
+                "asset": {
+                  "chainId": 4663,
+                  "contract": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+                  "tokenId": "2646",
+                  "standard": "ERC721"
+                },
+                "quantity": "1",
+                "remainingQuantity": "1",
+                "paymentToken": {
+                  "chainId": 4663,
+                  "address": "0x0000000000000000000000000000000000000000",
+                  "symbol": "ETH",
+                  "decimals": 18,
+                  "kind": "NATIVE"
+                },
+                "price": {
+                  "totalAmount": "1089500000000000",
+                  "unitAmount": "1089500000000000",
+                  "remainingTotalAmount": "1089500000000000",
+                  "decimals": 18,
+                  "currency": "ETH",
+                  "basis": "FIXED_SINGLE_ITEM_CONSIDERATION_SUM",
+                  "includesListedFees": true,
+                  "includesGas": false
+                },
+                "startsAtUnix": "1789352255",
+                "expiresAtUnix": "1804904255",
+                "orderType": "FULL_RESTRICTED",
+                "zoneRestricted": true,
+                "zoneAddress": "0x000056f7000000ece9003ca63978907a00ffd100",
+                "providerStatus": "ACTIVE",
+                "validity": "UNVERIFIED_ON_CHAIN",
+                "executable": false,
+                "observedRank": 3,
+                "premiumOverObservedMinimumAmount": "100000000000"
+              },
+              {
+                "orderHash": "0xc7bf5c7176c5f862f0de1a74416cacf2faf107b7c336afd509fb98cf1570594f",
+                "chainId": 4663,
+                "protocolAddress": "0x0000000000000068f116a894984e2db1123eb395",
+                "asset": {
+                  "chainId": 4663,
+                  "contract": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+                  "tokenId": "2646",
+                  "standard": "ERC721"
+                },
+                "quantity": "1",
+                "remainingQuantity": "1",
+                "paymentToken": {
+                  "chainId": 4663,
+                  "address": "0x0000000000000000000000000000000000000000",
+                  "symbol": "ETH",
+                  "decimals": 18,
+                  "kind": "NATIVE"
+                },
+                "price": {
+                  "totalAmount": "1089700000000000",
+                  "unitAmount": "1089700000000000",
+                  "remainingTotalAmount": "1089700000000000",
+                  "decimals": 18,
+                  "currency": "ETH",
+                  "basis": "FIXED_SINGLE_ITEM_CONSIDERATION_SUM",
+                  "includesListedFees": true,
+                  "includesGas": false
+                },
+                "startsAtUnix": "1789345432",
+                "expiresAtUnix": "1804897432",
+                "orderType": "FULL_RESTRICTED",
+                "zoneRestricted": true,
+                "zoneAddress": "0x000056f7000000ece9003ca63978907a00ffd100",
+                "providerStatus": "ACTIVE",
+                "validity": "UNVERIFIED_ON_CHAIN",
+                "executable": false,
+                "observedRank": 4,
+                "premiumOverObservedMinimumAmount": "300000000000"
+              },
+              {
+                "orderHash": "0xae3209504503ab09b4db8d4efa773f0cce32544c5e92f4bea37bc9d223a2a4a7",
+                "chainId": 4663,
+                "protocolAddress": "0x0000000000000068f116a894984e2db1123eb395",
+                "asset": {
+                  "chainId": 4663,
+                  "contract": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+                  "tokenId": "2442",
+                  "standard": "ERC721"
+                },
+                "quantity": "1",
+                "remainingQuantity": "1",
+                "paymentToken": {
+                  "chainId": 4663,
+                  "address": "0x0000000000000000000000000000000000000000",
+                  "symbol": "ETH",
+                  "decimals": 18,
+                  "kind": "NATIVE"
+                },
+                "price": {
+                  "totalAmount": "1089900000000000",
+                  "unitAmount": "1089900000000000",
+                  "remainingTotalAmount": "1089900000000000",
+                  "decimals": 18,
+                  "currency": "ETH",
+                  "basis": "FIXED_SINGLE_ITEM_CONSIDERATION_SUM",
+                  "includesListedFees": true,
+                  "includesGas": false
+                },
+                "startsAtUnix": "1789337471",
+                "expiresAtUnix": "1797113471",
+                "orderType": "FULL_RESTRICTED",
+                "zoneRestricted": true,
+                "zoneAddress": "0x000056f7000000ece9003ca63978907a00ffd100",
+                "providerStatus": "ACTIVE",
+                "validity": "UNVERIFIED_ON_CHAIN",
+                "executable": false,
+                "observedRank": 5,
+                "premiumOverObservedMinimumAmount": "500000000000"
+              }
+            ]
+          }
+        ],
+        "rankingBasis": "EXACT_TOTAL_AMOUNT_WITHIN_IDENTICAL_PAYMENT_ASSET",
+        "referenceBasis": "MINIMUM_OF_RETURNED_SUPPORTED_ORDERS_ONLY",
+        "collectionFloorVerified": false,
+        "collectionFloor": null,
+        "currencyConversionApplied": false,
+        "walletAuthority": "NONE",
+        "executable": false,
+        "limitations": [
+          "BOUNDED_OPENSEA_SAMPLE",
+          "ERC721_FIXED_PRICE_SINGLE_ITEM_ONLY",
+          "CANCELLATION_AND_OWNERSHIP_NOT_CHECKED",
+          "APPROVAL_AND_SIGNATURE_NOT_CHECKED",
+          "OBSERVATION_TIME_IS_SERVER_UTC_NOT_CHAIN_TIME",
+          "NOT_AN_EXECUTABLE_QUOTE",
+          "NO_CROSS_CURRENCY_COMPARISON",
+          "MULTIPLE_ORDERS_FOR_ONE_TOKEN_MAY_APPEAR",
+          "NO_LIQUIDITY_OR_FAIR_VALUE_ESTIMATE"
+        ],
+        "warning": "A bounded sample minimum is not a collection floor or an executable quote. No purchase is authorized.",
+        "evidenceHash": "e925949f487739413557b7dec3bbb845e3a1fbdc7241fdac117c41e8b338f32a"
+      }
+    },
+    {
+      "name": "Collection Researcher",
+      "status": "READ_RETURNED",
+      "elapsedMs": 495,
+      "result": {
+        "schema": "GOGH_COLLECTION_RESEARCH_V1",
+        "chainId": 4663,
+        "contract": "0xE0F92B3B0E6DeD3654177FE3809Cd300e5ffaDf6",
+        "contractEvidence": {
+          "chainId": 4663,
+          "contract": "0xE0F92B3B0E6DeD3654177FE3809Cd300e5ffaDf6",
+          "blockNumber": "62457204",
+          "blockHash": "0xa67f44dcc5dbbd7fea8cfba8d9f0031d636c139b4281322e04d8f9c152463e87",
+          "codeHash": "0x3222e4925f77909e6370e17fe071d2774d43e191f6bc72c3a97c97209c6e2e93",
+          "codeBytes": 18470,
+          "erc721": {
+            "status": "OBSERVED",
+            "value": true
+          },
+          "erc1155": {
+            "status": "OBSERVED",
+            "value": false
+          },
+          "eip1967Implementation": {
+            "status": "OBSERVED",
+            "value": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "nonzero": false
+          },
+          "eip1967Beacon": {
+            "status": "OBSERVED",
+            "value": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "nonzero": false
+          },
+          "minimalProxy": false,
+          "securityVerdict": "NOT_A_SECURITY_CLEARANCE",
+          "walletAuthority": "NONE",
+          "limitations": [
+            "Interface responses can lie.",
+            "Nonstandard proxies may not use these slots.",
+            "No verified source, approval enumeration, or comprehensive vulnerability analysis is claimed."
+          ],
+          "evidenceHash": "e45ff6610688b8a1021463b5e174ed3a153a39d645bbc48b490e87eb32c7ae3b"
+        },
+        "blockNumber": "62457204",
+        "blockHash": "0xa67f44dcc5dbbd7fea8cfba8d9f0031d636c139b4281322e04d8f9c152463e87",
+        "tokens": [
+          {
+            "tokenId": "93",
+            "status": "OBSERVED",
+            "name": "Gogh Punk #93",
+            "declaredTraits": [
+              {
+                "traitType": "Family",
+                "value": "Mechanical + Cosmic",
+                "displayType": null
+              },
+              {
+                "traitType": "Archetype",
+                "value": "Gogh Archetype 069",
+                "displayType": null
+              },
+              {
+                "traitType": "Colorway",
+                "value": "Deep Midnight",
+                "displayType": null
+              },
+              {
+                "traitType": "Sky Sign",
+                "value": "Static Fragments",
+                "displayType": null
+              },
+              {
+                "traitType": "Archetype Edition",
+                "value": 68,
+                "displayType": null
+              }
+            ],
+            "excludedTraits": 0,
+            "duplicateTraitNames": 0,
+            "metadataAuthority": "UNTRUSTED_CONTRACT_DECLARATIONS"
+          },
+          {
+            "tokenId": "96",
+            "status": "OBSERVED",
+            "name": "Gogh Punk #96",
+            "declaredTraits": [
+              {
+                "traitType": "Family",
+                "value": "Mechanical + Cosmic",
+                "displayType": null
+              },
+              {
+                "traitType": "Archetype",
+                "value": "Gogh Archetype 052",
+                "displayType": null
+              },
+              {
+                "traitType": "Colorway",
+                "value": "Moonstone",
+                "displayType": null
+              },
+              {
+                "traitType": "Sky Sign",
+                "value": "Star Dust",
+                "displayType": null
+              },
+              {
+                "traitType": "Archetype Edition",
+                "value": 51,
+                "displayType": null
+              }
+            ],
+            "excludedTraits": 0,
+            "duplicateTraitNames": 0,
+            "metadataAuthority": "UNTRUSTED_CONTRACT_DECLARATIONS"
+          },
+          {
+            "tokenId": "97",
+            "status": "OBSERVED",
+            "name": "Gogh Punk #97",
+            "declaredTraits": [
+              {
+                "traitType": "Family",
+                "value": "Botanical + Dream",
+                "displayType": null
+              },
+              {
+                "traitType": "Archetype",
+                "value": "Gogh Archetype 090",
+                "displayType": null
+              },
+              {
+                "traitType": "Colorway",
+                "value": "Cypress Twilight",
+                "displayType": null
+              },
+              {
+                "traitType": "Sky Sign",
+                "value": "Solar Halo",
+                "displayType": null
+              },
+              {
+                "traitType": "Archetype Edition",
+                "value": 33,
+                "displayType": null
+              }
+            ],
+            "excludedTraits": 0,
+            "duplicateTraitNames": 0,
+            "metadataAuthority": "UNTRUSTED_CONTRACT_DECLARATIONS"
+          }
+        ],
+        "metadataHash": "9f1e62ff876d820148f4011d220c318373c40fe3fc7bc399674d28c2778c5420",
+        "coverage": {
+          "status": "BOUNDED_SAMPLE",
+          "requestedCount": 3,
+          "observedCount": 3,
+          "unavailableCount": 0,
+          "collectionComplete": false,
+          "sampleSelection": "CALLER_SELECTED_TOKEN_IDS",
+          "tokenExistenceVerified": false
+        },
+        "source": "FIXED_CHAIN_RPC_INLINE_METADATA",
+        "walletAuthority": "NONE",
+        "executable": false,
+        "traitCoverage": [
+          {
+            "traitType": "Archetype",
+            "observedTokenCount": 3,
+            "absentFromObservedTokenCount": 0
+          },
+          {
+            "traitType": "Archetype Edition",
+            "observedTokenCount": 3,
+            "absentFromObservedTokenCount": 0
+          },
+          {
+            "traitType": "Colorway",
+            "observedTokenCount": 3,
+            "absentFromObservedTokenCount": 0
+          },
+          {
+            "traitType": "Family",
+            "observedTokenCount": 3,
+            "absentFromObservedTokenCount": 0
+          },
+          {
+            "traitType": "Sky Sign",
+            "observedTokenCount": 3,
+            "absentFromObservedTokenCount": 0
+          }
+        ],
+        "limitations": [
+          "CALLER_SELECTED_SAMPLE_NOT_COLLECTION_INVENTORY",
+          "METADATA_DECLARATIONS_CAN_LIE",
+          "EXTERNAL_METADATA_AND_IMAGES_NOT_FETCHED",
+          "NO_AUTHENTICITY_OR_SECURITY_CLEARANCE",
+          "TRAIT_COUNTS_ARE_NOT_RARITY_OR_VALUE"
+        ],
+        "securityVerdict": "NOT_A_SECURITY_CLEARANCE",
+        "evidenceHash": "9a302acc8b0f61b8204a2577507034c949342671fb22eada7cd3f5c89d0c1683"
+      }
+    },
+    {
+      "name": "Art Curator",
+      "status": "READ_RETURNED",
+      "elapsedMs": 541,
+      "result": {
+        "schema": "GOGH_DECLARED_ART_STYLE_MATCHES_V1",
+        "chainId": 4663,
+        "contract": "0xE0F92B3B0E6DeD3654177FE3809Cd300e5ffaDf6",
+        "blockNumber": "62457749",
+        "blockHash": "0x4bcb3fb030b5c1d040caacbd2cdc06a100a7c19d87c3a8a1424df4eb017ba722",
+        "contractCodeHash": "0x3222e4925f77909e6370e17fe071d2774d43e191f6bc72c3a97c97209c6e2e93",
+        "metadataHash": "9f1e62ff876d820148f4011d220c318373c40fe3fc7bc399674d28c2778c5420",
+        "coverage": {
+          "status": "BOUNDED_SAMPLE",
+          "requestedCount": 3,
+          "observedCount": 3,
+          "unavailableCount": 0,
+          "collectionComplete": false,
+          "sampleSelection": "CALLER_SELECTED_TOKEN_IDS",
+          "tokenExistenceVerified": false
+        },
+        "source": "FIXED_CHAIN_RPC_INLINE_METADATA",
+        "classificationBasis": "EXACT_DECLARED_METADATA_STYLE_LABELS",
+        "visualClassification": "UNAVAILABLE",
+        "confidence": null,
+        "preferredStyles": [
+          "PIXEL_ART"
+        ],
+        "preferenceSource": "CALL_ARGUMENTS_NOT_CONFIRMED_OWNER_POLICY",
+        "declaredStyleCounts": [],
+        "tokens": [
+          {
+            "tokenId": "93",
+            "status": "UNKNOWN",
+            "declaredStyles": [],
+            "preferredStyleMatches": [],
+            "reason": "NO_RECOGNIZED_STYLE_DECLARATION"
+          },
+          {
+            "tokenId": "96",
+            "status": "UNKNOWN",
+            "declaredStyles": [],
+            "preferredStyleMatches": [],
+            "reason": "NO_RECOGNIZED_STYLE_DECLARATION"
+          },
+          {
+            "tokenId": "97",
+            "status": "UNKNOWN",
+            "declaredStyles": [],
+            "preferredStyleMatches": [],
+            "reason": "NO_RECOGNIZED_STYLE_DECLARATION"
+          }
+        ],
+        "recognizedTokenCount": 0,
+        "unknownTokenCount": 3,
+        "walletAuthority": "NONE",
+        "executable": false,
+        "limitations": [
+          "NO_IMAGE_FETCH_OR_VISUAL_CLASSIFICATION",
+          "METADATA_DECLARATIONS_CAN_LIE",
+          "UNKNOWN_IS_NOT_A_NEGATIVE_STYLE_JUDGMENT",
+          "NO_AESTHETIC_QUALITY_AUTHENTICITY_OR_VALUE_CLAIM",
+          "PREFERENCES_DO_NOT_CHANGE_OWNER_POLICY_OR_AUTHORIZE_ACTIONS"
+        ],
+        "evidenceHash": "fc5299ee6857aeeb614a8cc6107f31c4edb01669250af567d770c07f24c69295"
+      },
+      "probeCorrection": "Preferred style enum is PIXEL_ART, not PIXEL; initial probe used an invalid argument."
+    }
+  ]
+}
