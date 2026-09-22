@@ -23,6 +23,29 @@ test('holder API derives owner from session and supports arbitrary distinct pair
     sessionReader: async () => ({ walletAddress: owner }), originCheck: () => {}, runtimeFactory: async value => { selected = value; return { check: async () => ({ canBurn: false }) }; } });
   assert.equal(response.status, 200); assert.equal(selected.owner, owner); assert.equal(selected.sourceTokenId, '812'); assert.equal(selected.targetTokenId, '119');
 });
+test('holder inspection accepts production and exact trusted preview origins, rejecting cross-origin requests before reads', async t => {
+  const previous = process.env.SITE_URL;
+  process.env.SITE_URL = 'https://goghpunks.xyz';
+  t.after(() => { if (previous === undefined) delete process.env.SITE_URL; else process.env.SITE_URL = previous; });
+  let reads = 0;
+  const deps = { sessionPool: () => ({}), sessionReader: async () => { reads++; return { walletAddress: owner }; },
+    runtimeFactory: async () => ({ check: async () => ({ canBurn: false }) }) };
+  for (const [host, origin, accepted] of [
+    ['https://goghpunks.xyz', 'https://goghpunks.xyz', true],
+    ['https://deploy-preview-123--gogh-punks.netlify.app', 'https://deploy-preview-123--gogh-punks.netlify.app', true],
+    ['https://deploy-preview-123.preview.goghpunks.xyz', 'https://deploy-preview-123.preview.goghpunks.xyz', true],
+    ['https://goghpunks.xyz', 'https://attacker.example', false],
+    ['https://deploy-preview-123--gogh-punks.netlify.app', 'https://deploy-preview-124--gogh-punks.netlify.app', false],
+    ['https://deploy-preview-123--gogh-punks.netlify.app', 'https://goghpunks.xyz', false],
+    ['https://goghpunks.xyz', '', false],
+  ]) {
+    const before = reads, response = await handleHolderBurn(new Request(`${host}/api/v2/punks/119/forge/holder-burn`, {
+      method: 'POST', headers: { origin, 'content-type': 'application/json' }, body: JSON.stringify({ operation: 'check', sourceTokenId: '812' }),
+    }), deps);
+    assert.equal(response.ok, accepted, `${host} with ${origin}`);
+    assert.equal(reads - before, accepted ? 1 : 0);
+  }
+});
 test('holder API rejects injected owner, calldata, evidence, duplicate source query and same source/target', async () => {
   const deps = { sessionPool: () => ({}), sessionReader: async () => ({ walletAddress: owner }), originCheck: () => {}, runtimeFactory: async () => { throw Error('MUST_NOT_CALL'); } };
   for (const field of ['owner', 'transaction', 'inventory', 'canBurn']) {

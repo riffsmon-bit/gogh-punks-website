@@ -6,7 +6,7 @@ This release adds a useful, owner-authenticated read-only inspection for any two
 
 ## Public integration
 
-Import `createHolderBurnInspectionPanel` from `site/forge-holder-inspection-panel.js`, include `site/forge-holder-panel.css`, and provide `{root,getSelection,getOwnedPunks,ensureSession,request}`. `getSelection()` returns `{owner,tokenId,chainId,preview,revision?}`. `request(url,{method,body})` returns parsed JSON; the parent serializes `body`. Refresh on every owner/Punk/chain/session transition. The panel has no provider/signing argument and imports no wallet submission code.
+Import `createHolderBurnInspectionPanel` from `site/forge-holder-inspection-panel.js`, include `site/forge-holder-panel.css`, and provide `{root,getSelection,getOwnedPunks,ensureSession,request}`. `getSelection()` returns `{owner,tokenId,chainId,preview,revision?}`. `request(url,{method,headers,body})` returns parsed JSON; the panel supplies a serialized JSON body and content type. Refresh on every owner/Punk/chain/session transition. The panel has no provider/signing argument and imports no wallet submission code.
 
 `POST /api/v2/punks/:target/forge/holder-burn` accepts only `{operation:'check',sourceTokenId}`. Both owners are verified on chain; all four V1/V2/V3/Agent wallet addresses and implementation/registry pins are verified through two configured providers at one canonical block. Native/WETH/gas deposits, active Agent session, pending account nonce, **unused legacy burn credits and separately purchased credits** are inspected. A missing deployed paid-ledger read is UNKNOWN. Pausing paid purchases does not remove that ledger from source checks.
 

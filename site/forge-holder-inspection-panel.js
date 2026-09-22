@@ -38,7 +38,7 @@ export function createHolderBurnInspectionPanel({ root, getSelection, getOwnedPu
       try {
         await ensureSession(); if (!current()) return;
         const response = await request(`/api/v2/punks/${selected.tokenId}/forge/holder-burn`,
-          { method: 'POST', body: { operation: 'check', sourceTokenId: source } });
+          { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ operation: 'check', sourceTokenId: source }) });
         if (!current()) return;
         if (!response?.ok) throw Error(response?.message ?? 'The wallet check could not finish. Recheck shortly; nothing was approved or burned.');
         if (response.owner?.toLowerCase() !== selected.owner.toLowerCase() || response.sourceTokenId !== source
@@ -61,7 +61,7 @@ export function createHolderBurnInspectionPanel({ root, getSelection, getOwnedPu
       if (result.blockers?.includes('HOLDER_AUTOMATION_ACTIVE')) root.append(node('p', 'Pause this Punk and revoke its automated spending permission before considering sacrifice.'));
       if (result.blockers?.includes('HOLDER_TRANSACTION_PENDING')) root.append(node('p', 'A transaction is pending. Wait for its confirmed result and recheck.'));
       root.append(node('p', 'Sacrifice is blocked. Complete token history, attached missions/refunds and protection for deposits made while confirmation is pending still need verification.'));
-      const open = node('a', `Open Punk #${sourceId} wallet`); open.href = `/broker/v2/?tab=withdraw&tokenId=${sourceId}`; root.append(open);
+      const open = node('a', `Open Punk #${sourceId} wallet`); open.href = `/broker/v2/?tab=collection&tokenId=${sourceId}`; root.append(open);
     }
     if (error) { const status = node('p', error); status.setAttribute('role', 'alert'); root.append(status); }
   }

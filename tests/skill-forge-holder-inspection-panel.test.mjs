@@ -39,8 +39,9 @@ test('public inspection excludes recipient, displays unknown inventory, and neve
   assert.ok(f.root.textContent.includes('Sacrifice is blocked'));
   assert.ok(f.root.textContent.includes('not fully verified'));
   assert.deepEqual(walk(f.root).filter(el=>el.localName==='button').map(el=>el.textContent),['Check wallets']);
-  assert.equal(f.requests[0].options.body.operation,'check'); assert.equal(f.requests.length,1);
-  assert.equal(walk(f.root).find(el=>el.localName==='a').href,'/broker/v2/?tab=withdraw&tokenId=812');
+  assert.equal(JSON.parse(f.requests[0].options.body).operation,'check'); assert.equal(f.requests.length,1);
+  assert.equal(f.requests[0].options.headers['content-type'],'application/json');
+  assert.equal(walk(f.root).find(el=>el.localName==='a').href,'/broker/v2/?tab=collection&tokenId=812');
 });
 test('public inspection suppresses responses after owner and selection refresh', async () => {
   const f=fixture();f.panel.refresh();f.choose();f.hold();f.button().click();await until(()=>f.requests.length===1);

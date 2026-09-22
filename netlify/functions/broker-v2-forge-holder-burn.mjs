@@ -1,5 +1,6 @@
 import { getDatabase } from '@netlify/database';
-import { json, readJson, PublicError, requireSameOrigin } from './_shared/http.mjs';
+import { json, readJson, PublicError } from './_shared/http.mjs';
+import { requireV2OwnerOrigin } from './_shared/v2-review.mjs';
 import { requireV2Session } from './_shared/v2-session.mjs';
 import { v2TokenIdFrom } from './_shared/v2-route.mjs';
 import { holderBurnSelection } from '../../broker/src/v4/skill-forge/holder-source.mjs';
@@ -29,7 +30,7 @@ const MESSAGES = {
   TRAINING_PAUSED: 'Forge is temporarily paused. Recheck later.',
 };
 export async function handleHolderBurn(request, { runtimeFactory = holderBurnRuntime, sessionPool = () => getDatabase().pool,
-  sessionReader = requireV2Session, originCheck = requireSameOrigin } = {}) {
+  sessionReader = requireV2Session, originCheck = requireV2OwnerOrigin } = {}) {
   if (!['GET', 'POST'].includes(request.method)) return json({ ok: false, code: 'METHOD_NOT_ALLOWED' }, 405);
   try {
     const targetTokenId = v2TokenIdFrom(request, '/forge/holder-burn'), url = new URL(request.url);
