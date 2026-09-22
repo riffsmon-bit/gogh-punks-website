@@ -1,6 +1,6 @@
 # Persistent watching: bounded release package
 
-Status: **IMPLEMENTED / TESTED, integration and deployment pending.** This package persists a Punk's research activity after a finite mint session finishes. It does not grant economic autonomy, create or renew a wallet permission, or submit a transaction. The existing fixed mint canary and its worker/session lifecycle are untouched.
+Status: **IMPLEMENTED / LOCALLY INTEGRATED / TESTED; production database review, packaging and deployment pending.** This package persists a Punk's research activity after a finite mint session finishes. It does not grant economic autonomy, create or renew a wallet permission, or submit a transaction. The existing fixed mint canary and its worker/session lifecycle are untouched.
 
 ## Holder behavior
 
@@ -22,7 +22,7 @@ This is a holder research feature. It must not be labeled “autonomous executio
 - Existing authenticated V2 session, production/preview origin enforcement, no-store JSON/error contract.
 - Existing `broker_v2_opportunities.normalized`, written by shared discovery. No per-Punk scanner or new schedule.
 
-No modifications to the immutable/hash-pinned collecting intent, AgentAccount, existing workers, existing main mount, netlify.toml or deployment manifests.
+The recovered package does not modify the immutable/hash-pinned collecting intent, AgentAccount or deployment manifests. The September 22 integration adds the holder mount and a bounded follow-on call in the existing shared discovery worker. There is no separate watch schedule.
 
 ## Deployment configuration and SQL
 
@@ -60,7 +60,11 @@ POST additionally requires the existing production/preview same-origin checks. E
 
 Use the latest returned version. Version zero means no prior watch. Prepare is not activation. Confirmation checks fresh ownership and continuous transfer history from the draft anchor. A stale review cannot overwrite pause or another confirmation. A duplicate confirmed review returns its current watch without reactivation. Superseded/expired review IDs reject. Token ID, owner, version and draft identity are checked server-side; browser state is not authority.
 
-## Parent frontend integration
+## Holder integration
+
+The Strategy screen now mounts `createPersistentWatchMount` from `site/broker-persistent-watch-mount.js`, wrapping the original component below. Selection changes and wallet events invalidate the old component immediately, including events that return early while the wallet is pending or on the wrong chain. The mount probes the existing session cookie without requesting a signature. Its **Sign in to manage watching** button is the only watch entry point that invokes the existing explicit sign-in flow.
+
+Every write rechecks that cookie, owner, expiry and captured selection before sending one serialized request. A changed session invalidates the saved draft, as do Punk/account/chain/context changes and account round trips. Failed fresh reads clear actionable data and drafts. Production and recognized authenticated deploy-preview hosts are supported; disconnected, wrong-chain, mock-preview and unsupported-host selections cannot access the watch API. Funding and permission buttons navigate to the existing screens; they do not activate a permission or payment. Existing administrator and Marketplace mounts are preserved.
 
 Import `/broker-persistent-watch.js`, serve `/broker-persistent-watch.css`, and mount in an existing selected-Punk screen:
 
@@ -90,6 +94,8 @@ The component renders untrusted data through textContent, never HTML. Monetary i
 A safe conversational integration is: derive the full proposed config from an existing AI draft → call prepare → show this review → confirm on explicit holder action. Never let an AI/tool call the confirm endpoint as an inferred consent step.
 
 ## Shared discovery seam
+
+`netlify/functions/broker-v2-discovery-worker.mjs` now calls this seam once after a successful discovery run, including empty result sets. It reuses the ingest pool, and skips entirely behind existing background RPC/discovery gates or the default-off watch flag. The deployed tick uses **at most five watches**, the first 100 discovery summary IDs and up to 25 normalized stored opportunities. The watch budget is at most 15 seconds, reduced by time already spent ingesting; fewer than one second remaining in the 40-second soft work window skips the batch. An already-started RPC retains its own timeout. Watch failures produce a sanitized `UNAVAILABLE` result while preserving committed discovery, with no repeat watch call in the same tick.
 
 Call **once** from the existing shared scheduled discovery tick, including idle ticks, after discovery work:
 
@@ -137,6 +143,14 @@ This package does not claim to close the existing AgentAccount validation-time t
 - `node --test tests/persistent-watch.test.mjs`: **17 passed, 0 failed**, covering strict config, independent finite permissions, UTC/budget/reserve/skills/screen/simulation reasons, duplicate observation identity, raw canonical transfer histories, wrong chain/current owner, stale/reorg/malformed evidence, wallet A→B→A, explicit confirmation, double-click suppression, exact ETH decimals, authenticated/origin-protected route, disabled flag, actual pinned Agent runtime fixture and RLS/slow-loadout fail-closed behavior.
 - `node tests/persistent-watch-postgres.integration.mjs --disposable-only --postgres-bin=/private/tmp/gogh-postgres-native/bin`: **43 assertions passed**, using the native PostgreSQL production migration and concurrent pooled transactions. Covers CAS activation, duplicate confirmation, stale review after pause, no future claim after pause, pause between claim/finish, shared future opportunities, process restart, transfer/reactivation, expiry, reserve, RLS and JSON authority constraints. No production SQL or chain transactions.
 - Related ownership continuity, worker lease and mint-research runtime regression set: **105/105 passed**, including the first 14 watch tests; the final dedicated watch run contains 17 passing tests.
-- Browser component/controller is implemented and controller-tested. **Responsive rendered browser QA, shared scheduler integration, preview/production served-file checks and wallet-connected verification remain the parent's integration gate.** Do not label this live before that gate.
+- September 22 integration: `node --test tests/persistent-watch.test.mjs tests/persistent-watch-mount.test.mjs tests/persistent-watch-worker.test.mjs tests/art-broker-v2-discovery-ingestor.test.mjs` passed **44 tests**, including the actual session-aware mount, pre-write A→B→A and identity races, changed/expired sessions, stale-read clearing, default-off ticks, idle ticks, shared-pool reuse, large feed bounds, remaining-time limits and isolated watch failure.
+- `node scripts/test-persistent-watch-browser.mjs --fixture-only` passed rendered Chrome acceptance at 1440, 768, 375 and 320 pixels, with no horizontal overflow and 44px buttons. It exercises explicit sign-in, review/confirm, saved watch reload, pause, session invalidation and untrusted taste text using the actual holder fragment, mount and controller. This is a local fixture, not production session/chain proof. [Evidence](persistent-watch-browser-evidence.json).
+- `node scripts/code-check.mjs` passed syntax checks for 872 modules; `node scripts/site-check.mjs` passed seven pages and the asset/dimension/secret checks at this integration checkpoint.
+
+## Remaining release gates
+
+The existing application session/ingest paths use `getDatabase().pool`; this integration shares that trusted application role and introduces no credential or privilege fallback. The additive migration enables RLS and revokes PUBLIC, matching existing staged V2 tables. It does **not** provision grants for an assumed production role. Before release, review the actual application-role identity and its unfiltered SELECT/INSERT/UPDATE access to all three watch tables plus complete SELECT on `broker_v2_opportunities`. The runtime rejects filtered RLS views. No production SQL was applied here; the earlier native PostgreSQL result above is recovered evidence, and fresh native revalidation is a separate release check.
+
+Both `broker-v2-persistent-watch` and `broker-v2-discovery-worker` must include the same raw reviewed skill packages, runtime/dependency source bytes, training release and CA certificate used by `broker-v2-mcp`; this is required because the watch economics reader verifies packages from `process.cwd()`. Parent release integration owns those `netlify.toml` entries and bundle validation. Production served-file, real-session/current-holder and RPC/history checks remain outstanding. Keep `GOGH_V2_PERSISTENT_WATCH_ENABLED` unset or false until these gates pass. Default economics still reports `usageVerified:false` and `globalExecutionPaused:true`; no financial execution integration was added.
 
 All validation uses owned disposable resources. No production funds, NFT burns, refunds, bids, transfers, wallet module installs or collection administrator changes were performed.

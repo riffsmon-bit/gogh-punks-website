@@ -36,7 +36,10 @@ export function createPersistentWatchController({ request, onChange = () => {} }
       } else state.data = result;
       return true;
     } catch (error) {
-      if (!destroyed && revision === captured) state.error = error instanceof Error ? error.message : 'Watching could not be updated. Refresh before trying again.';
+      if (!destroyed && revision === captured) {
+        state.data = null; state.draft = null; state.notice = null;
+        state.error = error instanceof Error ? error.message : 'Watching could not be updated. Refresh before trying again.';
+      }
       return false;
     } finally {
       if (!destroyed && revision === captured) { state.loading = false; emit(); }
@@ -92,7 +95,7 @@ export function mountPersistentWatch({ root, request, onReviewPermission = null,
     if (!identity) { root.append(el('p', 'Connect your wallet and select a Punk to save its collecting taste.')); return; }
     root.append(el('p', 'Set your taste once. Your Punk keeps reviewing shared discoveries until you pause it.'));
     const status = state.data?.status;
-    const stateName = status?.watching ? 'OUT LOOKING' : status?.state === 'SAFETY_BLOCKED' || status?.state === 'OWNER_ACTION_REQUIRED' ? 'WATCHING NEEDS REVIEW'
+    const stateName = !state.data ? 'WATCHING UNAVAILABLE' : status?.watching ? 'OUT LOOKING' : status?.state === 'SAFETY_BLOCKED' || status?.state === 'OWNER_ACTION_REQUIRED' ? 'WATCHING NEEDS REVIEW'
       : state.data?.watch?.state === 'ACTIVE' && !status ? 'WATCHING ACTIVATED' : 'WATCHING PAUSED';
     const statusLine = el('p', state.loading ? 'Checking your Punk…' : stateName, 'persistent-watch-status'); statusLine.setAttribute('role', 'status'); root.append(statusLine);
     if (status?.message) root.append(el('p', status.message));

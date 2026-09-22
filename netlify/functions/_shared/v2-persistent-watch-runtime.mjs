@@ -9,7 +9,8 @@ import { createV2McpResearch } from './v2-mcp-research.mjs';
 
 export { assertPersistentWatchVersion };
 export function createPersistentWatchRuntime({ pool, environment = process.env,
-  client = createPublicClient({ transport: http(getRpcUrl(), { timeout: 8000, retryCount: 0 }) }),
+  client = createPublicClient({ ccipRead: false, cacheTime: 0,
+    transport: http(getRpcUrl(), { timeout: 8000, retryCount: 0 }) }),
   now = Date.now, readSkills = createV2McpResearch({ pool, environment }).resolve,
 } = {}) {
   const store = createPersistentWatchStore(pool);

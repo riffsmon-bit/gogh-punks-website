@@ -1,0 +1,23 @@
+{
+  "status": "PASS",
+  "environment": "LOCAL_FIXTURE_ONLY",
+  "screenshots": [
+    "/private/tmp/gogh-watch-review-1440.png",
+    "/private/tmp/gogh-watch-review-768.png",
+    "/private/tmp/gogh-watch-review-375.png",
+    "/private/tmp/gogh-watch-review-320.png"
+  ],
+  "scenarios": [
+    "explicit sign-in only",
+    "prepare before explicit confirmation",
+    "untrusted taste rendered as text",
+    "four responsive widths and 44px buttons",
+    "saved watch restored after reload",
+    "explicit pause",
+    "changed session discards draft",
+    "wrong-chain invalidation"
+  ],
+  "walletRequests": 0,
+  "publicTransactions": 0,
+  "checkedAt": "2026-09-22T12:13:30.930Z"
+}

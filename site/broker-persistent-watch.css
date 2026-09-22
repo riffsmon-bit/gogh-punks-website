@@ -1,4 +1,5 @@
 .persistent-watch{border:1px solid #344252;padding:clamp(16px,3vw,28px);color:#f5f6ee;background:#0e151b;scroll-margin-top:100px}
+[data-persistent-watch]{margin-top:24px;min-width:0}.persistent-watch-access{padding:16px 0;overflow-wrap:anywhere}.persistent-watch-access p{line-height:1.55}.persistent-watch-access button{font:inherit;min-height:44px;padding:10px 16px;background:#dafa39;color:#0a1014;border:1px solid #dafa39;white-space:normal;max-width:100%;cursor:pointer}.persistent-watch-access button:focus-visible{outline:3px solid #65dff1;outline-offset:3px}.persistent-watch-access button:disabled{opacity:.5;cursor:wait}
 .persistent-watch h3,.persistent-watch h4{margin:0 0 16px;line-height:1.25}.persistent-watch p{line-height:1.55;max-width:80ch}
 .persistent-watch-status{color:#dafa39;font-weight:800;letter-spacing:.06em}.persistent-watch-note{color:#b5bfca;font-size:.9rem}
 .persistent-watch-actions{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0}.persistent-watch button,.persistent-watch input,.persistent-watch select{font:inherit;box-sizing:border-box;min-height:44px}
