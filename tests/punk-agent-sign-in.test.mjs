@@ -42,7 +42,7 @@ test('an old owner response cannot restore cleared mission state',async()=>{
 });
 function sessionFixture(request,provider) {
   const state={wallet:{account:owner,chainId:4663}};
-  const context=vm.createContext({PREVIEW:false,CHAIN_ID:4663,state,jsonRequest:request,
+  const context=vm.createContext({PREVIEW:false,CHAIN_ID:4663,state,jsonRequest:request,persistentWatchControl:null,
     window:{__GOGH_WALLET_PROVIDER__:{request:provider}}});
   vm.runInContext(source.slice(source.indexOf('const sessionRequests = new Map();'),source.indexOf('\nasync function activatePunkAgentMission(')),context);
   return context;

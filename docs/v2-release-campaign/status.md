@@ -1,3 +1,24 @@
+# Current Netlify resumption — 22 September 2026
+
+**Whole-product verdict: NOT_READY.** Vercel work remains paused. The active integration branch is `release/netlify-v2-main` in `/private/tmp/gogh-netlify-main`. Current evidence and gates are in [the Netlify resumption record](netlify-resume-20260922.md); [the release plan](../NETLIFY_V2_RELEASE_PLAN.md) supersedes earlier estimates.
+
+| Workstream | Status | Owner | Branch | Current gate |
+| --- | --- | --- | --- | --- |
+| Saved campaign/admin recovery | TESTING | Release lead + Forge reviewer | release/netlify-v2-main / fix/netlify-skill-recovery | Native SQL/browser proof passed; restricted production role configured and verified; deployed acceptance and capability activation still gated |
+| Persistent research watching | TESTING | Watch integration specialist | feat/netlify-persistent-watch, integrated | 58 native SQL assertions and browser proof passed; worker cost fixes integrated; production role/config/served checks pending |
+| Function packaging | TESTING | Release lead | release/netlify-v2-main | Seven isolated packages verified; actual Netlify ZIP built locally |
+| Full integrated validation | TESTING | Release lead | release/netlify-v2-main | 310 contracts, deployment gate and 3,309 JavaScript tests passed; final boundary checks passed |
+| General holder Forge | BLOCKED | Separate staged holder branch | v2/campaign-holder-forge | Inventory/bootstrap, obligations and non-atomic deposit boundary |
+| Public purchases/floor sweeps | BLOCKED | Marketplace review | Existing main implementation | Production source/policy/guard/database composition |
+| Public WETH bids | BLOCKED | Independent marketplace review | Existing main implementation | Original-account transfer revival remains demonstrable |
+| Netlify preview/production batch | TESTING | Release lead | release/netlify-v2-main | No new deployment until coherent local candidate passes |
+
+No production blockchain transaction has been sent by this campaign resumption. Production remains `b442b44` until a newer deployment is explicitly recorded below.
+
+---
+
+## Historical campaign record (13–14 September; not current release evidence)
+
 # V2 production-completion campaign
 
 Started September 13, 2026. Current main audited at `b442b4425bf21b16d5186ed76333e2c42d3a6121` (PR #70). Existing production deployment was verified at that commit; fresh campaign production checks are in progress. The original dirty checkout, private wallet files, and holder practice sessions remain preserved.

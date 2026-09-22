@@ -1,69 +1,54 @@
 # Netlify V2 release plan
 
-Status: **NOT READY FOR PUBLIC RELEASE**
+Status: **NOT READY FOR THE FULL PUBLIC FEATURE SET**. Updated 22 September 2026.
+Vercel migration is paused. This campaign preserves Netlify production and uses local validation before a coherent deployment.
 
-Basis: `origin/main` at `b442b4425bf21b16d5186ed76333e2c42d3a6121`, audited locally on
-2026-09-21. The public Netlify site responds successfully, but the V2 production data path and
-transaction-capable features are still gated.
+## Verified starting point
 
-Local checks completed on this release branch: the Netlify deploy gate passed **140/140** targeted
-browser/wallet tests, the broker manifest check passed, and the V2-focused suite passed **63/63**.
-The extended 3,024-test run reached **2,999 passed / 25 failed** because this clean checkout lacks
-the generated Foundry Skill Forge artifacts required by its browser harness; that artifact build
-must pass before a final release claim.
+- Production: `https://goghpunks.xyz/broker/v2/`.
+- Published Netlify deployment: `6aa7546a75582e0008ecf57b`, commit `b442b4425bf21b16d5186ed76333e2c42d3a6121` (14 September).
+- Integration branch: `release/netlify-v2-main`, worktree `/private/tmp/gogh-netlify-main`.
+- The original dirty checkout and paused Vercel branch remain preserved.
+- Draft PR #71 already contains earlier skill-release work. Its remote head does not include all recovered recovery fixes.
 
-## What is already implemented
+The former version of this document understated existing functionality. V2 application tables exist in the Netlify database; restricted Forge training storage exists in Supabase. The Agent account, selected-owner paid-mint lane, Forge contracts, and Rarity Eye registration are already deployed. Historical evidence records Peppies World #1599 delivery to #93 and real provider probes. Those records are not fresh wallet-connected acceptance tests.
 
-The repository contains the V2 control center, wallet connection and ownership checks, Punk Wallet
-funding/withdrawal surfaces, chat/provider routing, strategy validation, link inspection, shared
-opportunity normalization, deterministic policy matching, simulation evidence, ASK recommendations,
-ASSIST transaction preparation, activity/collection views, and Skill Forge review flows. The targeted
-V2 suite and broker manifest check pass locally when dependencies and contract artifacts are present.
+## Actual release gaps
 
-## Release gates
-
-| Area | Current state | Required before public release |
+| Area | Evidence now | Remaining release gate |
 | --- | --- | --- |
-| Static site/functions | Implemented | Netlify deploy from a clean release commit and smoke test |
-| V2 database | Migration files present, production application not evidenced | Apply additive migrations to a review database, validate RLS/indexes, then production |
-| Chat | Implemented with provider fallbacks | Validate the configured production provider and quotas; keep secrets server-side |
-| ASK | Closest to release | Review with a connected holder wallet and verify live reads |
-| ASSIST | Preparation path implemented | One reviewed adapter must pass live simulation and owner wallet confirmation |
-| AUTONOMOUS | Intentionally fail-closed | Separate Punk Agent Account/bundler/session-key canary and receipt reconciliation |
-| Discovery | Local/shared pipeline implemented | Configure and monitor a bounded production feed before enabling ingestion |
-| Skill Forge | Review/test flows present | Complete artifact-backed Forge validation and one controlled test-mode journey |
-| Paid mints/floor sweeps/WETH bids | Not public-live | Marketplace contracts, transfer-epoch invalidation, spend/reserve controls, and security review |
-| Mobile/accessibility | Implemented and locally reviewed | Physical-device wallet and screen-reader canary |
+| Holder shell, wallets, collection, chat, strategy | Existing production implementation; local deployment gate passes | Final integrated browser and production checks; mobile wallet handoff |
+| Rarity Eye / selected-owner Forge | Current chain reports Rarity Eye READY and available | Existing canary remains scoped; owner wallet confirmation for real actions |
+| Six additional read-only skill versions | Reviewed packages and runtime adapters; recovered registration UI/journal | Wallet registration/status steps (restricted administrator database now provisioned and verified), safe capability activation, holder release pins and authenticated use |
+| Persistent watching | Shared worker and holder controls integrated; native SQL/browser tests pass | Trusted application-role composition, configured rollout and deployed checks; this is research only, not autonomous spending |
+| General holder burn | Separate staged implementation, not mounted or released | Complete inventory/history bootstrap, authoritative obligations, pending-deposit safety boundary, composed holder tests |
+| Directed paid mint | Existing owner canary for #93 / Peppies World, historical verified delivery | General adapter/collection release, paid capability, budget/reserve and owner acceptance |
+| ETH purchases / floor sweeps | Signed-order adapters, guard, durable journal and panel exist | Real production source/screen/policy composition, restricted database, guard deployment and wallet canary |
+| WETH bids | Disposable-chain tests exist; public lane blocked | Durable transfer invalidation and marketplace compatibility. Tests demonstrate old offers can revive on the present public path |
+| Broader economic autonomy | Existing bounded account/session execution lanes | End-to-end skill/policy/budget/reserve integration and staged canaries. Watching does not grant spending permission |
 
-## Recommended release sequence
+At chain block **69,647,374**, only Rarity Eye among the seven reviewed read-only packages was registered and available. The other six were absent with their capability bits disabled. Registration and capability activation are different steps. The existing `setEmergencyControls(bool,uint256)` replaces the whole mask and pause state without an expected-state check; a stale wallet approval must not silently undo a newer safety pause.
 
-1. **Review build (1–2 days):** apply migrations to a non-production database, configure one low-cost
-   chat provider, deploy one Netlify preview, and run connected-wallet smoke tests.
-2. **ASK holder release (1–2 additional days):** validate ownership, wallet, collection, chat,
-   strategy, link inspection, Contract Detective, Rarity Eye, and Market Scout with read-only data.
-3. **ASSIST canary (3–5 additional days):** finish one reviewed adapter/simulator path, require the
-   owner wallet confirmation, reconcile receipts, and test failure/retry behavior.
-4. **Forge controlled release (2–4 additional days):** validate burn safety, one Training Credit,
-   skill learning/equip persistence, and refresh/ownership-transfer recovery. No production Punk burn
-   is part of this estimate.
-5. **Autonomous and marketplace release (2–4 weeks after the above):** deploy and verify the bounded
-   agent account, bundler/session signer, free-mint canary, then separately review paid purchases,
-   floor sweeps, and WETH bids. These cannot be compressed into a static-site deployment.
+## Engineering estimate, not a delivery promise
 
-## Estimate
+Estimates assume the current credentials remain accessible, one coherent preview/production pipeline works, and the owner is available for required wallet confirmations. Parallel work can reduce elapsed time but cannot remove those gates.
 
-The first useful public V2 release (ASK plus read-only holder features) is approximately **3–5
-working days after owner-provided Netlify/database access and a controlled preview authorization**.
-ASSIST and a controlled Forge release are approximately **1–2 weeks total**. A genuinely public
-release that includes autonomous execution, paid marketplace purchases, floor sweeps, and WETH bids
-is approximately **3–5 weeks**, subject to contract/bundler review and live canary results.
+| Milestone | Planning allowance from completion of this integration batch | Dependency |
+| --- | --- | --- |
+| Reviewed Netlify maintenance / holder test build | 1–2 working days | Integrated full-suite, database setup, preview and served-route verification |
+| Broader usable read-only skills and research watching | 2–4 working days | Administrator confirmations, safe activation path and exact holder capability tests |
+| General Forge and supported paid missions | Approximately 1–2 weeks | Inventory bootstrap and burn boundary accepted; supported adapters and controlled wallet tests |
+| Public purchases, bounded floor sweeps, WETH bids and broader autonomy | At least 2–4 weeks of additional implementation/review/canaries | WETH authority design first; the current original-account path cannot meet the transfer invariant merely by changing a flag |
 
-These are engineering estimates, not promises. The largest external dependencies are the hosted
-database migration, production secrets/provider quotas, Netlify preview access, and owner wallet
-confirmation for any irreversible action.
+A fixed all-features public date is **not yet defensible**. In particular, WETH's authority decision can extend the schedule. A smaller reviewed release must not be called the complete V2 release.
 
-## Explicitly held back
+## Fresh validation
 
-No production burn, paid mint, floor sweep, WETH bid, autonomous signer, or unrestricted wallet
-authority should be enabled by a Netlify deploy. The UI must continue to show these as gated until
-their specific backend, policy, simulation, and receipt checks are live.
+- Contract suite: **310 passed, zero failed**, 1,024 fuzz runs.
+- Netlify deployment gate: typecheck, wallet bundle, site checks, module syntax, manifest checks and **140 tests passed**.
+- Integrated JavaScript suite: **3,309 passed, zero failed, two skipped**. Earlier adjacent-panel and session fixture integration errors were fixed. Final preview-origin and migration-directory boundary tests are included in that passing snapshot.
+- All seven reviewed packages verified from an isolated build directory containing only configured Netlify included files; altered/missing dependency bytes rejected. Actual Netlify function ZIP also built locally.
+- Native PostgreSQL 16.15 administrator proof passed, including twelve-way concurrency and crash/restart recovery. Persistent-watch native proof passed 58 assertions, including expiry, fair rotation and query timeout cleanup.
+- Real Chrome fixture acceptance passed for admin and persistent-watch panels. These use mock wallets/chain transports and are not live wallet transaction claims.
+
+See [current campaign evidence](v2-release-campaign/netlify-resume-20260922.md). No real NFT burn, purchase, bid, refund or unrestricted execution is authorized by these tests.

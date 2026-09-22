@@ -29,7 +29,7 @@ const { manifestHash } = await moduleAt('broker/src/v4/skill-forge/capability-re
 const migrations = await Promise.all([
   '20260914030000_forge_skill_admin_reviews.sql',
   '20260914033000_forge_skill_admin_nonce_recovery.sql',
-].map(name => readFile(join(repository, 'netlify/database/migrations', name), 'utf8')));
+].map(name => readFile(join(repository, 'database/supabase/migrations', name), 'utf8')));
 const migrationHashes = migrations.map(sql => createHash('sha256').update(sql).digest('hex'));
 
 const run = promisify(execFile);

@@ -9,8 +9,8 @@ import {skillAdminFixture,ADMIN,REGISTRY,TX} from '../tests/fixtures/skill-admin
 if(process.argv.slice(2).join(' ')!=='--disposable-memory-only')throw Error('Requires --disposable-memory-only');
 const db=await createPinnedMemoryPostgres();let passed=0;
 try{
-  await db.exec(await readFile(new URL('../netlify/database/migrations/20260914030000_forge_skill_admin_reviews.sql',import.meta.url),'utf8'));
-  await db.exec(await readFile(new URL('../netlify/database/migrations/20260914033000_forge_skill_admin_nonce_recovery.sql',import.meta.url),'utf8'));
+  await db.exec(await readFile(new URL('../database/supabase/migrations/20260914030000_forge_skill_admin_reviews.sql',import.meta.url),'utf8'));
+  await db.exec(await readFile(new URL('../database/supabase/migrations/20260914033000_forge_skill_admin_nonce_recovery.sql',import.meta.url),'utf8'));
   const pool={...db.pool,query:db.query};
   await assert.rejects(verifySkillAdminDatabaseRole(pool),/ROLE_UNSAFE/);passed++;
   await db.exec('SET ROLE gogh_forge_skill_admin_request');await verifySkillAdminDatabaseRole(pool);passed++;
