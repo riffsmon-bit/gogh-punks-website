@@ -88,10 +88,13 @@ export function createReadOnlySkillReleaseReview({ client, deployment, packages,
       const available = existing ? await read('available', [expected.key]) : false;
       if (existing && ['skillId', 'version', 'manifestHash', 'instructionHash', 'prerequisite', 'capabilities', 'riskTier']
         .some(name => existing[name] !== expected[name])) fail('SKILL_RELEASE_EXISTING_DEFINITION_MISMATCH');
-      if (existing && (existing.disabled || existing.deprecated || [5, 6].includes(existing.status))) fail('SKILL_RELEASE_REVIEW_BLOCKED');
-      if (existing && ![0, 1, 2, 3, 4].includes(existing.status)) fail('SKILL_RELEASE_REGISTRY_INVALID');
+      if (existing && ![0, 1, 2, 3, 4, 5, 6].includes(existing.status)) fail('SKILL_RELEASE_REGISTRY_INVALID');
+      // Inspection also serves saved-transaction recovery. A governance block
+      // removes preparation authority for this version, not visibility of the
+      // current administrator or another version's already-sent transaction.
+      const reviewBlocked = existing && (existing.disabled || existing.deprecated || [5, 6].includes(existing.status));
       const blocked = globallyDisabled || (BigInt(disabledCapabilities) & expected.capabilities) !== 0n;
-      const action = blocked ? 'EMERGENCY_DISABLED' : !existing ? 'REGISTER' : existing.status === 4 ? 'REGISTERED_READY'
+      const action = reviewBlocked ? 'REVIEW_BLOCKED' : blocked ? 'EMERGENCY_DISABLED' : !existing ? 'REGISTER' : existing.status === 4 ? 'REGISTERED_READY'
         : existing.status === 3 ? 'MARK_READY' : 'MARK_TESTING';
       const args = action === 'REGISTER' ? [expected.skillId, expected.version, expected.manifestHash,
         expected.instructionHash, expected.prerequisite, expected.capabilities, expected.riskTier]
@@ -114,7 +117,8 @@ export function createReadOnlySkillReleaseReview({ client, deployment, packages,
       const state = await readState();
       if (getAddress(administrator) !== state.administrator) fail('SKILL_RELEASE_ADMINISTRATOR_CHANGED');
       const step = state.skills.find(item => item.key === key);
-      if (!step.nextCalldata) fail(step.action === 'REGISTERED_READY' ? 'SKILL_RELEASE_ALREADY_READY' : 'SKILL_RELEASE_EMERGENCY_DISABLED');
+      if (!step.nextCalldata) fail(step.action === 'REGISTERED_READY' ? 'SKILL_RELEASE_ALREADY_READY'
+        : step.action === 'REVIEW_BLOCKED' ? 'SKILL_RELEASE_REVIEW_BLOCKED' : 'SKILL_RELEASE_EMERGENCY_DISABLED');
       const transaction = { account: state.administrator, to: registry, data: step.nextCalldata, value: 0n };
       await client.call({ ...transaction, blockNumber: BigInt(state.anchor.number) });
       const [estimate, gasPrice, latest, pending] = await Promise.all([client.estimateGas(transaction), client.getGasPrice(),

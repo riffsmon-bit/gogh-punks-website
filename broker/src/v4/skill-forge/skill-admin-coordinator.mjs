@@ -143,8 +143,11 @@ export function createSkillAdminCoordinator({ review, store, clients, now = Date
         if (!skill || skill.manifestHash !== row.preparation.manifestHash || skill.instructionHash !== row.preparation.instructionHash) fail('SKILL_ADMIN_REGISTRY_DIVERGED');
         if (proof.status === 'success') {
           const minimumStatus = {REGISTER:0,MARK_TESTING:3,MARK_READY:4}[row.action];
+          // A later pause, disable or deprecation can remove availability while
+          // the exact confirmed READY attestation remains intact. Settlement
+          // records that historical action; prepareNext still blocks new claims.
           if (skill.registeredStatus < minimumStatus || skill.registeredStatus === null
-            || row.action === 'MARK_READY' && (skill.registeredStatus !== 4 || !skill.available
+            || row.action === 'MARK_READY' && (skill.registeredStatus !== 4
               || skill.existingReviewEvidenceHash !== row.preparation.reviewEvidenceHash)) fail('SKILL_ADMIN_REGISTRY_DIVERGED');
         }
       }

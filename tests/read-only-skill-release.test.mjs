@@ -104,7 +104,12 @@ test('wrong administrator, unknown package and definition conflict are blocked',
 test('blocked, rejected, deprecated and disabled versions cannot be silently promoted', async () => {
   for (const patch of [{ status: 5 }, { status: 6 }, { disabled: true }, { deprecated: true }]) {
     const c = context(); c.state.existing = { ...c.definition(3), ...patch };
-    await assert.rejects(c.review().inspect(), /REVIEW_BLOCKED/);
+    const review = c.review(), snapshot = await review.inspect();
+    assert.equal(snapshot.administrator, owner);
+    assert.equal(snapshot.skills[0].action, 'REVIEW_BLOCKED');
+    assert.equal(snapshot.skills[0].nextCalldata, null);
+    await assert.rejects(review.prepareNext({ key, administrator: owner }), /REVIEW_BLOCKED/);
+    assert.equal(c.calls.includes('simulate'), false);
   }
 });
 test('simulation revert returns no transaction and does not estimate or broadcast', async () => {
