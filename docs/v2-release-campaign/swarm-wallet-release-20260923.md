@@ -27,7 +27,7 @@ No automatic refills, worker authority, arbitrary targets, administrator, upgrad
 | New Solidity suite | 31 passed, including 256 fuzz cases; minimal source closure with production compiler settings |
 | Independent client/panel rerun after transaction-recovery fix | 35 passed |
 | Subsequent panel/deployment verification tests | 12 passed |
-| Typecheck, wallet bundle build, syntax, site/secret scan, broker checks | Passed |
+| Final release gate | 560 passed, 0 failed; typecheck, wallet bundle build, syntax, site/secret scan and broker checks also passed |
 | Local Swarm Wallet browser journey | Create, deposit, two-Punk batch and withdraw at 1440/375/320; 9 captures, no errors or overflow. Wallet/chain responses are explicit fixtures. |
 | Integrated holder browser regression | Passed; 27 captures, 26 served-file comparisons, no errors/blocked/failed requests |
 | Initial factory deployment preflight | Read-only simulation passed against both configured providers; no wallet signature or broadcast |
@@ -46,11 +46,11 @@ An initial integrated browser attempt timed out during concurrent full-suite/dis
 
 Independent contract/client/panel review reported no remaining concrete P0/P1/P2 in that scope after the fee-edit, speed-up and cancellation recovery fix. The reviewer did not independently rerun Forge or attest a live deployment. Finality uses the explicit confirmation-depth assumption; this is internal review, not a claim of a professional third-party audit.
 
-The one-time deployment flow is receiving the same replacement/cancellation recovery checks. Its final results must be recorded before owner review is requested.
+The one-time deployment recovery fix is committed as `626182c`. Its combined targeted run passed 41 tests (33 Swarm tests plus 8 shared-helper regressions). Independent review ran 34 recovery/deployment checks plus 2 browser checks and found no remaining concrete P0/P1/P2. The owner review is ready for a fresh two-provider preflight; the server holds no signer.
 
 ## Remaining release steps
 
-1. Finish deployment recovery tests and independent review.
+1. Deployment recovery tests and independent review completed; no transaction sent.
 2. Present the exact factory transaction and current maximum network fee at the local review page. Only the owner’s wallet can sign.
 3. Verify the confirmed deployment with both providers, exact compiled runtime and all immutable configuration.
 4. Populate the public release manifest using verified factory address/code hash and the compiled vault runtime.
