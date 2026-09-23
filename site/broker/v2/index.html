@@ -93,11 +93,14 @@
         <section class="current-mission" data-current-mission data-tone="idle" aria-label="Current mint mission">
           <div><span class="kicker">MINT MISSION · PUNK #<span data-punk-token></span></span>
             <h3 data-current-mission-status>STATUS NOT VERIFIED</h3>
-            <p data-current-mission-detail>Check status to verify whether your Punk is looking for mints.</p></div>
+            <p data-current-mission-detail>Check status to verify whether your Punk is looking for mints.</p>
+            <p class="recall-explanation">Recall stops its mission after wallet confirmation. Funds stay in its wallets; already-submitted mints still need confirmation.</p>
+            <p class="recall-result" data-current-recall-result role="status" aria-live="polite"></p></div>
           <div class="current-mission-actions">
             <button class="primary-button" type="button" data-start-free-mission hidden>START FREE-MINT MISSION</button>
             <button class="outline-button" type="button" data-new-free-search hidden>NEW FREE-MINT SEARCH · CLEAR TARGET</button>
             <button class="outline-button" type="button" data-current-mission-check>CHECK STATUS</button>
+            <button class="outline-button recall-button" type="button" data-current-mission-recall disabled>RECALL PUNK</button>
             <button class="text-button" type="button" data-agent-navigate="activity">VIEW ACTIVITY</button>
           </div>
         </section>

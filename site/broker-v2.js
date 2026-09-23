@@ -597,6 +597,11 @@ function renderCurrentMissionStatus() {
   if (newSearch) newSearch.hidden = !view.canStart || !hasTarget;
   const check = one('[data-current-mission-check]');
   if (check) check.disabled = state.agentAccountLoading.has(String(state.selected?.tokenId));
+  const recall = one('[data-current-mission-recall]');
+  if (recall) {
+    recall.disabled = PREVIEW || !state.selected || !state.wallet?.account || state.wallet.chainId !== CHAIN_ID || punkRecall.busy;
+    recall.textContent = punkRecall.busy ? 'RECALL IN PROGRESS…' : 'RECALL PUNK';
+  }
   return view;
 }
 
@@ -912,6 +917,10 @@ async function recallSelectedReviewAgent() {
     && state.wallet?.chainId === CHAIN_ID && window.__GOGH_WALLET_PROVIDER__ === provider;
   const button = one("[data-review-agent-recall]");
   button.disabled = true; button.textContent = "CHECKING LIVE MISSION…";
+  const recallButton = one('[data-current-mission-recall]');
+  if (recallButton) { recallButton.disabled = true; recallButton.textContent = 'CHECKING MISSION…'; }
+  const report = message => { if (isCurrent()) set('[data-current-recall-result]', message); };
+  report(`Checking Punk #${tokenId}’s current mission. Recall is not confirmed yet.`);
   try {
     let result;
     if (PREVIEW) {
@@ -927,15 +936,20 @@ async function recallSelectedReviewAgent() {
         waitForReceipt: waitForPunkWalletTransactionReceipt,
         onWallet: () => {
           button.textContent = "CONFIRM IN WALLET";
+          report(`Confirm the recall for Punk #${tokenId} in MetaMask. Your connected wallet pays the network fee. Funds stay in the Punk’s wallets.`);
           addMessage("punk", `Confirm the recall for Punk #${tokenId} in your wallet. This revokes its mission session. It stays paused until you authorize a new mission.`);
         },
         onSubmitted: hash => {
+          report(`Recall submitted for Punk #${tokenId}. Waiting for confirmation; do not submit again. Transaction: ${hash}`);
           if (isCurrent()) addMessage("punk", `Punk #${tokenId} recall submitted: ${hash}. Waiting for its receipt and mission confirmation.`);
         },
       });
     }
     if (!isCurrent() || result.status === "BUSY") return;
     punk.mode = "PAUSED"; renderSelected();
+    report(result.status === 'REVOKED'
+      ? `Punk #${tokenId} recalled. Its mission permission is revoked and its strategy is paused. Funds remain in its wallets. Already-submitted mints still need their receipts checked.`
+      : `Punk #${tokenId}’s strategy is paused. No active mission permission was found. Funds remain in its wallets.`);
     addMessage("punk", result.status === "REVOKED"
       ? "I’M BACK. The mission session is revoked on chain and the strategy is paused. Any transaction already submitted still needs its receipt checked. I’ll stay paused until you authorize a new mission."
       : PREVIEW || REVIEW_HOST
@@ -947,9 +961,11 @@ async function recallSelectedReviewAgent() {
       if (isCurrent()) await hydrateSelected("activity");
     }
   } catch (error) {
+    report(`${error?.message ?? 'Recall stopped.'} Recall is not confirmed.${error?.transactionHash
+      ? ` Transaction: ${error.transactionHash}. Check this receipt before retrying.` : ' Check status and retry when your wallet is ready.'}`);
     if (isCurrent()) addMessage("punk", `${error?.message ?? "Recall stopped."} Recall is not confirmed.${error?.transactionHash
       ? ` Transaction: ${error.transactionHash}. Check this receipt before retrying.` : ""}`);
-  } finally { button.textContent = "CALL PUNK BACK"; renderReviewAgent(); }
+  } finally { button.textContent = "CALL PUNK BACK"; renderReviewAgent(); renderCurrentMissionStatus(); }
 }
 
 async function sendReviewAgentOut({ testMode = false, continueMission = false } = {}) {
@@ -1366,6 +1382,7 @@ function selectPunk(tokenId, { focusRoster = false } = {}) {
   if (!punk) return;
   invalidateConversationRequests();
   state.balanceRequestId += 1; state.balanceReads?.clear();
+  set('[data-current-recall-result]', '');
   state.selected = punk; state.localStrategy = null; state.localSkill = null; state.lastInspection = null;
   const key = selectedReviewKey();
   state.lastInspection = key ? state.reviewInspections.get(key) ?? null : null;
@@ -2240,6 +2257,7 @@ function applyOwnedPunks(punks) {
 }
 
 function clearTransferredPunkReview() {
+  set('[data-current-recall-result]', '');
   invalidateConversationRequests();
   state.localStrategy = null; state.localSkill = null; state.lastInspection = null;
   state.fundingPlan = null; state.gasFundingPlan = null; state.swarmFundingContext = null;
@@ -2330,6 +2348,7 @@ function setup() {
   }
   one("[data-review-agent-run]").addEventListener("click", () => sendReviewAgentOut());
   one("[data-review-agent-recall]").addEventListener("click", recallSelectedReviewAgent);
+  one("[data-current-mission-recall]").addEventListener("click", recallSelectedReviewAgent);
   one("[data-review-agent-test]").addEventListener("click", () => sendReviewAgentOut({ testMode: true }));
   one("[data-fund-agent-account]").addEventListener("click", () => {
     state.fundAgentAccount = false; state.fundingPlan = null;

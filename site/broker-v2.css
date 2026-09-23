@@ -702,3 +702,8 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .roster-slot .roster-activation { display: block; padding: 0 7px 8px; font-size: 9px; letter-spacing: .04em; color: #a4b3c3; text-align: left; }
 .roster-slot .roster-activation[data-tone="active"] { color: #dfff40; }
 [data-swarm-funding-context] { border-left: 3px solid #64e6fa; padding: 12px 16px; margin: 16px 0; overflow-wrap: anywhere; }
+
+.current-mission .recall-explanation { margin-top: 12px; font-size: .85rem; color: #b4bfcb; }
+.current-mission .recall-result { margin-top: 12px; color: #64e6fa; overflow-wrap: anywhere; }
+.current-mission .recall-result:empty { display: none; }
+.current-mission-actions .recall-button { border-color: #ff9852; }

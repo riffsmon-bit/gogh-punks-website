@@ -43,7 +43,7 @@ function fixture() {
     return nodes.get(selector);
   };
   const context = vm.createContext({ state, punkActivationStatus, CHAIN_ID: 4663, PREVIEW: false,
-    document: { createElement: tag => new Node(tag) }, one,
+    punkRecall: { busy: false }, document: { createElement: tag => new Node(tag) }, one,
     all: selector => selector === '[data-roster-activation]' ? roster : [],
     set: (selector, text) => { one(selector).textContent = text; },
     loadAgentAccountStatus: async options => { calls.push(['status', options.authenticate]); },
