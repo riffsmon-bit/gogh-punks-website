@@ -660,3 +660,27 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .agent-options select, .agent-options input { width: 100%; min-width: 0; min-height: 44px; color: #f3f4ee; background: #0b1117; border: 1px solid #536370; padding: .65rem; font: inherit; }
 [data-chat-form][hidden], .prompt-library[hidden] { display: none !important; }
 @media(max-width:600px) { .agent-options form { grid-template-columns: minmax(0,1fr); } }
+.swarm-panel { padding: 1.25rem; border: 1px solid var(--line); overflow-wrap: anywhere; }
+.swarm-panel p { line-height: 1.6; }
+.swarm-panel form { display: grid; gap: 1rem; }
+.swarm-panel fieldset { display: flex; flex-wrap: wrap; gap: .5rem 1rem; max-height: 260px; overflow: auto; }
+.swarm-panel label { display: flex; align-items: center; gap: .6rem; min-height: 44px; min-width: 0; flex-wrap: wrap; }
+.swarm-panel select, .swarm-panel input:not([type=checkbox]) { width: 100%; min-width: 0; min-height: 44px; padding: .65rem; background: var(--surface); color: var(--text); border: 1px solid var(--line); font: inherit; }
+.swarm-panel input[type=checkbox] { width: 22px; height: 22px; }
+.swarm-panel article { display: flex; align-items: center; flex-wrap: wrap; gap: .7rem; padding: 1rem 0; border-bottom: 1px solid var(--line); }
+.swarm-panel article strong { flex: 1 0 100%; }
+.swarm-panel button { min-height: 44px; max-width: 100%; white-space: normal; }
+.swarm-panel [hidden] { display: none; }
+
+.mission-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 11px; background: var(--acid, #dcfa35); color: #080d12; font: 800 12px/1 sans-serif; }
+.mission-badge[hidden], .mission-updates[hidden] { display: none; }
+.roster-slot { position: relative; }
+.roster-mission-badge { position: absolute; top: 8px; right: 8px; border: 2px solid #080d12; }
+.mission-updates { margin: 0 0 1.5rem; padding: .5rem 1rem; border-left: 3px solid var(--cyan); background: var(--panel); }
+.mission-updates summary { cursor: pointer; min-height: 44px; padding: .65rem 0; font-weight: 800; }
+.mission-updates p { line-height: 1.6; }
+.mission-updates ul { list-style: none; padding: 0; max-height: 420px; overflow: auto; }
+.mission-updates li { display: grid; gap: .65rem; padding: 1rem 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+.mission-updates li p { margin: 0; }
+.mission-updates li small { color: var(--muted); }
+.mission-updates button { min-height: 44px; max-width: 100%; white-space: normal; justify-self: start; }

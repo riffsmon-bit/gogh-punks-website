@@ -20,8 +20,11 @@ const STATUS = {
 };
 
 export function createPaidTrainingPanel({ root, getSelection, ensureSession, request, release = PAID_TRAINING_RELEASE,
-  getProvider = () => window.__GOGH_WALLET_PROVIDER__, storage = globalThis.localStorage, now = Date.now }) {
+  getProvider = () => window.__GOGH_WALLET_PROVIDER__, storage, locks, now = Date.now }) {
   if (!root) return null;
+  // Browser privacy settings can throw on the property access itself.
+  if (storage === undefined) try { storage = globalThis.localStorage; } catch { storage = null; }
+  if (locks === undefined) try { locks = globalThis.navigator?.locks; } catch { locks = null; }
   const document = root.ownerDocument;
   root.style.overflowWrap = 'anywhere';
   const element = (tag, text) => {
@@ -39,12 +42,25 @@ export function createPaidTrainingPanel({ root, getSelection, ensureSession, req
   const api = (selected, body) => request(`/api/v2/punks/${selected.tokenId}/forge/paid-training`, body ? {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), timeoutMs: 45000,
   } : {});
-  function persist(value, selected) {
+  function assertSaved(selected, expected) {
+    const saved = readSaved(selected);
+    if (paidReviewIdentity(saved) !== paidReviewIdentity(expected)) {
+      if (identity() === `${selected.owner?.toLowerCase()}:${selected.tokenId}:${selected.chainId}:${selected.preview}`) { journal = saved; state = null; }
+      throw Error('The saved request changed in another tab. Recheck or recover it before continuing.');
+    }
+    return saved;
+  }
+  function persist(value, selected, lease) {
+    if (!lease) throw Error('Paid training needs a protected browser session before saving a request.');
+    assertSaved(selected, lease.expected);
     const name = storageKey(selected), encoded = JSON.stringify(value);
     storage.setItem(name, encoded); if (storage.getItem(name) !== encoded) throw Error('Save the pending paid training review before continuing.');
+    lease.expected = structuredClone(value);
     if (identity() === `${selected.owner?.toLowerCase()}:${selected.tokenId}:${selected.chainId}:${selected.preview}`) journal = value;
   }
   function readSaved(selected) {
+    if (!storage?.getItem || !storage?.setItem || !storage?.removeItem)
+      throw Error('Browser storage is unavailable. Allow site storage and reload before paid training. No new wallet request was made.');
     const raw = storage.getItem(storageKey(selected)); if (!raw) return null;
     const saved = JSON.parse(raw);
     if (saved?.schema !== 1 || typeof saved.attempted !== 'boolean' || saved.transactionHash !== null && !HASH.test(saved.transactionHash)
@@ -55,7 +71,7 @@ export function createPaidTrainingPanel({ root, getSelection, ensureSession, req
   function selectionChanged() {
     const next = identity(); if (next === key) return; key = next; sequence++; busy = false; state = null; journal = null; unreadable = false; message = ''; researchResult = null;
     if (recoverable()) try { journal = readSaved(getSelection()); }
-    catch { unreadable = true; message = 'The saved paid training review could not be read. Preserve wallet history and reconcile it before another purchase.'; }
+    catch { unreadable = true; message = 'Browser storage or the saved paid training review is unavailable. Allow site storage and reload; preserve wallet history and reconcile any earlier request before another purchase.'; }
     render();
   }
   async function work(fn) {
@@ -69,6 +85,20 @@ export function createPaidTrainingPanel({ root, getSelection, ensureSession, req
       : error?.message ?? 'Paid training could not be verified. Recover the saved request.'; }
     finally { if (current()) { busy = false; render(); } }
   }
+  function journalWork(fn) {
+    const expected = structuredClone(journal);
+    return work(async (selected, current) => {
+      if (typeof locks?.request !== 'function') throw Error('Paid training needs browser tab protection. Use a current browser on the secure site and reload. No wallet request was made.');
+      const name = `gogh-paid-training:4663:${selected.owner.toLowerCase()}:${BigInt(selected.tokenId)}`;
+      // Hold one owner/Punk lock through the wallet response, not just the storage write.
+      // A queued click must still refer to the exact review displayed when it was clicked.
+      await locks.request(name, { mode: 'exclusive' }, async () => {
+        if (!current()) return;
+        assertSaved(selected, expected);
+        await fn(selected, current, { expected });
+      });
+    });
+  }
   async function refresh(selected, current) {
     researchResult = null;
     try { const payload = await api(selected); if (!current()) return;
@@ -81,51 +111,72 @@ export function createPaidTrainingPanel({ root, getSelection, ensureSession, req
     if (current()) message = journal?.attempted ? 'A saved wallet attempt needs recovery. It will not open another wallet request.'
       : 'Balances and current owner verified. Each action needs its own review and wallet confirmation.';
   });
-  const prepare = intended => work(async (selected, current) => {
+  const prepare = intended => journalWork(async (selected, current, lease) => {
     if (!available() || journal || !state) throw Error('Reconcile the saved review and recheck balances before another action.');
     await ensureSession(); if (!current()) return; await refresh(selected, current); if (!current()) return;
     const envelope = await api(selected, { operation: 'prepare', action: intended }); if (!current()) return;
     if (envelope?.ok !== true || typeof envelope.maximumNetworkFeeWei !== 'string') throw Error('Paid training preparation could not be verified.');
     validatePaidReview(envelope.review, selected, release, { state, action: intended, maximumNetworkFeeWei: envelope.maximumNetworkFeeWei, now: now() });
     persist({ schema: 1, review: envelope.review, maximumNetworkFeeWei: envelope.maximumNetworkFeeWei,
-      attempted: false, transactionHash: null, status: null }, selected);
+      attempted: false, transactionHash: null, status: null }, selected, lease);
     message = 'Review this exact action, payment and maximum network fee before opening your wallet.';
   });
-  const confirm = () => work(async (selected, current) => {
+  const confirm = () => journalWork(async (selected, current, lease) => {
     if (!available() || !journal || journal.attempted || !state) throw Error('Recheck or recover the saved review before continuing.');
     const saved = structuredClone(journal);
     await ensureSession(); if (!current()) return;
     const wallet = createPaidTrainingWallet({ getProvider, release, isCurrent: current, now,
+      onProgress: value => { if (current()) { message = `${value}…`; render(); } },
       readCurrent: () => api(selected), verify: review => api(selected, { operation: 'verify', review }),
-      wasAttempted: () => readSaved(selected)?.attempted !== false,
+      wasAttempted: () => assertSaved(selected, lease.expected)?.attempted !== false,
       markAttempted: review => { if (!current() || paidReviewIdentity(review) !== paidReviewIdentity(saved.review)) throw Error('Selection changed.');
-        persist({ ...saved, attempted: true }, selected); },
+        persist({ ...saved, attempted: true }, selected, lease); },
     });
     const submitted = await wallet.submit({ review: saved.review, maximumNetworkFeeWei: saved.maximumNetworkFeeWei }, selected, saved.review.action);
-    persist({ ...saved, attempted: true, transactionHash: submitted.transactionHash }, selected);
+    persist({ ...saved, attempted: true, transactionHash: submitted.transactionHash }, selected, lease);
     if (current()) { state = null; message = 'Wallet returned a transaction hash. Recheck its receipt; this review will not be sent again.'; }
   });
-  const recover = value => work(async (selected, current) => {
+  const renew = () => journalWork(async (selected, current, lease) => {
+    const saved = readSaved(selected);
+    if (!available() || !saved || saved.attempted) throw Error('Recover the existing wallet request. Only unsent reviews can be refreshed.');
+    await ensureSession(); if (!current()) return;
+    await refresh(selected, current); if (!current()) return;
+    const envelope = await api(selected, { operation: 'prepare', action: saved.review.action });
+    if (!current()) return;
+    if (envelope?.ok !== true || typeof envelope.maximumNetworkFeeWei !== 'string') throw Error('Paid training preparation could not be verified.');
+    validatePaidReview(envelope.review, selected, release, { state, action: saved.review.action,
+      maximumNetworkFeeWei: envelope.maximumNetworkFeeWei, now: now() });
+    // Another tab may have opened the old request while the new review loaded.
+    const latest = readSaved(selected);
+    if (!latest || latest.attempted || paidReviewIdentity(latest) !== paidReviewIdentity(saved)) {
+      journal = latest;
+      throw Error('The saved request changed. Recover it before preparing another.');
+    }
+    persist({ ...saved, review: envelope.review, maximumNetworkFeeWei: envelope.maximumNetworkFeeWei }, selected, lease);
+    message = 'Review refreshed. Check the payment and new maximum fee, then confirm in your wallet. Nothing was sent.';
+  });
+  const recover = value => journalWork(async (selected, current, lease) => {
     if (!journal?.attempted || !HASH.test(value)) throw Error('Enter the original transaction hash from wallet activity.');
     const saved = structuredClone(journal); validatePaidReview(saved.review, selected, release, { recovery: true, now: now() });
     await ensureSession(); if (!current()) return;
     const response = await api(selected, { operation: 'recover', review: saved.review, transactionHash: value }); if (!current()) return;
     if (response?.ok !== true || !RECEIPTS.has(response.status) || response.transactionHash !== value
       || paidReviewIdentity(response.review) !== paidReviewIdentity(saved.review)) throw Error('The receipt does not match the saved transaction.');
-    persist({ ...saved, transactionHash: value, status: response.status }, selected); state = null; message = STATUS[response.status];
+    persist({ ...saved, transactionHash: value, status: response.status }, selected, lease); state = null; message = STATUS[response.status];
   });
-  const abandon = () => work(async (selected, current) => {
+  const abandon = () => journalWork(async (selected, current, lease) => {
     if (!journal?.attempted || journal.transactionHash) throw Error('Recover the saved transaction hash.');
     const saved = structuredClone(journal); await ensureSession(); if (!current()) return;
     const response = await api(selected, { operation: 'abandon', review: saved.review }); if (!current()) return;
     if (response?.ok !== true || response.status !== 'EXPIRED_UNUSED' || paidReviewIdentity(response.review) !== paidReviewIdentity(saved.review))
       throw Error('The expired request was not proven unused. Keep the saved attempt and recheck.');
-    persist({ ...saved, status: 'EXPIRED_UNUSED' }, selected); state = null; message = STATUS.EXPIRED_UNUSED;
+    persist({ ...saved, status: 'EXPIRED_UNUSED' }, selected, lease); state = null; message = STATUS.EXPIRED_UNUSED;
   });
-  const discard = () => work(async (selected) => {
+  const discard = () => journalWork(async (selected, current, lease) => {
     const saved = readSaved(selected);
     if (!saved || saved.attempted && !TERMINAL.has(saved.status))
       throw Error('Keep the saved attempt until its receipt is confirmed or the finalized chain proves it expired unused.');
+    assertSaved(selected, lease.expected);
     storage.removeItem(storageKey(selected)); if (storage.getItem(storageKey(selected)) !== null) throw Error('The saved review could not be cleared.');
     journal = null; state = null; message = 'Saved review closed. Recheck balances before preparing another action.';
   });
@@ -170,8 +221,11 @@ export function createPaidTrainingPanel({ root, getSelection, ensureSession, req
       if (['learn', 'unlock'].includes(operation)) root.append(element('p', 'Cost: 1 purchased credit. Burn-earned credits are not spent by this action.'));
       const deadline = Number(review.guard.deadline) * 1000;
       if (!journal.attempted) {
-        root.append(element('p', `Review expires ${new Date(deadline).toLocaleTimeString()}.`));
+        root.append(element('p', deadline <= now() + 5000
+          ? 'Review expired. No wallet request was made. Refresh the unsent review to continue.'
+          : `Review expires ${new Date(deadline).toLocaleTimeString()}. Confirm promptly after reviewing; refresh it if you need more time.`));
         if (available() && state) button(root, 'CONFIRM PAID TRAINING IN WALLET', confirm, deadline <= now() + 5000);
+        if (available()) button(root, 'REFRESH UNSENT REVIEW', renew);
         button(root, 'DISCARD UNSENT REVIEW', discard);
         if (deadline > now() + 5000) timer = setTimeout(render, Math.min(deadline - now() - 5000, 60000));
       } else {

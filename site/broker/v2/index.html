@@ -96,17 +96,25 @@
             <p data-current-mission-detail>Check status to verify whether your Punk is looking for mints.</p></div>
           <div class="current-mission-actions">
             <button class="primary-button" type="button" data-start-free-mission hidden>START FREE-MINT MISSION</button>
+            <button class="outline-button" type="button" data-new-free-search hidden>NEW FREE-MINT SEARCH · CLEAR TARGET</button>
             <button class="outline-button" type="button" data-current-mission-check>CHECK STATUS</button>
             <button class="text-button" type="button" data-agent-navigate="activity">VIEW ACTIVITY</button>
           </div>
         </section>
+
+        <details class="mission-updates" data-mission-updates hidden>
+          <summary>MISSION UPDATES <b class="mission-badge" data-mission-update-count hidden></b></summary>
+          <p>Results appear when a Punk’s status is checked. Updates are saved in this browser; no extra background scans are made.</p>
+          <button type="button" class="outline-button" data-mission-updates-read hidden>MARK ALL READ</button>
+          <ul data-mission-update-list></ul>
+        </details>
 
         <nav class="broker-tabs" aria-label="Punk actions">
           <button type="button" data-v2-tab="talk" aria-selected="true"><span>01</span>ACTIONS</button>
           <button type="button" data-v2-tab="strategy" aria-selected="false"><span>02</span>STRATEGY</button>
           <button type="button" data-v2-tab="fund" aria-selected="false"><span>03</span>FUND</button>
           <button type="button" data-v2-tab="collection" aria-selected="false"><span>04</span>COLLECTION</button>
-          <button type="button" data-v2-tab="activity" aria-selected="false"><span>05</span>ACTIVITY</button>
+          <button type="button" data-v2-tab="activity" aria-selected="false"><span>05</span>ACTIVITY <b class="mission-badge" data-activity-mission-badge hidden></b></button>
           <button type="button" data-v2-tab="forge" aria-selected="false"><span>06</span>FORGE</button>
           <button type="button" data-v2-tab="settings" aria-selected="false"><span>07</span>SETTINGS</button>
         </nav>
@@ -133,6 +141,7 @@
               <aside class="quick-commands" aria-label="Agent shortcuts">
                 <span>AGENT OPTIONS</span>
                 <button type="button" data-agent-navigate="options">Set a mission</button>
+                <button type="button" data-open-swarm>Swarm · multiple Punks</button>
                 <button type="button" data-agent-navigate="options">Tune my taste</button>
                 <button type="button" data-agent-navigate="mint">Direct a paid mint</button>
                 <button type="button" data-show-link>Check a link</button>
@@ -144,6 +153,7 @@
               </aside>
             </div>
             <section class="action-result" data-action-result aria-label="Action result" aria-live="polite" hidden></section>
+            <details class="talk-mode-options" data-swarm-details><summary>SWARM · SET MISSIONS FOR MULTIPLE PUNKS</summary><section data-swarm-panel></section></details>
             <div data-talk-gas-host hidden></div>
             <form class="link-composer" data-link-form hidden>
               <label for="mint-link">PASTE A MINT LINK</label>
@@ -199,6 +209,7 @@
               <p>Your Punk Wallet ETH is separate from its Agent Account gas. Move existing Punk ETH below, or add ETH from your connected wallet. No hosted-agent prepayment or project custody.</p>
               <dl class="fund-breakdown"><div><dt>PUNK WALLET ETH</dt><dd data-agent-gas-punk-balance>CHECKING…</dd></div><div><dt>AGENT ACCOUNT ETH</dt><dd data-agent-gas-native>NOT VERIFIED</dd></div><div><dt>ENTRYPOINT GAS DEPOSIT</dt><dd data-agent-gas-deposit>NOT VERIFIED</dd></div><div><dt>AGENT DESTINATION</dt><dd><code data-agent-gas-destination>NOT VERIFIED</code></dd></div></dl>
               <p data-agent-gas-readiness aria-live="polite">Recheck readiness to verify this Punk's Agent Account. Funding does not activate a mission.</p>
+              <button class="outline-button" type="button" data-agent-gas-setup hidden>SET UP AGENT · REVIEW MISSION FIRST</button>
               <form class="wrapped-form" data-agent-gas-form>
                 <label for="agent-gas-source">FUNDING SOURCE<select id="agent-gas-source" name="source"><option value="OWNER">ADD ETH FROM MY WALLET</option><option value="PUNK">USE PUNK WALLET ETH</option></select></label>
                 <label for="agent-gas-amount">AMOUNT IN ETH<input id="agent-gas-amount" name="amount" inputmode="decimal" autocomplete="off" placeholder="0.0005" /></label>

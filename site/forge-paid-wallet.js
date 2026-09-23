@@ -83,6 +83,9 @@ export function validatePaidReview(review, selection, release, { state, action =
   const data = paidTrainingCalldata(review.tokenId, review.action, review.guard), t = review.transaction;
   exact(review.anchor, ['number', 'hash', 'timestamp']);
   exact(t, ['from', 'to', 'data', 'value', 'chainId', 'nonce', 'gas', 'maxFeePerGas', 'maxPriorityFeePerGas']);
+  if (!recovery && uint(review.guard.deadline) && Number(review.guard.deadline) * 1000 <= now + 5000) {
+    throw Object.assign(Error('This review expired or has too little time left. No wallet request was made. Refresh the unsent review, check the new fee, then confirm.'), { code: 'PAID_REVIEW_EXPIRED' });
+  }
   valid(uint(review.anchor.number) && hash(review.anchor.hash) && uint(review.anchor.timestamp)
     && BigInt(review.guard.deadline) > BigInt(review.anchor.timestamp)
     && BigInt(review.guard.deadline) <= BigInt(review.anchor.timestamp) + 60n
@@ -112,18 +115,22 @@ export function validatePaidReview(review, selection, release, { state, action =
 
 // No account connection, signing or transaction on mount, recovery or release discovery.
 export function createPaidTrainingWallet({ getProvider, release, verify, readCurrent, wasAttempted, markAttempted,
-  isCurrent, now = Date.now }) {
+  isCurrent, now = Date.now, onProgress = () => {} }) {
   let busy = false;
   return Object.freeze({ async submit(envelope, selection, action) {
     if (busy || wasAttempted()) throw Error('Recover the saved wallet request. It will not be sent again.');
     busy = true;
+    let stage = 'Checking the saved review';
+    const progress = value => { stage = value; onProgress(value); };
     try {
       valid(isCurrent() && paidReleaseAvailable(release, selection));
       const fixed = structuredClone(envelope), review = fixed.review;
       valid(uint(fixed.maximumNetworkFeeWei));
       validatePaidReview(review, selection, release, { action, maximumNetworkFeeWei: fixed.maximumNetworkFeeWei, now: now() });
+      progress('Checking current ownership and training balances');
       const state = validatePaidSnapshot(await readCurrent(), selection, release, now()); valid(isCurrent());
       const transaction = validatePaidReview(review, selection, release, { state, action, now: now() });
+      progress('Rechecking the transaction with the training service');
       const verified = await verify(structuredClone(review)); valid(isCurrent() && verified?.ok === true
         && paidReviewIdentity(verified.review) === paidReviewIdentity(review));
       const provider = getProvider(); valid(provider && typeof provider.request === 'function');
@@ -134,12 +141,15 @@ export function createPaidTrainingWallet({ getProvider, release, verify, readCur
         valid(isCurrent() && chain === '0x1237' && accounts?.[0]?.toLowerCase() === review.owner
           && HEX.test(pending) && HEX.test(latest) && BigInt(pending) === BigInt(transaction.nonce) && BigInt(latest) === BigInt(transaction.nonce));
       };
+      progress('Checking your wallet account, network and pending transactions');
       await walletContext();
+      progress('Checking that your wallet network is up to date');
       const head = await rpc('eth_getBlockByNumber', ['latest', false]);
       valid(isCurrent() && hash(head?.hash) && HEX.test(head.number) && HEX.test(head.timestamp)
         && BigInt(head.number) >= BigInt(review.anchor.number) && BigInt(head.number) - BigInt(review.anchor.number) <= 1000n
         && Number(BigInt(head.timestamp)) * 1000 >= now() - 30000 && Number(BigInt(head.timestamp)) * 1000 <= now() + 5000);
       const call = (to, signature, suffix = '') => rpc('eth_call', [{ to, data: selector(signature) + suffix }, head.number]);
+      progress('Checking contract details, payment and network fee');
       const [codes, owner, nonce, stateHash, anchor, constants, gas, balance] = await Promise.all([
         Promise.all(DOMAINS.map(key => rpc('eth_getCode', [release[key], head.number]))),
         call(release.collection, 'ownerOf(uint256)', word(review.tokenId)),
@@ -160,6 +170,7 @@ export function createPaidTrainingWallet({ getProvider, release, verify, readCur
         && BigInt(closingHead.number) >= BigInt(head.number) && BigInt(closingHead.number) - BigInt(review.anchor.number) <= 1000n
         && Number(BigInt(closingHead.timestamp)) * 1000 >= now() - 30000 && Number(BigInt(closingHead.timestamp)) * 1000 <= now() + 5000
         && HEX.test(closingHead.baseFeePerGas) && BigInt(closingHead.baseFeePerGas) + BigInt(transaction.maxPriorityFeePerGas) <= BigInt(transaction.maxFeePerGas));
+      progress('Checking for ownership changes before opening your wallet');
       const [logs, closingAnchor, closingOwner, closingNonce, closingState] = await Promise.all([
         rpc('eth_getLogs', [{ address: release.collection, fromBlock: hex(review.anchor.number), toBlock: closingHead.number,
           topics: [keccak256Hex(textHex('Transfer(address,address,uint256)')), null, null, `0x${word(review.tokenId)}`] }]),
@@ -175,11 +186,16 @@ export function createPaidTrainingWallet({ getProvider, release, verify, readCur
       const canonicalClosing = await rpc('eth_getBlockByNumber', [closingHead.number, false]);
       valid(isCurrent() && canonicalClosing?.number === closingHead.number && canonicalClosing?.hash === closingHead.hash);
       await walletContext(); validatePaidReview(review, selection, release, { action, now: now() });
+      progress('Saving the request before opening your wallet');
       valid(isCurrent() && !wasAttempted()); await markAttempted(structuredClone(review));
       valid(isCurrent() && wasAttempted()); validatePaidReview(review, selection, release, { action, now: now() });
+      progress('Waiting for your wallet confirmation');
       const transactionHash = await rpc('eth_sendTransaction', [transaction]);
       if (!HASH.test(transactionHash ?? '')) throw Error('The wallet response was lost. Recover the transaction hash from wallet activity.');
       return { transactionHash };
+    } catch (error) {
+      if (wasAttempted() || error?.code === 'PAID_REVIEW_EXPIRED') throw error;
+      throw Error(`${stage} failed. No wallet request was made. Recheck your wallet connection and refresh the unsent review before trying again.`);
     } finally { busy = false; }
   } });
 }

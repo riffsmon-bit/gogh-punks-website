@@ -1,5 +1,6 @@
 // Display only. Saved preferences and a worker flag never grant mint authority.
 export const START_FREE_MINT_COMMAND = 'Autonomously find and mint free mints. Keep my existing art preferences, daily and total mint limits, gas limit, reserve, allowed contracts and all other rules. Show the complete rules for review.';
+export const NEW_FREE_MINT_SEARCH_COMMAND = 'Autonomously find and mint free mints. Clear my collection target. Keep my existing art preferences, daily and total mint limits, gas limit, reserve, blocked contracts and all other rules. Show the complete rules for review.';
 
 export function missionStatus({ account, intent, now = Date.now(), preview = false } = {}) {
   const result = (label, detail, tone = 'idle', canStart = true) => ({ label, detail, tone, canStart });

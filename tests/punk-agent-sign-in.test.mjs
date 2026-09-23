@@ -12,7 +12,9 @@ const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve
 function fixture(overrides={}) {
   const state={selected:{tokenId:'93'},punks:[{tokenId:'93'}],wallet:{account:owner,chainId:4663},
     agentAccounts:new Map(),agentAccountLoading:new Map()};
-  const context=vm.createContext({PREVIEW:false,CHAIN_ID:4663,state,Promise,
+  const notifications=[];
+  const context=vm.createContext({PREVIEW:false,CHAIN_ID:4663,state,Promise,notifications,
+    one:()=>null,missionNotifications:{observe:notice=>notifications.push(notice),markRead(){}},
     renderAgentAccount(){},renderReviewAgent(){},renderMissionMonitor(){},renderWelcomeMessage(){},
     jsonRequest:async()=>({readiness:{setupAvailable:true}}),ensureV2Session:async()=>{},...overrides});
   vm.runInContext(source.slice(source.indexOf('async function loadAgentAccountStatus('),source.indexOf('\nfunction renderAgentAccount(')),context);
@@ -26,6 +28,8 @@ test('sign-in supersedes a background read and a late 401 cannot relock autonomy
   assert.equal(signIns,1);assert.equal(fresh.readiness.setupAvailable,true);
   old.reject(unauthorized());await background;
   assert.equal(f.state.agentAccounts.get('93'),fresh);
+  assert.equal(f.notifications.length,1);assert.equal(f.notifications[0].owner,owner);
+  assert.equal(f.notifications[0].account,fresh);assert.equal(f.notifications[0].tokenId,'93');
 });
 test('repeated sign-in and background callers await the authenticated request',async()=>{
   const login=deferred();let signIns=0;

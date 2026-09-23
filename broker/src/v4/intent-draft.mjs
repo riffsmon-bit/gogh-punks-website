@@ -57,6 +57,14 @@ export function draftStrategyFromConversation({ message, punkTokenId, expectedOw
   const changes = [];
   const ambiguous = [];
   const acquisition = acquisitionRequest(text);
+  // A dedicated holder control emits this complete sentence. Ordinary mission
+  // edits preserve collection restrictions; clearing creates a new review only.
+  const clearTarget = /(?:^|[.!?]\s+)Clear my collection target\.(?=\s|$)/.test(text);
+  if (clearTarget && acquisition) ambiguous.push("TARGET_CONTRACT");
+  else if (clearTarget) {
+    next.allowedContracts = [];
+    changes.push("CLEAR_TARGET_CONTRACT");
+  }
   if (acquisition?.blocked) ambiguous.push(acquisition.blocked);
 
   if (/\bautonomous(?:ly)?\b|\bgo shopping\b/i.test(text)) {
@@ -84,20 +92,23 @@ export function draftStrategyFromConversation({ message, punkTokenId, expectedOw
       next.dailyMintLimit = value; changes.push("DAILY_LIMIT");
     } else ambiguous.push("DAILY_LIMIT");
   }
-  const total = text.match(/\b(one|two|three|four|five|six|seven|eight|nine|ten|\d{1,5})\s+(?:(?:free|paid)\s+)?(?:mints?|pieces?|things?)\s+(?:total|overall|for (?:this|the) strategy)\b/i)
-    ?? text.match(/\b(?:total|overall|strategy)\s+(?:mint )?(?:limit|max(?:imum)?)\s+(?:of\s+)?(one|two|three|four|five|six|seven|eight|nine|ten|\d{1,5})\b/i)
-    ?? text.match(/\bmax(?:imum)?\s+(?:of\s+)?(one|two|three|four|five|six|seven|eight|nine|ten|\d{1,5})\s+(?:mints?|pieces?|things?)\s+(?:total|overall)\b/i)
-    ?? text.match(/\bmax(?:imum)?\s+(?:of\s+)?(one|two|three|four|five|six|seven|eight|nine|ten|\d{1,5})\s+mints?\b(?!\s+(?:per day|today|daily))/i)
-    ?? text.match(/\b(one|two|three|four|five|six|seven|eight|nine|ten|\d{1,5})\s+mints?\s+max(?:imum)?\b(?!\s+(?:per day|today|daily))/i)
-    ?? text.match(/\bmax(?:imum)?\s+mints?\s+(one|two|three|four|five|six|seven|eight|nine|ten|\d{1,5})\b/i);
+  // The explicit duration clause is interpreted below, not as a loose quantity
+  // here: even a negated copy of that clause must not increase a mission total.
+  const limitText = text.replace(/\bkeep hunting for up to 100 mints over 30 days\./gi, "");
+  const total = limitText.match(/\b(one|two|three|four|five|six|seven|eight|nine|ten|\d{1,5})\s+(?:(?:free|paid)\s+)?(?:mints?|pieces?|things?)\s+(?:total|overall|for (?:this|the) strategy)\b/i)
+    ?? limitText.match(/\b(?:total|overall|strategy)\s+(?:mint )?(?:limit|max(?:imum)?)\s+(?:of\s+)?(one|two|three|four|five|six|seven|eight|nine|ten|\d{1,5})\b/i)
+    ?? limitText.match(/\bmax(?:imum)?\s+(?:of\s+)?(one|two|three|four|five|six|seven|eight|nine|ten|\d{1,5})\s+(?:mints?|pieces?|things?)\s+(?:total|overall)\b/i)
+    ?? limitText.match(/\bmax(?:imum)?\s+(?:of\s+)?(one|two|three|four|five|six|seven|eight|nine|ten|\d{1,5})\s+mints?\b(?!\s+(?:per day|today|daily))/i)
+    ?? limitText.match(/\b(one|two|three|four|five|six|seven|eight|nine|ten|\d{1,5})\s+mints?\s+max(?:imum)?\b(?!\s+(?:per day|today|daily))/i)
+    ?? limitText.match(/\bmax(?:imum)?\s+mints?\s+(one|two|three|four|five|six|seven|eight|nine|ten|\d{1,5})\b/i);
   if (total) {
     const value = count(total[1]);
     if (Number.isInteger(value) && value >= 1 && value <= 10_000) {
       next.totalMintLimit = value; changes.push("TOTAL_LIMIT");
     } else ambiguous.push("TOTAL_LIMIT");
   } else {
-    const missionQuantity = text.match(/\b(one|two|three|four|five|six|seven|eight|nine|ten|\d{1,5})\s+(?:(?:free|paid)\s+)?mints?\b(?!\s+(?:per day|today|daily|total|overall))/i)
-      ?? text.match(/\b(?:find|get|mint|collect)\s+(?:me\s+)?(one|two|three|four|five|six|seven|eight|nine|ten|\d{1,5})\b/i);
+    const missionQuantity = limitText.match(/\b(one|two|three|four|five|six|seven|eight|nine|ten|\d{1,5})\s+(?:(?:free|paid)\s+)?mints?\b(?!\s+(?:per day|today|daily|total|overall))/i)
+      ?? limitText.match(/\b(?:find|get|mint|collect)\s+(?:me\s+)?(one|two|three|four|five|six|seven|eight|nine|ten|\d{1,5})\b/i);
     if (missionQuantity) {
       const value = count(missionQuantity[1]);
       if (Number.isInteger(value) && value >= 1 && value <= 10_000) {
@@ -108,6 +119,18 @@ export function draftStrategyFromConversation({ message, punkTokenId, expectedOw
       } else ambiguous.push("TOTAL_LIMIT");
     } else if (/\b(?:max(?:imum)?\s+mints?|mints?\s+max(?:imum)?)\b/i.test(text)) {
       ambiguous.push("TOTAL_LIMIT");
+    }
+  }
+  // Only the explicit bounded holder option renews an expiry. Routine edits and
+  // "until out of gas" text cannot silently create long-lived spending authority.
+  const keepHunting = /(?:^|[.!?]\s+)Keep hunting for up to 100 mints over 30 days\.(?=\s|$)/.test(text);
+  if (keepHunting) {
+    if (next.operatingMode !== "AUTONOMOUS" || next.mintMode !== "FREE_ONLY"
+      || total && count(total[1]) !== 100) ambiguous.push("KEEP_HUNTING_LIMITS");
+    else {
+      next.totalMintLimit = 100;
+      next.expiration = new Date(new Date(now).getTime() + 30 * 86_400_000).toISOString();
+      changes.push("TOTAL_LIMIT", "KEEP_HUNTING_30_DAYS");
     }
   }
   const supply = text.match(/(?:supply|collections?)\s*(?:under|below|less than|<|above)?\s*([\d,]+)\b/i)
