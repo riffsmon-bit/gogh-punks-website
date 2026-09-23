@@ -33,7 +33,7 @@ test('authenticated Forge read returns locked deployment and unknown progress, w
     ['inspect_contract', 'rank_trait_sample', 'get_market_listings', 'rank_observed_listings', 'classify_collection', 'research_project', 'research_collection']);
 });
 test('authenticated deployed profile returns verified credits and slots, and failed state reads return no profile', async () => {
-  const d = deps(), code = Object.fromEntries(['collection', 'registry', 'progression', 'trainingSource']
+  const d = { ...deps(), paidRelease: { status: 'UNDEPLOYED' } }, code = Object.fromEntries(['collection', 'registry', 'progression', 'trainingSource']
     .map((role, index) => [deployment[role], `0x0${index + 1}`]));
   d.manifest = { ...deployment, ...Object.fromEntries(Object.entries(code).map(([address, bytes]) => {
     const role = ['collection', 'registry', 'progression', 'trainingSource'].find(role => deployment[role] === address);

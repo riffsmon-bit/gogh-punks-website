@@ -2,7 +2,8 @@ import { displayEth, displayEthBudget } from "./broker-v2-amounts.js";
 import { linkFindings, createLinkFindingsCard } from './broker-v2-link-findings.js';
 import { mountAgentOptions } from "./broker-agent-options.js";
 import { mountFeatureHelp } from './broker-feature-help.js';
-import { renderActionFeedback, actionStatus } from './broker-action-feedback.js';
+import { renderActionFeedback } from './broker-action-feedback.js';
+import { missionStatus, START_FREE_MINT_COMMAND } from './broker-mission-status.js';
 import { createSelectedBurnPanel } from './forge-selected-burn-panel.js';
 import { verifyOwnedPunkIds } from "./broker-v2-ownership.js";
 import { createForgeControl } from './broker-v2-forge.js';
@@ -107,7 +108,7 @@ let persistentWatchControl = null;
 let agentRecoveryControl = null;
 const one = (selector) => document.querySelector(selector);
 const all = (selector) => [...document.querySelectorAll(selector)];
-const set = (selector, value) => { const target = one(selector); if (target) target.textContent = String(value); };
+const set = (selector, value) => { const target = one(selector); if (target && target.textContent !== String(value)) target.textContent = String(value); };
 const setAll = (selector, value) => all(selector).forEach((target) => { target.textContent = String(value); });
 const short = (value) => typeof value === "string" && value.length === 42
   ? `${value.slice(0, 6)}…${value.slice(-4)}` : "NOT ACTIVATED";
@@ -200,7 +201,7 @@ async function loadAgentAccountStatus({ authenticate = false } = {}) {
       if (authenticate) renderAgentAccount();
       const status = await jsonRequest(`/api/v2/punks/${tokenId}/agent-account`);
       if (!isCurrent()) return null;
-      state.agentAccounts.set(tokenId, status);
+      state.agentAccounts.set(tokenId, { ...status, receivedAt: Date.now() });
       if (Array.isArray(status.skills) && state.selected?.tokenId === tokenId && state.selected?.account) {
         const key = selectedReviewKey();
         if (key) state.reviewSkills.set(key, Object.freeze(status.skills.map((skill) =>
@@ -209,7 +210,7 @@ async function loadAgentAccountStatus({ authenticate = false } = {}) {
       if (state.selected?.tokenId === tokenId) {
         renderReviewAgent(); renderMissionMonitor(); renderWelcomeMessage();
       }
-      return status;
+      return state.agentAccounts.get(tokenId);
     } catch (error) {
       if (!isCurrent()) return null;
       state.agentAccounts.set(tokenId, { error: error?.message ?? "Readiness unavailable.",
@@ -218,7 +219,7 @@ async function loadAgentAccountStatus({ authenticate = false } = {}) {
     } finally {
       if (state.agentAccountLoading.get(tokenId) === request) {
         state.agentAccountLoading.delete(tokenId);
-        if (state.selected?.tokenId === tokenId) renderAgentAccount();
+        if (state.selected?.tokenId === tokenId) { renderAgentAccount(); renderMissionMonitor(); }
       }
     }
   });
@@ -506,15 +507,31 @@ function setReviewMissionPhase(key, phase, nextCheckAt = null) {
 }
 
 function renderWelcomeMessage() {
-  set('[data-action-status]', actionStatus(selectedAgentAccount()?.mission, selectedReviewAgent()));
+  renderCurrentMissionStatus();
+}
+
+function renderCurrentMissionStatus() {
+  const view = missionStatus({ account: selectedAgentAccount(), intent: state.selected?.strategy?.intent ?? selectedReviewAgent()?.intent, preview: PREVIEW });
+  set('[data-hero-status]', view.label);
+  set('[data-current-mission-status]', view.label);
+  set('[data-current-mission-detail]', view.detail);
+  set('[data-action-status]', view.detail);
+  const root = one('[data-current-mission]');
+  if (root) root.dataset.tone = view.tone;
+  const start = one('[data-start-free-mission]');
+  if (start) start.hidden = !view.canStart;
+  const check = one('[data-current-mission-check]');
+  if (check) check.disabled = state.agentAccountLoading.has(String(state.selected?.tokenId));
+  return view;
 }
 
 function missionClock(value, fallback) {
   if (!value || !Number.isFinite(Date.parse(value))) return fallback;
-  return new Date(value).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" }).toUpperCase();
+  return new Date(value).toLocaleString([], { month: 'short', day: 'numeric', hour: "numeric", minute: "2-digit" }).toUpperCase();
 }
 
 function renderMissionMonitor() {
+  const current = renderCurrentMissionStatus();
   const monitor = one("[data-mission-monitor]");
   if (!monitor) return;
   const key = selectedReviewKey();
@@ -522,29 +539,30 @@ function renderMissionMonitor() {
   const serverMission = selectedAgentAccount()?.mission ?? null;
   if (!key || !agent && !serverMission) { monitor.hidden = true; return; }
   monitor.hidden = false;
-  if (serverMission && (!agent || serverMission.status === "ACTIVE")) {
+  if (serverMission) {
     const active = serverMission.status === "ACTIVE";
+    set('[data-mission-history-label]', active ? 'AUTHORIZED MINT MISSION' : 'LAST MINT MISSION');
     const workerDisabled = selectedAgentAccount()?.worker?.enabled === false;
     const gasUnfunded = selectedAgentAccount()?.readiness?.blockers?.includes("AGENT_GAS_UNFUNDED");
     const checkFailed = serverMission.lastFailedAt && (!serverMission.lastCheckedAt
       || Date.parse(serverMission.lastFailedAt) > Date.parse(serverMission.lastCheckedAt));
-    set("[data-mission-status]", active ? "OUT · AUTONOMOUS" : serverMission.status);
+    set("[data-mission-status]", current.label);
     set("[data-mission-phase]", active
       ? workerDisabled ? "AUTOMATIC CHECKS ARE DISABLED"
         : gasUnfunded ? "SCOUTING · FUND AGENT GAS TO ENABLE MINTING"
         : checkFailed ? "LAST CHECK FAILED · SEE ACTIVITY"
-          : "WAITING FOR THE NEXT SERVER DISCOVERY CHECK" : "MISSION SESSION IS NOT ACTIVE");
+          : current.detail : "LAST MINT MISSION · NOT A CURRENT SEARCH");
     set("[data-mission-progress]", `${serverMission.completedMints} / ${serverMission.totalLimit} MINTS`);
     set("[data-mission-checked]", serverMission.opportunitiesChecked);
     set("[data-mission-scans]", serverMission.checks);
-    set("[data-mission-queue]", active ? "SERVER WORKER" : "STOPPED");
+    set("[data-mission-queue]", active && current.tone === 'active' ? "SERVER WORKER" : active ? "NEEDS CHECK" : "STOPPED");
     set("[data-mission-last-check]", missionClock(
       serverMission.lastCheckedAt, "NOT YET"));
     set("[data-mission-next-check]", active && !workerDisabled ? "SCHEDULED EVERY MINUTE" : "NOT SCHEDULED");
     set(".mission-monitor-note", active
       ? gasUnfunded ? "Your mission is authorized, but this agent account has no ETH for gas. Open Fund to fund the Punk Agent Account."
         : "Every candidate is contract-screened, live-simulated, policy-matched, submitted through the owner-approved account session, and receipt-reconciled."
-      : "The worker cannot submit for this Punk while its mission session is inactive.");
+      : current.detail);
     return;
   }
   const mission = agent.mission ?? null;
@@ -688,7 +706,7 @@ function renderReviewAgent() {
 }
 
 function renderStrategySummary(agent, serverMission) {
-  const intent = serverMission?.intent ?? agent?.intent ?? null;
+  const intent = state.selected?.strategy?.intent ?? agent?.intent ?? serverMission?.intent ?? null;
   if (!intent) {
     set("[data-strategy-name]", "NOT CONFIGURED");
     set("[data-strategy-price]", "FREE ONLY");
@@ -1331,6 +1349,9 @@ function renderGallery() {
 function activityDetail(entry) {
   const detail = entry.detail;
   if (typeof detail === "string") return detail;
+  if (entry.type === 'STRATEGY_ACTIVATED') return detail?.operatingMode === 'AUTONOMOUS'
+    ? 'Automatic mint rules saved. Check the current mission for wallet permission and worker status.'
+    : `Rules saved in ${detail?.operatingMode ?? 'review'} mode. Automatic minting has not started. Use Start free-mint mission to review its wallet permission.`;
   if (entry.type === 'PAID_MINT_COMPLETED') return `Paid mint confirmed · Peppies World #${detail?.tokenId??'?'} · delivered to #93’s Agent wallet.`;
   if (['PAID_MINT_SIGNED','PAID_MINT_SUBMITTED'].includes(entry.type)) return 'Paid mint transaction saved. Waiting for verified delivery.';
   if (['PAID_MINT_STOPPED','PAID_MINT_REVERTED'].includes(entry.type)) return 'Paid mint stopped. Recheck Directed Paid Mint in Talk to cancel the mission and withdraw unused funds.';
@@ -1739,6 +1760,7 @@ async function hydrateSelected(tab) {
       const walletRules = rules?.state === 'ACTIVE' && Date.parse(rules.expiresAt) > Date.now()
         && rules.intent?.expectedOwner === owner && rules.intent?.punkTokenId === tokenId
         && rules.intent?.punkWallet === punk.account?.toLowerCase();
+      punk.strategy = walletRules ? rules : null;
       punk.reserveEth = walletRules ? ethFromWei(rules.intent.minimumReserveWei) : '0.0000';
       state.hydratedTokenId = tokenId; renderSelected();
     }
@@ -1894,7 +1916,7 @@ async function activatePunkAgentMission(draft, report) {
     headers: { "content-type": "application/json" }, body: JSON.stringify({ owner, tokenId,
       sessionId: setup.sessionId, setupArtifactHash: setup.setup.artifactHash,
       authorizationTransactionHash }), timeoutMs: 30_000 });
-  state.agentAccounts.delete(tokenId);
+  state.agentAccounts.delete(tokenId); state.hydratedTokenId = null;
   await loadAgentAccountStatus({ authenticate: false });
   await hydrateSelected("activity");
   return receipt;
@@ -2242,6 +2264,11 @@ function setup() {
   }));
   mountFeatureHelp(document);
   let actionBusy = false;
+  one('[data-current-mission-check]').addEventListener('click', () => { void loadAgentAccountStatus({ authenticate: true }); });
+  one('[data-start-free-mission]').addEventListener('click', () => {
+    activateTab('talk');
+    void runAgentAction(START_FREE_MINT_COMMAND);
+  });
   const openPromptPanel = (panel) => {
     if (panel === "link") {
       activateTab("talk"); one("[data-link-form]").hidden = false; one("#mint-link").focus();
@@ -2263,7 +2290,7 @@ function setup() {
   const setChatBusy = (busy) => {
     actionBusy = busy;
     one('[data-agent-options]').toggleAttribute('aria-busy', busy);
-    all('[data-suggestion]').forEach(button => { button.disabled = busy; });
+    all('[data-suggestion], [data-start-free-mission]').forEach(button => { button.disabled = busy; });
     agentOptions.setBusy(busy);
   };
   window.addEventListener('gogh:action-invalidated', () => setChatBusy(false));
@@ -2663,7 +2690,9 @@ function setup() {
         return;
       }
     }
-    state.selected.mode = mode; one("[data-confirmation-dialog]").close(); renderSelected();
+    state.selected.mode = mode; state.hydratedTokenId = null;
+    one("[data-confirmation-dialog]").close(); renderSelected();
+    if (!PREVIEW) await hydrateSelected('strategy');
     addMessage("punk", PREVIEW ? "Strategy activated in local preview state only. Nothing was saved remotely."
       : "STRATEGY ACTIVATED WITH YOUR WALLET SIGNATURE. No unsigned change was accepted.");
     unlock();

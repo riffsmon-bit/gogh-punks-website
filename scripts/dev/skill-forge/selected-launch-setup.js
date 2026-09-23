@@ -26,7 +26,7 @@ function render() {
   if(renderedReviewHash!==last?.reviewHash){$('hash').value=validHash(savedHash)?savedHash:'';renderedReviewHash=last?.reviewHash;}
   else if(!$('hash').value&&validHash(savedHash))$('hash').value=savedHash;
   $('review').hidden=!review;
-  if(review){$('review-title').textContent=review.label;$('fee').textContent='Maximum network fee: '+eth(review.maximumNetworkFeeWei);$('target').textContent=review.transaction.to?'Contract: '+review.transaction.to:'New factory: '+review.predictedAddress;$('expiry').textContent=last.status==='PREPARED'&&Date.now()>=review.expiresAt?'This review expired. Select Prepare next transaction for a fresh review.':'Wallet review expires: '+new Date(review.expiresAt).toLocaleTimeString();$('review-json').textContent=JSON.stringify(last,null,2);}
+  if(review){$('review-title').textContent=review.label;$('fee').textContent='Maximum network fee: '+eth(review.maximumNetworkFeeWei);$('target').textContent=review.transaction.to?'Contract: '+review.transaction.to:'New contract: '+review.predictedAddress;$('expiry').textContent=last.status==='PREPARED'&&Date.now()>=review.expiresAt?'This review expired. Select Prepare next transaction for a fresh review.':'Wallet review expires: '+new Date(review.expiresAt).toLocaleTimeString();$('review-json').textContent=JSON.stringify(last,null,2);}
   const complete=config.steps.every(step=>state.records.some(r=>r.review.action===step.action&&r.status==='INCLUDED'));
   $('prepare').disabled=busy||complete||!!last&&!['PREPARED','DECLINED','INCLUDED','REVERTED'].includes(last.status);
   $('send').disabled=busy||last?.status!=='PREPARED'||Date.now()>=review?.expiresAt;
@@ -67,7 +67,7 @@ $('recheck').onclick=()=>run(async()=>{
   await request('recheck');
   const current=state.records.at(-1);
   if(current.status==='INCLUDED')status(config.steps.every(step=>state.records.some(r=>r.review.action===step.action&&r.status==='INCLUDED'))
-    ?'All four setup receipts are verified. Skill registration and paid-mint contract deployment are complete.'
+    ?(config.completionMessage ?? 'All four setup receipts are verified. Skill registration and paid-mint contract deployment are complete.')
     :'Receipt verified by both chain providers. Prepare the next setup transaction.');
   else if(current.status==='REVERTED')status('This transaction reverted. Prepare a new review for this step.');
   else status('The original transaction is saved. Waiting for chain visibility or confirmations; recheck shortly.');

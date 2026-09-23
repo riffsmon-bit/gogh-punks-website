@@ -31,7 +31,7 @@ function setup(t, release = null) {
 }
 const prepare = async f => { await f.click('RECHECK PAID TRAINING'); await f.click('REVIEW BUY 1 CREDIT · 0.0005 ETH'); };
 test('UNDEPLOYED renders optional price and help only, never session/API/RPC or wallet controls', t => {
-  const f = setup(t, PAID_TRAINING_RELEASE); assert.match(f.text(), /0\.0005 ETH/); assert.match(f.text(), /being prepared/);
+  const f = setup(t, { ...PAID_TRAINING_RELEASE, status: 'UNDEPLOYED', extension: null, extensionCodeHash: null, allowedOwners: [], productionPaymentsAuthorized: false, canonicalReadersReviewed: false }); assert.match(f.text(), /0\.0005 ETH/); assert.match(f.text(), /being prepared/);
   assert.equal(f.controls().length, 0); assert.equal(f.f.signIns, 0); assert.equal(f.f.requests.length, 0); assert.equal(f.f.methods.length, 0);
 });
 test('disconnected and wrong-chain selections never read or prompt', t => {

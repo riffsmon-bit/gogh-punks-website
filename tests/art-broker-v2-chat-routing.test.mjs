@@ -75,8 +75,10 @@ test('a paid request stays paid across a contract address and mint-it follow-up'
   for (const [ownerMessage, previous] of [[target, history.slice(0, 2)], ['ok then go mint it please', history]]) {
     const result = await resolveV2PunkChat({ router: { run: () => { throw Error('must stay deterministic'); } },
       ownerMessage, history: previous, currentIntent, tokenId: '93', authority, owner: OWNER, now: NOW });
-    assert.equal(result.responseKind, 'CLARIFICATION_REQUIRED'); assert.equal(result.draft, null);
-    assert.match(result.reply, /Paid mint execution is limited/); assert.match(result.reply, /existing mission is unchanged/);
+    assert.equal(result.responseKind, 'PUBLIC_PAID_MINT_REVIEW'); assert.equal(result.draft, null);
+    assert.equal(result.paidDraft.collection, target); assert.equal(result.paidDraft.quantity, 1);
+    assert.match(result.reply, /connected wallet pays the exact price/);
+    assert.match(result.reply, /does not activate autonomous spending/);
   }
 });
 

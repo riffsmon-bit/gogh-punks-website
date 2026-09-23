@@ -40,9 +40,9 @@ export const lockedOriginalForgeProfile = () => ({ status: 'NOT_DEPLOYED', owner
   walletAuthority: 'NONE', canLearn: false, canEquip: false, canBurn: false,
   note: 'Permanent training contracts are not deployed. Unknown progression is not a zero balance.' });
 
-export function createOriginalForgeProfileReader({ client, deployment, packages = [] }) {
+export function createOriginalForgeProfileReader({ client, deployment, packages = [], paidRelease }) {
   const config = validateOriginalForgeDeployment(deployment);
-  const readState = config.status === 'READ_ONLY_CANARY' ? createCanonicalProgressionReader({ client,
+  const readState = config.status === 'READ_ONLY_CANARY' ? createCanonicalProgressionReader({ client, paidRelease,
     chainId: config.chainId, collection: config.collection, registry: config.registry, progression: config.progression,
     registryCodeHash: config.registryCodeHash, progressionCodeHash: config.progressionCodeHash }) : null;
   return async ({ tokenId, owner }) => {
@@ -65,7 +65,7 @@ export function createOriginalForgeProfileReader({ client, deployment, packages 
       || allocationChainId !== BigInt(config.chainId)) throw Error('FORGE_DEPLOYMENT_MISMATCH');
     // Bounded reader: a future expanded catalog needs a deliberate release, not unbounded RPC fan-out.
     if (typeof credits !== 'bigint' || credits < 0n || typeof count !== 'bigint' || count < 0n || count > 128n) throw Error('FORGE_PROGRESSION_INVALID');
-    const paid=await paidCanonicalState({client,release:config,owner,tokenId,
+    const paid=await paidCanonicalState({client,release:config,owner,tokenId,paidRelease,
       anchor:{number:state.blockNumber,hash:state.blockHash,timestamp:String(state.blockTime/1000)}});
     const learned = [], seen = new Set();
     for (let i = 0n; i < count; i++) {

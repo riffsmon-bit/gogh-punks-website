@@ -125,6 +125,19 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .hero-status { position: absolute; right: -10px; bottom: 25px; display: flex; gap: 8px; align-items: center;
   padding: 10px 14px; color: var(--ink); background: var(--acid); font-size: .75rem; letter-spacing: .1em; }
 .hero-status i { width: 8px; height: 8px; border-radius: 50%; background: var(--ink); }
+.hero-status { max-width: 95%; font-size: 12px; }
+.current-mission { display: flex; align-items: center; justify-content: space-between; gap: 24px;
+  margin: 24px 0; padding: 24px; border: 1px solid var(--line); background: #10171d; }
+.current-mission h3 { margin: 8px 0; font-size: clamp(18px, 2vw, 24px); }
+.current-mission p { margin: 0; max-width: 70ch; line-height: 1.6; }
+.current-mission[data-tone="active"] { border-left: 4px solid #dfff38; }
+.current-mission[data-tone="warning"] { border-left: 4px solid #ff9852; }
+.current-mission-actions { display: flex; flex-wrap: wrap; gap: 10px; flex: 0 0 240px; }
+.current-mission-actions button { width: 100%; min-height: 44px; }
+@media (max-width: 720px) {
+  .current-mission { flex-direction: column; align-items: stretch; padding: 16px; gap: 16px; }
+  .current-mission-actions { flex: auto; }
+}
 .hero-copy { max-width: 720px; }
 .hero-copy h2 { margin: 10px 0 0; font-family: var(--font-display); font-size: clamp(3.1rem, 7vw, 7.5rem);
   font-weight: 900; line-height: .82; letter-spacing: .01em; }

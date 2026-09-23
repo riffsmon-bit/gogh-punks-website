@@ -7,12 +7,13 @@ import { handlePaidTraining } from '../netlify/functions/broker-v2-forge-paid-tr
 import { paidFixture } from './fixtures/paid-training.mjs';
 const setup=()=>{const f=paidFixture();return {...f,coordinator:createPaidTrainingCoordinator({clients:[new Proxy(f.client,{}),f.client],release:f.release,now:f.now})};};
 
-test('committed paid release is fixed-price, undeployed and cannot accept payment',async()=>{
+test('undeployed release remains fixed-price and cannot accept payment',async()=>{
+  const inactive={...artifact,status:'UNDEPLOYED',extension:null,extensionCodeHash:null,allowedOwners:[],canonicalReadersReviewed:false,productionPaymentsAuthorized:false};
   assert.equal(validatePaidRelease(artifact).priceWei,'500000000000000');
-  assert.throws(()=>createPaidTrainingCoordinator({clients:[],release:artifact}),/PAID_NOT_RELEASED/);
+  assert.throws(()=>createPaidTrainingCoordinator({clients:[],release:inactive}),/PAID_NOT_RELEASED/);
   for(const change of [{productionPaymentsAuthorized:true},{canonicalReadersReviewed:true},{priceWei:'1'},{treasury:'0x'+'11'.repeat(20)}])
-    assert.throws(()=>validatePaidRelease({...artifact,...change}));
-  const deps={runtimeFactory:()=>assert.fail('RPC'),sessionPool:()=>assert.fail('database'),sessionReader:()=>assert.fail('session')};
+    assert.throws(()=>validatePaidRelease({...inactive,...change}));
+  const deps={releaseReader:()=>inactive,runtimeFactory:()=>assert.fail('RPC'),sessionPool:()=>assert.fail('database'),sessionReader:()=>assert.fail('session')};
   const get=await handlePaidTraining(new Request('https://goghpunks.xyz/api/v2/punks/93/forge/paid-training'),deps);
   assert.equal(get.status,200);assert.equal((await get.json()).release.status,'UNDEPLOYED');
   const post=await handlePaidTraining(new Request('https://goghpunks.xyz/api/v2/punks/93/forge/paid-training',{method:'POST',body:'{}'}),deps);
@@ -89,7 +90,7 @@ test('legacy API rejects duplicate paid learning, obsolete loadout and full cano
 });
 
 test('unreleased canonical path makes no extra request; deployed errors never restore legacy',async()=>{
-  const f=setup();assert.equal(await paidCanonicalState({client:null,release:null}),null);
+  const f=setup();assert.equal(await paidCanonicalState({client:null,release:null,paidRelease:{status:'UNDEPLOYED'}}),null);
   f.client.getCode=async()=> '0x';
   await assert.rejects(paidCanonicalState({client:f.client,release:{...f.release,progression:f.release.legacyProgression},
     owner:f.owner,tokenId:f.tokenId,now:f.now,paidRelease:f.release}));

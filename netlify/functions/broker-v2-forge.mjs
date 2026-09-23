@@ -23,7 +23,7 @@ const PLANNED_PACKAGE = Object.freeze({ rank_observed_listings: 'floor-hunter', 
 
 // Merge seam for the existing V2 lab: diagnostics remain distinct from learned capabilities.
 // No POST in this function can learn, equip, mint, burn, enroll or call a wallet.
-export async function handleForge(request, { pool, environment = process.env, manifest = deployment,
+export async function handleForge(request, { pool, environment = process.env, manifest = deployment, paidRelease,
   sessionReader = requireV2Session, authorityReader = readV2ChatAuthority,
   continuityReader = assertV2ChatAuthorityUnchanged, originCheck = requireSameOrigin,
   clientFactory = () => createPublicClient({ transport: http(getRpcUrl(), { timeout: 8000, retryCount: 0 }) }),
@@ -44,7 +44,7 @@ export async function handleForge(request, { pool, environment = process.env, ma
     const allowedOwner = String(environment.GOGH_FORGE_TEST_OWNER ?? '').toLowerCase();
     const labAvailable = /^0x[0-9a-f]{40}$/.test(allowedOwner) && allowedOwner === authority.owner.toLowerCase();
     const client = clientFactory();
-    const profileReader = createOriginalForgeProfileReader({ client, deployment: manifest,
+    const profileReader = createOriginalForgeProfileReader({ client, deployment: manifest, paidRelease,
       packages: manifest.status === 'READ_ONLY_CANARY' ? await packageLoader() : [] });
     const profile = await profileReader({ tokenId, owner: authority.owner });
     const base = { ok: true, tokenId, owner: authority.owner, punkWallet: authority.punkWallet,
