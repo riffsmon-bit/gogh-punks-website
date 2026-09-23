@@ -90,8 +90,9 @@ export function mountSwarm({ root, getContext, getPunks, openReview, openStatus,
     busy = true;
     try {
       row.status = 'REVIEW'; save(); message = `Preparing Punk #${row.tokenId}. No mission has been authorized.`; render();
-      const draft = await openReview({ tokenId: row.tokenId, command: plan.command });
+      const draft = await openReview({ tokenId: row.tokenId, command: plan.command, options: { ...plan.options } });
       if (!current()) return;
+      if (draft?.cancelled === true) { row.status = 'QUEUED'; save(); message = 'Review closed. No wallet request was made. You can review this Punk again.'; return; }
       if (!draft?.intentHash || draft.intent?.punkTokenId !== row.tokenId || draft.intent.expectedOwner !== key) throw Error('The mission review could not be prepared. Open this Punk to check its status and funding.');
       row.intentHash = draft.intentHash; save(); message = `Review Punk #${row.tokenId} and authorize it in your wallet. Other Punks are still waiting.`;
     } catch (error) { if (current()) { row.status = 'CHECK_STATUS'; message = error.message; try { save(); } catch { /* No wallet action is available from this row. */ } } }

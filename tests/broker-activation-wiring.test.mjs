@@ -51,6 +51,7 @@ function fixture() {
     showConfirmation: draft => calls.push(['confirmation', draft]),
     runAgentAction: command => calls.push(['command', command]), START_FREE_MINT_COMMAND: 'REVIEW_AUTONOMOUS_MISSION',
     renderCurrentMissionStatus: () => ({}), renderMissionBadges() {},
+    swarmReviewGate: { invalidate() { calls.push(['invalidate-swarm-review']); } },
     persistentWatchControl: null, forgeSkillAdminControl: null, brokerPreferences: null, gasFundingRecovery: null,
     ownerRefresh: { invalidate() {} }, clearTransferredPunkReview() {}, resetGallery() {},
     window: { addEventListener: (name, handler) => { windowEvents[name] = handler; } },
@@ -133,7 +134,7 @@ test('wallet transition clears the previous owner’s activation display even du
   const f = fixture(); f.render();
   await f.windowEvents['gogh:wallet-state']({ detail: { account: null, status: 'pending', restoring: true } });
   assert.equal(f.one('[data-activation-label]').textContent, 'STATUS NOT VERIFIED');
-  assert.equal(f.state.agentAccounts.size, 0); assert.equal(f.calls.length, 0);
+  assert.equal(f.state.agentAccounts.size, 0); assert.deepEqual(f.calls, [['invalidate-swarm-review']]);
 });
 
 test('setup action cannot reopen an ASK draft and pretend it will activate the Agent wallet', () => {

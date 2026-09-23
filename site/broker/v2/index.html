@@ -341,6 +341,14 @@
       </section>
     </main>
 
+    <dialog class="confirmation-dialog" data-swarm-review-dialog aria-labelledby="swarm-review-title">
+      <form method="dialog"><button class="dialog-close" value="cancel" aria-label="Close Swarm review">×</button></form>
+      <span class="kicker">SWARM REVIEW · NO MISSION STARTED</span><h2 id="swarm-review-title">REVIEW THIS PUNK</h2>
+      <div class="confirmation-grid" data-swarm-review-grid></div>
+      <p class="confirmation-note">Your Punk keeps its existing taste, gas cap, reserve and safety rules. Next, verify ownership and load those rules for a full review.</p>
+      <p class="confirmation-note">If you are signed out, MetaMask will ask for a free sign-in message. This step cannot fund or activate a Punk. Mission authorization is a separate step after the complete rules appear.</p>
+      <div class="dialog-actions"><button type="button" class="outline-button" data-swarm-review-cancel>BACK TO SWARM</button><button type="button" class="primary-button" data-swarm-review-continue>SIGN IN &amp; LOAD FULL RULES</button></div>
+    </dialog>
     <dialog class="confirmation-dialog" data-confirmation-dialog>
       <form method="dialog"><button class="dialog-close" value="cancel" aria-label="Close">×</button></form>
       <span class="kicker">STRATEGY DRAFT · NOT ACTIVE</span><h2>REVIEW YOUR PUNK’S RULES</h2>

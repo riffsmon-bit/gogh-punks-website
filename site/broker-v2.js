@@ -2,6 +2,7 @@ import { displayEth, displayEthBudget } from "./broker-v2-amounts.js";
 import { linkFindings, createLinkFindingsCard } from './broker-v2-link-findings.js';
 import { mountAgentOptions } from "./broker-agent-options.js";
 import { mountSwarm } from './broker-swarm.js';
+import { createSwarmReviewGate } from './broker-swarm-review.js';
 import { punkActivationStatus } from './broker-activation-status.js';
 import { createMissionNotifications } from './broker-mission-notifications.js';
 import { mountFeatureHelp } from './broker-feature-help.js';
@@ -109,6 +110,7 @@ let marketplaceSelectionKey = '';
 let marketplaceSelectionRevision = 0;
 let persistentWatchControl = null;
 let swarmControl = null;
+let swarmReviewGate = null;
 let missionNotifications = null;
 let agentRecoveryControl = null;
 const one = (selector) => document.querySelector(selector);
@@ -1241,6 +1243,7 @@ function renderMissionBadges() {
 
 function renderRoster() {
   void persistentWatchControl?.selectionChanged();
+  swarmReviewGate?.refresh();
   swarmControl?.refresh();
   forgeSkillAdminControl?.update();
   forgeControl?.selectionChanged();
@@ -1308,6 +1311,7 @@ function renderRoster() {
 }
 
 function renderSelected() {
+  swarmReviewGate?.refresh();
   swarmControl?.refresh();
   brokerPreferences?.refresh();
   gasFundingRecovery?.refresh();
@@ -1378,6 +1382,7 @@ function invalidateConversationRequests() {
 }
 
 function selectPunk(tokenId, { focusRoster = false } = {}) {
+  swarmReviewGate?.invalidate();
   const punk = state.punks.find((item) => item.tokenId === tokenId);
   if (!punk) return;
   invalidateConversationRequests();
@@ -1882,7 +1887,7 @@ async function hydrateSelected(tab) {
         if (collection.status === "rejected") throw collection.reason;
       } else if (tab === "fund") await loadPunkBalances(punk);
       else if (tab === "activity") {
-        await ensureV2Session();
+        await requireExistingV2Session();
         const payload = await jsonRequest(`/api/v2/punks/${tokenId}/activity`);
         if (!isCurrent()) return;
         state.activityLoaded = true;
@@ -1893,7 +1898,7 @@ async function hydrateSelected(tab) {
       }
       return;
     }
-    await ensureV2Session();
+    await requireExistingV2Session();
     const profilePayload = state.hydratedTokenId === tokenId ? null
       : await jsonRequest(`/api/v2/punks/${tokenId}`);
     if (!isCurrent()) return;
@@ -1963,6 +1968,15 @@ async function jsonRequest(path, options = {}) {
   } finally {
     window.clearTimeout(timeout);
   }
+}
+
+// Passive navigation may read an existing login, but must never open a wallet.
+async function requireExistingV2Session() {
+  const owner = state.wallet?.account, chainId = state.wallet?.chainId;
+  const session = await jsonRequest('/api/v2/session');
+  if (!owner || chainId !== CHAIN_ID || state.wallet?.account !== owner || state.wallet?.chainId !== chainId
+    || session.walletAddress?.toLowerCase() !== owner) throw Error('Use Check status / Sign in to load your Punk’s private details.');
+  return session;
 }
 
 const sessionRequests = new Map();
@@ -2627,12 +2641,18 @@ function setup() {
     showConfirmation(draft);
     return draft;
   };
+  swarmReviewGate = createSwarmReviewGate({ dialog: one('[data-swarm-review-dialog]'),
+    getContext: () => ({ owner: state.wallet?.account, chainId: state.wallet?.chainId }),
+    isOwned: tokenId => state.punks.some(punk => String(punk.tokenId) === tokenId),
+  });
   swarmControl = mountSwarm({ root: one('[data-swarm-panel]'),
     getContext: () => ({ owner: state.wallet?.account, chainId: state.wallet?.chainId }),
     getPunks: () => PREVIEW ? [] : state.punks,
-    openReview: async ({ tokenId, command }) => {
+    openReview: async ({ tokenId, command, options }) => {
       if (PREVIEW || actionBusy || one('[data-activate-strategy]').dataset.busy === 'true'
         || one('[data-confirmation-dialog]').open) throw Error('Finish the current review before opening another Punk.');
+      const confirmed = await swarmReviewGate.review({ tokenId, command, options });
+      if (!confirmed) return { cancelled: true };
       selectPunk(tokenId); activateTab('talk');
       return runAgentAction(command);
     },
@@ -2646,7 +2666,7 @@ function setup() {
       one('[data-agent-gas-confirm]').checked = false;
       activateTab('fund'); renderAgentGasFunding();
       one('[data-agent-gas-panel]').scrollIntoView({ block: 'start' });
-      await loadAgentAccountStatus({ authenticate: true });
+      await loadAgentAccountStatus({ authenticate: false });
     },
     openStatus: tokenId => { selectPunk(tokenId); activateTab('activity'); void loadAgentAccountStatus({ authenticate: true }); },
   });
@@ -2945,6 +2965,7 @@ function setup() {
     onConfirmed: async selection => {
       const punk = state.selected;
       if (punk?.tokenId !== selection.tokenId || state.wallet?.account !== selection.owner) return;
+      swarmReviewGate?.refresh();
       swarmControl?.refresh();
       await Promise.all([loadAgentAccountStatus(), loadPunkBalances(punk)]);
       if (state.selected === punk && state.wallet?.account === selection.owner) renderSelected();
@@ -3228,6 +3249,7 @@ function setup() {
     state.wallet = { ...wallet, account };
     // Invalidate watch drafts before any pending/wrong-chain early return.
     void persistentWatchControl?.selectionChanged();
+    if (account !== previousAccount || wallet.chainId !== previousChain) swarmReviewGate?.invalidate();
     renderMissionBadges(); renderActivationGuide();
     forgeSkillAdminControl?.update();
     brokerPreferences?.refresh(); gasFundingRecovery?.refresh();
