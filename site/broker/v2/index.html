@@ -102,6 +102,13 @@
           </div>
         </section>
 
+        <section class="activation-guide" data-activation-guide aria-label="Agent setup and funding">
+          <div class="activation-heading"><span class="kicker">YOUR PUNK’S NEXT STEP</span><strong data-activation-label>STATUS NOT VERIFIED</strong></div>
+          <p data-activation-detail>Check this Punk to see its setup, gas and mission permission.</p>
+          <details><summary>STEP-BY-STEP · SET UP → FUND → HUNT</summary><ol data-activation-steps></ol>
+          <p>Review once, fund each Agent wallet, authorize your limits, then check that it is hunting. Funding alone never starts a mission. Your wallet confirms every setup, permission and deposit. <a href="/guide/#activation">How setup works</a></p></details>
+        </section>
+
         <details class="mission-updates" data-mission-updates hidden>
           <summary>MISSION UPDATES <b class="mission-badge" data-mission-update-count hidden></b></summary>
           <p>Results appear when a Punk’s status is checked. Updates are saved in this browser; no extra background scans are made.</p>
@@ -153,7 +160,7 @@
               </aside>
             </div>
             <section class="action-result" data-action-result aria-label="Action result" aria-live="polite" hidden></section>
-            <details class="talk-mode-options" data-swarm-details><summary>SWARM · SET MISSIONS FOR MULTIPLE PUNKS</summary><section data-swarm-panel></section></details>
+            <details class="talk-mode-options" data-swarm-details><summary>SWARM · FUND & SET MISSIONS FOR MULTIPLE PUNKS</summary><section data-swarm-panel></section></details>
             <div data-talk-gas-host hidden></div>
             <form class="link-composer" data-link-form hidden>
               <label for="mint-link">PASTE A MINT LINK</label>
@@ -210,6 +217,7 @@
               <dl class="fund-breakdown"><div><dt>PUNK WALLET ETH</dt><dd data-agent-gas-punk-balance>CHECKING…</dd></div><div><dt>AGENT ACCOUNT ETH</dt><dd data-agent-gas-native>NOT VERIFIED</dd></div><div><dt>ENTRYPOINT GAS DEPOSIT</dt><dd data-agent-gas-deposit>NOT VERIFIED</dd></div><div><dt>AGENT DESTINATION</dt><dd><code data-agent-gas-destination>NOT VERIFIED</code></dd></div></dl>
               <p data-agent-gas-readiness aria-live="polite">Recheck readiness to verify this Punk's Agent Account. Funding does not activate a mission.</p>
               <button class="outline-button" type="button" data-agent-gas-setup hidden>SET UP AGENT · REVIEW MISSION FIRST</button>
+              <div data-swarm-funding-context hidden><p data-swarm-funding-allocation></p><button class="outline-button" type="button" data-swarm-funding-back>BACK TO SWARM</button> <button class="text-button" type="button" data-swarm-funding-leave>LEAVE SWARM FUNDING REVIEW</button></div>
               <form class="wrapped-form" data-agent-gas-form>
                 <label for="agent-gas-source">FUNDING SOURCE<select id="agent-gas-source" name="source"><option value="OWNER">ADD ETH FROM MY WALLET</option><option value="PUNK">USE PUNK WALLET ETH</option></select></label>
                 <label for="agent-gas-amount">AMOUNT IN ETH<input id="agent-gas-amount" name="amount" inputmode="decimal" autocomplete="off" placeholder="0.0005" /></label>

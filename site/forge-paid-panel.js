@@ -7,6 +7,7 @@ import { renderPlannedResearchResult } from './forge-research-result.js';
 const HASH = /^0x[0-9a-f]{64}$/;
 const TERMINAL = new Set(['CONFIRMED_SUCCESS', 'CONFIRMED_REVERT', 'EXPIRED_UNUSED']);
 const RECEIPTS = new Set(['PENDING', 'INCLUDED_SUCCESS', 'INCLUDED_REVERT', 'CONFIRMED_SUCCESS', 'CONFIRMED_REVERT']);
+const storageFailure = () => Object.assign(Error('Browser storage is unavailable. Allow site storage and reload. If your wallet already opened, recover its original transaction before continuing.'), { code: 'PAID_STORAGE_UNAVAILABLE' });
 const eth = value => { const n = BigInt(value), fraction = (n % 10n ** 18n).toString().padStart(18, '0').replace(/0+$/, '');
   return `${n / 10n ** 18n}${fraction ? `.${fraction}` : ''} ETH`; };
 const action = (operation, skillKey = PAID_ZERO_KEY, slot = 0) => ({ operation, skillKey, slot });
@@ -20,7 +21,7 @@ const STATUS = {
 };
 
 export function createPaidTrainingPanel({ root, getSelection, ensureSession, request, release = PAID_TRAINING_RELEASE,
-  getProvider = () => window.__GOGH_WALLET_PROVIDER__, storage, locks, now = Date.now }) {
+  getProvider = () => window.__GOGH_WALLET_PROVIDER__, storage, locks, now = Date.now, readProvider }) {
   if (!root) return null;
   // Browser privacy settings can throw on the property access itself.
   if (storage === undefined) try { storage = globalThis.localStorage; } catch { storage = null; }
@@ -54,14 +55,16 @@ export function createPaidTrainingPanel({ root, getSelection, ensureSession, req
     if (!lease) throw Error('Paid training needs a protected browser session before saving a request.');
     assertSaved(selected, lease.expected);
     const name = storageKey(selected), encoded = JSON.stringify(value);
-    storage.setItem(name, encoded); if (storage.getItem(name) !== encoded) throw Error('Save the pending paid training review before continuing.');
+    try { storage.setItem(name, encoded); if (storage.getItem(name) !== encoded) throw storageFailure(); }
+    catch { throw storageFailure(); }
     lease.expected = structuredClone(value);
     if (identity() === `${selected.owner?.toLowerCase()}:${selected.tokenId}:${selected.chainId}:${selected.preview}`) journal = value;
   }
   function readSaved(selected) {
     if (!storage?.getItem || !storage?.setItem || !storage?.removeItem)
-      throw Error('Browser storage is unavailable. Allow site storage and reload before paid training. No new wallet request was made.');
-    const raw = storage.getItem(storageKey(selected)); if (!raw) return null;
+      throw storageFailure();
+    let raw; try { raw = storage.getItem(storageKey(selected)); } catch { throw storageFailure(); }
+    if (!raw) return null;
     const saved = JSON.parse(raw);
     if (saved?.schema !== 1 || typeof saved.attempted !== 'boolean' || saved.transactionHash !== null && !HASH.test(saved.transactionHash)
       || typeof saved.maximumNetworkFeeWei !== 'string' || saved.status !== null && !RECEIPTS.has(saved.status) && !TERMINAL.has(saved.status)) throw Error('Saved paid training review is unreadable.');
@@ -124,8 +127,9 @@ export function createPaidTrainingPanel({ root, getSelection, ensureSession, req
   const confirm = () => journalWork(async (selected, current, lease) => {
     if (!available() || !journal || journal.attempted || !state) throw Error('Recheck or recover the saved review before continuing.');
     const saved = structuredClone(journal);
-    await ensureSession(); if (!current()) return;
-    const wallet = createPaidTrainingWallet({ getProvider, release, isCurrent: current, now,
+    message = 'Checking your wallet sign-in before preparing the confirmation…'; render();
+    await ensureSession(value => { if (current()) { message = value; render(); } }); if (!current()) return;
+    const wallet = createPaidTrainingWallet({ getProvider, readProvider, release, isCurrent: current, now,
       onProgress: value => { if (current()) { message = `${value}…`; render(); } },
       readCurrent: () => api(selected), verify: review => api(selected, { operation: 'verify', review }),
       wasAttempted: () => assertSaved(selected, lease.expected)?.attempted !== false,

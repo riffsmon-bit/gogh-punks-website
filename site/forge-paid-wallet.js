@@ -16,6 +16,32 @@ const word = value => BigInt(value).toString(16).padStart(64, '0');
 const hex = value => `0x${BigInt(value).toString(16)}`;
 const textHex = value => `0x${Array.from(new TextEncoder().encode(value), byte => byte.toString(16).padStart(2, '0')).join('')}`;
 const selector = value => keccak256Hex(textHex(value)).slice(0, 10);
+const READ_METHODS = new Set(['eth_chainId', 'eth_getBlockByNumber', 'eth_getCode', 'eth_call', 'eth_getLogs']);
+const PUBLIC_READ_RPC = 'https://rpc.mainnet.chain.robinhood.com';
+const rpcFailure = (code, method) => Object.assign(Error(code), { code, method });
+// Fixed, public, read-only endpoint. It receives no session cookie, key, signature or send method.
+// This keeps archival reads independent of the wallet's selected RPC and its method restrictions.
+export function createPaidTrainingReadProvider({ fetcher = globalThis.fetch, timeoutMs = 6000 } = {}) {
+  let requestId = 0;
+  return Object.freeze({ async request({ method, params = [] }) {
+    if (!READ_METHODS.has(method) || !Array.isArray(params) || typeof fetcher !== 'function')
+      throw rpcFailure('PAID_CHAIN_READ_UNAVAILABLE', method);
+    const controller = new AbortController(), id = ++requestId;
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetcher(PUBLIC_READ_RPC, { method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id, method, params }), credentials: 'omit', cache: 'no-store',
+        redirect: 'error', signal: controller.signal });
+      if (!response.ok) throw rpcFailure('PAID_CHAIN_READ_UNAVAILABLE', method);
+      const text = await response.text(); if (text.length > 2_000_000) throw rpcFailure('PAID_CHAIN_READ_UNAVAILABLE', method);
+      const payload = JSON.parse(text);
+      if (payload?.jsonrpc !== '2.0' || payload.id !== id || payload.error || !Object.hasOwn(payload, 'result'))
+        throw rpcFailure('PAID_CHAIN_READ_UNAVAILABLE', method);
+      return payload.result;
+    } catch { throw rpcFailure(controller.signal.aborted ? 'PAID_CHAIN_READ_TIMEOUT' : 'PAID_CHAIN_READ_UNAVAILABLE', method); }
+    finally { clearTimeout(timeout); }
+  } });
+}
 export const paidReviewIdentity = value => Array.isArray(value) ? `[${value.map(paidReviewIdentity).join(',')}]`
   : value && typeof value === 'object' ? `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${paidReviewIdentity(value[key])}`).join(',')}}` : JSON.stringify(value);
 function exact(value, keys) {
@@ -115,7 +141,7 @@ export function validatePaidReview(review, selection, release, { state, action =
 
 // No account connection, signing or transaction on mount, recovery or release discovery.
 export function createPaidTrainingWallet({ getProvider, release, verify, readCurrent, wasAttempted, markAttempted,
-  isCurrent, now = Date.now, onProgress = () => {} }) {
+  isCurrent, now = Date.now, onProgress = () => {}, readProvider = createPaidTrainingReadProvider(), walletReadTimeoutMs = 8000 }) {
   let busy = false;
   return Object.freeze({ async submit(envelope, selection, action) {
     if (busy || wasAttempted()) throw Error('Recover the saved wallet request. It will not be sent again.');
@@ -134,7 +160,20 @@ export function createPaidTrainingWallet({ getProvider, release, verify, readCur
       const verified = await verify(structuredClone(review)); valid(isCurrent() && verified?.ok === true
         && paidReviewIdentity(verified.review) === paidReviewIdentity(review));
       const provider = getProvider(); valid(provider && typeof provider.request === 'function');
-      const rpc = (method, params = []) => provider.request({ method, params });
+      const rpc = async (method, params = []) => {
+        if (method === 'eth_sendTransaction') return provider.request({ method, params });
+        let timeout;
+        try {
+          return await Promise.race([provider.request({ method, params }), new Promise((_, reject) => {
+            timeout = setTimeout(() => reject(rpcFailure('PAID_WALLET_READ_TIMEOUT', method)), walletReadTimeoutMs);
+          })]);
+        } catch (error) {
+          if (error?.code === 'PAID_WALLET_READ_TIMEOUT') throw error;
+          const code = Number(error?.code ?? error?.data?.originalError?.code);
+          throw rpcFailure([-32601, -32602, 4200].includes(code) ? 'PAID_WALLET_RPC_UNSUPPORTED' : 'PAID_WALLET_READ_UNAVAILABLE', method);
+        } finally { clearTimeout(timeout); }
+      };
+      const read = (method, params = []) => readProvider.request({ method, params });
       const walletContext = async () => {
         valid(isCurrent()); const [chain, accounts, pending, latest] = await Promise.all([rpc('eth_chainId'), rpc('eth_accounts'),
           rpc('eth_getTransactionCount', [review.owner, 'pending']), rpc('eth_getTransactionCount', [review.owner, 'latest'])]);
@@ -143,19 +182,20 @@ export function createPaidTrainingWallet({ getProvider, release, verify, readCur
       };
       progress('Checking your wallet account, network and pending transactions');
       await walletContext();
-      progress('Checking that your wallet network is up to date');
-      const head = await rpc('eth_getBlockByNumber', ['latest', false]);
+      progress('Checking Robinhood Chain is up to date');
+      const [readChain, head] = await Promise.all([read('eth_chainId'), read('eth_getBlockByNumber', ['latest', false])]);
+      valid(readChain === '0x1237');
       valid(isCurrent() && hash(head?.hash) && HEX.test(head.number) && HEX.test(head.timestamp)
         && BigInt(head.number) >= BigInt(review.anchor.number) && BigInt(head.number) - BigInt(review.anchor.number) <= 1000n
         && Number(BigInt(head.timestamp)) * 1000 >= now() - 30000 && Number(BigInt(head.timestamp)) * 1000 <= now() + 5000);
-      const call = (to, signature, suffix = '') => rpc('eth_call', [{ to, data: selector(signature) + suffix }, head.number]);
+      const call = (to, signature, suffix = '') => read('eth_call', [{ to, data: selector(signature) + suffix }, head.number]);
       progress('Checking contract details, payment and network fee');
       const [codes, owner, nonce, stateHash, anchor, constants, gas, balance] = await Promise.all([
-        Promise.all(DOMAINS.map(key => rpc('eth_getCode', [release[key], head.number]))),
+        Promise.all(DOMAINS.map(key => read('eth_getCode', [release[key], head.number]))),
         call(release.collection, 'ownerOf(uint256)', word(review.tokenId)),
         call(release.extension, 'reviewNonce(uint256)', word(review.tokenId)),
         call(release.extension, 'reviewStateHash(uint256)', word(review.tokenId)),
-        rpc('eth_getBlockByNumber', [hex(review.anchor.number), false]),
+        read('eth_getBlockByNumber', [hex(review.anchor.number), false]),
         Promise.all(['collection', 'registry', 'legacyProgression', 'treasury', 'creditPriceWei'].map(key => call(release.extension, `${key}()`))),
         rpc('eth_estimateGas', [transaction]), rpc('eth_getBalance', [review.owner, 'pending']),
       ]);
@@ -165,26 +205,26 @@ export function createPaidTrainingWallet({ getProvider, release, verify, readCur
         && constants.every((value, index) => value === `0x${word(index === 4 ? release.priceWei : release[['collection', 'registry', 'legacyProgression', 'treasury'][index]])}`)
         && HEX.test(gas) && BigInt(gas) > 0n && BigInt(gas) <= BigInt(transaction.gas)
         && HEX.test(balance) && BigInt(balance) >= BigInt(transaction.value) + BigInt(transaction.gas) * BigInt(transaction.maxFeePerGas));
-      const closingHead = await rpc('eth_getBlockByNumber', ['latest', false]);
+      const closingHead = await read('eth_getBlockByNumber', ['latest', false]);
       valid(isCurrent() && hash(closingHead?.hash) && HEX.test(closingHead.number) && HEX.test(closingHead.timestamp)
         && BigInt(closingHead.number) >= BigInt(head.number) && BigInt(closingHead.number) - BigInt(review.anchor.number) <= 1000n
         && Number(BigInt(closingHead.timestamp)) * 1000 >= now() - 30000 && Number(BigInt(closingHead.timestamp)) * 1000 <= now() + 5000
         && HEX.test(closingHead.baseFeePerGas) && BigInt(closingHead.baseFeePerGas) + BigInt(transaction.maxPriorityFeePerGas) <= BigInt(transaction.maxFeePerGas));
       progress('Checking for ownership changes before opening your wallet');
       const [logs, closingAnchor, closingOwner, closingNonce, closingState] = await Promise.all([
-        rpc('eth_getLogs', [{ address: release.collection, fromBlock: hex(review.anchor.number), toBlock: closingHead.number,
+        read('eth_getLogs', [{ address: release.collection, fromBlock: hex(review.anchor.number), toBlock: closingHead.number,
           topics: [keccak256Hex(textHex('Transfer(address,address,uint256)')), null, null, `0x${word(review.tokenId)}`] }]),
-        rpc('eth_getBlockByNumber', [hex(review.anchor.number), false]),
-        rpc('eth_call', [{ to: release.collection, data: selector('ownerOf(uint256)') + word(review.tokenId) }, closingHead.number]),
-        rpc('eth_call', [{ to: release.extension, data: selector('reviewNonce(uint256)') + word(review.tokenId) }, closingHead.number]),
-        rpc('eth_call', [{ to: release.extension, data: selector('reviewStateHash(uint256)') + word(review.tokenId) }, closingHead.number]),
+        read('eth_getBlockByNumber', [hex(review.anchor.number), false]),
+        read('eth_call', [{ to: release.collection, data: selector('ownerOf(uint256)') + word(review.tokenId) }, closingHead.number]),
+        read('eth_call', [{ to: release.extension, data: selector('reviewNonce(uint256)') + word(review.tokenId) }, closingHead.number]),
+        read('eth_call', [{ to: release.extension, data: selector('reviewStateHash(uint256)') + word(review.tokenId) }, closingHead.number]),
       ]);
       valid(isCurrent() && Array.isArray(logs) && logs.length === 0 && closingAnchor?.hash === review.anchor.hash
         && HEX.test(closingAnchor.number) && BigInt(closingAnchor.number) === BigInt(review.anchor.number)
         && HEX.test(closingAnchor.timestamp) && BigInt(closingAnchor.timestamp) === BigInt(review.anchor.timestamp)
         && closingOwner === owner && closingNonce === nonce && closingState === stateHash);
-      const canonicalClosing = await rpc('eth_getBlockByNumber', [closingHead.number, false]);
-      valid(isCurrent() && canonicalClosing?.number === closingHead.number && canonicalClosing?.hash === closingHead.hash);
+      const [canonicalClosing, closingReadChain] = await Promise.all([read('eth_getBlockByNumber', [closingHead.number, false]), read('eth_chainId')]);
+      valid(isCurrent() && closingReadChain === '0x1237' && canonicalClosing?.number === closingHead.number && canonicalClosing?.hash === closingHead.hash);
       await walletContext(); validatePaidReview(review, selection, release, { action, now: now() });
       progress('Saving the request before opening your wallet');
       valid(isCurrent() && !wasAttempted()); await markAttempted(structuredClone(review));
@@ -195,7 +235,12 @@ export function createPaidTrainingWallet({ getProvider, release, verify, readCur
       return { transactionHash };
     } catch (error) {
       if (wasAttempted() || error?.code === 'PAID_REVIEW_EXPIRED') throw error;
-      throw Error(`${stage} failed. No wallet request was made. Recheck your wallet connection and refresh the unsent review before trying again.`);
+      const codes = ['PAID_CHAIN_READ_TIMEOUT', 'PAID_CHAIN_READ_UNAVAILABLE', 'PAID_WALLET_READ_TIMEOUT', 'PAID_WALLET_READ_UNAVAILABLE', 'PAID_WALLET_RPC_UNSUPPORTED', 'PAID_STORAGE_UNAVAILABLE'];
+      const code = codes.includes(error?.code) ? error.code : 'PAID_PREFLIGHT_UNVERIFIED';
+      const guidance = code === 'PAID_STORAGE_UNAVAILABLE' ? 'Allow site storage in your browser and reload before trying again.' : code === 'PAID_WALLET_RPC_UNSUPPORTED'
+        ? `Your wallet's network service does not support a required check. Check Robinhood Chain's RPC setting in your wallet, then refresh the unsent review.`
+        : 'Recheck your wallet connection and refresh the unsent review before trying again.';
+      throw Object.assign(Error(`${stage} failed. No wallet request was made. ${guidance} (${code})`), { code, stage });
     } finally { busy = false; }
   } });
 }

@@ -29,7 +29,8 @@ function setup(t, release = null, shared = null) {
   let selected = f.selected, panel, failStorage = false;
   const storage = { getItem: k => values.get(k) ?? null, setItem: (k, v) => { if (failStorage) throw Error('Storage unavailable'); values.set(k, v); }, removeItem: k => values.delete(k) };
   const config = { root, release: release ?? f.release, getSelection: () => selected, ensureSession: async () => { f.signIns++; },
-    request: (...args) => f.request(...args), getProvider: () => f.provider, storage, locks: shared?.config.locks ?? lockManager() };
+    request: (...args) => f.request(...args), getProvider: () => f.provider, readProvider: { request: args => f.provider.request(args) },
+    storage, locks: shared?.config.locks ?? lockManager() };
   const mount = () => { panel?.destroy(); panel = createPaidTrainingPanel(config); };
   const controls = () => walk(root).filter(n => n.localName === 'button');
   f.beforeSend = () => assert.equal(JSON.parse([...values.values()][0]).attempted, true);
@@ -183,6 +184,7 @@ test('rejected no-hash attempt can close only after explicit finalized expired-u
 });
 test('failed attempt storage prevents wallet send and selection change hides stale review', async t => {
   const f = setup(t); await prepare(f); f.failStorage(); await f.click('CONFIRM PAID TRAINING IN WALLET'); assert.equal(f.f.sends, 0);
+  assert.match(f.text(), /Allow site storage.*PAID_STORAGE_UNAVAILABLE/);
   f.select({ ...f.f.selected, tokenId: '94' }); assert.equal(f.button('CONFIRM PAID TRAINING IN WALLET'), undefined);
   assert.equal(f.values.size, 1); assert.equal(f.f.sends, 0);
 });

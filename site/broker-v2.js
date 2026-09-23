@@ -2,6 +2,7 @@ import { displayEth, displayEthBudget } from "./broker-v2-amounts.js";
 import { linkFindings, createLinkFindingsCard } from './broker-v2-link-findings.js';
 import { mountAgentOptions } from "./broker-agent-options.js";
 import { mountSwarm } from './broker-swarm.js';
+import { punkActivationStatus } from './broker-activation-status.js';
 import { createMissionNotifications } from './broker-mission-notifications.js';
 import { mountFeatureHelp } from './broker-feature-help.js';
 import { renderActionFeedback } from './broker-action-feedback.js';
@@ -19,7 +20,7 @@ import { createPersistentWatchMount } from './broker-persistent-watch-mount.js';
 import { createAgentRecoveryPanel, recoveryEth } from './punk-agent-recovery-panel.js';
 import { createOwnerRefresh } from "./broker-v2-owner-refresh.js";
 import { createGasFundingRecovery } from "./punk-agent-gas-recovery-panel.js";
-import { prepareAgentGasFunding, submitAgentGasFunding, recheckAgentGasFunding } from "./punk-agent-gas-funding.js";
+import { prepareAgentGasFunding, submitAgentGasFunding, recheckAgentGasFunding, getAgentGasFundingState } from "./punk-agent-gas-funding.js";
 import { punkChatAction, agentChatStatus } from "./punk-chat-actions.js";
 import { createPunkRecall } from "./punk-agent-recall.js";
 
@@ -78,7 +79,7 @@ const state = { wallet: null, punks: [], selected: null, localStrategy: null, lo
   galleryStatus: "idle", galleryNote: "", galleryRequestId: 0,
   chatRequestId: 0, linkRequestId: 0,
   balanceRequestId: 0, galleryTokenId: null, galleryLoadingTokenId: null,
-  fundingPlan: null, gasFundingPlan: null, gasFundingBusy: false, wrappedPlan: null, withdrawalAsset: null,
+  fundingPlan: null, gasFundingPlan: null, gasFundingBusy: false, swarmFundingContext: null, wrappedPlan: null, withdrawalAsset: null,
   withdrawalAmount: "1", withdrawalPlan: null, withdrawalBusy: false,
   reviewAgents: new Map(), reviewInspections: new Map(), reviewActivities: new Map(),
   reviewRuns: new Map(), reviewConversations: new Map(), reviewSkills: new Map(),
@@ -235,6 +236,7 @@ async function loadAgentAccountStatus({ authenticate = false } = {}) {
 }
 
 function renderAgentAccount() {
+  renderActivationGuide();
   const status = selectedAgentAccount();
   const pending = state.agentAccountLoading.get(String(state.selected?.tokenId));
   const authenticating = pending?.authenticate === true;
@@ -298,26 +300,79 @@ function renderAgentAccount() {
     set("[data-agent-account-worker]", "NOT VERIFIED");
     return;
   }
-  const blockers = status.readiness?.blockers ?? [];
-  set("[data-agent-account-status]", active ? "OUT · AUTONOMOUS"
-    : status.mission?.status === "COMPLETED" ? "RETURNED · MISSION COMPLETE"
-      : setupAvailable ? "READY FOR OWNER SETUP" : "SAFELY LOCKED");
-  set("[data-agent-account-detail]", active
-    ? "The server worker may submit only an exact screened and simulated free mint inside your on-chain limits."
-    : setupAvailable ? "Confirm the complete chat mission, then approve the account/session setup in your wallet."
-      : `Blocked by ${blockers.slice(0, 3).map(blockerLabel).join(" · ") || "deployment readiness"}.`);
+  const activation = activationForPunk(state.selected?.tokenId);
+  set("[data-agent-account-status]", activation.label);
+  set("[data-agent-account-detail]", activation.detail);
   set("[data-agent-account-address]", status.runtime?.account
     ? short(status.runtime.account) : "NOT ACTIVATED");
   set("[data-agent-account-balance]", status.runtime?.nativeBalance != null
     ? recoveryEth(status.runtime.nativeBalance) : "NOT VERIFIED");
   set("[data-agent-account-mission]", status.mission
     ? `${status.mission.status} · ${status.mission.totalLimit} MAX` : "NOT AUTHORIZED");
-  set("[data-agent-account-worker]", status.readiness?.manualExecutionReady
-    ? "READY · RUN ONE CHECK" : status.readiness?.automaticExecutionReady ? "LIVE" : "LOCKED");
+  set("[data-agent-account-worker]", activation.status === 'ACTIVE' ? 'RECENT CHECK VERIFIED' : activation.steps[4].detail);
   if (fundButton) fundButton.hidden = status.runtime?.accountCreated !== true;
 }
 
+function activationForPunk(tokenId) {
+  return punkActivationStatus({ owner: state.wallet?.account, chainId: state.wallet?.chainId,
+    tokenId: String(tokenId), account: state.agentAccounts.get(String(tokenId)),
+    strategy: (String(state.selected?.tokenId) === String(tokenId) ? state.localStrategy : null)
+      ?? state.punks.find(punk => String(punk.tokenId) === String(tokenId))?.strategy });
+}
+
+function renderActivationGuide() {
+  const root = one('[data-activation-guide]');
+  if (!root) return;
+  const model = activationForPunk(state.selected?.tokenId);
+  root.dataset.tone = model.tone;
+  set('[data-activation-label]', model.label); set('[data-activation-detail]', model.detail);
+  const list = one('[data-activation-steps]');
+  const signature = JSON.stringify([model.steps, state.gasFundingBusy, state.agentAccountLoading.get(String(state.selected?.tokenId))?.authenticate === true]);
+  if (list.dataset.signature !== signature) {
+    list.dataset.signature = signature; list.replaceChildren();
+    for (const step of model.steps) {
+      const item = document.createElement('li'); item.dataset.status = step.status;
+      const title = document.createElement('strong'); title.textContent = step.label;
+      const status = document.createElement('small'); status.textContent = step.status === 'COMPLETE' ? 'DONE' : step.status === 'CURRENT' ? 'NEXT STEP' : step.status === 'BLOCKED' ? 'NEEDS ATTENTION' : 'TO DO';
+      const detail = document.createElement('p'); detail.textContent = step.detail;
+      item.append(status, title, detail);
+      if (step.status !== 'COMPLETE' && (step.status !== 'PENDING' || step.id === 'FUND' && model.steps[1].status === 'COMPLETE')) {
+        const button = document.createElement('button'); button.type = 'button'; button.className = 'outline-button';
+        button.dataset.activationAction = step.action;
+        button.textContent = { CHECK: 'CHECK STATUS / SIGN IN', SETUP: 'REVIEW AGENT SETUP', FUND: 'ADD AGENT GAS', MISSION: 'REVIEW MISSION', STATUS: 'VIEW ACTIVITY' }[step.action];
+        button.disabled = state.gasFundingBusy || state.agentAccountLoading.get(String(state.selected?.tokenId))?.authenticate === true;
+        item.append(button);
+      }
+      list.append(item);
+    }
+  }
+  for (const node of all('[data-roster-activation]')) {
+    const status = activationForPunk(node.dataset.rosterActivation);
+    node.textContent = { UNKNOWN: 'CHECK SETUP', SETUP_REQUIRED: 'NOT ACTIVATED', SETUP_BLOCKED: 'NOT ACTIVATED', GAS_REQUIRED: 'NEEDS GAS', RESERVE_REACHED: 'LOW GAS', ACTIVE: 'HUNTING', MISSION_REQUIRED: 'NO MISSION' }[status.status] ?? 'CHECK STATUS';
+    node.dataset.tone = status.tone; node.title = status.detail;
+  }
+}
+
+function currentSwarmFunding() {
+  const context = state.swarmFundingContext;
+  if (!context) return null;
+  const saved = swarmControl?.fundingContext(String(context.tokenId));
+  if (!saved || saved.batchId !== context.batchId || saved.owner !== state.wallet?.account?.toLowerCase()
+    || saved.chainId !== state.wallet?.chainId || saved.tokenId !== String(state.selected?.tokenId)
+    || saved.amountWei !== context.amountWei || saved.amountEth !== context.amountEth) {
+    throw Error('The Swarm funding plan changed. Return to Swarm and check the original transfer before continuing.');
+  }
+  return saved;
+}
+
 function renderAgentGasFunding(status = selectedAgentAccount()) {
+  const allocation = state.swarmFundingContext;
+  const notice = one('[data-swarm-funding-context]');
+  if (notice) notice.hidden = !allocation;
+  set('[data-swarm-funding-allocation]', allocation ? `Swarm allocation: ${allocation.amountEth} ETH to Punk #${allocation.tokenId}’s Agent wallet. Network fee is additional. This is one deposit; no refill permission is granted.` : '');
+  for (const selector of ['#agent-gas-source', '#agent-gas-amount']) {
+    const input = one(selector); if (input) input.disabled = !!allocation || state.gasFundingBusy;
+  }
   const runtime = status?.runtime;
   const verified = runtime?.accountCreated === true && !status?.error;
   const needsSetup = runtime?.accountCreated === false && !status?.error && status?.readiness?.setupAvailable === true;
@@ -523,7 +578,12 @@ function renderWelcomeMessage() {
 }
 
 function renderCurrentMissionStatus() {
-  const view = missionStatus({ account: selectedAgentAccount(), intent: state.selected?.strategy?.intent ?? selectedReviewAgent()?.intent, preview: PREVIEW });
+  let view = missionStatus({ account: selectedAgentAccount(), intent: state.selected?.strategy?.intent ?? selectedReviewAgent()?.intent, preview: PREVIEW });
+  const activation = activationForPunk(state.selected?.tokenId);
+  // A recent worker timestamp alone is not proof that gas, reserve and ownership permit hunting.
+  if (!PREVIEW && selectedAgentAccount()?.runtime?.sessionActive === true && activation.status !== 'ACTIVE') {
+    view = { ...view, label: activation.label, detail: activation.detail, tone: activation.tone, canStart: false };
+  }
   set('[data-hero-status]', view.label);
   set('[data-current-mission-status]', view.label);
   set('[data-current-mission-detail]', view.detail);
@@ -546,6 +606,7 @@ function missionClock(value, fallback) {
 }
 
 function renderMissionMonitor() {
+  renderActivationGuide();
   const current = renderCurrentMissionStatus();
   const monitor = one("[data-mission-monitor]");
   if (!monitor) return;
@@ -1211,7 +1272,9 @@ function renderRoster() {
     const mode = document.createElement("small"); mode.textContent = reviewModeForPunk(punk);
     const notification = document.createElement("span"); notification.className = "mission-badge roster-mission-badge";
     notification.dataset.rosterMissionBadge = String(punk.tokenId); notification.hidden = true;
-    label.append(name, mode); button.append(image, label, notification);
+    const activation = document.createElement('small'); activation.className = 'roster-activation';
+    activation.dataset.rosterActivation = String(punk.tokenId);
+    label.append(name, mode); button.append(image, label, activation, notification);
     button.addEventListener("click", event => selectPunk(punk.tokenId, { focusRoster: event.detail === 0 }));
     button.addEventListener('keydown', event => {
       const index = state.punks.findIndex(item => item.tokenId === punk.tokenId);
@@ -1224,7 +1287,7 @@ function renderRoster() {
     });
     roster.append(button);
   }
-  renderMissionBadges();
+  renderMissionBadges(); renderActivationGuide();
   if (restoreFocus) roster.querySelector('[aria-selected="true"]')?.focus({ preventScroll: true });
 }
 
@@ -1308,7 +1371,7 @@ function selectPunk(tokenId, { focusRoster = false } = {}) {
   state.lastInspection = key ? state.reviewInspections.get(key) ?? null : null;
   state.hydratedTokenId = null; resetGallery();
   state.fundingPlan = null; state.wrappedPlan = null; state.withdrawalAsset = null;
-  state.gasFundingPlan = null;
+  state.gasFundingPlan = null; state.swarmFundingContext = null;
   one("[data-agent-gas-confirm]").checked = false;
   one("[data-resume-chat-mission]").hidden = true;
   one("[data-agent-gas-form] button").textContent = "REVIEW & SIMULATE";
@@ -1509,8 +1572,8 @@ async function openChatGasReview(action = {}) {
   one("[data-agent-gas-confirm]").checked = false;
   one("[data-agent-gas-form] button[type=submit]").textContent = "REVIEW & SIMULATE";
   one("[data-agent-gas-transaction]").hidden = true;
-  one("#agent-gas-amount").value = action.amount ?? "";
-  one("#agent-gas-source").value = action.source ?? "PUNK";
+  one("#agent-gas-amount").value = state.swarmFundingContext?.amountEth ?? action.amount ?? "";
+  one("#agent-gas-source").value = state.swarmFundingContext ? "OWNER" : action.source ?? "PUNK";
   set("[data-agent-gas-result]", "Review the exact source and amount below. Nothing is sent by chat; simulation and your separate MetaMask confirmation are required.");
   const host = one("[data-talk-gas-host]");
   host.append(one("[data-agent-gas-panel]")); host.hidden = false;
@@ -2179,7 +2242,7 @@ function applyOwnedPunks(punks) {
 function clearTransferredPunkReview() {
   invalidateConversationRequests();
   state.localStrategy = null; state.localSkill = null; state.lastInspection = null;
-  state.fundingPlan = null; state.gasFundingPlan = null;
+  state.fundingPlan = null; state.gasFundingPlan = null; state.swarmFundingContext = null;
   state.wrappedPlan = null; state.withdrawalPlan = null;
   state.withdrawalAsset = null; state.fundAgentAccount = false;
   state.reviewMintOpportunityId = null; state.reviewMintArtifact = null; state.reviewMintPrepared = null;
@@ -2554,11 +2617,49 @@ function setup() {
       selectPunk(tokenId); activateTab('talk');
       return runAgentAction(command);
     },
+    getFundingState: tokenId => getAgentGasFundingState(state.wallet?.account?.toLowerCase(), String(tokenId)),
+    openFunding: async allocation => {
+      if (PREVIEW || actionBusy || state.gasFundingBusy || one('[data-confirmation-dialog]').open) throw Error('Finish the current wallet review first.');
+      selectPunk(allocation.tokenId);
+      state.swarmFundingContext = { ...allocation };
+      currentSwarmFunding();
+      one('#agent-gas-source').value = 'OWNER'; one('#agent-gas-amount').value = allocation.amountEth;
+      one('[data-agent-gas-confirm]').checked = false;
+      activateTab('fund'); renderAgentGasFunding();
+      one('[data-agent-gas-panel]').scrollIntoView({ block: 'start' });
+      await loadAgentAccountStatus({ authenticate: true });
+    },
     openStatus: tokenId => { selectPunk(tokenId); activateTab('activity'); void loadAgentAccountStatus({ authenticate: true }); },
   });
-  one('[data-open-swarm]').addEventListener('click', () => {
+  const openSwarm = () => {
     activateTab('talk'); one('[data-swarm-details]').open = true;
     one('[data-swarm-details]').scrollIntoView({ block: 'start' }); swarmControl.refresh();
+  };
+  one('[data-open-swarm]').addEventListener('click', openSwarm);
+  one('[data-swarm-funding-back]').addEventListener('click', openSwarm);
+  one('[data-swarm-funding-leave]').addEventListener('click', () => {
+    if (state.gasFundingBusy) return;
+    state.swarmFundingContext = null; state.gasFundingPlan = null;
+    one('[data-agent-gas-confirm]').checked = false;
+    one('[data-agent-gas-form] button[type=submit]').textContent = 'REVIEW & SIMULATE';
+    renderAgentGasFunding();
+  });
+  one('[data-activation-guide]').addEventListener('click', event => {
+    const action = event.target.closest('[data-activation-action]')?.dataset.activationAction;
+    if (!action || state.gasFundingBusy) return;
+    if (action === 'CHECK') void loadAgentAccountStatus({ authenticate: true });
+    else if (action === 'FUND') {
+      state.gasFundingPlan = null; one('[data-agent-gas-confirm]').checked = false;
+      one('[data-agent-gas-form] button[type=submit]').textContent = 'REVIEW & SIMULATE';
+      activateTab('fund'); one('#agent-gas-source').value = 'OWNER';
+      renderAgentGasFunding(); one('[data-agent-gas-panel]').scrollIntoView({ block: 'start' });
+    } else if (action === 'STATUS') {
+      activateTab('activity'); void loadAgentAccountStatus({ authenticate: true });
+    } else {
+      activateTab('talk');
+      if (state.localStrategy?.intent?.operatingMode === 'AUTONOMOUS') showConfirmation(state.localStrategy);
+      else void runAgentAction(START_FREE_MINT_COMMAND);
+    }
   });
   one("[data-link-form]").addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -2825,6 +2926,7 @@ function setup() {
     onConfirmed: async selection => {
       const punk = state.selected;
       if (punk?.tokenId !== selection.tokenId || state.wallet?.account !== selection.owner) return;
+      swarmControl?.refresh();
       await Promise.all([loadAgentAccountStatus(), loadPunkBalances(punk)]);
       if (state.selected === punk && state.wallet?.account === selection.owner) renderSelected();
     } });
@@ -2839,8 +2941,11 @@ function setup() {
     const source = one("#agent-gas-source").value, amount = one("#agent-gas-amount").value.trim();
     const output = one("[data-agent-gas-result]");
     let submittedHash = null;
+    const allocation = state.swarmFundingContext;
+    const allocationCurrent = () => !allocation ? !state.swarmFundingContext : currentSwarmFunding()?.batchId === allocation.batchId
+      && source === "OWNER" && amount === allocation.amountEth;
     const isSelected = () => state.selected === punk && state.wallet?.account === owner && state.wallet?.chainId === CHAIN_ID;
-    const isCurrent = () => isSelected() && one("#agent-gas-source").value === source
+    const isCurrent = () => isSelected() && allocationCurrent() && one("#agent-gas-source").value === source
       && one("#agent-gas-amount").value.trim() === amount && one("[data-agent-gas-confirm]").checked;
     try {
       if (PREVIEW) throw new Error("Local preview cannot fund a real account.");
@@ -2867,11 +2972,13 @@ function setup() {
           : "Checking both wallets, your reserve and the exact funding transfer…";
         const prepared = await prepareAgentGasFunding(provider, await loadContext(), punk.tokenId, source, amount);
         if (!isCurrent()) throw new Error("Selection changed during review.");
+        if (allocation) swarmControl.fundingPrepared({ batchId: allocation.batchId, tokenId: punk.tokenId, prepared });
         state.gasFundingPlan = prepared; gasButton.textContent = "SUBMIT IN METAMASK";
         output.textContent = `SIMULATION PASSED · Move ${amount} ETH from ${source === "PUNK" ? "this Punk Wallet" : "your connected wallet"} to Agent Account ${prepared.destination}. Your connected wallet pays the transfer fee. No mission is activated.`;
         return;
       }
       output.textContent = "Rechecking funding before MetaMask…";
+      if (allocation) swarmControl.fundingPrepared({ batchId: allocation.batchId, tokenId: punk.tokenId, prepared: state.gasFundingPlan });
       const submitted = await submitAgentGasFunding(provider, state.gasFundingPlan, { loadContext, isCurrent });
       submittedHash = submitted.hash; state.gasFundingPlan = null; gasFundingRecovery.refresh();
       if (isSelected()) {
@@ -2900,7 +3007,7 @@ function setup() {
       if (isSelected()) output.textContent = submittedHash
         ? "Funding confirmation could not be checked. Use Recheck funding below to verify the original transaction before trying again."
         : `${error?.message ?? "Gas funding stopped."} Check wallet activity before retrying if MetaMask opened.`;
-    } finally { state.gasFundingBusy = false; renderAgentGasFunding(); gasFundingRecovery.refresh(); if (!state.gasFundingPlan) gasButton.textContent = "REVIEW & SIMULATE"; }
+    } finally { state.gasFundingBusy = false; renderAgentGasFunding(); gasFundingRecovery.refresh(); swarmControl?.refresh(); if (!state.gasFundingPlan) gasButton.textContent = "REVIEW & SIMULATE"; }
   });
   const fundForm = one("[data-fund-form]");
   const fundButton = fundForm.querySelector("button[type=submit]");
@@ -3102,7 +3209,7 @@ function setup() {
     state.wallet = { ...wallet, account };
     // Invalidate watch drafts before any pending/wrong-chain early return.
     void persistentWatchControl?.selectionChanged();
-    renderMissionBadges();
+    renderMissionBadges(); renderActivationGuide();
     forgeSkillAdminControl?.update();
     brokerPreferences?.refresh(); gasFundingRecovery?.refresh();
     if (account !== previousAccount || wallet.chainId !== previousChain) {
