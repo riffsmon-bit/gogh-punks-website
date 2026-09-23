@@ -7,7 +7,7 @@ const UINT = /^(0|[1-9][0-9]{0,77})$/, QUANTITY = /^0x(?:0|[1-9a-f][0-9a-f]{0,63
 const HASH = /^0x[0-9a-f]{64}$/, ADDRESS = /^0x[0-9a-f]{40}$/;
 const READS = new Set(['eth_chainId', 'eth_accounts', 'eth_getBlockByNumber', 'eth_getCode', 'eth_call',
   'eth_getBalance', 'eth_getTransactionCount', 'eth_gasPrice', 'eth_estimateGas', 'eth_getTransactionByHash', 'eth_getTransactionReceipt']);
-const STATES = ['WALLET_REQUESTED', 'SUBMITTED', 'CONFIRMED', 'REVERTED', 'REJECTED'];
+const STATES = ['WALLET_REQUESTED', 'SUBMITTED', 'CONFIRMED', 'REVERTED', 'CANCELLED', 'REJECTED'];
 const copy = value => structuredClone(value);
 const stable = value => Array.isArray(value) ? `[${value.map(stable).join(',')}]` : value && typeof value === 'object'
   ? `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stable(value[key])}`).join(',')}}` : JSON.stringify(value);
@@ -261,13 +261,25 @@ function validateRecord(record, owner) {
   exact(record, ['schema', 'owner', 'status', 'review', 'transactionHash', 'receipt']);
   valid(record.schema === 'GOGH_SWARM_WALLET_JOURNAL_V1' && record.owner === owner && STATES.includes(record.status), 'JOURNAL_INVALID');
   validateReview(record.review); valid(record.review.owner === owner, 'JOURNAL_INVALID');
-  valid(['SUBMITTED', 'CONFIRMED', 'REVERTED'].includes(record.status) ? !!hash(record.transactionHash) : record.transactionHash === null, 'JOURNAL_INVALID');
-  if (['CONFIRMED', 'REVERTED'].includes(record.status)) {
-    const receipt = record.receipt; exact(receipt, ['transactionHash', 'blockNumber', 'blockHash', 'status', 'events']);
+  valid(['SUBMITTED', 'CONFIRMED', 'REVERTED', 'CANCELLED'].includes(record.status) ? !!hash(record.transactionHash) : record.transactionHash === null, 'JOURNAL_INVALID');
+  if (['CONFIRMED', 'REVERTED', 'CANCELLED'].includes(record.status)) {
+    const receipt = record.receipt, cancelled = record.status === 'CANCELLED';
+    const hasFeeProof = !!receipt && Object.hasOwn(receipt, 'actualNetworkFeeWei');
+    exact(receipt, ['transactionHash', 'blockNumber', 'blockHash', 'status', 'events', ...(cancelled ? ['cancellation'] : []),
+      ...(hasFeeProof ? ['gasUsed', 'effectiveGasPrice', 'actualNetworkFeeWei', 'feeExceeded'] : [])]);
     valid(receipt.transactionHash === record.transactionHash && uint(receipt.blockNumber) >= uint(record.review.anchor.number)
-      && !!hash(receipt.blockHash) && receipt.status === (record.status === 'CONFIRMED' ? '0x1' : '0x0') && Array.isArray(receipt.events), 'JOURNAL_INVALID');
+      && !!hash(receipt.blockHash) && receipt.status === (record.status === 'REVERTED' ? '0x0' : '0x1') && Array.isArray(receipt.events), 'JOURNAL_INVALID');
     if (record.status === 'CONFIRMED') valid(equal(receipt.events, eventProof(record.review)), 'JOURNAL_INVALID');
     else valid(receipt.events.length === 0, 'JOURNAL_INVALID');
+    // Older confirmed journals predate fee reconciliation and remain readable.
+    if (hasFeeProof) valid(uint(receipt.gasUsed, true) * uint(receipt.effectiveGasPrice, true) === uint(receipt.actualNetworkFeeWei, true)
+      && receipt.feeExceeded === (uint(receipt.actualNetworkFeeWei) > uint(record.review.maximumNetworkFeeWei)), 'JOURNAL_INVALID');
+    if (cancelled) {
+      exact(receipt.cancellation, ['from', 'to', 'chainId', 'nonce', 'value', 'input', 'gas', 'feeCap']);
+      valid(hasFeeProof && cancellationTransaction(receipt.cancellation, record.review), 'JOURNAL_INVALID');
+      valid(quantity(receipt.cancellation.gas) >= uint(receipt.gasUsed, true)
+        && quantity(receipt.cancellation.feeCap) >= uint(receipt.effectiveGasPrice, true), 'JOURNAL_INVALID');
+    }
   } else valid(record.receipt === null, 'JOURNAL_INVALID');
   return record;
 }
@@ -328,11 +340,32 @@ function eventProof(review) {
   return [...review.allocations.map(row => event(vault, 'PunkFunded(uint256,uint256,address,uint256)', [vaultNonce, row.tokenId, row.account], [row.amountWei])),
     event(vault, 'BatchFunded(uint256,uint256,uint256)', [vaultNonce], [review.allocations.length, total(action)])];
 }
+function cancellationTransaction(tx, review) {
+  return tx.from?.toLowerCase() === review.owner && tx.to?.toLowerCase() === review.owner
+    && quantity(tx.chainId) === quantity(review.transaction.chainId) && quantity(tx.nonce) === quantity(review.transaction.nonce)
+    && quantity(tx.value) === 0n && (tx.input ?? tx.data)?.toLowerCase() === '0x';
+}
 function verifyTransaction(tx, review, transactionHash) {
-  valid(tx && tx.hash?.toLowerCase() === transactionHash && tx.from?.toLowerCase() === review.owner && tx.to?.toLowerCase() === review.transaction.to
-    && (tx.input ?? tx.data)?.toLowerCase() === review.transaction.data, 'TRANSACTION_MISMATCH');
-  for (const key of ['chainId', 'nonce', 'value', 'gas', 'gasPrice']) valid(quantity(tx[key]) === quantity(review.transaction[key]), 'TRANSACTION_MISMATCH');
+  valid(tx && tx.hash?.toLowerCase() === transactionHash && tx.from?.toLowerCase() === review.owner, 'TRANSACTION_MISMATCH');
+  for (const key of ['chainId', 'nonce']) valid(quantity(tx[key]) === quantity(review.transaction[key]), 'TRANSACTION_MISMATCH');
+  const cancelled = cancellationTransaction(tx, review);
+  valid(cancelled || tx.to?.toLowerCase() === review.transaction.to && (tx.input ?? tx.data)?.toLowerCase() === review.transaction.data
+    && quantity(tx.value) === quantity(review.transaction.value), 'TRANSACTION_MISMATCH');
   valid(tx.authorizationList === undefined || Array.isArray(tx.authorizationList) && tx.authorizationList.length === 0, 'TRANSACTION_MISMATCH');
+  const type = tx.type === undefined ? 0n : quantity(tx.type), gas = quantity(tx.gas);
+  valid([0n, 1n, 2n].includes(type), 'TRANSACTION_MISMATCH');
+  let feeCap;
+  if (type === 2n) {
+    feeCap = quantity(tx.maxFeePerGas);
+    valid(quantity(tx.maxPriorityFeePerGas) <= feeCap && (tx.gasPrice === undefined || quantity(tx.gasPrice) <= feeCap), 'TRANSACTION_MISMATCH');
+  } else {
+    valid(tx.maxFeePerGas === undefined && tx.maxPriorityFeePerGas === undefined, 'TRANSACTION_MISMATCH');
+    feeCap = quantity(tx.gasPrice);
+  }
+  // Recovery attests an owner-signed transaction; it never authorizes a higher fee.
+  // Above-review fee edits may close the journal only after finalized receipt proof.
+  valid(gas > 0n && feeCap > 0n, 'TRANSACTION_MISMATCH');
+  return { cancelled, gas, feeCap, type, withinReviewFee: gas * feeCap <= uint(review.maximumNetworkFeeWei) };
 }
 export async function recoverSwarmWallet(provider, owner, { release, storage, locks, hash: suppliedHash, isCurrent }) {
   const config = releaseConfig(release), holder = ownerAddress(owner), store = storageFor(storage), rpc = rpcReader(provider);
@@ -342,27 +375,39 @@ export async function recoverSwarmWallet(provider, owner, { release, storage, lo
     validateReview(record.review, config);
     const transactionHash = suppliedHash?.toLowerCase() ?? record.transactionHash;
     if (!transactionHash) return record;
-    hash(transactionHash); valid(record.transactionHash === null || record.transactionHash === transactionHash, 'HASH_CHANGED');
+    hash(transactionHash);
+    if (['CONFIRMED', 'REVERTED', 'CANCELLED'].includes(record.status)) {
+      valid(record.transactionHash === transactionHash, 'HASH_CHANGED'); return record;
+    }
     const context = async () => { const [chain, accounts] = await Promise.all([rpc('eth_chainId'), rpc('eth_accounts')]);
       valid(quantity(chain) === BigInt(CHAIN) && Array.isArray(accounts) && accounts[0]?.toLowerCase() === holder && isCurrent(), 'SELECTION_CHANGED'); };
     await context();
-    const tx = await rpc('eth_getTransactionByHash', [transactionHash]); valid(tx !== null, 'TRANSACTION_UNAVAILABLE'); verifyTransaction(tx, record.review, transactionHash);
+    const tx = await rpc('eth_getTransactionByHash', [transactionHash]); valid(tx !== null, 'TRANSACTION_UNAVAILABLE');
+    const verified = verifyTransaction(tx, record.review, transactionHash);
     await context();
-    record = save({ ...record, status: 'SUBMITTED', transactionHash, receipt: null }, store);
+    // An unfinalized replacement must never erase the original recovery hash.
+    if (!verified.cancelled && verified.withinReviewFee && (record.transactionHash === null || record.transactionHash === transactionHash)) {
+      record = save({ ...record, status: 'SUBMITTED', transactionHash, receipt: null }, store);
+    }
     const receipt = await rpc('eth_getTransactionReceipt', [transactionHash]);
     if (receipt === null) return record;
     valid(receipt.transactionHash?.toLowerCase() === transactionHash && ['0x0', '0x1'].includes(receipt.status)
-      && receipt.from?.toLowerCase() === holder && receipt.to?.toLowerCase() === record.review.transaction.to, 'RECEIPT_MISMATCH');
-    valid(quantity(receipt.gasUsed) <= quantity(record.review.transaction.gas)
-      && quantity(receipt.effectiveGasPrice) <= quantity(record.review.transaction.gasPrice), 'RECEIPT_MISMATCH');
+      && receipt.from?.toLowerCase() === holder && receipt.to?.toLowerCase() === tx.to?.toLowerCase(), 'RECEIPT_MISMATCH');
+    valid(quantity(receipt.gasUsed) > 0n && quantity(receipt.gasUsed) <= verified.gas && quantity(receipt.effectiveGasPrice) > 0n
+      && quantity(receipt.effectiveGasPrice) <= verified.feeCap && (verified.type === 2n || quantity(receipt.effectiveGasPrice) === verified.feeCap), 'RECEIPT_MISMATCH');
     const number = quantity(receipt.blockNumber); hash(receipt.blockHash);
-    valid(number >= uint(record.review.anchor.number) && quantity(tx.blockNumber) === number && tx.blockHash?.toLowerCase() === receipt.blockHash, 'RECEIPT_MISMATCH');
+    valid(number >= uint(record.review.anchor.number) && quantity(tx.blockNumber) === number && tx.blockHash?.toLowerCase() === receipt.blockHash
+      && quantity(tx.transactionIndex) === quantity(receipt.transactionIndex), 'RECEIPT_MISMATCH');
     const [included, head] = await Promise.all([rpc('eth_getBlockByNumber', [hex(number), false]), rpc('eth_getBlockByNumber', ['latest', false])]);
     const mined = block(included), latest = block(head, true);
     valid(mined.number === number.toString() && mined.hash === receipt.blockHash && uint(latest.number) >= number, 'CHAIN_CHANGED');
     if (uint(latest.number) - number + 1n < 12n) return record;
-    let events = [];
-    if (receipt.status === '0x1') {
+    let events = [], cancellation;
+    if (verified.cancelled) {
+      valid(receipt.status === '0x1' && Array.isArray(receipt.logs) && receipt.logs.length === 0
+        && await rpc('eth_getCode', [holder, hex(number)]) === '0x', 'CANCELLATION_UNVERIFIED');
+      cancellation = { from: holder, to: holder, chainId: tx.chainId, nonce: tx.nonce, value: '0x0', input: '0x', gas: tx.gas, feeCap: hex(verified.feeCap) };
+    } else if (receipt.status === '0x1') {
       const actual = await contracts(rpc, config, holder, hex(number));
       valid(actual.created && actual.vault === record.review.vault && actual.accountSalt === record.review.accountSalt
         && actual.canonicalRegistry === record.review.canonicalRegistry, 'CONFIG_CHANGED');
@@ -378,8 +423,11 @@ export async function recoverSwarmWallet(provider, owner, { release, storage, lo
       });
     }
     await canonical(rpc, mined); await context();
-    return save({ ...record, status: receipt.status === '0x1' ? 'CONFIRMED' : 'REVERTED', receipt: {
-      transactionHash, blockNumber: number.toString(), blockHash: mined.hash, status: receipt.status, events,
+    const actualNetworkFeeWei = quantity(receipt.gasUsed) * quantity(receipt.effectiveGasPrice);
+    return save({ ...record, transactionHash, status: verified.cancelled ? 'CANCELLED' : receipt.status === '0x1' ? 'CONFIRMED' : 'REVERTED', receipt: {
+      transactionHash, blockNumber: number.toString(), blockHash: mined.hash, status: receipt.status, events, ...(cancellation ? { cancellation } : {}),
+      gasUsed: quantity(receipt.gasUsed).toString(), effectiveGasPrice: quantity(receipt.effectiveGasPrice).toString(), actualNetworkFeeWei: actualNetworkFeeWei.toString(),
+      feeExceeded: actualNetworkFeeWei > uint(record.review.maximumNetworkFeeWei),
     } }, store);
   });
 }
