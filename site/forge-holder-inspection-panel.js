@@ -14,7 +14,9 @@ export function createHolderBurnInspectionPanel({ root, getSelection, getOwnedPu
     root.replaceChildren(); if (disposed) return;
     root.classList.add('forge-holder-panel');
     const selected = getSelection();
-    root.append(node('h3', 'Check sacrifice eligibility'), node('p', 'One eligible sacrifice earns one Training Credit. Public sacrifice is not available yet. You can inspect a Punk’s wallets here; this check cannot burn a Punk or request approval.'));
+    root.append(node('h3', 'Burn for Training Credit · unavailable'),
+      node('p', 'Public burning is not enabled. There is no wallet transaction to complete here. Complete asset checks and protection against assets arriving during confirmation must be finished before this feature can be released.'),
+      node('p', 'You can optionally inspect another Punk’s wallet balances below. Empty balances will not unlock burning. This inspection cannot approve or destroy a Punk.'));
     if (!selected?.owner || selected.chainId !== 4663 || selected.preview === true) {
       root.append(node('p', 'Connect your wallet on Robinhood Chain to inspect your Punks.')); return;
     }
@@ -60,7 +62,7 @@ export function createHolderBurnInspectionPanel({ root, getSelection, getOwnedPu
       if (result.blockers?.includes('HOLDER_CREDITS_REMAIN')) root.append(node('p', 'Use this Punk’s remaining Training Credits before considering sacrifice.'));
       if (result.blockers?.includes('HOLDER_AUTOMATION_ACTIVE')) root.append(node('p', 'Pause this Punk and revoke its automated spending permission before considering sacrifice.'));
       if (result.blockers?.includes('HOLDER_TRANSACTION_PENDING')) root.append(node('p', 'A transaction is pending. Wait for its confirmed result and recheck.'));
-      root.append(node('p', 'Sacrifice is blocked. Complete token history, attached missions/refunds and protection for deposits made while confirmation is pending still need verification.'));
+      root.append(node('p', 'Sacrifice is blocked for this release. You do not need to keep retrying: complete asset and obligation checks and protection during confirmation are still being built. No approval or burn was requested.'));
       const open = node('a', `Open Punk #${sourceId} wallet`); open.href = `/broker/v2/?tab=collection&tokenId=${sourceId}`; root.append(open);
     }
     if (error) { const status = node('p', error); status.setAttribute('role', 'alert'); root.append(status); }

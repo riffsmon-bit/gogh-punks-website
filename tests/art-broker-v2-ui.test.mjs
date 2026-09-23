@@ -33,7 +33,7 @@ test("V2 Control Center exposes the complete selected-Punk action architecture",
   assert.match(html, /Funds go directly into this Punk Wallet/);
   assert.match(html, /ALL HISTORY/);
   assert.match(html, /RULE-BASED AGENT/);
-  assert.match(html, /data-welcome-message/);
+  assert.match(html, /data-action-status/);
   assert.match(html, /data-talk-mode-control/);
   assert.equal((html.match(/data-operating-mode/g) ?? []).length, 6);
   assert.match(html, /AUTONOMOUS · LOCKED/);
@@ -149,15 +149,15 @@ test("transient wallet frames do not erase or repeatedly reload a verified Punk 
   assert.match(script, /punks\.find\(\(punk\) => punk\.tokenId === selectedTokenId\)/);
 });
 
-test("chat sends on Enter while preserving Shift+Enter and composition", async () => {
+test("Actions has controls and results without a hidden chat composer", async () => {
   const [html, script] = await Promise.all([
     readFile(htmlUrl, "utf8"),
     readFile(new URL("../site/broker-v2.js", import.meta.url), "utf8"),
   ]);
-  assert.match(html, /Press Enter to send\. Press Shift plus Enter for a new line\./);
-  assert.match(html, /aria-keyshortcuts="Enter"/);
-  assert.match(script, /event\.key !== "Enter" \|\| event\.shiftKey \|\| event\.isComposing/);
-  assert.match(script, /chatForm\.requestSubmit\(\)/);
+  assert.doesNotMatch(html, /data-chat-form|punk-prompt|data-conversation/);
+  assert.match(html, /data-agent-options/);
+  assert.match(html, /data-action-result/);
+  assert.match(script, /runAgentAction\(command\)/);
 });
 
 test("the hosted PR review runs bounded tab agents while owner transactions stay explicit", async () => {
@@ -181,7 +181,7 @@ test("the hosted PR review runs bounded tab agents while owner transactions stay
   assert.match(html, /data-review-total-limit>NOT SET/);
   assert.match(html, /Choose your mission parameters in Actions/);
   assert.doesNotMatch(html, /UPDATE VIA CHAT|data-review-agent-limit-form/);
-  assert.match(script, /chatForm\.requestSubmit\(\)/);
+  assert.match(script, /runAgentAction\(command\)/);
   assert.match(script, /api\/v2\/review\/run/);
   assert.match(script, /api\/v2\/admin\/discovery\/ingest/);
   assert.match(script, /timeoutMs: 45_000/);
@@ -218,10 +218,8 @@ test("the hosted PR review runs bounded tab agents while owner transactions stay
   assert.match(script, /state\.reviewMissionInFlight\.delete\(key\)/);
   assert.match(script, /const seen = new Set\(\)/);
   assert.match(script, /window\.addEventListener\("storage"/);
-  assert.match(script, /HOOD MORNING/);
-  assert.match(script, /HOOD AFTERNOON/);
-  assert.match(script, /HOOD EVENING/);
-  assert.match(script, /Open Activity for my live status/);
+  assert.doesNotMatch(script, /HOOD MORNING|HOOD AFTERNOON|HOOD EVENING/);
+  assert.match(script, /actionStatus\(selectedAgentAccount/);
   assert.match(script, /normalizeReviewAgentSnapshot/);
   assert.match(script, /restoreReviewSessionState\(\)/);
   assert.match(script, /persistReviewSessionState\(\)/);

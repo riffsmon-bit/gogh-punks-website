@@ -128,10 +128,10 @@ const paidModule = await moduleWithMocks('directed-paid-panel.js', `const PAID_R
 const validatePaidEnvelope=value=>value, submitDirectedPaid=()=>{throw Error('UI tests cannot send');}, paidReviewStatus=()=> 'Saved review';`);
 const burnModule = await moduleWithMocks('forge-selected-burn-panel.js', `const TRAINING_RELEASE={status:'OWNER_CANARY',trainingSource:'${ACCOUNT}'},SELECTED_BURN_OWNER='${OWNER}';
 const validateSelectedBurnEnvelope=value=>value,submitSelectedBurn=()=>{throw Error('UI tests cannot burn');};`);
-function ownerFixture(module, kind, initial, {autoLoad=false,initialFailure=null}={}) {
+function ownerFixture(module, kind, initial, {autoLoad=false,initialFailure=null,recoveryOnly=false}={}) {
   const root = dom(); let envelope = initial, failure = initialFailure, selected = { owner: OWNER, tokenId: '93', chainId: 4663, preview: false },signIns=0;
   const requests = [];
-  const panel = module[kind]({ root, autoLoad, getSelection: () => selected, ensureSession: async () => {signIns++;}, request: async (path, options) => {
+  const panel = module[kind]({ root, autoLoad, recoveryOnly, getSelection: () => selected, ensureSession: async () => {signIns++;}, request: async (path, options) => {
     requests.push(options?.body ? JSON.parse(options.body) : 'get'); if (failure) throw failure; return structuredClone(envelope);
   } });
   return { root, panel, requests, signIns:()=>signIns, fail: error => { failure = error; }, response: value => { envelope = value; }, select: patch => { selected = { ...selected, ...patch }; panel.selectionChanged(); } };
@@ -140,6 +140,25 @@ const ownerEnvelope = (status, action = 'BURN', expiresAt = Date.now() + 90_000)
   intentId: 'original', action, expiresAt, maximumNetworkFeeWei: '21000', deadline: String(Math.floor(Date.now() / 1000) + 300),
   priceWei: '1', executionFeeWei: '1', targetCollection: ACCOUNT, recipient: ACCOUNT,
 } }, state: {} });
+
+test('production burn recovery never offers a new approval, burn or confirmation, including saved prepared reviews', async () => {
+  for (const action of ['BURN','APPROVE','ENABLE_FORGE']) {
+    const f=ownerFixture(burnModule,'createSelectedBurnPanel',ownerEnvelope('PREPARED',action),{recoveryOnly:true});
+    assert.deepEqual(f.requests,[]);
+    await click(button(f.root,'CHECK PREVIOUS TRANSACTION'));
+    assert.deepEqual(walk(f.root).filter(n=>n.tagName==='button').map(n=>n.textContent),['CHECK PREVIOUS TRANSACTION','CANCEL UNSENT REVIEW']);
+    assert.equal(inputs(f.root).length,0);
+    assert.deepEqual(f.requests,['get']); f.panel.destroy();
+  }
+});
+test('production burn recovery retains the original pending transaction and rejects other selections',async()=>{
+  const f=ownerFixture(burnModule,'createSelectedBurnPanel',ownerEnvelope('WALLET_REQUESTED'),{recoveryOnly:true});
+  await click(button(f.root,'CHECK PREVIOUS TRANSACTION'));type(inputs(f.root)[0],HASH);
+  await click(button(f.root,'RECOVER ORIGINAL TRANSACTION'));
+  assert.ok(f.requests.some(r=>r.operation==='recover'&&r.transactionHash===HASH));
+  assert.equal(f.requests.some(r=>['prepare','claim'].includes(r.operation)),false);
+  f.select({tokenId:'94'});assert.equal(f.root.hidden,true);f.panel.destroy();
+});
 
 test('returning holder automatically sees completed paid delivery without a sign-in or another budget',async()=>{
  const envelope={...ownerEnvelope('CONFIRMED','AUTHORIZE'),state:{missionStatus:2,refundWei:'0'},

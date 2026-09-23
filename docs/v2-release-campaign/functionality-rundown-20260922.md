@@ -1,5 +1,9 @@
 # Holder functionality — 22 September 2026
 
+Historical maintenance-release record. Superseded by the
+[public holder rundown](public-holder-rundown-20260922.md), including the deployed
+options interface, AI shutdown and current release boundaries.
+
 **Full public V2: NOT READY.** The maintenance release is LIVE. Optional ETH
 training is implemented locally and is not deployed or accepting payments.
 
