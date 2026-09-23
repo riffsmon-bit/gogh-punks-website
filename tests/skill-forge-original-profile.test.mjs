@@ -28,7 +28,7 @@ function fixture() {
   const client = { getChainId: async () => 4663, getBlock: async () => block,
     getCode: async ({ address, blockNumber }) => { assert.equal(blockNumber, 100n); return code[address.toLowerCase()]; },
     readContract: async ({ functionName, blockNumber }) => { assert.equal(blockNumber, 100n); assert.ok(Object.hasOwn(values, functionName), functionName); return values[functionName]; } };
-  return { config, pack, values, block, code, client, read: () => createOriginalForgeProfileReader({ client, deployment: config, packages: [pack] }) };
+  return { config, pack, values, block, code, client, read: () => createOriginalForgeProfileReader({ client, deployment: config, packages: [pack], paidRelease: { status: 'UNDEPLOYED' } }) };
 }
 test('committed read release keeps writes locked, and undeployed profiles never fabricate progress', async () => {
   validateOriginalForgeDeployment(deployment);

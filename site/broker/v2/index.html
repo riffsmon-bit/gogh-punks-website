@@ -70,7 +70,7 @@
           <div class="hero-art-wrap">
             <span class="frame-corner frame-corner-one"></span><span class="frame-corner frame-corner-two"></span>
             <img data-hero-art src="/assets/collection/1.png" alt="Selected Gogh Punk" />
-            <span class="hero-status"><i></i><b data-hero-status>READY</b></span>
+            <span class="hero-status"><i></i><b data-hero-status>STATUS NOT VERIFIED</b></span>
           </div>
           <div class="hero-copy">
             <span class="kicker">YOUR SELECTED BROKER</span>
@@ -89,6 +89,17 @@
             </div>
           </div>
         </div>
+
+        <section class="current-mission" data-current-mission data-tone="idle" aria-label="Current mint mission">
+          <div><span class="kicker">MINT MISSION · PUNK #<span data-punk-token></span></span>
+            <h3 data-current-mission-status>STATUS NOT VERIFIED</h3>
+            <p data-current-mission-detail>Check status to verify whether your Punk is looking for mints.</p></div>
+          <div class="current-mission-actions">
+            <button class="primary-button" type="button" data-start-free-mission hidden>START FREE-MINT MISSION</button>
+            <button class="outline-button" type="button" data-current-mission-check>CHECK STATUS</button>
+            <button class="text-button" type="button" data-agent-navigate="activity">VIEW ACTIVITY</button>
+          </div>
+        </section>
 
         <nav class="broker-tabs" aria-label="Punk actions">
           <button type="button" data-v2-tab="talk" aria-selected="true"><span>01</span>ACTIONS</button>
@@ -248,7 +259,7 @@
           <section class="broker-panel" data-v2-panel="activity" aria-labelledby="activity-title" hidden>
             <header class="panel-header"><div><span class="kicker">MATCH HISTORY</span><h2 id="activity-title">ACTIVITY</h2></div><button class="filter-button" type="button">ALL HISTORY</button></header>
             <section class="mission-monitor" data-mission-monitor hidden aria-labelledby="mission-monitor-title">
-              <header><div><span class="kicker">LIVE MISSION</span><h3 id="mission-monitor-title">PUNK STATUS</h3></div><b data-mission-status>READY</b></header>
+              <header><div><span class="kicker" data-mission-history-label>MINT MISSION</span><h3 id="mission-monitor-title">PUNK STATUS</h3></div><b data-mission-status>STATUS NOT VERIFIED</b></header>
               <p data-mission-phase aria-live="polite">Waiting for a confirmed mission.</p>
               <dl>
                 <div><dt>PROGRESS</dt><dd data-mission-progress>—</dd></div>
@@ -265,13 +276,13 @@
 
           <section class="broker-panel" data-v2-panel="forge" aria-labelledby="forge-title" hidden>
             <header class="panel-header"><div><span class="kicker" data-forge-punk>SELECT YOUR PUNK</span><h2 id="forge-title">GOGH SKILL FORGE</h2></div><span class="mode-stamp">SKILLS &amp; TRAINING</span></header>
-            <div class="forge-banner"><strong>BUILT. NOT BORN.</strong><p>Learned skills and loadout stay with your Punk when it changes owners. The previous owner’s spending permission does not transfer. Public burning and credit purchases are not available yet.</p></div>
+            <div class="forge-banner"><strong>BUILT. NOT BORN.</strong><p>Learned skills and loadout stay with your Punk when it changes owners. The previous owner’s spending permission does not transfer. Public burning remains unavailable. Paid training starts with an owner test; its controls below show whether this wallet can use it.</p></div>
             <button class="filter-button" type="button" data-forge-connect>CHECK FORGE &amp; LOADOUT</button>
             <p class="forge-note" data-forge-status role="status" aria-live="polite">Select a Punk and check Forge access.</p>
             <section class="forge-loadout" aria-labelledby="forge-loadout-title"><span class="kicker" data-forge-profile-state>PERMANENT TRAINING · NOT VERIFIED</span><h3 id="forge-loadout-title">PUNK LOADOUT</h3><p class="forge-note" data-forge-profile-summary>Learned skills, credits and unlocked slots are unknown until verified. This is not a zero balance.</p><div class="forge-slots" data-forge-slots></div><p class="forge-note" data-forge-profile-note>Seven-slot design capacity. A learned icon never authorizes spending. Current owner policy still applies.</p></section>
             <div class="forge-locked" data-forge-training><h3>PERMANENT TRAINING</h3><p>Connect the selected owner wallet to check training availability.</p></div>
             <section data-holder-burn-inspection aria-label="Check sacrifice eligibility"></section>
-            <section class="forge-locked" data-forge-paid-training aria-label="Optional paid Training Credits"><h3>OPTIONAL PAID TRAINING</h3><p>One purchased Training Credit costs 0.0005 ETH, plus the network fee. Paid Training Credits are being prepared. The existing burn route remains separate.</p></section>
+            <section class="forge-locked" data-forge-paid-training aria-label="Optional paid Training Credits"><h3>OPTIONAL PAID TRAINING</h3><p>One purchased Training Credit costs 0.0005 ETH, plus the network fee. Paid training starts with the approved owner test. Check availability below; the existing burn route remains separate.</p></section>
             <details class="forge-research-examples"><summary>EXPLORE SKILLS · RESEARCH EXAMPLES</summary>
             <h3>TRY THE RESEARCH TOOLS</h3><p class="forge-note">Try a research tool before choosing what to learn. These samples do not spend credits or change your loadout. Rarity Eye compares exactly three existing Gogh Punks, including the selected Punk. Sample ranks never change the frozen OpenSea rarity snapshot.</p>
             <div class="forge-sample"><label>Selected Punk<input data-forge-sample-selected readonly></label><label>Sample Punk 2<input data-forge-sample-two inputmode="numeric" maxlength="4"></label><label>Sample Punk 3<input data-forge-sample-three inputmode="numeric" maxlength="4"></label></div>

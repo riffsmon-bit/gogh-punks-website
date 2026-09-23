@@ -1,7 +1,7 @@
-// Exact reviewed server artifact; deployment and owner acceptance are required before payments.
+// Verified paid-training deployment. Purchases also require the on-chain pause to be lifted.
 export const PAID_TRAINING_RELEASE = Object.freeze({
   "schema": "GOGH_PAID_TRAINING_RELEASE_V1",
-  "status": "UNDEPLOYED",
+  "status": "OWNER_CANARY",
   "chainId": 4663,
   "collection": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
   "collectionCodeHash": "0x3222e4925f77909e6370e17fe071d2774d43e191f6bc72c3a97c97209c6e2e93",
@@ -9,11 +9,13 @@ export const PAID_TRAINING_RELEASE = Object.freeze({
   "registryCodeHash": "0x6a061b9d291e4402e32f93e7815cb2fe2242e725fe4052740f2be0a78049d3c3",
   "legacyProgression": "0x08ada19edf9c387dc07a181069a1848c66ca2da4",
   "legacyProgressionCodeHash": "0x1e4a242384f6081dddc5b7bb0020b247d0107082edb14e9d4368a8f346dcd51d",
-  "extension": null,
-  "extensionCodeHash": null,
+  "extension": "0x5311a2c646efbc6abe7e1d9e6aad5811c5a5f80d",
+  "extensionCodeHash": "0x0d006690030b9aeda4b7664f7691d7536d387b8deb9551f106190de1dbb14293",
   "treasury": "0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6",
   "priceWei": "500000000000000",
-  "allowedOwners": [],
+  "allowedOwners": [
+    "0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6"
+  ],
   "skills": [
     {
       "key": "0x2109a1600733ac7484f1358fcf5a116586a8e66b993ae96f479098fffbb7b1c1",
@@ -23,6 +25,6 @@ export const PAID_TRAINING_RELEASE = Object.freeze({
     }
   ],
   "feeCeilingWei": "100000000000000",
-  "canonicalReadersReviewed": false,
-  "productionPaymentsAuthorized": false
+  "canonicalReadersReviewed": true,
+  "productionPaymentsAuthorized": true
 });

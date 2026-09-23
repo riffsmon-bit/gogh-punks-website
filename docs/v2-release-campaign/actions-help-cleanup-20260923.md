@@ -1,5 +1,11 @@
 # Holder interface correction — 23 September 2026
 
+**DEPLOYED AND PRODUCTION BROWSER-VERIFIED.** Main site:
+<https://goghpunks.xyz/>. Production commit
+`e89246639c8e89b6c45726402e2754d1d41031ff`; Netlify deployment
+`6ab3ceb57730c0000882c850`, published 2026-09-23 13:07:11 UTC.
+This verifies the interface correction, not public burn readiness.
+
 The previous release removed the chat input but left the conversation layout and
 automatic greetings visible to connected holders. The selected-owner burn panel
 also remained beside general wallet inspection, which wrongly suggested a public
@@ -66,3 +72,23 @@ Evidence: `/private/tmp/gogh-actions-connected-reviewed.json` and
 Only local fixtures may simulate the connected holder. They do not prove an
 actual wallet transaction, spend funds or grant new permissions. No new agents,
 LLM calls, contract tests/builds or deployments are needed for unchanged contracts.
+
+## Deployment acceptance
+
+PR [74](https://github.com/riffsmon-bit/gogh-punks-website/pull/74) merged through
+the normal pipeline after preview checks. One preview and one production deploy
+were used. Preview `6ab3cdbb80c30700086ebbfc` passed its gates; browser differences
+were only Netlify's injected preview toolbar, blocked by the existing CSP.
+
+Production browser check passed: 15 captures at 1440, 375 and 320 px, no script,
+console or network errors, no horizontal overflow, no chat document elements,
+and all seven contextual help sections mounted. All 16 checked served-file entries
+matched the production commit exactly. Evidence:
+`/private/tmp/gogh-preview-browser-evidence-Mhtc7s/result.json`.
+
+Root V2, `/index.html`, `/broker/v2/` and `/guide/` serve successfully. Providers
+returns zero enabled models. Unsigned paid-mint and burn-inspection requests are
+rejected with 401. No actual wallet transaction was executed. Final focused
+UI/recovery recheck passed 34 tests in addition to the earlier gate and 72-test
+group. Full JavaScript and contract suites were not rerun for this interface-only
+change. The final evidence update is saved locally without another cloud build.

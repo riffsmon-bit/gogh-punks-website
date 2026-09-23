@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { encodeEventTopics, keccak256, parseAbi, zeroAddress } from 'viem';
 import { createHolderBurnCoordinator } from '../broker/src/v4/skill-forge/holder-coordinator.mjs';
+import { readHolderCreditEvidence } from '../broker/src/v4/skill-forge/holder-credit-evidence.mjs';
 import { burnReviewDigest } from '../broker/src/v4/skill-forge/selected-burn-store.mjs';
 import { holderBurnSelection } from '../broker/src/v4/skill-forge/holder-source.mjs';
 import { HOLDER_OBLIGATION_CHECKS } from '../broker/src/v4/skill-forge/holder-obligations.mjs';
@@ -44,7 +45,7 @@ function fixture() {
   const source = { selection, anchor: { number: '10', hash: h(10), timestamp: String(block.timestamp) }, wallets: [10, 11, 12, 13].map(n => ({ address: a(n),
     nativeWei: '0', wethWei: '0', entryPointDepositWei: '0', sessionActive: false, pendingTransaction: false })) };
   const clients = [client(), client()];
-  const options = { clients, release, store, selection, now: () => clock, readSource: async () => structuredClone(source),
+  const options = { clients, release, store, selection, now: () => clock, readCredits: options => readHolderCreditEvidence({ ...options, paidReader: async () => null }), readSource: async () => structuredClone(source),
     historyScanner: { advance: async () => { if (!control) throw Error('CONTROL_FAILED'); return { complete: !incomplete, cursor: '10', anchorHash: h(10), assets: [] }; } },
     readInventory: async () => ({ complete: !unknown, empty: !asset, assets: [], nonstandardAssets: 'OWNER_REVIEW_REQUIRED' }),
     checkObligations: async () => ({ schema: 'GOGH_HOLDER_BURN_OBLIGATIONS_V1', sourceTokenId: '812', anchor: source.anchor, complete: true, clear: obligations,

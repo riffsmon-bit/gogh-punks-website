@@ -28,7 +28,7 @@ function mount(next=mode){mode=next;sessionStorage.setItem('paid-mode',mode);pan
   if(a.operation==='unlock'){s.unlockedSlots++;s.equipped.push('0x'+'0'.repeat(64));s.purchasedCredits=String(BigInt(s.purchasedCredits)-1n);}
   if(a.operation==='equip')s.equipped[a.slot]=a.skillKey;if(a.operation==='unequip')s.equipped[a.slot]='0x'+'0'.repeat(64);
   s.reviewNonce=String(BigInt(s.reviewNonce)+1n);s.reviewStateHash='0x'+BigInt(s.reviewNonce).toString(16).padStart(64,'0');};
- panel=createPaidTrainingPanel({root,getSelection:()=>selected,release:mode==='undeployed'?PAID_TRAINING_RELEASE:f.release,
+ panel=createPaidTrainingPanel({root,getSelection:()=>selected,release:mode==='undeployed'?{...PAID_TRAINING_RELEASE,status:'UNDEPLOYED',extension:null,extensionCodeHash:null,allowedOwners:[],canonicalReadersReviewed:false,productionPaymentsAuthorized:false}:f.release,
   request:(...args)=>f.request(...args),getProvider:()=>f.provider,storage:localStorage,
   ensureSession:async()=>{const c=counters();c.signIns++;sessionStorage.setItem('paid-counters',JSON.stringify(c));}});}
 window.paid={hash:PAID_UI_HASH,fixture:()=>f,counters,text:()=>root.textContent,

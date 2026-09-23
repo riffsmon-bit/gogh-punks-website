@@ -202,7 +202,7 @@ test("the hosted PR review runs bounded tab agents while owner transactions stay
   assert.match(script, /releaseReviewMissionLease\(key\)/);
   assert.match(script, /REVIEW_MISSION_POLL_MS = 60_000/);
   assert.match(script, /if \(dispatchAfterActivation\) await sendReviewAgentOut\(\)/);
-  assert.match(script, /serverMission\?\.intent \?\? agent\?\.intent/);
+  assert.match(script, /state\.selected\?\.strategy\?\.intent \?\? agent\?\.intent \?\? serverMission\?\.intent/);
   assert.match(script, /Your signed strategy is active, but only MetaMask can approve a mint/);
   assert.match(script, /MetaMask should be open now\. Sign the free strategy-activation message/);
   assert.match(script, /ACTIVATION STOPPED/);
@@ -219,7 +219,7 @@ test("the hosted PR review runs bounded tab agents while owner transactions stay
   assert.match(script, /const seen = new Set\(\)/);
   assert.match(script, /window\.addEventListener\("storage"/);
   assert.doesNotMatch(script, /HOOD MORNING|HOOD AFTERNOON|HOOD EVENING/);
-  assert.match(script, /actionStatus\(selectedAgentAccount/);
+  assert.match(script, /missionStatus\(\{ account: selectedAgentAccount/);
   assert.match(script, /normalizeReviewAgentSnapshot/);
   assert.match(script, /restoreReviewSessionState\(\)/);
   assert.match(script, /persistReviewSessionState\(\)/);
