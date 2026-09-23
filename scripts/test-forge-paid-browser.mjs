@@ -19,6 +19,7 @@ let f, panel, selected, held, mode=sessionStorage.getItem('paid-mode')||'undeplo
 const root=document.querySelector('[data-forge-paid-training]');
 const counters=()=>JSON.parse(sessionStorage.getItem('paid-counters')||'{"sends":0,"signIns":0}');
 function mount(next=mode){mode=next;sessionStorage.setItem('paid-mode',mode);panel?.destroy();f=paidUiFixture();selected=f.selected;
+ f.chainRead=f.provider.request;
  f.beforeSend=tx=>{const saved=Object.keys(localStorage).map(k=>JSON.parse(localStorage.getItem(k))).find(v=>v.attempted);
   if(!saved||JSON.stringify(saved.review.transaction)!==JSON.stringify(tx))throw Error('EXACT_ATTEMPT_NOT_SAVED');
   const c=counters();c.sends++;sessionStorage.setItem('paid-counters',JSON.stringify(c));
@@ -29,11 +30,17 @@ function mount(next=mode){mode=next;sessionStorage.setItem('paid-mode',mode);pan
   if(a.operation==='equip')s.equipped[a.slot]=a.skillKey;if(a.operation==='unequip')s.equipped[a.slot]='0x'+'0'.repeat(64);
   s.reviewNonce=String(BigInt(s.reviewNonce)+1n);s.reviewStateHash='0x'+BigInt(s.reviewNonce).toString(16).padStart(64,'0');};
  panel=createPaidTrainingPanel({root,getSelection:()=>selected,release:mode==='undeployed'?{...PAID_TRAINING_RELEASE,status:'UNDEPLOYED',extension:null,extensionCodeHash:null,allowedOwners:[],canonicalReadersReviewed:false,productionPaymentsAuthorized:false}:f.release,
-  request:(...args)=>f.request(...args),getProvider:()=>f.provider,storage:localStorage,
+  request:(...args)=>f.request(...args),getProvider:()=>f.provider,readProvider:{request:args=>f.chainRead(args)},storage:localStorage,
   ensureSession:async()=>{const c=counters();c.signIns++;sessionStorage.setItem('paid-counters',JSON.stringify(c));}});}
 window.paid={hash:PAID_UI_HASH,fixture:()=>f,counters,text:()=>root.textContent,
  async reset(next='live'){localStorage.clear();sessionStorage.removeItem('paid-counters');mount(next);},
  mode:value=>{f.mode=value;},receipt:value=>{f.receiptStatus=value;},remount:()=>mount(),
+ walletArchiveUnavailable(){const request=f.provider.request;f.provider.request=args=>['eth_getBlockByNumber','eth_getCode','eth_call','eth_getLogs'].includes(args.method)
+  ?Promise.reject(Object.assign(Error('wallet archival method unsupported'),{code:-32602})):request(args);},
+ readFault(kind){const request=f.chainRead;f.chainRead=async args=>{const result=await request(args);
+  if(kind==='chain'&&args.method==='eth_chainId')return '0x1';
+  if(kind==='anchor'&&args.method==='eth_getBlockByNumber'&&args.params[0]!=='latest')return {...result,hash:'0x'+'f'.repeat(64)};
+  return result;};},
  select(value){selected=value;panel.selectionChanged();},setState:patch=>Object.assign(f.state,patch),
  holdVerify(){f.verifyHook=()=>new Promise(resolve=>{held=resolve;});},release:()=>held?.(),
  controls:()=>[...root.querySelectorAll('button')].map(b=>({text:b.textContent,disabled:b.disabled})),
@@ -91,6 +98,12 @@ try {
   assert.equal(await evaluate(`paid.text().includes('Revoke its burn approval before buying credits for it.')`), true);
   assert.equal(await evaluate('paid.stats().methods.length'), 0); assert.equal(await evaluate('paid.counters().sends'), 0);
   await capture('burn-approval-blocked'); result.scenarios.push('active sacrifice approval blocks purchase before wallet access');
+  await evaluate('paid.reset();paid.walletArchiveUnavailable()'); await prepared(); await click('CONFIRM PAID TRAINING IN WALLET');
+  assert.equal(await evaluate('paid.counters().sends'),1); result.scenarios.push('wallet archive/log methods reject -32602; separate verified chain reads still reach one send stub');
+  for(const fault of ['chain','anchor']){await evaluate('paid.reset()');await prepared();await evaluate('paid.readFault('+JSON.stringify(fault)+')');
+    await click('CONFIRM PAID TRAINING IN WALLET');assert.equal(await evaluate('paid.counters().sends'),0);
+    assert.equal(await evaluate('paid.text().includes("No wallet request was made")'),true);}
+  result.scenarios.push('wrong independent read chain or canonical anchor blocks before wallet confirmation');
   await evaluate('paid.reset()'); await prepared(); assert.equal(await evaluate(`paid.text().includes('no refund function')`), true); await capture('buy-review');
   await click('CONFIRM PAID TRAINING IN WALLET'); assert.equal(await evaluate('paid.counters().sends'), 1); await capture('submitted'); await settle(); result.scenarios.push('exact purchase and successful receipt');
   await click('REVIEW PAID TRAINING SETUP'); await capture('activation-review'); await click('CONFIRM PAID TRAINING IN WALLET'); await settle();

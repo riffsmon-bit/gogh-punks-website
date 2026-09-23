@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { encodeFunctionData, parseAbi } from 'viem';
 import { PAID_TRAINING_RELEASE } from '../site/forge-paid-release.js';
-import { createPaidTrainingWallet, paidReleaseAvailable, paidTrainingCalldata, validatePaidReview, PAID_ZERO_KEY } from '../site/forge-paid-wallet.js';
+import { createPaidTrainingWallet, createPaidTrainingReadProvider, paidReleaseAvailable, paidTrainingCalldata, validatePaidReview, PAID_ZERO_KEY } from '../site/forge-paid-wallet.js';
 import { paidUiFixture, PAID_UI_HASH } from './fixtures/paid-training-ui.mjs';
 const action = (operation = 'buy', skillKey = PAID_ZERO_KEY, slot = 0) => ({ operation, skillKey, slot });
 const envelope = f => ({ review: f.review(action()), maximumNetworkFeeWei: '100000000000000' });
 function wallet(f, extra = {}) { return createPaidTrainingWallet({ release: f.release, getProvider: () => f.provider,
+  readProvider: { request: args => f.provider.request(args) },
   readCurrent: () => f.request('/api/v2/punks/93/forge/paid-training'), verify: async review => { await f.verifyHook(); return { ok: true, review }; },
   wasAttempted: () => f.marker, markAttempted: async () => { f.marker = true; }, isCurrent: () => true, ...extra }); }
 test('paid browser release matches immutable server artifact and cannot enable payment', async () => {
@@ -41,6 +42,69 @@ test('exact paid wallet request is persisted once and cannot replay', async () =
   const w = wallet(f); assert.equal((await w.submit(e, f.selected, action())).transactionHash, PAID_UI_HASH);
   await assert.rejects(w.submit(e, f.selected, action())); assert.equal(f.sends, 1);
   const logs = f.methods.filter(x => x === 'eth_getLogs'); assert.equal(logs.length, 1);
+});
+test('wallet archive restrictions do not block independently verified paid training confirmation', async () => {
+  const f = paidUiFixture(), source = f.provider.request, calls = [];
+  f.provider.request = args => {
+    calls.push(args.method);
+    if (['eth_getBlockByNumber', 'eth_getCode', 'eth_call', 'eth_getLogs'].includes(args.method))
+      throw Object.assign(Error('Unsupported secret wallet endpoint'), { code: -32602 });
+    return source(args);
+  };
+  const result = await wallet(f, { readProvider: { request: source } }).submit(envelope(f), f.selected, action());
+  assert.equal(result.transactionHash, PAID_UI_HASH); assert.equal(f.sends, 1); assert.equal(f.marker, true);
+  assert.deepEqual([...new Set(calls)].sort(), ['eth_accounts', 'eth_chainId', 'eth_estimateGas', 'eth_getBalance', 'eth_getTransactionCount', 'eth_sendTransaction'].sort());
+});
+test('wrong independent chain, anchor, runtime or transfer evidence still blocks a capable wallet', async () => {
+  for (const fault of ['chain', 'anchor', 'runtime', 'transfer']) {
+    const f = paidUiFixture(), source = f.provider.request;
+    const readProvider = { request: async args => {
+      const result = await source(args);
+      if (fault === 'chain' && args.method === 'eth_chainId') return '0x1';
+      if (fault === 'anchor' && args.method === 'eth_getBlockByNumber' && args.params[0] !== 'latest') return { ...result, hash: PAID_UI_HASH };
+      if (fault === 'runtime' && args.method === 'eth_getCode') return '0x6000';
+      if (fault === 'transfer' && args.method === 'eth_getLogs') return [{}];
+      return result;
+    } };
+    await assert.rejects(wallet(f, { readProvider }).submit(envelope(f), f.selected, action()));
+    assert.equal(f.sends, 0, fault); assert.equal(f.marker, false, fault);
+  }
+});
+test('fixed chain reader sends only read methods without cookies and rejects malformed RPC replies', async () => {
+  const calls = [];
+  const reader = createPaidTrainingReadProvider({ fetcher: async (url, options) => {
+    calls.push({ url, options }); const body = JSON.parse(options.body);
+    return new Response(JSON.stringify({ jsonrpc: '2.0', id: body.id, result: '0x1237' }));
+  } });
+  assert.equal(await reader.request({ method: 'eth_chainId' }), '0x1237');
+  assert.equal(calls[0].url, 'https://rpc.mainnet.chain.robinhood.com'); assert.equal(calls[0].options.credentials, 'omit');
+  assert.equal(calls[0].options.redirect, 'error'); assert.equal(calls[0].options.cache, 'no-store');
+  for (const method of ['eth_sendTransaction', 'eth_sign', 'personal_sign', 'wallet_switchEthereumChain'])
+    await assert.rejects(reader.request({ method, params: [] }), e => e.code === 'PAID_CHAIN_READ_UNAVAILABLE');
+  assert.equal(calls.length, 1);
+  for (const response of [{ jsonrpc: '2.0', id: 55, result: '0x1237' }, { jsonrpc: '2.0', id: 1, error: { message: 'private-provider-secret' } }, { jsonrpc: '2.0', id: 1 }]) {
+    const bad = createPaidTrainingReadProvider({ fetcher: async () => new Response(JSON.stringify(response)) });
+    await assert.rejects(bad.request({ method: 'eth_chainId' }), e => e.code === 'PAID_CHAIN_READ_UNAVAILABLE' && !e.message.includes('private-provider-secret'));
+  }
+});
+test('chain and wallet read timeouts are bounded, sanitized and do not mark or send an attempt', async () => {
+  const reader = createPaidTrainingReadProvider({ timeoutMs: 5, fetcher: (_, { signal }) => new Promise((_, reject) => {
+    signal.addEventListener('abort', () => reject(Error('private endpoint timeout')), { once: true });
+  }) });
+  await assert.rejects(reader.request({ method: 'eth_chainId' }), e => e.code === 'PAID_CHAIN_READ_TIMEOUT');
+  const f = paidUiFixture(), source = f.provider.request;
+  f.provider.request = args => args.method === 'eth_getTransactionCount' ? new Promise(() => {}) : source(args);
+  await assert.rejects(wallet(f, { walletReadTimeoutMs: 5 }).submit(envelope(f), f.selected, action()),
+    e => e.code === 'PAID_WALLET_READ_TIMEOUT' && /No wallet request was made/.test(e.message));
+  assert.equal(f.marker, false); assert.equal(f.sends, 0);
+});
+test('unsupported wallet fee check has a safe error code and actionable network guidance', async () => {
+  const f = paidUiFixture(), source = f.provider.request;
+  f.provider.request = args => args.method === 'eth_estimateGas'
+    ? Promise.reject(Object.assign(Error('private-provider-url'), { code: -32602 })) : source(args);
+  await assert.rejects(wallet(f).submit(envelope(f), f.selected, action()), e => e.code === 'PAID_WALLET_RPC_UNSUPPORTED'
+    && /RPC setting/.test(e.message) && !e.message.includes('private-provider-url'));
+  assert.equal(f.sends, 0); assert.equal(f.marker, false);
 });
 test('near-expiry review explains why no wallet prompt opens and makes no RPC or send',async()=>{
  const f=paidUiFixture(),e=envelope(f);

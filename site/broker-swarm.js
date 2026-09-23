@@ -1,5 +1,7 @@
 // Holder batch planning only. Every Punk uses the existing owner-reviewed mission
 // endpoint and wallet flow; this module has no signer, scheduler or spending API.
+import { buildSwarmFunding, restoreSwarmFunding, fundingIdentity, fundingJournalReference,
+  ownerAllocationTransaction, allocationFundingStatus } from './broker-swarm-funding.js';
 const LIMITS = ['1', '2', '3', '5', '10'];
 const STATES = ['QUEUED', 'REVIEW', 'AUTHORIZING', 'AUTHORIZED', 'CHECK_STATUS'];
 export function swarmCommand({ mode, target = '', daily, total, duration = 'FIXED' }) {
@@ -12,17 +14,21 @@ export function swarmCommand({ mode, target = '', daily, total, duration = 'FIXE
   const renewal = duration === 'KEEP_HUNTING' ? ' Keep hunting for up to 100 mints over 30 days.' : '';
   return `Autonomously find and mint free mints. ${scope} Max ${daily} mints per day and ${duration === 'KEEP_HUNTING' ? '100' : total} mints total.${renewal} Keep my existing art preferences, gas limit, reserve, blocked contracts and all other rules. Show the complete rules for review.`;
 }
-export function buildSwarmPlan({ owner, chainId, tokenIds, ownedTokenIds, options }) {
+export function buildSwarmPlan({ owner, chainId, tokenIds, ownedTokenIds, options, fundingBatchId }) {
   if (!/^0x[0-9a-f]{40}$/i.test(owner ?? '') || chainId !== 4663) throw Error('Connect your owner wallet on Robinhood Chain.');
   if (!Array.isArray(tokenIds) || tokenIds.length < 1 || tokenIds.length > 10 || new Set(tokenIds).size !== tokenIds.length
+    || !Array.isArray(ownedTokenIds)
     || tokenIds.some(id => !/^[1-9][0-9]{0,3}$/.test(id) || Number(id) > 5016 || !ownedTokenIds.includes(id))) throw Error('Choose up to 10 currently owned Punks.');
   const command = swarmCommand(options);
   const total = options.duration === 'KEEP_HUNTING' ? '100' : options.total;
-  return { owner: owner.toLowerCase(), chainId, options: { mode: options.mode, target: options.mode === 'DIRECTED' ? options.target.trim().toLowerCase() : '', daily: options.daily, total, duration: options.duration ?? 'FIXED' },
+  const fundingBudgetEth = options.fundingBudgetEth ?? '';
+  const funding = fundingBudgetEth === '' ? null : buildSwarmFunding({ owner, chainId, tokenIds, totalEth: fundingBudgetEth, batchId: fundingBatchId });
+  return { owner: owner.toLowerCase(), chainId, options: { mode: options.mode, target: options.mode === 'DIRECTED' ? options.target.trim().toLowerCase() : '', daily: options.daily, total, duration: options.duration ?? 'FIXED', fundingBudgetEth: funding?.totalEth ?? '' },
     command, rows: tokenIds.map(tokenId => ({ tokenId, status: 'QUEUED', intentHash: null })),
+    funding,
     dailyMaximum: tokenIds.length * Number(options.daily), totalMaximum: tokenIds.length * Number(total) };
 }
-export function mountSwarm({ root, getContext, getPunks, openReview, openStatus, storage }) {
+export function mountSwarm({ root, getContext, getPunks, openReview, openStatus, openFunding, getFundingState = () => null, storage }) {
   const doc = root.ownerDocument, make = (tag, text) => { const n = doc.createElement(tag); if (text) n.textContent = text; return n; };
   // Browsers may throw while accessing the storage property itself (privacy
   // settings, disabled persistence). Keep the rest of the Control Center usable.
@@ -36,7 +42,7 @@ export function mountSwarm({ root, getContext, getPunks, openReview, openStatus,
   const save = () => { const text = JSON.stringify(plan); storage.setItem(storageKey(), text); if (storage.getItem(storageKey()) !== text) throw Error('Swarm progress could not be saved. Free device storage before continuing.'); };
   function refresh() {
     const next = currentKey(), roster = getPunks().map(p => String(p.tokenId)).join(',');
-    if (contextKey === next && rosterKey === roster) return;
+    if (contextKey === next && rosterKey === roster) { render(); return; }
     const changed = next !== contextKey; contextKey = next; rosterKey = roster; generation++; busy = false;
     if (changed) {
       busy = false; plan = null; message = '';
@@ -47,7 +53,10 @@ export function mountSwarm({ root, getContext, getPunks, openReview, openStatus,
           if (saved.owner !== next || saved.chainId !== 4663 || !Array.isArray(saved.rows) || saved.rows.some(r => !STATES.includes(r.status))) throw Error('Invalid saved batch');
           // Progress is informational, never transaction authority. A restored
           // review/attempt must be checked, not automatically submitted again.
-          plan = buildSwarmPlan({ ...saved, tokenIds: saved.rows.map(r => r.tokenId), ownedTokenIds: saved.rows.map(r => r.tokenId) });
+          plan = buildSwarmPlan({ ...saved, fundingBatchId: saved.funding?.batchId, tokenIds: saved.rows.map(r => r.tokenId), ownedTokenIds: saved.rows.map(r => r.tokenId) });
+          if (plan.funding) plan.funding = restoreSwarmFunding(saved.funding, { owner: next, chainId: 4663,
+            tokenIds: saved.rows.map(r => r.tokenId), totalEth: plan.options.fundingBudgetEth });
+          else if (saved.funding) throw Error('Saved funding has no matching budget');
           plan.rows = saved.rows.map(r => ({ tokenId: r.tokenId, status: r.status === 'QUEUED' ? 'QUEUED' : 'CHECK_STATUS', intentHash: null }));
           message = 'Saved batch restored. Check previously reviewed Punks before any new authorization.';
         }
@@ -81,6 +90,60 @@ export function mountSwarm({ root, getContext, getPunks, openReview, openStatus,
         : `Check Punk #${tokenId}’s status before retrying. This batch will not resend its authorization.`;
     render();
   }
+  function fundingCurrent() {
+    if (!plan?.funding || contextKey !== currentKey()) throw Error('The swarm funding selection changed. Reopen the original batch.');
+    const saved = JSON.parse(storage.getItem(storageKey()));
+    if (fundingIdentity(saved?.funding) !== fundingIdentity(plan.funding)) throw Error('The saved funding allocation changed. Check original transfers before continuing.');
+    return plan.funding;
+  }
+  function fundingStatus(allocation) {
+    try { return allocationFundingStatus(plan.funding, allocation, getFundingState(allocation.tokenId)); }
+    catch { return 'CHECK_STATUS'; }
+  }
+  function fundingContext(tokenId) {
+    try {
+      const funding = fundingCurrent(), allocation = funding.allocations.find(row => row.tokenId === tokenId);
+      if (!allocation?.opened || !getPunks().some(p => String(p.tokenId) === tokenId) || fundingStatus(allocation) === 'CONFIRMED') return null;
+      return { batchId: funding.batchId, owner: funding.owner, chainId: 4663, tokenId,
+        amountWei: allocation.amountWei, amountEth: allocation.amountEth };
+    } catch { return null; }
+  }
+  function fundingPrepared({ batchId, tokenId, prepared }) {
+    const funding = fundingCurrent(), allocation = funding.allocations.find(row => row.tokenId === tokenId);
+    if (!allocation?.opened || funding.batchId !== batchId || !fundingContext(tokenId)
+      || prepared?.source !== 'OWNER' || prepared.owner !== funding.owner || prepared.tokenId !== tokenId
+      || prepared.amountWei !== allocation.amountWei || prepared.amount !== allocation.amountEth
+      || prepared.destination !== prepared.transaction?.to
+      || !ownerAllocationTransaction(prepared.transaction, funding.owner, allocation.amountWei)) throw Error('This transfer does not match the reviewed Swarm allocation. No funding was authorized.');
+    if (allocation.transaction) {
+      if (!['REVIEW', 'REJECTED'].includes(fundingStatus(allocation))) throw Error('This allocation already has a funding attempt. Recover its original transaction; do not send another deposit.');
+      if (fundingIdentity(prepared.transaction) !== fundingIdentity(allocation.transaction)) throw Error('This saved review no longer matches your wallet. Check original deposits in wallet activity, then close this planner and create a new budget for only the Punks that still need gas. Do not repeat a pending deposit.');
+    }
+    const record = getFundingState(tokenId);
+    if (['WALLET_REQUESTED', 'SUBMITTED'].includes(record?.status)
+      || (record?.status !== 'REJECTED' && record?.transaction && fundingIdentity(record.transaction) === fundingIdentity(prepared.transaction))) throw Error('Check the original funding record before preparing another deposit.');
+    allocation.transaction = structuredClone(prepared.transaction); save(); render();
+    return fundingContext(tokenId);
+  }
+  async function fund(allocation) {
+    if (busy || typeof openFunding !== 'function' || !plan?.funding?.allocations.includes(allocation)) return;
+    const ticket = ++generation, key = contextKey;
+    const current = () => ticket === generation && key === currentKey() && getPunks().some(p => String(p.tokenId) === allocation.tokenId);
+    if (!current()) return;
+    busy = true;
+    try {
+      const funding = fundingCurrent();
+      if (!allocation.opened) {
+        allocation.baseline = fundingJournalReference(getFundingState(allocation.tokenId), funding.owner, allocation.tokenId);
+        allocation.opened = true;
+      }
+      save();
+      message = `Open Punk #${allocation.tokenId}’s funding review. Review and confirm this deposit separately in your wallet.`; render();
+      await openFunding({ tokenId: allocation.tokenId, amountWei: allocation.amountWei, amountEth: allocation.amountEth, batchId: funding.batchId });
+      if (current()) message = 'Funding review opened. Check the saved deposit status here. A new deposit needs your wallet confirmation; the next Punk will wait for you.';
+    } catch (error) { if (current()) message = error.message; }
+    finally { if (current()) { busy = false; render(); } }
+  }
   function render() {
     root.replaceChildren(); root.classList.add('swarm-panel'); root.setAttribute('aria-busy', String(busy));
     root.append(make('h3', 'SWARM · MULTIPLE PUNKS'), make('p', 'Choose up to 10 Punks owned by this wallet. Search supported free mints, or direct them to one free-mint collection. Each Punk keeps its own wallet, gas cap, reserve, taste and safety rules.'));
@@ -91,10 +154,22 @@ export function mountSwarm({ root, getContext, getPunks, openReview, openStatus,
     if (plan) {
       root.append(make('p', `${plan.rows.length} Punks · Up to ${plan.options.daily} per day and ${plan.options.total} total EACH. Combined maximum: ${plan.dailyMaximum} per day, ${plan.totalMaximum} total. ${plan.options.mode === 'SEARCH' ? 'Previous collection targets will be cleared in each new review.' : `Collection: ${plan.options.target}`}`));
       if (plan.options.duration === 'KEEP_HUNTING') root.append(make('p', 'Keep hunting · each Punk needs its own permission for up to 100 mints or 30 days, whichever comes first. Gas, reserve and daily limits can stop spending earlier. Renew in your wallet to continue afterward; renewal is never automatic.'));
+      if (plan.funding) {
+        root.append(make('h4', 'FUND SWARM'), make('p', `Total deposits: exactly ${plan.funding.totalEth} ETH, split between ${plan.rows.length} Punk Agent Accounts. Your connected wallet pays additional network fees for each separate deposit. Funds go directly to each Punk; there is no shared custody or automatic refill.`));
+        root.append(make('p', 'Any indivisible remainder goes one wei at a time to the lowest Punk numbers. Review amounts below. Funding does not activate a mission; review each Punk’s mission separately. Finish each deposit before opening another. Once prepared, its amount and wallet transaction cannot change inside this batch.'));
+        if (typeof openFunding !== 'function') root.append(make('p', 'Funding review is unavailable on this page. Use each Punk’s Fund screen.'));
+      }
       for (const row of plan.rows) {
         const item = make('article'); const owned = getPunks().some(p => String(p.tokenId) === row.tokenId);
         const label = { QUEUED: 'Waiting for review', REVIEW: 'Awaiting your review', AUTHORIZING: 'Wallet confirmation pending', AUTHORIZED: 'Mission authorized · check live status', CHECK_STATUS: 'Check status before continuing' }[row.status];
         item.append(make('strong', `Punk #${row.tokenId} · ${owned ? label : 'Ownership changed · unavailable'}`));
+        const allocation = plan.funding?.allocations.find(a => a.tokenId === row.tokenId);
+        if (allocation) {
+          const status = fundingStatus(allocation), fundingLabel = { NOT_REVIEWED: 'Deposit not reviewed', REVIEW: 'Review required · not confirmed', WALLET_REQUESTED: 'Wallet result pending · recover original request', SUBMITTED: 'Deposit submitted · check original receipt', CONFIRMED: 'Deposit confirmed in saved receipt', REVERTED: 'Deposit reverted · check history', REJECTED: 'Wallet request cancelled · review original allocation', CHECK_STATUS: 'Funding is not verified · check original history' }[status];
+          item.append(make('p', `${allocation.amountEth} ETH · ${fundingLabel}`));
+          if (status !== 'CONFIRMED') button(item, `${['NOT_REVIEWED', 'REVIEW', 'REJECTED'].includes(status) ? 'REVIEW FUNDING' : 'CHECK FUNDING'} #${row.tokenId}`, () => fund(allocation),
+            !owned || typeof openFunding !== 'function' || plan.rows.some(r => r.status === 'AUTHORIZING'));
+        }
         if (['QUEUED', 'REVIEW'].includes(row.status)) button(item, `REVIEW PUNK #${row.tokenId}`, () => review(row), !owned || plan.rows.some(r => r.status === 'AUTHORIZING'));
         button(item, 'OPEN PUNK / CHECK STATUS', () => openStatus(row.tokenId), !owned || plan.rows.some(r => r.status === 'AUTHORIZING'));
         root.append(item);
@@ -120,6 +195,11 @@ export function mountSwarm({ root, getContext, getPunks, openReview, openStatus,
     const targetLabel = make('label', 'Collection contract · directed free mints only'), target = make('input'); target.placeholder = '0x…'; target.maxLength = 42; target.name = 'target'; targetLabel.append(target); targetLabel.hidden = true; form.append(targetLabel); fields.target = target;
     fields.mode.addEventListener('change', () => { targetLabel.hidden = fields.mode.value !== 'DIRECTED'; });
     fields.duration.addEventListener('change', () => { fields.total.disabled = fields.duration.value === 'KEEP_HUNTING'; });
+    if (typeof openFunding === 'function') {
+      const label = make('label', 'Optional total gas funding budget (ETH)'), input = make('input'); input.name = 'fundingBudgetEth'; input.value = ''; input.inputMode = 'decimal'; input.maxLength = 21; input.placeholder = 'Example: 0.003';
+      label.append(input); form.append(label); fields.fundingBudgetEth = input;
+      form.append(make('p', 'Leave blank to skip funding. Split up to 10 ETH equally, at most 1 ETH per Punk. Each deposit needs its own wallet confirmation and additional network gas. No funds move when you create the plan.'));
+    }
     form.append(make('p', 'Keep hunting stops sooner when a Punk reaches its gas reserve, is paused, or fails a safety check. Daily limits still apply. After 100 mints or 30 days, review and renew that Punk’s wallet permission.'));
     const submit = make('button', 'REVIEW SWARM PLAN'); submit.type = 'submit'; submit.className = 'primary-button'; form.append(submit);
     form.addEventListener('submit', event => { event.preventDefault(); try {
@@ -128,5 +208,5 @@ export function mountSwarm({ root, getContext, getPunks, openReview, openStatus,
     } catch (error) { plan = null; message = error.message; render(); } });
     root.append(form);
   }
-  refresh(); render(); return { refresh, authorization };
+  refresh(); render(); return { refresh, authorization, fundingContext, fundingPrepared };
 }

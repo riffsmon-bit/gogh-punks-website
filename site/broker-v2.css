@@ -684,3 +684,21 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .mission-updates li p { margin: 0; }
 .mission-updates li small { color: var(--muted); }
 .mission-updates button { min-height: 44px; max-width: 100%; white-space: normal; justify-self: start; }
+
+/* Verified setup status stays useful without another polling loop. */
+.activation-guide { padding: 20px; border: 1px solid var(--line, #34414e); margin: 16px 0; background: #10171d; }
+.activation-heading { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; }
+.activation-heading strong { color: #e1ff46; }
+.activation-guide[data-tone="warning"] .activation-heading strong { color: #ffd08a; }
+.activation-guide details summary { cursor: pointer; color: #64e6fa; padding: 10px 0; }
+.activation-guide ol { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); gap: 16px; padding: 0; list-style: none; }
+.activation-guide li { padding: 16px; border-top: 3px solid #34414e; min-width: 0; }
+.activation-guide li[data-status="COMPLETE"] { border-color: #c9ee3e; }
+.activation-guide li[data-status="CURRENT"] { border-color: #64e6fa; }
+.activation-guide li small, .activation-guide li strong { display: block; }
+.activation-guide li small { margin-bottom: 10px; color: #a4b3c3; }
+.activation-guide li p { font-size: .9rem; line-height: 1.5; }
+.activation-guide button { white-space: normal; min-height: 44px; }
+.roster-slot .roster-activation { display: block; padding: 0 7px 8px; font-size: 9px; letter-spacing: .04em; color: #a4b3c3; text-align: left; }
+.roster-slot .roster-activation[data-tone="active"] { color: #dfff40; }
+[data-swarm-funding-context] { border-left: 3px solid #64e6fa; padding: 12px 16px; margin: 16px 0; overflow-wrap: anywhere; }
