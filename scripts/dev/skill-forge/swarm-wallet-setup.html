@@ -1,0 +1,12 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Swarm Wallet factory setup</title><link rel="stylesheet" href="/setup.css"><script type="module" src="/setup.js"></script></head><body><main>
+<h1>Swarm Wallet factory setup</h1>
+<p>Deploy the reviewed factory for dedicated, owner-controlled Swarm Wallets on Robinhood Chain.</p>
+<p>Each holder can create their own wallet, deposit ETH, approve bounded gas-funding batches for currently owned Punks, and withdraw unused ETH. The factory has no administrator or spending authority. There are no automatic refills, worker permissions or upgrades.</p>
+<p>This one-time deployment costs the displayed network fee. It creates no holder wallet, deposits no funds, starts no missions and burns no NFT. The public UI remains disabled until the deployed code and immutable settings are verified.</p>
+<section><h2>Connect the administrator wallet</h2><p id="identity" class="address"></p><button id="connect">Connect wallet</button><p id="wallet" class="address"></p></section>
+<section><h2>Setup transactions</h2><ol id="steps"></ol><button id="prepare">Prepare next transaction</button></section>
+<section id="review" hidden><h2 id="review-title"></h2><p>Network: Robinhood Chain · 4663</p><p>Transaction value: 0 ETH</p><p id="fee"></p><p id="target" class="address"></p><p id="expiry"></p><button id="send">Confirm setup · open wallet</button><details><summary>Exact transaction and saved review</summary><pre id="review-json"></pre></details></section>
+<section><h2>Transaction recovery</h2><p>A saved wallet request will not be sent again. If the wallet result was lost, copy its transaction hash from wallet activity.</p><label for="hash">Transaction hash</label><input id="hash" placeholder="0x…" size="66"><button id="recover">Recover transaction</button><button id="recheck">Recheck receipt</button></section>
+<p id="status" role="status" aria-live="polite" hidden></p>
+<p>Every later holder action will have its own review, simulation and wallet confirmation. Funding a Punk does not activate it; funds already sent to a Punk stay in that Punk's wallet.</p>
+</main></body></html>

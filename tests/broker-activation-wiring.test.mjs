@@ -51,7 +51,7 @@ function fixture() {
     showConfirmation: draft => calls.push(['confirmation', draft]),
     runAgentAction: command => calls.push(['command', command]), START_FREE_MINT_COMMAND: 'REVIEW_AUTONOMOUS_MISSION',
     renderCurrentMissionStatus: () => ({}), renderMissionBadges() {},
-    persistentWatchControl: null, forgeSkillAdminControl: null, brokerPreferences: null, gasFundingRecovery: null,
+    swarmWalletControl: null, persistentWatchControl: null, forgeSkillAdminControl: null, brokerPreferences: null, gasFundingRecovery: null,
     ownerRefresh: { invalidate() {} }, clearTransferredPunkReview() {}, resetGallery() {},
     window: { addEventListener: (name, handler) => { windowEvents[name] = handler; } },
     fetch() { throw Error('Rendering must not fetch status for every Punk'); },

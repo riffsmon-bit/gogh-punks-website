@@ -2,6 +2,7 @@ import { displayEth, displayEthBudget } from "./broker-v2-amounts.js";
 import { linkFindings, createLinkFindingsCard } from './broker-v2-link-findings.js';
 import { mountAgentOptions } from "./broker-agent-options.js";
 import { mountSwarm } from './broker-swarm.js';
+import { mountSwarmWallet } from './swarm-wallet-panel.js';
 import { punkActivationStatus } from './broker-activation-status.js';
 import { createMissionNotifications } from './broker-mission-notifications.js';
 import { mountFeatureHelp } from './broker-feature-help.js';
@@ -109,6 +110,7 @@ let marketplaceSelectionKey = '';
 let marketplaceSelectionRevision = 0;
 let persistentWatchControl = null;
 let swarmControl = null;
+let swarmWalletControl = null;
 let missionNotifications = null;
 let agentRecoveryControl = null;
 const one = (selector) => document.querySelector(selector);
@@ -1225,6 +1227,7 @@ function renderMissionBadges() {
 
 function renderRoster() {
   void persistentWatchControl?.selectionChanged();
+  swarmWalletControl?.refresh();
   swarmControl?.refresh();
   forgeSkillAdminControl?.update();
   forgeControl?.selectionChanged();
@@ -1292,6 +1295,7 @@ function renderRoster() {
 }
 
 function renderSelected() {
+  swarmWalletControl?.refresh();
   swarmControl?.refresh();
   brokerPreferences?.refresh();
   gasFundingRecovery?.refresh();
@@ -2608,6 +2612,10 @@ function setup() {
     showConfirmation(draft);
     return draft;
   };
+  swarmWalletControl = mountSwarmWallet({ root: one('[data-swarm-wallet-panel]'),
+    getContext: () => ({ owner: state.wallet?.account, chainId: state.wallet?.chainId, preview: PREVIEW }),
+    getPunks: () => PREVIEW ? [] : state.punks, getProvider: () => window.__GOGH_WALLET_PROVIDER__,
+  });
   swarmControl = mountSwarm({ root: one('[data-swarm-panel]'),
     getContext: () => ({ owner: state.wallet?.account, chainId: state.wallet?.chainId }),
     getPunks: () => PREVIEW ? [] : state.punks,
@@ -2926,6 +2934,7 @@ function setup() {
     onConfirmed: async selection => {
       const punk = state.selected;
       if (punk?.tokenId !== selection.tokenId || state.wallet?.account !== selection.owner) return;
+      swarmWalletControl?.refresh();
       swarmControl?.refresh();
       await Promise.all([loadAgentAccountStatus(), loadPunkBalances(punk)]);
       if (state.selected === punk && state.wallet?.account === selection.owner) renderSelected();
@@ -3209,6 +3218,7 @@ function setup() {
     state.wallet = { ...wallet, account };
     // Invalidate watch drafts before any pending/wrong-chain early return.
     void persistentWatchControl?.selectionChanged();
+    swarmWalletControl?.refresh();
     renderMissionBadges(); renderActivationGuide();
     forgeSkillAdminControl?.update();
     brokerPreferences?.refresh(); gasFundingRecovery?.refresh();
