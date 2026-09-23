@@ -2,7 +2,7 @@ import { TRAINING_RELEASE } from './forge-training-release.js';
 import { SELECTED_BURN_OWNER,validateSelectedBurnEnvelope,submitSelectedBurn } from './forge-selected-burn-wallet.js';
 const el=(tag,text)=>{const node=document.createElement(tag);if(text!=null)node.textContent=text;return node;};
 const eth=n=>{const value=BigInt(n),f=(value%10n**18n).toString().padStart(18,'0').replace(/0+$/,'');return `${value/10n**18n}${f?'.'+f:''} ETH`;};
-export function createSelectedBurnPanel({root,getSelection,ensureSession,request,getProvider=()=>window.__GOGH_WALLET_PROVIDER__}) {
+export function createSelectedBurnPanel({root,getSelection,ensureSession,request,getProvider=()=>window.__GOGH_WALLET_PROVIDER__,recoveryOnly=false}) {
   if(!root)return null;let envelope=null,busy=false,key='',sequence=0,message='',expiryTimer;
   let draft={reviewKey:null,checked:false,confirmation:'',recoveryId:null,hash:''};
   const available=()=>{const s=getSelection();return TRAINING_RELEASE.status==='OWNER_CANARY'&&s?.owner?.toLowerCase()===SELECTED_BURN_OWNER
@@ -40,10 +40,18 @@ export function createSelectedBurnPanel({root,getSelection,ensureSession,request
   function button(parent,label,action,disabled=false){const b=el('button',label);b.type='button';b.className='filter-button';b.disabled=busy||disabled;b.addEventListener('click',()=>void action());parent.append(b);return b;}
   function render(){clearTimeout(expiryTimer);root.replaceChildren();root.hidden=!available();if(!available())return;
     root.setAttribute('aria-busy',String(busy));
-    root.append(el('h3','BURN #1753 → TRAIN #93'),el('p','Burning permanently destroys Punk #1753 and can remove access to all its wallets, including assets received later. Assets do not move to #93. The burn earns one credit; learning Rarity Eye and equipping it are separate transactions.'));
-    const status=el('p',message||statusText(envelope?.record));status.setAttribute('role','status');status.setAttribute('aria-live','polite');root.append(status);
-    button(root,busy?'CHECKING…':'RECHECK SELECTED TEST',check);
+    root.append(el('h3',recoveryOnly?'Previous burn receipt':'BURN #1753 → TRAIN #93'),el('p',recoveryOnly
+      ?'Check the original transaction for source #1753 and recipient #93. No new approval or burn can be prepared here.'
+      :'Burning permanently destroys Punk #1753 and can remove access to all its wallets, including assets received later. Assets do not move to #93. The burn earns one credit; learning Rarity Eye and equipping it are separate transactions.'));
+    const status=el('p',message||(recoveryOnly&&!envelope?'Check the saved transaction status.':statusText(envelope?.record)));status.setAttribute('role','status');status.setAttribute('aria-live','polite');root.append(status);
+    button(root,busy?'CHECKING…':recoveryOnly?'CHECK PREVIOUS TRANSACTION':'RECHECK SELECTED TEST',check);
     const r=envelope?.record;
+    if(recoveryOnly&&r?.status!=='WALLET_REQUESTED'){
+      if(r?.status==='PREPARED'){root.append(el('p','An unsent review exists. It cannot be submitted from this recovery view.'));button(root,'CANCEL UNSENT REVIEW',cancel);}
+      else if(envelope?.state?.credited)root.append(el('p','The original burn credit is recorded. Open Forge to check the current credit balance and skills.'));
+      else if(envelope)root.append(el('p','No pending wallet request needs recovery. Public burning remains unavailable.'));
+      return;
+    }
     if(r?.status==='PREPARED'){
       const v=r.review,nextReviewKey=JSON.stringify([key,r.reviewHash,v]);
       if(draft.reviewKey!==nextReviewKey)draft={...draft,reviewKey:nextReviewKey,checked:false,confirmation:''};

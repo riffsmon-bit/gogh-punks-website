@@ -65,7 +65,7 @@ export function createForgeControl({ root, getSelection, ensureSession, request,
           panel?.scrollIntoView({ block: 'start', behavior: 'smooth' }); panel?.querySelector('button')?.focus({ preventScroll: true }); });
         card.append(view, el('small', 'Training checks the current skill and credits before each review. Research tests below do not teach or equip it.'));
       }
-      const button = el('button', skill.test ? 'RUN READ-ONLY TEST' : 'COMING SOON', 'filter-button'); button.type = 'button';
+      const button = el('button', skill.test ? 'PREVIEW RESEARCH' : 'COMING SOON', 'filter-button'); button.type = 'button';
       button.disabled = busy || !snapshot?.labAvailable || !skill.test || ['get_market_listings', 'rank_observed_listings', 'research_project'].includes(skill.test) && !snapshot.marketAvailable;
       if (skill.test) button.addEventListener('click', () => run(skill.test));
       card.append(button); grid.append(card);
@@ -90,11 +90,11 @@ export function createForgeControl({ root, getSelection, ensureSession, request,
       const options = action ? { method: 'POST', headers: { 'content-type': 'application/json' }, timeoutMs: 45000,
         body: JSON.stringify({ action, ...(SAMPLE_ACTIONS.includes(action) ? { sampleTokenIds: [selected.tokenId,
           root.querySelector('[data-forge-sample-two]').value.trim(), root.querySelector('[data-forge-sample-three]').value.trim()] } : {}) }) } : {};
-      status.textContent = action ? 'Running a live read-only research test…' : 'Verifying Punk ownership and lab availability…';
+      status.textContent = action ? 'Checking current research data…' : 'Verifying Punk ownership and research availability…';
       const payload = validate(await request(`/api/v2/punks/${selected.tokenId}/forge`, options), selected);
       if (ticket !== sequence || original !== context()) return;
       snapshot = payload;
-      status.textContent = payload.labAvailable ? 'OWNER VERIFIED · Research tests available. No credits, equipment or spending authority granted.' : 'OWNER VERIFIED · Controlled research lab is not enabled for this owner yet.';
+      status.textContent = payload.labAvailable ? 'Ownership verified. Research previews are available; they do not teach or equip a skill.' : 'Ownership verified. Research previews are not available for this owner yet.';
       if (action) {
         report.append(el('h3', 'LIVE RESEARCH RESULT'), el('p', `Punk #${selected.tokenId} · ${new Date(payload.observedAt).toLocaleString()} · ${action.replaceAll('_', ' ')}`));
         const result = payload.result;

@@ -108,7 +108,7 @@ export function createDurableTrainingPanel({root,getSelection,ensureSession,requ
     CANCELLED:'Review cancelled.',EXPIRED:'The unsent review expired. Prepare a new review.'})[status]??'Recheck training status.';}
   function render(){root.replaceChildren();root.append(element('h3','PERMANENT TRAINING'));
     if(!available()){root.append(element('p',release.status==='UNDEPLOYED'
-      ?'Live training contracts are awaiting deployment. The existing mint missions and gas controls remain available in Talk.'
+      ?'Live training contracts are awaiting deployment. Mint missions and gas controls remain available in Actions.'
       :'Training is not enabled for the selected owner.'));
       button(root,'LEARN · NOT LIVE',()=>{},true);button(root,'EQUIP · NOT LIVE',()=>{},true);button(root,'SACRIFICE · LOCKED',()=>{},true);return;}
     const status=element('p',message||'Check your current owner and training state.');status.setAttribute('role','status');status.setAttribute('aria-live','polite');root.append(status);
@@ -147,7 +147,7 @@ export function createDurableTrainingPanel({root,getSelection,ensureSession,requ
       if(['rank_observed_listings','research_collection','classify_collection','research_project'].includes(researchResult.action))root.append(renderPlannedResearchResult({document:root.ownerDocument,action:researchResult.action,result:researchResult.result}));
       const details=element('details');details.append(element('summary','View equipped research result'),
       element('p',`Observed ${new Date(researchResult.observedAt).toLocaleString()}. Re-run for a fresh result.`),element('pre',JSON.stringify(researchResult.result,null,2)));root.append(details);}
-    root.append(element('p','Use the selected burn review above to earn a credit. Training does not grant spending permission.'));
+    root.append(element('p','Only existing verified credits can be used here. Public burning and paid credit purchases are unavailable. Learning a skill does not grant spending permission.'));
   }
   const timer=window.setInterval(()=>{if(available()&&journal?.attempted&&!busy&&!document.hidden&&!root.closest('[hidden]'))void work(refresh);},30000);
   selectionChanged();render();

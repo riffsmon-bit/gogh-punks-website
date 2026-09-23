@@ -175,7 +175,19 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .talk-mode-control label > input:checked + span small { color: var(--ink); }
 .talk-mode-control label b { overflow: hidden; font-size: .69rem; text-overflow: ellipsis; white-space: nowrap; }
 
-.talk-layout { display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 18px; }
+.actions-layout { display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 18px; align-items: start; }
+.actions-layout > * { min-width: 0; }
+.action-status { color: var(--muted); line-height: 1.6; }
+.action-result { margin: 18px 0; padding: 18px; border-left: 3px solid var(--cyan); background: var(--surface); overflow-wrap: anywhere; }
+.action-result[hidden] { display: none; }
+.action-result h3 { margin: 0 0 10px; }
+.action-result p { white-space: pre-line; line-height: 1.6; }
+.feature-help { margin: 0 0 20px; padding: 0 16px 12px; border: 1px solid var(--line); color: var(--muted); line-height: 1.6; }
+.feature-help > summary { min-height: 44px; padding: 12px 0; color: var(--cyan); cursor: pointer; font-weight: 700; }
+.feature-help:not([open]) { padding-bottom: 0; }
+.feature-help li + li { margin-top: 8px; }
+.feature-help a { display: inline-flex; min-height: 44px; align-items: center; color: var(--cyan); }
+@media (max-width: 720px) { .actions-layout { grid-template-columns: minmax(0, 1fr); } .actions-layout .quick-commands { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); } .actions-layout .quick-commands > span { grid-column: 1 / -1; } }
 .conversation { min-width: 0; min-height: 230px; max-height: 420px; overflow-y: auto; padding: 20px; border: 1px solid var(--line); background: var(--ink); }
 .message { display: flex; gap: 12px; margin-bottom: 15px; }
 .message img { flex-shrink: 0; width: 44px; height: 44px; object-fit: cover; image-rendering: pixelated; border: 1px solid var(--line-strong); }

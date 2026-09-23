@@ -116,18 +116,14 @@
               </fieldset>
             </div>
             </details>
-            <div data-agent-options></div>
-            <div class="talk-layout">
-              <div class="conversation" data-conversation aria-live="polite">
-                <article class="message punk-message">
-                  <img data-chat-avatar src="/assets/collection/1.png" alt="" />
-                  <div><b>PUNK #<span data-chat-token>119</span></b><p data-welcome-message>Welcome. Choose a mission and spending limits, then review your rules.</p></div>
-                </article>
-              </div>
+            <p class="action-status" data-action-status aria-live="polite">Choose an action below. No transaction starts automatically.</p>
+            <div class="actions-layout">
+              <div data-agent-options></div>
               <aside class="quick-commands" aria-label="Agent shortcuts">
                 <span>AGENT OPTIONS</span>
                 <button type="button" data-agent-navigate="options">Set a mission</button>
                 <button type="button" data-agent-navigate="options">Tune my taste</button>
+                <button type="button" data-agent-navigate="mint">Direct a paid mint</button>
                 <button type="button" data-show-link>Check a link</button>
                 <button type="button" data-suggestion="Show me what you found today.">Show discoveries</button>
                 <button type="button" data-suggestion="Check my gas">Check gas / status</button>
@@ -136,6 +132,7 @@
                 <button type="button" data-suggestion="Pause for tonight.">Pause</button>
               </aside>
             </div>
+            <section class="action-result" data-action-result aria-label="Action result" aria-live="polite" hidden></section>
             <div data-talk-gas-host hidden></div>
             <form class="link-composer" data-link-form hidden>
               <label for="mint-link">PASTE A MINT LINK</label>
@@ -160,30 +157,7 @@
               </section>
               <p>Browser-persistent review intelligence only. SEND PUNK OUT keeps scouting Robinhood NFT opportunities every minute until its unique-match target is reached or it is paused, while this preview remains open in at least one tab. ASK never prepares a transaction. ASSIST may prepare one exact owner-approved live canary, but only MetaMask can submit it.</p>
             </section>
-            <details hidden class="prompt-library" data-prompt-library>
-              <summary>EXAMPLE PROMPTS <span>Find a mission or action</span></summary>
-              <div class="prompt-library-body">
-                <label for="broker-prompt-choice">WHAT WOULD YOU LIKE TO DO?</label>
-                <select id="broker-prompt-choice" data-prompt-choice aria-describedby="broker-prompt-library-help"></select>
-                <p id="broker-prompt-library-help">Choose an example to edit before sending. Amounts are examples; review your limits before approving a mission.</p>
-                <p><a href="/broker/v2/test-guide/" target="_blank" rel="noopener noreferrer">OPEN PRODUCTION TEST GUIDE ↗</a></p>
-                <article class="prompt-example" aria-live="polite">
-                  <header><h3 data-prompt-title></h3><span data-prompt-status></span></header>
-                  <blockquote data-prompt-example></blockquote>
-                  <p data-prompt-note></p>
-                  <div><button type="button" class="primary-button" data-use-prompt>USE EXAMPLE</button><button type="button" class="outline-button" data-prompt-open-panel hidden></button></div>
-                </article>
-                <p class="prompt-feedback" data-prompt-feedback role="status"></p>
-              </div>
-            </details>
-            <form class="chat-composer" data-chat-form hidden>
-              <label class="sr-only" for="punk-prompt">Tell your Punk what art you want</label>
-              <textarea id="punk-prompt" name="message" rows="2" maxlength="4000" aria-describedby="punk-prompt-help" aria-keyshortcuts="Enter" placeholder="Tell your Punk what you're looking for..."></textarea>
-              <p id="punk-prompt-help" class="sr-only">Press Enter to send. Press Shift plus Enter for a new line.</p>
-              <div><button class="attach-button" type="button" data-show-link>+ LINK</button><button class="send-button" type="submit">SEND <span aria-hidden="true">↗</span></button></div>
-            </form>
             <section class="directed-paid-panel" data-public-paid-panel aria-label="Review a paid mint"></section>
-            <section class="directed-paid-panel" data-directed-paid-panel aria-label="Directed paid mint" hidden></section>
             <section data-marketplace-purchase-panel aria-label="Selected NFT purchase" hidden></section>
           </section>
 
@@ -291,13 +265,12 @@
 
           <section class="broker-panel" data-v2-panel="forge" aria-labelledby="forge-title" hidden>
             <header class="panel-header"><div><span class="kicker" data-forge-punk>SELECT YOUR PUNK</span><h2 id="forge-title">GOGH SKILL FORGE</h2></div><span class="mode-stamp">SKILLS &amp; TRAINING</span></header>
-            <div class="forge-banner"><strong>BUILT. NOT BORN.</strong><p>Your original Gogh Punk is the ownership key. Permanent training follows the token when it sells—no wrapper, buyer claim or re-equipping. Private chat and the seller’s spending permission do not transfer.</p></div>
+            <div class="forge-banner"><strong>BUILT. NOT BORN.</strong><p>Learned skills and loadout stay with your Punk when it changes owners. The previous owner’s spending permission does not transfer. Public burning and credit purchases are not available yet.</p></div>
             <button class="filter-button" type="button" data-forge-connect>CHECK FORGE &amp; LOADOUT</button>
             <p class="forge-note" data-forge-status role="status" aria-live="polite">Select a Punk and check Forge access.</p>
             <section class="forge-loadout" aria-labelledby="forge-loadout-title"><span class="kicker" data-forge-profile-state>PERMANENT TRAINING · NOT VERIFIED</span><h3 id="forge-loadout-title">PUNK LOADOUT</h3><p class="forge-note" data-forge-profile-summary>Learned skills, credits and unlocked slots are unknown until verified. This is not a zero balance.</p><div class="forge-slots" data-forge-slots></div><p class="forge-note" data-forge-profile-note>Seven-slot design capacity. A learned icon never authorizes spending. Current owner policy still applies.</p></section>
             <div class="forge-locked" data-forge-training><h3>PERMANENT TRAINING</h3><p>Connect the selected owner wallet to check training availability.</p></div>
             <section data-holder-burn-inspection aria-label="Check sacrifice eligibility"></section>
-            <div class="forge-locked" data-forge-selected-burn hidden></div>
             <section class="forge-locked" data-forge-paid-training aria-label="Optional paid Training Credits"><h3>OPTIONAL PAID TRAINING</h3><p>One purchased Training Credit costs 0.0005 ETH, plus the network fee. Paid Training Credits are being prepared. The existing burn route remains separate.</p></section>
             <details class="forge-research-examples"><summary>EXPLORE SKILLS · RESEARCH EXAMPLES</summary>
             <h3>TRY THE RESEARCH TOOLS</h3><p class="forge-note">Try a research tool before choosing what to learn. These samples do not spend credits or change your loadout. Rarity Eye compares exactly three existing Gogh Punks, including the selected Punk. Sample ranks never change the frozen OpenSea rarity snapshot.</p>
@@ -309,6 +282,16 @@
           <section class="broker-panel" data-v2-panel="settings" aria-labelledby="settings-title" hidden>
             <header class="panel-header"><div><span class="kicker">BROKER PROFILE</span><h2 id="settings-title">SETTINGS</h2></div></header>
             <div class="settings-grid"><article><span>OPERATING MODE</span><fieldset><legend class="sr-only">Operating mode</legend><label><input type="radio" name="settings-mode" value="ASK" data-operating-mode checked /><b>ASK</b><small>Discover and recommend. You decide.</small></label><label><input type="radio" name="settings-mode" value="ASSIST" data-operating-mode /><b>ASSIST</b><small>Screen and prepare. You approve.</small></label><label class="mode-locked" data-autonomous-mode><input type="radio" name="settings-mode" value="AUTONOMOUS" data-operating-mode disabled /><b data-autonomous-mode-label>AUTONOMOUS · LOCKED</b><small data-autonomous-mode-detail>Waiting for Punk Agent Account readiness.</small></label></fieldset></article><article><span>RULE-BASED AGENT</span><p>AI chat and model calls are disabled. Choose missions, preferences and limits in Actions. Wallet confirmations and safety checks still apply.</p></article></div>
+            <details class="feature-help" data-legacy-paid-recovery hidden>
+              <summary>Previous paid mission and refunds</summary>
+              <p>Check delivery, cancel an earlier funded mission or review its unused funds. New direct mints are in Actions. Rechecking does not send a transaction; cancellation and withdrawals require your wallet confirmation.</p>
+              <section class="directed-paid-panel" data-directed-paid-panel aria-label="Previous paid mission" hidden></section>
+            </details>
+            <details class="feature-help" data-legacy-burn-recovery hidden>
+              <summary>Recover a previous burn transaction</summary>
+              <p>Check an existing transaction from the earlier owner release. These controls cannot prepare or submit a new burn.</p>
+              <div data-forge-selected-burn hidden></div>
+            </details>
             <details class="forge-admin-settings">
               <summary>Project administration</summary>
               <p>For the current Skill Forge administrator. To train your own Punk, open Skills.</p>
@@ -327,9 +310,9 @@
 
     <dialog class="confirmation-dialog" data-confirmation-dialog>
       <form method="dialog"><button class="dialog-close" value="cancel" aria-label="Close">×</button></form>
-      <span class="kicker">STRATEGY DRAFT · NOT ACTIVE</span><h2>YOUR PUNK UNDERSTANDS</h2>
+      <span class="kicker">STRATEGY DRAFT · NOT ACTIVE</span><h2>REVIEW YOUR PUNK’S RULES</h2>
       <div class="confirmation-grid" data-confirmation-grid></div>
-      <p class="confirmation-note">Conversation created this draft. Deterministic structured policy becomes authoritative only after owner confirmation.</p>
+      <p class="confirmation-note">Your selected options created this draft. These rules change only after your confirmation. Automation requires its separate wallet permission.</p>
       <p class="confirmation-note" data-strategy-activation-status aria-live="polite">Ready for owner confirmation. No wallet request has been made.</p>
       <div class="dialog-actions"><button type="button" class="outline-button" data-edit-strategy>EDIT</button><button type="button" class="outline-button" data-activate-strategy>ACTIVATE STRATEGY</button><button type="button" class="primary-button" data-activate-send-strategy hidden>ACTIVATE &amp; SEND PUNK OUT</button></div>
     </dialog>

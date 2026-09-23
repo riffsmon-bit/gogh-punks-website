@@ -1,6 +1,9 @@
 import { displayEth, displayEthBudget } from "./broker-v2-amounts.js";
 import { linkFindings, createLinkFindingsCard } from './broker-v2-link-findings.js';
 import { mountAgentOptions } from "./broker-agent-options.js";
+import { mountFeatureHelp } from './broker-feature-help.js';
+import { renderActionFeedback, actionStatus } from './broker-action-feedback.js';
+import { createSelectedBurnPanel } from './forge-selected-burn-panel.js';
 import { verifyOwnedPunkIds } from "./broker-v2-ownership.js";
 import { createForgeControl } from './broker-v2-forge.js';
 import { createForgeSkillAdminPanel } from './forge-skill-admin-panel.js';
@@ -502,46 +505,8 @@ function setReviewMissionPhase(key, phase, nextCheckAt = null) {
   renderMissionMonitor();
 }
 
-function hoodGreeting(now = new Date()) {
-  const hour = now.getHours();
-  if (hour < 12) return "HOOD MORNING";
-  if (hour < 18) return "HOOD AFTERNOON";
-  return "HOOD EVENING";
-}
-
 function renderWelcomeMessage() {
-  let target = one("[data-welcome-message]");
-  if (!target && state.selected) {
-    const article = document.createElement("article"); article.className = "message punk-message";
-    const image = document.createElement("img"); image.src = cleanImage(state.selected.image);
-    image.alt = ""; image.dataset.chatAvatar = "";
-    const copy = document.createElement("div"), label = document.createElement("b");
-    const token = document.createElement("span"); token.dataset.chatToken = "";
-    token.textContent = state.selected.tokenId; label.append("PUNK #", token);
-    target = document.createElement("p"); target.dataset.welcomeMessage = "";
-    copy.append(label, target); article.append(image, copy); one("[data-conversation]").prepend(article);
-  }
-  if (!target) return;
-  const greeting = hoodGreeting();
-  const agent = selectedReviewAgent();
-  const serverMission = selectedAgentAccount()?.mission;
-  if (serverMission?.status === "ACTIVE") {
-    target.textContent = `${greeting}. I’M OUT ON MY OWNER-APPROVED MISSION: ${serverMission.completedMints}/${serverMission.totalLimit} MINTS COMPLETE. Open Activity for live checks and receipts.`;
-  } else if (serverMission?.status === "COMPLETED") {
-    target.textContent = `${greeting}. I’M BACK—MISSION COMPLETE WITH ${serverMission.completedMints}/${serverMission.totalLimit} MINTS.`;
-  } else if (serverMission?.status === "PAUSED") {
-    target.textContent = `${greeting}. I’M BACK. MY AUTONOMOUS SESSION IS NOT ACTIVE.`;
-  } else if (agent?.status === "SCOUTING") {
-    target.textContent = `${greeting}. I’M OUT SCOUTING: ${agent.mission.foundContracts.length}/${agent.mission.targetMatches} MISSION MATCHES. Open Activity for my live status.`;
-  } else if (agent?.status === "RETURNED") {
-    target.textContent = `${greeting}. I’M BACK—MISSION COMPLETE WITH ${agent.mission.foundContracts.length}/${agent.mission.targetMatches} MATCHES.`;
-  } else if (agent?.status === "PAUSED") {
-    target.textContent = `${greeting}. I’M PAUSED. Choose new mission rules below when you are ready.`;
-  } else if (agent?.status === "ACTIVE") {
-    target.textContent = `${greeting}. MY RULES ARE READY. Send me out when you’re ready.`;
-  } else {
-    target.textContent = `${greeting}. Choose a mission and limits below, then review the complete rules.`;
-  }
+  set('[data-action-status]', actionStatus(selectedAgentAccount()?.mission, selectedReviewAgent()));
 }
 
 function missionClock(value, fallback) {
@@ -1241,10 +1206,9 @@ function renderSelected() {
 
 function invalidateConversationRequests() {
   state.chatRequestId += 1; state.linkRequestId += 1;
-  const chat = one('[data-chat-form]');
-  chat?.removeAttribute('aria-busy');
-  const send = chat?.querySelector('button[type="submit"]');
-  if (send) { send.disabled = false; send.textContent = 'SEND ↗'; }
+  window.dispatchEvent(new Event('gogh:action-invalidated'));
+  const result = one('[data-action-result]');
+  result?.replaceChildren(); if (result) result.hidden = true;
   const link = one('[data-link-form]'); link?.removeAttribute('aria-busy');
   const check = link?.querySelector('button[type="submit"]');
   if (check) { check.disabled = false; check.textContent = 'CHECK LINK'; }
@@ -1399,10 +1363,10 @@ function renderActivity() {
     });
   if (!entries.length) {
     const empty = document.createElement("li"); empty.className = "panel-empty";
-    empty.textContent = PREVIEW || state.activityLoaded ? "No activity yet. Start with a conversation to give your Punk a direction." : "Loading your Punk's activity…";
+    empty.textContent = PREVIEW || state.activityLoaded ? "No activity yet. Choose a mission in Actions to get started." : "Loading your Punk's activity…";
     if (PREVIEW || state.activityLoaded) {
       const talk = document.createElement('button'); talk.type = 'button'; talk.className = 'outline-button'; talk.textContent = 'TALK TO MY PUNK';
-      talk.addEventListener('click', () => { activateTab('talk'); one('#punk-prompt')?.focus(); });
+      talk.addEventListener('click', () => { activateTab('talk'); one('[data-agent-options] select')?.focus(); });
       empty.append(document.createElement('br'), talk);
     }
     feed.append(empty); return;
@@ -1787,7 +1751,7 @@ async function hydrateSelected(tab) {
         `${entry.provenance === "V1" ? "EARLIER ART BROKER" : "CURRENT ART BROKER"} · ${String(entry.type).replaceAll("_", " ")}`,
         activityDetail(entry), entry.detail?.transactionHash]);
       renderActivity();
-      if(payload.paidMintHistoryAvailable===false){const note=document.createElement('p');note.className='panel-empty';note.textContent='Paid-mint history is temporarily unavailable. Recheck Directed Paid Mint in Talk.';one('[data-activity-feed]').append(note);}
+      if(payload.paidMintHistoryAvailable===false){const note=document.createElement('p');note.className='panel-empty';note.textContent='Paid-mint history is temporarily unavailable. Recheck the original paid mint in Actions.';one('[data-activity-feed]').append(note);}
     }
   } catch (error) {
     if (!isCurrent()) return;
@@ -1799,16 +1763,7 @@ async function hydrateSelected(tab) {
 }
 
 function addMessage(role, message, details = null) {
-  const conversation = one("[data-conversation]"); const article = document.createElement("article");
-  article.className = `message ${role === "owner" ? "owner-message" : "punk-message"}`;
-  if (role !== "owner") {
-    const image = document.createElement("img"); image.src = cleanImage(state.selected?.image); image.alt = ""; article.append(image);
-  }
-  const copy = document.createElement("div"); const label = document.createElement("b");
-  label.textContent = role === "owner" ? "OWNER" : `PUNK #${state.selected?.tokenId ?? "—"}`;
-  const text = document.createElement("p"); text.textContent = message; copy.append(label, text); article.append(copy);
-  if (details) copy.append(details);
-  conversation.append(article); conversation.scrollTop = conversation.scrollHeight;
+  renderActionFeedback(one('[data-action-result]'), role, message, details);
   const key = selectedReviewKey();
   if (key && typeof message === "string" && message.trim()) {
     const existing = state.reviewConversations.get(key) ?? [];
@@ -2123,7 +2078,7 @@ function clearTransferredPunkReview() {
   all('[data-fund-confirm], [data-agent-gas-confirm], [data-weth-confirm]').forEach(input => { input.checked = false; });
   // Private conversation maps stay owner-scoped. Never attach the sold Punk's open
   // transcript or unsigned review to whichever Punk is selected next.
-  one('[data-conversation]')?.replaceChildren();
+  const result = one('[data-action-result]'); result?.replaceChildren(); if (result) result.hidden = true;
 }
 
 function setup() {
@@ -2280,17 +2235,13 @@ function setup() {
     });
   });
   all("[data-suggestion]").forEach((button) => button.addEventListener("click", () => {
-    const input = one("#punk-prompt"); input.value = button.dataset.suggestion; one("[data-chat-form]").requestSubmit();
+    void runAgentAction(button.dataset.suggestion);
   }));
   all("[data-show-link]").forEach((button) => button.addEventListener("click", () => {
     one("[data-link-form]").hidden = false; one("#mint-link").focus();
   }));
-  const chatForm = one("[data-chat-form]");
-  const quickCalls = one('.quick-commands'), talkLayout = one('.talk-layout');
-  const narrowChat = matchMedia('(max-width: 720px)');
-  const positionQuickCalls = () => { if (narrowChat.matches) chatForm.after(quickCalls); else talkLayout.append(quickCalls); };
-  narrowChat.addEventListener('change', positionQuickCalls); positionQuickCalls();
-  const chatInput = one("#punk-prompt");
+  mountFeatureHelp(document);
+  let actionBusy = false;
   const openPromptPanel = (panel) => {
     if (panel === "link") {
       activateTab("talk"); one("[data-link-form]").hidden = false; one("#mint-link").focus();
@@ -2302,35 +2253,32 @@ function setup() {
   };
   const agentOptions = mountAgentOptions({ root: one('[data-agent-options]'),
     canAutomate: () => !one('[data-operating-mode][value="AUTONOMOUS"]').disabled,
-    submit: command => { chatInput.value = command; chatForm.requestSubmit(); } });
+    submit: command => { void runAgentAction(command); } });
   all('[data-agent-navigate]').forEach(button => button.addEventListener('click', () => {
     const target = button.dataset.agentNavigate;
     if (target === 'options') one('[data-agent-options]').scrollIntoView({ block: 'start' });
+    else if (target === 'mint') { one('[data-public-paid-panel]').scrollIntoView({ block: 'start' }); one('[data-public-paid-panel] input')?.focus({ preventScroll: true }); }
     else openPromptPanel(target);
   }));
-  const chatButton = chatForm.querySelector("button[type=submit]");
   const setChatBusy = (busy) => {
-    chatForm.toggleAttribute("aria-busy", busy); chatButton.disabled = busy;
-    chatButton.textContent = busy ? "CHECKING…" : "REVIEW";
+    actionBusy = busy;
+    one('[data-agent-options]').toggleAttribute('aria-busy', busy);
+    all('[data-suggestion]').forEach(button => { button.disabled = busy; });
     agentOptions.setBusy(busy);
   };
-  chatInput.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
-    event.preventDefault();
-    chatForm.requestSubmit();
-  });
+  window.addEventListener('gogh:action-invalidated', () => setChatBusy(false));
   all("[data-operating-mode]").forEach((input) => input.addEventListener("change", () => {
     if (!input.checked) return;
-    chatInput.value = input.value === "AUTONOMOUS"
+    const command = input.value === "AUTONOMOUS"
       ? "Use my Punk Agent Account autonomously. Keep every existing collecting rule and show me the complete mission for approval."
       : input.value === "ASSIST" ? "Switch to assist mode. Keep every existing collecting rule."
         : "Ask me first. Keep every existing collecting rule.";
     activateTab("talk");
-    chatForm.requestSubmit();
+    void runAgentAction(command);
   }));
-  chatForm.addEventListener("submit", async (event) => {
-    event.preventDefault(); const input = one("#punk-prompt"); const message = input.value.trim();
-    if (!message || chatForm.hasAttribute("aria-busy")) return;
+  const runAgentAction = async (command) => {
+    const message = command.trim();
+    if (!message || actionBusy || !state.selected) return;
     const selected = state.selected, selectedOwner = state.wallet?.account, selectedChain = state.wallet?.chainId;
     const requestId = ++state.chatRequestId;
     const isCurrent = () => requestId === state.chatRequestId && state.selected === selected
@@ -2340,9 +2288,8 @@ function setup() {
       if (!isCurrent()) return;
       setBusy(false);
       addMessage('punk', `${error?.message ?? 'The action could not finish.'} Your rules have not changed. Choose the options again to retry.`);
-      if (!input.value) input.value = message;
     };
-    addMessage("owner", message); input.value = "";
+    addMessage("owner", message);
     const chatAction = punkChatAction(message);
     if (chatAction?.kind === "NAVIGATE") {
       openPromptPanel(chatAction.panel);
@@ -2471,7 +2418,7 @@ function setup() {
     addReviewActivity("DRAFT", "STRATEGY DRAFT CREATED",
       "Awaiting owner confirmation · Punk has not been sent out");
     showConfirmation(draft);
-  });
+  };
   one("[data-link-form]").addEventListener("submit", async (event) => {
     event.preventDefault();
     const form = event.currentTarget; const value = one("#mint-link").value.trim();
@@ -2565,14 +2512,14 @@ function setup() {
   one("[data-v2-withdraw-cancel]").addEventListener("click", cancelCollectionWithdrawal);
   one("[data-edit-strategy]").addEventListener("click", () => {
     state.dispatchAfterActivation = false;
-    one("[data-confirmation-dialog]").close(); one("#punk-prompt").focus();
+    one("[data-confirmation-dialog]").close(); one('[data-agent-options] select')?.focus();
   });
   one("[data-activate-send-strategy]").addEventListener("click", () => {
     state.dispatchAfterActivation = true;
     one("[data-activate-strategy]").click();
   });
   one("[data-edit-skill]").addEventListener("click", () => {
-    one("[data-skill-dialog]").close(); one("#punk-prompt").focus();
+    one("[data-skill-dialog]").close(); one('[data-agent-options] select')?.focus();
   });
   one("[data-learn-skill]").addEventListener("click", async () => {
     const key = selectedReviewKey();
@@ -3048,7 +2995,6 @@ function setup() {
   if (PREVIEW) { previewData(); renderRoster(); renderSelected(); }
   else renderRoster();
   window.setInterval(renderMissionMonitor, 1_000);
-  window.setInterval(renderWelcomeMessage, 60_000);
   window.setInterval(() => {
     if (!PREVIEW && !document.hidden && state.selected && state.wallet?.account && state.wallet.chainId === CHAIN_ID) {
       void loadAgentAccountStatus();
@@ -3067,9 +3013,27 @@ function setup() {
     ensureSession: ensureV2Session, request: jsonRequest });
   directedPaidControl = createDirectedPaidPanel({root:one('[data-directed-paid-panel]'),
     getSelection:()=>state.selected?{tokenId:String(state.selected.tokenId),owner:state.wallet?.account??null,chainId:state.wallet?.chainId,preview:PREVIEW}:null,
-    ensureSession:ensureV2Session,request:jsonRequest});
+    ensureSession:ensureV2Session,request:jsonRequest,autoLoad:false});
   const holderSelection = () => state.selected ? { tokenId: String(state.selected.tokenId),
     owner: state.wallet?.account ?? null, chainId: state.wallet?.chainId, preview: PREVIEW } : null;
+  const legacyBurn = createSelectedBurnPanel({ root: one('[data-forge-selected-burn]'),
+    getSelection: holderSelection, ensureSession: ensureV2Session, request: jsonRequest, recoveryOnly: true });
+  let legacyRecoveryIdentity = null;
+  const refreshLegacyRecovery = () => {
+    const identity = JSON.stringify(holderSelection());
+    if (identity === legacyRecoveryIdentity) return;
+    legacyRecoveryIdentity = identity;
+    legacyBurn.selectionChanged();
+    const details = one('[data-legacy-burn-recovery]');
+    details.hidden = one('[data-forge-selected-burn]').hidden;
+    details.open = false;
+    directedPaidControl.selectionChanged();
+    const paid = one('[data-legacy-paid-recovery]');
+    paid.hidden = one('[data-directed-paid-panel]').hidden;
+    paid.open = false;
+  };
+  window.addEventListener('gogh:punk-selected', refreshLegacyRecovery);
+  refreshLegacyRecovery();
   publicPaidControl = createPublicDirectedPaidPanel({ root: one('[data-public-paid-panel]'),
     getSelection: holderSelection, ensureSession: ensureV2Session, request: jsonRequest,
     getProvider: () => window.__GOGH_WALLET_PROVIDER__ });
