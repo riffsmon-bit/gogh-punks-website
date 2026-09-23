@@ -38,7 +38,7 @@ export const FEATURE_HELP = Object.freeze({
     title: 'How skills and training work', anchor: 'forge',
     steps: ['Select Check Forge & loadout to verify your existing credits, learned skills and equipped slots.',
       'A learned skill stays with your Punk. Equip it in an unlocked slot to use its released capability; spending rules still apply.',
-      'Public burning and purchasing credits are unavailable. Wallet inspection is optional information, not burn eligibility or authorization. Existing eligible training controls appear separately.'],
+      'Public burning is unavailable. Paid credits cost 0.0005 ETH plus gas and are limited to the approved owner test. Refresh an unsent review if it expires. Wallet inspection is information, not burn authorization.'],
     cost: 'Viewing skills and wallet checks does not burn or charge ETH. Learning or equipping, where released, requires the displayed credit cost and network fee.',
   },
   settings: {

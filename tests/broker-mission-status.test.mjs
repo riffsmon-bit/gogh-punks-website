@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { missionStatus, START_FREE_MINT_COMMAND } from '../site/broker-mission-status.js';
+import { missionStatus, START_FREE_MINT_COMMAND, NEW_FREE_MINT_SEARCH_COMMAND } from '../site/broker-mission-status.js';
 import { draftStrategyFromConversation } from '../broker/src/v4/intent-draft.mjs';
 import { defaultAskIntent } from '../broker/src/v4/collecting-intent.mjs';
 const now = Date.parse('2026-09-23T13:30:00Z');
@@ -37,4 +37,13 @@ test('start button drafts automation preserving all saved economic limits; it do
   assert.equal(draft.intent.operatingMode, 'AUTONOMOUS');
   for (const key of ['dailyMintLimit', 'totalMintLimit', 'minimumReserveWei', 'maxGasPerMintWei', 'allowedContracts', 'blockedContracts', 'requireSimulation']) assert.deepEqual(draft.intent[key], currentIntent[key]);
   assert.equal(draft.intent.maxMintPriceWei, '0');
+});
+test('new search removes only the previous target and retains the five/five mission limits for owner review',()=>{
+ const identity={punkTokenId:'93',expectedOwner:`0x${'1'.repeat(40)}`,punkWallet:`0x${'2'.repeat(40)}`};
+ const currentIntent={...defaultAskIntent(identity,new Date(now)),dailyMintLimit:5,totalMintLimit:5,
+   allowedContracts:[`0x${'3'.repeat(40)}`],blockedContracts:[`0x${'4'.repeat(40)}`],preferences:{prefer:['PIXEL_ART'],avoid:['ANIME']}};
+ const draft=draftStrategyFromConversation({...identity,currentIntent,message:NEW_FREE_MINT_SEARCH_COMMAND},new Date(now));
+ assert.deepEqual(draft.intent,{...currentIntent,operatingMode:'AUTONOMOUS',allowedContracts:[]});
+ assert.deepEqual(currentIntent.allowedContracts,[`0x${'3'.repeat(40)}`]);
+ assert.equal(draft.status,'PENDING_OWNER_CONFIRMATION');assert.equal(draft.economicPermissionsActivated,false);
 });

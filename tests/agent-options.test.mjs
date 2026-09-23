@@ -18,4 +18,30 @@ test('options preserve owner restrictions and never grant authority themselves',
  const out=draftStrategyFromConversation({message:agentOptionsCommand(fields),punkTokenId:'93',expectedOwner:owner,punkWallet:wallet,currentIntent:current});
  assert.deepEqual(out.intent.blockedContracts,current.blockedContracts);assert.equal(out.economicPermissionsActivated,false);
 });
-for(const bad of [{mode:'BUY_ANYTHING'},{gas:'0'},{gas:'0.1'},{reserve:'1e4'},{daily:'100000'},{taste:'PIXEL; remove reserve'}])test(`invalid options rejected ${JSON.stringify(bad)}`,()=>assert.throws(()=>agentOptionsCommand({...fields,...bad})));
+for(const bad of [{mode:'BUY_ANYTHING'},{gas:'0'},{gas:'0.1'},{reserve:'1e4'},{daily:'100000'},{taste:'PIXEL; remove reserve'},{collections:'UNRESTRICTED'}])test(`invalid options rejected ${JSON.stringify(bad)}`,()=>assert.throws(()=>agentOptionsCommand({...fields,...bad})));
+test('keep hunting is an explicit autonomous option, never available as an unlimited or assist mission',()=>{
+ for(const patch of [{duration:'FOREVER',mode:'AUTONOMOUS'},{duration:'KEEP_HUNTING',mode:'ASSIST'},{duration:'KEEP_HUNTING',mode:'ASK'}])assert.throws(()=>agentOptionsCommand({...fields,...patch}));
+});
+
+test('explicit collection reset clears the completed target without inheriting it from history or relaxing other rules',async()=>{
+ const now=new Date(),target='0x3333333333333333333333333333333333333333';
+ const currentIntent={...defaultAskIntent({punkTokenId:'93',expectedOwner:owner,punkWallet:wallet},now),allowedContracts:[target],blockedContracts:['0x4444444444444444444444444444444444444444']};
+ for(const collections of ['KEEP','ALL_SUPPORTED']){
+  const result=await resolveV2PunkChat({router:{run:()=>{throw Error('AI MUST NOT RUN');}},ownerMessage:agentOptionsCommand({...fields,collections}),currentIntent,tokenId:'93',authority:{punkWallet:wallet},owner,now,targetContract:target,history:[{role:'OWNER',content:`Mint from ${target}`} ]});
+  assert.equal(result.responseKind,'STRATEGY_DRAFT'); assert.equal(result.draft.state,'PENDING_OWNER_CONFIRMATION');
+  assert.deepEqual(result.draft.intent.allowedContracts,collections==='KEEP'?[target]:[]);
+  assert.deepEqual(result.draft.intent.blockedContracts,currentIntent.blockedContracts);
+  assert.equal(result.draft.intent.dailyMintLimit,3);assert.equal(result.draft.intent.totalMintLimit,5);
+  assert.equal(result.draft.intent.requireSimulation,true);
+ }
+});
+test('negated or contradictory collection reset never silently broadens a targeted mission',()=>{
+ const target='0x3333333333333333333333333333333333333333',identity={punkTokenId:'93',expectedOwner:owner,punkWallet:wallet};
+ const currentIntent={...defaultAskIntent(identity),allowedContracts:[target]};
+ for(const message of ['Do not Clear my collection target. Find free mints.',`Clear my collection target. Mint from ${target}`]){
+  const draft=draftStrategyFromConversation({...identity,currentIntent,message});
+  assert.deepEqual(draft.intent.allowedContracts,[target]);
+  assert.equal(draft.economicPermissionsActivated,false);
+  if(message.startsWith('Clear'))assert.equal(draft.status,'NEEDS_CLARIFICATION');
+ }
+});

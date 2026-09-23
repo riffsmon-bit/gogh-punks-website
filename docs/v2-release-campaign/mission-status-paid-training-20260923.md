@@ -51,3 +51,25 @@ The deployment page at localhost:64348 remains available for its original receip
 ## Release boundaries
 
 No production data migration, new signer, production burn, owner asset transfer, or automatic mission activation is part of this batch. Public burning and marketplace/WETH execution remain gated. First real credit purchase and skill use require the owner to test through the released website; unit tests or local-chain transactions are not live acceptance evidence.
+
+## Production update
+
+PR #75 merged as `5067719927758341688b56c56d929ce73017aa08`. Netlify production deploy `6ab3db33bf24d700088ad7ef` published at 2026-09-23T14:00:55Z. Exactly one preview and one production deployment were used.
+
+The owner separately confirmed purchase enablement: `0x336619df389c52f4d96535b6c5753b0433d4d3506d26628038deb9c2de536d42`, block 70565045, block hash `0x767ccd993b867b9be20618f69581648a42b8eb297e250e4b988feff82cdb74d3`. Both independent providers verified the exact transaction, runtime and `purchasesPaused=false`. No credit was purchased.
+
+The real #93 BUY preparation and verification succeeded against live chain state without signing or submitting. Price: 500000000000000 wei; prepared maximum fee at 14:02:26Z: 16703942640000 wei. This is SIMULATED, not a live purchase.
+
+Production protected session, agent-account and paid-training endpoints return 401 without authentication; providers returns an empty list with AI disabled. The first owner purchase, confirmed credit, learning and equipment remain wallet acceptance checks. The public website release remains OWNER_CANARY.
+
+Observed finalized-head lag was 814–1198 seconds across the two test providers. Receipt recovery intentionally waits for canonical finality; an included purchase does not immediately unlock the next paid action. Do not resend an included transaction or claim instant training completion.
+
+Final production browser verification passed at `https://goghpunks.xyz/`: 15 screenshots across 1440/375/320 px, all 19 served files matched the production commit exactly, zero JavaScript exceptions, console/security errors, failed requests or mobile overflow. Evidence: `/private/tmp/gogh-preview-browser-evidence-uaZIpa/result.json`. An earlier capture was interrupted by local disk exhaustion; only disposable test screenshots/profile were removed before the successful rerun. No second cloud deployment was needed.
+
+### Owner test steps
+
+1. Refresh `https://goghpunks.xyz/?tab=forge&tokenId=93` with the approved wallet connected on Robinhood Chain.
+2. Open Optional paid training, then Recheck paid training. Review buying one credit and confirm the exact 0.0005 ETH payment plus network fee in the wallet only if desired.
+3. Recheck the original receipt until confirmed. Close the confirmed review and recheck balances; never rebuy to recover a pending transaction.
+4. Review paid training setup, then learn Rarity Eye and equip it, with a separate wallet confirmation for each step. Run its equipped research with the selected Punk and two existing sample Punks.
+5. For automatic free mints, use Start free-mint mission, review the saved 5/5 limits, reserve and network fee limit, and confirm the separate mission permission. Saving ASK rules did not authorize this mission.

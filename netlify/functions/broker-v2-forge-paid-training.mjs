@@ -32,6 +32,8 @@ export async function handlePaidTraining(request,{releaseReader=currentPaidTrain
     return json({ok:true,...result});
   }catch(error) {
     if(error instanceof PublicError)return json({ok:false,code:error.code,message:error.message},error.status);
+    if(error?.message==='PAID_REVIEW_EXPIRED')return json({ok:false,code:error.message,
+      message:'This review expired. No wallet request was made. Refresh the unsent review, check the new fee, then confirm.'},409);
     if(error?.message==='PAID_BURN_APPROVAL_ACTIVE')return json({ok:false,code:error.message,
       message:'This Punk is approved for sacrifice. Revoke its burn approval in your wallet before buying a credit for it.'},409);
     return json({ok:false,code:'PAID_TRAINING_UNAVAILABLE',

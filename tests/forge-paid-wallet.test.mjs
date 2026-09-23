@@ -42,6 +42,17 @@ test('exact paid wallet request is persisted once and cannot replay', async () =
   await assert.rejects(w.submit(e, f.selected, action())); assert.equal(f.sends, 1);
   const logs = f.methods.filter(x => x === 'eth_getLogs'); assert.equal(logs.length, 1);
 });
+test('near-expiry review explains why no wallet prompt opens and makes no RPC or send',async()=>{
+ const f=paidUiFixture(),e=envelope(f);
+ await assert.rejects(wallet(f,{now:()=>Number(e.review.guard.deadline)*1000-4000}).submit(e,f.selected,action()),/too little time.*No wallet request.*Refresh/);
+ assert.equal(f.methods.length,0);assert.equal(f.sends,0);assert.equal(f.marker,false);
+});
+test('wallet network rejection identifies the failed stage without disclosing provider errors',async()=>{
+ const f=paidUiFixture(),rpc=f.provider.request;
+ f.provider.request=args=>args.method==='eth_chainId'?Promise.reject(Error('secret-provider-url')):rpc(args);
+ await assert.rejects(wallet(f).submit(envelope(f),f.selected,action()),e=>/wallet account, network and pending transactions failed.*No wallet request/.test(e.message)&&!e.message.includes('secret-provider-url'));
+ assert.equal(f.sends,0);assert.equal(f.marker,false);
+});
 test('active or malformed sacrifice approval blocks a prepared purchase before wallet access', async () => {
   for (const approval of [true, undefined, 'false', 0]) {
     const f = paidUiFixture(), e = envelope(f); f.state.burnApprovalActive = approval;

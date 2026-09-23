@@ -64,7 +64,7 @@ test('fresh verification invalidates nonce, state and expired review',async()=>{
   const f=setup(),{review}=await f.coordinator.prepare({...f.identity,action:f.action('buy')});
   f.state.reviewNonce=1n;await assert.rejects(f.coordinator.verify(review),/STATE_CHANGED/);f.state.reviewNonce=0n;
   f.state.stateHash='0x'+'de'.repeat(32);await assert.rejects(f.coordinator.verify(review),/STATE_CHANGED/);f.state.stateHash=review.guard.stateHash;
-  f.state.now+=41000;await assert.rejects(f.coordinator.verify(review),/REVIEW_EXPIRED/);
+  f.state.now+=56000;await assert.rejects(f.coordinator.verify(review),/REVIEW_EXPIRED/);
 });
 
 test('expiry alone cannot clear uncertain wallet attempts; finalized unused proof can',async()=>{

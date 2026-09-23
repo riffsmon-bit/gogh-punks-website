@@ -1,9 +1,11 @@
 import { displayEth, displayEthBudget } from "./broker-v2-amounts.js";
 import { linkFindings, createLinkFindingsCard } from './broker-v2-link-findings.js';
 import { mountAgentOptions } from "./broker-agent-options.js";
+import { mountSwarm } from './broker-swarm.js';
+import { createMissionNotifications } from './broker-mission-notifications.js';
 import { mountFeatureHelp } from './broker-feature-help.js';
 import { renderActionFeedback } from './broker-action-feedback.js';
-import { missionStatus, START_FREE_MINT_COMMAND } from './broker-mission-status.js';
+import { missionStatus, START_FREE_MINT_COMMAND, NEW_FREE_MINT_SEARCH_COMMAND } from './broker-mission-status.js';
 import { createSelectedBurnPanel } from './forge-selected-burn-panel.js';
 import { verifyOwnedPunkIds } from "./broker-v2-ownership.js";
 import { createForgeControl } from './broker-v2-forge.js';
@@ -105,6 +107,8 @@ let marketplacePurchaseControl = null;
 let marketplaceSelectionKey = '';
 let marketplaceSelectionRevision = 0;
 let persistentWatchControl = null;
+let swarmControl = null;
+let missionNotifications = null;
 let agentRecoveryControl = null;
 const one = (selector) => document.querySelector(selector);
 const all = (selector) => [...document.querySelectorAll(selector)];
@@ -202,6 +206,9 @@ async function loadAgentAccountStatus({ authenticate = false } = {}) {
       const status = await jsonRequest(`/api/v2/punks/${tokenId}/agent-account`);
       if (!isCurrent()) return null;
       state.agentAccounts.set(tokenId, { ...status, receivedAt: Date.now() });
+      missionNotifications?.observe({ owner, tokenId, account: state.agentAccounts.get(tokenId) });
+      if (one('[data-v2-tab="activity"]')?.getAttribute("aria-selected") === "true"
+        && state.selected?.tokenId === tokenId) missionNotifications?.markRead({ owner, tokenId });
       if (Array.isArray(status.skills) && state.selected?.tokenId === tokenId && state.selected?.account) {
         const key = selectedReviewKey();
         if (key) state.reviewSkills.set(key, Object.freeze(status.skills.map((skill) =>
@@ -313,6 +320,10 @@ function renderAgentAccount() {
 function renderAgentGasFunding(status = selectedAgentAccount()) {
   const runtime = status?.runtime;
   const verified = runtime?.accountCreated === true && !status?.error;
+  const needsSetup = runtime?.accountCreated === false && !status?.error && status?.readiness?.setupAvailable === true;
+  const setup = one('[data-agent-gas-setup]'); if (setup) setup.hidden = !needsSetup;
+  const submit = one('[data-agent-gas-form] button[type="submit"]');
+  if (submit) submit.disabled = state.gasFundingBusy || !verified;
   set("[data-agent-gas-punk-balance]", state.selected?.balanceLoaded === false
     ? "CHECKING…" : `${state.selected?.balanceEth ?? "—"} ETH`);
   set("[data-agent-gas-native]", verified ? recoveryEth(runtime.nativeBalance) : "NOT VERIFIED");
@@ -320,6 +331,7 @@ function renderAgentGasFunding(status = selectedAgentAccount()) {
   set("[data-agent-gas-destination]", verified ? runtime.account : "NOT VERIFIED");
   set("[data-agent-gas-readiness]", status?.error
     ? `READINESS UNAVAILABLE · ${status.error} Use RECHECK / SIGN IN; gas funding and mission activation are separate.`
+    : needsSetup ? "Set up this Punk’s Agent Account before funding it. Review the mission below and approve account/session setup in your wallet, then return here to add gas. Your Punk Wallet ETH remains separate."
     : !status ? "Readiness has not been verified. Use RECHECK / SIGN IN."
       : `AUTONOMOUS ${status.readiness?.setupAvailable ? "SETUP AVAILABLE" : "LOCKED"} · ${(status.readiness?.blockers ?? []).map(blockerLabel).join(" · ") || "No reported blockers"}. Funding does not activate a mission.`);
 }
@@ -519,7 +531,10 @@ function renderCurrentMissionStatus() {
   const root = one('[data-current-mission]');
   if (root) root.dataset.tone = view.tone;
   const start = one('[data-start-free-mission]');
-  if (start) start.hidden = !view.canStart;
+  const hasTarget = Boolean((state.selected?.strategy?.intent ?? selectedReviewAgent()?.intent)?.allowedContracts?.length);
+  if (start) { start.hidden = !view.canStart; start.textContent = hasTarget ? 'START WITH SAVED TARGET' : 'START FREE-MINT MISSION'; }
+  const newSearch = one('[data-new-free-search]');
+  if (newSearch) newSearch.hidden = !view.canStart || !hasTarget;
   const check = one('[data-current-mission-check]');
   if (check) check.disabled = state.agentAccountLoading.has(String(state.selected?.tokenId));
   return view;
@@ -1102,8 +1117,54 @@ function syncMarketplaceSelection() {
   void marketplacePurchaseControl.refresh();
 }
 
+function renderMissionBadges() {
+  const owner = !PREVIEW && state.wallet?.chainId === CHAIN_ID ? state.wallet?.account : null;
+  const owned = new Set(state.punks.map(punk => String(punk.tokenId)));
+  const notices = (missionNotifications?.list({ owner }) ?? []).filter(item => owned.has(item.tokenId));
+  const unread = notices.filter(item => !item.read);
+  for (const badge of all('[data-roster-mission-badge]')) {
+    const count = unread.filter(item => item.tokenId === badge.dataset.rosterMissionBadge).length;
+    badge.hidden = count === 0; badge.textContent = String(count);
+    badge.setAttribute('aria-label', `${count} unread mission update${count === 1 ? '' : 's'}`);
+  }
+  const selectedCount = unread.filter(item => item.tokenId === state.selected?.tokenId).length;
+  const activityBadge = one('[data-activity-mission-badge]');
+  if (activityBadge) { activityBadge.hidden = selectedCount === 0; activityBadge.textContent = String(selectedCount);
+    activityBadge.setAttribute('aria-label', `${selectedCount} unread mission updates`); }
+  const countNode = one('[data-mission-update-count]');
+  if (countNode) { countNode.hidden = unread.length === 0; countNode.textContent = String(unread.length); }
+  const host = one('[data-mission-updates]');
+  if (host) host.hidden = !owner || !owned.size;
+  const list = one('[data-mission-update-list]');
+  if (!list) return;
+  list.replaceChildren();
+  const readButton = one('[data-mission-updates-read]');
+  if (readButton) readButton.hidden = !unread.length;
+  if (!notices.length) {
+    const item = document.createElement('li');
+    item.textContent = 'No mission updates yet. Check a Punk’s status to load its latest result.'; list.append(item); return;
+  }
+  for (const item of notices.slice(0, 20)) {
+    const row = document.createElement('li'); row.dataset.tone = item.tone;
+    const title = document.createElement('strong');
+    title.textContent = `Punk #${item.tokenId} · ${item.title}${item.read ? '' : ' · NEW'}`;
+    const detail = document.createElement('p'); detail.textContent = item.detail;
+    const time = document.createElement('small'); time.textContent = `Checked ${new Date(item.observedAt).toLocaleString()}`;
+    const button = document.createElement('button'); button.type = 'button'; button.className = 'outline-button';
+    button.textContent = `VIEW PUNK #${item.tokenId}`;
+    button.addEventListener('click', () => {
+      if (state.wallet?.account?.toLowerCase() !== item.owner || state.wallet?.chainId !== CHAIN_ID
+        || !state.punks.some(punk => String(punk.tokenId) === item.tokenId)) return;
+      selectPunk(item.tokenId); activateTab('activity');
+      one('[data-v2-panel="activity"]')?.scrollIntoView({ block: 'start' });
+    });
+    row.append(title, detail, time, button); list.append(row);
+  }
+}
+
 function renderRoster() {
   void persistentWatchControl?.selectionChanged();
+  swarmControl?.refresh();
   forgeSkillAdminControl?.update();
   forgeControl?.selectionChanged();
   directedPaidControl?.selectionChanged();
@@ -1148,7 +1209,9 @@ function renderRoster() {
     const label = document.createElement("span");
     const name = document.createElement("b"); name.textContent = `#${punk.tokenId}`;
     const mode = document.createElement("small"); mode.textContent = reviewModeForPunk(punk);
-    label.append(name, mode); button.append(image, label);
+    const notification = document.createElement("span"); notification.className = "mission-badge roster-mission-badge";
+    notification.dataset.rosterMissionBadge = String(punk.tokenId); notification.hidden = true;
+    label.append(name, mode); button.append(image, label, notification);
     button.addEventListener("click", event => selectPunk(punk.tokenId, { focusRoster: event.detail === 0 }));
     button.addEventListener('keydown', event => {
       const index = state.punks.findIndex(item => item.tokenId === punk.tokenId);
@@ -1161,10 +1224,12 @@ function renderRoster() {
     });
     roster.append(button);
   }
+  renderMissionBadges();
   if (restoreFocus) roster.querySelector('[aria-selected="true"]')?.focus({ preventScroll: true });
 }
 
 function renderSelected() {
+  swarmControl?.refresh();
   brokerPreferences?.refresh();
   gasFundingRecovery?.refresh();
   const punk = state.selected;
@@ -1256,6 +1321,7 @@ function selectPunk(tokenId, { focusRoster = false } = {}) {
   if (!PREVIEW) { state.gallery = []; state.activity = []; state.activityLoaded = false; }
   renderSelected(); renderCollectionWithdrawal(); scheduleSelectedReviewMissionCheck();
   const activeTab = one('[data-v2-tab][aria-selected="true"]')?.dataset.v2Tab;
+  if (activeTab === 'activity') missionNotifications?.markRead({ owner: state.wallet?.account, tokenId: String(state.selected?.tokenId) });
   if (!PREVIEW && activeTab) void hydrateSelected(activeTab);
   if (focusRoster) {
     const option = one('[data-punk-roster] [aria-selected="true"]');
@@ -1422,7 +1488,10 @@ function activateTab(name) {
     }
   });
   all("[data-v2-panel]").forEach((panel) => { panel.hidden = panel.dataset.v2Panel !== name; });
-  if (name === "activity") renderActivity();
+  if (name === "activity") {
+    missionNotifications?.markRead({ owner: state.wallet?.account, tokenId: String(state.selected?.tokenId) });
+    renderActivity();
+  }
   if (name === "forge") forgeControl?.selectionChanged();
   history.replaceState(null, "", `${location.pathname}?${new URLSearchParams({ ...(PREVIEW ? { preview: "1" } : {}), tab: name,
     ...(state.selected?.tokenId || REQUESTED_PUNK ? { tokenId: state.selected?.tokenId ?? REQUESTED_PUNK } : {}) })}`);
@@ -1875,21 +1944,30 @@ async function readV2Session(report = () => {}) {
 }
 
 async function activatePunkAgentMission(draft, report) {
+  const selected = state.selected, owner = state.wallet?.account, tokenId = String(selected?.tokenId);
+  const assertSelection = () => {
+    if (state.selected !== selected || state.wallet?.account !== owner || state.wallet?.chainId !== CHAIN_ID
+      || draft.intent?.expectedOwner !== owner || draft.intent?.punkTokenId !== tokenId) {
+      throw Error('Punk or wallet changed. Check the original Punk’s mission status before continuing.');
+    }
+  };
+  assertSelection();
   await ensureV2Session(report);
+  assertSelection();
   report("Checking Punk Agent Account, bundler, signer, and worker readiness…");
   const status = await loadAgentAccountStatus({ authenticate: false });
+  assertSelection();
   if (!status?.readiness?.setupAvailable) {
     throw Object.assign(new Error("Punk Agent Account infrastructure is not ready."),
       { code: "PUNK_AGENT_ACCOUNT_NOT_READY" });
   }
   const provider = window.__GOGH_WALLET_PROVIDER__;
   if (!provider?.request) throw new Error("Wallet provider unavailable.");
-  const owner = state.wallet.account;
-  const tokenId = String(state.selected.tokenId);
   const setup = await jsonRequest("/api/v2/agent-account/setup", { method: "POST",
     headers: { "content-type": "application/json" }, body: JSON.stringify({
       owner, tokenId, intent: draft.intent,
     }), timeoutMs: 30_000 });
+  assertSelection();
   const transactions = setup.setup?.setupTransactions;
   if (!Array.isArray(transactions) || transactions.length < 1 || transactions.length > 2) {
     throw new Error("The reviewed Punk Agent Account setup is invalid.");
@@ -1900,6 +1978,11 @@ async function activatePunkAgentMission(draft, report) {
       || !/^0x[0-9a-f]+$/.test(transaction.data) || transaction.value !== "0") {
       throw new Error("The owner setup transaction changed after review.");
     }
+    const [walletChain, accounts] = await Promise.all([
+      provider.request({ method: 'eth_chainId' }), provider.request({ method: 'eth_accounts' }),
+    ]);
+    assertSelection();
+    if (walletChain !== '0x1237' || accounts?.[0]?.toLowerCase() !== owner) throw Error('Reconnect the reviewed owner wallet on Robinhood Chain.');
     report(`Wallet approval ${index + 1} of ${transactions.length}: ${transaction.purpose.replaceAll("_", " ")}.`);
     const hash = await provider.request({ method: "eth_sendTransaction", params: [{
       from: owner, to: transaction.to, data: transaction.data, value: "0x0",
@@ -1910,15 +1993,18 @@ async function activatePunkAgentMission(draft, report) {
     authorizationTransactionHash = hash.toLowerCase();
     report(`Approval ${index + 1} submitted. Waiting for Robinhood Chain confirmation…`);
     await waitForPunkWalletTransactionReceipt(provider, authorizationTransactionHash);
+    assertSelection();
   }
   report("Mission session confirmed on chain. Activating the server worker…");
   const receipt = await jsonRequest("/api/v2/agent-account/receipt", { method: "POST",
     headers: { "content-type": "application/json" }, body: JSON.stringify({ owner, tokenId,
       sessionId: setup.sessionId, setupArtifactHash: setup.setup.artifactHash,
       authorizationTransactionHash }), timeoutMs: 30_000 });
+  assertSelection();
   state.agentAccounts.delete(tokenId); state.hydratedTokenId = null;
   await loadAgentAccountStatus({ authenticate: false });
   await hydrateSelected("activity");
+  assertSelection();
   return receipt;
 }
 
@@ -1938,8 +2024,8 @@ function showConfirmation(draft) {
       : [intent.requiresWebsite && "WEBSITE",
         intent.requiresSocial && (intent.preferredSocialPlatforms.join(" + ") || "SOCIAL")]
         .filter(Boolean).join(" + "),
-    target: intent.allowedContracts?.length === 1
-      ? intent.allowedContracts[0] : "ALL ROBINHOOD NFTS",
+    target: intent.allowedContracts?.length
+      ? intent.allowedContracts.join(' · ') : "SUPPORTED COLLECTIONS MATCHING YOUR RULES",
     free: intent.mintMode === "FREE_ONLY",
     maximumPrice: displayEth(intent.maxMintPriceWei),
   } : draft;
@@ -1948,7 +2034,8 @@ function showConfirmation(draft) {
     ["MINT PRICE", view.free ? "FREE ONLY" : `UP TO ${view.maximumPrice ?? "—"} ETH`], ["LOOKING FOR", view.tastes.join(" · ")],
     ["REQUIRES", [view.presence, "SCREEN + SIMULATION"].filter(Boolean).join(" · ")],
     ["DAILY LIMIT", view.daily], ["TOTAL LIMIT", view.total], ["MAX GAS", `${view.gas} ETH`], ["MINIMUM RESERVE", `${view.reserve} ETH`],
-    ["MAX SUPPLY", view.supply], ["TARGET", view.target],
+    ["MAX SUPPLY", view.supply], ["COLLECTIONS", view.target],
+    ["PERMISSION EXPIRES", intent?.expiration ? new Date(intent.expiration).toLocaleString() : "See wallet permission"],
     ["STATUS", "PENDING OWNER CONFIRMATION"],
   ];
   const grid = one("[data-confirmation-grid]"); grid.replaceChildren();
@@ -2104,6 +2191,10 @@ function clearTransferredPunkReview() {
 }
 
 function setup() {
+  missionNotifications = createMissionNotifications({ onChange: renderMissionBadges });
+  one('[data-mission-updates-read]')?.addEventListener('click', () => {
+    if (state.wallet?.chainId === CHAIN_ID) missionNotifications.markRead({ owner: state.wallet?.account });
+  });
   restoreReviewSessionState();
   // AI and model discovery are disabled. Keep holder onboarding local.
   let welcomeDismissed = false;
@@ -2269,6 +2360,13 @@ function setup() {
     activateTab('talk');
     void runAgentAction(START_FREE_MINT_COMMAND);
   });
+  one('[data-new-free-search]').addEventListener('click', () => {
+    activateTab('talk');
+    void runAgentAction(NEW_FREE_MINT_SEARCH_COMMAND);
+  });
+  one('[data-agent-gas-setup]').addEventListener('click', () => {
+    activateTab('talk'); void runAgentAction(START_FREE_MINT_COMMAND);
+  });
   const openPromptPanel = (panel) => {
     if (panel === "link") {
       activateTab("talk"); one("[data-link-form]").hidden = false; one("#mint-link").focus();
@@ -2290,7 +2388,7 @@ function setup() {
   const setChatBusy = (busy) => {
     actionBusy = busy;
     one('[data-agent-options]').toggleAttribute('aria-busy', busy);
-    all('[data-suggestion], [data-start-free-mission]').forEach(button => { button.disabled = busy; });
+    all('[data-suggestion], [data-start-free-mission], [data-new-free-search]').forEach(button => { button.disabled = busy; });
     agentOptions.setBusy(busy);
   };
   window.addEventListener('gogh:action-invalidated', () => setChatBusy(false));
@@ -2435,7 +2533,7 @@ function setup() {
         state.localStrategy = draft;
         addMessage("punk", "Your mission draft is saved, but my Agent gas is empty. Review funding here first, then use REVIEW SAVED MISSION. Neither step grants the other permission.");
         await openChatGasReview();
-        return;
+        return draft;
       }
     }
     const intent = draft.intent;
@@ -2445,7 +2543,23 @@ function setup() {
     addReviewActivity("DRAFT", "STRATEGY DRAFT CREATED",
       "Awaiting owner confirmation · Punk has not been sent out");
     showConfirmation(draft);
+    return draft;
   };
+  swarmControl = mountSwarm({ root: one('[data-swarm-panel]'),
+    getContext: () => ({ owner: state.wallet?.account, chainId: state.wallet?.chainId }),
+    getPunks: () => PREVIEW ? [] : state.punks,
+    openReview: async ({ tokenId, command }) => {
+      if (PREVIEW || actionBusy || one('[data-activate-strategy]').dataset.busy === 'true'
+        || one('[data-confirmation-dialog]').open) throw Error('Finish the current review before opening another Punk.');
+      selectPunk(tokenId); activateTab('talk');
+      return runAgentAction(command);
+    },
+    openStatus: tokenId => { selectPunk(tokenId); activateTab('activity'); void loadAgentAccountStatus({ authenticate: true }); },
+  });
+  one('[data-open-swarm]').addEventListener('click', () => {
+    activateTab('talk'); one('[data-swarm-details]').open = true;
+    one('[data-swarm-details]').scrollIntoView({ block: 'start' }); swarmControl.refresh();
+  });
   one("[data-link-form]").addEventListener("submit", async (event) => {
     event.preventDefault();
     const form = event.currentTarget; const value = one("#mint-link").value.trim();
@@ -2592,13 +2706,17 @@ function setup() {
     state.dispatchAfterActivation = false;
     const mode = state.localStrategy.intent?.operatingMode ?? state.localStrategy.mode;
     if (mode === "AUTONOMOUS") {
+      const swarmIdentity = { tokenId: String(state.selected?.tokenId), intentHash: state.localStrategy.intentHash };
       try {
+        swarmControl?.authorization(swarmIdentity, 'AUTHORIZING');
         await activatePunkAgentMission(state.localStrategy, report);
+        swarmControl?.authorization(swarmIdentity, 'AUTHORIZED');
         state.selected.mode = "AUTONOMOUS";
         one("[data-confirmation-dialog]").close();
         renderSelected();
-        addMessage("punk", "I’M OUT. MY OWNER-APPROVED PUNK AGENT ACCOUNT SESSION IS ACTIVE. I’ll use only my deposited ETH for gas, only for eligible free mints inside these limits, and every result will appear in Activity.");
+        addMessage("punk", "Mission permission confirmed. Check the status strip for live worker readiness. If Agent gas is empty, open Fund to add gas before minting can begin. Only eligible free mints inside your approved limits can run; results appear in Activity.");
       } catch (error) {
+        try { swarmControl?.authorization(swarmIdentity, 'CHECK_STATUS'); } catch { /* Original wallet result remains recoverable. */ }
         report(`AUTONOMOUS SETUP STOPPED · ${error?.message ?? "No mission was activated."}`);
         addMessage("punk", `${error?.message ?? "Autonomous setup stopped safely."} No unapproved mint was submitted.`);
       }
@@ -2782,7 +2900,7 @@ function setup() {
       if (isSelected()) output.textContent = submittedHash
         ? "Funding confirmation could not be checked. Use Recheck funding below to verify the original transaction before trying again."
         : `${error?.message ?? "Gas funding stopped."} Check wallet activity before retrying if MetaMask opened.`;
-    } finally { state.gasFundingBusy = false; gasButton.disabled = false; gasFundingRecovery.refresh(); if (!state.gasFundingPlan) gasButton.textContent = "REVIEW & SIMULATE"; }
+    } finally { state.gasFundingBusy = false; renderAgentGasFunding(); gasFundingRecovery.refresh(); if (!state.gasFundingPlan) gasButton.textContent = "REVIEW & SIMULATE"; }
   });
   const fundForm = one("[data-fund-form]");
   const fundButton = fundForm.querySelector("button[type=submit]");
@@ -2984,6 +3102,7 @@ function setup() {
     state.wallet = { ...wallet, account };
     // Invalidate watch drafts before any pending/wrong-chain early return.
     void persistentWatchControl?.selectionChanged();
+    renderMissionBadges();
     forgeSkillAdminControl?.update();
     brokerPreferences?.refresh(); gasFundingRecovery?.refresh();
     if (account !== previousAccount || wallet.chainId !== previousChain) {

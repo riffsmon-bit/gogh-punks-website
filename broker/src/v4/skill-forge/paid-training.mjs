@@ -205,7 +205,7 @@ export function createPaidTrainingCoordinator({clients,release:input,now=Date.no
       && fees.maxPriorityFeePerGas>=0n && fees.maxPriorityFeePerGas<=fees.maxFeePerGas,'PAID_FEE_UNAVAILABLE');
     const review={schema:'GOGH_PAID_TRAINING_REVIEW_V1',...Object.fromEntries(['chainId','collection','registry','legacyProgression',
       'extension','extensionCodeHash','treasury','priceWei'].map(k=>[k,release[k]])),owner,tokenId,action,
-      guard:{nonce:current.reviewNonce,stateHash:current.reviewStateHash,deadline:String(BigInt(current.anchor.timestamp)+45n)},anchor:current.anchor,
+      guard:{nonce:current.reviewNonce,stateHash:current.reviewStateHash,deadline:String(BigInt(current.anchor.timestamp)+60n)},anchor:current.anchor,
       transaction:{from:owner,to:release.extension,data:'0x',value:hex(action.operation==='buy'?release.priceWei:0),chainId:'0x1237',
         nonce:hex(ownerNonce),gas:hex(2000000),maxFeePerGas:hex(fees.maxFeePerGas),maxPriorityFeePerGas:hex(fees.maxPriorityFeePerGas)}};
     review.transaction.data=paidCalldata(review);
