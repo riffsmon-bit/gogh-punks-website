@@ -5,6 +5,7 @@ const root = new URL('../../../', import.meta.url), pins = AGENT_RECOVERY_PINS;
 const valid = (ok, code) => { if (!ok) throw Error(code); };
 const same = (a,b) => String(a).toLowerCase() === String(b).toLowerCase();
 export const SWARM_SETUP_OWNER = '0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6';
+export const SWARM_COLLECTION_CODE_HASH = '0x3222e4925f77909e6370e17fe071d2774d43e191f6bc72c3a97c97209c6e2e93';
 async function artifact(name) {
   const result = JSON.parse(await readFile(new URL(`contracts/out/${name}.sol/${name}.json`, root)));
   valid(result.metadata.compiler.version === '0.8.34+commit.80d5c536' && result.metadata.settings.viaIR
@@ -24,7 +25,7 @@ export async function loadSwarmDeployment() {
 export async function verifySwarmDependencies({ client, release, blockNumber }) {
   valid(await client.getChainId() === 4663, 'SWARM_SETUP_WRONG_CHAIN');
   for (const key of ['registry','implementation']) valid(keccak256(await client.getCode({address:release[key],blockNumber}) ?? '0x') === release[`${key}CodeHash`], 'SWARM_DEPENDENCY_CHANGED');
-  valid((await client.getCode({address:release.collection,blockNumber}))?.length > 2, 'SWARM_COLLECTION_UNAVAILABLE');
+  valid(keccak256(await client.getCode({address:release.collection,blockNumber}) ?? '0x') === SWARM_COLLECTION_CODE_HASH, 'SWARM_COLLECTION_CHANGED');
 }
 export function matchesCompiledSwarmRuntime(artifact, code) {
   if (!/^0x[0-9a-f]+$/i.test(code ?? '')) return false;

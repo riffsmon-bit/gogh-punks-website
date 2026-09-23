@@ -2,6 +2,17 @@ import * as walletClient from './swarm-wallet-client.js';
 import { SWARM_WALLET_RELEASE } from './swarm-wallet-release.js';
 import { buildSwarmFunding, fundingEth } from './broker-swarm-funding.js';
 
+const reviewErrors = {
+  SWARM_WALLET_INSUFFICIENT_VAULT_FUNDS: 'Your Swarm Wallet does not have enough ETH for this amount. Add ETH or reduce the amount, then review again.',
+  SWARM_WALLET_INSUFFICIENT_OWNER_FUNDS: 'Your connected wallet needs enough ETH for the deposit and network fee. No wallet request was opened.',
+  SWARM_WALLET_PUNK_OWNER_CHANGED: 'You no longer own every selected Punk. Refresh your roster and review a new batch.',
+  SWARM_WALLET_AGENT_CHANGED: 'A selected Punk’s Agent Account could not be verified. Check its activation in Fund before reviewing this batch again.',
+  SWARM_WALLET_FEE_CHANGED: 'Network fees changed during the review. Prepare a fresh review; no new wallet request was opened.',
+  SWARM_WALLET_FEE_LIMIT: 'The estimated network fee exceeds this feature’s limit. Try again when fees are lower.',
+  SWARM_WALLET_REVIEW_CHANGED: 'The wallet balance or settings changed. Prepare a fresh review before confirming.',
+  SWARM_WALLET_READ_TIMEOUT: 'A chain check took too long. Nothing was submitted by this check. Try again, or check any saved transaction below.',
+};
+
 export function mountSwarmWallet({ root, getContext, getPunks, getProvider, release = SWARM_WALLET_RELEASE,
   client = walletClient, storage, locks = globalThis.navigator?.locks }) {
   if (!root) return { refresh() {} };
@@ -41,10 +52,10 @@ export function mountSwarmWallet({ root, getContext, getPunks, getProvider, rele
   const confirm = el('button', 'CONFIRM IN WALLET', 'confirm'), discard = el('button', 'DISCARD UNSENT REVIEW', 'discard');
   const warning = el('p', 'Your connected wallet pays the network fee. Depositing gas does not activate a mission. A transfer to a Punk stays in that Punk’s wallet; withdrawing here only recovers ETH still in your Swarm Wallet.');
   preview.append(el('h4', 'REVIEW BEFORE OPENING YOUR WALLET'), details, warning, consentLabel, confirm, discard);
-  const recovery = el('section', '', 'recovery'), hashLabel = el('label', 'Original transaction hash from wallet activity');
+  const recovery = el('section', '', 'recovery'), hashLabel = el('label', 'Original, speed-up or cancellation transaction hash from wallet activity');
   const hash = el('input', '', 'hash'); hash.type = 'text'; hash.placeholder = '0x…'; hash.maxLength = 66;
-  hashLabel.append(hash); const recover = el('button', 'CHECK ORIGINAL TRANSACTION', 'recover');
-  recovery.append(el('p', 'A pending or unknown result will not be resent. Check the original transaction before starting another action.'), hashLabel, recover);
+  hashLabel.append(hash); const recover = el('button', 'CHECK TRANSACTION', 'recover');
+  recovery.append(el('p', 'A pending or unknown result will not be resent. Check the original transaction, or paste its speed-up or cancellation hash from wallet activity. A replacement must be confirmed before another action is available.'), hashLabel, recover);
   const link = el('a', 'VIEW TRANSACTION', 'link'); link.target = '_blank'; link.rel = 'noopener noreferrer'; link.hidden = true;
   root.replaceChildren(title, intro, steps, info, check, create, createNote, forms, status, preview, recovery, link);
   const buttons = [check, create, depositButton, batchButton, withdrawButton, confirm, discard, recover];
@@ -72,6 +83,7 @@ export function mountSwarmWallet({ root, getContext, getPunks, getProvider, rele
       + (fundingUnavailable ? ' Punk account verification is unavailable, so funding is paused. You can still review withdrawal of unused ETH.' : '');
     else info.textContent = 'Check your Swarm Wallet. This read does not open MetaMask.';
     link.hidden = !record?.transactionHash;
+    link.textContent = pending() ? 'VIEW PENDING TRANSACTION' : 'VIEW LAST TRANSACTION';
     if (record?.transactionHash) link.href = `https://robinhoodchain.blockscout.com/tx/${record.transactionHash}`;
   }
   function loadRecord() {
@@ -105,7 +117,7 @@ export function mountSwarmWallet({ root, getContext, getPunks, getProvider, rele
     const isCurrent = () => current() === owner && revision === version && getProvider() === provider;
     render();
     try { await action(owner, isCurrent, provider); }
-    catch (error) { if (isCurrent()) status.textContent = error?.message ?? 'The review could not be verified. Check the original transaction before retrying.'; }
+    catch (error) { if (isCurrent()) status.textContent = reviewErrors[error?.code] ?? error?.message ?? 'The review could not be verified. Check the original transaction before retrying.'; }
     finally { busy = false; render(); }
   }
   function amountWei(input) {
@@ -160,14 +172,17 @@ export function mountSwarmWallet({ root, getContext, getPunks, getProvider, rele
     } finally { if (isCurrent()) { review = null; consent.checked = false; loadRecord(); } }
   }));
   recover.addEventListener('click', () => run(async (owner, isCurrent, provider) => {
-    status.textContent = 'Checking the original transaction. No new transaction will be sent…';
-    const result = await client.recoverSwarmWallet(provider, owner, { release, storage, locks, hash:hash.value.trim(), isCurrent });
+    status.textContent = 'Checking your saved transaction or its replacement. No new transaction will be sent…';
+    const inspectedHash = hash.value.trim();
+    const result = await client.recoverSwarmWallet(provider, owner, { release, storage, locks, hash:inspectedHash, isCurrent });
     if (!isCurrent()) return;
-    record = result; hash.value = result.transactionHash ?? '';
+    record = result; hash.value = pending() ? inspectedHash : result.transactionHash ?? '';
     status.textContent = result.status === 'CONFIRMED' ? 'Transaction confirmed. Your Swarm Wallet action is complete. Funding does not start a mission.'
+      : result.status === 'CANCELLED' ? 'Original request cancelled in your wallet. The intended Swarm action did not execute; the cancellation used a network fee.'
       : result.status === 'REVERTED' ? 'The transaction reverted. The intended transfer did not complete; the network fee may have been spent.'
         : 'Confirmation is still pending. Check this original transaction again later; do not send another.';
-    if (['CONFIRMED','REVERTED'].includes(result.status)) {
+    if (result.receipt?.feeExceeded) status.textContent += ` Your wallet changed the network fee above the original review. Actual fee: ${fundingEth(result.receipt.actualNetworkFeeWei)} ETH. This check sent no new transaction.`;
+    if (['CONFIRMED','REVERTED','CANCELLED'].includes(result.status)) {
       const value = await client.readSwarmWallet(provider, { owner, release });
       if (isCurrent()) snapshot = value;
     }

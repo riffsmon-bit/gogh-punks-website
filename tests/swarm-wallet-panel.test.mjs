@@ -75,3 +75,15 @@ test('unavailable account verification pauses funding while retaining owner with
   assert.match(f.node('info').textContent,/funding is paused/);
   f.node('withdraw-amount').value='0.003';await f.click('withdraw');assert.equal(f.node('review').hidden,false);
 });
+test('verified wallet cancellation explains non-delivery and restores owner actions',async()=>{
+  const f=fixture({saved:{status:'SUBMITTED',transactionHash:HASH}});await f.ready();
+  f.client.recoverSwarmWallet=async()=>({status:'CANCELLED',transactionHash:HASH});
+  await f.click('recover');assert.match(f.node('status').textContent,/intended Swarm action did not execute/);
+  assert.equal(f.node('recovery').hidden,true);assert.equal(f.node('withdraw').disabled,false);
+});
+test('recovery surfaces a higher owner-edited mined fee without sending again',async()=>{
+  const f=fixture({saved:{status:'SUBMITTED',transactionHash:HASH}});await f.ready();
+  f.client.recoverSwarmWallet=async()=>({status:'CONFIRMED',transactionHash:HASH,receipt:{feeExceeded:true,actualNetworkFeeWei:'6000000000000'}});
+  await f.click('recover');assert.match(f.node('status').textContent,/above the original review.*0.000006 ETH.*no new transaction/);
+  assert.equal(f.calls.includes('wallet'),false);assert.equal(f.node('withdraw').disabled,false);
+});

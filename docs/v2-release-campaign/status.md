@@ -1,3 +1,25 @@
+# Current Swarm funding release — 23 September 2026
+
+Production: `7811eff1ddb343670b3ef19c547d762d75e8c511` (PR #78), Netlify deployment `6ab403c2eb714500080cf5ab`. Vercel remains paused; AI inference remains disabled. The [community brief](v2-community-brief-20260923.md) separates released, restricted and unavailable holder features.
+
+| Workstream | Status | Owner / branch | Evidence / remaining gate |
+|---|---|---|---|
+| Recall and review-before-login repairs | LIVE | Release lead / main | Latest production browser: 15 screenshots, 26 served-file comparisons, zero errors; protected APIs reject unsigned requests. Owner wallet confirmation is still required for an actual recall. |
+| Existing Swarm planner and individual gas deposits | LIVE | Release lead / main | Up to 10 Punks; local review before explicit login, retained choices, per-Punk authorization and deposits. |
+| Dedicated holder Swarm Wallet contracts | TESTED | keep_hunting / feat/owner-swarm-wallet | 31 targeted Solidity tests including 256 fuzz cases; immutable owner, canonical Agent accounts, atomic manual batches. Not deployed. |
+| Swarm Wallet browser adapter and panel | TESTED | funding_release_security + parent / feat/owner-swarm-wallet | 35 client/panel tests after fee/replacement recovery repair; local browser create/deposit/batch/withdraw at 1440/375/320, no errors or overflow. |
+| Independent contract/client/panel review | READY_FOR_REVIEW | swarm_wallet_independent_review | No outstanding concrete P0/P1/P2 in reviewed scope; no independent full Forge rerun or live deployment verification. |
+| Owner deployment review | TESTING | keep_hunting + parent / feat/owner-swarm-wallet | Two-provider read-only simulation passed. Replacement/cancellation recovery being completed before owner signature. No transaction broadcast. |
+| Optional paid Training Credits | OWNER CANARY | Existing release | 0.0005 ETH plus gas; currently approved-owner website access, Rarity Eye release. Not public paid training for all holders. |
+| General holder sacrifice | BLOCKED | Existing staged implementation | Asset/obligation inventory and pending-confirmation safety incomplete. No general burn release. |
+| Public purchases / sweeps / WETH bids | BLOCKED | Existing staged implementation | Existing authority and marketplace release gates remain. |
+
+New Swarm Wallet public manifest remains `null`: zero holder funding actions are exposed until deployment, runtime pinning and release validation. Manual funding grants no mission permission and never refills automatically. No production funds, NFTs, or ownership were changed during local wallet implementation.
+
+The records below are historical and do not supersede this section.
+
+---
+
 # Current paid-training integration — 22 September 2026
 
 **Whole-product verdict: NOT_READY.** Netlify maintenance is deployed; optional

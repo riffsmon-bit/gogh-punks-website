@@ -76,7 +76,7 @@ test('same-wallet status updates retain the review; changed owner or chain inval
   for (const [account, chainId, expected] of [[owner, 4663, 0], [other, 4663, 1], [owner, 1, 1], [null, null, 1]]) {
     let invalidated = 0;
     vm.runInNewContext(update, { account, wallet: { chainId }, previousAccount: owner, previousChain: 4663,
-      state: {}, persistentWatchControl: null, swarmReviewGate: { invalidate: () => invalidated++ } });
+      state: {}, swarmWalletControl: null, persistentWatchControl: null, swarmReviewGate: { invalidate: () => invalidated++ } });
     assert.equal(invalidated, expected);
   }
 });
