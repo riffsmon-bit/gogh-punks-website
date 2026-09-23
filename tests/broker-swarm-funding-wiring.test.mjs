@@ -37,7 +37,7 @@ function fixture() {
     },
     gasFundingRecovery: { refresh() {} },
     ensureV2Session: async () => { calls.push('session'); await f.sessionHook(); },
-    loadAgentAccountStatus: async () => { calls.push('account-status'); await f.accountHook(); }, loadPunkBalances: async () => {},
+    loadAgentAccountStatus: async options => { f.accountOptions = options; calls.push('account-status'); await f.accountHook(); }, loadPunkBalances: async () => {},
     jsonRequest: async path => { calls.push(path); return { ok: true }; },
     fetchPunkWalletFundsGate() { throw Error('Swarm deposits must not use Punk funds'); },
     prepareAgentGasFunding: async (_provider, context, tokenId, source, amount) => {
@@ -71,6 +71,7 @@ test('integrated Swarm opener selects the exact Punk, prefills OWNER amount and 
   assert.equal(f.state.selected.tokenId, '93'); assert.equal(f.tab, 'fund');
   assert.equal(f.one('#agent-gas-source').value, 'OWNER'); assert.equal(f.one('#agent-gas-amount').value, '0.0005');
   assert.equal(f.one('[data-agent-gas-confirm]').checked, false);
+  assert.equal(f.accountOptions.authenticate, false); assert.equal(f.calls.includes('session'), false);
   assert.equal(f.sends, 0); assert.equal(f.calls.includes('prepare'), false); assert.equal(f.calls.includes('bind'), false);
 });
 

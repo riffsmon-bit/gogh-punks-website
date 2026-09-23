@@ -2,6 +2,7 @@ import { displayEth, displayEthBudget } from "./broker-v2-amounts.js";
 import { linkFindings, createLinkFindingsCard } from './broker-v2-link-findings.js';
 import { mountAgentOptions } from "./broker-agent-options.js";
 import { mountSwarm } from './broker-swarm.js';
+import { createSwarmReviewGate } from './broker-swarm-review.js';
 import { punkActivationStatus } from './broker-activation-status.js';
 import { createMissionNotifications } from './broker-mission-notifications.js';
 import { mountFeatureHelp } from './broker-feature-help.js';
@@ -109,6 +110,7 @@ let marketplaceSelectionKey = '';
 let marketplaceSelectionRevision = 0;
 let persistentWatchControl = null;
 let swarmControl = null;
+let swarmReviewGate = null;
 let missionNotifications = null;
 let agentRecoveryControl = null;
 const one = (selector) => document.querySelector(selector);
@@ -597,6 +599,11 @@ function renderCurrentMissionStatus() {
   if (newSearch) newSearch.hidden = !view.canStart || !hasTarget;
   const check = one('[data-current-mission-check]');
   if (check) check.disabled = state.agentAccountLoading.has(String(state.selected?.tokenId));
+  const recall = one('[data-current-mission-recall]');
+  if (recall) {
+    recall.disabled = PREVIEW || !state.selected || !state.wallet?.account || state.wallet.chainId !== CHAIN_ID || punkRecall.busy;
+    recall.textContent = punkRecall.busy ? 'RECALL IN PROGRESS…' : 'RECALL PUNK';
+  }
   return view;
 }
 
@@ -912,6 +919,10 @@ async function recallSelectedReviewAgent() {
     && state.wallet?.chainId === CHAIN_ID && window.__GOGH_WALLET_PROVIDER__ === provider;
   const button = one("[data-review-agent-recall]");
   button.disabled = true; button.textContent = "CHECKING LIVE MISSION…";
+  const recallButton = one('[data-current-mission-recall]');
+  if (recallButton) { recallButton.disabled = true; recallButton.textContent = 'CHECKING MISSION…'; }
+  const report = message => { if (isCurrent()) set('[data-current-recall-result]', message); };
+  report(`Checking Punk #${tokenId}’s current mission. Recall is not confirmed yet.`);
   try {
     let result;
     if (PREVIEW) {
@@ -927,15 +938,20 @@ async function recallSelectedReviewAgent() {
         waitForReceipt: waitForPunkWalletTransactionReceipt,
         onWallet: () => {
           button.textContent = "CONFIRM IN WALLET";
+          report(`Confirm the recall for Punk #${tokenId} in MetaMask. Your connected wallet pays the network fee. Funds stay in the Punk’s wallets.`);
           addMessage("punk", `Confirm the recall for Punk #${tokenId} in your wallet. This revokes its mission session. It stays paused until you authorize a new mission.`);
         },
         onSubmitted: hash => {
+          report(`Recall submitted for Punk #${tokenId}. Waiting for confirmation; do not submit again. Transaction: ${hash}`);
           if (isCurrent()) addMessage("punk", `Punk #${tokenId} recall submitted: ${hash}. Waiting for its receipt and mission confirmation.`);
         },
       });
     }
     if (!isCurrent() || result.status === "BUSY") return;
     punk.mode = "PAUSED"; renderSelected();
+    report(result.status === 'REVOKED'
+      ? `Punk #${tokenId} recalled. Its mission permission is revoked and its strategy is paused. Funds remain in its wallets. Already-submitted mints still need their receipts checked.`
+      : `Punk #${tokenId}’s strategy is paused. No active mission permission was found. Funds remain in its wallets.`);
     addMessage("punk", result.status === "REVOKED"
       ? "I’M BACK. The mission session is revoked on chain and the strategy is paused. Any transaction already submitted still needs its receipt checked. I’ll stay paused until you authorize a new mission."
       : PREVIEW || REVIEW_HOST
@@ -947,9 +963,11 @@ async function recallSelectedReviewAgent() {
       if (isCurrent()) await hydrateSelected("activity");
     }
   } catch (error) {
+    report(`${error?.message ?? 'Recall stopped.'} Recall is not confirmed.${error?.transactionHash
+      ? ` Transaction: ${error.transactionHash}. Check this receipt before retrying.` : ' Check status and retry when your wallet is ready.'}`);
     if (isCurrent()) addMessage("punk", `${error?.message ?? "Recall stopped."} Recall is not confirmed.${error?.transactionHash
       ? ` Transaction: ${error.transactionHash}. Check this receipt before retrying.` : ""}`);
-  } finally { button.textContent = "CALL PUNK BACK"; renderReviewAgent(); }
+  } finally { button.textContent = "CALL PUNK BACK"; renderReviewAgent(); renderCurrentMissionStatus(); }
 }
 
 async function sendReviewAgentOut({ testMode = false, continueMission = false } = {}) {
@@ -1225,6 +1243,7 @@ function renderMissionBadges() {
 
 function renderRoster() {
   void persistentWatchControl?.selectionChanged();
+  swarmReviewGate?.refresh();
   swarmControl?.refresh();
   forgeSkillAdminControl?.update();
   forgeControl?.selectionChanged();
@@ -1292,6 +1311,7 @@ function renderRoster() {
 }
 
 function renderSelected() {
+  swarmReviewGate?.refresh();
   swarmControl?.refresh();
   brokerPreferences?.refresh();
   gasFundingRecovery?.refresh();
@@ -1362,10 +1382,12 @@ function invalidateConversationRequests() {
 }
 
 function selectPunk(tokenId, { focusRoster = false } = {}) {
+  swarmReviewGate?.invalidate();
   const punk = state.punks.find((item) => item.tokenId === tokenId);
   if (!punk) return;
   invalidateConversationRequests();
   state.balanceRequestId += 1; state.balanceReads?.clear();
+  set('[data-current-recall-result]', '');
   state.selected = punk; state.localStrategy = null; state.localSkill = null; state.lastInspection = null;
   const key = selectedReviewKey();
   state.lastInspection = key ? state.reviewInspections.get(key) ?? null : null;
@@ -1865,7 +1887,7 @@ async function hydrateSelected(tab) {
         if (collection.status === "rejected") throw collection.reason;
       } else if (tab === "fund") await loadPunkBalances(punk);
       else if (tab === "activity") {
-        await ensureV2Session();
+        await requireExistingV2Session();
         const payload = await jsonRequest(`/api/v2/punks/${tokenId}/activity`);
         if (!isCurrent()) return;
         state.activityLoaded = true;
@@ -1876,7 +1898,7 @@ async function hydrateSelected(tab) {
       }
       return;
     }
-    await ensureV2Session();
+    await requireExistingV2Session();
     const profilePayload = state.hydratedTokenId === tokenId ? null
       : await jsonRequest(`/api/v2/punks/${tokenId}`);
     if (!isCurrent()) return;
@@ -1946,6 +1968,15 @@ async function jsonRequest(path, options = {}) {
   } finally {
     window.clearTimeout(timeout);
   }
+}
+
+// Passive navigation may read an existing login, but must never open a wallet.
+async function requireExistingV2Session() {
+  const owner = state.wallet?.account, chainId = state.wallet?.chainId;
+  const session = await jsonRequest('/api/v2/session');
+  if (!owner || chainId !== CHAIN_ID || state.wallet?.account !== owner || state.wallet?.chainId !== chainId
+    || session.walletAddress?.toLowerCase() !== owner) throw Error('Use Check status / Sign in to load your Punk’s private details.');
+  return session;
 }
 
 const sessionRequests = new Map();
@@ -2240,6 +2271,7 @@ function applyOwnedPunks(punks) {
 }
 
 function clearTransferredPunkReview() {
+  set('[data-current-recall-result]', '');
   invalidateConversationRequests();
   state.localStrategy = null; state.localSkill = null; state.lastInspection = null;
   state.fundingPlan = null; state.gasFundingPlan = null; state.swarmFundingContext = null;
@@ -2330,6 +2362,7 @@ function setup() {
   }
   one("[data-review-agent-run]").addEventListener("click", () => sendReviewAgentOut());
   one("[data-review-agent-recall]").addEventListener("click", recallSelectedReviewAgent);
+  one("[data-current-mission-recall]").addEventListener("click", recallSelectedReviewAgent);
   one("[data-review-agent-test]").addEventListener("click", () => sendReviewAgentOut({ testMode: true }));
   one("[data-fund-agent-account]").addEventListener("click", () => {
     state.fundAgentAccount = false; state.fundingPlan = null;
@@ -2608,12 +2641,18 @@ function setup() {
     showConfirmation(draft);
     return draft;
   };
+  swarmReviewGate = createSwarmReviewGate({ dialog: one('[data-swarm-review-dialog]'),
+    getContext: () => ({ owner: state.wallet?.account, chainId: state.wallet?.chainId }),
+    isOwned: tokenId => state.punks.some(punk => String(punk.tokenId) === tokenId),
+  });
   swarmControl = mountSwarm({ root: one('[data-swarm-panel]'),
     getContext: () => ({ owner: state.wallet?.account, chainId: state.wallet?.chainId }),
     getPunks: () => PREVIEW ? [] : state.punks,
-    openReview: async ({ tokenId, command }) => {
+    openReview: async ({ tokenId, command, options }) => {
       if (PREVIEW || actionBusy || one('[data-activate-strategy]').dataset.busy === 'true'
         || one('[data-confirmation-dialog]').open) throw Error('Finish the current review before opening another Punk.');
+      const confirmed = await swarmReviewGate.review({ tokenId, command, options });
+      if (!confirmed) return { cancelled: true };
       selectPunk(tokenId); activateTab('talk');
       return runAgentAction(command);
     },
@@ -2627,7 +2666,7 @@ function setup() {
       one('[data-agent-gas-confirm]').checked = false;
       activateTab('fund'); renderAgentGasFunding();
       one('[data-agent-gas-panel]').scrollIntoView({ block: 'start' });
-      await loadAgentAccountStatus({ authenticate: true });
+      await loadAgentAccountStatus({ authenticate: false });
     },
     openStatus: tokenId => { selectPunk(tokenId); activateTab('activity'); void loadAgentAccountStatus({ authenticate: true }); },
   });
@@ -2926,6 +2965,7 @@ function setup() {
     onConfirmed: async selection => {
       const punk = state.selected;
       if (punk?.tokenId !== selection.tokenId || state.wallet?.account !== selection.owner) return;
+      swarmReviewGate?.refresh();
       swarmControl?.refresh();
       await Promise.all([loadAgentAccountStatus(), loadPunkBalances(punk)]);
       if (state.selected === punk && state.wallet?.account === selection.owner) renderSelected();
@@ -3209,6 +3249,7 @@ function setup() {
     state.wallet = { ...wallet, account };
     // Invalidate watch drafts before any pending/wrong-chain early return.
     void persistentWatchControl?.selectionChanged();
+    if (account !== previousAccount || wallet.chainId !== previousChain) swarmReviewGate?.invalidate();
     renderMissionBadges(); renderActivationGuide();
     forgeSkillAdminControl?.update();
     brokerPreferences?.refresh(); gasFundingRecovery?.refresh();
