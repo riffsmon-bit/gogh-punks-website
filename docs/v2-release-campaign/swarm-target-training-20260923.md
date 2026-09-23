@@ -57,3 +57,16 @@ The Mac ran out of storage during the first validation attempt. Removed only sup
 6. **Mission updates** and roster/Activity badges show recorded results and attention needed. Viewing Activity acknowledges that Punk’s updates.
 
 No live owner wallet actions were performed by this release. Owner-connected wallet confirmations remain required to activate/re-authorize missions, fund gas, or buy/use a credit.
+
+## Deployment evidence
+
+- PR: https://github.com/riffsmon-bit/gogh-punks-website/pull/76 (merged 2026-09-23 15:02:01 UTC).
+- Reviewed feature commit: `5a25de8aad17909eee5163f152bc389eba4d34ad`.
+- Production commit: `b857979f47de23b88100fc0a0ed2526f9119f750`; tree identical to the verified preview.
+- Preview deployment: `6ab3e8b2762bda000849a71a`; https://deploy-preview-76.preview.goghpunks.xyz . Browser PASS, 15 screenshots, 23 served files verified. Netlify's injected preview toolbar/newline was excluded exactly from HTML hashing; its iframe remained blocked by existing CSP. Evidence: `/private/tmp/gogh-preview-browser-evidence-grygpP/verified-result.json`.
+- Production deployment: `6ab3e9ec16567100082cc8c7`, published 2026-09-23 15:03:35.066 UTC at https://goghpunks.xyz/ .
+- Production browser: **PASS**, 15 captures at 1440/375/320px, 23 files match production commit, zero browser exceptions, console errors, log errors, failed requests or overflow. Evidence: `/private/tmp/gogh-preview-browser-evidence-fe9C82/result.json`.
+- Preview/production API checks: providers empty (AI disabled); unsigned Agent Account and paid-training requests return 401 `V2_SESSION_REQUIRED`.
+- One preview and one production deployment; no cloud rebuilds used for debugging. No owner transactions sent.
+- Owner-connected mint authorization, funding and paid-credit purchase still require the holder's wallet confirmation. The release does not prove a new live mint or credit purchase occurred.
+- Cleanup also removed reinstallable dependencies from the paused Vercel workspace and deduplicated identical Netlify-worktree dependencies after matching lockfile hashes. Source and wallet/profile data were preserved. Resume the paused migration with its normal dependency install when needed.
