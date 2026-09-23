@@ -5,9 +5,9 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { encodeDeployData, getContractAddress } from 'viem';
-import { openSetupReviewJournal, setupDigest } from './setup-review-journal.mjs';
+import { setupDigest } from './setup-review-journal.mjs';
 import { createSetupReadClient, readSetupAnchor } from './setup-read-client.mjs';
-import { recoverSetupTransaction } from './setup-transaction-recovery.mjs';
+import { openSwarmSetupReviewJournal, recoverSwarmSetupTransaction } from './swarm-setup-recovery.mjs';
 import { loadSwarmDeployment, verifySwarmDependencies, verifySwarmDeployment, SWARM_SETUP_OWNER } from './swarm-wallet-deployment.mjs';
 
 if (process.argv.length !== 3 || process.argv[2] !== '--live-owner-wallet') throw Error('Requires explicit owner-wallet deployment review mode');
@@ -22,7 +22,8 @@ const clients = [archive, 'https://rpc.mainnet.chain.robinhood.com'].map(createS
 const steps=[{action:'DEPLOY_SWARM_WALLET_FACTORY',label:'Deploy reviewed owner-controlled Swarm Wallet factory',to:null,
   data:encodeDeployData({abi:factory.abi,bytecode:factory.bytecode.object,args:configuration})}];
 const binding = setupDigest({ owner, steps, release });
-const journal = openSetupReviewJournal({ path: join(homedir(), '.gogh-punks', 'swarm-wallet-setup.sqlite'), binding });
+const journal = openSwarmSetupReviewJournal({ path: join(homedir(), '.gogh-punks', 'swarm-wallet-setup.sqlite'), binding });
+const verifyDeployment = args => verifySwarmDeployment({ ...args, factory, release });
 const same = (a,b) => typeof a === 'string' && typeof b === 'string' && a.toLowerCase() === b.toLowerCase();
 const valid = (v,code) => { if (!v) throw Error(code); }, hex = v => '0x' + BigInt(v).toString(16);
 const config={owner,chainId:4663,walletAuthority:'NONE',steps:steps.map(({action,label,to})=>({action,label,to})),burnEnabled:false,
@@ -39,7 +40,7 @@ async function prepare(revision) {
   const state=journal.snapshot(); valid(state.revision===revision,'SETUP_REVISION_CHANGED');
   const completed=state.records.filter(r=>r.status==='INCLUDED').map(r=>r.review.action);
   const step=steps.find(s=>!completed.includes(s.action)); valid(step,'SETUP_COMPLETE');
-  valid(!state.records.length || ['PREPARED','DECLINED','INCLUDED','REVERTED'].includes(state.records.at(-1).status),'RECOVER_EXISTING_WALLET_TRANSACTION');
+  valid(!state.records.length || ['PREPARED','DECLINED','INCLUDED','REVERTED','CANCELLED'].includes(state.records.at(-1).status),'RECOVER_EXISTING_WALLET_TRANSACTION');
   const block=await context(),c=clients[0];
   const [nonce,pending,gasPrice]=await Promise.all([c.getTransactionCount({address:owner}),c.getTransactionCount({address:owner,blockTag:'pending'}),c.getGasPrice()]);
   valid(nonce===pending,'OWNER_TRANSACTION_PENDING');
@@ -64,24 +65,6 @@ async function preflight(review) {
     await c.call({account:owner,...(tx.to?{to:tx.to}:{}),data:tx.data,value:0n,gas:BigInt(tx.gas),maxFeePerGas:BigInt(tx.maxFeePerGas),maxPriorityFeePerGas:0n});
   }
 }
-async function inspect(hash,review) {
-  const observed=[];
-  for(const c of clients) {
-    const tx=await c.getTransaction({hash}),r=await c.getTransactionReceipt({hash}),b=await c.getBlock({blockNumber:r.blockNumber});
-    const expected=review.transaction;
-    valid(same(tx.hash,hash)&&same(r.transactionHash,hash)&&same(tx.from,owner)&&tx.chainId===4663&&tx.nonce===Number(BigInt(expected.nonce))
-      && tx.input===expected.data&&tx.value===0n&&tx.gas===BigInt(expected.gas)&&tx.maxFeePerGas===BigInt(expected.maxFeePerGas)
-      && tx.maxPriorityFeePerGas===0n&&tx.type==='eip1559'&&!tx.authorizationList?.length
-      && (expected.to?same(tx.to,expected.to):tx.to===null)
-      && same(b.hash,r.blockHash)&&same(tx.blockHash,b.hash)&&tx.blockNumber===r.blockNumber&&tx.transactionIndex===r.transactionIndex
-      && r.gasUsed>0n&&r.gasUsed<=tx.gas&&r.effectiveGasPrice<=tx.maxFeePerGas
-      && (expected.to||r.status==='reverted'||same(r.contractAddress,review.predictedAddress)),'SETUP_RECEIPT_MISMATCH');
-    valid((await c.getBlockNumber())>=r.blockNumber+12n,'SETUP_CONFIRMATIONS_PENDING');
-    if (r.status === 'success') await verifySwarmDeployment({ client:c, factory, release, address:review.predictedAddress, blockNumber:r.blockNumber });
-    observed.push({transactionHash:hash.toLowerCase(),status:r.status,blockNumber:String(b.number),blockHash:b.hash,contractAddress:r.contractAddress});
-  }
-  valid(JSON.stringify(observed[0])===JSON.stringify(observed[1]),'SETUP_PROVIDERS_DISAGREE'); return observed[0];
-}
 let busy=false,origin; const csrf=randomBytes(32).toString('hex');
 const server=createServer(async(req,res)=>{
   const headers={'cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer',
@@ -91,7 +74,7 @@ const server=createServer(async(req,res)=>{
   try {
     if(req.method==='GET') {
       if(req.url==='/api/state')return json(200,{config,csrf,state:journal.snapshot()});
-      const files={'/':['swarm-wallet-setup.html','text/html'],'/setup.js':['selected-launch-setup.js','text/javascript'],'/setup.css':['owner-deployment.css','text/css']};
+      const files={'/':['swarm-wallet-setup.html','text/html'],'/setup.js':['swarm-wallet-setup.js','text/javascript'],'/setup.css':['owner-deployment.css','text/css']};
       const entry=files[req.url]; if(!entry)return json(404,{error:'NOT_FOUND'});
       res.writeHead(200,{...headers,'content-type':entry[1]});res.end(await readFile(new URL(entry[0],import.meta.url)));return;
     }
@@ -120,20 +103,11 @@ const server=createServer(async(req,res)=>{
       } else if(body.action==='recover') {
         valid(record&&['WALLET_REQUESTED','SUBMITTED'].includes(record.status),'RECOVERY_NOT_AVAILABLE');
         valid(/^0x[0-9a-f]{64}$/i.test(body.transactionHash??''),'INVALID_TRANSACTION_HASH');
-        ({state,pending}=await recoverSetupTransaction({journal,revision:body.revision,transactionHash:body.transactionHash,clients}));
+        ({state,pending}=await recoverSwarmSetupTransaction({journal,revision:body.revision,transactionHash:body.transactionHash,clients,verifyDeployment}));
       } else if(body.action==='recheck') {
-        if(record?.status==='WALLET_REQUESTED'&&record.reportedTransactionHash)
-          ({state,pending}=await recoverSetupTransaction({journal,revision:state.revision,transactionHash:record.reportedTransactionHash,clients}));
-        const current=state.records.at(-1);
-        valid(pending||current?.status==='SUBMITTED','RECOVER_TRANSACTION_HASH_FIRST');
-        if(!pending) {
-          try {state=journal.include(state.revision,await inspect(current.transactionHash,current.review));}
-          catch(error) {
-            if(['TransactionNotFoundError','TransactionReceiptNotFoundError','BlockNotFoundError'].includes(error.name)
-              || error.message==='SETUP_CONFIRMATIONS_PENDING')pending=true;
-            else throw error;
-          }
-        }
+        const hash=record?.recoveryTransactionHash??record?.transactionHash??record?.reportedTransactionHash;
+        valid(record&&['WALLET_REQUESTED','SUBMITTED'].includes(record.status)&&hash,'RECOVER_TRANSACTION_HASH_FIRST');
+        ({state,pending}=await recoverSwarmSetupTransaction({journal,revision:state.revision,transactionHash:hash,clients,verifyDeployment}));
       } else throw Error('INVALID_SETUP_ACTION');
       return json(200,{state,pending});
     } finally {busy=false;}
