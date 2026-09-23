@@ -80,3 +80,10 @@ test('a throwing browser sessionStorage getter disables only Swarm without crash
   assert.doesNotThrow(()=>panel.refresh());assert.equal(opened,0);
  }finally{if(original)Object.defineProperty(globalThis,'sessionStorage',original);else delete globalThis.sessionStorage;}
 });
+
+test('closing the local review leaves its Punk queued and retryable without authorization',async()=>{
+ const f=fixture(); f.config.openReview=async()=>({cancelled:true}); f.remount(); f.create();
+ f.button('REVIEW PUNK #93').click(); await settle();
+ assert.equal(f.button('REVIEW PUNK #93').disabled,false); assert.match(f.root.textContent,/No wallet request was made/);
+ const saved=JSON.parse([...f.values.values()][0]); assert.equal(saved.rows[0].status,'QUEUED'); assert.equal(saved.rows[0].intentHash,null);
+});

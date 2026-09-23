@@ -715,3 +715,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .swarm-wallet [data-swarm-wallet-review] { margin-top: 20px; padding: 16px; border: 1px solid var(--acid); }
 .swarm-wallet dt { color: var(--muted); font-size: .75rem; margin-top: 14px; }
 .swarm-wallet dd { margin: 4px 0 0; font-weight: 700; }
+.current-mission .recall-explanation { margin-top: 12px; font-size: .85rem; color: #b4bfcb; }
+.current-mission .recall-result { margin-top: 12px; color: #64e6fa; overflow-wrap: anywhere; }
+.current-mission .recall-result:empty { display: none; }
+.current-mission-actions .recall-button { border-color: #ff9852; }

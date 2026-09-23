@@ -93,11 +93,14 @@
         <section class="current-mission" data-current-mission data-tone="idle" aria-label="Current mint mission">
           <div><span class="kicker">MINT MISSION · PUNK #<span data-punk-token></span></span>
             <h3 data-current-mission-status>STATUS NOT VERIFIED</h3>
-            <p data-current-mission-detail>Check status to verify whether your Punk is looking for mints.</p></div>
+            <p data-current-mission-detail>Check status to verify whether your Punk is looking for mints.</p>
+            <p class="recall-explanation">Recall stops its mission after wallet confirmation. Funds stay in its wallets; already-submitted mints still need confirmation.</p>
+            <p class="recall-result" data-current-recall-result role="status" aria-live="polite"></p></div>
           <div class="current-mission-actions">
             <button class="primary-button" type="button" data-start-free-mission hidden>START FREE-MINT MISSION</button>
             <button class="outline-button" type="button" data-new-free-search hidden>NEW FREE-MINT SEARCH · CLEAR TARGET</button>
             <button class="outline-button" type="button" data-current-mission-check>CHECK STATUS</button>
+            <button class="outline-button recall-button" type="button" data-current-mission-recall disabled>RECALL PUNK</button>
             <button class="text-button" type="button" data-agent-navigate="activity">VIEW ACTIVITY</button>
           </div>
         </section>
@@ -338,6 +341,14 @@
       </section>
     </main>
 
+    <dialog class="confirmation-dialog" data-swarm-review-dialog aria-labelledby="swarm-review-title">
+      <form method="dialog"><button class="dialog-close" value="cancel" aria-label="Close Swarm review">×</button></form>
+      <span class="kicker">SWARM REVIEW · NO MISSION STARTED</span><h2 id="swarm-review-title">REVIEW THIS PUNK</h2>
+      <div class="confirmation-grid" data-swarm-review-grid></div>
+      <p class="confirmation-note">Your Punk keeps its existing taste, gas cap, reserve and safety rules. Next, verify ownership and load those rules for a full review.</p>
+      <p class="confirmation-note">If you are signed out, MetaMask will ask for a free sign-in message. This step cannot fund or activate a Punk. Mission authorization is a separate step after the complete rules appear.</p>
+      <div class="dialog-actions"><button type="button" class="outline-button" data-swarm-review-cancel>BACK TO SWARM</button><button type="button" class="primary-button" data-swarm-review-continue>SIGN IN &amp; LOAD FULL RULES</button></div>
+    </dialog>
     <dialog class="confirmation-dialog" data-confirmation-dialog>
       <form method="dialog"><button class="dialog-close" value="cancel" aria-label="Close">×</button></form>
       <span class="kicker">STRATEGY DRAFT · NOT ACTIVE</span><h2>REVIEW YOUR PUNK’S RULES</h2>

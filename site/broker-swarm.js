@@ -37,15 +37,30 @@ export function mountSwarm({ root, getContext, getPunks, openReview, openStatus,
     if (!storage || ['getItem', 'setItem', 'removeItem'].some(key => typeof storage[key] !== 'function')) throw Error('Storage unavailable');
   } catch { storage = null; }
   let contextKey = '', rosterKey = '', plan = null, busy = false, message = '', generation = 0;
+  let draft = { selected: new Set(), values: {} }, draftForm = null, draftFields = null, draftChecks = null;
+  function clearDraft() {
+    draft = { selected: new Set(), values: {} }; draftForm = null; draftFields = null; draftChecks = null;
+  }
+  function captureDraft() {
+    if (!draftForm) return null;
+    draft.values = Object.fromEntries(Object.entries(draftFields).map(([name, input]) => [name, input.value]));
+    draft.selected = new Set([...draftChecks].filter(([, input]) => input.checked).map(([id]) => id));
+    const field = Object.entries(draftFields).find(([, input]) => input === doc.activeElement);
+    if (field) return { field: field[0], start: field[1].selectionStart, end: field[1].selectionEnd };
+    const check = [...draftChecks].find(([, input]) => input === doc.activeElement);
+    return check ? { tokenId: check[0] } : null;
+  }
   const currentKey = () => { const c = getContext(); return c?.chainId === 4663 && /^0x[0-9a-f]{40}$/i.test(c.owner ?? '') ? c.owner.toLowerCase() : ''; };
   const storageKey = () => `gogh-swarm-review-v1:4663:${contextKey}`;
   const save = () => { const text = JSON.stringify(plan); storage.setItem(storageKey(), text); if (storage.getItem(storageKey()) !== text) throw Error('Swarm progress could not be saved. Free device storage before continuing.'); };
   function refresh() {
-    const next = currentKey(), roster = getPunks().map(p => String(p.tokenId)).join(',');
-    if (contextKey === next && rosterKey === roster) { render(); return; }
+    const next = currentKey(), roster = [...new Set(getPunks().map(p => String(p.tokenId)))].sort().join(',');
+    // Status polling must not replace an in-progress form or steal its focus.
+    // Existing batch receipts still update, using passive journal reads only.
+    if (contextKey === next && rosterKey === roster) { if (plan) render(); return; }
     const changed = next !== contextKey; contextKey = next; rosterKey = roster; generation++; busy = false;
     if (changed) {
-      busy = false; plan = null; message = '';
+      busy = false; plan = null; message = ''; clearDraft();
       if (next && storage) try {
         const raw = storage.getItem(storageKey());
         if (raw) {
@@ -75,8 +90,9 @@ export function mountSwarm({ root, getContext, getPunks, openReview, openStatus,
     busy = true;
     try {
       row.status = 'REVIEW'; save(); message = `Preparing Punk #${row.tokenId}. No mission has been authorized.`; render();
-      const draft = await openReview({ tokenId: row.tokenId, command: plan.command });
+      const draft = await openReview({ tokenId: row.tokenId, command: plan.command, options: { ...plan.options } });
       if (!current()) return;
+      if (draft?.cancelled === true) { row.status = 'QUEUED'; save(); message = 'Review closed. No wallet request was made. You can review this Punk again.'; return; }
       if (!draft?.intentHash || draft.intent?.punkTokenId !== row.tokenId || draft.intent.expectedOwner !== key) throw Error('The mission review could not be prepared. Open this Punk to check its status and funding.');
       row.intentHash = draft.intentHash; save(); message = `Review Punk #${row.tokenId} and authorize it in your wallet. Other Punks are still waiting.`;
     } catch (error) { if (current()) { row.status = 'CHECK_STATUS'; message = error.message; try { save(); } catch { /* No wallet action is available from this row. */ } } }
@@ -145,6 +161,8 @@ export function mountSwarm({ root, getContext, getPunks, openReview, openStatus,
     finally { if (current()) { busy = false; render(); } }
   }
   function render() {
+    const focus = captureDraft();
+    draftForm = null; draftFields = null; draftChecks = null;
     root.replaceChildren(); root.classList.add('swarm-panel'); root.setAttribute('aria-busy', String(busy));
     root.append(make('h3', 'SWARM · MULTIPLE PUNKS'), make('p', 'Choose up to 10 Punks owned by this wallet. Search supported free mints, or direct them to one free-mint collection. Each Punk keeps its own wallet, gas cap, reserve, taste and safety rules.'));
     root.append(make('p', 'Review and authorize each Punk separately. Account setup and permissions may cost network gas. Funding is separate. Shared discovery continues after authorization; this page does not need to stay open. A free mint is never guaranteed.'));
@@ -175,12 +193,14 @@ export function mountSwarm({ root, getContext, getPunks, openReview, openStatus,
         root.append(item);
       }
       root.append(make('p', 'Closing this batch does not pause authorized missions. Use Pause on each Punk to stop new work; submitted transactions still need confirmation.'));
-      button(root, 'CLOSE BATCH PLANNER', () => { storage.removeItem(storageKey()); plan = null; message = ''; render(); }, plan.rows.some(r => r.status === 'AUTHORIZING'));
+      button(root, 'CLOSE BATCH PLANNER', () => { storage.removeItem(storageKey()); plan = null; message = ''; clearDraft(); render(); }, plan.rows.some(r => r.status === 'AUTHORIZING'));
       return;
     }
-    const form = make('form'), selected = new Set(), fields = {};
+    const ownedIds = new Set(getPunks().map(p => String(p.tokenId)));
+    draft.selected = new Set([...draft.selected].filter(id => ownedIds.has(id)));
+    const form = make('form'), selected = draft.selected, fields = {}, checks = new Map(), renderedOwner = contextKey;
     const roster = make('fieldset'); roster.append(make('legend', 'Choose your Punks'));
-    for (const punk of getPunks()) { const id = String(punk.tokenId), label = make('label'), input = make('input'); input.type = 'checkbox'; input.value = id;
+    for (const punk of getPunks()) { const id = String(punk.tokenId), label = make('label'), input = make('input'); input.type = 'checkbox'; input.value = id; input.checked = selected.has(id); checks.set(id, input);
       input.addEventListener('change', () => { input.checked ? selected.add(id) : selected.delete(id); });
       label.append(input, make('span', `Punk #${id}`)); roster.append(label); }
     form.append(roster);
@@ -201,12 +221,22 @@ export function mountSwarm({ root, getContext, getPunks, openReview, openStatus,
       form.append(make('p', 'Leave blank to skip funding. Split up to 10 ETH equally, at most 1 ETH per Punk. Each deposit needs its own wallet confirmation and additional network gas. No funds move when you create the plan.'));
     }
     form.append(make('p', 'Keep hunting stops sooner when a Punk reaches its gas reserve, is paused, or fails a safety check. Daily limits still apply. After 100 mints or 30 days, review and renew that Punk’s wallet permission.'));
+    for (const [name, input] of Object.entries(fields)) if (Object.hasOwn(draft.values, name)) input.value = draft.values[name];
+    targetLabel.hidden = fields.mode.value !== 'DIRECTED'; fields.total.disabled = fields.duration.value === 'KEEP_HUNTING';
     const submit = make('button', 'REVIEW SWARM PLAN'); submit.type = 'submit'; submit.className = 'primary-button'; form.append(submit);
-    form.addEventListener('submit', event => { event.preventDefault(); try {
+    form.addEventListener('submit', event => { event.preventDefault();
+      if (form !== draftForm || renderedOwner !== currentKey()) { refresh(); return; }
+      try {
       plan = buildSwarmPlan({ ...getContext(), tokenIds: [...selected], ownedTokenIds: getPunks().map(p => String(p.tokenId)), options: Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, v.value])) });
       save(); message = 'Batch planned. No wallet request was made. Review each Punk below.'; render();
     } catch (error) { plan = null; message = error.message; render(); } });
     root.append(form);
+    draftForm = form; draftFields = fields; draftChecks = checks;
+    const active = focus?.field ? fields[focus.field] : checks.get(focus?.tokenId);
+    if (active && !active.disabled) {
+      active.focus?.({ preventScroll: true });
+      if (Number.isInteger(focus.start) && Number.isInteger(focus.end)) active.setSelectionRange?.(focus.start, focus.end);
+    }
   }
   refresh(); render(); return { refresh, authorization, fundingContext, fundingPrepared };
 }
