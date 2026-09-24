@@ -7,7 +7,7 @@ import { getSwarmWalletRecord } from './swarm-wallet-client.js';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const HASH = /^0x[0-9a-f]{64}$/;
 const FUNDING_STATES = ['NOT_REVIEWED', 'REVIEW', 'WALLET_REQUESTED', 'SUBMITTED', 'CONFIRMED', 'REJECTED', 'REVERTED', 'CANCELLED', 'CHECK_STATUS'];
-const MISSION_STATES = ['QUEUED', 'REVIEW', 'AUTHORIZING', 'AUTHORIZED', 'CHECK_STATUS', 'EXISTING'];
+const MISSION_STATES = ['QUEUED', 'REVIEW', 'AUTHORIZING', 'AUTHORIZED', 'CHECK_STATUS', 'EXISTING', 'SETTLED'];
 const freeze = value => {
   if (value && typeof value === 'object') { Object.values(value).forEach(freeze); Object.freeze(value); }
   return value;
@@ -140,6 +140,9 @@ export function swarmSetupFundingStatus(setup, record) {
     }
     if (record === null) return current.funding.status === 'REVIEW' ? 'REVIEW' : 'CHECK_STATUS';
     const checked = journal(record, current.owner);
+    if (current.funding.status === 'REVIEW'
+      && ['CONFIRMED', 'REVERTED', 'CANCELLED', 'REJECTED'].includes(checked.status)
+      && BigInt(checked.review.transaction.nonce) < BigInt(JSON.parse(attempt.transactionFingerprint).nonce)) return 'REVIEW';
     if (checked.review.chainId !== current.chainId || checked.review.action.kind !== 'BATCH'
       || fundingIdentity(checked.review) !== attempt.reviewFingerprint
       || fundingIdentity(checked.review.transaction) !== attempt.transactionFingerprint) return 'CHECK_STATUS';

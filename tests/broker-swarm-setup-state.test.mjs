@@ -106,7 +106,7 @@ test('restoration rejects altered immutable definition and another connected own
 });
 
 test('mission markers downgrade on refresh; a saved authorized marker grants no live authority', () => {
-  for (const status of ['REVIEW', 'AUTHORIZING', 'AUTHORIZED', 'CHECK_STATUS', 'EXISTING']) {
+  for (const status of ['REVIEW', 'AUTHORIZING', 'AUTHORIZED', 'CHECK_STATUS', 'EXISTING', 'SETTLED']) {
     const saved = updateSwarmSetupMission(createSwarmSetup(input()), { tokenId: '93', status, intentHash: hash });
     const restored = restoreSwarmSetup(JSON.parse(JSON.stringify(saved)), { owner, chainId: 4663 });
     assert.deepEqual(restored.missions, [{ tokenId: '94', status: 'QUEUED', intentHash: null, attempt: null },
@@ -128,6 +128,9 @@ test('reload retains the exact mission session and transaction for receipt recov
   const restored = restoreSwarmSetup(submitted, { owner, chainId: 4663 });
   assert.equal(restored.missions[1].intentHash, hash);
   assert.deepEqual(restored.missions[1].attempt, { ...attempt, transactionHash: blockHash });
+  const settled = updateSwarmSetupMission(submitted, { tokenId: '93', status: 'SETTLED' });
+  assert.deepEqual(settled.missions[1].attempt, submitted.missions[1].attempt);
+  assert.equal(restoreSwarmSetup(settled, { owner, chainId: 4663 }).missions[1].status, 'CHECK_STATUS');
   const rejected = updateSwarmSetupMission(unknown, { tokenId: '93', status: 'QUEUED', attempt: null });
   assert.equal(rejected.missions[1].attempt, null);
   for (const mutate of [value => { value.sessionId = 'bad'; }, value => { value.setupArtifactHash = 'bad'; },
@@ -144,8 +147,11 @@ test('an unrelated old matching receipt cannot mark a new setup funded', () => {
   assert.equal(swarmSetupFundingStatus(setup, oldRecord), 'NOT_REVIEWED');
   assert.throws(() => captureSwarmSetupFunding(setup, oldReview), /earlier funding/);
   const next = captureSwarmSetupFunding(setup, review(setup, { nonce: '9', vaultNonce: '4' }));
-  assert.equal(swarmSetupFundingStatus(next, oldRecord), 'CHECK_STATUS');
+  assert.equal(swarmSetupFundingStatus(next, oldRecord), 'REVIEW');
+  assert.equal(swarmSetupFundingMatches(next, oldRecord), false);
   assert.equal(swarmSetupFundingMatches(next, journal(JSON.parse(next.funding.attempt.reviewFingerprint))), true);
+  const pending = updateSwarmSetupFunding(next, journal(JSON.parse(next.funding.attempt.reviewFingerprint), 'SUBMITTED'));
+  assert.equal(swarmSetupFundingStatus(pending, oldRecord), 'CHECK_STATUS');
 });
 
 test('exact captured pending, confirmed, rejected and reverted attempts are distinguished', () => {
