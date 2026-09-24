@@ -2,6 +2,7 @@ import { displayEth, displayEthBudget } from "./broker-v2-amounts.js";
 import { linkFindings, createLinkFindingsCard } from './broker-v2-link-findings.js';
 import { mountAgentOptions } from "./broker-agent-options.js";
 import { mountSwarm } from './broker-swarm.js';
+import { mountSwarmWallet } from './swarm-wallet-panel.js';
 import { createSwarmReviewGate } from './broker-swarm-review.js';
 import { punkActivationStatus } from './broker-activation-status.js';
 import { createMissionNotifications } from './broker-mission-notifications.js';
@@ -110,6 +111,7 @@ let marketplaceSelectionKey = '';
 let marketplaceSelectionRevision = 0;
 let persistentWatchControl = null;
 let swarmControl = null;
+let swarmWalletControl = null;
 let swarmReviewGate = null;
 let missionNotifications = null;
 let agentRecoveryControl = null;
@@ -1243,6 +1245,8 @@ function renderMissionBadges() {
 
 function renderRoster() {
   void persistentWatchControl?.selectionChanged();
+  brokerPreferences?.refresh();
+  swarmWalletControl?.refresh();
   swarmReviewGate?.refresh();
   swarmControl?.refresh();
   forgeSkillAdminControl?.update();
@@ -1311,6 +1315,7 @@ function renderRoster() {
 }
 
 function renderSelected() {
+  swarmWalletControl?.refresh();
   swarmReviewGate?.refresh();
   swarmControl?.refresh();
   brokerPreferences?.refresh();
@@ -2641,6 +2646,16 @@ function setup() {
     showConfirmation(draft);
     return draft;
   };
+  swarmWalletControl = mountSwarmWallet({ root: one('[data-swarm-wallet-panel]'),
+    getContext: () => ({ owner: state.wallet?.account, chainId: state.wallet?.chainId, preview: PREVIEW }),
+    getPunks: () => PREVIEW ? [] : state.punks, getProvider: () => window.__GOGH_WALLET_PROVIDER__,
+  });
+  one('[data-swarm-wallet-details]').hidden = one('[data-swarm-wallet-panel]').hidden;
+  one('[data-open-swarm-wallet]').hidden = one('[data-swarm-wallet-panel]').hidden;
+  one('[data-open-swarm-wallet]').addEventListener('click', () => {
+    const details = one('[data-swarm-wallet-details]');
+    details.open = true; details.scrollIntoView({ block: 'start' });
+  });
   swarmReviewGate = createSwarmReviewGate({ dialog: one('[data-swarm-review-dialog]'),
     getContext: () => ({ owner: state.wallet?.account, chainId: state.wallet?.chainId }),
     isOwned: tokenId => state.punks.some(punk => String(punk.tokenId) === tokenId),
@@ -2965,6 +2980,7 @@ function setup() {
     onConfirmed: async selection => {
       const punk = state.selected;
       if (punk?.tokenId !== selection.tokenId || state.wallet?.account !== selection.owner) return;
+      swarmWalletControl?.refresh();
       swarmReviewGate?.refresh();
       swarmControl?.refresh();
       await Promise.all([loadAgentAccountStatus(), loadPunkBalances(punk)]);
@@ -3249,6 +3265,7 @@ function setup() {
     state.wallet = { ...wallet, account };
     // Invalidate watch drafts before any pending/wrong-chain early return.
     void persistentWatchControl?.selectionChanged();
+    swarmWalletControl?.refresh();
     if (account !== previousAccount || wallet.chainId !== previousChain) swarmReviewGate?.invalidate();
     renderMissionBadges(); renderActivationGuide();
     forgeSkillAdminControl?.update();

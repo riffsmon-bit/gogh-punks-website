@@ -3,16 +3,28 @@ import { createPublicClient, custom, http } from 'viem';
 const READ_METHODS = new Set(['eth_chainId', 'eth_blockNumber', 'eth_getBlockByNumber',
   'eth_getBlockByHash', 'eth_getCode', 'eth_call', 'eth_estimateGas', 'eth_gasPrice',
   'eth_getTransactionCount', 'eth_getBalance', 'eth_getTransactionByHash', 'eth_getTransactionReceipt']);
+const TRANSPORT_CODES = new Set(['ECONNRESET', 'ETIMEDOUT', 'EAI_AGAIN', 'EPIPE', 'ECONNABORTED',
+  'UND_ERR_SOCKET', 'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_HEADERS_TIMEOUT', 'UND_ERR_BODY_TIMEOUT',
+  'UND_ERR_RES_CONTENT_LENGTH_MISMATCH']);
+const TRANSPORT_NAMES = new Set(['TimeoutError', 'SocketError', 'SocketClosedError',
+  'ConnectTimeoutError', 'HeadersTimeoutError', 'BodyTimeoutError']);
 
 function transient(error) {
+  let retry = false;
   for (let current = error, depth = 0; current && depth < 8; current = current.cause, depth++) {
-    if (['TimeoutError', 'SocketError'].includes(current.name)
+    // A transport wrapper must never turn an explicit request/revert rejection
+    // into a retry. Unknown HttpRequestError causes remain non-retryable.
+    if (current.status >= 400 && current.status < 500 && ![408, 429].includes(current.status)
+      || [-32600, -32601, -32602, 3].includes(current.code)
+      || ['ExecutionRevertedError', 'ContractFunctionRevertedError'].includes(current.name)
+      || current.code === -32000 && /execution reverted/i.test(current.details ?? current.message ?? '')) return false;
+    if (TRANSPORT_NAMES.has(current.name) || TRANSPORT_CODES.has(current.code)
       || [408, 429, 500, 502, 503, 504].includes(current.status)
-      || [429, -32005, -32603].includes(current.code)) return true;
+      || [429, -32005, -32603].includes(current.code)) retry = true;
     // Robinhood may serve a new header before its state metadata is available.
-    if (current.code === -32000 && /metadata is not found|header not found|log query timed out/i.test(current.details ?? current.message ?? '')) return true;
+    if (current.code === -32000 && /metadata is not found|header not found|log query timed out/i.test(current.details ?? current.message ?? '')) retry = true;
   }
-  return false;
+  return retry;
 }
 
 // Retries repeat only the same provider's read. Never retry a wallet request or
