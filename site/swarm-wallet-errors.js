@@ -28,7 +28,22 @@ const messages = {
   WALLET_RESULT_UNKNOWN: 'The wallet result is unknown. Check MetaMask activity and recover the original transaction below. Do not send another.',
 };
 
+// Only these application-authored validation strings may pass through. Never
+// display raw extension/RPC error messages (they can include private endpoints).
+const inputMessages = new Set([
+  'Enter an exact positive ETH amount.',
+  'Enter an ETH amount greater than zero.',
+  'Enter an exact ETH budget with up to 18 decimal places.',
+  'The total funding budget must be greater than zero and no more than 10 ETH.',
+  'Connect your owner wallet on Robinhood Chain to plan funding.',
+  'Choose 1–10 different Punks for funding.',
+  'The budget must allocate at least one wei to every selected Punk.',
+  'Each Punk can receive at most 1 ETH per funding transfer. Reduce the total budget.',
+  'Check the original pending transaction first.',
+]);
+
 export function swarmWalletErrorMessage(error) {
+  if (!error?.code && inputMessages.has(error?.message)) return error.message;
   const code = typeof error?.code === 'string' && /^SWARM_WALLET_[A-Z_]+$/.test(error.code) ? error.code.slice(13) : '';
   const message = messages[code] ?? 'The Swarm Wallet check could not be completed. Check any saved transaction before retrying.';
   return message + (code ? ` Check code: ${code}.` : '');

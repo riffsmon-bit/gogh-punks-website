@@ -94,7 +94,7 @@ const server=createServer(async(req,res)=>{
       if(!hasSession(req)){res.statusCode=401;return json({ok:false,code:'V2_SESSION_REQUIRED',message:'Sign in with your wallet.'});}
       if(agentMode==='unavailable'){res.statusCode=503;return json({ok:false,code:'RPC_UNAVAILABLE',message:'Fixture RPC unavailable'});}
       return json({ok:true,tokenId:url.pathname.split('/')[4],owner:connectedOwner,
-        runtime:{account:`0x${'3'.repeat(40)}`,accountCreated:true,nativeBalance:agentMode==='active'?'500000000000000':'0',entryPointDeposit:'0',sessionActive:agentMode==='active'},
+        runtime:{owner:connectedOwner,account:`0x${'3'.repeat(40)}`,accountCreated:true,nativeBalance:agentMode==='active'?'500000000000000':'0',entryPointDeposit:'0',sessionActive:agentMode==='active'},
         readiness:{databaseReady:true,setupAvailable:agentMode!=='blocked',automaticExecutionReady:false,manualExecutionReady:agentMode==='active',blockers:agentMode==='blocked'?['SESSION_SIGNER_NOT_CONFIGURED']:['AGENT_GAS_UNFUNDED']},
         worker:{mode:'MANUAL',manualRunEnabled:true},
         mission:agentMode==='active'?{sessionId:manualSessionId,status:'ACTIVE',totalLimit:1,completedMints:0}:null,skills:[]});

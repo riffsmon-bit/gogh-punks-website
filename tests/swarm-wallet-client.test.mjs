@@ -470,3 +470,16 @@ test('public read outage fails without falling back to a stale wallet response o
   assert.equal(f.state.sends, 0); assert.equal(f.values.size, 0);
   assert.ok(f.walletCalls.every(method => ['eth_chainId', 'eth_accounts', 'eth_getTransactionCount'].includes(method)));
 });
+
+test('reviewed fee allowance tolerates a small base-fee move but confirmation never increases its cap', async () => {
+  const f = fixture({ created: false }), r = await f.prepare({ kind: 'CREATE' });
+  assert.equal(BigInt(r.transaction.gasPrice), 1_200_000n);
+  assert.equal(BigInt(r.maximumNetworkFeeWei), BigInt(r.transaction.gas) * 1_200_000n);
+  f.state.gasPrice = 1_100_000n;
+  await f.submit(r); assert.equal(f.state.sends, 1);
+  assert.equal(f.state.tx.gasPrice, r.transaction.gasPrice);
+  const beyond = fixture({ created: false }), limited = await beyond.prepare({ kind: 'CREATE' });
+  beyond.state.gasPrice = 1_200_001n;
+  await assert.rejects(beyond.submit(limited), { code: 'SWARM_WALLET_FEE_CHANGED' });
+  assert.equal(beyond.state.sends, 0); assert.equal(beyond.values.size, 0);
+});

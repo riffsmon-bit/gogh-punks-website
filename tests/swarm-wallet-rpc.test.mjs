@@ -49,6 +49,18 @@ test('holder errors include stable diagnostic codes and actions without raw prov
   assert.match(swarmWalletErrorMessage({ code: 'SWARM_WALLET_STALE_CHAIN' }), /old block.*device clock.*STALE_CHAIN/);
   assert.match(swarmWalletErrorMessage({ code: 'SWARM_WALLET_RPC_INVALID' }), /incomplete response.*check/i);
   assert.match(swarmWalletErrorMessage({ code: 'SWARM_WALLET_REVIEW_EXPIRED' }), /fresh review/);
+  assert.equal(swarmWalletErrorMessage(Error('Choose 1–10 different Punks for funding.')), 'Choose 1–10 different Punks for funding.');
   for (const code of [undefined, '<script>', 'SWARM_WALLET_UNKNOWN'])
     assert.doesNotMatch(swarmWalletErrorMessage({ code, message: 'SECRET_ENDPOINT' }), /SECRET|<script>/);
+});
+
+test('a base-fee change reports a fresh-review action without leaking the RPC message', async () => {
+  const provider = createSwarmWalletReadProvider({ fetcher: async (_url, options) => ({ ok: true,
+    text: async () => JSON.stringify({ jsonrpc: '2.0', id: JSON.parse(options.body).id,
+      error: { code: -32000, message: 'max fee per gas less than block base fee: SECRET_ENDPOINT' } }),
+  }) });
+  await assert.rejects(provider.request({ method: 'eth_estimateGas' }), error => {
+    assert.equal(error.code, 'SWARM_WALLET_FEE_CHANGED'); assert.doesNotMatch(error.message, /SECRET/);
+    assert.match(swarmWalletErrorMessage(error), /fresh review/); return true;
+  });
 });

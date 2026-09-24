@@ -21,9 +21,15 @@ export function createSwarmWalletReadProvider({ fetcher = globalThis.fetch, time
       if (!response.ok) throw failure(false);
       const text = await response.text(); if (text.length > 2_000_000) throw failure(false);
       const payload = JSON.parse(text);
-      if (payload?.jsonrpc !== '2.0' || payload.id !== id || payload.error || !Object.hasOwn(payload, 'result')) throw failure(false);
+      if (payload?.jsonrpc !== '2.0' || payload.id !== id) throw failure(false);
+      if (payload.error?.code === -32000 && /max fee per gas less than block base fee/i.test(payload.error.message ?? ''))
+        throw Object.assign(Error('Network fee changed.'), { code: 'SWARM_WALLET_FEE_CHANGED' });
+      if (payload.error || !Object.hasOwn(payload, 'result')) throw failure(false);
       return payload.result;
-    } catch { throw failure(controller.signal.aborted); }
+    } catch (error) {
+      if (error?.code === 'SWARM_WALLET_FEE_CHANGED') throw error;
+      throw failure(controller.signal.aborted);
+    }
     finally { clearTimeout(timer); }
   } });
 }

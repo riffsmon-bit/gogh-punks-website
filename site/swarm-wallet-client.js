@@ -102,7 +102,7 @@ function rpcReader(provider, readProvider) {
         timeout = setTimeout(() => reject(Object.assign(Error('Read timed out'), { code: 'SWARM_WALLET_READ_TIMEOUT' })), 8000);
       })]);
     } catch (error) {
-      if (['SWARM_WALLET_READ_TIMEOUT', 'SWARM_WALLET_READ_CHAIN_CHANGED', 'SWARM_WALLET_RPC_INVALID'].includes(error?.code)) throw error;
+      if (['SWARM_WALLET_READ_TIMEOUT', 'SWARM_WALLET_READ_CHAIN_CHANGED', 'SWARM_WALLET_RPC_INVALID', 'SWARM_WALLET_FEE_CHANGED'].includes(error?.code)) throw error;
       fail('READ_UNAVAILABLE', 'A required chain read is unavailable. No new wallet request was made. Recheck any saved transaction.');
     } finally { clearTimeout(timeout); }
   };
@@ -232,7 +232,11 @@ export async function prepareSwarmWallet(provider, { owner, release, action, rea
   const expiresAt = Number(BigInt(state.anchor.timestamp) + 90n) * 1000;
   const transaction = { chainId: '0x1237', from: state.owner, to: normalized.kind === 'CREATE' ? config.factory : state.vault,
     value: normalized.kind === 'DEPOSIT' ? hex(normalized.amountWei) : '0x0', data: calldata(normalized, state.vaultNonce, expiresAt / 1000), nonce: hex(state.ownerNonce) };
-  const gasPrice = quantity(await rpc('eth_gasPrice')); valid(gasPrice > 0n, 'FEE_CHANGED'); transaction.gasPrice = hex(gasPrice);
+  const observedPrice = quantity(await rpc('eth_gasPrice')); valid(observedPrice > 0n, 'FEE_CHANGED');
+  // The base fee can move between the quote and simulation. Include a bounded
+  // 20% allowance in the exact transaction and displayed maximum; never raise
+  // it at confirmation or bypass MAX_FEE when the network becomes expensive.
+  const gasPrice = (observedPrice * 120n + 99n) / 100n; transaction.gasPrice = hex(gasPrice);
   const estimate = quantity(await rpc('eth_estimateGas', [transaction])); valid(estimate > 0n, 'SIMULATION_FAILED');
   const gas = (estimate * 120n + 99n) / 100n + 10_000n; valid(gas <= MAX_GAS && gas * gasPrice <= MAX_FEE, 'FEE_LIMIT'); transaction.gas = hex(gas);
   const review = { schema: 'GOGH_SWARM_WALLET_REVIEW_V1', owner: state.owner, chainId: CHAIN, releaseIdentity: digest(stable(config)), factory: config.factory,

@@ -12,19 +12,20 @@ const output=await mkdtemp('/private/tmp/gogh-swarm-wallet-browser-'),profile=aw
 const result={status:'RUNNING',mode:'LOCAL_BROWSER_WITH_WALLET_FIXTURE',output,viewports:[],errors:[],screenshots:[]};
 const fixture=`import {mountSwarmWallet} from '/swarm-wallet-panel.js';
 const owner='0x'+'1'.repeat(40),vault='0x'+'2'.repeat(40),provider={request(){throw Error('No real wallet allowed');}};
-let record=null,created=false,balance=0n,sends=0;
+let record=null,created=false,balance=0n,sends=0,punks=[{tokenId:'93'},{tokenId:'94'}],readError=null,hold=null,finish=null;
+const pause=async kind=>{if(hold===kind)await new Promise(resolve=>{finish=resolve;});};
 const client={getSwarmWalletRecord:()=>record,
- readSwarmWallet:async()=>({created,vault,balanceWei:String(balance),dependenciesVerified:true}),
- prepareSwarmWallet:async(_provider,{action})=>({owner,vault,action,expiresAt:Date.now()+90000,maximumNetworkFeeWei:'5000000000000',
-  allocations:action.allocations?.map(a=>({...a,account:'0x'+a.tokenId.padStart(40,'0')}))}),
+ readSwarmWallet:async()=>{await pause('read');if(readError)throw Object.assign(Error('PRIVATE_RPC_MESSAGE'),{code:readError});return{created,vault,balanceWei:String(balance),dependenciesVerified:true};},
+ prepareSwarmWallet:async(_provider,{action})=>{await pause('prepare');return{owner,vault,action,expiresAt:Date.now()+90000,maximumNetworkFeeWei:'5000000000000',
+  allocations:action.allocations?.map(a=>({...a,account:'0x'+a.tokenId.padStart(40,'0')}))};},
  submitSwarmWallet:async(_provider,review,{isCurrent})=>{if(!isCurrent())throw Error('Stale wallet');sends++;return record={status:'SUBMITTED',transactionHash:'0x'+String(sends).padStart(64,'0'),review};},
  recoverSwarmWallet:async()=>{const a=record.review.action;if(a.kind==='CREATE')created=true;
   if(a.kind==='DEPOSIT')balance+=BigInt(a.amountWei);if(a.kind==='WITHDRAW')balance-=BigInt(a.amountWei);
   if(a.kind==='BATCH')balance-=a.allocations.reduce((n,a)=>n+BigInt(a.amountWei),0n);
   return record={...record,status:'CONFIRMED'};}};
 const controller=mountSwarmWallet({root:document.querySelector('main'),getContext:()=>({owner,chainId:4663}),
- getPunks:()=>[{tokenId:'93'},{tokenId:'94'}],getProvider:()=>provider,release:{status:'LIVE'},client,storage:{},locks:{}});
-window.fixture={get sends(){return sends;},get balance(){return String(balance);},refresh:()=>controller.refresh()};`;
+ getPunks:()=>punks,getProvider:()=>provider,release:{status:'LIVE'},client,storage:{},locks:{}});
+window.fixture={get sends(){return sends;},get balance(){return String(balance);},refresh:()=>controller.refresh(),failRead:code=>{readError=code;},hold:kind=>{hold=kind;},get waiting(){return !!finish;},release:()=>{const resolve=finish;hold=null;finish=null;resolve?.();},roster:ids=>{punks=ids.map(tokenId=>({tokenId}));controller.refresh();}};`;
 const server=createServer(async(req,res)=>{
   try {
     if(req.url==='/'){res.setHeader('content-type','text/html');res.end('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/broker-v2.css"></head><body><main></main><script type="module" src="/fixture.js"></script></body></html>');return;}
@@ -67,10 +68,19 @@ try {
     await evaluate(find('consent')+'.click()');await click('confirm');await until('fixture.sends==='+String(before+1));
     assert.equal(await evaluate(find('batch')+'.disabled'),true);await click('recover');await until(find('status')+'.textContent.includes("Transaction confirmed")');};
   for(const [width,height] of [[1440,1000],[375,812],[320,740]]){
-    await call('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false});
+    await call('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:width<600});
     await call('Page.navigate',{url:origin});await until('Boolean(window.fixture)');
-    assert.equal(await evaluate('fixture.sends'),0);await click('check');await until('!'+find('create')+'.hidden');
-    await click('create');await until('!'+find('review')+'.hidden');assert.equal(await evaluate('fixture.sends'),0);await approve();
+    assert.equal(await evaluate('fixture.sends'),0);
+    await evaluate("fixture.failRead('SWARM_WALLET_STALE_CHAIN')");await click('check');
+    await until(find('status')+'.textContent.includes("STALE_CHAIN")');
+    assert.doesNotMatch(await evaluate(find('status')+'.textContent'),/PRIVATE_RPC_MESSAGE/);
+    await evaluate("fixture.failRead(null);fixture.hold('read')");await click('check');await until('fixture.waiting');
+    await evaluate("fixture.roster(['93','94','95']);fixture.release()");await until('!'+find('create')+'.hidden');
+    await evaluate("fixture.hold('prepare')");await click('create');await until('fixture.waiting');
+    await evaluate("fixture.roster(['93','94']);fixture.release()");await until('!'+find('review')+'.hidden');
+    assert.equal(await evaluate('fixture.sends'),0);
+    assert.match(await evaluate(find('confirm-status')+'.textContent'),/confirmation box/);
+    await shot(`creation-review-${width}.png`);await approve();
     await fill('deposit-amount','0.003');await click('deposit');await until('!'+find('review')+'.hidden');await approve();
     await evaluate(`${find('punks')}.querySelectorAll('input').forEach(n=>n.click())`);await fill('batch-amount','0.002');
     await click('batch');await until('!'+find('review')+'.hidden');assert.match(await evaluate(find('details')+'.textContent'),/Punk #930.001 ETH/);
@@ -80,7 +90,7 @@ try {
     await fill('withdraw-amount','0.001');await click('withdraw');await until('!'+find('review')+'.hidden');await shot(`withdraw-review-${width}.png`);await approve();
     assert.equal(await evaluate('fixture.balance'),'0');assert.equal(await evaluate('fixture.sends'),4);
     const overflow=await evaluate('document.documentElement.scrollWidth>innerWidth');assert.equal(overflow,false,'no horizontal overflow');
-    await shot(`completed-${width}.png`);result.viewports.push({width,height,create:true,deposit:true,batch:true,withdraw:true,confirmations:4,overflow});
+    await shot(`completed-${width}.png`);result.viewports.push({width,height,create:true,deposit:true,batch:true,withdraw:true,rosterDuringCreation:true,chainErrorFeedback:true,confirmations:4,overflow});
   }
   assert.deepEqual(result.errors,[]);result.status='PASS';
 } catch(error){result.status='FAIL';result.failure=error.stack;process.exitCode=1;}
