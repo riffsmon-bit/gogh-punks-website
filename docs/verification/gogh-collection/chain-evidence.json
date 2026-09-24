@@ -1,0 +1,13 @@
+{
+  "checkedAt": "2026-09-24T14:28:50.336Z",
+  "chainId": 4663,
+  "address": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+  "blockNumber": "71441446",
+  "blockHash": "0xe44f870339a324e9b0c78e48f9e114b4afaeabff72ec5f74a08ff26880db17b6",
+  "deploymentTransaction": "0x7cd34483503c65b37e7130d73197d399922b7a1cca40318f2a9276e02c38b991",
+  "deploymentBlock": "31277277",
+  "deploymentInputExactMatch": true,
+  "runtimeExactMatch": true,
+  "runtimeBytes": 18470,
+  "runtimeKeccak256": "0x3222e4925f77909e6370e17fe071d2774d43e191f6bc72c3a97c97209c6e2e93"
+}
