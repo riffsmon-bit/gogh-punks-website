@@ -35,6 +35,18 @@ The targeted creation/Swarm/guide tests passed 117 checks. Paid wallet/panel tes
 
 Full-suite, build, browser, preview and production results are recorded in the release PR after execution. Do not interpret this implementation record as a completed holder wallet test. No owner transaction was signed or submitted by the development agent.
 
+## Release revalidation after disk recovery
+
+Production was rechecked against `f79f29f1f560fb89cd565105febcc9181bb28099`; it still served the hexadecimal-only clients. No unrelated changes from the main local checkout were included.
+
+- `npm run site:check` completed successfully: domain typecheck, wallet production build, static/site secret scan, syntax validation of 986 modules, broker manifest checks, and the full JavaScript suite (3,923 passed, zero failed, two skipped). Contract sources and deployed permissions are unchanged.
+- The local Swarm browser journey passed at 1440, 375 and 320 pixels: review before any wallet request, missing-wallet creation, one funding batch, separate mission permissions, and recovery after refresh. No horizontal overflow or browser exceptions were reported. Wallet responses were fixtures, not real signatures.
+- The paid-training browser fixture passed with no external requests or browser exceptions, including review/confirmation, rejected or lost wallet responses, receipt recovery, network switching and mobile layouts.
+- Fresh public-chain reads with the WalletConnect numeric-chain response shape verified Punk #93's existing Agent wallet at block 71555524. Punk #476 had no Agent wallet at block 71555539; the patched client successfully prepared and simulated its exact zero-value creation transaction. Only account/network/nonce reads were exposed through the stand-in wallet. No transaction was submitted.
+- Source review confirmed that normalization is limited to provider responses. The expected owner, chain 4663, pinned contracts, canonical reviewed payloads, reserve checks, spending limits, and recovery/idempotency journals remain enforced.
+
+Holder steps after deployment: reload the site, connect the owner wallet on Robinhood Chain, check the selected Punk's Agent wallet, review and confirm creation if needed, fund its Agent gas above the chosen reserve, then review the rules and confirm Start mission. For Swarm, the saved guide performs those steps in order. A saved pending wallet request must be recovered rather than repeated. Wallet creation or funding alone does not authorize a new mission.
+
 ## Remaining compatibility work
 
 The separate Agent asset-recovery implementation (`site/punk-agent-recovery.js`) still uses hexadecimal-only network checks in preflight and receipt recovery. That pre-existing withdrawal compatibility gap is outside this Swarm/paid-training patch; this release is not a claim that every V2 wallet surface is fully validated with WalletConnect. Recall uses its own existing network check and was not changed here.
