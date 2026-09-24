@@ -30,7 +30,9 @@ test('all six paid operation encodings independently match canonical Solidity AB
 test('wallet refuses unreviewed fields, domain/value/calldata changes and expired reviews', () => {
   const f = paidUiFixture(), mutations = [r => r.transaction.value = '0x0', r => r.transaction.value = '0x1c6bf52634001',
     r => r.transaction.to = f.release.treasury, r => r.owner = f.release.extension, r => r.tokenId = '94', r => r.chainId = 1,
-    r => r.transaction.chainId = '0x1', r => r.transaction.nonce = '0x08', r => r.transaction.data += '00', r => r.transaction.authorizationList = [],
+    r => r.transaction.chainId = '0x1', r => r.transaction.nonce = '0x08', r => r.transaction.nonce = '0xA',
+    r => r.transaction.maxFeePerGas = '0x3B9ACA00', r => r.transaction.chainId = '0x01237',
+    r => r.transaction.data += '00', r => r.transaction.authorizationList = [],
     r => r.transaction.maxFeePerGas = '0xffffffffffff', r => r.guard.deadline = String(Math.floor(Date.now() / 1000) - 1),
     r => r.priceWei = '1', r => r.treasury = f.release.extension, r => r.extensionCodeHash = PAID_ZERO_KEY,
     r => r.action.operation = 'paid_mint', r => r.action.skillKey = f.release.skills[0].key, r => r.action.slot = 1];
@@ -54,6 +56,103 @@ test('wallet archive restrictions do not block independently verified paid train
   const result = await wallet(f, { readProvider: { request: source } }).submit(envelope(f), f.selected, action());
   assert.equal(result.transactionHash, PAID_UI_HASH); assert.equal(f.sends, 1); assert.equal(f.marker, true);
   assert.deepEqual([...new Set(calls)].sort(), ['eth_accounts', 'eth_chainId', 'eth_estimateGas', 'eth_getBalance', 'eth_getTransactionCount', 'eth_sendTransaction'].sort());
+});
+test('equivalent bounded wallet quantities preserve the exact canonical reviewed transaction', async () => {
+  const f = paidUiFixture(), source = f.provider.request, e = envelope(f);
+  e.review.transaction.nonce = '0xab';
+  f.provider.request = async args => {
+    const value = await source(args);
+    if (args.method === 'eth_getTransactionCount') return '0x' + 'AB'.padStart(64, '0');
+    if (['eth_chainId', 'eth_estimateGas', 'eth_getBalance'].includes(args.method))
+      return '0x' + BigInt(value).toString(16).toUpperCase().padStart(64, '0');
+    return value;
+  };
+  f.beforeSend = tx => { assert.equal(f.marker, true); assert.deepEqual(tx, e.review.transaction); };
+  const result = await wallet(f, { readProvider: { request: source } }).submit(e, f.selected, action());
+  assert.equal(result.transactionHash, PAID_UI_HASH); assert.equal(f.sends, 1);
+  assert.equal(e.review.transaction.nonce, '0xab');
+});
+test('equivalent public block quantities compare numerically and produce canonical read parameters', async () => {
+  const f = paidUiFixture(), source = f.provider.request;
+  const encoded = value => '0x' + BigInt(value).toString(16).toUpperCase().padStart(64, '0');
+  const readProvider = { request: async args => {
+    if (args.method === 'eth_call') assert.match(args.params[1], /^0x(?:0|[1-9a-f][0-9a-f]*)$/);
+    if (args.method === 'eth_getLogs') assert.match(args.params[0].toBlock, /^0x(?:0|[1-9a-f][0-9a-f]*)$/);
+    const result = await source(args);
+    if (args.method === 'eth_chainId') return encoded(result);
+    if (args.method === 'eth_getBlockByNumber' && args.params[0] === 'latest') return { ...result,
+      number: encoded(result.number), timestamp: encoded(result.timestamp), baseFeePerGas: encoded(result.baseFeePerGas) };
+    return result;
+  } };
+  assert.equal((await wallet(f, { readProvider }).submit(envelope(f), f.selected, action())).transactionHash, PAID_UI_HASH);
+  assert.equal(f.sends, 1);
+});
+test('malformed or over-32-byte wallet quantities fail before persisting an attempt', async () => {
+  for (const method of ['eth_chainId', 'eth_getTransactionCount', 'eth_estimateGas', 'eth_getBalance']) {
+    for (const invalid of [8, null, '8', '0x', '0x-1', '0x1.0', '0xG', '0x' + '0'.repeat(65)]) {
+      const f = paidUiFixture(), source = f.provider.request;
+      f.provider.request = args => args.method === method ? Promise.resolve(invalid) : source(args);
+      await assert.rejects(wallet(f, { readProvider: { request: source } }).submit(envelope(f), f.selected, action()),
+        error => error.code === 'PAID_RPC_QUANTITY_INVALID' && /No wallet request was made/.test(error.message), `${method}:${invalid}`);
+      assert.equal(f.marker, false); assert.equal(f.sends, 0);
+    }
+  }
+});
+test('wallet account, chain, pending transaction and stale nonce have distinct actionable errors', async () => {
+  for (const [method, override, code, guidance] of [
+    ['eth_accounts', () => [], 'PAID_WALLET_ACCOUNT_CHANGED', /Select the wallet that owns this Punk/],
+    ['eth_chainId', () => '0x01', 'PAID_WALLET_WRONG_CHAIN', /Switch your wallet to Robinhood Chain/],
+    ['eth_getTransactionCount', args => args.params[1] === 'pending' ? '0x0009' : '0x0008', 'PAID_WALLET_PENDING_TRANSACTION', /Check wallet activity/],
+    ['eth_getTransactionCount', () => '0x0009', 'PAID_WALLET_NONCE_CHANGED', /transaction count changed/],
+  ]) {
+    const f = paidUiFixture(), source = f.provider.request;
+    f.provider.request = args => args.method === method ? Promise.resolve(override(args)) : source(args);
+    await assert.rejects(wallet(f, { readProvider: { request: source } }).submit(envelope(f), f.selected, action()),
+      error => error.code === code && guidance.test(error.message) && /No wallet request was made/.test(error.message));
+    assert.equal(f.marker, false); assert.equal(f.sends, 0);
+  }
+});
+test('malformed public quantities and a late reader chain change cannot reach the wallet', async () => {
+  for (const fault of ['chain', 'number', 'timestamp', 'baseFeePerGas', 'closingChain']) {
+    const f = paidUiFixture(), source = f.provider.request; let chains = 0;
+    const readProvider = { request: async args => {
+      const result = await source(args);
+      if (args.method === 'eth_chainId') {
+        if (fault === 'chain') return '4663';
+        if (fault === 'closingChain' && ++chains === 2) return '0x0001';
+      }
+      if (args.method === 'eth_getBlockByNumber' && ['number', 'timestamp', 'baseFeePerGas'].includes(fault))
+        return { ...result, [fault]: '0x' + 'F'.repeat(65) };
+      return result;
+    } };
+    await assert.rejects(wallet(f, { readProvider }).submit(envelope(f), f.selected, action()),
+      error => error.code === (fault === 'closingChain' ? 'PAID_CHAIN_MISMATCH' : 'PAID_RPC_QUANTITY_INVALID'));
+    assert.equal(f.marker, false); assert.equal(f.sends, 0);
+  }
+});
+test('a pending transaction appearing at the final wallet recheck still prevents paid training submission', async () => {
+  const f = paidUiFixture(), source = f.provider.request; let pendingReads = 0;
+  f.provider.request = args => {
+    if (args.method === 'eth_getTransactionCount' && args.params[1] === 'pending' && ++pendingReads === 2) return '0x0009';
+    return source(args);
+  };
+  await assert.rejects(wallet(f, { readProvider: { request: source } }).submit(envelope(f), f.selected, action()),
+    error => error.code === 'PAID_WALLET_PENDING_TRANSACTION');
+  assert.equal(pendingReads, 2); assert.equal(f.marker, false); assert.equal(f.sends, 0);
+});
+test('quantity normalization does not bypass balance, gas or base-fee limits', async () => {
+  for (const fault of ['balance', 'gas', 'baseFee']) {
+    const f = paidUiFixture(), source = f.provider.request;
+    f.provider.request = async args => {
+      const result = await source(args);
+      if (fault === 'balance' && args.method === 'eth_getBalance') return '0x0000';
+      if (fault === 'gas' && args.method === 'eth_estimateGas') return '0x000186A1';
+      if (fault === 'baseFee' && args.method === 'eth_getBlockByNumber') return { ...result, baseFeePerGas: '0x003B9ACA01' };
+      return result;
+    };
+    await assert.rejects(wallet(f).submit(envelope(f), f.selected, action()));
+    assert.equal(f.marker, false, fault); assert.equal(f.sends, 0, fault);
+  }
 });
 test('wrong independent chain, anchor, runtime or transfer evidence still blocks a capable wallet', async () => {
   for (const fault of ['chain', 'anchor', 'runtime', 'transfer']) {
