@@ -16,6 +16,8 @@ Production: `7811eff1ddb343670b3ef19c547d762d75e8c511` (PR #78), Netlify deploym
 
 Swarm Wallet release manifest now pins the verified deployed factory. Netlify preview/production release validation is pending. Manual funding grants no mission permission and never refills automatically. Only the owner-signed factory deployment spent gas; no holder wallet was created or funded. Owner controls remain accessible with zero Punks.
 
+Final local release checks (24 September): 3,712 JavaScript tests passed, zero failures, two optional skips; deployment gate 566 passed plus typecheck/build/syntax/site/security scans. Final browser run passed 30 captures and 29 served-file comparisons at desktop/375/320 widths, including zero-Punk owner controls. Exact-release runtime/help/panel checks passed separately (19 tests). Netlify preview is next.
+
 The records below are historical and do not supersede this section.
 
 ---

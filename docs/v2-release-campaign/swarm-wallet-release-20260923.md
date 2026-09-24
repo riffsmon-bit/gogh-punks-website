@@ -64,6 +64,15 @@ The one-time deployment recovery fix is committed as `626182c`. Its combined tar
 - Independent integration review identified inaccessible withdrawal controls after the last Punk leaves the holder wallet. The panel now lives outside selected-Punk content; zero-Punk owner visibility and withdrawal review are covered by browser and unit checks.
 - Integrated local desktop/mobile run: 30 screenshots, 29 served-file comparisons, zero exceptions, console/network errors or blocked requests. Wallet responses in these browser journeys are explicit fixtures.
 
+## Final local release validation — 24 September
+
+- Full JavaScript regression: **3,712 passed, zero failed, two existing optional skips** (3,714 total), executed after the release pins, owner-level wallet controls and onboarding reset were integrated.
+- Deployment gate: **566 passed, zero failed**, plus typecheck, wallet production bundle, syntax, site/secret scan and broker checks. The five exact-release runtime checks and four holder-help checks were also run separately and are now included in the hosted gate.
+- Final focused runtime/help/panel checks: **19 passed**; integration wiring checks: **29 passed**.
+- Final integrated browser run at commit `a9f04f925ca9fd5fa8e0f83765c1901bf45414dc`: **30 captures, 29 served-file matches, zero exceptions, console/network errors or blocked requests**, desktop 1440 and mobile 375/320. Zero-Punk owner wallet remains reachable; stale onboarding is hidden.
+- Independent final review found no blocker in the owner-level relocation or deployed manifest integration. It did not perform holder signatures or repeat live receipt verification.
+- Evidence logs: `/private/tmp/gogh-swarm-wallet-final-all-tests.log`, `/private/tmp/gogh-swarm-live-release-gate.log`, `/private/tmp/gogh-swarm-live-final-targeted.log`, `/private/tmp/gogh-preview-browser-evidence-51LFj7/result.json`.
+
 ## Remaining release steps
 
 1. Deployment recovery tests and independent review completed; no transaction sent.
