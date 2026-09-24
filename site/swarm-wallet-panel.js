@@ -5,7 +5,7 @@ import { createSwarmWalletReadProvider } from './swarm-wallet-rpc.js';
 import { swarmWalletErrorMessage } from './swarm-wallet-errors.js';
 
 export function mountSwarmWallet({ root, getContext, getPunks, getProvider, release = SWARM_WALLET_RELEASE,
-  client = walletClient, storage, readProvider, locks = globalThis.navigator?.locks }) {
+  client = walletClient, storage, readProvider, onStateChange, beforeReview, locks = globalThis.navigator?.locks }) {
   if (!root) return { refresh() {} };
   if (!release || release.status !== 'LIVE') { root.hidden = true; return { refresh() {} }; }
   readProvider ??= createSwarmWalletReadProvider();
@@ -14,7 +14,8 @@ export function mountSwarmWallet({ root, getContext, getPunks, getProvider, rele
   const el = (tag, text, name) => { const n = doc.createElement(tag); if (text) n.textContent = text;
     if (name) n.setAttribute('data-swarm-wallet-' + name, ''); return n; };
   let ownerKey = '', providerKey = null, rosterKey = '', revision = 0, rosterRevision = 0, activeBatch = false,
-    busy = false, snapshot = null, review = null, record = null;
+    busy = false, snapshot = null, review = null, record = null, fundingPlan = null,
+    fundingContext = null, fundingPlanInvalid = false, notifying = false, lastNotice = '';
   const selectedIds = new Set();
   root.hidden = false; root.classList.add('swarm-wallet');
   const title = el('h3', 'YOUR SWARM WALLET');
@@ -56,6 +57,56 @@ export function mountSwarmWallet({ root, getContext, getPunks, getProvider, rele
   for (const n of buttons) { n.type = 'button'; n.className = 'outline-button'; }
   const current = () => { const c = getContext(); return c?.chainId === 4663 && !c.preview && /^0x[0-9a-f]{40}$/i.test(c.owner ?? '') ? c.owner.toLowerCase() : ''; };
   const pending = () => ['WALLET_REQUESTED', 'SUBMITTED'].includes(record?.status);
+  const rosterIds = () => getPunks().map(p => String(p.tokenId)).sort((a,b) => Number(a)-Number(b));
+  const planCurrent = () => !!fundingPlan && !fundingPlanInvalid && fundingPlan.owner === current()
+    && fundingContext.provider === getProvider() && fundingContext.roster === rosterIds().join(',');
+  function getState() {
+    const owner = current(), same = owner === ownerKey && getProvider() === providerKey;
+    return structuredClone({ owner: owner || null, busy, snapshot: same ? snapshot : null,
+      record: same ? record : null, review: same ? review : null,
+      fundingPlan: fundingPlan?.owner === owner ? fundingPlan : null, fundingPlanValid: planCurrent() });
+  }
+  function notify() {
+    if (notifying || typeof onStateChange !== 'function') return;
+    const value = getState(), identity = JSON.stringify(value);
+    if (identity === lastNotice) return;
+    lastNotice = identity; notifying = true;
+    try { onStateChange(value); } catch { /* Embedding feedback cannot change wallet authority. */ }
+    finally { notifying = false; }
+  }
+  function syncFundingInputs() {
+    if (!planCurrent()) return;
+    selectedIds.clear(); fundingPlan.tokenIds.forEach(id => selectedIds.add(id));
+    batch.input.value = fundingPlan.totalEth;
+    for (const input of picks.querySelectorAll('input')) input.checked = selectedIds.has(input.value);
+    if (!snapshot) deposit.input.value = '';
+    else {
+      const needed = BigInt(fundingPlan.totalWei) - BigInt(snapshot.balanceWei);
+      deposit.input.value = fundingEth(needed > 0n ? needed : 0n);
+    }
+  }
+  function setFundingPlan(input) {
+    refresh();
+    try {
+      const built = buildSwarmFunding(input), ids = built.allocations.map(row => String(row.tokenId));
+      if (built.owner !== current() || input.chainId !== 4663 || !getProvider()
+        || ids.some(id => !rosterIds().includes(id))) throw Object.assign(Error('The guided funding selection changed.'), { code: 'SWARM_WALLET_SELECTION_CHANGED' });
+      const next = { owner: built.owner, chainId: built.chainId, tokenIds: ids, totalEth: built.totalEth,
+        totalWei: built.totalWei, allocations: built.allocations.map(({ tokenId, amountWei }) => ({ tokenId, amountWei })) };
+      if (planCurrent() && JSON.stringify(next) === JSON.stringify(fundingPlan)) return getState();
+      if (busy) throw Object.assign(Error('Wait for the current wallet check.'), { code: 'SWARM_WALLET_REQUEST_PENDING' });
+      fundingPlan = next; fundingContext = { provider: getProvider(), roster: rosterKey }; fundingPlanInvalid = false;
+      revision++; review = null; consent.checked = false; syncFundingInputs(); render(); notify(); return getState();
+    } catch (error) {
+      if (fundingPlan) fundingPlanInvalid = true;
+      revision++; review = null; consent.checked = false; render(); notify(); throw error;
+    }
+  }
+  function clearFundingPlan() {
+    if (!fundingPlan) return getState();
+    fundingPlan = null; fundingContext = null; fundingPlanInvalid = false;
+    revision++; review = null; consent.checked = false; render(); notify(); return getState();
+  }
   function render() {
     root.setAttribute('aria-busy', String(busy));
     const unavailable = !current() || !storage, blocked = unavailable || busy || pending();
@@ -76,8 +127,14 @@ export function mountSwarmWallet({ root, getContext, getPunks, getProvider, rele
             : !consent.checked ? 'Check the confirmation box above after reviewing the amounts and fee. Then Confirm in wallet becomes available.'
               : 'Choose Confirm in wallet to open the separate wallet approval for this reviewed action only.';
     for (const n of [deposit.input, batch.input, withdrawal.input, consent]) n.disabled = blocked;
+    batch.input.disabled ||= !!fundingPlan;
+    if (fundingPlan && !planCurrent()) {
+      depositButton.disabled = true; batchButton.disabled = true;
+      if (['DEPOSIT', 'BATCH'].includes(review?.action.kind)) confirm.disabled = true;
+    }
+    if (planCurrent() && deposit.input.value === '0') depositButton.disabled = true;
     hash.disabled = busy;
-    for (const n of picks.querySelectorAll('input')) n.disabled = blocked;
+    for (const n of picks.querySelectorAll('input')) n.disabled = blocked || !!fundingPlan;
     if (!current()) info.textContent = 'Connect your owner wallet on Robinhood Chain.';
     else if (!storage) info.textContent = 'Allow site storage before using the Swarm Wallet. Pending transactions must be recoverable.';
     else if (snapshot) info.textContent = (snapshot.created ? `Swarm Wallet: ${snapshot.vault} · ${fundingEth(snapshot.balanceWei)} ETH available` : 'Your Swarm Wallet has not been created yet. Review creation to continue.')
@@ -92,10 +149,11 @@ export function mountSwarmWallet({ root, getContext, getPunks, getProvider, rele
     hash.value = record?.transactionHash ?? '';
   }
   function refresh() {
-    const owner = current(), ids = getPunks().map(p => String(p.tokenId)).sort((a,b) => Number(a)-Number(b)), roster = ids.join(',');
+    const owner = current(), ids = rosterIds(), roster = ids.join(','), rosterChanged = roster !== rosterKey;
     const provider = getProvider(), changed = owner !== ownerKey || provider !== providerKey;
     if (changed) {
       ownerKey = owner; providerKey = provider; revision++; snapshot = null; review = null; record = null; selectedIds.clear();
+      fundingPlan = null; fundingContext = null; fundingPlanInvalid = false;
       deposit.input.value = ''; batch.input.value = ''; withdrawal.input.value = ''; consent.checked = false; status.textContent = ''; hash.value = '';
       try { loadRecord(); } catch (error) { status.textContent = swarmWalletErrorMessage(error); }
     }
@@ -103,6 +161,11 @@ export function mountSwarmWallet({ root, getContext, getPunks, getProvider, rele
       // A holder's wallet is independent of the owned-Punk roster. Hydration
       // must not discard CREATE/read/deposit/withdrawal or receipt recovery.
       rosterRevision++; rosterKey = roster;
+      if (!changed && fundingPlan) {
+        fundingPlanInvalid = true;
+        if (['DEPOSIT', 'BATCH'].includes(review?.action.kind)) { review = null; consent.checked = false; }
+        status.textContent = 'Your Punk roster changed. Review the guided funding plan again. Any saved transaction is still available below.';
+      }
       if (!changed && (review?.action.kind === 'BATCH' || activeBatch)) {
         review = null; consent.checked = false;
         status.textContent = 'Your Punk roster changed. Review the funding batch again. Check any saved transaction below before trying again.';
@@ -111,20 +174,23 @@ export function mountSwarmWallet({ root, getContext, getPunks, getProvider, rele
       picks.replaceChildren(el('legend', 'Punks to fund'));
       for (const id of ids) {
         const label = el('label'), input = el('input'); input.type = 'checkbox'; input.value = id; input.checked = selectedIds.has(id);
-        input.addEventListener('change', () => { input.checked ? selectedIds.add(id) : selectedIds.delete(id); invalidate(); });
+        input.addEventListener('change', () => { if (fundingPlan) { syncFundingInputs(); render(); return; }
+          input.checked ? selectedIds.add(id) : selectedIds.delete(id); invalidate(); });
         label.append(input, el('span', `Punk #${id}`)); picks.append(label);
       }
     }
     render();
+    if (changed || rosterChanged) notify();
   }
   function invalidate() { revision++; review = null; consent.checked = false; render(); }
-  async function run(action, { batch = false } = {}) {
+  async function run(action, { batch = false, funding = false } = {}) {
     if (busy || !current() || !storage) return;
     if (current() !== ownerKey || getProvider() !== providerKey) { refresh(); return; }
     busy = true; activeBatch = batch;
-    const owner = current(), version = revision, rosterVersion = rosterRevision, provider = getProvider();
+    const owner = current(), version = revision, rosterVersion = rosterRevision, provider = getProvider(), boundPlan = fundingPlan;
     const isCurrent = () => current() === owner && revision === version && getProvider() === provider
-      && (!batch || rosterRevision === rosterVersion);
+      && (!batch || rosterRevision === rosterVersion)
+      && (!funding || !boundPlan || fundingPlan === boundPlan && planCurrent());
     render();
     try { await action(owner, isCurrent, provider); }
     catch (error) { if (isCurrent()) status.textContent = swarmWalletErrorMessage(error); }
@@ -139,7 +205,7 @@ export function mountSwarmWallet({ root, getContext, getPunks, getProvider, rele
               : 'Your wallet connection or review changed. Check your wallet and prepare a fresh review.';
         } catch (error) { status.textContent = swarmWalletErrorMessage(error); }
       }
-      busy = false; activeBatch = false; render();
+      busy = false; activeBatch = false; render(); notify();
     }
   }
   function amountWei(input) {
@@ -167,32 +233,57 @@ export function mountSwarmWallet({ root, getContext, getPunks, getProvider, rele
   const prepare = (action, options) => run(async (owner, isCurrent, provider) => {
     loadRecord(); if (pending()) throw Error('Check the original pending transaction first.');
     review = null; consent.checked = false; status.textContent = 'Checking ownership, balances and the exact transaction…';
-    const prepared = await client.prepareSwarmWallet(provider, { owner, release, readProvider, action: typeof action === 'function' ? action(owner) : action });
-    if (isCurrent()) showReview(prepared);
+    const requested = typeof action === 'function' ? action(owner) : action;
+    if (fundingPlan && ['DEPOSIT', 'BATCH'].includes(requested.kind) && !planCurrent())
+      throw Object.assign(Error('Review the guided funding selection again.'), { code: 'SWARM_WALLET_SELECTION_CHANGED' });
+    const prepared = await client.prepareSwarmWallet(provider, { owner, release, readProvider, action: requested });
+    if (isCurrent()) {
+      const accepted = beforeReview?.(structuredClone(prepared));
+      if (accepted === false || accepted && typeof accepted.then === 'function') {
+        Promise.resolve(accepted).catch(() => {});
+        throw Object.assign(Error('The guided review could not be saved.'), { code: 'SWARM_WALLET_STORAGE_UNAVAILABLE' });
+      }
+      if (isCurrent()) showReview(prepared);
+    }
   }, options);
-  check.addEventListener('click', () => run(async (owner, isCurrent, provider) => {
-    status.textContent = 'Checking your Swarm Wallet…';
-    const value = await client.readSwarmWallet(provider, { owner, release, readProvider });
-    if (isCurrent()) { snapshot = value; loadRecord(); status.textContent = pending() ? 'A previous wallet request needs recovery below.' : 'Wallet checked. Choose an action to review.'; }
-  }));
+  const checkWallet = async () => {
+    // State notifications may update embedded UI, but cannot become a read loop.
+    if (notifying) return getState();
+    await run(async (owner, isCurrent, provider) => {
+      status.textContent = 'Checking your Swarm Wallet…';
+      const value = await client.readSwarmWallet(provider, { owner, release, readProvider });
+      if (isCurrent()) { snapshot = value; loadRecord(); syncFundingInputs(); status.textContent = pending() ? 'A previous wallet request needs recovery below.' : 'Wallet checked. Choose an action to review.'; }
+    });
+    return getState();
+  };
+  check.addEventListener('click', checkWallet);
   create.addEventListener('click', () => prepare({ kind:'CREATE' }));
-  depositButton.addEventListener('click', () => prepare(() => ({ kind:'DEPOSIT', amountWei:amountWei(deposit.input) })));
+  depositButton.addEventListener('click', () => prepare(() => ({ kind:'DEPOSIT', amountWei:amountWei(deposit.input) }), { funding: true }));
   withdrawButton.addEventListener('click', () => prepare(() => ({ kind:'WITHDRAW', amountWei:amountWei(withdrawal.input) })));
   batchButton.addEventListener('click', () => prepare(owner => {
+    if (fundingPlan) {
+      if (!planCurrent()) throw Object.assign(Error('Review the guided funding selection again.'), { code: 'SWARM_WALLET_SELECTION_CHANGED' });
+      return { kind: 'BATCH', allocations: structuredClone(fundingPlan.allocations) };
+    }
     const funding = buildSwarmFunding({ owner, chainId:4663, tokenIds:[...selectedIds], totalEth:batch.input.value.trim() });
     return { kind:'BATCH', allocations:funding.allocations.map(({tokenId,amountWei}) => ({tokenId,amountWei})) };
-  }, { batch: true }));
-  for (const input of [deposit.input, batch.input, withdrawal.input]) input.addEventListener('input', invalidate);
+  }, { batch: true, funding: true }));
+  for (const input of [deposit.input, batch.input, withdrawal.input]) input.addEventListener('input', () => {
+    if (input === batch.input && fundingPlan) { syncFundingInputs(); render(); return; }
+    invalidate();
+  });
   consent.addEventListener('change', render); hash.addEventListener('input', render);
   discard.addEventListener('click', invalidate);
   confirm.addEventListener('click', () => run(async (owner, isCurrent, provider) => {
     if (!review || !consent.checked || pending()) return;
+    if (fundingPlan && ['DEPOSIT', 'BATCH'].includes(review.action.kind) && !planCurrent())
+      throw Object.assign(Error('Review the guided funding selection again.'), { code: 'SWARM_WALLET_SELECTION_CHANGED' });
     const shown = review; status.textContent = 'Rechecking the reviewed transaction before opening your wallet…';
     try {
       const result = await client.submitSwarmWallet(provider, shown, { release, readProvider, isCurrent, storage, locks });
       if (isCurrent()) { record = result; hash.value = result.transactionHash ?? ''; status.textContent = result.status === 'REJECTED' ? 'Wallet request cancelled. Nothing was confirmed.' : 'Wallet request saved. Check the original transaction below for confirmation.'; }
     } finally { if (isCurrent()) { review = null; consent.checked = false; loadRecord(); } }
-  }, { batch: review?.action.kind === 'BATCH' }));
+  }, { batch: review?.action.kind === 'BATCH', funding: ['DEPOSIT', 'BATCH'].includes(review?.action.kind) }));
   recover.addEventListener('click', () => run(async (owner, isCurrent, provider) => {
     status.textContent = 'Checking your saved transaction or its replacement. No new transaction will be sent…';
     const inspectedHash = hash.value.trim();
@@ -206,8 +297,8 @@ export function mountSwarmWallet({ root, getContext, getPunks, getProvider, rele
     if (result.receipt?.feeExceeded) status.textContent += ` Your wallet changed the network fee above the original review. Actual fee: ${fundingEth(result.receipt.actualNetworkFeeWei)} ETH. This check sent no new transaction.`;
     if (['CONFIRMED','REVERTED','CANCELLED'].includes(result.status)) {
       const value = await client.readSwarmWallet(provider, { owner, release, readProvider });
-      if (isCurrent()) snapshot = value;
+      if (isCurrent()) { snapshot = value; syncFundingInputs(); }
     }
   }));
-  refresh(); return { refresh };
+  refresh(); return { refresh, setFundingPlan, clearFundingPlan, check: checkWallet, getState };
 }

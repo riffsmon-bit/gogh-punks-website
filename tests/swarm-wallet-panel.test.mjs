@@ -14,7 +14,7 @@ class Node {
 }
 const walk=n=>[n,...n.children.flatMap(walk)];
 const flush=async()=>{for(let i=0;i<4;i++) await new Promise(r=>setTimeout(r,0));};
-function fixture({release={status:'LIVE'},saved=null}={}) {
+function fixture({release={status:'LIVE'},saved=null,onStateChange,beforeReview}={}) {
   const doc={createElement:tag=>new Node(tag,doc)},root=new Node('section',doc),calls=[];
   let context={owner:OWNER,chainId:4663},punks=[{tokenId:'93'},{tokenId:'94'}],record=saved,resolvePrepare,provider={};
   const readProvider={request(){throw Error('Panel fixtures must not request the network');}};
@@ -26,11 +26,11 @@ function fixture({release={status:'LIVE'},saved=null}={}) {
     submitSwarmWallet:async(_p,review,{isCurrent,readProvider:reader})=>{assert.equal(reader,readProvider);assert.equal(isCurrent(),true);calls.push('wallet');record={status:'SUBMITTED',transactionHash:HASH,review};return record;},
     recoverSwarmWallet:async(_p,_owner,options)=>{assert.equal(options.readProvider,readProvider);calls.push('recover');record={...record,status:'CONFIRMED'};return record;},
   };
-  const panel=mountSwarmWallet({root,getContext:()=>context,getPunks:()=>punks,getProvider:()=>provider,release,client,readProvider,storage:{},locks:{}});
+  const panel=mountSwarmWallet({root,getContext:()=>context,getPunks:()=>punks,getProvider:()=>provider,release,client,readProvider,onStateChange,beforeReview,storage:{},locks:{}});
   const node=name=>walk(root).find(n=>Object.hasOwn(n.attrs,'data-swarm-wallet-'+name));
   return{root,calls,node,panel,client,get record(){return record;},setPending(p){resolvePrepare=p;},
     replaceProvider({refresh=true}={}){provider={};if(refresh)panel.refresh();},
-    wallet(c,{refresh=true}={}){context=c;if(refresh)panel.refresh();},roster(ids){punks=ids.map(tokenId=>({tokenId}));panel.refresh();},
+    wallet(c,{refresh=true}={}){context=c;if(refresh)panel.refresh();},roster(ids,{refresh=true}={}){punks=ids.map(tokenId=>({tokenId}));if(refresh)panel.refresh();},
     async click(name){node(name).click();await flush();},async ready(){await this.click('check');},
     select(id){const n=node('punks').querySelectorAll('input').find(n=>n.value===id);n.checked=true;n.listeners.change();},
     consent(){node('consent').checked=true;node('consent').listeners.change();}};
@@ -197,4 +197,140 @@ test('saved-journal read errors use recovery-safe copy after a wallet context ch
   assert.match(f.node('status').textContent,/history is unreadable.*Keep it intact.*Check code: JOURNAL_INVALID/);
   assert.doesNotMatch(f.node('status').textContent,/raw storage private detail/);
   assert.equal(f.node('review').hidden,true);assert.equal(f.calls.includes('wallet'),false);
+});
+
+const guidedPlan = () => ({ owner: OWNER, chainId: 4663, tokenIds: ['94','93'], totalEth: '0.004000000000000001' });
+test('embedding a guided budget is passive, exact and locks only the chosen batch controls',async()=>{
+  const f=fixture(),plan=guidedPlan();const state=f.panel.setFundingPlan(plan);
+  assert.deepEqual(f.calls,[]);assert.equal(state.fundingPlanValid,true);
+  assert.equal(f.node('batch-amount').value,'0.004000000000000001');assert.equal(f.node('batch-amount').disabled,true);
+  assert.deepEqual(f.node('punks').querySelectorAll('input').map(n=>[n.value,n.checked,n.disabled]),[['93',true,true],['94',true,true]]);
+  assert.equal(f.node('deposit-amount').value,'');
+  const checked=await f.panel.check();
+  assert.equal(f.node('deposit-amount').value,'0.001000000000000001');assert.equal(checked.snapshot.created,true);
+  assert.deepEqual(f.calls,['read']);assert.equal(f.node('review').hidden,true);
+  plan.tokenIds.splice(0);plan.totalEth='10';state.fundingPlan.totalWei='1';state.fundingPlan.tokenIds.splice(0);
+  assert.equal(f.panel.getState().fundingPlan.totalWei,'4000000000000001');
+  await f.click('batch');
+  assert.deepEqual(f.calls.find(Array.isArray)[1],{kind:'BATCH',allocations:[
+    {tokenId:'93',amountWei:'2000000000000001'},{tokenId:'94',amountWei:'2000000000000000'}]});
+  assert.equal(f.calls.includes('wallet'),false);
+});
+test('guided deposits use only the shortfall and disable an unnecessary deposit when balance covers the batch',async()=>{
+  const f=fixture();await f.ready();f.panel.setFundingPlan({...guidedPlan(),totalEth:'0.002'});
+  assert.equal(f.node('deposit-amount').value,'0');assert.equal(f.node('deposit').disabled,true);
+  await f.click('deposit');assert.equal(f.calls.some(Array.isArray),false);
+  f.client.readSwarmWallet=async()=>({created:true,vault:VAULT,balanceWei:'1000000000000000'});
+  await f.panel.check();assert.equal(f.node('deposit-amount').value,'0.001');
+  assert.equal(f.node('deposit').disabled,false);assert.equal(f.calls.includes('wallet'),false);
+});
+test('invalid guided owner, chain, duplicates, unowned Punks and over-budget plans never reach the client',()=>{
+  for(const patch of [{owner:OTHER},{chainId:1},{tokenIds:['93','93']},{tokenIds:['95']},{totalEth:'11'},{totalEth:'3'}]){
+    const f=fixture();assert.throws(()=>f.panel.setFundingPlan({...guidedPlan(),...patch}));
+    assert.deepEqual(f.calls,[]);assert.equal(f.node('review').hidden,true);assert.equal(f.panel.getState().fundingPlanValid,false);
+  }
+});
+test('identical guided plans preserve an unsent review while changing the plan requires a fresh review',async()=>{
+  const f=fixture();await f.ready();f.panel.setFundingPlan(guidedPlan());await f.click('batch');f.consent();
+  f.panel.setFundingPlan({...guidedPlan(),tokenIds:['93','94']});assert.equal(f.node('review').hidden,false);assert.equal(f.node('confirm').disabled,false);
+  f.panel.setFundingPlan({...guidedPlan(),totalEth:'0.002'});assert.equal(f.node('review').hidden,true);assert.equal(f.node('confirm').disabled,true);
+  assert.equal(f.calls.includes('wallet'),false);
+});
+test('locked batch input and selector events cannot alter guided allocations',async()=>{
+  const f=fixture();await f.ready();f.panel.setFundingPlan(guidedPlan());
+  f.node('batch-amount').value='1';f.node('batch-amount').listeners.input();
+  const pick=f.node('punks').querySelectorAll('input')[0];pick.checked=false;pick.listeners.change();
+  assert.equal(pick.checked,true);assert.equal(f.node('batch-amount').value,guidedPlan().totalEth);
+  await f.click('batch');assert.equal(f.panel.getState().review.action.allocations.length,2);assert.equal(f.calls.includes('wallet'),false);
+});
+test('roster changes invalidate guided funding while retaining owner-only withdrawals',async()=>{
+  const f=fixture();await f.ready();f.panel.setFundingPlan(guidedPlan());await f.click('batch');f.consent();f.roster([]);
+  assert.equal(f.panel.getState().fundingPlanValid,false);assert.equal(f.node('batch').disabled,true);assert.equal(f.node('deposit').disabled,true);
+  assert.equal(f.node('review').hidden,true);assert.equal(f.node('withdraw').disabled,false);
+  f.node('withdraw-amount').value='0.001';await f.click('withdraw');assert.equal(f.node('review').hidden,false);assert.equal(f.calls.includes('wallet'),false);
+});
+test('a guided roster change without a parent refresh still blocks confirmation before the client sends',async()=>{
+  const f=fixture();await f.ready();f.panel.setFundingPlan(guidedPlan());await f.click('batch');f.consent();
+  f.roster(['94'],{refresh:false});await f.click('confirm');
+  assert.equal(f.calls.includes('wallet'),false);assert.equal(f.panel.getState().fundingPlanValid,false);
+});
+for(const transition of ['owner','provider'])test(`guided context is removed on ${transition} changes without losing recovery`,async()=>{
+  const f=fixture({saved:{status:'SUBMITTED',transactionHash:HASH}});await f.ready();f.panel.setFundingPlan(guidedPlan());
+  if(transition==='owner')f.wallet({owner:OTHER,chainId:4663});else f.replaceProvider();
+  assert.equal(f.panel.getState().fundingPlan,null);assert.equal(f.panel.getState().snapshot,null);
+  assert.equal(f.calls.includes('wallet'),false);assert.equal(f.record.transactionHash,HASH);
+});
+test('clearing a guided plan unlocks manual controls and preserves a pending transaction',async()=>{
+  const f=fixture();await f.ready();f.panel.setFundingPlan(guidedPlan());
+  f.panel.clearFundingPlan();assert.equal(f.node('batch-amount').disabled,false);
+  assert.ok(f.node('punks').querySelectorAll('input').every(n=>!n.disabled));
+  f.panel.setFundingPlan(guidedPlan());await f.click('batch');f.consent();await f.click('confirm');
+  f.panel.clearFundingPlan();assert.equal(f.node('recovery').hidden,false);assert.equal(f.node('hash').value,HASH);
+  assert.equal(f.node('batch').disabled,true);assert.equal(f.calls.filter(c=>c==='wallet').length,1);
+});
+test('clearing the plan during final checks stops an unsent batch but keeps late sent hashes recoverable',async()=>{
+  for(const sent of [false,true]){
+    const f=fixture();await f.ready();f.panel.setFundingPlan(guidedPlan());await f.click('batch');f.consent();
+    const wait=deferred(),submit=f.client.submitSwarmWallet;
+    f.client.submitSwarmWallet=async(...args)=>{
+      const result=sent?await submit(...args):null;await wait.promise;
+      if(sent)return result;if(!args[2].isCurrent())throw Error('Changed plan');return submit(...args);
+    };
+    await f.click('confirm');f.panel.clearFundingPlan();wait.resolve();await flush();
+    assert.equal(f.calls.filter(c=>c==='wallet').length,sent?1:0);assert.equal(f.node('recovery').hidden,!sent);
+  }
+});
+test('state callbacks report completed reads and prepared reviews, not passive renders or consent edits',async()=>{
+  const notifications=[],f=fixture({onStateChange:value=>notifications.push(value)});
+  notifications.length=0;f.panel.refresh();assert.equal(notifications.length,0);
+  await f.panel.check();assert.equal(notifications.length,1);assert.equal(notifications[0].busy,false);
+  f.panel.setFundingPlan(guidedPlan());const count=notifications.length;
+  f.panel.setFundingPlan(guidedPlan());f.panel.refresh();assert.equal(notifications.length,count);
+  await f.click('batch');assert.equal(notifications.at(-1).review.action.kind,'BATCH');assert.equal(notifications.at(-1).busy,false);
+  const preparedCount=notifications.length;f.consent();assert.equal(notifications.length,preparedCount);
+  notifications.at(-1).review.action.allocations[0].amountWei='1';assert.notEqual(f.panel.getState().review.action.allocations[0].amountWei,'1');
+});
+test('embedding callbacks cannot form recursive refresh notifications or break wallet review',async()=>{
+  let f,notifications=0;
+  f=fixture({onStateChange:()=>{notifications++;f?.panel.refresh();throw Error('Embedding UI failed');}});
+  await f.ready();f.panel.setFundingPlan(guidedPlan());await f.click('batch');
+  assert.ok(notifications<6);assert.equal(f.node('review').hidden,false);assert.equal(f.calls.includes('wallet'),false);
+});
+test('beforeReview saves an isolated exact review before it is offered for wallet confirmation',async()=>{
+  const seen=[],f=fixture({beforeReview:value=>{seen.push(structuredClone(value));value.action.kind='DEPOSIT';}});
+  await f.ready();f.panel.setFundingPlan(guidedPlan());await f.click('batch');
+  assert.equal(seen.length,1);assert.equal(seen[0].action.kind,'BATCH');assert.equal(f.panel.getState().review.action.kind,'BATCH');
+  assert.equal(f.node('confirm').disabled,true);assert.equal(f.calls.includes('wallet'),false);
+});
+for(const mode of ['false','throw','async'])test(`a ${mode} beforeReview failure blocks confirmation without a wallet request`,async()=>{
+  const f=fixture({beforeReview:()=>{if(mode==='throw')throw Error('Storage full');return mode==='async'?Promise.resolve():false;}});
+  await f.ready();f.panel.setFundingPlan(guidedPlan());await f.click('batch');
+  assert.equal(f.node('review').hidden,true);assert.equal(f.node('confirm').disabled,true);assert.equal(f.calls.includes('wallet'),false);
+});
+test('state callbacks cannot accidentally trigger a recursive wallet-check loop',async()=>{
+  let f;
+  f=fixture({onStateChange:()=>{void f?.panel.check();}});
+  await f.panel.check();await flush();
+  assert.deepEqual(f.calls,['read']);assert.equal(f.panel.getState().busy,false);
+});
+test('a context change inside beforeReview cannot expose the former owner’s review',async()=>{
+  let f;
+  f=fixture({beforeReview:()=>{f.wallet({owner:OTHER,chainId:4663});}});
+  await f.ready();f.panel.setFundingPlan(guidedPlan());await f.click('batch');
+  assert.equal(f.node('review').hidden,true);assert.equal(f.panel.getState().owner,OTHER);assert.equal(f.calls.includes('wallet'),false);
+});
+test('guided final checks detect a transferred recipient even before the parent refreshes the panel',async()=>{
+  const f=fixture();await f.ready();f.panel.setFundingPlan(guidedPlan());await f.click('batch');f.consent();
+  const wait=deferred(),submit=f.client.submitSwarmWallet;
+  f.client.submitSwarmWallet=async(...args)=>{await wait.promise;if(!args[2].isCurrent())throw Error('Recipient changed');return submit(...args);};
+  await f.click('confirm');f.roster(['94'],{refresh:false});wait.resolve();await flush();
+  assert.equal(f.calls.includes('wallet'),false);assert.equal(f.panel.getState().fundingPlanValid,false);assert.equal(f.node('confirm').disabled,true);
+});
+test('a guided roster invalidation does not discard recovery of an already submitted transaction',async()=>{
+  const f=fixture({saved:{status:'SUBMITTED',transactionHash:HASH}});await f.ready();f.panel.setFundingPlan(guidedPlan());
+  const wait=deferred(),recover=f.client.recoverSwarmWallet;
+  f.client.recoverSwarmWallet=async(...args)=>{await wait.promise;assert.equal(args[2].isCurrent(),true);return recover(...args);};
+  await f.click('recover');f.roster([]);wait.resolve();await flush();
+  assert.equal(f.panel.getState().record.status,'CONFIRMED');assert.equal(f.node('recovery').hidden,true);
+  assert.equal(f.panel.getState().fundingPlanValid,false);assert.equal(f.node('withdraw').disabled,false);assert.equal(f.calls.includes('wallet'),false);
 });
