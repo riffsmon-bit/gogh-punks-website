@@ -3014,7 +3014,7 @@ function setup() {
       await loadAgentAccountStatus({ authenticate: false });
       if (state.selected !== punk || state.wallet?.account !== owner) return;
       activateTab('fund'); renderAgentGasFunding(); renderActivationGuide();
-      set('[data-agent-gas-result]', 'Agent wallet verified. Add gas next, then review your rules and Start mission. Wallet creation granted no mission permission.');
+      set('[data-agent-gas-result]', 'Agent wallet verified. This check granted no new permission. Add gas next, then review your rules and Start mission. An existing active mission may resume when funded; no recall is needed to top up.');
     },
   });
   const gasButton = gasForm.querySelector("button[type=submit]");

@@ -49,3 +49,25 @@ test('selection change after permission submission never reconciles against the 
   await assert.rejects(f.run(), /Punk or wallet changed/);
   assert.equal(f.calls.filter(x => x === 'eth_sendTransaction').length, 1); assert.equal(f.calls.some(x => x.endsWith('/receipt')), false);
 });
+
+test('new and unfunded mission drafts open Fund and preserve the exact rules instead of requesting permission', async () => {
+  const start = source.indexOf('  const runAgentAction = async (command) => {');
+  const action = source.slice(start, source.indexOf('\n  swarmWalletControl = mountSwarmWallet', start));
+  for (const [created, balance, expected] of [[false, '0', 'SETUP'], [true, '0', 'FUND'], [true, '100', 'FUND'], [true, '101', 'MISSION']]) {
+    const punk = { tokenId: '93' }, draft = { intent: { expectedOwner: owner, punkTokenId: '93', operatingMode: 'AUTONOMOUS', minimumReserveWei: '100', preferences: { prefer: ['PIXEL'] } } };
+    const account = { ok: true, owner, tokenId: '93', receivedAt: Date.now(), runtime: { accountCreated: created, sessionActive: false, owner, account: to, nativeBalance: balance } };
+    const state = { selected: punk, wallet: { account: owner, chainId: 4663 }, chatRequestId: 0 }, calls = [];
+    const context = { state, PREVIEW: false, actionBusy: false, missionFundingReadiness,
+      punkChatAction: () => null, addMessage() {}, setChatBusy() {}, ensureV2Session: async () => {},
+      loadAgentAccountStatus: async () => account, selectedAgentAccount: () => account,
+      brokerPreferences: { preference: () => 'AUTO' }, jsonRequest: async path => { calls.push(path); return { draft }; },
+      activateTab: tab => calls.push(tab), renderAgentGasFunding: () => calls.push('fund-render'),
+      set() {}, one: () => ({ scrollIntoView() {} }), addReviewActivity() {},
+      showConfirmation: value => calls.push(value),
+    };
+    await vm.runInNewContext(action + '\nrunAgentAction("review free mint mission");', context);
+    if (expected === 'MISSION') assert.equal(calls.at(-1), draft);
+    else { assert.equal(state.localStrategy, draft); assert.ok(calls.includes('fund')); assert.ok(!calls.includes(draft)); }
+    assert.deepEqual(calls.filter(x => typeof x === 'string' && x.startsWith('/api/')), ['/api/v2/punks/93/chat']);
+  }
+});
