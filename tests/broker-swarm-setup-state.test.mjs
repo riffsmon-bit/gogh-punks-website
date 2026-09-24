@@ -67,10 +67,22 @@ test('guided setup preserves shared mission bounds and exact wei split while ret
 test('invalid owners, membership, budgets and limits cannot create a setup', () => {
   for (const mutate of [value => { value.owner = '0x0'; }, value => { value.chainId = 1; },
     value => { value.ownedTokenIds = ['93']; }, value => { value.tokenIds = ['93', '93']; },
-    value => { value.options.daily = '100'; }, value => { value.options.fundingBudgetEth = ''; },
+    value => { value.options.daily = '100'; }, value => { value.options.fundingBudgetEth = '0'; },
     value => { value.options.fundingBudgetEth = '0.000000000000000001'; }, value => { value.planId = 'invalid'; }]) {
     const value = input(); mutate(value); assert.throws(() => createSwarmSetup(value));
   }
+});
+
+test('blank budget explicitly uses existing Agent gas without manufacturing funding or receipt authority', () => {
+  const value = input(); value.options.fundingBudgetEth = '';
+  const setup = createSwarmSetup(value);
+  assert.deepEqual(setup.allocations, []); assert.equal(setup.options.fundingBudgetEth, '');
+  assert.equal(setup.funding.attempt, null); assert.equal(setup.funding.status, 'NOT_REVIEWED');
+  assert.equal(restoreSwarmSetup(setup, { owner, chainId: 4663 }).allocations.length, 0);
+  const actualReview = review(createSwarmSetup(input()));
+  assert.throws(() => captureSwarmSetupFunding(setup, actualReview), /existing Agent gas/);
+  assert.equal(swarmSetupFundingMatches(setup, journal(actualReview)), false);
+  assert.equal(updateSwarmSetupMission(setup, { tokenId: '93', status: 'REVIEW', intentHash: hash }).missions[1].status, 'REVIEW');
 });
 
 test('directed and keep-hunting plans remain bounded and free-only', () => {

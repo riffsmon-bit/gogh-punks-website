@@ -29,6 +29,7 @@ function journal(record, owner) {
   } });
 }
 function matchingReview(setup, review) {
+  ensure(setup.allocations.length > 0, 'This setup uses existing Agent gas and has no funding batch to confirm.');
   const checked = journal({ schema: 'GOGH_SWARM_WALLET_JOURNAL_V1', owner: setup.owner,
     status: 'REJECTED', review, transactionHash: null, receipt: null }, setup.owner).review;
   ensure(checked.chainId === setup.chainId && checked.action.kind === 'BATCH'
@@ -46,14 +47,13 @@ export function createSwarmSetup({ owner, chainId, tokenIds, ownedTokenIds, opti
   planId = globalThis.crypto?.randomUUID?.(), fundingBaselineRecord = null } = {}) {
   ensure(UUID.test(planId ?? ''), 'The Swarm setup ID is unavailable. Reload and try again.');
   const plan = buildSwarmPlan({ owner, chainId, tokenIds, ownedTokenIds, options, fundingBatchId: planId });
-  ensure(plan.funding, 'Set the total ETH budget to divide between the selected Punks.');
   const baseline = journal(fundingBaselineRecord, plan.owner);
   ensure(!baseline || ['CONFIRMED', 'REVERTED', 'CANCELLED', 'REJECTED'].includes(baseline.status),
     'Your Swarm Wallet already has an unresolved transaction. Recover that transaction before planning another funding batch.');
   return freeze({ schema: 'GUIDED_SWARM_V1', owner: plan.owner, chainId, planId,
     tokenIds: plan.rows.map(row => row.tokenId), options: plan.options, command: plan.command,
     dailyMaximum: plan.dailyMaximum, totalMaximum: plan.totalMaximum,
-    allocations: plan.funding.allocations.map(({ tokenId, amountWei, amountEth }) => ({ tokenId, amountWei, amountEth })),
+    allocations: (plan.funding?.allocations ?? []).map(({ tokenId, amountWei, amountEth }) => ({ tokenId, amountWei, amountEth })),
     funding: { baselineFingerprint: baseline ? fundingIdentity(baseline.review.transaction) : null,
       attempt: null, status: 'NOT_REVIEWED' },
     missions: plan.rows.map(row => ({ ...row, attempt: null })) });
