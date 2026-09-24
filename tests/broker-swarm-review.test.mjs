@@ -43,10 +43,11 @@ test('owner switch, chain switch, transfer and invalidation cannot continue a st
     f.click('continue');
   }
 });
-const opener = source.slice(source.indexOf('openReview: async ('), source.indexOf('\n    getFundingState:', source.indexOf('openReview: async ('))).replace(/^openReview: /, '').replace(/,$/, '');
+const opener = source.slice(source.indexOf('openReview: async ('), source.indexOf('\n    checkMission:', source.indexOf('openReview: async ('))).replace(/^openReview: /, '').replace(/,$/, '');
 test('real Swarm opener makes no sign-in/action call until local review continuation', async () => {
   const f = fixture(), calls = [], one = () => ({ dataset: {}, open: false });
-  const ctx = vm.createContext({ PREVIEW: false, actionBusy: false, one, swarmReviewGate: f.gate,
+  const state = {};
+  const ctx = vm.createContext({ PREVIEW: false, actionBusy: false, one, state, swarmReviewGate: f.gate,
     selectPunk: id => calls.push(['select', id]), activateTab: tab => calls.push(['tab', tab]),
     runAgentAction: async command => { calls.push(['explicit-sign-in-and-draft', command]); return { intentHash: 'draft' }; } });
   const open = vm.runInContext(`(${opener})`, ctx);
@@ -55,6 +56,7 @@ test('real Swarm opener makes no sign-in/action call until local review continua
   promise = open({ tokenId: '93', command: 'review limits', options });
   await Promise.resolve(); assert.deepEqual(calls, []); f.click('continue'); assert.equal((await promise).intentHash, 'draft');
   assert.deepEqual(calls, [['select', '93'], ['tab', 'talk'], ['explicit-sign-in-and-draft', 'review limits']]);
+  assert.equal(state.swarmGuidedReview, false);
 });
 test('passive profile/activity hydration never starts sign-in when the session is absent', async () => {
   const session = source.slice(source.indexOf('async function requireExistingV2Session()'), source.indexOf('\nconst sessionRequests'));

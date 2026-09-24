@@ -87,7 +87,7 @@ test('creation review matches deployed ABI, independently derives canonical addr
   assert.equal(review.account, '0xcadcfd37e715bc031cf0cec7fa2335091c878c83');
   assert.equal(review.transaction.data, encodeFunctionData({ abi, functionName: 'createAccount', args: [93n] }));
   assert.equal(review.transaction.value, '0x0'); assert.equal(review.transaction.to, PINS.registry);
-  assert.equal(review.maximumNetworkFeeWei, '130000000000'); assert.ok(Object.isFrozen(review.transaction));
+  assert.equal(review.maximumNetworkFeeWei, '156000000000'); assert.ok(Object.isFrozen(review.transaction));
   assert.equal(f.state.sends, 0); assert.ok(!f.calls.some(c => /send|sign|requestAccounts/i.test(c.method)));
   const result = await submit(f.provider, review, f.options);
   assert.equal(result.status, 'SUBMITTED'); assert.equal(f.state.sends, 1);
@@ -129,7 +129,7 @@ for (const [name, mutate, code] of [
   ['nonce consumed', f => f.state.nonce++, 'REVIEW_CHANGED'],
   ['registry changed', f => f.state.registryCode = '0x6000', 'CODE_CHANGED'],
   ['account already created', f => f.state.created = true, 'ALREADY_CREATED'],
-  ['fee increase', f => f.state.price++, 'FEE_CHANGED'],
+  ['fee increase beyond reviewed margin', f => f.state.price = 1_200_001n, 'FEE_CHANGED'],
   ['anchor reorg', f => f.state.reorg = 100n, 'CHAIN_CHANGED'],
 ]) test('submit rechecks ' + name, async () => {
   const f = fixture(), review = await prepare(f.provider, f.context); mutate(f);
@@ -186,7 +186,7 @@ test('canonical creation requires 12 confirmations and actual runtime; idempoten
   const f = await submitted(); f.mine({ confirmations: 11 });
   assert.equal((await recover(f.provider, OWNER, f.options)).status, 'SUBMITTED'); f.state.head++;
   const result = await recover(f.provider, OWNER, f.options);
-  assert.equal(result.status, 'CONFIRMED'); assert.equal(result.receipt.actualNetworkFeeWei, '100000000000');
+  assert.equal(result.status, 'CONFIRMED'); assert.equal(result.receipt.actualNetworkFeeWei, '120000000000');
   assert.equal(result.receipt.feeExceeded, false); assert.equal(f.state.sends, 1);
   await rejected(recover(f.provider, OWNER, { ...f.options, hash: REPLACEMENT }), 'HASH_CHANGED');
 });
@@ -251,4 +251,78 @@ for (const [name, mutate] of [
 test('reverted exact creation is terminal without claiming an account exists', async () => {
   const f = await submitted(); f.mine({ status: '0x0' });
   assert.equal((await recover(f.provider, OWNER, f.options)).status, 'REVERTED'); assert.equal(f.state.created, false);
+});
+
+function splitReadFixture() {
+  const f = fixture(), original = f.provider.request, walletCalls = [], readCalls = [];
+  f.provider.request = request => {
+    walletCalls.push(request.method);
+    assert.ok(['eth_accounts', 'eth_chainId', 'eth_getTransactionCount', 'eth_sendTransaction'].includes(request.method), request.method);
+    return original(request);
+  };
+  const readProvider = { request: request => {
+    readCalls.push(request.method);
+    assert.ok(!['eth_accounts', 'eth_getTransactionCount', 'eth_sendTransaction'].includes(request.method), request.method);
+    return original(request);
+  } };
+  return { ...f, walletCalls, readCalls, readProvider, context: { ...f.context, readProvider }, options: { ...f.options, readProvider } };
+}
+
+test('public reader handles checks and recovery while wallet retains identity, pending nonce and the single send', async () => {
+  const f = splitReadFixture(), review = await prepare(f.provider, f.context);
+  assert.ok(f.readCalls.includes('eth_call')); assert.ok(f.readCalls.includes('eth_estimateGas'));
+  assert.ok(f.walletCalls.includes('eth_getTransactionCount')); assert.equal(f.state.sends, 0);
+  await submit(f.provider, review, f.options); f.mine();
+  assert.equal((await recover(f.provider, OWNER, f.options)).status, 'CONFIRMED');
+  assert.ok(f.readCalls.includes('eth_getTransactionReceipt'));
+  assert.equal(f.walletCalls.filter(method => method === 'eth_sendTransaction').length, 1);
+  assert.ok(!f.readCalls.some(method => /sign|send|requestAccounts/i.test(method)));
+});
+
+test('public and wallet chain mismatch fails closed before a creation review', async () => {
+  const f = splitReadFixture(), original = f.readProvider.request;
+  f.readProvider.request = request => request.method === 'eth_chainId' ? '0x1' : original(request);
+  await rejected(prepare(f.provider, f.context), 'READ_CHAIN_CHANGED');
+  assert.equal(f.state.sends, 0); assert.equal(record(OWNER, f.options), null);
+});
+
+test('wallet identity and pending nonce remain authoritative with an independent public reader', async () => {
+  for (const fault of ['wallet', 'pending', 'owner']) {
+    const f = splitReadFixture(), review = await prepare(f.provider, f.context);
+    if (fault === 'wallet') f.state.connected = OTHER;
+    if (fault === 'pending') f.state.pendingNonce = 9n;
+    if (fault === 'owner') f.state.owner = OTHER;
+    await rejected(submit(f.provider, review, f.options), fault === 'wallet' ? 'OWNER_CHANGED' : fault === 'pending' ? 'NONCE_CHANGED' : 'PUNK_OWNER_CHANGED');
+    assert.equal(f.state.sends, 0); assert.equal(record(OWNER, f.options), null);
+  }
+});
+
+test('public read failure preserves a pending creation and never retries its wallet transaction', async () => {
+  const f = splitReadFixture(), review = await prepare(f.provider, f.context);
+  await submit(f.provider, review, f.options); f.mine();
+  const original = f.readProvider.request;
+  f.readProvider.request = request => {
+    if (request.method === 'eth_getTransactionReceipt') throw Error('read unavailable');
+    return original(request);
+  };
+  await rejected(recover(f.provider, OWNER, f.options), 'READ_UNAVAILABLE');
+  assert.equal(record(OWNER, f.options).status, 'SUBMITTED'); assert.equal(f.state.sends, 1);
+});
+
+test('fee movement within the displayed 20 percent margin keeps the exact reviewed transaction', async () => {
+  const f = fixture(), review = await prepare(f.provider, f.context);
+  f.state.price = 1_200_000n;
+  await submit(f.provider, review, f.options);
+  assert.deepEqual(f.calls.find(call => call.method === 'eth_sendTransaction').params, [review.transaction]);
+  assert.equal(review.maximumNetworkFeeWei, '156000000000');
+});
+
+test('public base-fee error asks for a new creation review without sending', async () => {
+  const f = splitReadFixture(), review = await prepare(f.provider, f.context), original = f.readProvider.request;
+  f.readProvider.request = request => {
+    if (request.method === 'eth_estimateGas') throw Object.assign(Error('Network fee changed.'), { code: 'SWARM_WALLET_FEE_CHANGED' });
+    return original(request);
+  };
+  await rejected(submit(f.provider, review, f.options), 'FEE_CHANGED');
+  assert.equal(f.state.sends, 0); assert.equal(record(OWNER, f.options), null);
 });

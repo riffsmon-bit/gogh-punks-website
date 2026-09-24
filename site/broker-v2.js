@@ -1,7 +1,7 @@
 import { displayEth, displayEthBudget } from "./broker-v2-amounts.js";
 import { linkFindings, createLinkFindingsCard } from './broker-v2-link-findings.js';
 import { mountAgentOptions } from "./broker-agent-options.js";
-import { mountSwarm } from './broker-swarm.js';
+import { mountSwarmSetup } from './broker-swarm-setup.js';
 import { mountSwarmWallet } from './swarm-wallet-panel.js';
 import { createSwarmReviewGate } from './broker-swarm-review.js';
 import { punkActivationStatus, missionFundingReadiness } from './broker-activation-status.js';
@@ -405,17 +405,21 @@ function renderAgentGasFunding(status = selectedAgentAccount()) {
   const checking = state.agentAccountLoading.has(String(state.selected?.tokenId));
   const verified = runtime?.accountCreated === true && !status?.error;
   const needsSetup = runtime?.accountCreated === false && !status?.error;
-  const setup = one('[data-agent-gas-setup]'); if (setup) setup.hidden = !needsSetup;
+  const setup = one('[data-agent-gas-setup]');
+  if (setup) { setup.hidden = verified; setup.disabled = checking || state.gasFundingBusy;
+    setup.textContent = checking ? 'CHECKING THIS PUNK…' : needsSetup ? 'PREPARE GAS WALLET · NO MISSION' : 'CHECK WALLET / SIGN IN TO FUND'; }
+  const fundingForm = one('[data-agent-gas-form]'); if (fundingForm) fundingForm.hidden = !verified;
+  const nextMission = one('[data-agent-next-mission]'); if (nextMission) nextMission.disabled = !verified || !/^[0-9]+$/.test(runtime.nativeBalance ?? '') || BigInt(runtime.nativeBalance ?? '0') === 0n;
   const submit = one('[data-agent-gas-form] button[type="submit"]');
   if (submit) submit.disabled = state.gasFundingBusy || !verified;
   set("[data-agent-gas-punk-balance]", state.selected?.balanceLoaded === false
     ? "CHECKING…" : state.selected?.balanceError ? "UNAVAILABLE" : `${state.selected?.balanceEth ?? "—"} ETH`);
-  set("[data-agent-gas-native]", verified ? recoveryEth(runtime.nativeBalance) : checking ? "CHECKING…" : "NOT VERIFIED");
+  set("[data-agent-gas-native]", verified ? recoveryEth(runtime.nativeBalance) : checking ? "CHECKING…" : needsSetup ? "NOT CREATED" : "NOT VERIFIED");
   set("[data-agent-gas-deposit]", verified ? recoveryEth(runtime.entryPointDeposit) : checking ? "CHECKING…" : "NOT VERIFIED");
   set("[data-agent-gas-destination]", verified ? runtime.account : "NOT VERIFIED");
   set("[data-agent-gas-readiness]", status?.error
     ? `READINESS UNAVAILABLE · ${status.error} Use RECHECK / SIGN IN; gas funding and mission activation are separate.`
-    : needsSetup ? "First create its Agent wallet below. This does not authorize a mission. Then add gas and separately review your rules before choosing Start mission."
+    : needsSetup ? "First choose Prepare gas wallet below to check and create this Punk’s Agent wallet. This does not authorize a mission. Then add gas and separately review your rules before choosing Start mission."
     : !status ? checking ? `Checking Punk #${state.selected.tokenId}'s Agent wallet and gas. Its balance is not verified yet.` : "Readiness has not been verified. Use RECHECK / SIGN IN."
       : `AUTONOMOUS ${status.readiness?.setupAvailable ? "SETUP AVAILABLE" : "LOCKED"} · ${(status.readiness?.blockers ?? []).map(blockerLabel).join(" · ") || "No reported blockers"}. ${runtime?.sessionActive ? "Existing mission permission is active. Adding gas may resume that mission; no recall is needed to fund it." : "Funding grants no mint permission. Review your rules and start a mission separately."}`);
 }
@@ -2120,6 +2124,8 @@ async function activatePunkAgentMission(draft, report) {
     assertSelection();
     if (walletChain !== '0x1237' || accounts?.[0]?.toLowerCase() !== owner) throw Error('Reconnect the reviewed owner wallet on Robinhood Chain.');
     report(`Wallet approval ${index + 1} of ${transactions.length}: ${transaction.purpose.replaceAll("_", " ")}.`);
+    if (typeof swarmControl !== 'undefined') swarmControl?.missionPrepared?.({ tokenId, intentHash: draft.intentHash },
+      { sessionId: setup.sessionId, setupArtifactHash: setup.setup.artifactHash });
     const hash = await provider.request({ method: "eth_sendTransaction", params: [{
       from: owner, to: transaction.to, data: transaction.data, value: "0x0",
     }] });
@@ -2127,6 +2133,7 @@ async function activatePunkAgentMission(draft, report) {
       throw new Error("The wallet did not return a valid transaction hash.");
     }
     authorizationTransactionHash = hash.toLowerCase();
+    if (typeof swarmControl !== 'undefined') swarmControl?.missionSubmitted?.({ tokenId, intentHash: draft.intentHash }, authorizationTransactionHash);
     report(`Approval ${index + 1} submitted. Waiting for Robinhood Chain confirmation…`);
     await waitForPunkWalletTransactionReceipt(provider, authorizationTransactionHash);
     assertSelection();
@@ -2514,9 +2521,18 @@ function setup() {
     activateTab('talk');
     void runAgentAction(NEW_FREE_MINT_SEARCH_COMMAND);
   });
-  one('[data-agent-gas-setup]').addEventListener('click', () => {
-    activateTab('fund'); agentCreationControl?.refresh();
-    one('[data-agent-creation-panel]').scrollIntoView({ block: 'start' });
+  one('[data-agent-gas-setup]').addEventListener('click', async () => {
+    if (state.gasFundingBusy) return;
+    const punk = state.selected, owner = state.wallet?.account;
+    activateTab('fund');
+    const status = await loadAgentAccountStatus({ authenticate: true });
+    if (state.selected !== punk || state.wallet?.account !== owner) return;
+    if (status?.runtime?.accountCreated === false) {
+      agentCreationControl?.refresh();
+      one('[data-agent-creation-panel]').scrollIntoView({ block: 'start' });
+      await agentCreationControl?.check();
+    }
+    renderAgentGasFunding();
   });
   one('[data-agent-next-mission]').addEventListener('click', () => {
     activateTab('talk'); void runAgentAction(START_FREE_MINT_COMMAND);
@@ -2687,6 +2703,7 @@ function setup() {
       if (!funding.ready) {
         state.localStrategy = draft;
         addMessage("punk", funding.detail);
+        if (state.swarmGuidedReview) { showConfirmation(draft); return draft; }
         activateTab('fund'); renderAgentGasFunding();
         set('[data-agent-gas-result]', funding.detail);
         one('[data-agent-gas-panel]').scrollIntoView({ block: 'start' });
@@ -2716,28 +2733,31 @@ function setup() {
     getContext: () => ({ owner: state.wallet?.account, chainId: state.wallet?.chainId }),
     isOwned: tokenId => state.punks.some(punk => String(punk.tokenId) === tokenId),
   });
-  swarmControl = mountSwarm({ root: one('[data-swarm-panel]'),
-    getContext: () => ({ owner: state.wallet?.account, chainId: state.wallet?.chainId }),
-    getPunks: () => PREVIEW ? [] : state.punks,
+  swarmControl = mountSwarmSetup({ root: one('[data-swarm-panel]'),
+    getContext: () => ({ owner: state.wallet?.account, chainId: state.wallet?.chainId, preview: PREVIEW }),
+    getPunks: () => PREVIEW ? [] : state.punks, getProvider: () => window.__GOGH_WALLET_PROVIDER__,
     openReview: async ({ tokenId, command, options }) => {
       if (PREVIEW || actionBusy || one('[data-activate-strategy]').dataset.busy === 'true'
         || one('[data-confirmation-dialog]').open) throw Error('Finish the current review before opening another Punk.');
       const confirmed = await swarmReviewGate.review({ tokenId, command, options });
       if (!confirmed) return { cancelled: true };
       selectPunk(tokenId); activateTab('talk');
-      return runAgentAction(command);
+      state.swarmGuidedReview = true;
+      try { return await runAgentAction(command); }
+      finally { state.swarmGuidedReview = false; }
     },
-    getFundingState: tokenId => getAgentGasFundingState(state.wallet?.account?.toLowerCase(), String(tokenId)),
-    openFunding: async allocation => {
-      if (PREVIEW || actionBusy || state.gasFundingBusy || one('[data-confirmation-dialog]').open) throw Error('Finish the current wallet review first.');
-      selectPunk(allocation.tokenId);
-      state.swarmFundingContext = { ...allocation };
-      currentSwarmFunding();
-      one('#agent-gas-source').value = 'OWNER'; one('#agent-gas-amount').value = allocation.amountEth;
-      one('[data-agent-gas-confirm]').checked = false;
-      activateTab('fund'); renderAgentGasFunding();
-      one('[data-agent-gas-panel]').scrollIntoView({ block: 'start' });
-      await loadAgentAccountStatus({ authenticate: false });
+    checkMission: async tokenId => {
+      if (PREVIEW || actionBusy || state.gasFundingBusy || one('[data-confirmation-dialog]').open) throw Error('Finish the current review first.');
+      selectPunk(tokenId);
+      return loadAgentAccountStatus({ authenticate: true });
+    },
+    recoverMission: async ({ tokenId, sessionId, setupArtifactHash, authorizationTransactionHash }) => {
+      const owner = state.wallet?.account;
+      if (PREVIEW || state.wallet?.chainId !== CHAIN_ID || !state.punks.some(p => String(p.tokenId) === tokenId)) throw Error('Reconnect the current Punk owner.');
+      await ensureV2Session();
+      if (state.wallet?.account !== owner || state.wallet?.chainId !== CHAIN_ID) throw Error('Wallet changed. Keep the original approval saved.');
+      return jsonRequest('/api/v2/agent-account/receipt', { method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ owner, tokenId, sessionId, setupArtifactHash, authorizationTransactionHash }), timeoutMs: 30_000 });
     },
     openStatus: tokenId => { selectPunk(tokenId); activateTab('activity'); void loadAgentAccountStatus({ authenticate: true }); },
   });
@@ -2928,9 +2948,10 @@ function setup() {
         state.selected.mode = "AUTONOMOUS";
         one("[data-confirmation-dialog]").close();
         renderSelected();
+        if (swarmControl?.isGuidedMission?.(swarmIdentity)) openSwarm();
         addMessage("punk", "Mission permission confirmed. Check the status strip for live worker readiness. Only eligible free mints inside your approved limits can run; results appear in Activity. You can add more gas without recalling this Punk.");
       } catch (error) {
-        try { swarmControl?.authorization(swarmIdentity, 'CHECK_STATUS'); } catch { /* Original wallet result remains recoverable. */ }
+        try { swarmControl?.authorization(swarmIdentity, 'CHECK_STATUS', { rejected: error?.code === 4001 }); } catch { /* Original wallet result remains recoverable. */ }
         report(`AUTONOMOUS SETUP STOPPED · ${error?.message ?? "No mission was activated."}`);
         addMessage("punk", `${error?.message ?? "Autonomous setup stopped safely."} No unapproved mint was submitted.`);
       }

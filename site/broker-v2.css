@@ -731,3 +731,22 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 [data-agent-creation-panel] input[type=text] { display: block; box-sizing: border-box; width: 100%; min-width: 0; min-height: 44px; padding: .7rem; background: #080d10; color: #f3f5ee; border: 1px solid #596878; font-size: 16px; }
 [data-agent-creation-panel] input[type=checkbox] { width: 20px; height: 20px; margin-right: .5rem; vertical-align: middle; accent-color: #dcff46; }
 @media (max-width: 420px) { [data-agent-creation-panel] dl { grid-template-columns: minmax(0, 1fr); } }
+
+/* Guided holder setup: one persistent selection with explicit wallet reviews. */
+.swarm-setup { padding: clamp(12px, 2vw, 24px); border: 1px solid var(--line); overflow-wrap: anywhere; }
+.swarm-setup [hidden] { display: none !important; }
+.swarm-setup h3 { font-size: 1.2rem; }
+.swarm-setup [data-swarm-setup-steps] { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); list-style: none; gap: 8px; padding: 0; margin: 24px 0; }
+.swarm-setup [data-swarm-setup-steps] li { padding: 10px; border-bottom: 2px solid var(--line); color: var(--muted); font-size: 14px; }
+.swarm-setup [aria-current=step] { color: var(--acid) !important; border-bottom-color: var(--acid) !important; }
+.swarm-setup label { display: block; margin: 12px 0; }
+.swarm-setup fieldset { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; max-height: 280px; overflow: auto; border: 1px solid var(--line); }
+.swarm-setup fieldset label { display: flex; align-items: center; gap: 8px; min-height: 44px; margin: 0; }
+.swarm-setup input:not([type=checkbox]), .swarm-setup select { display: block; width: 100%; min-width: 0; min-height: 44px; box-sizing: border-box; background: var(--bg, #080d10); color: var(--text, #f3f5ee); padding: 10px; border: 1px solid var(--line); font-size: 16px; }
+.swarm-setup input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--acid); }
+.swarm-setup button { min-height: 44px; max-width: 100%; white-space: normal; margin: 6px 6px 6px 0; }
+.swarm-setup [data-swarm-setup-mission] { border-top: 1px solid var(--line); padding: 16px 0; }
+.swarm-setup [data-swarm-setup-mission] strong { display: block; margin-bottom: 8px; }
+.swarm-setup [data-swarm-setup-status] { color: var(--cyan, #64e6fa); }
+.swarm-setup [data-swarm-setup-navigation] { margin-top: 16px; }
+@media (max-width: 600px) { .swarm-setup [data-swarm-setup-steps] { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

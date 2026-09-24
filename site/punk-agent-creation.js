@@ -35,13 +35,28 @@ function exact(value, keys) {
   valid(value && Object.getPrototypeOf(value) === Object.prototype && Reflect.ownKeys(value).length === keys.length
     && keys.every(key => Object.hasOwn(Object.getOwnPropertyDescriptor(value, key) ?? {}, 'value')), 'REVIEW_INVALID');
 }
-function reader(provider) {
+function reader(provider, readProvider) {
   valid(typeof provider?.request === 'function', 'PROVIDER', 'Connect the Punk owner wallet on Robinhood Chain.');
+  const walletMethods = new Set(['eth_accounts', 'eth_getTransactionCount']);
+  const request = async (method, params) => {
+    if (!readProvider || walletMethods.has(method)) return provider.request({ method, params });
+    valid(typeof readProvider.request === 'function', 'READ_UNAVAILABLE');
+    if (method === 'eth_chainId') {
+      const [walletChain, readChain] = await Promise.all([provider.request({ method, params }), readProvider.request({ method, params })]);
+      valid(quantity(walletChain) === quantity(readChain), 'READ_CHAIN_CHANGED', 'The chain reader and your wallet disagree. Reconnect on Robinhood Chain.');
+      return walletChain;
+    }
+    return readProvider.request({ method, params });
+  };
   return async (method, params = []) => {
     valid(READS.has(method), 'READ_ONLY'); let timer;
-    try { return await Promise.race([Promise.resolve().then(() => provider.request({ method, params })), new Promise((_, reject) => {
+    try { return await Promise.race([Promise.resolve().then(() => request(method, params)), new Promise((_, reject) => {
       timer = setTimeout(() => reject(Error('timeout')), 8000);
-    })]); } catch { valid(false, 'READ_UNAVAILABLE', 'A chain check is unavailable. No new wallet request was made by this check; preserve any saved transaction.'); }
+    })]); } catch (error) {
+      if (['AGENT_CREATION_READ_CHAIN_CHANGED', 'AGENT_CREATION_READ_INVALID'].includes(error?.code)) throw error;
+      if (error?.code === 'SWARM_WALLET_FEE_CHANGED') valid(false, 'FEE_CHANGED', 'Network fees changed. Review creation again.');
+      valid(false, 'READ_UNAVAILABLE', 'A chain check is unavailable. No new wallet request was made by this check; preserve any saved transaction.');
+    }
     finally { clearTimeout(timer); }
   };
 }
@@ -83,7 +98,7 @@ async function binding(rpc, tokenId, at) {
   return { owner, tokenId, account, accountSalt, created: flag === 1n };
 }
 export async function readAgentWalletCreation(provider, context) {
-  const { owner, tokenId } = identity(context.owner, context.tokenId), rpc = reader(provider);
+  const { owner, tokenId } = identity(context.owner, context.tokenId), rpc = reader(provider, context.readProvider);
   await wallet(rpc, owner);
   const anchor = block(await rpc('eth_getBlockByNumber', ['latest', false]), true);
   const state = await binding(rpc, tokenId, hex(anchor.number));
@@ -113,8 +128,8 @@ async function simulate(rpc, review) {
   valid(quantity(estimate) > 0n && quantity(estimate) <= quantity(review.transaction.gas)
     && quantity(price) > 0n && quantity(price) <= quantity(review.transaction.gasPrice), 'FEE_CHANGED', 'Network fees changed. Review creation again.');
 }
-async function recheck(provider, rpc, review) {
-  const state = await readAgentWalletCreation(provider, review);
+async function recheck(provider, rpc, review, readProvider) {
+  const state = await readAgentWalletCreation(provider, { ...review, readProvider });
   valid(!state.created, 'ALREADY_CREATED', 'This Agent Account already exists. Check it and continue to funding.');
   valid(state.account === review.account && state.accountSalt === review.accountSalt && uint(state.nonce) === quantity(review.transaction.nonce), 'REVIEW_CHANGED');
   valid(uint(state.balanceWei) >= uint(review.maximumNetworkFeeWei), 'INSUFFICIENT_FUNDS', 'Your connected wallet needs enough ETH for the creation network fee.');
@@ -123,7 +138,11 @@ async function recheck(provider, rpc, review) {
 export async function prepareAgentWalletCreation(provider, context) {
   const state = await readAgentWalletCreation(provider, context);
   if (state.created) return state;
-  const rpc = reader(provider), gasPrice = quantity(await rpc('eth_gasPrice'));
+  const rpc = reader(provider, context.readProvider), observedPrice = quantity(await rpc('eth_gasPrice'));
+  valid(observedPrice > 0n, 'FEE_CHANGED');
+  // Review a bounded fee margin so a small base-fee movement does not force
+  // another review before the wallet opens. The hard total-fee cap still applies.
+  const gasPrice = (observedPrice * 120n + 99n) / 100n;
   const transaction = { chainId: '0x1237', from: state.owner, to: PINS.registry, value: '0x0',
     data: selector('createAccount(uint256)') + word(state.tokenId), nonce: hex(state.nonce), gas: '0x0', gasPrice: hex(gasPrice) };
   const { gas: unused, ...estimateTx } = transaction;
@@ -132,7 +151,7 @@ export async function prepareAgentWalletCreation(provider, context) {
   const review = { schema: 'GOGH_AGENT_CREATION_REVIEW_V1', owner: state.owner, tokenId: state.tokenId, chainId: CHAIN, registry: PINS.registry,
     account: state.account, accountSalt: state.accountSalt, anchor: state.anchor, expiresAt: Number(uint(state.anchor.timestamp) + 90n) * 1000,
     maximumNetworkFeeWei: String(quantity(transaction.gas) * gasPrice), transaction };
-  valid(estimate > 0n, 'SIMULATION'); validateReview(review, true); await simulate(rpc, review); await recheck(provider, rpc, review);
+  valid(estimate > 0n, 'SIMULATION'); validateReview(review, true); await simulate(rpc, review); await recheck(provider, rpc, review, context.readProvider);
   return freeze(review);
 }
 const key = owner => 'gogh:agent-wallet-creation:4663:' + address(owner);
@@ -179,12 +198,12 @@ async function locked(owner, options, action) {
   return locks.request(key(owner), { mode: 'exclusive' }, async () => { valid(options.isCurrent(), 'CONTEXT_CHANGED'); return action(); });
 }
 export async function submitAgentWalletCreation(provider, review, options) {
-  const shown = copy(review); validateReview(shown, true); const store = storageFor(options.storage), rpc = reader(provider);
+  const shown = copy(review); validateReview(shown, true); const store = storageFor(options.storage), rpc = reader(provider, options.readProvider);
   return locked(shown.owner, options, async () => {
     const previous = getAgentWalletCreationRecord(shown.owner, { storage: store });
     valid(!pending(previous), 'PENDING', `Recover the saved creation for Punk #${previous?.review.tokenId ?? shown.tokenId} before another wallet request.`);
     valid(!previous || previous.status === 'REJECTED' || !equal(previous.review.transaction, shown.transaction), 'ALREADY_ATTEMPTED');
-    await recheck(provider, rpc, shown); await simulate(rpc, shown); await recheck(provider, rpc, shown);
+    await recheck(provider, rpc, shown, options.readProvider); await simulate(rpc, shown); await recheck(provider, rpc, shown, options.readProvider);
     valid(options.isCurrent() && equal(getAgentWalletCreationRecord(shown.owner, { storage: store }), previous), 'CONTEXT_CHANGED');
     const record = { schema: 'GOGH_AGENT_CREATION_JOURNAL_V1', owner: shown.owner, status: 'WALLET_REQUESTED', review: shown, transactionHash: null, receipt: null };
     save(record, store); valid(options.isCurrent(), 'CONTEXT_CHANGED');
@@ -199,7 +218,7 @@ export async function submitAgentWalletCreation(provider, review, options) {
   });
 }
 export async function recoverAgentWalletCreation(provider, owner, options) {
-  const holder = address(owner.toLowerCase()), store = storageFor(options.storage), rpc = reader(provider);
+  const holder = address(owner.toLowerCase()), store = storageFor(options.storage), rpc = reader(provider, options.readProvider);
   return locked(holder, options, async () => {
     let record = getAgentWalletCreationRecord(holder, { storage: store });
     if (!record || record.status === 'REJECTED') return record;

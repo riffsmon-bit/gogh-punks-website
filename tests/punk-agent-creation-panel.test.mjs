@@ -13,30 +13,32 @@ class Node {
 }
 const walk = node => [node, ...node.children.flatMap(walk)];
 const deferred = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; };
-function fixture({ created = false, initialRecord = null, onCreated } = {}) {
+function fixture({ created = false, initialRecord = null, onCreated, onStateChange } = {}) {
   const doc = { createElement: tag => new Node(tag, doc) }, root = new Node('section', doc);
   const state = { context: { owner: OWNER, chainId: 4663, tokenId: '93', preview: false }, provider: {}, created, record: initialRecord,
-    calls: [], callbacks: [], read: null, prepare: null, submit: null, recover: null };
-  const snapshot = () => ({ schema: 'GOGH_AGENT_CREATION_STATE_V1', owner: OWNER, tokenId: '93', account: ACCOUNT, created: state.created });
+    calls: [], callbacks: [], changes: [], read: null, prepare: null, submit: null, recover: null };
+  const snapshot = () => ({ schema: 'GOGH_AGENT_CREATION_STATE_V1', owner: state.context.owner, tokenId: state.context.tokenId, account: ACCOUNT, created: state.created });
   const review = () => ({ schema: 'GOGH_AGENT_CREATION_REVIEW_V1', owner: OWNER, tokenId: '93', account: ACCOUNT, registry: REGISTRY,
     maximumNetworkFeeWei: '130000000000', expiresAt: Date.now() + 90000 });
   const saved = status => ({ owner: OWNER, status, review: review(), transactionHash: ['WALLET_REQUESTED', 'REJECTED'].includes(status) ? null : HASH, receipt: null });
   const client = {
     getAgentWalletCreationRecord: owner => { assert.equal(owner, state.context.owner.toLowerCase()); if (state.journalError) throw Error('Saved creation history is unreadable.'); return state.record; },
-    readAgentWalletCreation: async (provider, context) => { state.calls.push('read'); assert.equal(provider, state.provider); assert.equal(context.tokenId, state.context.tokenId); return state.read ? state.read() : snapshot(); },
-    prepareAgentWalletCreation: async () => { state.calls.push('prepare'); return state.prepare ? state.prepare() : review(); },
+    readAgentWalletCreation: async (provider, context) => { state.calls.push('read'); assert.equal(provider, state.provider); assert.equal(context.tokenId, state.context.tokenId);
+      assert.equal(context.readProvider, readProvider); return state.read ? state.read() : snapshot(); },
+    prepareAgentWalletCreation: async (_provider, context) => { state.calls.push('prepare'); assert.equal(context.readProvider, readProvider); return state.prepare ? state.prepare() : review(); },
     submitAgentWalletCreation: async (_provider, shown, options) => { state.calls.push('submit'); assert.equal(shown.account, ACCOUNT); assert.ok(options.isCurrent());
-      if (state.submit) return state.submit(options); return state.record = saved('SUBMITTED'); },
+      assert.equal(options.readProvider, readProvider); if (state.submit) return state.submit(options); return state.record = saved('SUBMITTED'); },
     recoverAgentWalletCreation: async (_provider, owner, options) => { state.calls.push('recover'); assert.equal(owner, OWNER); assert.equal(options.hash, state.hash ?? HASH); assert.ok(options.isCurrent());
-      if (state.recover) return state.recover(options); state.created = true; return state.record = saved('CONFIRMED'); },
+      assert.equal(options.readProvider, readProvider); if (state.recover) return state.recover(options); state.created = true; return state.record = saved('CONFIRMED'); },
   };
-  const storage = {}, locks = {};
-  const mounted = mountAgentWalletCreation({ root, getContext: () => state.context, getProvider: () => state.provider, storage, locks, client,
-    onCreated: async value => { state.callbacks.push(value); await onCreated?.(value); } });
+  const storage = {}, locks = {}, readProvider = {};
+  const mounted = mountAgentWalletCreation({ root, getContext: () => state.context, getProvider: () => state.provider, storage, locks, client, readProvider,
+    onCreated: async value => { state.callbacks.push(value); await onCreated?.(value); },
+    onStateChange: value => { state.changes.push(value); return onStateChange?.(value); } });
   const node = name => walk(root).find(n => Object.hasOwn(n.attrs, 'data-agent-wallet-creation-' + name));
   const checkAndPrepare = async () => { await node('check').click(); await node('prepare').click(); };
   const consent = () => { node('consent').checked = true; node('consent').listeners.change(); };
-  return { state, root, mounted, node, checkAndPrepare, consent, saved, snapshot, review };
+  return { state, root, mounted, node, checkAndPrepare, consent, saved, snapshot, review, readProvider };
 }
 
 test('mount and refresh are passive; check, review, consent and wallet confirmation remain separate', async () => {
@@ -164,4 +166,63 @@ test('wrong chain, preview, missing owner and malformed journal cannot start cre
   }
   const f = fixture(); f.state.journalError = true; f.state.provider = {}; f.mounted.refresh(); await f.node('check').click();
   assert.deepEqual(f.state.calls, []); assert.match(f.node('status').textContent, /history is unreadable/);
+});
+
+test('guide check is read-only, reports busy and completion, and returns an isolated state', async () => {
+  const f = fixture({ created: true }), wait = deferred(); f.state.read = () => wait.promise;
+  assert.deepEqual(f.mounted.getState(), { owner: OWNER, tokenId: '93', busy: false, snapshot: null, record: null });
+  assert.deepEqual(f.state.calls, []);
+  const checking = f.mounted.check();
+  assert.equal(f.mounted.getState().busy, true); assert.equal(f.state.changes.at(-1).busy, true);
+  wait.resolve(f.snapshot()); const value = await checking;
+  assert.equal(value.busy, false); assert.equal(value.snapshot.created, true);
+  assert.deepEqual(f.state.calls, ['read']); assert.equal(f.state.callbacks.length, 1);
+  value.snapshot.created = false; f.state.changes.at(-1).snapshot.account = OTHER;
+  assert.equal(f.mounted.getState().snapshot.created, true);
+  assert.equal(f.mounted.getState().snapshot.account, ACCOUNT);
+});
+
+test('guide may check a different Punk context without borrowing the previous Punk snapshot', async () => {
+  const f = fixture({ created: true }); await f.mounted.check();
+  f.state.context.tokenId = '94';
+  assert.equal(f.mounted.getState().tokenId, '94'); assert.equal(f.mounted.getState().snapshot, null);
+  assert.deepEqual(f.state.calls, ['read']);
+  const state = await f.mounted.check();
+  assert.equal(state.tokenId, '94'); assert.equal(state.snapshot.tokenId, '94');
+  assert.deepEqual(f.state.calls, ['read', 'read']);
+  assert.ok(f.state.changes.some(value => value.tokenId === '94' && value.snapshot === null));
+});
+
+test('guide observers cannot change saved records or interrupt creation confirmation', async () => {
+  const f = fixture({ onStateChange: () => { throw Error('guide render failed'); } });
+  await f.checkAndPrepare(); f.consent(); await f.node('confirm').click();
+  const state = f.mounted.getState(); assert.equal(state.record.status, 'SUBMITTED');
+  state.record.review.tokenId = '94'; state.record.status = 'CONFIRMED';
+  assert.equal(f.mounted.getState().record.status, 'SUBMITTED');
+  assert.equal(f.mounted.getState().record.review.tokenId, '93');
+  assert.equal(f.state.calls.filter(call => call === 'submit').length, 1);
+});
+
+test('failed explicit recheck clears previously verified readiness', async () => {
+  const f = fixture({ created: true }); await f.mounted.check();
+  f.state.read = () => { throw Error('A chain check is unavailable.'); };
+  const state = await f.mounted.check(); assert.equal(state.snapshot, null);
+  assert.equal(state.busy, false); assert.equal(f.node('prepare').disabled, true);
+  assert.match(f.node('status').textContent, /unavailable/); assert.equal(f.state.callbacks.length, 1);
+});
+
+test('late guide check after context switch returns no stale account readiness', async () => {
+  const f = fixture({ created: true }), wait = deferred(); f.state.read = () => wait.promise;
+  const oldSnapshot = f.snapshot(), checking = f.mounted.check();
+  f.state.context.tokenId = '94'; wait.resolve(oldSnapshot);
+  const state = await checking;
+  assert.equal(state.tokenId, '94'); assert.equal(state.snapshot, null); assert.equal(state.busy, false);
+  assert.equal(f.state.callbacks.length, 0); assert.equal(f.node('prepare').disabled, true);
+});
+
+test('duplicate guide check during an outstanding read does not queue more work', async () => {
+  const f = fixture(), wait = deferred(); f.state.read = () => wait.promise;
+  const checking = f.mounted.check(), concurrent = await f.mounted.check();
+  assert.equal(concurrent.busy, true); assert.deepEqual(f.state.calls, ['read']);
+  wait.resolve(f.snapshot()); await checking; assert.deepEqual(f.state.calls, ['read']);
 });

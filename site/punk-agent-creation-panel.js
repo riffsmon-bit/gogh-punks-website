@@ -1,11 +1,15 @@
 import * as creationClient from './punk-agent-creation.js';
+import { createSwarmWalletReadProvider } from './swarm-wallet-rpc.js';
 
 const eth = value => { const n = BigInt(value), fraction = (n % 10n ** 18n).toString().padStart(18, '0').replace(/0+$/, '');
   return (n / 10n ** 18n).toString() + (fraction ? '.' + fraction : '') + ' ETH'; };
 const pending = record => ['WALLET_REQUESTED', 'SUBMITTED'].includes(record?.status);
-export function mountAgentWalletCreation({ root, getContext, getProvider, onCreated,
-  client = creationClient, storage, locks = globalThis.navigator?.locks }) {
-  if (!root) return { refresh() {} };
+export function mountAgentWalletCreation({ root, getContext, getProvider, onCreated, onStateChange,
+  client = creationClient, storage, locks = globalThis.navigator?.locks, readProvider = createSwarmWalletReadProvider() }) {
+  if (!root) {
+    const getState = () => ({ owner: null, tokenId: null, busy: false, snapshot: null, record: null });
+    return { refresh() {}, async check() { return getState(); }, getState };
+  }
   try { if (storage === undefined) storage = globalThis.localStorage; } catch { storage = null; }
   const doc = root.ownerDocument;
   const node = (tag, text, name) => { const n = doc.createElement(tag); if (text) n.textContent = text;
@@ -14,7 +18,7 @@ export function mountAgentWalletCreation({ root, getContext, getProvider, onCrea
   const title = node('h3', 'CREATE YOUR PUNK’S AGENT WALLET', 'title');
   const intro = node('p', 'Create the Agent Account first, then choose how to fund it. Creation sends 0 ETH and costs only the displayed network fee. It does not authorize a mission, change existing permissions or deposit funds.');
   const info = node('p', '', 'info'), status = node('p', '', 'status'); status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
-  const check = node('button', 'CHECK AGENT WALLET', 'check'), prepare = node('button', 'REVIEW WALLET CREATION', 'prepare');
+  const checkButton = node('button', 'CHECK AGENT WALLET', 'check'), prepare = node('button', 'REVIEW WALLET CREATION', 'prepare');
   const preview = node('section', '', 'review'), details = node('dl', '', 'details');
   const consentLabel = node('label'), consent = node('input', '', 'consent'); consent.type = 'checkbox';
   consentLabel.append(consent, node('span', 'I reviewed this Punk, the Agent Account address and the maximum network fee. This creates the wallet only.'));
@@ -25,14 +29,23 @@ export function mountAgentWalletCreation({ root, getContext, getProvider, onCrea
   const recover = node('button', 'CHECK SAVED TRANSACTION', 'recover');
   recovery.append(node('p', 'An unknown or pending request will not be resent. Recover the saved creation before opening another wallet request.'), hashLabel, recover);
   const link = node('a', 'VIEW TRANSACTION', 'link'); link.target = '_blank'; link.rel = 'noopener noreferrer';
-  root.hidden = false; root.replaceChildren(title, intro, info, check, prepare, status, preview, recovery, link);
-  for (const n of [check, prepare, confirm, discard, recover]) { n.type = 'button'; n.className = 'outline-button'; }
+  root.hidden = false; root.replaceChildren(title, intro, info, checkButton, prepare, status, preview, recovery, link);
+  for (const n of [checkButton, prepare, confirm, discard, recover]) { n.type = 'button'; n.className = 'outline-button'; }
   function current() {
     const c = getContext(), id = String(c?.tokenId);
     return c && c.chainId === 4663 && !c.preview && /^0x[0-9a-f]{40}$/i.test(c.owner ?? '')
       && /^(0|[1-9]\d{0,3})$/.test(id) && BigInt(id) <= 5016n ? { owner: c.owner.toLowerCase(), tokenId: id } : null;
   }
   const identityKey = c => c ? `${c.owner}:${c.tokenId}` : '';
+  function getState() {
+    const c = current(), matches = identityKey(c) === contextKey && getProvider() === providerKey;
+    return structuredClone({ owner: c?.owner ?? null, tokenId: c?.tokenId ?? null, busy,
+      snapshot: matches ? snapshot : null, record: matches ? record : null });
+  }
+  function changed() {
+    // Optional guide rendering cannot interrupt transaction journaling/recovery.
+    try { Promise.resolve(onStateChange?.(getState())).catch(() => {}); } catch { /* observer only */ }
+  }
   function loadRecord() {
     const c = current(); record = c && storage ? client.getAgentWalletCreationRecord(c.owner, { storage }) : null;
     hash.value = record?.transactionHash ?? ''; journalError = false;
@@ -46,7 +59,7 @@ export function mountAgentWalletCreation({ root, getContext, getProvider, onCrea
       : pending(record) ? `Creation for Punk #${record.review.tokenId} needs transaction recovery below.`
       : snapshot?.created ? `Agent Account verified: ${snapshot.account}. You can review funding below. Any existing mission permissions remain unchanged.`
       : snapshot ? `Agent Account to create: ${snapshot.account}. Review creation before depositing funds.` : 'Check the Agent Account first. This read does not open a transaction in your wallet.';
-    check.disabled = unavailable || busy;
+    checkButton.disabled = unavailable || busy;
     prepare.disabled = blocked || !snapshot || snapshot.created;
     preview.hidden = !review; consent.disabled = blocked;
     confirm.disabled = blocked || !review || !consent.checked || Date.now() >= review.expiresAt;
@@ -57,22 +70,25 @@ export function mountAgentWalletCreation({ root, getContext, getProvider, onCrea
   }
   function refresh() {
     const next = identityKey(current()), provider = getProvider();
-    if (next !== contextKey || provider !== providerKey) {
+    const contextChanged = next !== contextKey || provider !== providerKey;
+    if (contextChanged) {
       contextKey = next; providerKey = provider; revision++; review = null; snapshot = null; record = null;
       consent.checked = false; status.textContent = ''; hash.value = ''; journalError = false;
       try { loadRecord(); } catch (error) { journalError = true; status.textContent = error.message; }
     }
     render();
+    if (contextChanged) changed();
   }
   async function run(action) {
     const c = current(); if (busy || !c || !storage || journalError) return;
     if (identityKey(c) !== contextKey || getProvider() !== providerKey) { refresh(); return; }
     const version = revision, provider = getProvider();
     const isCurrent = () => identityKey(current()) === identityKey(c) && revision === version && getProvider() === provider;
-    busy = true; render();
+    busy = true; render(); changed();
     try { await action(c, provider, isCurrent); }
     catch (error) { if (isCurrent()) status.textContent = error?.message ?? 'Creation could not be checked. Preserve any saved transaction.'; }
-    finally { busy = false; render(); }
+    finally { busy = false; refresh(); changed(); }
+    return getState();
   }
   async function ready(value, isCurrent) {
     if (!isCurrent()) return;
@@ -82,15 +98,21 @@ export function mountAgentWalletCreation({ root, getContext, getProvider, onCrea
       if (isCurrent()) await onCreated?.(value);
     } else if (!pending(record)) status.textContent = 'The Agent Account has not been created yet. Review its address and creation fee next.';
   }
-  check.addEventListener('click', () => run(async (c, provider, isCurrent) => {
-    status.textContent = 'Checking the owner, pinned registry and Agent Account…';
-    const value = await client.readAgentWalletCreation(provider, c);
-    if (isCurrent()) { loadRecord(); await ready(value, isCurrent); }
-  }));
+  async function check() {
+    refresh();
+    await run(async (c, provider, isCurrent) => {
+      snapshot = null; review = null; consent.checked = false;
+      status.textContent = 'Checking the owner, pinned registry and Agent Account…';
+      const value = await client.readAgentWalletCreation(provider, { ...c, readProvider });
+      if (isCurrent()) { loadRecord(); await ready(value, isCurrent); }
+    });
+    return getState();
+  }
+  checkButton.addEventListener('click', check);
   prepare.addEventListener('click', () => run(async (c, provider, isCurrent) => {
     loadRecord(); if (pending(record)) throw Error('Recover the saved creation before preparing another wallet request.');
     review = null; consent.checked = false; status.textContent = 'Checking and simulating wallet creation only…';
-    const value = await client.prepareAgentWalletCreation(provider, c); if (!isCurrent()) return;
+    const value = await client.prepareAgentWalletCreation(provider, { ...c, readProvider }); if (!isCurrent()) return;
     if (value.created) { await ready(value, isCurrent); return; }
     review = value; details.replaceChildren();
     const add = (label, text) => details.append(node('dt', label), node('dd', text));
@@ -100,12 +122,12 @@ export function mountAgentWalletCreation({ root, getContext, getProvider, onCrea
     status.textContent = 'Simulation passed. Review the address and fee, then confirm separately in your wallet.';
   }));
   consent.addEventListener('change', render); hash.addEventListener('input', render);
-  discard.addEventListener('click', () => { review = null; consent.checked = false; revision++; render(); });
+  discard.addEventListener('click', () => { review = null; consent.checked = false; revision++; render(); changed(); });
   confirm.addEventListener('click', () => run(async (c, provider, isCurrent) => {
     if (!review || !consent.checked || pending(record)) return;
     const shown = review; status.textContent = 'Rechecking ownership and the exact creation transaction before opening your wallet…';
     try {
-      const result = await client.submitAgentWalletCreation(provider, shown, { storage, locks, isCurrent });
+      const result = await client.submitAgentWalletCreation(provider, shown, { storage, locks, isCurrent, readProvider });
       if (isCurrent()) {
         record = result; status.textContent = result.status === 'REJECTED' ? 'Creation cancelled in your wallet. Nothing was confirmed.'
           : 'Creation request saved. Check its transaction below before funding. No mission permission was requested.';
@@ -119,7 +141,7 @@ export function mountAgentWalletCreation({ root, getContext, getProvider, onCrea
   }));
   recover.addEventListener('click', () => run(async (c, provider, isCurrent) => {
     const inspectedHash = hash.value.trim(); status.textContent = 'Checking the saved transaction. No new transaction will be sent…';
-    const result = await client.recoverAgentWalletCreation(provider, c.owner, { hash: inspectedHash, storage, locks, isCurrent });
+    const result = await client.recoverAgentWalletCreation(provider, c.owner, { hash: inspectedHash, storage, locks, isCurrent, readProvider });
     if (!isCurrent() || !result) return;
     record = result; hash.value = pending(result) && result.transactionHash !== inspectedHash ? inspectedHash : result.transactionHash ?? '';
     status.textContent = result.status === 'CONFIRMED' ? `Creation for Punk #${result.review.tokenId} confirmed. No mission permission was requested.`
@@ -127,9 +149,9 @@ export function mountAgentWalletCreation({ root, getContext, getProvider, onCrea
       : result.status === 'REVERTED' ? 'Creation reverted. No account creation was confirmed; the network fee may have been spent.'
       : 'The transaction is still pending. Recheck it later; do not send another.';
     if (result.status === 'CONFIRMED' && result.review.tokenId === c.tokenId) {
-      const value = await client.readAgentWalletCreation(provider, c); await ready(value, isCurrent);
+      const value = await client.readAgentWalletCreation(provider, { ...c, readProvider }); await ready(value, isCurrent);
     }
     if (isCurrent() && result.receipt?.feeExceeded) status.textContent += ` Your wallet changed the fee above the review. Actual network fee: ${eth(result.receipt.actualNetworkFeeWei)}.`;
   }));
-  refresh(); return { refresh };
+  refresh(); return { refresh, check, getState };
 }
