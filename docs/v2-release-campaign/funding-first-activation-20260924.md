@@ -20,7 +20,9 @@ No contract deployment, database migration, custody change, AI provider, broad e
 
 ## Validation
 
-- Targeted activation/status/wiring: 29 passed.
-- Additional wiring: initial missing test-context binding corrected; rerun pending.
+- Activation/status/integration/sign-in regression checks: 72 passed; an additional behavioral test confirms that new and unfunded drafts preserve their rules and open Fund.
+- A missing test-context binding for the new controller was fixed before the passing rerun.
+- Production read-only checks: #93 existing registry/Agent runtime verified at block 71378973. #1135 creation was simulated (48 bounded RPC reads/calls, zero-value createAccount); maximum fee at that sample was 5979089016000 wei. No transaction was sent.
+- Creation helper tests: 54 passed during implementation; final recovery and panel coverage still being completed.
 - New creation helper/panel tests, full JS suite, deploy gate, responsive browser, independent review: pending.
 - Preview / production: pending; no cloud deployment has been triggered for this change.

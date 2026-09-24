@@ -3076,7 +3076,7 @@ function setup() {
         if (!isCurrent()) throw new Error("Selection changed during review.");
         if (allocation) swarmControl.fundingPrepared({ batchId: allocation.batchId, tokenId: punk.tokenId, prepared });
         state.gasFundingPlan = prepared; gasButton.textContent = "SUBMIT IN METAMASK";
-        output.textContent = `SIMULATION PASSED · Move ${amount} ETH from ${source === "PUNK" ? "this Punk Wallet" : "your connected wallet"} to Agent Account ${prepared.destination}. Your connected wallet pays the transfer fee. No mission is activated.`;
+        output.textContent = `SIMULATION PASSED · Move ${amount} ETH from ${source === "PUNK" ? "this Punk Wallet" : "your connected wallet"} to Agent Account ${prepared.destination}. Your connected wallet pays the transfer fee. No new permission is granted. An existing active mission may resume when gas is added.`;
         return;
       }
       output.textContent = "Rechecking funding before MetaMask…";
@@ -3099,9 +3099,13 @@ function setup() {
         one("[data-agent-gas-confirm]").checked = false;
         await Promise.all([loadAgentAccountStatus(), loadPunkBalances(punk)]);
         if (isSelected()) {
-          renderSelected(); output.textContent = "GAS FUNDING CONFIRMED ✓ Review and approve your mission separately.";
+          renderSelected();
+          const nextStep = selectedAgentAccount()?.runtime?.sessionActive
+            ? 'Your existing mission may resume within its approved rules. Check Activity; no recall or new authorization is needed.'
+            : state.localStrategy ? 'Use REVIEW SAVED MISSION, then Start mission.' : 'Choose your rules, review them, then Start mission.';
+          output.textContent = `GAS FUNDING CONFIRMED ✓ ${nextStep}`;
           one("[data-resume-chat-mission]").hidden = !state.localStrategy;
-          addMessage("punk", `GAS FUNDING CONFIRMED. ${amount} ETH moved to my Agent Account. No mission was activated. ${state.localStrategy ? "Use REVIEW SAVED MISSION to continue." : "Tell me your mission and I'll show its limits for approval."}`);
+          addMessage("punk", `GAS FUNDING CONFIRMED. ${amount} ETH moved to my Agent Account. No new permission was granted. ${nextStep}`);
         }
       }
     } catch (error) {
