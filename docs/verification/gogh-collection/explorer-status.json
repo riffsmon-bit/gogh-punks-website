@@ -1,6 +1,6 @@
 {
-  "status": "0",
-  "message": "NOTOK",
-  "result": "Pending in queue",
-  "checkedAt": "2026-09-24T14:52:10.519650+00:00"
+  "status": "1",
+  "message": "OK",
+  "result": "Pass - Verified",
+  "checkedAt": "2026-09-24T14:59:18.695224+00:00"
 }

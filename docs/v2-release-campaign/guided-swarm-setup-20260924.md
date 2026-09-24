@@ -2,7 +2,7 @@
 
 Starting production commit: `b854e5be463edbcc60cf715d3e27d12e616e9786`.
 Branch: `feat/guided-swarm-setup`.
-Status: **IMPLEMENTED; LOCAL VALIDATION IN PROGRESS; NOT DEPLOYED.**
+Status: **IMPLEMENTED; LOCAL VALIDATION PASSED; PREVIEW PENDING; NOT DEPLOYED TO PRODUCTION.**
 
 ## Holder flow
 
@@ -38,6 +38,11 @@ The individual Fund screen hides the deposit form until the selected Agent walle
 - Syntax checks passed for 986 JavaScript modules.
 - Focused holder-help and integration-wiring run: 11 passed, zero failed.
 - Guided model/UI run: 32 passed, zero failed, including interrupted account creation, unknown transactions, replacement hashes, ownership changes, archive safety and stale status.
+- Final guided model/UI plus embedded-wallet run: 77 passed, zero failed after copy corrections.
+- Dedicated guided browser: passed at 1440/375/320 widths, fifteen screenshots, one exact funding batch per journey, no overflow or browser/network errors. Evidence: `/private/tmp/gogh-swarm-setup-browser-X7Z5l6/result.json`.
+- Whole-page holder browser: passed at 1440/375/320 widths, 33 screenshots, all 35 served-file hashes matched, no browser/network errors. Evidence: `/private/tmp/gogh-preview-browser-evidence-Rl2Xly/result.json`.
+- First full suite: 3,895 passed, one outdated test fixture failed, two optional skips. Its old function-extraction boundary was corrected without weakening the passive-review assertions; all six tests in that file passed afterward.
+- Clean full-suite rerun: **3,896 passed, zero failed, two optional skips**, 3,898 total, 252.6 seconds, bounded test concurrency of two. Evidence: `/private/tmp/gogh-guided-full-final-tests.log`.
 - Independent review found no remaining P0/P1 in the reviewed recovery and authority blocks. Full regression and integrated browser results are required before deployment.
 
 ## Release boundaries

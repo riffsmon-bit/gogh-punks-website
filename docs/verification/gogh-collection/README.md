@@ -1,6 +1,6 @@
 # Gogh Punks collection — RobinScan source verification
 
-Date: 2026-09-24. Status: **EXACT CHAIN MATCH VERIFIED; SUBMITTED; AWAITING EXPLORER VERIFICATION.**
+Date: 2026-09-24. Status: **VERIFIED ON ROBINSCAN; PUBLISHED SOURCE CONFIRMED.**
 
 Collection: `0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6` on Robinhood Chain, chain ID `4663`.
 
@@ -11,7 +11,8 @@ The official [Etherscan RobinScan announcement](https://info.etherscan.com/what-
 - Direct explorer HTML returned a Cloudflare challenge, rather than contract status. This is **not** evidence that the contract is unverified.
 - The owner saved a new API key locally outside the repository with owner-only permissions. It was supplied to the verification subprocess through its environment; no value was printed, committed or deployed.
 - Authenticated Etherscan V2 `getsourcecode` confirmed that the source was unverified. Submission was accepted at **2026-09-24T14:38:21.695Z**, after a fresh exact-chain comparison. See `submission.json` for the public verification GUID.
-- Subsequent bounded status reads returned **Pending in queue**. Acceptance is not verification; no duplicate submission was sent.
+- The single submission progressed from **Pending in queue** to **Pass - Verified**, confirmed at **2026-09-24T14:59:18.695224Z**. No duplicate submission was sent.
+- A separate authenticated `getsourcecode` at **2026-09-24T15:00:17.983488Z** confirmed nonempty published source, contract name `GoghPunksOnchain`, exact compiler `v0.8.17+commit.8df45f5f`, optimizer enabled with 200 runs, London EVM, and non-proxy status. The explorer API's license field was blank; SPDX headers remain in the published source.
 - The collection's historical release manifest reports Blockscout source verification. Fresh Blockscout API access was also blocked, so that historical claim is not used as proof of current RobinScan verification.
 - At block **71,441,446**, hash `0xe44f870339a324e9b0c78e48f9e114b4afaeabff72ec5f74a08ff26880db17b6`, a fresh public RPC read matched all **18,470 runtime bytes** against the original local compiled artifact after inserting the renderer immutable.
 - Runtime keccak256: `0x3222e4925f77909e6370e17fe071d2774d43e191f6bc72c3a97c97209c6e2e93`.
@@ -33,6 +34,8 @@ No approvals, wallet signatures, ETH transfers, burns, contract deployments or c
 | `chain-evidence.json` | Fresh exact-match read evidence and pinned block |
 | `checksums.json` | SHA-256 checksums for the six package files |
 | `submission.json` | Accepted submission timestamp and public verification GUID; no API key |
+| `explorer-status.json` | Explorer's successful verification response and check timestamp |
+| `explorer-source-status.json` | Separate published-source metadata confirmation; no source secrets or API key |
 
 Contract name: `src/GoghPunksOnchain.sol:GoghPunksOnchain`.
 
@@ -85,4 +88,4 @@ node scripts/verification/gogh-collection.mjs prepare \
   --artifact /private/tmp/gogh-batch-transfer-audit-out/GoghPunksOnchain.sol/GoghPunksOnchain.json
 ```
 
-Validation actually executed: source-hash checks, constructor round-trip, actual deployment-input/receipt check, complete runtime comparison, pinned-block canonicality check, script syntax check, authenticated unverified-source lookup, accepted submission and bounded pending-status checks. Explorer verification remains pending until its queue completes.
+Validation actually executed: source-hash checks, constructor round-trip, actual deployment-input/receipt check, complete runtime comparison, pinned-block canonicality check, script syntax check, authenticated unverified-source lookup, one accepted submission, successful verification status and separate published-source confirmation. Verification is complete; no deployment or contract change was performed.
