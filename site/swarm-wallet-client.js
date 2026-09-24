@@ -33,6 +33,23 @@ function uint(value, positive = false) {
   return BigInt(value);
 }
 function quantity(value) { valid(typeof value === 'string' && QUANTITY.test(value), 'RPC_INVALID'); return BigInt(value); }
+// Normalize provider responses at the read boundary, never reviewed payloads.
+function rpcQuantity(value) {
+  valid(typeof value === 'string' && /^0x[0-9a-fA-F]{1,64}$/.test(value), 'RPC_INVALID');
+  return hex(BigInt(value));
+}
+function rpcChain(value) {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? hex(value) : rpcQuantity(value);
+}
+function rpcResult(method, value) {
+  if (method === 'eth_chainId') return rpcChain(value);
+  if (['eth_getTransactionCount', 'eth_getBalance', 'eth_gasPrice', 'eth_estimateGas'].includes(method)) return rpcQuantity(value);
+  if (method === 'eth_getBlockByNumber' && value && typeof value === 'object') return {
+    ...value, number: rpcQuantity(value.number), timestamp: rpcQuantity(value.timestamp),
+    hash: typeof value.hash === 'string' ? value.hash.toLowerCase() : value.hash,
+  };
+  return value;
+}
 function hash(value) { valid(typeof value === 'string' && HASH.test(value) && BigInt(value) !== 0n, 'RPC_INVALID'); return value; }
 function resultWord(value) { valid(typeof value === 'string' && /^0x[0-9a-fA-F]{64}$/.test(value), 'RPC_INVALID'); return value.toLowerCase(); }
 function resultAddress(value) { const result = resultWord(value); valid(/^0x0{24}/.test(result), 'RPC_INVALID'); return address(`0x${result.slice(-40)}`); }
@@ -90,7 +107,7 @@ function rpcReader(provider, readProvider) {
     valid(typeof readProvider.request === 'function', 'READ_UNAVAILABLE');
     if (method === 'eth_chainId') {
       const [walletChain, readChain] = await Promise.all([provider.request({ method, params }), readProvider.request({ method, params })]);
-      valid(quantity(walletChain) === quantity(readChain), 'READ_CHAIN_CHANGED');
+      valid(rpcChain(walletChain) === rpcChain(readChain), 'READ_CHAIN_CHANGED');
       return walletChain;
     }
     return readProvider.request({ method, params });
@@ -98,9 +115,9 @@ function rpcReader(provider, readProvider) {
   return async (method, params = []) => {
     valid(READS.has(method), 'READ_ONLY'); let timeout;
     try {
-      return await Promise.race([Promise.resolve().then(() => request(method, params)), new Promise((_, reject) => {
+      return rpcResult(method, await Promise.race([Promise.resolve().then(() => request(method, params)), new Promise((_, reject) => {
         timeout = setTimeout(() => reject(Object.assign(Error('Read timed out'), { code: 'SWARM_WALLET_READ_TIMEOUT' })), 8000);
-      })]);
+      })]));
     } catch (error) {
       if (['SWARM_WALLET_READ_TIMEOUT', 'SWARM_WALLET_READ_CHAIN_CHANGED', 'SWARM_WALLET_RPC_INVALID', 'SWARM_WALLET_FEE_CHANGED'].includes(error?.code)) throw error;
       fail('READ_UNAVAILABLE', 'A required chain read is unavailable. No new wallet request was made. Recheck any saved transaction.');

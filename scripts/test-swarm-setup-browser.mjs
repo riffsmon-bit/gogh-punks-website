@@ -23,6 +23,7 @@ export function createSetupFixture({ root, mountSwarmSetup, keccak256Hex, saved 
   }, removeItem: key => saved.delete(key) };
   const readAccount = async (_provider, { owner, tokenId }) => {
     state.calls.push(['read-account', tokenId]);
+    if (state.readErrors?.has(tokenId)) throw state.readErrors.get(tokenId);
     if (state.holdRead === tokenId) await new Promise(done => { state.readRelease = done; });
     return { owner, chainId: 4663, tokenId, account: agent(tokenId), created: state.created.has(tokenId) };
   };

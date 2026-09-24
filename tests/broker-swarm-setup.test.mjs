@@ -59,6 +59,20 @@ test('planning is passive and preserves selected Punks, exact budget and one rev
   assert.ok(f.node('swarm-setup-check-wallets')); assert.equal(f.node('swarm-setup-wallet').hidden, true);
 });
 
+test('a failed wallet check identifies the Punk and reason, preserves the plan and can be retried without transactions', async () => {
+  const f = fixture(); await f.plan(); const saved = structuredClone(f.savedPlan());
+  f.state.readErrors = new Map([['94', Object.assign(Error('The latest chain block is outside the freshness window.'), { code: 'AGENT_CREATION_STALE_CHAIN' })]]);
+  await f.wallets();
+  assert.match(f.node('swarm-setup-status').textContent, /Punk #94:.*freshness.*AGENT_CREATION_STALE_CHAIN/);
+  assert.match(f.node('swarm-setup-content').textContent, /Punk #93: Agent wallet exists/);
+  assert.match(f.node('swarm-setup-content').textContent, /Punk #94: Wallet not yet verified/);
+  assert.deepEqual(f.savedPlan(), saved); assert.deepEqual(f.state.sends, []);
+  assert.equal(f.node('swarm-setup-wallet').hidden, true);
+  f.state.readErrors.clear(); await f.wallets();
+  assert.match(f.node('agent-wallet-creation-title').textContent, /#94/);
+  assert.deepEqual(f.savedPlan(), saved); assert.deepEqual(f.state.sends, []);
+});
+
 test('a roster refresh preserves the holder’s selected Punks and unfinished shared mission options', async () => {
   const f = fixture(), form = f.node('swarm-setup-plan-form');
   form.querySelectorAll('input[type=checkbox]')[0].checked = true;

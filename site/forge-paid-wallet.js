@@ -24,6 +24,9 @@ const READ_METHODS = new Set(['eth_chainId', 'eth_getBlockByNumber', 'eth_getCod
 const PUBLIC_READ_RPC = 'https://rpc.mainnet.chain.robinhood.com';
 const rpcFailure = (code, method) => Object.assign(Error(code), { code, method });
 function normalizeReadQuantity(value, method) {
+  // WalletConnect UniversalProvider returns a Number for eth_chainId. Never
+  // coerce numeric nonces, balances or fees, where precision could be lost.
+  if (method === 'eth_chainId' && typeof value === 'number' && Number.isSafeInteger(value) && value > 0) return hex(value);
   if (typeof value !== 'string' || !RPC_QUANTITY.test(value)) throw rpcFailure('PAID_RPC_QUANTITY_INVALID', method);
   return hex(value);
 }

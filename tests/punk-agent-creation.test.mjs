@@ -279,6 +279,61 @@ test('public reader handles checks and recovery while wallet retains identity, p
   assert.ok(!f.readCalls.some(method => /sign|send|requestAccounts/i.test(method)));
 });
 
+test('WalletConnect numeric chain ID works through account review and the unchanged explicit transaction', async () => {
+  const f = splitReadFixture(), original = f.provider.request;
+  f.provider.request = r => r.method === 'eth_chainId' ? 4663 : original(r);
+  const review = await prepare(f.provider, f.context);
+  assert.equal(review.transaction.chainId, '0x1237'); assert.equal(f.state.sends, 0);
+  await submit(f.provider, review, f.options);
+  assert.deepEqual(f.calls.find(c => c.method === 'eth_sendTransaction').params, [review.transaction]);
+  assert.equal(f.state.sends, 1);
+});
+
+test('numeric chain IDs do not weaken chain or input validation', async () => {
+  for (const chain of [1, 0, -1, 4663.5, Number.MAX_SAFE_INTEGER + 1, NaN, Infinity]) {
+    const f = splitReadFixture(), original = f.provider.request;
+    f.provider.request = r => r.method === 'eth_chainId' ? chain : original(r);
+    await assert.rejects(prepare(f.provider, f.context)); assert.equal(f.state.sends, 0);
+  }
+});
+
+test('padded and upper-case RPC quantities verify existing and missing Agent wallets without a wallet request', async () => {
+  for (const created of [false, true]) {
+    const f = splitReadFixture(); f.state.created = created; f.state.nonce = 2027n;
+    const walletRequest = f.provider.request, publicRequest = f.readProvider.request;
+    const encoded = value => '0x00' + BigInt(value).toString(16).toUpperCase();
+    f.provider.request = async r => {
+      const value = await walletRequest(r);
+      return ['eth_chainId', 'eth_getTransactionCount'].includes(r.method) ? encoded(value) : value;
+    };
+    f.readProvider.request = async r => {
+      const value = await publicRequest(r);
+      return r.method === 'eth_getBlockByNumber' ? { ...value, number: encoded(value.number), timestamp: encoded(value.timestamp), hash: '0x' + value.hash.slice(2).toUpperCase() }
+        : ['eth_chainId', 'eth_getBalance', 'eth_gasPrice', 'eth_estimateGas'].includes(r.method) ? encoded(value) : value;
+    };
+    const result = await prepare(f.provider, f.context);
+    if (created) assert.equal(result.created, true);
+    else { assert.equal(result.transaction.nonce, '0x7eb'); assert.equal(result.transaction.chainId, '0x1237'); }
+    assert.equal(result.account, account(93)); assert.equal(f.state.sends, 0);
+    assert.ok(!f.walletCalls.some(method => /send|sign|requestAccounts/i.test(method)));
+  }
+});
+
+test('malformed RPC quantities still block and identify invalid reads', async () => {
+  for (const nonce of ['0x', '-1', '2027', '0xgg', '0x' + '0'.repeat(65), 2027, null]) {
+    const f = splitReadFixture(), original = f.provider.request;
+    f.provider.request = r => r.method === 'eth_getTransactionCount' ? nonce : original(r);
+    await assert.rejects(read(f.provider, f.context), error => error.code === 'AGENT_CREATION_READ_INVALID' && /invalid response/.test(error.message));
+    assert.equal(f.state.sends, 0);
+  }
+});
+
+test('freshness failures explain the retry without weakening the time window', async () => {
+  const f = fixture(); f.state.timestamp -= 60n;
+  await assert.rejects(read(f.provider, f.context), error => error.code === 'AGENT_CREATION_STALE_CHAIN' && /device time/.test(error.message));
+  assert.equal(f.state.sends, 0);
+});
+
 test('public and wallet chain mismatch fails closed before a creation review', async () => {
   const f = splitReadFixture(), original = f.readProvider.request;
   f.readProvider.request = request => request.method === 'eth_chainId' ? '0x1' : original(request);
