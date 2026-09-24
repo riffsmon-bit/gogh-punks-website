@@ -21,6 +21,7 @@ Using the production reader, the numeric-chain provider shape and real public ch
 - Swarm errors identify the failing Punk and check; existing wallet results and the saved plan remain visible. A failed check cannot advance to funding.
 - The guide explicitly explains its sequence: create missing Agent wallets, fund together, activate each mission. Wallet creation and funding do not grant new mission permission. Each mission still requires its owner's separate confirmation.
 - Paid-training errors distinguish a changed account/network, a pending transaction, a stale reviewed nonce and malformed responses.
+- The final mission authorization, owner/Punk gas funding, funding receipt recovery and native Punk Wallet funding/withdrawal gates also accept the exact numeric Robinhood network ID. Gas funding still enforces the source Punk's reserve and fixed destination.
 
 ## Training status
 
@@ -30,6 +31,10 @@ General holder sacrifice remains blocked. Complete asset/obligation coverage and
 
 ## Validation and release
 
-The targeted creation/Swarm/guide tests passed 117 checks. Paid wallet/panel tests passed 47 checks. Negative coverage includes wrong networks, invalid numeric values, changed ownership/nonces, simulation failures, spending limits and exact outgoing payloads. An independent review found no release-blocking regression in the changed clients or guide.
+The targeted creation/Swarm/guide tests passed 117 checks. Paid wallet/panel tests passed 47 checks; mission activation/wiring passed 19; gas funding/native-funds tests passed 51. Negative coverage includes wrong networks, invalid numeric values, changed ownership/nonces, simulation failures, spending limits and exact outgoing payloads. Independent source reviews found no release-blocking regression in the changed clients or guide.
 
 Full-suite, build, browser, preview and production results are recorded in the release PR after execution. Do not interpret this implementation record as a completed holder wallet test. No owner transaction was signed or submitted by the development agent.
+
+## Remaining compatibility work
+
+The separate Agent asset-recovery implementation (`site/punk-agent-recovery.js`) still uses hexadecimal-only network checks in preflight and receipt recovery. That pre-existing withdrawal compatibility gap is outside this Swarm/paid-training patch; this release is not a claim that every V2 wallet surface is fully validated with WalletConnect. Recall uses its own existing network check and was not changed here.

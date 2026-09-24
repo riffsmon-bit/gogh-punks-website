@@ -67,7 +67,12 @@ async function verifyV3PunkWallet(provider, bindings, direction, amountWei) {
     rpc(provider, "eth_chainId"),
     rpc(provider, "eth_accounts"),
   ]);
-  if (parseHexUint(chainId, "chain ID") !== BigInt(CHAIN_ID)) {
+  // WalletConnect returns eth_chainId as a Number. Keep this exception scoped
+  // to the exact supported chain; never coerce balance, gas or amount reads.
+  const chain = chainId === CHAIN_ID ? BigInt(CHAIN_ID)
+    : typeof chainId === "string" && /^0x[0-9a-fA-F]{1,64}$/.test(chainId) ? BigInt(chainId) : null;
+  if (chain === null) fail("RPC_MALFORMED", "chain ID is malformed");
+  if (chain !== BigInt(CHAIN_ID)) {
     fail("WRONG_CHAIN", "switch to Robinhood Chain");
   }
   const selected = Array.isArray(accounts) && /^0x[0-9a-fA-F]{40}$/.test(accounts[0] ?? "")

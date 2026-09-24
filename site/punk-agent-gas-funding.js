@@ -19,6 +19,10 @@ const decodeAddress = value => /^0x0{24}[0-9a-fA-F]{40}$/.test(value ?? "")
 const EMPTY_RESULT = `0x${word(32)}${word(0)}`;
 const quantity = value => typeof value === "string" && /^0x(?:0|[1-9a-fA-F][0-9a-fA-F]*)$/.test(value)
   ? BigInt(value) : null;
+// WalletConnect reports eth_chainId as a Number. Accept that exact chain only;
+// nonces, balances, amounts and reviewed transaction fields remain hex/string.
+const onRobinhoodChain = value => value === 4663 || typeof value === "string"
+  && /^0x[0-9a-fA-F]{1,64}$/.test(value) && BigInt(value) === 4663n;
 
 function ownerFundingBinding(context, tokenId) {
   // Legacy callers may still supply the gate. OWNER funding does not depend on
@@ -63,7 +67,7 @@ export async function prepareAgentGasFunding(provider, context, tokenId, source,
     rpc("eth_getTransactionCount", [bindings.expectedOwner, "latest"]),
     ...(source === "OWNER" ? [rpc("eth_getBalance", [bindings.expectedOwner, "latest"])] : [null]),
   ]);
-  if (quantity(chainId) !== 4663n || !Array.isArray(accounts)
+  if (!onRobinhoodChain(chainId) || !Array.isArray(accounts)
     || address(accounts[0]) !== bindings.expectedOwner || decodeAddress(controllingOwner) !== bindings.expectedOwner) {
     throw new Error("Punk ownership or connected wallet changed. Reconnect its current owner on Robinhood Chain.");
   }

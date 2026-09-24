@@ -2122,7 +2122,9 @@ async function activatePunkAgentMission(draft, report) {
       provider.request({ method: 'eth_chainId' }), provider.request({ method: 'eth_accounts' }),
     ]);
     assertSelection();
-    if (walletChain !== '0x1237' || accounts?.[0]?.toLowerCase() !== owner) throw Error('Reconnect the reviewed owner wallet on Robinhood Chain.');
+    const chainMatches = walletChain === CHAIN_ID || (typeof walletChain === 'string'
+      && /^0x[0-9a-fA-F]{1,64}$/.test(walletChain) && BigInt(walletChain) === BigInt(CHAIN_ID));
+    if (!chainMatches || accounts?.[0]?.toLowerCase() !== owner) throw Error('Reconnect the reviewed owner wallet on Robinhood Chain.');
     report(`Wallet approval ${index + 1} of ${transactions.length}: ${transaction.purpose.replaceAll("_", " ")}.`);
     if (typeof swarmControl !== 'undefined') swarmControl?.missionPrepared?.({ tokenId, intentHash: draft.intentHash },
       { sessionId: setup.sessionId, setupArtifactHash: setup.setup.artifactHash });

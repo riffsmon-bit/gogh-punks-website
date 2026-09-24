@@ -74,6 +74,42 @@ test("V3 Punk Wallet deposit simulates and submits one exact owner-to-account tr
   assert.equal(world.calls.some(({ params }) => JSON.stringify(params).includes("owner-policy")), false);
 });
 
+test("WalletConnect numeric chain supports native deposits and withdrawals without changing transaction fields", async () => {
+  for (const direction of ["deposit", "withdraw"]) {
+    const expected = await preflightPunkWalletFunds(providerWorld().provider, gate(), "93", direction, "0.001");
+    const world = providerWorld(), request = world.provider.request;
+    world.provider.request = args => args.method === "eth_chainId" ? Promise.resolve(4663) : request(args);
+    const prepared = await preflightPunkWalletFunds(world.provider, gate(), "93", direction, "0.001");
+    assert.deepEqual(prepared.transaction, expected.transaction);
+    await submitPunkWalletFunds(world.provider, prepared, { loadGate: async () => gate(), isCurrent: () => true });
+    const sends = world.calls.filter(call => call.method === "eth_sendTransaction");
+    assert.equal(sends.length, 1); assert.deepEqual(sends[0].params, [expected.transaction]);
+    assert.ok(Object.values(sends[0].params[0]).every(value => typeof value === "string"));
+  }
+});
+test("native wallet state accepts bounded chain hex but rejects invalid numeric and oversized identities", async () => {
+  for (const chain of [4663, "0x" + "1237".padStart(64, "0")]) {
+    const world = providerWorld(), request = world.provider.request;
+    world.provider.request = args => args.method === "eth_chainId" ? Promise.resolve(chain) : request(args);
+    assert.equal((await readPunkWalletFundsState(world.provider, gate(), "93")).balanceWei, 10000000000000000n);
+  }
+  for (const chain of [1, 0, -1, 4663.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1, "4663", "0x01", "0x", "0x" + "1237".padStart(65, "0")]) {
+    const world = providerWorld(), request = world.provider.request;
+    world.provider.request = args => args.method === "eth_chainId" ? Promise.resolve(chain) : request(args);
+    await assert.rejects(readPunkWalletFundsState(world.provider, gate(), "93"));
+    assert.equal(world.calls.some(call => call.method === "eth_sendTransaction"), false);
+  }
+});
+test("numeric chain support does not accept numeric balances or gas estimates", async () => {
+  for (const method of ["eth_getBalance", "eth_estimateGas"]) {
+    const world = providerWorld(), request = world.provider.request;
+    world.provider.request = args => args.method === "eth_chainId" ? Promise.resolve(4663)
+      : args.method === method ? Promise.resolve(10000000000000000) : request(args);
+    await assert.rejects(preflightPunkWalletFunds(world.provider, gate(), "93", "withdraw", "0.001"), { code: "RPC_MALFORMED" });
+    assert.equal(world.calls.some(call => call.method === "eth_sendTransaction"), false);
+  }
+});
+
 test("V3 Punk Wallet withdrawal fixes its destination to the current Punk owner", async () => {
   const world = providerWorld();
   const initial = await preflightPunkWalletFunds(world.provider, gate(), "93", "withdraw", "0.001");
