@@ -1,6 +1,6 @@
 # Gogh Punks Art Broker V2 — community announcement brief
 
-September 23, 2026 brief; Swarm Wallet and funding-first instructions updated September 24. Released-feature baseline for the existing features below: production commit `7811eff1ddb343670b3ef19c547d762d75e8c511`. The dedicated Swarm Wallet website was deployed September 24; its production smoke verification and the separate funding-first patch are tracked below. This is a feature brief, not a claim that every holder has live-tested every path.
+September 23, 2026 brief; Swarm Wallet and funding-first instructions updated September 24. Released-feature baseline for the existing features below: production commit `7811eff1ddb343670b3ef19c547d762d75e8c511`. The dedicated Swarm Wallet website was deployed and its production smoke checks passed September 24; the separate funding-first patch is tracked below. This is a feature brief, not a claim that every holder has live-tested every path.
 
 ## Instructions to ChatGPT
 
@@ -116,9 +116,9 @@ The Forge has progression, learned/equipped skills and slot controls, gated by r
 
 **General holder burning is unavailable.** Full asset/obligation verification and protection against stranding assets remain release requirements. Existing selected-test receipts and recovery do not enable arbitrary Punk sacrifices.
 
-## Website deployed; production smoke verification pending — dedicated owner-controlled Swarm Wallet
+## Website deployed and smoke-verified — dedicated owner-controlled Swarm Wallet
 
-**Implemented and locally tested/reviewed. Factory deployment is confirmed by two providers. The website release was published at 12:29:03 UTC on September 24 as Netlify deployment `6ab517294fb0da0008fcae65`; production smoke verification was still pending when this brief was updated. Do not call the holder flow LIVE-TESTED from deployment alone.**
+**Implemented, locally tested/reviewed, deployed and production smoke-verified. Factory deployment is confirmed by two providers. The website release was published at 12:29:03 UTC on September 24 as Netlify deployment `6ab517294fb0da0008fcae65`. The release lead verified 15 browser captures, 29 served-file hashes and zero browser errors; protected APIs returned 401 without authentication, and AI providers remained empty. These checks do not constitute live holder transaction testing.**
 
 Factory: `0xab82241505a64edfbb3031542e137fadf5567dba`. Confirmed transaction: `0x736cba695d35137e60d1f2f89b663e512fc280194bebcb03214f26207aeb6a1c`. The project factory deployment does not create or fund a holder's individual Swarm Wallet.
 
@@ -174,4 +174,4 @@ Highlight rule-based free-mint hunting, up to 10-Punk Swarm planning, bounded Ke
 
 Call to action: **Open goghpunks.xyz → connect your holder wallet → select a Punk → check setup → review its rules.**
 
-Keep Forge expansion, Swarm Wallet production verification and the funding-first patch accurately labeled until their respective release gates are verified. Do not promise a date or claim holder testing is complete based on a submitted deployment transaction.
+Keep Forge expansion and the funding-first patch accurately labeled until their respective release gates are verified. Swarm Wallet deployment and production smoke checks passed; holder transaction testing remains a separate milestone. Do not promise a date or claim holder testing is complete based on a submitted deployment transaction.
