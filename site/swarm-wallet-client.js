@@ -80,16 +80,29 @@ function matchesRuntime(code, runtime) {
   }
   valid(actual.join('') === expected.join(''), 'RUNTIME_CHANGED');
 }
-function rpcReader(provider) {
+function rpcReader(provider, readProvider) {
   valid(typeof provider?.request === 'function', 'PROVIDER_UNAVAILABLE');
+  // Wallet identity and pending nonces stay tied to the connected extension.
+  // All contract/state checks may use the fixed public reader; it cannot send.
+  const walletMethods = new Set(['eth_accounts', 'eth_getTransactionCount']);
+  const request = async (method, params) => {
+    if (!readProvider || walletMethods.has(method)) return provider.request({ method, params });
+    valid(typeof readProvider.request === 'function', 'READ_UNAVAILABLE');
+    if (method === 'eth_chainId') {
+      const [walletChain, readChain] = await Promise.all([provider.request({ method, params }), readProvider.request({ method, params })]);
+      valid(quantity(walletChain) === quantity(readChain), 'READ_CHAIN_CHANGED');
+      return walletChain;
+    }
+    return readProvider.request({ method, params });
+  };
   return async (method, params = []) => {
     valid(READS.has(method), 'READ_ONLY'); let timeout;
     try {
-      return await Promise.race([Promise.resolve().then(() => provider.request({ method, params })), new Promise((_, reject) => {
+      return await Promise.race([Promise.resolve().then(() => request(method, params)), new Promise((_, reject) => {
         timeout = setTimeout(() => reject(Object.assign(Error('Read timed out'), { code: 'SWARM_WALLET_READ_TIMEOUT' })), 8000);
       })]);
     } catch (error) {
-      if (error?.code === 'SWARM_WALLET_READ_TIMEOUT') throw error;
+      if (['SWARM_WALLET_READ_TIMEOUT', 'SWARM_WALLET_READ_CHAIN_CHANGED', 'SWARM_WALLET_RPC_INVALID', 'SWARM_WALLET_FEE_CHANGED'].includes(error?.code)) throw error;
       fail('READ_UNAVAILABLE', 'A required chain read is unavailable. No new wallet request was made. Recheck any saved transaction.');
     } finally { clearTimeout(timeout); }
   };
@@ -145,8 +158,8 @@ async function contracts(rpc, release, owner, at) {
   valid(values.every((value, index) => resultWord(value) === expected[index]) && resultAddress(vaultOwner) === owner, 'CONFIG_CHANGED');
   return { vault, created, vaultNonce: BigInt(resultWord(nonce)).toString(), accountSalt, canonicalRegistry, vaultCodeHash: keccak256Hex(bytecode(code)), dependenciesVerified };
 }
-export async function readSwarmWallet(provider, { owner, release }) {
-  const config = releaseConfig(release), holder = ownerAddress(owner), rpc = rpcReader(provider);
+export async function readSwarmWallet(provider, { owner, release, readProvider }) {
+  const config = releaseConfig(release), holder = ownerAddress(owner), rpc = rpcReader(provider, readProvider);
   const ownerNonce = await walletContext(rpc, holder), anchor = block(await rpc('eth_getBlockByNumber', ['latest', false]), true);
   const details = await contracts(rpc, config, holder, hex(anchor.number));
   const [balance, ownerBalance] = await Promise.all([rpc('eth_getBalance', [details.vault, hex(anchor.number)]), rpc('eth_getBalance', [holder, 'pending'])]);
@@ -212,14 +225,18 @@ async function closingChecks(rpc, review, state) {
   valid(review.created ? BigInt(resultWord(result)) === uint(review.vaultNonce) : !resultBool(result), 'NONCE_CHANGED');
   await walletContext(rpc, review.owner, quantity(review.transaction.nonce).toString());
 }
-export async function prepareSwarmWallet(provider, { owner, release, action }) {
-  const config = releaseConfig(release), normalized = normalizeAction(action), state = await readSwarmWallet(provider, { owner, release: config });
-  const rpc = rpcReader(provider), allocations = await destinations(rpc, config, state, normalized);
+export async function prepareSwarmWallet(provider, { owner, release, action, readProvider }) {
+  const config = releaseConfig(release), normalized = normalizeAction(action), state = await readSwarmWallet(provider, { owner, release: config, readProvider });
+  const rpc = rpcReader(provider, readProvider), allocations = await destinations(rpc, config, state, normalized);
   funds(state, normalized, 0n);
   const expiresAt = Number(BigInt(state.anchor.timestamp) + 90n) * 1000;
   const transaction = { chainId: '0x1237', from: state.owner, to: normalized.kind === 'CREATE' ? config.factory : state.vault,
     value: normalized.kind === 'DEPOSIT' ? hex(normalized.amountWei) : '0x0', data: calldata(normalized, state.vaultNonce, expiresAt / 1000), nonce: hex(state.ownerNonce) };
-  const gasPrice = quantity(await rpc('eth_gasPrice')); valid(gasPrice > 0n, 'FEE_CHANGED'); transaction.gasPrice = hex(gasPrice);
+  const observedPrice = quantity(await rpc('eth_gasPrice')); valid(observedPrice > 0n, 'FEE_CHANGED');
+  // The base fee can move between the quote and simulation. Include a bounded
+  // 20% allowance in the exact transaction and displayed maximum; never raise
+  // it at confirmation or bypass MAX_FEE when the network becomes expensive.
+  const gasPrice = (observedPrice * 120n + 99n) / 100n; transaction.gasPrice = hex(gasPrice);
   const estimate = quantity(await rpc('eth_estimateGas', [transaction])); valid(estimate > 0n, 'SIMULATION_FAILED');
   const gas = (estimate * 120n + 99n) / 100n + 10_000n; valid(gas <= MAX_GAS && gas * gasPrice <= MAX_FEE, 'FEE_LIMIT'); transaction.gas = hex(gas);
   const review = { schema: 'GOGH_SWARM_WALLET_REVIEW_V1', owner: state.owner, chainId: CHAIN, releaseIdentity: digest(stable(config)), factory: config.factory,
@@ -301,14 +318,14 @@ async function locked(owner, locks, isCurrent, run) {
   valid(typeof manager?.request === 'function', 'LOCKS_UNAVAILABLE', 'This browser cannot protect Swarm wallet requests across tabs. Use a browser with Web Locks.');
   return manager.request(journalKey(owner), { mode: 'exclusive' }, async () => { valid(isCurrent(), 'SELECTION_CHANGED'); return run(); });
 }
-export async function submitSwarmWallet(provider, review, { release, isCurrent, storage, locks }) {
+export async function submitSwarmWallet(provider, review, { release, isCurrent, storage, locks, readProvider }) {
   const config = releaseConfig(release), shown = copy(review); validateReview(shown, config, true);
-  const store = storageFor(storage), rpc = rpcReader(provider);
+  const store = storageFor(storage), rpc = rpcReader(provider, readProvider);
   return locked(shown.owner, locks, isCurrent, async () => {
     const previous = getSwarmWalletRecord(shown.owner, { storage: store });
     valid(!previous || !['WALLET_REQUESTED', 'SUBMITTED'].includes(previous.status), 'REQUEST_PENDING', 'Recover the original Swarm wallet request before preparing another. It will not be sent again.');
     valid(!previous || previous.status === 'REJECTED' || !equal(previous.review.transaction, shown.transaction), 'ALREADY_ATTEMPTED');
-    const state = await readSwarmWallet(provider, { owner: shown.owner, release: config });
+    const state = await readSwarmWallet(provider, { owner: shown.owner, release: config, readProvider });
     for (const key of ['factory', 'vault', 'created', 'vaultNonce', 'accountSalt', 'canonicalRegistry', 'vaultCodeHash']) valid(equal(state[key], shown[key]), 'REVIEW_CHANGED');
     valid(state.ownerNonce === quantity(shown.transaction.nonce).toString(), 'NONCE_CHANGED');
     valid(equal(await destinations(rpc, config, state, shown.action), shown.allocations), 'AGENT_CHANGED');
@@ -367,8 +384,8 @@ function verifyTransaction(tx, review, transactionHash) {
   valid(gas > 0n && feeCap > 0n, 'TRANSACTION_MISMATCH');
   return { cancelled, gas, feeCap, type, withinReviewFee: gas * feeCap <= uint(review.maximumNetworkFeeWei) };
 }
-export async function recoverSwarmWallet(provider, owner, { release, storage, locks, hash: suppliedHash, isCurrent }) {
-  const config = releaseConfig(release), holder = ownerAddress(owner), store = storageFor(storage), rpc = rpcReader(provider);
+export async function recoverSwarmWallet(provider, owner, { release, storage, locks, hash: suppliedHash, isCurrent, readProvider }) {
+  const config = releaseConfig(release), holder = ownerAddress(owner), store = storageFor(storage), rpc = rpcReader(provider, readProvider);
   return locked(holder, locks, isCurrent, async () => {
     let record = getSwarmWalletRecord(holder, { storage: store });
     if (!record || record.status === 'REJECTED') return record;

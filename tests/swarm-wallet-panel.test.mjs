@@ -17,19 +17,20 @@ const flush=async()=>{for(let i=0;i<4;i++) await new Promise(r=>setTimeout(r,0))
 function fixture({release={status:'LIVE'},saved=null}={}) {
   const doc={createElement:tag=>new Node(tag,doc)},root=new Node('section',doc),calls=[];
   let context={owner:OWNER,chainId:4663},punks=[{tokenId:'93'},{tokenId:'94'}],record=saved,resolvePrepare,provider={};
+  const readProvider={request(){throw Error('Panel fixtures must not request the network');}};
   const client={
     getSwarmWalletRecord:()=>record,
-    readSwarmWallet:async()=>{calls.push('read');return{created:true,vault:VAULT,balanceWei:'3000000000000000'};},
-    prepareSwarmWallet:async(_p,{owner,action})=>{calls.push(['prepare',action]); if(resolvePrepare)await resolvePrepare;
+    readSwarmWallet:async(_p,options)=>{assert.equal(options.readProvider,readProvider);calls.push('read');return{created:true,vault:VAULT,balanceWei:'3000000000000000'};},
+    prepareSwarmWallet:async(_p,{owner,action,readProvider:reader})=>{assert.equal(reader,readProvider);calls.push(['prepare',action]); if(resolvePrepare)await resolvePrepare;
       return{owner,vault:VAULT,action,expiresAt:Date.now()+90000,maximumNetworkFeeWei:'1000',allocations:action.allocations?.map(a=>({...a,account:VAULT}))};},
-    submitSwarmWallet:async(_p,review,{isCurrent})=>{assert.equal(isCurrent(),true);calls.push('wallet');record={status:'SUBMITTED',transactionHash:HASH,review};return record;},
-    recoverSwarmWallet:async()=>{calls.push('recover');record={...record,status:'CONFIRMED'};return record;},
+    submitSwarmWallet:async(_p,review,{isCurrent,readProvider:reader})=>{assert.equal(reader,readProvider);assert.equal(isCurrent(),true);calls.push('wallet');record={status:'SUBMITTED',transactionHash:HASH,review};return record;},
+    recoverSwarmWallet:async(_p,_owner,options)=>{assert.equal(options.readProvider,readProvider);calls.push('recover');record={...record,status:'CONFIRMED'};return record;},
   };
-  const panel=mountSwarmWallet({root,getContext:()=>context,getPunks:()=>punks,getProvider:()=>provider,release,client,storage:{},locks:{}});
+  const panel=mountSwarmWallet({root,getContext:()=>context,getPunks:()=>punks,getProvider:()=>provider,release,client,readProvider,storage:{},locks:{}});
   const node=name=>walk(root).find(n=>Object.hasOwn(n.attrs,'data-swarm-wallet-'+name));
   return{root,calls,node,panel,client,get record(){return record;},setPending(p){resolvePrepare=p;},
-    replaceProvider(){provider={};panel.refresh();},
-    wallet(c){context=c;panel.refresh();},roster(ids){punks=ids.map(tokenId=>({tokenId}));panel.refresh();},
+    replaceProvider({refresh=true}={}){provider={};if(refresh)panel.refresh();},
+    wallet(c,{refresh=true}={}){context=c;if(refresh)panel.refresh();},roster(ids){punks=ids.map(tokenId=>({tokenId}));panel.refresh();},
     async click(name){node(name).click();await flush();},async ready(){await this.click('check');},
     select(id){const n=node('punks').querySelectorAll('input').find(n=>n.value===id);n.checked=true;n.listeners.change();},
     consent(){node('consent').checked=true;node('consent').listeners.change();}};
@@ -94,4 +95,106 @@ test('recovery surfaces a higher owner-edited mined fee without sending again',a
   f.client.recoverSwarmWallet=async()=>({status:'CONFIRMED',transactionHash:HASH,receipt:{feeExceeded:true,actualNetworkFeeWei:'6000000000000'}});
   await f.click('recover');assert.match(f.node('status').textContent,/above the original review.*0.000006 ETH.*no new transaction/);
   assert.equal(f.calls.includes('wallet'),false);assert.equal(f.node('withdraw').disabled,false);
+});
+
+const deferred=()=>{let resolve;const promise=new Promise(done=>{resolve=done;});return{promise,resolve};};
+async function creation(f) {
+  f.client.readSwarmWallet=async()=>({created:false,vault:VAULT,balanceWei:'0',dependenciesVerified:true});
+  await f.ready();
+}
+test('roster hydration during wallet check reveals creation instead of silently discarding its result',async()=>{
+  const f=fixture(),wait=deferred();
+  f.client.readSwarmWallet=async()=>{await wait.promise;return{created:false,vault:VAULT,balanceWei:'0',dependenciesVerified:true};};
+  await f.click('check');f.roster(['93','94','95']);wait.resolve();await flush();
+  assert.equal(f.node('create').hidden,false);assert.equal(f.node('create').disabled,false);
+  assert.equal(f.root.attrs['aria-busy'],'false');assert.match(f.node('status').textContent,/Wallet checked/);
+  assert.equal(f.calls.includes('wallet'),false);
+});
+test('CREATE review and explicit confirmation survive same-owner roster updates',async()=>{
+  const f=fixture();await creation(f);const wait=deferred();f.setPending(wait.promise);
+  await f.click('create');f.roster(['93','94','95']);wait.resolve();await flush();
+  assert.equal(f.node('review').hidden,false);assert.equal(f.node('confirm').disabled,true);
+  assert.match(f.node('confirm-status').textContent,/Check the confirmation box/);
+  f.consent();f.roster(['94','95']);assert.equal(f.node('confirm').disabled,false);
+  await f.click('confirm');
+  assert.equal(f.calls.filter(call=>call==='wallet').length,1);assert.equal(f.record.review.action.kind,'CREATE');
+  assert.equal(f.node('recovery').hidden,false);assert.match(f.node('status').textContent,/Wallet request saved/);
+});
+for(const kind of ['DEPOSIT','WITHDRAW'])test(`${kind} review survives roster-only changes without opening the wallet`,async()=>{
+  const f=fixture();await f.ready();const name=kind==='DEPOSIT'?'deposit':'withdraw',wait=deferred();
+  f.node(name+'-amount').value='0.001';f.setPending(wait.promise);await f.click(name);
+  f.roster([]);wait.resolve();await flush();
+  assert.equal(f.node('review').hidden,false);assert.equal(f.calls.includes('wallet'),false);
+  f.consent();f.roster(['94']);assert.equal(f.node('confirm').disabled,false);
+});
+test('roster changes invalidate an in-flight batch review with an explicit retry message',async()=>{
+  const f=fixture();await f.ready();f.select('93');f.node('batch-amount').value='0.001';
+  const wait=deferred();f.setPending(wait.promise);await f.click('batch');f.roster(['94']);wait.resolve();await flush();
+  assert.equal(f.node('review').hidden,true);assert.equal(f.node('confirm').disabled,true);
+  assert.match(f.node('status').textContent,/roster changed.*Review the funding batch again/);
+  assert.equal(f.calls.includes('wallet'),false);assert.equal(f.root.attrs['aria-busy'],'false');
+});
+test('roster change during final batch checks stops the wallet request',async()=>{
+  const f=fixture();await f.ready();f.select('93');f.node('batch-amount').value='0.001';await f.click('batch');f.consent();
+  const wait=deferred(),submit=f.client.submitSwarmWallet;
+  f.client.submitSwarmWallet=async(...args)=>{await wait.promise;if(!args[2].isCurrent())throw Error('Selection changed');return submit(...args);};
+  await f.click('confirm');f.roster(['94']);wait.resolve();await flush();
+  assert.equal(f.calls.includes('wallet'),false);assert.equal(f.node('review').hidden,true);
+  assert.match(f.node('status').textContent,/roster changed/);
+});
+test('late batch transaction hash remains recoverable after roster invalidates its review',async()=>{
+  const f=fixture();await f.ready();f.select('93');f.node('batch-amount').value='0.001';await f.click('batch');f.consent();
+  const wait=deferred(),submit=f.client.submitSwarmWallet;
+  f.client.submitSwarmWallet=async(...args)=>{const result=await submit(...args);await wait.promise;return result;};
+  await f.click('confirm');f.roster(['94']);wait.resolve();await flush();
+  assert.equal(f.calls.filter(call=>call==='wallet').length,1);assert.equal(f.record.status,'SUBMITTED');
+  assert.equal(f.node('recovery').hidden,false);assert.equal(f.node('hash').value,HASH);assert.equal(f.node('deposit').disabled,true);
+  assert.match(f.node('status').textContent,/wallet request is saved.*will not be resent/);
+  await f.click('confirm');assert.equal(f.calls.filter(call=>call==='wallet').length,1);
+});
+test('receipt recovery survives same-owner roster changes',async()=>{
+  const f=fixture({saved:{status:'SUBMITTED',transactionHash:HASH}});await f.ready();
+  const wait=deferred(),recover=f.client.recoverSwarmWallet;
+  f.client.recoverSwarmWallet=async(...args)=>{await wait.promise;return recover(...args);};
+  await f.click('recover');f.roster([]);wait.resolve();await flush();
+  assert.equal(f.record.status,'CONFIRMED');assert.equal(f.node('recovery').hidden,true);
+  assert.match(f.node('status').textContent,/Transaction confirmed/);assert.equal(f.calls.includes('wallet'),false);
+});
+for(const transition of ['owner','provider'])test(`CREATE confirmation cannot reuse a review after ${transition} changes before refresh`,async()=>{
+  const f=fixture();await creation(f);await f.click('create');f.consent();
+  if(transition==='owner')f.wallet({owner:OTHER,chainId:4663},{refresh:false});else f.replaceProvider({refresh:false});
+  await f.click('confirm');assert.equal(f.calls.includes('wallet'),false);
+  assert.equal(f.node('review').hidden,true);assert.equal(f.node('confirm').disabled,true);
+});
+test('CREATE result after provider change shows its saved journal, never stale review authority',async()=>{
+  const f=fixture();await creation(f);await f.click('create');f.consent();
+  const wait=deferred(),submit=f.client.submitSwarmWallet;
+  f.client.submitSwarmWallet=async(...args)=>{const result=await submit(...args);await wait.promise;return result;};
+  await f.click('confirm');f.replaceProvider();wait.resolve();await flush();
+  assert.equal(f.node('review').hidden,true);assert.equal(f.node('recovery').hidden,false);
+  assert.equal(f.node('hash').value,HASH);assert.equal(f.node('create').disabled,true);
+  assert.equal(f.calls.filter(call=>call==='wallet').length,1);
+});
+test('expired confirmation gives an adjacent explanation without automatically renewing or sending',async()=>{
+  const f=fixture();await creation(f);const prepare=f.client.prepareSwarmWallet;
+  f.client.prepareSwarmWallet=async(...args)=>({...await prepare(...args),expiresAt:Date.now()-1});
+  await f.click('create');f.consent();
+  assert.equal(f.node('confirm').disabled,true);assert.match(f.node('confirm-status').textContent,/review expired.*Discard.*review.*again/);
+  await f.click('confirm');assert.equal(f.calls.includes('wallet'),false);
+});
+test('a failed wallet check shows a safe actionable reason and diagnostic code without raw RPC content',async()=>{
+  const f=fixture();
+  f.client.readSwarmWallet=async()=>{throw Object.assign(Error('raw rpc private detail'),{code:'SWARM_WALLET_STALE_CHAIN'});};
+  await f.click('check');
+  assert.match(f.node('status').textContent,/old block.*device clock.*Check code: STALE_CHAIN/);
+  assert.doesNotMatch(f.node('status').textContent,/raw rpc private detail/);
+  assert.equal(f.node('check').disabled,false);assert.equal(f.node('review').hidden,true);assert.equal(f.calls.includes('wallet'),false);
+});
+test('saved-journal read errors use recovery-safe copy after a wallet context change',()=>{
+  const f=fixture();
+  f.client.getSwarmWalletRecord=()=>{throw Object.assign(Error('raw storage private detail'),{code:'SWARM_WALLET_JOURNAL_INVALID'});};
+  f.replaceProvider();
+  assert.match(f.node('status').textContent,/history is unreadable.*Keep it intact.*Check code: JOURNAL_INVALID/);
+  assert.doesNotMatch(f.node('status').textContent,/raw storage private detail/);
+  assert.equal(f.node('review').hidden,true);assert.equal(f.calls.includes('wallet'),false);
 });

@@ -50,7 +50,7 @@ function fixture() {
     activateTab: tab => calls.push(['tab', tab]), renderAgentGasFunding() {},
     showConfirmation: draft => calls.push(['confirmation', draft]),
     runAgentAction: command => calls.push(['command', command]), START_FREE_MINT_COMMAND: 'REVIEW_AUTONOMOUS_MISSION',
-    renderCurrentMissionStatus: () => ({}), renderMissionBadges() {},
+    renderCurrentMissionStatus: () => ({}), renderMissionBadges() {}, renderAgentAccount() {},
     swarmReviewGate: { invalidate() { calls.push(['invalidate-swarm-review']); } },
     agentCreationControl: null, swarmWalletControl: null, persistentWatchControl: null, forgeSkillAdminControl: null, brokerPreferences: null, gasFundingRecovery: null,
     ownerRefresh: { invalidate() {} }, clearTransferredPunkReview() {}, resetGallery() {},

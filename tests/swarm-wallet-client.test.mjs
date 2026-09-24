@@ -420,3 +420,66 @@ test('tampered or unreadable local journals fail closed, including spoofed confi
   f.values.set(key, JSON.stringify(parsed)); assert.throws(() => getSwarmWalletRecord(OWNER, { storage: f.storage }));
   f.values.set(key, '{'); await assert.rejects(f.submit(r)); assert.equal(f.state.sends, 1);
 });
+
+function splitProviderFixture() {
+  const f = fixture({ created: false }), walletCalls = [], readCalls = [];
+  const walletProvider = { request: args => {
+    walletCalls.push(args.method);
+    assert.ok(['eth_accounts', 'eth_chainId', 'eth_getTransactionCount', 'eth_sendTransaction'].includes(args.method), 'No chain-state reads through the wallet');
+    return f.provider.request(args);
+  } };
+  const readProvider = { request: args => {
+    readCalls.push(args.method);
+    assert.ok(!['eth_accounts', 'eth_getTransactionCount', 'eth_sendTransaction'].includes(args.method), 'No wallet authority on read transport');
+    return f.provider.request(args);
+  } };
+  return { ...f, walletProvider, readProvider, walletCalls, readCalls };
+}
+
+test('creation check, review, explicit submit and recovery work with a wallet that restricts chain reads', async () => {
+  const f = splitProviderFixture();
+  const options = { ...f.options, readProvider: f.readProvider };
+  const state = await readSwarmWallet(f.walletProvider, { owner: OWNER, ...options });
+  assert.equal(state.created, false);
+  const review = await prepareSwarmWallet(f.walletProvider, { owner: OWNER, action: { kind: 'CREATE' }, ...options });
+  assert.equal(f.state.sends, 0);
+  await submitSwarmWallet(f.walletProvider, review, options);
+  assert.equal(f.state.sends, 1);
+  f.mine(review);
+  const recovered = await recoverSwarmWallet(f.walletProvider, OWNER, options);
+  assert.equal(recovered.status, 'CONFIRMED'); assert.equal(f.state.sends, 1);
+  assert.ok(f.readCalls.includes('eth_getCode')); assert.ok(f.readCalls.includes('eth_estimateGas'));
+});
+
+test('public reader does not override wrong wallet chain, changed owner, pending nonce or mismatched chain', async () => {
+  for (const fault of ['chain', 'owner', 'pending', 'reader-chain']) {
+    const f = splitProviderFixture();
+    if (fault === 'chain') f.state.chain = '0x1';
+    if (fault === 'owner') f.state.owner = OTHER;
+    if (fault === 'pending') f.state.pendingNonce = 9n;
+    if (fault === 'reader-chain') f.readProvider.request = args => args.method === 'eth_chainId' ? '0x1' : f.provider.request(args);
+    await assert.rejects(prepareSwarmWallet(f.walletProvider, { owner: OWNER, release: f.release, action: { kind: 'CREATE' }, readProvider: f.readProvider }));
+    assert.equal(f.state.sends, 0); assert.equal(f.values.size, 0);
+  }
+});
+
+test('public read outage fails without falling back to a stale wallet response or creating a journal', async () => {
+  const f = splitProviderFixture();
+  f.readProvider.request = async () => { throw Error('private-rpc-key'); };
+  await assert.rejects(prepareSwarmWallet(f.walletProvider, { owner: OWNER, release: f.release, action: { kind: 'CREATE' }, readProvider: f.readProvider }), { code: 'SWARM_WALLET_READ_UNAVAILABLE' });
+  assert.equal(f.state.sends, 0); assert.equal(f.values.size, 0);
+  assert.ok(f.walletCalls.every(method => ['eth_chainId', 'eth_accounts', 'eth_getTransactionCount'].includes(method)));
+});
+
+test('reviewed fee allowance tolerates a small base-fee move but confirmation never increases its cap', async () => {
+  const f = fixture({ created: false }), r = await f.prepare({ kind: 'CREATE' });
+  assert.equal(BigInt(r.transaction.gasPrice), 1_200_000n);
+  assert.equal(BigInt(r.maximumNetworkFeeWei), BigInt(r.transaction.gas) * 1_200_000n);
+  f.state.gasPrice = 1_100_000n;
+  await f.submit(r); assert.equal(f.state.sends, 1);
+  assert.equal(f.state.tx.gasPrice, r.transaction.gasPrice);
+  const beyond = fixture({ created: false }), limited = await beyond.prepare({ kind: 'CREATE' });
+  beyond.state.gasPrice = 1_200_001n;
+  await assert.rejects(beyond.submit(limited), { code: 'SWARM_WALLET_FEE_CHANGED' });
+  assert.equal(beyond.state.sends, 0); assert.equal(beyond.values.size, 0);
+});
