@@ -2,6 +2,9 @@
 const HASH = /^0x[0-9a-fA-F]{64}$/;
 const ADDRESS = /^0x[0-9a-f]{40}$/;
 const QUANTITY = /^0x(?:0|[1-9a-fA-F][0-9a-fA-F]*)$/;
+// This compatibility exception is for eth_chainId, never stored transactions.
+const onRobinhoodChain = value => value === 4663 || typeof value === 'string'
+  && /^0x[0-9a-fA-F]{1,64}$/.test(value) && BigInt(value) === 4663n;
 const STATUSES = ['WALLET_REQUESTED', 'SUBMITTED', 'CONFIRMED', 'REVERTED', 'REJECTED'];
 const pending = value => ['WALLET_REQUESTED', 'SUBMITTED'].includes(value?.status);
 const copy = value => JSON.parse(JSON.stringify(value));
@@ -125,7 +128,7 @@ async function reconcile(provider, owner, tokenId, suppliedHash, options) {
     const [chainId, accounts, tx] = await Promise.all([
       rpc('eth_chainId'), rpc('eth_accounts'), rpc('eth_getTransactionByHash', [normalizedHash]),
     ]);
-    if (chainId !== '0x1237' || !Array.isArray(accounts) || accounts[0]?.toLowerCase() !== owner || !isCurrent()) {
+    if (!onRobinhoodChain(chainId) || !Array.isArray(accounts) || accounts[0]?.toLowerCase() !== owner || !isCurrent()) {
       fail('SELECTION_CHANGED', 'Reconnect the funding wallet on Robinhood Chain and recheck.');
     }
     if (tx === null) fail('TRANSACTION_UNAVAILABLE', 'The original transaction is not visible yet. Recheck shortly.');

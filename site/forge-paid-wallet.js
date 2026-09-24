@@ -7,7 +7,11 @@ const DOMAINS = ['collection', 'registry', 'legacyProgression', 'extension'];
 const HASH = /^0x[0-9a-f]{64}$/;
 const ADDRESS = /^0x[0-9a-f]{40}$/;
 const UINT = /^(0|[1-9][0-9]{0,77})$/;
+// Reviewed transaction fields stay canonical. RPC responses may encode the
+// same bounded integer with upper-case digits or leading zeroes.
 const HEX = /^0x(?:0|[1-9a-f][0-9a-f]{0,63})$/;
+const RPC_QUANTITY = /^0x[0-9a-fA-F]{1,64}$/;
+const QUANTITY_METHODS = new Set(['eth_chainId', 'eth_getTransactionCount', 'eth_estimateGas', 'eth_getBalance']);
 const fail = () => { throw Error('The paid training review changed or could not be verified. Recheck before continuing.'); };
 const valid = value => { if (!value) fail(); };
 const uint = value => typeof value === 'string' && UINT.test(value) && BigInt(value) < 2n ** 256n;
@@ -19,6 +23,22 @@ const selector = value => keccak256Hex(textHex(value)).slice(0, 10);
 const READ_METHODS = new Set(['eth_chainId', 'eth_getBlockByNumber', 'eth_getCode', 'eth_call', 'eth_getLogs']);
 const PUBLIC_READ_RPC = 'https://rpc.mainnet.chain.robinhood.com';
 const rpcFailure = (code, method) => Object.assign(Error(code), { code, method });
+function normalizeReadQuantity(value, method) {
+  // WalletConnect UniversalProvider returns a Number for eth_chainId. Never
+  // coerce numeric nonces, balances or fees, where precision could be lost.
+  if (method === 'eth_chainId' && typeof value === 'number' && Number.isSafeInteger(value) && value > 0) return hex(value);
+  if (typeof value !== 'string' || !RPC_QUANTITY.test(value)) throw rpcFailure('PAID_RPC_QUANTITY_INVALID', method);
+  return hex(value);
+}
+function normalizeReadResult(method, value) {
+  if (QUANTITY_METHODS.has(method)) return normalizeReadQuantity(value, method);
+  if (method === 'eth_getBlockByNumber' && value !== null) {
+    return { ...value, number: normalizeReadQuantity(value?.number, method),
+      timestamp: normalizeReadQuantity(value?.timestamp, method),
+      ...(value?.baseFeePerGas === undefined ? {} : { baseFeePerGas: normalizeReadQuantity(value.baseFeePerGas, method) }) };
+  }
+  return value;
+}
 // Fixed, public, read-only endpoint. It receives no session cookie, key, signature or send method.
 // This keeps archival reads independent of the wallet's selected RPC and its method restrictions.
 export function createPaidTrainingReadProvider({ fetcher = globalThis.fetch, timeoutMs = 6000 } = {}) {
@@ -164,27 +184,32 @@ export function createPaidTrainingWallet({ getProvider, release, verify, readCur
         if (method === 'eth_sendTransaction') return provider.request({ method, params });
         let timeout;
         try {
-          return await Promise.race([provider.request({ method, params }), new Promise((_, reject) => {
+          const result = await Promise.race([provider.request({ method, params }), new Promise((_, reject) => {
             timeout = setTimeout(() => reject(rpcFailure('PAID_WALLET_READ_TIMEOUT', method)), walletReadTimeoutMs);
           })]);
+          return normalizeReadResult(method, result);
         } catch (error) {
-          if (error?.code === 'PAID_WALLET_READ_TIMEOUT') throw error;
+          if (['PAID_WALLET_READ_TIMEOUT', 'PAID_RPC_QUANTITY_INVALID'].includes(error?.code)) throw error;
           const code = Number(error?.code ?? error?.data?.originalError?.code);
           throw rpcFailure([-32601, -32602, 4200].includes(code) ? 'PAID_WALLET_RPC_UNSUPPORTED' : 'PAID_WALLET_READ_UNAVAILABLE', method);
         } finally { clearTimeout(timeout); }
       };
-      const read = (method, params = []) => readProvider.request({ method, params });
+      const read = async (method, params = []) => normalizeReadResult(method, await readProvider.request({ method, params }));
       const walletContext = async () => {
         valid(isCurrent()); const [chain, accounts, pending, latest] = await Promise.all([rpc('eth_chainId'), rpc('eth_accounts'),
           rpc('eth_getTransactionCount', [review.owner, 'pending']), rpc('eth_getTransactionCount', [review.owner, 'latest'])]);
-        valid(isCurrent() && chain === '0x1237' && accounts?.[0]?.toLowerCase() === review.owner
-          && HEX.test(pending) && HEX.test(latest) && BigInt(pending) === BigInt(transaction.nonce) && BigInt(latest) === BigInt(transaction.nonce));
+        valid(isCurrent());
+        if (BigInt(chain) !== 4663n) throw rpcFailure('PAID_WALLET_WRONG_CHAIN', 'eth_chainId');
+        if (!Array.isArray(accounts) || typeof accounts[0] !== 'string' || accounts[0].toLowerCase() !== review.owner)
+          throw rpcFailure('PAID_WALLET_ACCOUNT_CHANGED', 'eth_accounts');
+        if (BigInt(pending) !== BigInt(latest)) throw rpcFailure('PAID_WALLET_PENDING_TRANSACTION', 'eth_getTransactionCount');
+        if (BigInt(latest) !== BigInt(transaction.nonce)) throw rpcFailure('PAID_WALLET_NONCE_CHANGED', 'eth_getTransactionCount');
       };
       progress('Checking your wallet account, network and pending transactions');
       await walletContext();
       progress('Checking Robinhood Chain is up to date');
       const [readChain, head] = await Promise.all([read('eth_chainId'), read('eth_getBlockByNumber', ['latest', false])]);
-      valid(readChain === '0x1237');
+      if (BigInt(readChain) !== 4663n) throw rpcFailure('PAID_CHAIN_MISMATCH', 'eth_chainId');
       valid(isCurrent() && hash(head?.hash) && HEX.test(head.number) && HEX.test(head.timestamp)
         && BigInt(head.number) >= BigInt(review.anchor.number) && BigInt(head.number) - BigInt(review.anchor.number) <= 1000n
         && Number(BigInt(head.timestamp)) * 1000 >= now() - 30000 && Number(BigInt(head.timestamp)) * 1000 <= now() + 5000);
@@ -224,7 +249,8 @@ export function createPaidTrainingWallet({ getProvider, release, verify, readCur
         && HEX.test(closingAnchor.timestamp) && BigInt(closingAnchor.timestamp) === BigInt(review.anchor.timestamp)
         && closingOwner === owner && closingNonce === nonce && closingState === stateHash);
       const [canonicalClosing, closingReadChain] = await Promise.all([read('eth_getBlockByNumber', [closingHead.number, false]), read('eth_chainId')]);
-      valid(isCurrent() && closingReadChain === '0x1237' && canonicalClosing?.number === closingHead.number && canonicalClosing?.hash === closingHead.hash);
+      if (BigInt(closingReadChain) !== 4663n) throw rpcFailure('PAID_CHAIN_MISMATCH', 'eth_chainId');
+      valid(isCurrent() && canonicalClosing?.number === closingHead.number && canonicalClosing?.hash === closingHead.hash);
       await walletContext(); validatePaidReview(review, selection, release, { action, now: now() });
       progress('Saving the request before opening your wallet');
       valid(isCurrent() && !wasAttempted()); await markAttempted(structuredClone(review));
@@ -235,11 +261,19 @@ export function createPaidTrainingWallet({ getProvider, release, verify, readCur
       return { transactionHash };
     } catch (error) {
       if (wasAttempted() || error?.code === 'PAID_REVIEW_EXPIRED') throw error;
-      const codes = ['PAID_CHAIN_READ_TIMEOUT', 'PAID_CHAIN_READ_UNAVAILABLE', 'PAID_WALLET_READ_TIMEOUT', 'PAID_WALLET_READ_UNAVAILABLE', 'PAID_WALLET_RPC_UNSUPPORTED', 'PAID_STORAGE_UNAVAILABLE'];
+      const contextGuidance = {
+        PAID_WALLET_WRONG_CHAIN: 'Switch your wallet to Robinhood Chain, then refresh the unsent review.',
+        PAID_WALLET_ACCOUNT_CHANGED: 'Select the wallet that owns this Punk, then refresh the unsent review.',
+        PAID_WALLET_PENDING_TRANSACTION: 'Your wallet reports another pending transaction or an inconsistent transaction count. Check wallet activity, let pending transactions finish, then refresh the unsent review.',
+        PAID_WALLET_NONCE_CHANGED: 'Your wallet transaction count changed after this review. Refresh the unsent review before confirming.',
+        PAID_RPC_QUANTITY_INVALID: 'A network check returned an invalid number. Recheck the connection and refresh the unsent review.',
+        PAID_CHAIN_MISMATCH: 'The chain reader is on another network. Recheck before continuing.',
+      };
+      const codes = ['PAID_CHAIN_READ_TIMEOUT', 'PAID_CHAIN_READ_UNAVAILABLE', 'PAID_WALLET_READ_TIMEOUT', 'PAID_WALLET_READ_UNAVAILABLE', 'PAID_WALLET_RPC_UNSUPPORTED', 'PAID_STORAGE_UNAVAILABLE', ...Object.keys(contextGuidance)];
       const code = codes.includes(error?.code) ? error.code : 'PAID_PREFLIGHT_UNVERIFIED';
-      const guidance = code === 'PAID_STORAGE_UNAVAILABLE' ? 'Allow site storage in your browser and reload before trying again.' : code === 'PAID_WALLET_RPC_UNSUPPORTED'
+      const guidance = contextGuidance[code] ?? (code === 'PAID_STORAGE_UNAVAILABLE' ? 'Allow site storage in your browser and reload before trying again.' : code === 'PAID_WALLET_RPC_UNSUPPORTED'
         ? `Your wallet's network service does not support a required check. Check Robinhood Chain's RPC setting in your wallet, then refresh the unsent review.`
-        : 'Recheck your wallet connection and refresh the unsent review before trying again.';
+        : 'Recheck your wallet connection and refresh the unsent review before trying again.');
       throw Object.assign(Error(`${stage} failed. No wallet request was made. ${guidance} (${code})`), { code, stage });
     } finally { busy = false; }
   } });

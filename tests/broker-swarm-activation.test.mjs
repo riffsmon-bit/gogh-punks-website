@@ -24,6 +24,19 @@ test('funded mission start submits one permission and reconciles it, never creat
   assert.equal(f.calls.filter(x => x === 'eth_sendTransaction').length, 1);
   assert.equal(f.calls.filter(x => x.endsWith('/receipt')).length, 1);
 });
+test('mission activation accepts WalletConnect numeric chain ID and retains one exact permission', async () => {
+  const f = setup(); f.chain = 4663;
+  assert.deepEqual(await f.run(), { ok: true });
+  assert.equal(f.calls.filter(x => x === 'eth_sendTransaction').length, 1);
+  assert.equal(f.calls.filter(x => x.endsWith('/receipt')).length, 1);
+});
+test('mission activation rejects wrong numeric networks and malformed network values', async () => {
+  for (const chain of [1, 0, -1, 4663.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1, '4663', '0x', '0x' + '0'.repeat(65)]) {
+    const f = setup(); f.chain = chain;
+    await assert.rejects(f.run(), /Reconnect the reviewed owner wallet/);
+    assert.equal(f.calls.filter(x => x === 'eth_sendTransaction').length, 0);
+  }
+});
 test('new, empty, reserve-reached and already-active accounts cannot request mission setup or a transaction', async () => {
   for (const patch of [{ accountCreated: false }, { nativeBalance: '0' }, { nativeBalance: '100' }, { sessionActive: true }]) {
     const f = setup(); Object.assign(f.status.runtime, patch); await assert.rejects(f.run()); assert.deepEqual(f.calls, []);

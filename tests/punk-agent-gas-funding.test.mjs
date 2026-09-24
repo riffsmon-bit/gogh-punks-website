@@ -135,6 +135,64 @@ const options = (w, extra = {}) => ({ storage: w.storage, locks: w.locks, isCurr
   loadContext: async () => ownerContext(), ...extra });
 const ownerPlan = w => prepareAgentGasFunding(w.provider, ownerContext(), "93", "OWNER", "0.0005");
 
+test("WalletConnect numeric chain supports OWNER funding and lost-response recovery without changing the reviewed transaction", async () => {
+  const w = world(); w.state.chain = 4663;
+  const prepared = await ownerPlan(w), expected = structuredClone(prepared.transaction);
+  assert.equal(expected.chainId, "0x1237"); assert.ok(Object.values(expected).every(value => typeof value === "string"));
+  w.state.sendError = Error("lost result");
+  await assert.rejects(submitAgentGasFunding(w.provider, prepared, options(w)), { code: "AGENT_GAS_WALLET_RESULT_UNKNOWN" });
+  assert.deepEqual(w.calls.find(call => call.method === "eth_sendTransaction").params, [expected]);
+  w.confirm();
+  assert.equal((await recoverAgentGasFunding(w.provider, OWNER, "93", HASH, options(w))).status, "CONFIRMED");
+  assert.deepEqual(getAgentGasFundingState(OWNER, "93", options(w)).transaction, expected);
+  assert.equal(w.calls.filter(call => call.method === "eth_sendTransaction").length, 1);
+});
+test("bounded zero-padded chain quantities support gas funding and receipt checks", async () => {
+  const w = world(); w.state.chain = "0x" + "1237".padStart(64, "0");
+  await submitAgentGasFunding(w.provider, await ownerPlan(w), options(w)); w.confirm();
+  assert.equal((await recheckAgentGasFunding(w.provider, OWNER, "93", options(w))).status, "CONFIRMED");
+  assert.equal(w.calls.filter(call => call.method === "eth_sendTransaction").length, 1);
+});
+test("WalletConnect PUNK-source funding verifies the source wallet, preserves reserve and recovers the exact transfer", async () => {
+  const w = world(); w.state.chain = 4663;
+  const prepared = await prepareAgentGasFunding(w.provider, context(), "93", "PUNK", "0.0005");
+  assert.equal(prepared.reserveWei, "200000000000000"); assert.equal(prepared.transaction.chainId, "0x1237");
+  await assert.rejects(prepareAgentGasFunding(w.provider, context(), "93", "PUNK", "0.001000000000000001"), /reserve/);
+  await submitAgentGasFunding(w.provider, prepared, options(w, { loadContext: async () => context() })); w.confirm();
+  assert.equal((await recheckAgentGasFunding(w.provider, OWNER, "93", options(w))).status, "CONFIRMED");
+  assert.deepEqual(w.calls.find(call => call.method === "eth_sendTransaction").params, [prepared.transaction]);
+  assert.equal(w.calls.filter(call => call.method === "eth_sendTransaction").length, 1);
+});
+test("invalid or different numeric chain identities block gas funding and preserve saved recovery", async () => {
+  const invalidChains = [1, 0, -1, 4663.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1, "4663", "0x", "0xG", "0x" + "1237".padStart(65, "0")];
+  for (const chain of invalidChains) {
+    const w = world(); w.state.chain = chain;
+    await assert.rejects(ownerPlan(w));
+    assert.equal(w.calls.some(call => call.method === "eth_sendTransaction"), false);
+    w.state.chain = 4663; await submitAgentGasFunding(w.provider, await ownerPlan(w), options(w)); w.confirm();
+    const saved = getAgentGasFundingState(OWNER, "93", options(w)); w.state.chain = chain;
+    await assert.rejects(recheckAgentGasFunding(w.provider, OWNER, "93", options(w)), { code: "AGENT_GAS_SELECTION_CHANGED" });
+    assert.deepEqual(getAgentGasFundingState(OWNER, "93", options(w)), saved);
+    assert.equal(w.calls.filter(call => call.method === "eth_sendTransaction").length, 1);
+  }
+});
+test("numeric chain compatibility never coerces a funding amount, nonce, balance or reviewed chain field", async () => {
+  for (const fault of ["amount", "nonce", "balance", "gas", "reviewChain"]) {
+    const w = world(); w.state.chain = 4663;
+    if (fault === "amount") await assert.rejects(prepareAgentGasFunding(w.provider, ownerContext(), "93", "OWNER", 0.0005));
+    else if (fault === "nonce") { w.state.nonce = 7; await assert.rejects(ownerPlan(w)); }
+    else if (["balance", "gas"].includes(fault)) {
+      const request = w.provider.request, method = fault === "balance" ? "eth_getBalance" : "eth_estimateGas";
+      w.provider.request = args => args.method === method ? Promise.resolve(fault === "balance" ? 1e18 : 65536) : request(args);
+      await assert.rejects(ownerPlan(w));
+    } else {
+      const prepared = structuredClone(await ownerPlan(w)); prepared.transaction.chainId = 4663;
+      await assert.rejects(submitAgentGasFunding(w.provider, prepared, options(w)), { code: "AGENT_GAS_REVIEW_CHANGED" });
+    }
+    assert.equal(w.calls.some(call => call.method === "eth_sendTransaction"), false);
+  }
+});
+
 test("OWNER funds a verified Agent with an inactive V3 without requesting any V3 state", async () => {
   const w = world(); w.state.punkCode = "0x";
   const prepared = await ownerPlan(w);

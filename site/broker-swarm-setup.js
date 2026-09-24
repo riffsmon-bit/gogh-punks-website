@@ -26,7 +26,7 @@ export function mountSwarmSetup({ root, getContext, getPunks, getProvider, openR
   const readProvider = creationOptions.readProvider ?? walletOptions.readProvider ?? createSwarmWalletReadProvider();
   let draftFields = null, draftChecks = null;
   const heading = el('h3', 'SET UP YOUR SWARM');
-  const intro = el('p', 'Choose your Punks, budget and free-mint rules once. This guide keeps your progress through wallet creation, one gas-funding batch and each Punk’s mission approval.');
+  const intro = el('p', 'Choose your Punks, budget and free-mint rules once. This guide creates missing Agent wallets, funds the group, then helps you activate each Punk’s mission. Review and approve each wallet transaction here; funding alone does not start a mission.');
   const steps = el('ol', '', 'steps'), summary = el('div', '', 'summary'), content = el('div', '', 'content');
   const note = el('p', '', 'status'); note.setAttribute('role', 'status'); note.setAttribute('aria-live', 'polite');
   const creationHost = el('section', '', 'creation'), walletHost = el('section', '', 'wallet');
@@ -66,7 +66,12 @@ export function mountSwarmSetup({ root, getContext, getPunks, getProvider, openR
     for (const tokenId of setup.tokenIds) {
       if (!valid()) return;
       message = `Checking Punk #${tokenId}…`; render();
-      const value = await readAccount(getProvider(), { ...context(), tokenId, readProvider });
+      let value;
+      try { value = await readAccount(getProvider(), { ...context(), tokenId, readProvider }); }
+      catch (error) {
+        const code = /^AGENT_CREATION_[A-Z_]+$/.test(error?.code ?? '') ? ` (${error.code})` : '';
+        throw Error(`Punk #${tokenId}: ${error?.message ?? 'Wallet check unavailable. Recheck this Punk.'}${code} Your Swarm plan is saved. This check did not request a transaction.`);
+      }
       if (!valid()) return;
       if (value.owner !== setup.owner || value.tokenId !== tokenId || value.chainId !== 4663) throw Error('A wallet check returned another Punk. Nothing was prepared.');
       accounts.set(tokenId, value);
@@ -131,7 +136,7 @@ export function mountSwarmSetup({ root, getContext, getPunks, getProvider, openR
   function render() {
     root.setAttribute('aria-busy', String(busy)); note.textContent = message;
     steps.replaceChildren();
-    for (const [value, label] of [['PLAN', '1 · Choose & review'], ['WALLETS', '2 · Prepare wallets'], ['FUND', '3 · Fund together'], ['MISSIONS', '4 · Approve missions']]) {
+    for (const [value, label] of [['PLAN', '1 · Choose & review'], ['WALLETS', '2 · Prepare wallets'], ['FUND', '3 · Fund together'], ['MISSIONS', '4 · Activate missions']]) {
       const item = el('li', label); if (stage === value || stage === 'CHECK' && value === 'WALLETS') item.setAttribute('aria-current', 'step'); steps.append(item);
     }
     creationHost.hidden = stage !== 'WALLETS' || !activeToken; walletHost.hidden = stage !== 'FUND' || !setup?.allocations.length;
@@ -142,7 +147,11 @@ export function mountSwarmSetup({ root, getContext, getPunks, getProvider, openR
     summary.append(el('p', `Combined limits: ${setup.dailyMaximum}/day, ${setup.totalMaximum} total. ${setup.allocations.length ? `${setup.options.fundingBudgetEth} ETH total gas funding, plus network fees.` : 'Use existing Agent gas; no new funding planned.'}`));
     if (!allOwned()) { content.append(el('p', 'Ownership changed. A selected Punk is unavailable; finish any saved transaction recovery, then make a new plan.')); }
     if (stage === 'CHECK') {
-      for (const allocation of setup.allocations) content.append(el('p', `Punk #${allocation.tokenId}: ${allocation.amountEth} ETH`));
+      for (const id of setup.tokenIds) {
+        const account = accounts.get(id), allocation = setup.allocations.find(row => row.tokenId === id);
+        const status = !account ? 'Wallet not yet verified' : account.created ? 'Agent wallet exists' : 'Needs Agent wallet creation';
+        content.append(el('p', `Punk #${id}: ${status}${allocation ? ` · planned funding ${allocation.amountEth} ETH` : ''}`));
+      }
       content.append(el('p', 'Your existing taste, minimum reserve, gas cap and safety rules remain in force. Funding an already active Punk may resume its existing mission. Creating or funding a new wallet grants no mission permission.'));
       button(content, 'CHECK WALLETS & CONTINUE', inspectWallets, !allOwned(), 'check-wallets');
     } else if (stage === 'WALLETS') {

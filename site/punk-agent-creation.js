@@ -18,7 +18,14 @@ const word = value => BigInt(value).toString(16).padStart(64, '0');
 const hex = value => '0x' + BigInt(value).toString(16);
 const digest = text => keccak256Hex('0x' + Array.from(new TextEncoder().encode(text), b => b.toString(16).padStart(2, '0')).join(''));
 const selector = signature => digest(signature).slice(0, 10);
-function valid(ok, code, message = 'Account creation could not be verified. Recheck this Punk before continuing.') {
+const CHECK_MESSAGES = Object.freeze({
+  READ_INVALID: 'The wallet or chain reader returned an invalid response. Reconnect your wallet and check again.',
+  STALE_CHAIN: 'The latest chain block is outside the freshness window. Check that your device time is automatic, then retry.',
+  CHAIN_CHANGED: 'The chain changed during this check. Check this Punk again for a fresh result.',
+  CODE_CHANGED: 'This Agent wallet or its registry does not match the reviewed contract. Creation and funding remain blocked.',
+  CONFIG_CHANGED: 'This Agent wallet does not match the reviewed registry settings. Creation and funding remain blocked.',
+});
+function valid(ok, code, message = CHECK_MESSAGES[code] ?? 'Account creation could not be verified. Recheck this Punk before continuing.') {
   if (!ok) throw Object.assign(Error(message), { code: 'AGENT_CREATION_' + code });
 }
 function address(value) { valid(typeof value === 'string' && ADDRESS.test(value) && BigInt(value) !== 0n, 'IDENTITY'); return value; }
@@ -27,6 +34,25 @@ function identity(owner, tokenId) {
   valid(/^(0|[1-9]\d{0,3})$/.test(id) && BigInt(id) <= 5016n, 'IDENTITY'); return { owner: holder, tokenId: id };
 }
 function quantity(value) { valid(typeof value === 'string' && QUANTITY.test(value), 'READ_INVALID'); return BigInt(value); }
+// Wallet bridges sometimes return padded or upper-case hexadecimal quantities.
+// Normalize RPC results only; signed/reviewed transaction fields stay canonical.
+function rpcQuantity(value) {
+  valid(typeof value === 'string' && /^0x[0-9a-fA-F]{1,64}$/.test(value), 'READ_INVALID');
+  return hex(BigInt(value));
+}
+function rpcChain(value) {
+  // WalletConnect UniversalProvider returns Number(getDefaultChain()).
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? hex(value) : rpcQuantity(value);
+}
+function rpcResult(method, value) {
+  if (method === 'eth_chainId') return rpcChain(value);
+  if (['eth_getTransactionCount', 'eth_getBalance', 'eth_gasPrice', 'eth_estimateGas'].includes(method)) return rpcQuantity(value);
+  if (method === 'eth_getBlockByNumber' && value && typeof value === 'object') return {
+    ...value, number: rpcQuantity(value.number), timestamp: rpcQuantity(value.timestamp),
+    hash: typeof value.hash === 'string' ? value.hash.toLowerCase() : value.hash,
+  };
+  return value;
+}
 function uint(value) { valid(typeof value === 'string' && /^(0|[1-9]\d{0,77})$/.test(value) && BigInt(value) < 2n ** 256n, 'REVIEW_INVALID'); return BigInt(value); }
 function hash(value) { valid(typeof value === 'string' && HASH.test(value) && BigInt(value) !== 0n, 'READ_INVALID'); return value; }
 function resultWord(value) { valid(/^0x[0-9a-fA-F]{64}$/.test(value ?? ''), 'READ_INVALID'); return value.toLowerCase(); }
@@ -43,16 +69,16 @@ function reader(provider, readProvider) {
     valid(typeof readProvider.request === 'function', 'READ_UNAVAILABLE');
     if (method === 'eth_chainId') {
       const [walletChain, readChain] = await Promise.all([provider.request({ method, params }), readProvider.request({ method, params })]);
-      valid(quantity(walletChain) === quantity(readChain), 'READ_CHAIN_CHANGED', 'The chain reader and your wallet disagree. Reconnect on Robinhood Chain.');
+      valid(rpcChain(walletChain) === rpcChain(readChain), 'READ_CHAIN_CHANGED', 'The chain reader and your wallet disagree. Reconnect on Robinhood Chain.');
       return walletChain;
     }
     return readProvider.request({ method, params });
   };
   return async (method, params = []) => {
     valid(READS.has(method), 'READ_ONLY'); let timer;
-    try { return await Promise.race([Promise.resolve().then(() => request(method, params)), new Promise((_, reject) => {
+    try { return rpcResult(method, await Promise.race([Promise.resolve().then(() => request(method, params)), new Promise((_, reject) => {
       timer = setTimeout(() => reject(Error('timeout')), 8000);
-    })]); } catch (error) {
+    })])); } catch (error) {
       if (['AGENT_CREATION_READ_CHAIN_CHANGED', 'AGENT_CREATION_READ_INVALID'].includes(error?.code)) throw error;
       if (error?.code === 'SWARM_WALLET_FEE_CHANGED') valid(false, 'FEE_CHANGED', 'Network fees changed. Review creation again.');
       valid(false, 'READ_UNAVAILABLE', 'A chain check is unavailable. No new wallet request was made by this check; preserve any saved transaction.');

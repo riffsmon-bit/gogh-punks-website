@@ -451,6 +451,29 @@ test('creation check, review, explicit submit and recovery work with a wallet th
   assert.ok(f.readCalls.includes('eth_getCode')); assert.ok(f.readCalls.includes('eth_estimateGas'));
 });
 
+test('WalletConnect numeric chain and padded nonces allow Swarm review without changing the approved transaction', async () => {
+  const f = splitProviderFixture(), original = f.walletProvider.request;
+  f.walletProvider.request = async r => {
+    const value = await original(r);
+    return r.method === 'eth_chainId' ? 4663 : r.method === 'eth_getTransactionCount' ? '0x000' + BigInt(value).toString(16).toUpperCase() : value;
+  };
+  f.state.ownerNonce = 2027n;
+  const options = { ...f.options, readProvider: f.readProvider };
+  const review = await prepareSwarmWallet(f.walletProvider, { owner: OWNER, action: { kind: 'CREATE' }, ...options });
+  assert.equal(review.transaction.chainId, '0x1237'); assert.equal(review.transaction.nonce, '0x7eb');
+  assert.equal(f.state.sends, 0); await submitSwarmWallet(f.walletProvider, review, options);
+  assert.deepEqual(f.calls.find(c => c.method === 'eth_sendTransaction').params, [review.transaction]); assert.equal(f.state.sends, 1);
+});
+
+test('wrong or invalid numeric chain and invalid RPC nonce cannot prepare a Swarm transaction', async () => {
+  for (const [method, value] of [['eth_chainId', 1], ['eth_chainId', 0], ['eth_chainId', -1], ['eth_chainId', 4663.5], ['eth_chainId', Number.MAX_SAFE_INTEGER + 1], ['eth_getTransactionCount', 8], ['eth_getTransactionCount', '0x' + '0'.repeat(65)]]) {
+    const f = splitProviderFixture(), original = f.walletProvider.request;
+    f.walletProvider.request = r => r.method === method ? value : original(r);
+    await assert.rejects(prepareSwarmWallet(f.walletProvider, { owner: OWNER, release: f.release, action: { kind: 'CREATE' }, readProvider: f.readProvider }));
+    assert.equal(f.state.sends, 0);
+  }
+});
+
 test('public reader does not override wrong wallet chain, changed owner, pending nonce or mismatched chain', async () => {
   for (const fault of ['chain', 'owner', 'pending', 'reader-chain']) {
     const f = splitProviderFixture();
