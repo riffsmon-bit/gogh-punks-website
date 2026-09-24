@@ -4,7 +4,7 @@ September 23, 2026 brief; Swarm Wallet and funding-first instructions updated Se
 
 ## Instructions to ChatGPT
 
-Create a Discord announcement thread and an X post/short thread from this brief. Use an energetic, art-focused voice and plain English. Separate LIVE, LIMITED RELEASE and IN DEVELOPMENT. Do not promise profits, guaranteed mints, unlimited autonomy, gas-free minting, a professional audit, or unavailable skills. Do not invent release dates, rewards or integrations.
+Create a Discord announcement thread and an X post/short thread from this brief. Use an energetic, art-focused voice and plain English. Separate LIVE, LIMITED RELEASE and LOCALLY VALIDATED · RELEASE PENDING. Do not promise profits, guaranteed mints, unlimited autonomy, gas-free minting, a professional audit, or unavailable skills. Do not invent release dates, rewards or integrations.
 
 ## The idea
 
