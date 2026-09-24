@@ -75,6 +75,14 @@ test('unavailable account verification pauses funding while retaining owner with
   assert.match(f.node('info').textContent,/funding is paused/);
   f.node('withdraw-amount').value='0.003';await f.click('withdraw');assert.equal(f.node('review').hidden,false);
 });
+test('owner with no remaining Punks can still review unused Swarm ETH withdrawal',async()=>{
+  const f=fixture();f.roster([]);await f.ready();
+  assert.equal(f.root.hidden,false);assert.equal(f.node('withdraw').disabled,false);
+  f.node('withdraw-amount').value='0.003';await f.click('withdraw');
+  assert.equal(f.node('review').hidden,false);assert.equal(f.node('confirm').disabled,true);
+  assert.deepEqual(f.calls.find(c=>Array.isArray(c)&&c[0]==='prepare')[1],{kind:'WITHDRAW',amountWei:'3000000000000000'});
+  assert.equal(f.calls.includes('wallet'),false);
+});
 test('verified wallet cancellation explains non-delivery and restores owner actions',async()=>{
   const f=fixture({saved:{status:'SUBMITTED',transactionHash:HASH}});await f.ready();
   f.client.recoverSwarmWallet=async()=>({status:'CANCELLED',transactionHash:HASH});

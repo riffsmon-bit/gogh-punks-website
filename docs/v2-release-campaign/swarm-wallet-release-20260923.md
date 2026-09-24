@@ -1,6 +1,6 @@
 # Owner-controlled Swarm Wallet — 23 September 2026
 
-Status: IMPLEMENTED / LOCALLY TESTED. Factory NOT DEPLOYED. Public release manifest remains `null`.
+Status: FACTORY DEPLOYED AND VERIFIED. Holder UI locally tested; Netlify release pending. Holder create/deposit/batch/withdraw actions are not yet live-tested.
 
 24 September setup follow-up: the owner confirmed the first MetaMask prompt was account connection only. No deployment transaction was found in the saved journal. Explicit transient Node/Undici read failures now receive at most three attempts on the same provider with the same arguments; signing and send methods remain prohibited. The underlying cause of the earlier live failure was not captured conclusively. The dedicated setup page now explains connection versus deployment, shows preflight progress, and uses a fresh journal read before offering retry guidance. Unknown journal state disables preparing/sending. Server diagnostics expose only bounded error categories, never request URLs, calldata or remote messages.
 
@@ -52,13 +52,25 @@ Independent contract/client/panel review reported no remaining concrete P0/P1/P2
 
 The one-time deployment recovery fix is committed as `626182c`. Its combined targeted run passed 41 tests (33 Swarm tests plus 8 shared-helper regressions). Independent review ran 34 recovery/deployment checks plus 2 browser checks and found no remaining concrete P0/P1/P2. The owner review is ready for a fresh two-provider preflight; the server holds no signer.
 
+## Confirmed factory deployment — 24 September
+
+- Factory: `0xab82241505a64edfbb3031542e137fadf5567dba`.
+- Transaction: `0x736cba695d35137e60d1f2f89b663e512fc280194bebcb03214f26207aeb6a1c`.
+- Block: `71359261`; successful canonical receipt confirmed by two providers with at least 12 subsequent blocks.
+- Actual fee: **0.00008070728286 ETH**; transaction value zero.
+- Runtime hash: `0x0b799708f4f750fd6687d506bb4149ca6734c2291b68eab92ca6ac4ca83a93ac`.
+- Compiler/source hashes, 8,585-byte factory runtime and all immutable bindings verified. Public evidence: `deployments/robinhood-swarm-wallet.json`.
+- Browser client read against the deployed factory passed: dependencies verified, owner vault not yet created. Exact holder CREATE simulation subsequently passed without any signing or send method. One earlier preparation returned a transient read-unavailable result; no transaction was sent.
+- Independent integration review identified inaccessible withdrawal controls after the last Punk leaves the holder wallet. The panel now lives outside selected-Punk content; zero-Punk owner visibility and withdrawal review are covered by browser and unit checks.
+- Integrated local desktop/mobile run: 30 screenshots, 29 served-file comparisons, zero exceptions, console/network errors or blocked requests. Wallet responses in these browser journeys are explicit fixtures.
+
 ## Remaining release steps
 
 1. Deployment recovery tests and independent review completed; no transaction sent.
-2. Present the exact factory transaction and current maximum network fee at the local review page. Only the owner’s wallet can sign.
-3. Verify the confirmed deployment with both providers, exact compiled runtime and all immutable configuration.
-4. Populate the public release manifest using verified factory address/code hash and the compiled vault runtime.
+2. Owner signed the exact factory transaction; successful deployment confirmed.
+3. Deployment verified with both providers, exact compiled runtime and all immutable configuration.
+4. Public release manifest populated from verified address/code hash and compiled vault runtime.
 5. Run the final release gate, one coherent Netlify preview and browser/API checks, then ordinary protected merge/deployment.
 6. Verify served production files and controls. Holder wallet creation, deposit, batch funding and withdrawal remain explicit holder actions; do not mark them LIVE-TESTED until those receipts are observed.
 
-No deployment, actual holder deposit, batch funding, withdrawal, NFT burn or mission was executed during these local checks.
+The owner signed the factory deployment. No holder wallet creation, deposit, batch funding, withdrawal, NFT burn or mission was executed during these checks.

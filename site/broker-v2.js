@@ -1245,6 +1245,7 @@ function renderMissionBadges() {
 
 function renderRoster() {
   void persistentWatchControl?.selectionChanged();
+  brokerPreferences?.refresh();
   swarmWalletControl?.refresh();
   swarmReviewGate?.refresh();
   swarmControl?.refresh();
@@ -2648,6 +2649,12 @@ function setup() {
   swarmWalletControl = mountSwarmWallet({ root: one('[data-swarm-wallet-panel]'),
     getContext: () => ({ owner: state.wallet?.account, chainId: state.wallet?.chainId, preview: PREVIEW }),
     getPunks: () => PREVIEW ? [] : state.punks, getProvider: () => window.__GOGH_WALLET_PROVIDER__,
+  });
+  one('[data-swarm-wallet-details]').hidden = one('[data-swarm-wallet-panel]').hidden;
+  one('[data-open-swarm-wallet]').hidden = one('[data-swarm-wallet-panel]').hidden;
+  one('[data-open-swarm-wallet]').addEventListener('click', () => {
+    const details = one('[data-swarm-wallet-details]');
+    details.open = true; details.scrollIntoView({ block: 'start' });
   });
   swarmReviewGate = createSwarmReviewGate({ dialog: one('[data-swarm-review-dialog]'),
     getContext: () => ({ owner: state.wallet?.account, chainId: state.wallet?.chainId }),

@@ -1,0 +1,42 @@
+{
+  "schema": "GOGH_SWARM_WALLET_DEPLOYMENT_V1",
+  "chainId": 4663,
+  "status": "DEPLOYED_VERIFIED",
+  "factory": "0xab82241505a64edfbb3031542e137fadf5567dba",
+  "factoryCodeHash": "0x0b799708f4f750fd6687d506bb4149ca6734c2291b68eab92ca6ac4ca83a93ac",
+  "transactionHash": "0x736cba695d35137e60d1f2f89b663e512fc280194bebcb03214f26207aeb6a1c",
+  "blockNumber": "71359261",
+  "blockHash": "0x08a5764e4303f76f8572c01c64291bae6af0d793cbe42c03133cc88dfd3d8dc8",
+  "owner": "0xc7f55ce6a7df9a79cc4a643a5081230f890c7aa6",
+  "actualNetworkFeeWei": "80707282860000",
+  "compiler": "0.8.34+commit.80d5c536",
+  "settings": {
+    "remappings": [
+      "@openzeppelin/=node_modules/@openzeppelin/"
+    ],
+    "optimizer": {
+      "enabled": true,
+      "runs": 500
+    },
+    "metadata": {
+      "bytecodeHash": "none"
+    },
+    "compilationTarget": {
+      "contracts/src/SwarmGasVaultFactory.sol": "SwarmGasVaultFactory"
+    },
+    "evmVersion": "cancun",
+    "libraries": {},
+    "viaIR": true
+  },
+  "bindings": {
+    "chainId": 4663,
+    "collection": "0xe0f92b3b0e6ded3654177fe3809cd300e5ffadf6",
+    "registry": "0x3253adc3bbd5b0010c1bf9ce8def26b7e0db5844",
+    "implementation": "0xfdb26c2ec70956227728414ff4ab7a5eda64d13b",
+    "registryCodeHash": "0x5a1001edb812b6ec2e233cbba6db4b7c680d0832453927696cf1ef623fff8e22",
+    "implementationCodeHash": "0x7d37d360014ce94902655062605b8318581097df100ab2573be52904afa6badc"
+  },
+  "verifiedAt": "2026-09-24T12:12:47.131Z",
+  "verification": "Two independent read providers; canonical transaction and receipt; 12 confirmations; exact compiled runtime outside compiler immutable references; all immutable getters verified",
+  "holderActionsLiveTested": false
+}
