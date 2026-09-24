@@ -7,6 +7,7 @@ import { randomBytes } from 'node:crypto';
 import { encodeDeployData, getContractAddress } from 'viem';
 import { setupDigest } from './setup-review-journal.mjs';
 import { createSetupReadClient, readSetupAnchor } from './setup-read-client.mjs';
+import { setupErrorSummary } from './setup-error-summary.mjs';
 import { openSwarmSetupReviewJournal, recoverSwarmSetupTransaction } from './swarm-setup-recovery.mjs';
 import { loadSwarmDeployment, verifySwarmDependencies, verifySwarmDeployment, SWARM_SETUP_OWNER } from './swarm-wallet-deployment.mjs';
 
@@ -112,7 +113,7 @@ const server=createServer(async(req,res)=>{
       return json(200,{state,pending});
     } finally {busy=false;}
   } catch(error) {
-    console.warn(JSON.stringify({event:'SETUP_READ_FAILED',errorType:error.name,
+    console.warn(JSON.stringify({event:'SETUP_READ_FAILED',causes:setupErrorSummary(error),
       code:/^[A-Z_]+$/.test(error.message)?error.message:'LIVE_SETUP_READ_UNAVAILABLE'}));
     return json(409,{error:/^[A-Z_]+$/.test(error.message)?error.message:'LIVE_SETUP_READ_UNAVAILABLE'});
   }

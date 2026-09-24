@@ -2,6 +2,10 @@
 
 Status: IMPLEMENTED / LOCALLY TESTED. Factory NOT DEPLOYED. Public release manifest remains `null`.
 
+24 September setup follow-up: the owner confirmed the first MetaMask prompt was account connection only. No deployment transaction was found in the saved journal. Explicit transient Node/Undici read failures now receive at most three attempts on the same provider with the same arguments; signing and send methods remain prohibited. The underlying cause of the earlier live failure was not captured conclusively. The dedicated setup page now explains connection versus deployment, shows preflight progress, and uses a fresh journal read before offering retry guidance. Unknown journal state disables preparing/sending. Server diagnostics expose only bounded error categories, never request URLs, calldata or remote messages.
+
+All 48 setup transport, deployment and recovery tests passed after this fix; independent review reran five new UI/diagnostic checks and found no concrete blocker. The preserved unsent review was refreshed through real two-provider read-only simulation in 2.323 seconds, expiring 24 September 08:19:44 EDT, with maximum network fee 0.000195715289208 ETH. This review is not a broadcast or receipt. Local review reopened for the owner's actual wallet confirmation; public release remains gated.
+
 Branch: `feat/owner-swarm-wallet`, integrated with production/main `7811eff1ddb343670b3ef19c547d762d75e8c511`. Existing Recall and review-before-login fixes are preserved. No new Netlify deployment was used for debugging this feature.
 
 ## Holder behavior

@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runInNewContext } from 'node:vm';
 import { getContractAddress } from 'viem';
+import { setupErrorSummary } from '../scripts/dev/skill-forge/setup-error-summary.mjs';
 import { openSetupReviewJournal, setupDigest } from '../scripts/dev/skill-forge/setup-review-journal.mjs';
 import { openSwarmSetupReviewJournal, recoverSwarmSetupTransaction, inspectSwarmSetupTransaction }
   from '../scripts/dev/skill-forge/swarm-setup-recovery.mjs';
@@ -242,4 +243,69 @@ test('browser initial hash recovery can finish without rechecking a now-terminal
   assert.deepEqual(browser.requests,['recover']);assert.equal(browser.walletCalls,0);
   assert.equal(browser.get('prepare').disabled,true);assert.equal(browser.get('send').disabled,true);
   assert.match(browser.get('status').textContent,/Factory confirmed/);
+});
+
+async function preparedBrowser({lostClaim=false,unknownState=false}={}) {
+  const elements=new Map(),calls=[],requests=[],get=id=>{
+    if(!elements.has(id))elements.set(id,{value:'',textContent:'',disabled:false,hidden:false,replaceChildren(){}});
+    return elements.get(id);
+  };
+  let state={revision:1,records:[{review:review(),reviewHash:'prepared-review',status:'PREPARED'}]},failed=false;
+  const config={owner,steps:[{action:review().action,label:review().label}],completionMessage:'Confirmed'};
+  const source=readFileSync(new URL('../scripts/dev/skill-forge/swarm-wallet-setup.js',import.meta.url),'utf8');
+  await runInNewContext('(async()=>{'+source+'})()',{
+    document:{getElementById:get,createElement:()=>({})},
+    fetch:async(url,options)=>{
+      if(!options){if(failed&&unknownState)throw Error('unavailable');return {ok:true,json:async()=>({state,config,csrf:'csrf'})};}
+      const body=JSON.parse(options.body);requests.push(body.action);
+      assert.equal(body.action,'claim');assert.match(get('status').textContent,/both chain providers/);
+      failed=true;
+      if(lostClaim)state={revision:2,records:[{...state.records[0],status:'WALLET_REQUESTED'}]};
+      return {ok:false,json:async()=>({error:'LIVE_SETUP_READ_UNAVAILABLE'})};
+    },
+    window:{ethereum:{request:async({method})=>{calls.push(method);
+      if(method==='eth_requestAccounts'||method==='eth_accounts')return [owner];
+      if(method==='eth_chainId')return '0x1237';
+      assert.fail('No signing or sending is allowed during a failed preflight');
+    }}},localStorage:{getItem:()=>null,setItem:()=>{}},setInterval:()=>0,
+  });
+  return {get,calls,requests};
+}
+
+test('connecting explains that account consent is not a deployment and never claims a review',async()=>{
+  const browser=await preparedBrowser();await browser.get('connect').onclick();
+  assert.deepEqual(browser.calls,['eth_requestAccounts','eth_chainId']);assert.deepEqual(browser.requests,[]);
+  assert.match(browser.get('status').textContent,/Wallet connected\. No transaction submitted/);
+  assert.equal(browser.get('send').disabled,false);
+});
+
+test('failed chain preflight remains explicitly retryable without a transaction wallet prompt',async()=>{
+  const browser=await preparedBrowser();await browser.get('send').onclick();
+  assert.deepEqual(browser.requests,['claim']);assert.equal(browser.calls.includes('eth_sendTransaction'),false);
+  assert.match(browser.get('status').textContent,/No deployment transaction was requested/);
+  assert.equal(browser.get('send').disabled,false);
+});
+
+test('lost claim response uses refreshed journal and never suggests safe resend',async()=>{
+  const browser=await preparedBrowser({lostClaim:true});await browser.get('send').onclick();
+  assert.equal(browser.get('send').disabled,true);assert.equal(browser.get('recover').disabled,false);
+  assert.doesNotMatch(browser.get('status').textContent,/No deployment transaction was requested/);
+  assert.match(browser.get('status').textContent,/Check wallet activity/);
+});
+
+test('unavailable journal cannot falsely establish that the claim failed',async()=>{
+  const browser=await preparedBrowser({lostClaim:true,unknownState:true});await browser.get('send').onclick();
+  assert.doesNotMatch(browser.get('status').textContent,/No deployment transaction was requested/);
+  assert.equal(browser.calls.includes('eth_sendTransaction'),false);
+  assert.equal(browser.get('send').disabled,true);assert.equal(browser.get('prepare').disabled,true);
+});
+
+test('setup diagnostics cannot expose URL, calldata, remote names or unknown codes and bound cycles',()=>{
+  const secret='https://example.test/private-token',inner={name:'HttpRequestError',code:403,status:403,message:secret};
+  const outer={name:secret,code:secret,message:secret,details:secret,cause:inner};inner.cause=outer;
+  assert.deepEqual(setupErrorSummary(outer),[{name:'OtherError'},{name:'HttpRequestError',code:403,status:403}]);
+  assert.equal(JSON.stringify(setupErrorSummary(outer)).includes(secret),false);
+  assert.deepEqual(setupErrorSummary({name:'TypeError',cause:{name:'Error',code:'ECONNRESET'}}),
+    [{name:'TypeError'},{name:'Error',code:'ECONNRESET'}]);
+  let chain={};for(let i=0;i<10;i++)chain={cause:chain};assert.equal(setupErrorSummary(chain).length,6);
 });
