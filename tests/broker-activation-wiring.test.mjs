@@ -52,7 +52,7 @@ function fixture() {
     runAgentAction: command => calls.push(['command', command]), START_FREE_MINT_COMMAND: 'REVIEW_AUTONOMOUS_MISSION',
     renderCurrentMissionStatus: () => ({}), renderMissionBadges() {},
     swarmReviewGate: { invalidate() { calls.push(['invalidate-swarm-review']); } },
-    swarmWalletControl: null, persistentWatchControl: null, forgeSkillAdminControl: null, brokerPreferences: null, gasFundingRecovery: null,
+    agentCreationControl: null, swarmWalletControl: null, persistentWatchControl: null, forgeSkillAdminControl: null, brokerPreferences: null, gasFundingRecovery: null,
     ownerRefresh: { invalidate() {} }, clearTransferredPunkReview() {}, resetGallery() {},
     window: { addEventListener: (name, handler) => { windowEvents[name] = handler; } },
     fetch() { throw Error('Rendering must not fetch status for every Punk'); },
@@ -137,11 +137,11 @@ test('wallet transition clears the previous owner’s activation display even du
   assert.equal(f.state.agentAccounts.size, 0); assert.deepEqual(f.calls, [['invalidate-swarm-review']]);
 });
 
-test('setup action cannot reopen an ASK draft and pretend it will activate the Agent wallet', () => {
+test('setup action opens Fund without starting a mission or signing in', () => {
   const f = fixture(); f.state.localStrategy = { intent: { ...f.state.selected.strategy.intent, operatingMode: 'ASK' } };
   f.click('SETUP');
   assert.equal(f.calls.some(call => call[0] === 'confirmation'), false);
-  assert.equal(f.calls.some(call => call[0] === 'command' && call[1] === 'REVIEW_AUTONOMOUS_MISSION'), true);
+  assert.deepEqual(f.calls, [['tab', 'fund']]);
 });
 
 test('an existing autonomous review stays a review and never triggers a wallet send from the checklist', () => {

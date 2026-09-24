@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { punkActivationStatus } from '../site/broker-activation-status.js';
+import { punkActivationStatus, missionFundingReadiness } from '../site/broker-activation-status.js';
 
 const owner = `0x${'a'.repeat(40)}`, other = `0x${'b'.repeat(40)}`, wallet = `0x${'c'.repeat(40)}`;
 const now = Date.parse('2026-09-23T18:00:00Z');
@@ -41,19 +41,19 @@ test('missing, stale, failed, future, wrong-owner and wrong-chain reads never me
   assert.equal(punkActivationStatus({ ...identity, owner: other, account: account() }).status, 'UNKNOWN');
 });
 
-test('only an explicit fresh undeployed account offers the combined wallet and mission setup', () => {
+test('an undeployed account offers creation only, independent of mission infrastructure', () => {
   const value = account();
   value.runtime = { account: wallet, accountCreated: false, sessionActive: false };
   value.mission = null; value.readiness.automaticExecutionReady = false;
   let result = view(value);
   assert.equal(result.status, 'SETUP_REQUIRED'); assert.equal(step(result, 'CHECK').status, 'COMPLETE');
   assert.equal(step(result, 'SETUP').action, 'SETUP');
-  assert.match(step(result, 'SETUP').detail, /wallet.*mission permission.*two wallet confirmations/);
+  assert.match(step(result, 'SETUP').detail, /does not start a mission or grant mint permission/);
   assert.equal(step(result, 'FUND').status, 'PENDING');
   value.readiness.setupAvailable = false; result = view(value);
-  assert.equal(result.status, 'SETUP_BLOCKED'); assert.equal(result.label, 'AGENT NOT ACTIVATED');
-  assert.equal(step(result, 'SETUP').status, 'BLOCKED');
-  assert.equal(step(result, 'SETUP').action, 'CHECK'); assert.match(result.detail, /adding funds cannot fix/);
+  assert.equal(result.status, 'SETUP_REQUIRED'); assert.equal(result.label, 'GAS WALLET NOT CREATED');
+  assert.equal(step(result, 'SETUP').status, 'CURRENT');
+  assert.equal(step(result, 'SETUP').action, 'SETUP');
   value.runtime.sessionActive = true; assert.equal(view(value).status, 'UNKNOWN');
 });
 
@@ -148,5 +148,34 @@ test('worker disabled, failed checks, inconsistent readiness, future starts and 
   for (const [mutate, expected] of cases) {
     const value = account(); mutate(value); assert.equal(view(value).status, expected);
     assert.notEqual(step(view(value), 'WORKER').status, 'COMPLETE');
+  }
+});
+
+
+test('mission start requires a freshly owned, created, funded wallet above the reviewed reserve', () => {
+  const value = account(); value.runtime.sessionActive = false;
+  const readiness = () => missionFundingReadiness({ ...identity, account: value, intent: strategy });
+  assert.equal(readiness().ready, true);
+  value.runtime.accountCreated = false; assert.equal(readiness().action, 'SETUP');
+  value.runtime.accountCreated = true; value.runtime.nativeBalance = strategy.minimumReserveWei;
+  assert.equal(readiness().action, 'FUND'); assert.match(readiness().detail, /draft is saved/);
+  value.runtime.entryPointDeposit = '1000000000000000000'; assert.equal(readiness().ready, false);
+  value.runtime.nativeBalance = '100000000000001'; assert.equal(readiness().ready, true);
+  value.runtime.sessionActive = true; assert.equal(readiness().action, 'STATUS');
+  assert.match(readiness().detail, /add gas without recalling/);
+});
+
+test('unverified, stale and mismatched mission funding checks fail closed', () => {
+  for (const change of [a => { a.receivedAt -= 90001; }, a => { a.receivedAt++; },
+    a => { a.owner = other; }, a => { a.runtime.owner = other; }, a => { a.tokenId = '94'; },
+    a => { a.chainId = 1; }, a => { a.ok = false; }, a => { a.error = 'timeout'; },
+    a => { delete a.runtime.sessionActive; }, a => { a.runtime.nativeBalance = '-1'; }]) {
+    const value = account(); value.runtime.sessionActive = false; change(value);
+    assert.equal(missionFundingReadiness({ ...identity, account: value, intent: strategy }).ready, false);
+  }
+  const value = account(); value.runtime.sessionActive = false;
+  for (const intent of [{ ...strategy, expectedOwner: other }, { ...strategy, punkTokenId: '94' },
+    { ...strategy, minimumReserveWei: '-1' }, undefined]) {
+    assert.equal(missionFundingReadiness({ ...identity, account: value, intent }).ready, false);
   }
 });

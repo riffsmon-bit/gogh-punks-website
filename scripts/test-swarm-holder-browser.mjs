@@ -102,7 +102,7 @@ try{
       await evaluate(`document.querySelector('[data-start-free-mission]').click()`);
       await until(`document.querySelector('[data-confirmation-dialog]').open`);
       assert.match(await evaluate(`document.querySelector('[data-confirmation-grid]').textContent`),/DAILY LIMIT5TOTAL LIMIT5/);
-      assert.equal(await evaluate(`document.querySelector('[data-activate-strategy]').textContent`),'AUTHORIZE MISSION');
+      assert.equal(await evaluate(`document.querySelector('[data-activate-strategy]').textContent`),'START MISSION · CONFIRM IN WALLET');
       await evaluate(`document.querySelector('[data-confirmation-dialog]').close()`);
       result.startMissionReviewPassed=true;
       assert.equal(await evaluate(`document.querySelector('[data-new-free-search]').hidden`),false);
@@ -122,10 +122,20 @@ try{
       assert.equal(await evaluate(`document.querySelector('[data-agent-gas-confirm]').checked`),false);
       assert.equal(await evaluate(`document.querySelector('[data-agent-gas-form] button[type=submit]').textContent`),'REVIEW & SIMULATE');
       await evaluate(`document.querySelector('[data-swarm-funding-back]').click()`);result.swarmFundingAllocationPassed=true;
-      for (const [kind,label] of [['setup','AGENT NOT ACTIVATED'],['gas','NEEDS AGENT GAS'],['funded','AUTHORIZE A MISSION']]) {
+      for (const [kind,label] of [['setup','GAS WALLET NOT CREATED'],['gas','NEEDS AGENT GAS'],['funded','AUTHORIZE A MISSION']]) {
         await evaluate(`window.__activationFixture('${kind}')`);
         assert.equal(await evaluate(`document.querySelector('[data-activation-label]').textContent`),label);
       }
+      await evaluate(`window.__activationFixture('setup');document.querySelector('[data-activation-guide] [data-activation-action=SETUP]').click()`);
+      assert.equal(await evaluate(`document.querySelector('[data-v2-tab=fund]').getAttribute('aria-selected')`),'true');
+      assert.equal(await evaluate(`document.querySelector('[data-confirmation-dialog]').open`),false);
+      await evaluate(`window.__activationFixture('gas');document.querySelector('[data-agent-next-mission]').click()`);
+      await until(`document.querySelector('[data-v2-tab=fund]').getAttribute('aria-selected')==='true'&&!document.querySelector('[data-resume-chat-mission]').hidden`);
+      assert.equal(await evaluate(`document.querySelector('[data-confirmation-dialog]').open`),false);
+      assert.match(await evaluate(`document.querySelector('[data-agent-gas-result]').textContent`),/Fund the Agent wallet before starting/);
+      await evaluate(`window.__refreshAgentFixture()`);
+      await evaluate(`window.__activationFixture('funded')`);
+      result.fundBeforeMissionPassed=true;
       await evaluate(`document.querySelector('[data-activation-guide] details').open=true`);
       const activationShot=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});const activationFile='activation-'+width+'.png';await writeFile(join(output,activationFile),Buffer.from(activationShot.data,'base64'));result.screenshots.push(activationFile);
       await evaluate(`document.querySelector('[data-activation-guide] details').open=false`);result.activationStepsPassed=true;
@@ -201,7 +211,7 @@ try{
     }
     result.viewports.push({width,height,states});
   }
-  for(const path of ['/swarm-wallet-release.js','/swarm-wallet-client.js','/swarm-wallet-panel.js','/broker/v2/index.html','/broker-v2.js','/broker-mission-status.js','/forge-skill-admin-panel.js','/broker-persistent-watch-mount.js','/broker-persistent-watch.js','/broker-v2.css','/broker-persistent-watch.css','/broker-agent-options.js','/directed-paid-public-panel.js','/erc20-withdraw-panel.js','/forge-holder-inspection-panel.js','/guide/index.html','/broker-action-feedback.js','/broker-mission-status.js','/forge-paid-release.js','/forge-paid-panel.js','/forge-paid-wallet.js','/broker-swarm.js','/broker-swarm-review.js','/broker-swarm-funding.js','/broker-activation-status.js','/broker-mission-notifications.js','/broker-feature-help.js','/forge-selected-burn-panel.js','/forge-holder-inspection-panel.js']){
+  for(const path of ['/punk-agent-creation.js','/punk-agent-creation-panel.js','/swarm-wallet-release.js','/swarm-wallet-client.js','/swarm-wallet-panel.js','/broker/v2/index.html','/broker-v2.js','/broker-mission-status.js','/forge-skill-admin-panel.js','/broker-persistent-watch-mount.js','/broker-persistent-watch.js','/broker-v2.css','/broker-persistent-watch.css','/broker-agent-options.js','/directed-paid-public-panel.js','/erc20-withdraw-panel.js','/forge-holder-inspection-panel.js','/guide/index.html','/broker-action-feedback.js','/broker-mission-status.js','/forge-paid-release.js','/forge-paid-panel.js','/forge-paid-wallet.js','/broker-swarm.js','/broker-swarm-review.js','/broker-swarm-funding.js','/broker-activation-status.js','/broker-mission-notifications.js','/broker-feature-help.js','/forge-selected-burn-panel.js','/forge-holder-inspection-panel.js']){
     const requested=path==='/broker/v2/index.html'?'/':path;
     const response=await fetch(`${origin}${requested}`,{redirect:'error',headers:{'cache-control':'no-cache'}});
     let bytes=Buffer.from(await response.arrayBuffer());if(args[3]==='--preview-url'&&path.endsWith('.html'))bytes=Buffer.from(bytes.toString().replace(/<div data-netlify-deploy-id="[a-f0-9]{24}" data-netlify-site-id="9f495fcf-b694-4b06-bdf5-7cd63bfe220e" data-vcs="github" style="position:fixed">\s*<script async src="\/\.netlify\/scripts\/cdp"><\/script>\s*<\/div>\n/,''));const expected=args[3]==='--local-url'?await readFile(`${repo}/site${path}`):execFileSync('git',['show',`${commit}:site${path}`],{cwd:repo});

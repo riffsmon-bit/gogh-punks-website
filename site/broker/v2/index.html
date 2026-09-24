@@ -114,7 +114,7 @@
           <div class="activation-heading"><span class="kicker">YOUR PUNK’S NEXT STEP</span><strong data-activation-label>STATUS NOT VERIFIED</strong></div>
           <p data-activation-detail>Check this Punk to see its setup, gas and mission permission.</p>
           <details><summary>STEP-BY-STEP · SET UP → FUND → HUNT</summary><ol data-activation-steps></ol>
-          <p>Review once, fund each Agent wallet, authorize your limits, then check that it is hunting. Funding alone never starts a mission. Your wallet confirms every setup, permission and deposit. <a href="/guide/#activation">How setup works</a></p></details>
+          <p>Start in Fund: prepare the Agent wallet and add gas. Then review your limits and choose Start mission. Each step has its own wallet confirmation. An existing active mission may resume when you add gas; no recall is needed to top up. <a href="/guide/#activation">How setup works</a></p></details>
         </section>
 
         <details class="mission-updates" data-mission-updates hidden>
@@ -221,10 +221,11 @@
             <p>To move other tokens back to your connected wallet, <button class="filter-button" type="button" data-open-token-withdrawal>WITHDRAW TOKENS</button></p>
             <div data-fund-gas-home><section class="wrapped-funding" data-agent-gas-panel aria-labelledby="agent-gas-title">
               <header><div><span class="kicker">AUTONOMOUS MINTING · SEPARATE GAS BALANCE</span><h3 id="agent-gas-title">AGENT GAS FUND</h3></div><button class="outline-button" type="button" data-agent-gas-recheck>RECHECK / SIGN IN</button></header>
-              <p>Your Punk Wallet ETH is separate from its Agent Account gas. Move existing Punk ETH below, or add ETH from your connected wallet. No hosted-agent prepayment or project custody.</p>
+              <p><strong>1. Fund → 2. Review rules → 3. Start mission.</strong> First create the Agent wallet below if needed, then add ETH for gas. Wallet creation and funding grant no mint permission. An existing active mission may resume when you top up; you do not need to recall it.</p>
+              <section data-agent-creation-panel aria-label="Prepare Agent wallet for funding"></section>
               <dl class="fund-breakdown"><div><dt>PUNK WALLET ETH</dt><dd data-agent-gas-punk-balance>CHECKING…</dd></div><div><dt>AGENT ACCOUNT ETH</dt><dd data-agent-gas-native>NOT VERIFIED</dd></div><div><dt>ENTRYPOINT GAS DEPOSIT</dt><dd data-agent-gas-deposit>NOT VERIFIED</dd></div><div><dt>AGENT DESTINATION</dt><dd><code data-agent-gas-destination>NOT VERIFIED</code></dd></div></dl>
               <p data-agent-gas-readiness aria-live="polite">Recheck readiness to verify this Punk's Agent Account. Funding does not activate a mission.</p>
-              <button class="outline-button" type="button" data-agent-gas-setup hidden>SET UP AGENT · REVIEW MISSION FIRST</button>
+              <button class="outline-button" type="button" data-agent-gas-setup hidden>PREPARE GAS WALLET · NO MISSION</button>
               <div data-swarm-funding-context hidden><p data-swarm-funding-allocation></p><button class="outline-button" type="button" data-swarm-funding-back>BACK TO SWARM</button> <button class="text-button" type="button" data-swarm-funding-leave>LEAVE SWARM FUNDING REVIEW</button></div>
               <form class="wrapped-form" data-agent-gas-form>
                 <label for="agent-gas-source">FUNDING SOURCE<select id="agent-gas-source" name="source"><option value="OWNER">ADD ETH FROM MY WALLET</option><option value="PUNK">USE PUNK WALLET ETH</option></select></label>
@@ -232,9 +233,10 @@
                 <button type="submit">REVIEW &amp; SIMULATE</button>
               </form>
               <label class="transaction-confirm"><input type="checkbox" data-agent-gas-confirm /><span>I reviewed the source, amount and selected Punk. My connected wallet pays this transfer's network fee. A second step opens MetaMask.</span></label>
-              <p data-agent-gas-result aria-live="polite">Only the amount you approve moves. Punk-funded transfers preserve the current protected reserve. Then approve a separate mission in Talk.</p>
+              <p data-agent-gas-result aria-live="polite">Only the amount you approve moves. Your connected wallet pays the transfer fee. Agent gas is separate from the Punk Wallet. Fund above your intended reserve, then review and start a mission.</p>
               <a class="transaction-link" data-agent-gas-transaction href="#" target="_blank" rel="noopener noreferrer" hidden>VIEW GAS FUNDING TRANSACTION ↗</a>
               <button class="outline-button" type="button" data-resume-chat-mission hidden>REVIEW SAVED MISSION</button>
+              <button class="outline-button" type="button" data-agent-next-mission>NEXT · REVIEW RULES &amp; START MISSION</button>
             </section></div>
             <div class="fund-layout">
               <div class="balance-readout"><span data-fund-balance-label>CURRENT PUNK WALLET BALANCE</span><strong data-fund-balance>0.0300</strong><em>ETH</em></div>
@@ -360,7 +362,7 @@
       <div class="confirmation-grid" data-confirmation-grid></div>
       <p class="confirmation-note">Your selected options created this draft. These rules change only after your confirmation. Automation requires its separate wallet permission.</p>
       <p class="confirmation-note" data-strategy-activation-status aria-live="polite">Ready for owner confirmation. No wallet request has been made.</p>
-      <div class="dialog-actions"><button type="button" class="outline-button" data-edit-strategy>EDIT</button><button type="button" class="outline-button" data-activate-strategy>ACTIVATE STRATEGY</button><button type="button" class="primary-button" data-activate-send-strategy hidden>ACTIVATE &amp; SEND PUNK OUT</button></div>
+      <div class="dialog-actions"><button type="button" class="outline-button" data-edit-strategy>EDIT</button><button type="button" class="outline-button" data-confirmation-fund hidden>OPEN FUND · KEEP DRAFT</button><button type="button" class="outline-button" data-activate-strategy>ACTIVATE STRATEGY</button><button type="button" class="primary-button" data-activate-send-strategy hidden>ACTIVATE &amp; SEND PUNK OUT</button></div>
     </dialog>
     <dialog class="confirmation-dialog skill-dialog" data-skill-dialog>
       <form method="dialog"><button class="dialog-close" value="cancel" aria-label="Close">×</button></form>
