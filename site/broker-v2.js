@@ -173,8 +173,17 @@ function selectedReviewAgent() {
 }
 
 function selectedAgentAccount() {
-  return state.selected?.tokenId
-    ? state.agentAccounts.get(String(state.selected.tokenId)) ?? null : null;
+  const tokenId = String(state.selected?.tokenId ?? ''), owner = state.wallet?.account?.toLowerCase();
+  const status = state.agentAccounts.get(tokenId);
+  if (!owner || state.wallet?.chainId !== CHAIN_ID || !status
+    || typeof status.owner !== 'string' || status.owner.toLowerCase() !== owner || String(status.tokenId) !== tokenId
+    || status.chainId !== undefined && status.chainId !== CHAIN_ID) return null;
+  if (status.error) return status;
+  if (status.ok !== true || !Number.isFinite(status.receivedAt)
+    || status.receivedAt > Date.now() || Date.now() - status.receivedAt > 90_000
+    || status.runtime?.accountCreated && (typeof status.runtime.owner !== 'string' || status.runtime.owner.toLowerCase() !== owner)
+    || status.runtime?.owner !== undefined && (typeof status.runtime.owner !== 'string' || status.runtime.owner.toLowerCase() !== owner)) return null;
+  return status;
 }
 
 function blockerLabel(value) {
@@ -212,6 +221,14 @@ async function loadAgentAccountStatus({ authenticate = false } = {}) {
       if (authenticate) renderAgentAccount();
       const status = await jsonRequest(`/api/v2/punks/${tokenId}/agent-account`);
       if (!isCurrent()) return null;
+      if (status?.ok !== true || String(status.tokenId) !== tokenId
+        || typeof status.owner !== 'string' || status.owner.toLowerCase() !== owner.toLowerCase()
+        || status.chainId !== undefined && status.chainId !== CHAIN_ID
+        || status.runtime?.accountCreated && (typeof status.runtime.owner !== 'string' || status.runtime.owner.toLowerCase() !== owner.toLowerCase())
+        || status.runtime?.owner !== undefined && (typeof status.runtime.owner !== 'string' || status.runtime.owner.toLowerCase() !== owner.toLowerCase())) {
+        throw Object.assign(new Error(`Punk #${tokenId}'s wallet status could not be verified. Recheck this Punk before funding or starting a mission.`),
+          { code: 'AGENT_STATUS_MISMATCH' });
+      }
       state.agentAccounts.set(tokenId, { ...status, receivedAt: Date.now() });
       missionNotifications?.observe({ owner, tokenId, account: state.agentAccounts.get(tokenId) });
       if (one('[data-v2-tab="activity"]')?.getAttribute("aria-selected") === "true"
@@ -227,7 +244,7 @@ async function loadAgentAccountStatus({ authenticate = false } = {}) {
       return state.agentAccounts.get(tokenId);
     } catch (error) {
       if (!isCurrent()) return null;
-      state.agentAccounts.set(tokenId, { error: error?.message ?? "Readiness unavailable.",
+      state.agentAccounts.set(tokenId, { owner, tokenId, error: error?.message ?? "Readiness unavailable.",
         code: error?.code ?? "READINESS_UNAVAILABLE" });
       return null;
     } finally {
@@ -237,7 +254,7 @@ async function loadAgentAccountStatus({ authenticate = false } = {}) {
       }
     }
   });
-  if (authenticate) renderAgentAccount();
+  renderAgentAccount();
   return request.promise;
 }
 
@@ -289,6 +306,9 @@ function renderAgentAccount() {
           : "Readiness not verified. Use CHECK AUTONOMOUS READINESS.");
   if (!status) {
     set("[data-agent-account-status]", "CHECKING READINESS");
+    set("[data-agent-account-detail]", pending
+      ? `Checking Punk #${state.selected.tokenId}'s Agent wallet and gas…`
+      : "Check this Punk's current Agent wallet and gas before continuing.");
     set("[data-agent-account-address]", "NOT VERIFIED");
     set("[data-agent-account-balance]", "NOT VERIFIED");
     set("[data-agent-account-mission]", "NOT VERIFIED");
@@ -382,20 +402,21 @@ function renderAgentGasFunding(status = selectedAgentAccount()) {
     const input = one(selector); if (input) input.disabled = !!allocation || state.gasFundingBusy;
   }
   const runtime = status?.runtime;
+  const checking = state.agentAccountLoading.has(String(state.selected?.tokenId));
   const verified = runtime?.accountCreated === true && !status?.error;
   const needsSetup = runtime?.accountCreated === false && !status?.error;
   const setup = one('[data-agent-gas-setup]'); if (setup) setup.hidden = !needsSetup;
   const submit = one('[data-agent-gas-form] button[type="submit"]');
   if (submit) submit.disabled = state.gasFundingBusy || !verified;
   set("[data-agent-gas-punk-balance]", state.selected?.balanceLoaded === false
-    ? "CHECKING…" : `${state.selected?.balanceEth ?? "—"} ETH`);
-  set("[data-agent-gas-native]", verified ? recoveryEth(runtime.nativeBalance) : "NOT VERIFIED");
-  set("[data-agent-gas-deposit]", verified ? recoveryEth(runtime.entryPointDeposit) : "NOT VERIFIED");
+    ? "CHECKING…" : state.selected?.balanceError ? "UNAVAILABLE" : `${state.selected?.balanceEth ?? "—"} ETH`);
+  set("[data-agent-gas-native]", verified ? recoveryEth(runtime.nativeBalance) : checking ? "CHECKING…" : "NOT VERIFIED");
+  set("[data-agent-gas-deposit]", verified ? recoveryEth(runtime.entryPointDeposit) : checking ? "CHECKING…" : "NOT VERIFIED");
   set("[data-agent-gas-destination]", verified ? runtime.account : "NOT VERIFIED");
   set("[data-agent-gas-readiness]", status?.error
     ? `READINESS UNAVAILABLE · ${status.error} Use RECHECK / SIGN IN; gas funding and mission activation are separate.`
     : needsSetup ? "First create its Agent wallet below. This does not authorize a mission. Then add gas and separately review your rules before choosing Start mission."
-    : !status ? "Readiness has not been verified. Use RECHECK / SIGN IN."
+    : !status ? checking ? `Checking Punk #${state.selected.tokenId}'s Agent wallet and gas. Its balance is not verified yet.` : "Readiness has not been verified. Use RECHECK / SIGN IN."
       : `AUTONOMOUS ${status.readiness?.setupAvailable ? "SETUP AVAILABLE" : "LOCKED"} · ${(status.readiness?.blockers ?? []).map(blockerLabel).join(" · ") || "No reported blockers"}. ${runtime?.sessionActive ? "Existing mission permission is active. Adding gas may resume that mission; no recall is needed to fund it." : "Funding grants no mint permission. Review your rules and start a mission separately."}`);
 }
 
@@ -1396,6 +1417,12 @@ function selectPunk(tokenId, { focusRoster = false } = {}) {
   swarmReviewGate?.invalidate();
   const punk = state.punks.find((item) => item.tokenId === tokenId);
   if (!punk) return;
+  if (state.selected?.tokenId !== punk.tokenId && !PREVIEW) {
+    // A previously visited Punk must not inherit a stale funded state on return.
+    // Only this Punk is reread; no wallet prompt or per-roster balance sweep occurs.
+    state.agentAccounts.delete(String(punk.tokenId));
+    punk.balanceLoaded = false; punk.balanceError = false; punk.wethBalanceEth = null;
+  }
   invalidateConversationRequests();
   state.balanceRequestId += 1; state.balanceReads?.clear();
   set('[data-current-recall-result]', '');
@@ -3324,6 +3351,9 @@ function setup() {
     if (account !== previousAccount || wallet.chainId !== previousChain) {
       ownerRefresh.invalidate(); clearTransferredPunkReview();
       resetGallery(); state.gallery = []; state.activity = []; state.activityLoaded = false; state.balanceRequestId += 1; state.balanceReads?.clear(); state.hydratedTokenId = null;
+      // Mobile wallet restoration can pause here without rebuilding the roster.
+      // Clear the previous wallet's gas display and funding controls immediately.
+      renderAgentAccount();
     }
     if (!account) {
       if (wallet.restoring || wallet.status === "pending") return;

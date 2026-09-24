@@ -16,13 +16,13 @@ function fixture(overrides={}) {
   const context=vm.createContext({PREVIEW:false,CHAIN_ID:4663,state,Promise,notifications,
     one:()=>null,missionNotifications:{observe:notice=>notifications.push(notice),markRead(){}},
     renderAgentAccount(){},renderReviewAgent(){},renderMissionMonitor(){},renderWelcomeMessage(){},
-    jsonRequest:async()=>({readiness:{setupAvailable:true}}),ensureV2Session:async()=>{},...overrides});
+    jsonRequest:async()=>({ok:true,owner,tokenId:'93',readiness:{setupAvailable:true}}),ensureV2Session:async()=>{},...overrides});
   vm.runInContext(source.slice(source.indexOf('async function loadAgentAccountStatus('),source.indexOf('\nfunction renderAgentAccount(')),context);
   return context;
 }
 test('sign-in supersedes a background read and a late 401 cannot relock autonomy',async()=>{
   const old=deferred();let reads=0,signIns=0;
-  const f=fixture({jsonRequest:()=>++reads===1?old.promise:Promise.resolve({readiness:{setupAvailable:true}}),ensureV2Session:async()=>{signIns++;}});
+  const f=fixture({jsonRequest:()=>++reads===1?old.promise:Promise.resolve({ok:true,owner,tokenId:'93',readiness:{setupAvailable:true}}),ensureV2Session:async()=>{signIns++;}});
   const background=f.loadAgentAccountStatus();await Promise.resolve();
   const fresh=await f.loadAgentAccountStatus({authenticate:true});
   assert.equal(signIns,1);assert.equal(fresh.readiness.setupAvailable,true);
