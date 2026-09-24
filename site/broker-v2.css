@@ -719,3 +719,15 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .current-mission .recall-result { margin-top: 12px; color: #64e6fa; overflow-wrap: anywhere; }
 .current-mission .recall-result:empty { display: none; }
 .current-mission-actions .recall-button { border-color: #ff9852; }
+
+/* Account creation is a separate, bounded step inside funding. */
+[data-agent-creation-panel] { margin: 1.5rem 0; padding: 1rem; border: 1px solid var(--line, #34424e); overflow-wrap: anywhere; }
+[data-agent-creation-panel] [hidden] { display: none !important; }
+[data-agent-creation-panel] h3 { font: 700 1.1rem/1.4 var(--font-body, sans-serif); }
+[data-agent-creation-panel] button { min-height: 44px; max-width: 100%; white-space: normal; margin: .3rem .3rem .3rem 0; }
+[data-agent-creation-panel] dl { display: grid; grid-template-columns: minmax(6rem, 1fr) minmax(0, 2fr); gap: .5rem; }
+[data-agent-creation-panel] dd { margin: 0; }
+[data-agent-creation-panel] label { display: block; margin: 1rem 0; }
+[data-agent-creation-panel] input[type=text] { display: block; box-sizing: border-box; width: 100%; min-width: 0; min-height: 44px; padding: .7rem; background: #080d10; color: #f3f5ee; border: 1px solid #596878; font-size: 16px; }
+[data-agent-creation-panel] input[type=checkbox] { width: 20px; height: 20px; margin-right: .5rem; vertical-align: middle; accent-color: #dcff46; }
+@media (max-width: 420px) { [data-agent-creation-panel] dl { grid-template-columns: minmax(0, 1fr); } }

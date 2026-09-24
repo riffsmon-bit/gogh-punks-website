@@ -1,16 +1,16 @@
 # Gogh Punks Art Broker V2 — community announcement brief
 
-September 23, 2026 brief; Swarm Wallet instructions updated September 24. Released-feature baseline for the existing features below: production commit `7811eff1ddb343670b3ef19c547d762d75e8c511`. The dedicated Swarm Wallet has a separate release gate described below. This is a feature brief, not a claim that every holder has live-tested every path.
+September 23, 2026 brief; Swarm Wallet and funding-first instructions updated September 24. Released-feature baseline for the existing features below: production commit `7811eff1ddb343670b3ef19c547d762d75e8c511`. The dedicated Swarm Wallet website was deployed and its production smoke checks passed September 24; the separate funding-first patch is tracked below. This is a feature brief, not a claim that every holder has live-tested every path.
 
 ## Instructions to ChatGPT
 
-Create a Discord announcement thread and an X post/short thread from this brief. Use an energetic, art-focused voice and plain English. Separate LIVE, LIMITED RELEASE and IN DEVELOPMENT. Do not promise profits, guaranteed mints, unlimited autonomy, gas-free minting, a professional audit, or unavailable skills. Do not invent release dates, rewards or integrations.
+Create a Discord announcement thread and an X post/short thread from this brief. Use an energetic, art-focused voice and plain English. Separate LIVE, LIMITED RELEASE and LOCALLY VALIDATED · RELEASE PENDING. Do not promise profits, guaranteed mints, unlimited autonomy, gas-free minting, a professional audit, or unavailable skills. Do not invent release dates, rewards or integrations.
 
 ## The idea
 
 **THE PUNK IS THE AGENT. YOUR PUNK. YOUR RULES.**
 
-Gogh Punks V2 gives your Punk a configurable art-collecting experience on Robinhood Chain. Connect, choose your Punk, define its tastes and limits, fund its account and authorize supported collecting actions. Its identity, wallets, collection and activity come together in one Control Center.
+Gogh Punks V2 gives your Punk a configurable art-collecting experience on Robinhood Chain. Connect, choose your Punk, fund its account, define its tastes and limits and authorize supported collecting actions. Its identity, wallets, collection and activity come together in one Control Center.
 
 V2 uses explicit options and deterministic rules. **AI inference is disabled. No AI credits are needed to use these controls.** Chosen mint prices and blockchain network fees still apply.
 
@@ -76,6 +76,7 @@ Holder guide: https://goghpunks.xyz/guide/
 - View verified balances, reserve and available budget.
 - The ordinary Punk Wallet and autonomous Agent Account are separate addresses; funding screens identify the destination.
 - Add Agent gas from the connected wallet or move existing Punk Wallet ETH where supported, through an owner-reviewed transaction.
+- An existing Agent Account can receive gas without recalling its mission. If its minting permission remains active, adding gas can allow collecting to resume within those approved rules.
 - View discovered NFTs and verify a missing item using its exact OpenSea link.
 - Review ETH, NFT and supported standard-token withdrawals to the connected current owner.
 - Retain recovery access to older wallet versions.
@@ -115,28 +116,42 @@ The Forge has progression, learned/equipped skills and slot controls, gated by r
 
 **General holder burning is unavailable.** Full asset/obligation verification and protection against stranding assets remain release requirements. Existing selected-test receipts and recovery do not enable arbitrary Punk sacrifices.
 
-## Deployed contract; public release pending — dedicated owner-controlled Swarm Wallet
+## Website deployed and smoke-verified — dedicated owner-controlled Swarm Wallet
 
-**Implemented and locally tested/reviewed. Factory deployment is confirmed by two providers; public website release and holder testing remain separate gates. Do not announce this feature as LIVE or LIVE-TESTED on deployment alone.**
+**Implemented, locally tested/reviewed, deployed and production smoke-verified. Factory deployment is confirmed by two providers. The website release was published at 12:29:03 UTC on September 24 as Netlify deployment `6ab517294fb0da0008fcae65`. The release lead verified 15 browser captures, 29 served-file hashes and zero browser errors; protected APIs returned 401 without authentication, and AI providers remained empty. These checks do not constitute live holder transaction testing.**
 
 Factory: `0xab82241505a64edfbb3031542e137fadf5567dba`. Confirmed transaction: `0x736cba695d35137e60d1f2f89b663e512fc280194bebcb03214f26207aeb6a1c`. The project factory deployment does not create or fund a holder's individual Swarm Wallet.
 
-Once the reviewed controls are released, holders use this optional route:
+The optional holder route is below. Step 4's separate creation-only control and the clearer funding-first sequence are part of the next patch described below, not a claim that this new patch is deployed:
 
 1. Connect the holder wallet on Robinhood Chain and open **Swarm Wallet**, above the selected Punk controls. This owner-controlled wallet remains separate from the per-Punk mission planner, including when no Punks are owned.
 2. Choose **Check Swarm Wallet**. Review and confirm creation of that holder's dedicated wallet once.
 3. Deposit an ETH budget from the connected wallet, after reviewing its destination and amount.
-4. Complete Agent Account activation for the currently owned Punks to be funded.
+4. For each currently owned Punk to be funded, open its **Fund** screen. If needed, review and confirm creation of its Agent wallet only. Creating a wallet does not grant minting permission. Return to Swarm Wallet before starting any new mission.
 5. Select **1–10 Punks** and enter a total ETH amount. The review lists them in Punk-number order, splits the total equally and assigns any smallest-unit remainder to lower Punk numbers. Maximum **1 ETH per Punk / 10 ETH per batch**.
 6. Choose **Review gas batch**, inspect every allocation, total and fee, then **Confirm in wallet**. Each batch needs its own approval; the selected transfers succeed together or none do.
-7. In **Actions → Swarm · multiple Punks**, configure and authorize each Punk's mission separately. Funding does not activate a mission or grant minting permission.
+7. After funding, use **Actions → Swarm · multiple Punks**, set the rules and choose **Start mission** for each Punk separately. Review and confirm each mission's permission. Funding does not activate a new mission or grant minting permission.
 8. To recover unused ETH, choose **Review withdrawal** and confirm. Only the owner can withdraw, and the destination is that owner's wallet.
 
 The connected holder wallet pays transaction gas for creation, deposits, batches and withdrawals; keep some ETH there even when the Swarm Wallet is funded. Allocated ETH stays in the Punk's Agent Account and follows its ownership if transferred. Withdrawing from the Swarm Wallet recovers only unallocated ETH still there, not funds already sent to Punks.
 
+An existing Punk does not need Recall just to receive more gas. If its mission permission is still active, funding can let it resume collecting within those rules. Recall is for stopping that permission, not a funding prerequisite.
+
 There are **no automatic refills**, worker withdrawal authority, project custody or upgrade administrator. Pending or unknown results are recovered from the original, speed-up or cancellation transaction instead of blindly submitting again.
 
 The existing individual funding planner remains available. Its per-Punk deposits each require separate wallet confirmation and do not spend the dedicated Swarm Wallet balance. Factory deployment, public release and successful holder testing are separate milestones.
+
+## Next patch — fund before starting a new mission
+
+**In development, not yet a released-feature claim.** Account creation and mission permission previously shared one setup flow, which could make a newly activated Punk start hunting before the holder had finished funding it. The new flow separates those actions:
+
+1. Select a Punk and open **Fund**.
+2. If its Agent wallet does not exist, review and confirm **wallet creation only**. No mission permission is granted and no hunt starts.
+3. Add gas individually or through an approved Swarm Wallet batch. Check the reserve and keep separate ETH in the connected wallet for transaction fees.
+4. Open **Actions**, choose the mission, taste and limits, then review the complete rules.
+5. Choose **Start mission** and confirm the separate, bounded minting permission. Check Activity for the actual mission and worker status.
+
+Each transaction requires its own review and wallet confirmation. Creating the wallet must not automatically request the next signature or start the worker. Existing funded Agent Accounts skip creation. Existing active permissions and supported individual funding remain intact; holders do not need to recall a Punk solely to add gas.
 
 ## Intentionally unavailable
 
@@ -159,4 +174,4 @@ Highlight rule-based free-mint hunting, up to 10-Punk Swarm planning, bounded Ke
 
 Call to action: **Open goghpunks.xyz → connect your holder wallet → select a Punk → check setup → review its rules.**
 
-Keep Forge expansion and the dedicated Swarm Wallet outside the LIVE feature list until their respective release gates are verified. Do not promise a date or claim holder testing is complete based on a submitted deployment transaction.
+Keep Forge expansion and the funding-first patch accurately labeled until their respective release gates are verified. Swarm Wallet deployment and production smoke checks passed; holder transaction testing remains a separate milestone. Do not promise a date or claim holder testing is complete based on a submitted deployment transaction.

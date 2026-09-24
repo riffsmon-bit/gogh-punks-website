@@ -125,7 +125,8 @@ test("Fund page distinguishes balances, sources, readiness recheck and explicit 
   for (const text of ["AGENT GAS FUND", "USE PUNK WALLET ETH", "ADD ETH FROM MY WALLET", "ENTRYPOINT GAS DEPOSIT", "RECHECK / SIGN IN", "data-agent-gas-confirm"]) assert.ok(html.includes(text));
   const js = await readFile(new URL("../site/broker-v2.js", import.meta.url), "utf8");
   assert.match(js, /submitAgentGasFunding/); assert.match(js, /state\.gasFundingBusy/);
-  assert.match(js, /Funding does not activate a mission/);
+  assert.match(js, /Funding grants no mint permission/);
+  assert.match(js, /existing active mission may resume/i);
 });
 
 const ownerContext = () => ({ agent: context().agent,

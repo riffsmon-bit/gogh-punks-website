@@ -165,7 +165,7 @@ export function mountSwarm({ root, getContext, getPunks, openReview, openStatus,
     draftForm = null; draftFields = null; draftChecks = null;
     root.replaceChildren(); root.classList.add('swarm-panel'); root.setAttribute('aria-busy', String(busy));
     root.append(make('h3', 'SWARM · MULTIPLE PUNKS'), make('p', 'Choose up to 10 Punks owned by this wallet. Search supported free mints, or direct them to one free-mint collection. Each Punk keeps its own wallet, gas cap, reserve, taste and safety rules.'));
-    root.append(make('p', 'Review and authorize each Punk separately. Account setup and permissions may cost network gas. Funding is separate. Shared discovery continues after authorization; this page does not need to stay open. A free mint is never guaranteed.'));
+    root.append(make('p', 'Create each Agent wallet through Fund if needed, then add gas before starting a new mission. Wallet creation grants no minting permission. Set the rules, review each Punk and choose Start mission separately. Your connected wallet pays network fees. Shared discovery continues after authorization; this page does not need to stay open. A free mint is never guaranteed.'));
     if (!storage) { const note = make('p', 'Swarm planning is unavailable because this browser cannot save progress. Enable site storage or use another browser, then reload. No mission was started. You can still use individual Punk controls.'); note.setAttribute('role', 'status'); root.append(note); return; }
     if (message) { const note = make('p', message); note.setAttribute('role', 'status'); root.append(note); }
     if (!contextKey) { root.append(make('p', 'Connect your owner wallet on Robinhood Chain to choose Punks.')); return; }
@@ -174,7 +174,7 @@ export function mountSwarm({ root, getContext, getPunks, openReview, openStatus,
       if (plan.options.duration === 'KEEP_HUNTING') root.append(make('p', 'Keep hunting · each Punk needs its own permission for up to 100 mints or 30 days, whichever comes first. Gas, reserve and daily limits can stop spending earlier. Renew in your wallet to continue afterward; renewal is never automatic.'));
       if (plan.funding) {
         root.append(make('h4', 'FUND SWARM'), make('p', `Total deposits: exactly ${plan.funding.totalEth} ETH, split between ${plan.rows.length} Punk Agent Accounts. Your connected wallet pays additional network fees for each separate deposit. Funds go directly to each Punk; there is no shared custody or automatic refill.`));
-        root.append(make('p', 'Any indivisible remainder goes one wei at a time to the lowest Punk numbers. Review amounts below. Funding does not activate a mission; review each Punk’s mission separately. Finish each deposit before opening another. Once prepared, its amount and wallet transaction cannot change inside this batch.'));
+        root.append(make('p', 'Any indivisible remainder goes one wei at a time to the lowest Punk numbers. Review amounts below. Funding grants no new mission permission; review each Punk’s mission separately. You do not need Recall to add gas; an active Punk may resume collecting within its existing rules. Finish each deposit before opening another. Once prepared, its amount and wallet transaction cannot change inside this batch.'));
         if (typeof openFunding !== 'function') root.append(make('p', 'Funding review is unavailable on this page. Use each Punk’s Fund screen.'));
       }
       for (const row of plan.rows) {
@@ -192,7 +192,7 @@ export function mountSwarm({ root, getContext, getPunks, openReview, openStatus,
         button(item, 'OPEN PUNK / CHECK STATUS', () => openStatus(row.tokenId), !owned || plan.rows.some(r => r.status === 'AUTHORIZING'));
         root.append(item);
       }
-      root.append(make('p', 'Closing this batch does not pause authorized missions. Use Pause on each Punk to stop new work; submitted transactions still need confirmation.'));
+      root.append(make('p', 'Closing this batch does not pause authorized missions. Use Recall Punk to stop each Punk’s permission; submitted transactions still need confirmation. Recall is not required to add gas.'));
       button(root, 'CLOSE BATCH PLANNER', () => { storage.removeItem(storageKey()); plan = null; message = ''; clearDraft(); render(); }, plan.rows.some(r => r.status === 'AUTHORIZING'));
       return;
     }

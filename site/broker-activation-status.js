@@ -13,12 +13,38 @@ const eth = value => {
   return `${digits.slice(0, -18)}${fraction ? `.${fraction}` : ''} ETH`;
 };
 
+// Starting a mission is separate from wallet creation and funding. This is a
+// fail-closed UI precondition, not a replacement for the worker's live policy.
+export function missionFundingReadiness({ owner, chainId, tokenId, account, intent, now = Date.now() } = {}) {
+  const currentOwner = address(owner), runtime = account?.runtime;
+  const blocked = (action, detail) => ({ ready: false, action, detail });
+  if (!currentOwner || chainId !== 4663 || !token(String(tokenId)) || account?.ok !== true || account.error
+    || address(account.owner) !== currentOwner || String(account.tokenId) !== String(tokenId)
+    || account.chainId !== undefined && account.chainId !== 4663
+    || !Number.isFinite(now) || !Number.isFinite(account.receivedAt) || account.receivedAt > now || now - account.receivedAt > FRESH_MS
+    || address(intent?.expectedOwner) !== currentOwner || String(intent?.punkTokenId) !== String(tokenId)
+    || typeof runtime?.accountCreated !== 'boolean' || typeof runtime.sessionActive !== 'boolean') {
+    return blocked('CHECK', 'Check this Punk’s current wallet and gas before starting. Your mission draft is saved.');
+  }
+  if (!runtime.accountCreated && !runtime.sessionActive) {
+    return blocked('SETUP', 'First create this Punk’s Agent wallet in Fund, then add gas. Wallet creation does not start a mission. Your draft is saved.');
+  }
+  if (!runtime.accountCreated || address(runtime.owner) !== currentOwner || !address(runtime.account)) {
+    return blocked('CHECK', 'The Agent wallet or its current owner could not be verified. Recheck before starting.');
+  }
+  if (runtime.sessionActive) return blocked('STATUS', 'This Punk already has a mission permission. You can add gas without recalling it. To replace its rules, recall it first.');
+  const balance = wei(runtime.nativeBalance), reserve = wei(intent.minimumReserveWei);
+  if (balance === null || reserve === null) return blocked('CHECK', 'The Agent gas balance or protected reserve could not be verified. Recheck before starting.');
+  if (balance <= reserve) return blocked('FUND', `Fund the Agent wallet before starting. It has ${eth(balance)} and your protected reserve is ${eth(reserve)}. Add ETH above that reserve, or review a lower reserve. Your draft is saved.`);
+  return { ready: true, action: 'MISSION', detail: 'Agent wallet and gas checked. Review your rules, then choose Start mission. Funding grants no mint permission.' };
+}
+
 export function punkActivationStatus({ owner, chainId, tokenId, account, strategy, now = Date.now() } = {}) {
   const steps = [
     { id: 'CHECK', label: 'Check this Punk', status: 'CURRENT', detail: 'Sign in and check its current owner, Agent wallet and permission.', action: 'CHECK' },
-    { id: 'SETUP', label: 'Create its Agent wallet', status: 'PENDING', detail: 'The existing mission setup creates the Agent wallet and requests a bounded mission permission in up to two wallet confirmations.', action: 'SETUP' },
+    { id: 'SETUP', label: 'Prepare its gas wallet', status: 'PENDING', detail: 'Create the Agent wallet if needed. This one-time wallet confirmation pays a network fee only; it does not start a mission or grant mint permission.', action: 'SETUP' },
     { id: 'FUND', label: 'Fund Agent gas', status: 'PENDING', detail: 'The Agent wallet needs ETH for network fees. Its gas balance is separate from the Punk Wallet.', action: 'FUND' },
-    { id: 'MISSION', label: 'Authorize its mission', status: 'PENDING', detail: 'Review your limits and confirm the mission permission in your wallet. Setup may already complete this step.', action: 'MISSION' },
+    { id: 'MISSION', label: 'Review rules and start mission', status: 'PENDING', detail: 'After funding, review your limits and choose Start mission. Its separate wallet confirmation grants the bounded mint permission.', action: 'MISSION' },
     { id: 'WORKER', label: 'Check automatic minting', status: 'PENDING', detail: 'Verify the worker and its latest check before assuming this Punk is hunting.', action: 'STATUS' },
   ];
   const [check, setup, fund, missionStep, worker] = steps;
@@ -42,13 +68,8 @@ export function punkActivationStatus({ owner, chainId, tokenId, account, strateg
       check.status = 'BLOCKED'; check.detail = 'Wallet and permission information disagree. Recheck before continuing.';
       return result('UNKNOWN', 'STATUS NOT VERIFIED', check.detail);
     }
-    if (account.readiness?.setupAvailable !== true) {
-      setup.status = 'BLOCKED'; setup.action = 'CHECK';
-      setup.detail = 'This Agent wallet is not created, and setup is currently unavailable. Check readiness; adding funds cannot fix unavailable setup.';
-      return result('SETUP_BLOCKED', 'AGENT NOT ACTIVATED', setup.detail);
-    }
     setup.status = 'CURRENT';
-    return result('SETUP_REQUIRED', 'AGENT NOT ACTIVATED', 'Review a mission to create this Punk’s Agent wallet and authorize its bounded permission. Up to two wallet confirmations are required; funding is separate.', 'idle');
+    return result('SETUP_REQUIRED', 'GAS WALLET NOT CREATED', 'Start in Fund: create its Agent wallet, then add gas. Review your rules and start the mission only when you are ready.', 'idle');
   }
   if (!address(runtime.account)) {
     check.status = 'BLOCKED'; check.detail = 'The Agent wallet address could not be verified. Check again.';
@@ -107,7 +128,7 @@ export function punkActivationStatus({ owner, chainId, tokenId, account, strateg
   }
   if (native + deposit === 0n) {
     fund.status = 'CURRENT';
-    return result('GAS_REQUIRED', 'NEEDS AGENT GAS', `${missionVerified ? 'Mission permission is already confirmed. ' : ''}Add ETH to its Agent wallet for network fees. Funding alone does not activate a mission.`);
+    return result('GAS_REQUIRED', 'NEEDS AGENT GAS', `${missionVerified ? 'Mission permission is already confirmed. Add gas without recalling it; this mission may resume when funded.' : 'Add ETH to its Agent wallet for network fees, then review and start a mission. Funding grants no mint permission.'}`);
   }
   if (reserve !== null && native <= reserve) {
     fund.status = 'CURRENT';
