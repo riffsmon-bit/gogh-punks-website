@@ -62,7 +62,7 @@ test('missing Swarm owner section leaves individual funding guidance intact',()=
   const f=fixture({wallet:false});assert.doesNotThrow(()=>mountFeatureHelp(f.doc));
   const help=f.panels.get('fund').querySelector('[data-feature-help]');
   assert.match(help.textContent,/Punk Wallet or Agent Account/);
-  assert.match(help.textContent,/Funding alone does not activate a mission/);
+  assert.match(help.textContent,/Funding alone does not activate a new mission/);
   assert.equal(walk(f.root).filter(node=>Object.hasOwn(node.dataset,'swarmWalletHelp')).length,0);
 });
 
@@ -71,11 +71,39 @@ test('walkthrough states batch limits, separate permission, fees, ownership and 
   assert.match(steps,/1–10 Punks/);assert.match(steps,/number order/);
   assert.match(steps,/1 ETH per Punk and 10 ETH per batch/);
   assert.match(steps,/approve this batch only/);assert.match(steps,/All transfers.*succeed together, or none/);
-  assert.match(steps,/activated Agent Accounts/);assert.match(steps,/does not start a mission or grant minting permission/);
+  assert.match(steps,/created Agent Accounts/);assert.match(steps,/does not start a new mission or grant minting permission/);
   assert.match(SWARM_WALLET_HELP.costs,/connected wallet pays the network fee/);
   assert.match(SWARM_WALLET_HELP.costs,/no automatic refills/);
   assert.match(SWARM_WALLET_HELP.ownership,/follows that Punk’s ownership/);
   assert.match(SWARM_WALLET_HELP.alternative,/each Punk’s deposit separately/);
   assert.match(SWARM_WALLET_HELP.recovery,/Do not submit the same action again/);
   assert.doesNotMatch(Object.values(SWARM_WALLET_HELP).flat().join(' '),/LIVE-TESTED|guaranteed|unlimited|gas-free/);
+});
+
+test('rendered individual funding guide separates creation, funding and final mission permission',()=>{
+  const f=fixture({selected:true});mountFeatureHelp(f.doc);
+  const help=f.panels.get('fund').querySelector('[data-feature-help]');
+  const steps=help.children.find(node=>node.tagName==='ol').children.map(node=>node.textContent);
+  const create=steps.findIndex(text=>text.includes('creates only the wallet'));
+  const fund=steps.findIndex(text=>text.startsWith('Enter an amount'));
+  const mission=steps.findIndex(text=>text.includes('choose Start mission'));
+  assert.ok(create>=0&&create<fund&&fund<mission,'holder instructions must put wallet creation and funding before mission permission');
+  assert.match(steps[create],/does not grant minting permission or start a mission/);
+  assert.match(steps[mission],/confirm the separate mission permission/);
+  assert.match(help.textContent,/connected wallet pays the network fee/);
+  assert.match(help.textContent,/without Recall.*permission is still active.*resume collecting/);
+});
+
+test('rendered Swarm instructions fund created accounts before starting new missions and explain active top-ups',()=>{
+  const f=fixture();mountFeatureHelp(f.doc);
+  const help=f.ownerSection.querySelector('[data-swarm-wallet-help]');
+  const steps=help.children.find(node=>node.tagName==='ol').children.map(node=>node.textContent);
+  const create=steps.findIndex(text=>text.includes('Create each selected Punk'));
+  const fund=steps.findIndex(text=>text.includes('Choose Review gas batch'));
+  const mission=steps.findIndex(text=>text.includes('choose Start mission'));
+  assert.ok(create>=0&&create<fund&&fund<mission);
+  assert.match(steps[create],/confirm wallet creation only; do not start its mission yet/);
+  assert.match(steps[mission],/After funding.*each Punk separately/);
+  assert.match(help.textContent,/do not need to Recall.*permission is still active.*resume collecting/);
+  assert.match(help.textContent,/individual funding planner/);
 });
