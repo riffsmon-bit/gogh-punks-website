@@ -21,7 +21,7 @@ export function mountSwarmWallet({ root, getContext, getPunks, getProvider, rele
   const title = el('h3', 'YOUR SWARM WALLET');
   const intro = el('p', 'Keep a separate ETH budget for your Punks. You control this wallet: approve each gas-funding batch yourself, or withdraw unused ETH. No automatic refill or worker access.');
   const steps = el('ol');
-  for (const text of ['Create your Swarm Wallet once.', 'Add ETH from your connected wallet.', 'Select activated Punks and review one gas-funding batch.', 'Confirm the batch in your wallet, then configure each Punk’s mission below.']) steps.append(el('li', text));
+  for (const text of ['Create your Swarm Wallet once.', 'Add ETH from your connected wallet.', 'Select Punks whose Agent wallets already exist and review one gas-funding batch.', 'Confirm the batch in your wallet, then review and approve each new mission.']) steps.append(el('li', text));
   const info = el('p', 'Check your Swarm Wallet to begin.', 'info');
   const status = el('p', '', 'status'); status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
   const check = el('button', 'CHECK SWARM WALLET', 'check'), create = el('button', 'REVIEW WALLET CREATION', 'create');
@@ -35,7 +35,7 @@ export function mountSwarmWallet({ root, getContext, getPunks, getProvider, rele
   const depositButton = el('button', 'REVIEW DEPOSIT', 'deposit');
   const picks = el('fieldset', '', 'punks');
   const batch = amountControl('Total ETH to split between selected Punks', 'batch-amount');
-  const batchNote = el('p', 'Select 1–10 Punks with activated Agent Accounts. The total is split equally; any smallest-unit remainder goes to lower Punk numbers. Maximum 1 ETH per Punk. One wallet confirmation funds the entire batch or none of it. Funding does not start missions or change reserves.');
+  const batchNote = el('p', 'Select 1–10 Punks whose Agent wallets already exist. The total is split equally; any smallest-unit remainder goes to lower Punk numbers. Maximum 1 ETH per Punk. One wallet confirmation funds the entire batch or none of it. Funding does not start missions or change reserves.');
   const batchButton = el('button', 'REVIEW GAS BATCH', 'batch');
   const withdrawal = amountControl('Unused ETH to return to your connected wallet', 'withdraw-amount');
   const withdrawButton = el('button', 'REVIEW WITHDRAWAL', 'withdraw');

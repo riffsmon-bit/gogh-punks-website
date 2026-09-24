@@ -5,7 +5,7 @@ export const FEATURE_HELP = Object.freeze({
       'Choose a free-mint mission, art preference and limits, then select Review my rules.',
       'Read the complete draft, then choose Start mission when you are ready. Confirm its separate minting permission in your wallet. Recommend only does not mint.',
       'For an exact paid collection, choose Direct a paid mint and enter its contract address. For research, choose Check a link.',
-      'Open Swarm to plan for multiple owned Punks. The separate Swarm Wallet instructions explain your optional shared funding budget.'],
+      'Open Swarm for guided setup: choose Punks and rules once, create missing wallets, fund the group in one batch, then approve each new mission without rebuilding the plan.'],
     cost: 'Choosing rules and checking links do not request payment. A mint costs its displayed price plus network fees. AI is disabled.',
   },
   strategy: {
@@ -61,16 +61,16 @@ export const SWARM_WALLET_HELP = Object.freeze({
   steps: [
     'Connect your holder wallet on Robinhood Chain. Open Swarm Wallet above the selected Punk controls and choose Check Swarm Wallet, then review and confirm wallet creation if you do not have one yet.',
     'Add the ETH budget you want to keep in this wallet. Review the destination and amount, then confirm the deposit in your connected wallet.',
-    'Create each selected Punk’s Agent wallet first if it does not exist yet. Use that Punk’s Fund screen and confirm wallet creation only; do not start its mission yet. Only your currently owned Punks with created Agent Accounts can receive a batch.',
+    'Use the guided Swarm setup in Actions to check every selected Agent wallet. Existing wallets are skipped; create missing wallets in the guide without switching Punks or starting missions. Only your currently owned Punks with created Agent Accounts can receive a batch.',
     'Select 1–10 Punks and enter a total ETH amount. The review lists Punks in number order and splits the total equally; any smallest-unit remainder goes to lower Punk numbers. The limit is 1 ETH per Punk and 10 ETH per batch.',
     'Choose Review gas batch. Check each Punk, destination, amount, total and network fee. Confirm in wallet to approve this batch only. All transfers in the batch succeed together, or none do.',
-    'After funding, open Swarm · multiple Punks in Actions, set the rules, then review and choose Start mission for each Punk separately. Creating or funding a wallet does not start a new mission or grant minting permission.',
+    'After funding, continue to mission approvals in the same saved Swarm plan. Review the full rules and choose Start mission for each new mission. Wallet confirmations remain individual; your selections and shared rules stay saved. Creating or funding a wallet does not start a new mission or grant minting permission.',
     'You do not need to Recall an existing Punk to add gas. If its mission permission is still active, a batch deposit can let it resume collecting within its approved rules.',
     'To take back unused ETH, choose Review withdrawal and confirm in wallet. This returns only ETH still in your Swarm Wallet, only to its owner wallet.',
   ],
   costs: 'Your connected wallet pays the network fee for creation, deposits, batches and withdrawals. Keep ETH there for gas; the Swarm Wallet balance is your funding budget. There are no automatic refills.',
   ownership: 'Once allocated, ETH stays in the selected Punk’s Agent Account and follows that Punk’s ownership if it is transferred. A Swarm Wallet withdrawal does not pull those funds back. Unallocated ETH stays under the Swarm Wallet owner’s control.',
-  alternative: 'You can still use the individual funding planner. That route reviews and confirms each Punk’s deposit separately; it does not use your Swarm Wallet balance.',
+  alternative: 'You can still use each Punk’s individual Fund screen. That route reviews and confirms each Punk’s deposit separately; it does not use your Swarm Wallet balance.',
   recovery: 'If a transaction is pending or its result is unknown, use Check transaction with the original, speed-up or cancellation hash from wallet activity. Do not submit the same action again.',
 });
 

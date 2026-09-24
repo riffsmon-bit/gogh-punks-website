@@ -98,12 +98,13 @@ test('rendered Swarm instructions fund created accounts before starting new miss
   const f=fixture();mountFeatureHelp(f.doc);
   const help=f.ownerSection.querySelector('[data-swarm-wallet-help]');
   const steps=help.children.find(node=>node.tagName==='ol').children.map(node=>node.textContent);
-  const create=steps.findIndex(text=>text.includes('Create each selected Punk'));
+  const create=steps.findIndex(text=>text.includes('create missing wallets'));
   const fund=steps.findIndex(text=>text.includes('Choose Review gas batch'));
   const mission=steps.findIndex(text=>text.includes('choose Start mission'));
   assert.ok(create>=0&&create<fund&&fund<mission);
-  assert.match(steps[create],/confirm wallet creation only; do not start its mission yet/);
-  assert.match(steps[mission],/After funding.*each Punk separately/);
+  assert.match(steps[create],/without switching Punks or starting missions/);
+  assert.match(steps[mission],/After funding.*same saved Swarm plan.*Wallet confirmations remain individual/);
+  assert.match(steps[mission],/does not start a new mission or grant minting permission/);
   assert.match(help.textContent,/do not need to Recall.*permission is still active.*resume collecting/);
-  assert.match(help.textContent,/individual funding planner/);
+  assert.match(help.textContent,/individual Fund screen/);
 });
