@@ -176,20 +176,61 @@ test("invalid or different numeric chain identities block gas funding and preser
     assert.equal(w.calls.filter(call => call.method === "eth_sendTransaction").length, 1);
   }
 });
-test("numeric chain compatibility never coerces a funding amount, nonce, balance or reviewed chain field", async () => {
-  for (const fault of ["amount", "nonce", "balance", "gas", "reviewChain"]) {
+test("numeric chain and nonce compatibility never coerces amounts, balances, gas or reviewed fields", async () => {
+  for (const fault of ["amount", "balance", "gas", "reviewChain", "reviewNonce"]) {
     const w = world(); w.state.chain = 4663;
     if (fault === "amount") await assert.rejects(prepareAgentGasFunding(w.provider, ownerContext(), "93", "OWNER", 0.0005));
-    else if (fault === "nonce") { w.state.nonce = 7; await assert.rejects(ownerPlan(w)); }
     else if (["balance", "gas"].includes(fault)) {
       const request = w.provider.request, method = fault === "balance" ? "eth_getBalance" : "eth_estimateGas";
       w.provider.request = args => args.method === method ? Promise.resolve(fault === "balance" ? 1e18 : 65536) : request(args);
       await assert.rejects(ownerPlan(w));
     } else {
-      const prepared = structuredClone(await ownerPlan(w)); prepared.transaction.chainId = 4663;
+      const prepared = structuredClone(await ownerPlan(w));
+      if(fault === "reviewNonce") prepared.transaction.nonce = 7;
+      else prepared.transaction.chainId = 4663;
       await assert.rejects(submitAgentGasFunding(w.provider, prepared, options(w)), { code: "AGENT_GAS_REVIEW_CHANGED" });
     }
     assert.equal(w.calls.some(call => call.method === "eth_sendTransaction"), false);
+  }
+});
+
+test("safe numeric pending and hex latest nonces preserve exact OWNER and PUNK gas transfers",async()=>{
+  for(const source of ["OWNER","PUNK"]) for(const nonce of [0,2027,Number.MAX_SAFE_INTEGER]) {
+    const w=world();w.state.pendingNonce=nonce;w.state.nonce=`0x${BigInt(nonce).toString(16)}`;
+    const ctx=source==="OWNER"?ownerContext():context();
+    const prepared=await prepareAgentGasFunding(w.provider,ctx,"93",source,"0.0005");
+    assert.equal(prepared.transaction.nonce,w.state.nonce);
+    assert.ok(Object.values(prepared.transaction).every(value=>typeof value==="string"));
+    assert.equal(w.calls.some(call=>call.method==="eth_sendTransaction"),false);
+    const opts=options(w,{loadContext:async()=>ctx});
+    await submitAgentGasFunding(w.provider,prepared,opts);w.confirm();
+    assert.equal((await recheckAgentGasFunding(w.provider,OWNER,"93",opts)).status,"CONFIRMED");
+    assert.deepEqual(w.calls.find(call=>call.method==="eth_sendTransaction").params,[prepared.transaction]);
+    assert.equal(w.calls.filter(call=>call.method==="eth_sendTransaction").length,1);
+  }
+});
+
+test("numeric nonce mismatches and changes after gas review cannot open the wallet",async()=>{
+  for(const source of ["OWNER","PUNK"]) for(const afterReview of [false,true]) {
+    const w=world(),ctx=source==="OWNER"?ownerContext():context();w.state.pendingNonce=7;
+    const prepared=afterReview?await prepareAgentGasFunding(w.provider,ctx,"93",source,"0.0005"):null;
+    w.state.pendingNonce=8;
+    // A consumed nonce is just as stale as an outstanding pending transaction.
+    if(afterReview)w.state.nonce="0x8";
+    await assert.rejects(prepared?submitAgentGasFunding(w.provider,prepared,options(w,{loadContext:async()=>ctx}))
+      :prepareAgentGasFunding(w.provider,ctx,"93",source,"0.0005"));
+    assert.equal(w.calls.some(call=>call.method==="eth_sendTransaction"),false);
+    assert.equal(getAgentGasFundingState(OWNER,"93",options(w)),null);
+  }
+});
+
+test("invalid numeric and non-quantity nonce responses cannot create a gas funding review",async()=>{
+  for(const value of [-1,0.5,NaN,Infinity,Number.MAX_SAFE_INTEGER+1,"7",7n,true,null,{}]) {
+    const w=world(),request=w.provider.request;
+    w.provider.request=args=>args.method==="eth_getTransactionCount"?Promise.resolve(value):request(args);
+    await assert.rejects(ownerPlan(w));
+    assert.equal(w.calls.some(call=>call.method==="eth_sendTransaction"),false);
+    assert.equal(getAgentGasFundingState(OWNER,"93",options(w)),null);
   }
 });
 

@@ -320,11 +320,45 @@ test('padded and upper-case RPC quantities verify existing and missing Agent wal
 });
 
 test('malformed RPC quantities still block and identify invalid reads', async () => {
-  for (const nonce of ['0x', '-1', '2027', '0xgg', '0x' + '0'.repeat(65), 2027, null]) {
+  for (const nonce of ['0x', '-1', '2027', '0xgg', '0x' + '0'.repeat(65), -1, 0.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1, 2027n, true, {}, null]) {
     const f = splitReadFixture(), original = f.provider.request;
     f.provider.request = r => r.method === 'eth_getTransactionCount' ? nonce : original(r);
     await assert.rejects(read(f.provider, f.context), error => error.code === 'AGENT_CREATION_READ_INVALID' && /invalid response/.test(error.message));
     assert.equal(f.state.sends, 0);
+  }
+});
+
+test('safe numeric pending and hex latest nonces allow guided Agent creation with unchanged reviewed calldata',async()=>{
+  for(const nonce of [0,2027,Number.MAX_SAFE_INTEGER]) {
+    const f=splitReadFixture(),original=f.provider.request;f.state.nonce=BigInt(nonce);
+    f.provider.request=async r=>{const value=await original(r);
+      return r.method==='eth_getTransactionCount'&&r.params[1]==='pending'?Number(BigInt(value)):value;};
+    const review=await prepare(f.provider,f.context);
+    assert.equal(review.transaction.nonce,hex(nonce));assert.equal(review.transaction.chainId,'0x1237');assert.equal(f.state.sends,0);
+    await submit(f.provider,review,f.options);
+    assert.deepEqual(f.calls.find(c=>c.method==='eth_sendTransaction').params,[review.transaction]);assert.equal(f.state.sends,1);
+  }
+});
+
+test('numeric pending nonces still block guided creation when pending work or reviewed nonce changes',async()=>{
+  for(const afterReview of [false,true]) {
+    const f=splitReadFixture(),original=f.provider.request;
+    f.provider.request=async r=>{const value=await original(r);
+      return r.method==='eth_getTransactionCount'&&r.params[1]==='pending'?Number(BigInt(value)):value;};
+    const review=afterReview?await prepare(f.provider,f.context):null;
+    f.state.pendingNonce=f.state.nonce+1n;
+    await assert.rejects(review?submit(f.provider,review,f.options):prepare(f.provider,f.context));
+    assert.equal(f.state.sends,0);
+  }
+});
+
+test('Agent creation nonce compatibility leaves numeric balance, fee, gas and block responses invalid',async()=>{
+  for(const method of ['eth_getBalance','eth_gasPrice','eth_estimateGas','eth_getBlockByNumber']) {
+    const f=splitReadFixture(),original=f.readProvider.request;
+    f.readProvider.request=async r=>{const value=await original(r);return r.method!==method?value
+      :method==='eth_getBlockByNumber'?{...value,number:Number(BigInt(value.number))}:Number(BigInt(value));};
+    await assert.rejects(prepare(f.provider,f.context),{code:'AGENT_CREATION_READ_INVALID'});
+    assert.equal(f.state.sends,0);
   }
 });
 

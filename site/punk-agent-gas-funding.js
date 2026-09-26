@@ -19,8 +19,12 @@ const decodeAddress = value => /^0x0{24}[0-9a-fA-F]{40}$/.test(value ?? "")
 const EMPTY_RESULT = `0x${word(32)}${word(0)}`;
 const quantity = value => typeof value === "string" && /^0x(?:0|[1-9a-fA-F][0-9a-fA-F]*)$/.test(value)
   ? BigInt(value) : null;
+// Some wallet bridges return safe integer nonces for pending and hex for latest.
+// Keep this normalization at the nonce read boundary, before creating a review.
+const nonceQuantity = value => typeof value === "number"
+  ? Number.isSafeInteger(value) && value >= 0 ? BigInt(value) : null : quantity(value);
 // WalletConnect reports eth_chainId as a Number. Accept that exact chain only;
-// nonces, balances, amounts and reviewed transaction fields remain hex/string.
+// balances, amounts and reviewed transaction fields remain hex/string.
 const onRobinhoodChain = value => value === 4663 || typeof value === "string"
   && /^0x[0-9a-fA-F]{1,64}$/.test(value) && BigInt(value) === 4663n;
 
@@ -77,7 +81,8 @@ export async function prepareAgentGasFunding(provider, context, tokenId, source,
     || code?.toLowerCase() !== agentRecoveryProxyRuntime(tokenId, salt.toLowerCase())) {
     throw new Error("Agent destination, runtime or ownership changed. Recheck its setup.");
   }
-  if (quantity(nonce) === null || quantity(nonce) !== quantity(latestNonce)) {
+  const ownerNonce = nonceQuantity(nonce);
+  if (ownerNonce === null || ownerNonce !== nonceQuantity(latestNonce)) {
     throw new Error("Your wallet has a pending transaction. Wait for it, then review funding again.");
   }
   if (source === "OWNER" && (quantity(ownerBalance) === null || quantity(ownerBalance) < amountWei)) {
@@ -90,10 +95,11 @@ export async function prepareAgentGasFunding(provider, context, tokenId, source,
       || address(funding.destination) !== bindings.account || reserve === null) throw new Error("Punk Wallet reserve could not be verified.");
     if (balanceWei < amountWei + reserve) throw new Error("This transfer would exceed the Punk Wallet balance or protected reserve.");
   }
+  const transactionNonce = `0x${ownerNonce.toString(16)}`;
   const transaction = Object.freeze(source === "OWNER" ? {
-    chainId: "0x1237", nonce, from: bindings.expectedOwner, to: destination, value: `0x${amountWei.toString(16)}`, data: "0x",
+    chainId: "0x1237", nonce: transactionNonce, from: bindings.expectedOwner, to: destination, value: `0x${amountWei.toString(16)}`, data: "0x",
   } : {
-    chainId: "0x1237", nonce, from: bindings.expectedOwner, to: bindings.account, value: "0x0",
+    chainId: "0x1237", nonce: transactionNonce, from: bindings.expectedOwner, to: bindings.account, value: "0x0",
     data: `0x51945447${addressWord(destination)}${word(amountWei)}${word(128)}${word(0)}${word(0)}`,
   });
   const [result, gas] = await Promise.all([
