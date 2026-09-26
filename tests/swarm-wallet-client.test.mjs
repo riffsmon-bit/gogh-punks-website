@@ -465,12 +465,51 @@ test('WalletConnect numeric chain and padded nonces allow Swarm review without c
   assert.deepEqual(f.calls.find(c => c.method === 'eth_sendTransaction').params, [review.transaction]); assert.equal(f.state.sends, 1);
 });
 
+test('safe numeric pending nonces and hex latest nonces preserve all four exact Swarm transactions', async () => {
+  for (const action of [{kind:'CREATE'}, deposit(), batch(), withdraw()]) for (const nonce of [0, 2027, Number.MAX_SAFE_INTEGER]) {
+    const f=splitProviderFixture(), original=f.walletProvider.request;
+    f.state.created=action.kind!=='CREATE';f.state.ownerNonce=BigInt(nonce);
+    f.walletProvider.request=async r=>{const value=await original(r);
+      return r.method==='eth_getTransactionCount' && r.params[1]==='pending' ? Number(BigInt(value)) : value;};
+    const options={...f.options,readProvider:f.readProvider};
+    const review=await prepareSwarmWallet(f.walletProvider,{owner:OWNER,action,...options});
+    assert.equal(review.transaction.nonce,hex(nonce));assert.equal(review.transaction.chainId,'0x1237');assert.equal(f.state.sends,0);
+    await submitSwarmWallet(f.walletProvider,review,options);
+    assert.deepEqual(f.calls.find(c=>c.method==='eth_sendTransaction').params,[review.transaction]);assert.equal(f.state.sends,1);
+  }
+});
+
+test('numeric pending nonce mismatches and changes after review still block before a wallet request', async () => {
+  for(const afterReview of [false,true]) {
+    const f=splitProviderFixture(),original=f.walletProvider.request;f.state.created=true;
+    f.walletProvider.request=async r=>{const value=await original(r);
+      return r.method==='eth_getTransactionCount'&&r.params[1]==='pending'?Number(BigInt(value)):value;};
+    const options={...f.options,readProvider:f.readProvider};
+    const review=afterReview?await prepareSwarmWallet(f.walletProvider,{owner:OWNER,action:batch(),...options}):null;
+    f.state.pendingNonce=f.state.ownerNonce+1n;
+    await assert.rejects(review?submitSwarmWallet(f.walletProvider,review,options)
+      :prepareSwarmWallet(f.walletProvider,{owner:OWNER,action:batch(),...options}),{code:'SWARM_WALLET_NONCE_CHANGED'});
+    assert.equal(f.state.sends,0);assert.equal(f.values.size,0);
+  }
+});
+
 test('wrong or invalid numeric chain and invalid RPC nonce cannot prepare a Swarm transaction', async () => {
-  for (const [method, value] of [['eth_chainId', 1], ['eth_chainId', 0], ['eth_chainId', -1], ['eth_chainId', 4663.5], ['eth_chainId', Number.MAX_SAFE_INTEGER + 1], ['eth_getTransactionCount', 8], ['eth_getTransactionCount', '0x' + '0'.repeat(65)]]) {
+  const invalidNonces=[-1,0.5,NaN,Infinity,Number.MAX_SAFE_INTEGER+1,'8',8n,true,null,{},'0x'+'0'.repeat(65)];
+  for (const [method, value] of [['eth_chainId', 1], ['eth_chainId', 0], ['eth_chainId', -1], ['eth_chainId', 4663.5], ['eth_chainId', Number.MAX_SAFE_INTEGER + 1], ...invalidNonces.map(value=>['eth_getTransactionCount',value])]) {
     const f = splitProviderFixture(), original = f.walletProvider.request;
     f.walletProvider.request = r => r.method === method ? value : original(r);
     await assert.rejects(prepareSwarmWallet(f.walletProvider, { owner: OWNER, release: f.release, action: { kind: 'CREATE' }, readProvider: f.readProvider }));
     assert.equal(f.state.sends, 0);
+  }
+});
+
+test('Swarm nonce compatibility does not accept numeric balance, fee, gas or block quantities',async()=>{
+  for(const method of ['eth_getBalance','eth_gasPrice','eth_estimateGas','eth_getBlockByNumber']) {
+    const f=splitProviderFixture(),original=f.readProvider.request;
+    f.readProvider.request=async r=>{const value=await original(r);return r.method!==method?value
+      :method==='eth_getBlockByNumber'?{...value,number:Number(BigInt(value.number))}:Number(BigInt(value));};
+    await assert.rejects(prepareSwarmWallet(f.walletProvider,{owner:OWNER,release:f.release,action:{kind:'CREATE'},readProvider:f.readProvider}),{code:'SWARM_WALLET_RPC_INVALID'});
+    assert.equal(f.state.sends,0);assert.equal(f.values.size,0);
   }
 });
 

@@ -46,6 +46,12 @@ function rpcChain(value) {
 }
 function rpcResult(method, value) {
   if (method === 'eth_chainId') return rpcChain(value);
+  // Some wallet bridges return a Number for pending nonces and hex for latest.
+  // Only nonce responses accept numbers; reviewed transaction fields stay hex.
+  if (method === 'eth_getTransactionCount' && typeof value === 'number') {
+    valid(Number.isSafeInteger(value) && value >= 0, 'READ_INVALID');
+    return hex(value);
+  }
   if (['eth_getTransactionCount', 'eth_getBalance', 'eth_gasPrice', 'eth_estimateGas'].includes(method)) return rpcQuantity(value);
   if (method === 'eth_getBlockByNumber' && value && typeof value === 'object') return {
     ...value, number: rpcQuantity(value.number), timestamp: rpcQuantity(value.timestamp),
