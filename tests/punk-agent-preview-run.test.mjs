@@ -18,7 +18,7 @@ before(async()=>{
  // its rollback cannot roll back unrelated pool queries. Native PostgreSQL
  // integration separately verifies real shared-lock concurrency and expiry.
  leaseDb=new PGlite();
- for(const file of ['20260817224000_create_art_broker_foundation.sql','20260906010000_create_art_broker_v2.sql','20260907010000_add_punk_agent_accounts.sql'])await db.exec(await readFile(new URL('../netlify/database/migrations/'+file,import.meta.url),'utf8'));
+ for(const file of ['20260817224000_create_art_broker_foundation.sql','20260906010000_create_art_broker_v2.sql','20260907010000_add_punk_agent_accounts.sql','20261002010000_add_punk_agent_ownership_checkpoints.sql'])await db.exec(await readFile(new URL('../netlify/database/migrations/'+file,import.meta.url),'utf8'));
  pool={query:(...args)=>db.query(...args),connect:async()=>({query:(...args)=>leaseDb.query(...args),release(){}})};
 });
 after(async()=>{await db?.close();await leaseDb?.close();});
@@ -42,8 +42,13 @@ function request(body={sessionId:sessions['93']},options={}){return new Request(
 async function invoke(req=request(),extras={}){return handleV2AgentAccountRun(req,{pool,environment,now,
  requireSession:async()=>{if(!authOwner)throw new PublicError(401,'V2_SESSION_REQUIRED','Sign in.');return {walletAddress:authOwner};},
  readAuthority:async(tokenId,{expectedOwner})=>{assert.equal(tokenId,'93');if(expectedOwner!==liveOwner)throw new PublicError(403,'NOT_CURRENT_OWNER','Owner changed.');return {owner:liveOwner,punkWallet:account};},
- run:async options=>{runs++;return runScheduledPunkAgentWorker({...options,client:{getGasPrice:async()=>1n},bundler:{},signer:{},runMission:async({loadMission})=>{
- const mission=await loadMission();assert.equal(mission.tokenId,'93');assert.equal(mission.owner,owner);assert.equal(mission.sessionId,sessions['93']);return {status:'NO_ELIGIBLE_MATCH',submitted:false,tokenId:mission.tokenId};}});},...extras});}
+ run:async options=>{runs++;return runScheduledPunkAgentWorker({...options,client:{getGasPrice:async()=>1n},bundler:{},signer:{},runMission:async({loadMission,loadOwnershipCheckpoint,persistOwnershipCheckpoint})=>{
+ const mission=await loadMission();assert.equal(mission.tokenId,'93');assert.equal(mission.owner,owner);assert.equal(mission.sessionId,sessions['93']);
+ assert.equal(await loadOwnershipCheckpoint({mission}),null);
+ const checkpoint={sessionId:mission.sessionId,authorizationTransactionHash:mission.authorizationTransactionHash,sessionGeneration:mission.sessionGeneration,blockNumber:'123',blockHash:`0x${'b'.repeat(64)}`};
+ assert.deepEqual(await persistOwnershipCheckpoint({mission,checkpoint}),checkpoint);
+ assert.deepEqual(await loadOwnershipCheckpoint({mission}),checkpoint);
+ return {status:'NO_ELIGIBLE_MATCH',submitted:false,tokenId:mission.tokenId};}});},...extras});}
 test('owner button runs the real SQL worker selection for only its approved session',async()=>{
  const response=await invoke(),body=await response.json();assert.equal(response.status,200,JSON.stringify(body));
  assert.equal(body.status,'NO_ELIGIBLE_MATCH');assert.equal(body.submitted,false);assert.equal(runs,1);

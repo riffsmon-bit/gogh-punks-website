@@ -88,6 +88,51 @@ async function loadMission(pool, now, scope = null) {
   return result.rows[0] ? missionFromRow(result.rows[0], now) : null;
 }
 
+async function loadOwnershipCheckpoint(pool, { mission }) {
+  const result = await pool.query(`SELECT session_id::text, authorization_transaction_hash,
+      session_generation::text, verified_block_number::text, verified_block_hash
+    FROM broker_v2_agent_ownership_checkpoints WHERE session_id = $1::uuid`, [mission.sessionId]);
+  const row = result.rows[0];
+  return row ? Object.freeze({ sessionId: row.session_id,
+    authorizationTransactionHash: row.authorization_transaction_hash,
+    sessionGeneration: row.session_generation, blockNumber: row.verified_block_number,
+    blockHash: row.verified_block_hash }) : null;
+}
+
+async function persistOwnershipCheckpoint(pool, { mission, checkpoint }) {
+  const result = await pool.query(`WITH live_session AS (
+      SELECT session_id FROM broker_v2_agent_sessions
+      WHERE session_id = $1::uuid AND status = 'ACTIVE'
+        AND authorization_transaction_hash = $2 AND session_generation = $3::bigint
+        AND punk_token_id = $4::numeric AND punk_account = $5 AND owner_snapshot = $6
+      FOR UPDATE
+    ), stored AS (
+      INSERT INTO broker_v2_agent_ownership_checkpoints
+        (session_id, authorization_transaction_hash, session_generation,
+         verified_block_number, verified_block_hash)
+      SELECT session_id, $2, $3::bigint, $7::numeric, $8 FROM live_session
+      ON CONFLICT (session_id) DO UPDATE SET
+        verified_block_number = EXCLUDED.verified_block_number,
+        verified_block_hash = EXCLUDED.verified_block_hash,
+        verified_at = clock_timestamp()
+      WHERE broker_v2_agent_ownership_checkpoints.authorization_transaction_hash =
+          EXCLUDED.authorization_transaction_hash
+        AND broker_v2_agent_ownership_checkpoints.session_generation = EXCLUDED.session_generation
+        AND broker_v2_agent_ownership_checkpoints.verified_block_number <= EXCLUDED.verified_block_number
+      RETURNING session_id::text, authorization_transaction_hash, session_generation::text,
+        verified_block_number::text, verified_block_hash
+    ) SELECT * FROM stored`, [mission.sessionId, checkpoint.authorizationTransactionHash,
+    checkpoint.sessionGeneration, mission.tokenId, mission.account, mission.owner,
+    checkpoint.blockNumber, checkpoint.blockHash]);
+  const row = result.rows[0];
+  if (!row) throw Object.assign(new Error("ownership checkpoint session changed or moved forward"),
+    { code: "OWNERSHIP_CONTINUITY_UNVERIFIED" });
+  return Object.freeze({ sessionId: row.session_id,
+    authorizationTransactionHash: row.authorization_transaction_hash,
+    sessionGeneration: row.session_generation, blockNumber: row.verified_block_number,
+    blockHash: row.verified_block_hash });
+}
+
 async function loadCandidate(pool, client, mission, runtime, now, observation = null) {
   const results = await pool.query(`SELECT opportunity.normalized,
       screening.input_hash AS screening_input_hash, screening.checked_at
@@ -387,6 +432,12 @@ export async function runScheduledPunkAgentWorker({
       loadMission: async () => {
         selectedMission = await loadMission(pool, now, missionScope);
         return selectedMission;
+      },
+      loadOwnershipCheckpoint: async (input) => {
+        await lease.assertHeld(); return loadOwnershipCheckpoint(pool, input);
+      },
+      persistOwnershipCheckpoint: async (input) => {
+        await lease.assertHeld(); return persistOwnershipCheckpoint(pool, input);
       },
       loadCandidate: ({ mission, runtime }) => loadCandidate(
         pool, liveClient, mission, runtime, now, observation),

@@ -9,6 +9,7 @@ import { runPunkAgentMissionOnce } from "../broker/src/agent-account/punk-agent-
 const addr = digit => `0x${digit.repeat(40)}`;
 const hash = digit => `0x${digit.repeat(64)}`;
 const OWNER = addr("1"), ACCOUNT = addr("2"), SIGNER = addr("3"), OTHER = addr("4");
+const SESSION_ID = "11111111-1111-4111-8111-111111111111";
 const CODE = "0x6001600055";
 const CONFIGURED = parseAbiItem("event AutonomousSessionConfigured(uint64 indexed generation,address indexed owner,address indexed sessionKey,address adapter,address venue,address targetCollection,uint32 maxMintsPerDay,uint32 maxMintsTotal,uint48 validAfter,uint48 validUntil,uint256 maxGasCostWei,uint256 minimumNativeReserveWei)");
 const TRANSFER = parseAbiItem("event Transfer(address indexed from,address indexed to,uint256 indexed tokenId)");
@@ -34,9 +35,11 @@ function fixture() {
     maxMintsPerDay: 1, remainingMints: 1, mintsToday: 0, day: 1,
     maxGasCostWei: 1_000_000n, minimumNativeReserveWei: 0n };
   const f = { now, manifest, from: 100n, to: 110n, owner: OWNER, session, logs: [], queries: [],
-    signatures: 0, submissions: 0, failures: [], reserved: 0, recorded: 0 };
-  f.mission = { tokenId: "93", owner: OWNER, account: ACCOUNT, sessionGeneration: "1",
-    authorizationTransactionHash: hash("a"), strategyHash: hash("b"), strategy: { operatingMode: "AUTONOMOUS" } };
+    signatures: 0, submissions: 0, failures: [], reserved: 0, recorded: 0,
+    persistedCheckpoints: [] };
+  f.mission = { sessionId: SESSION_ID, tokenId: "93", owner: OWNER, account: ACCOUNT,
+    sessionGeneration: "1", authorizationTransactionHash: hash("a"), strategyHash: hash("b"),
+    strategy: { operatingMode: "AUTONOMOUS" } };
   f.runtime = { account: ACCOUNT, owner: OWNER, session };
   f.receipt = () => ({ status: "success", transactionHash: hash("a"), blockNumber: f.from,
     blockHash: hash("a"), logs: [log(CONFIGURED, { ...session, owner: OWNER,
@@ -58,7 +61,11 @@ function fixture() {
   };
   f.roundTrip = () => { f.logs = [log(TRANSFER, { from: OWNER, to: OTHER, tokenId: 93n }, ROBINHOOD.canonicalCollection, 105n, hash("b")),
     log(TRANSFER, { from: OTHER, to: OWNER, tokenId: 93n }, ROBINHOOD.canonicalCollection, 106n, hash("b"))]; };
-  f.check = () => verifyPunkAgentOwnershipContinuity({ client: f.client, mission: f.mission, runtime: f.runtime, deployment: f.manifest });
+  f.checkpoint = (blockNumber, blockHash = hash("b")) => ({
+    sessionId: f.mission.sessionId, authorizationTransactionHash: f.mission.authorizationTransactionHash,
+    sessionGeneration: f.mission.sessionGeneration, blockNumber: String(blockNumber), blockHash });
+  f.check = checkpoint => verifyPunkAgentOwnershipContinuity({ client: f.client, mission: f.mission,
+    runtime: f.runtime, deployment: f.manifest, checkpoint });
   f.candidate = { checkedAt: now.toISOString(), tokenId: "42", screeningInputHash: "screen", simulationInputHash: "sim",
     opportunity: { schema: "GOGH_NORMALIZED_OPPORTUNITY_V2", version: 2, opportunityId: "test:mint", chainId: 4663,
       collectionContract: addr("7"), mintContract: session.venue, adapter: session.adapter,
@@ -81,6 +88,10 @@ function fixture() {
       if (method === "eth_sendUserOperation") { f.submissions++; return hash("e"); }
       throw Error(`Unexpected bundler ${method}`);
     } }, loadMission: async () => f.mission,
+    loadOwnershipCheckpoint: async () => hooks?.checkpoint ?? null,
+    persistOwnershipCheckpoint: async ({ checkpoint }) => {
+      f.persistedCheckpoints.push(checkpoint); hooks?.persist?.(checkpoint); return checkpoint;
+    },
     loadCandidate: async () => { hooks?.candidate?.(); return f.candidate; },
     reserveOperation: async () => { f.reserved++; hooks?.reserve?.(); return { operationId: "local-operation" }; },
     markSubmitted: async () => { f.recorded++; }, markFailed: async failure => { f.failures.push(failure); } });
@@ -167,6 +178,47 @@ test("history is chunked without gaps and capped", async () => {
   assert.deepEqual(f.queries.map(q => [q.fromBlock, q.toBlock]), [[100n, 2099n], [2100n, 4099n], [4100n, 4200n]]);
   f.to = 40100n; await assert.rejects(f.check(), { code: "OWNERSHIP_HISTORY_WINDOW_EXCEEDED" });
 });
+test("a canonical session-bound checkpoint scans only its unverified suffix", async () => {
+  const f = fixture(); const result = await f.check(f.checkpoint(105n));
+  assert.equal(result.fromBlock, "106");
+  assert.deepEqual(f.queries.map(q => [q.fromBlock, q.toBlock]), [[106n, 110n]]);
+  assert.deepEqual(result.checkpoint, { sessionId: SESSION_ID,
+    authorizationTransactionHash: hash("a"), sessionGeneration: "1",
+    blockNumber: "110", blockHash: hash("b") });
+});
+test("a transfer in the newly scanned checkpoint interval still fails closed", async () => {
+  const f = fixture(); f.roundTrip();
+  await assert.rejects(f.check(f.checkpoint(104n)), { code: "OWNERSHIP_CHANGED_SINCE_AUTHORIZATION" });
+});
+test("a checkpoint does not weaken the 40,000-block unverified-gap cap", async () => {
+  const f = fixture(); f.to = 40_100n;
+  assert.equal((await f.check(f.checkpoint(100n, hash("a")))).verified, true);
+  f.to = 40_101n;
+  await assert.rejects(f.check(f.checkpoint(100n, hash("a"))),
+    { code: "OWNERSHIP_HISTORY_WINDOW_EXCEEDED" });
+});
+for (const fault of ["session", "authorization", "generation", "hash", "future", "before_authorization"]) {
+  test(`checkpoint fails closed on ${fault}`, async () => {
+    const f = fixture(); const checkpoint = f.checkpoint(105n);
+    if (fault === "session") checkpoint.sessionId = "22222222-2222-4222-8222-222222222222";
+    if (fault === "authorization") checkpoint.authorizationTransactionHash = hash("f");
+    if (fault === "generation") checkpoint.sessionGeneration = "2";
+    if (fault === "hash") checkpoint.blockHash = hash("f");
+    if (fault === "future") checkpoint.blockNumber = "111";
+    if (fault === "before_authorization") checkpoint.blockNumber = "99";
+    await assert.rejects(f.check(checkpoint), { code: "OWNERSHIP_CONTINUITY_UNVERIFIED" });
+  });
+}
+for (const fault of ["initial", "closing"]) test(`checkpoint anchor ${fault} reorg fails closed`, async () => {
+  const f = fixture(), get = f.client.getBlock; let reads = 0;
+  f.client.getBlock = async query => {
+    const block = await get(query);
+    if (query.blockNumber === 105n && (++reads === 1 ? fault === "initial" : fault === "closing"))
+      block.hash = hash("f");
+    return block;
+  };
+  await assert.rejects(f.check(f.checkpoint(105n)), { code: "OWNERSHIP_CONTINUITY_UNVERIFIED" });
+});
 for (const mode of ["missing_hash", "reverted", "wrong_hash", "wrong_generation", "wrong_event_owner", "wrong_account",
   "anchor_reorg", "rpc_error", "malformed_logs", "removed_log", "wrong_log_token", "stale_head", "same_height_reorg", "wrong_chain"]) {
   test(`continuity fails closed: ${mode}`, async () => {
@@ -195,11 +247,23 @@ for (const mode of ["missing_hash", "reverted", "wrong_hash", "wrong_generation"
 test("worker permits a continuously authorized mock mint", async () => {
   const f = fixture(); assert.equal((await f.run()).status, "SUBMITTED");
   assert.equal(f.signatures, 1); assert.equal(f.submissions, 1); assert.equal(f.recorded, 1);
-  assert.equal(f.queries.length, 3);
+  assert.equal(f.queries.length, 1); assert.equal(f.persistedCheckpoints.length, 3);
+  assert.deepEqual(f.persistedCheckpoints.map(value => value.blockNumber), ["110", "110", "110"]);
 });
 for (const stage of ["initial", "candidate", "estimate", "reserve"]) test(`worker blocks round trip at ${stage}`, async () => {
-  const f = fixture(); if (stage === "initial") f.roundTrip();
-  const result = await f.run({ [stage]: () => f.roundTrip() });
+  const f = stage === "initial" ? fixture() : advancingHead();
+  const change = () => {
+    if (stage === "initial") return f.roundTrip();
+    const first = stage === "candidate" ? 113n : 117n;
+    f.logs = [
+      log(TRANSFER, { from: OWNER, to: OTHER, tokenId: 93n }, ROBINHOOD.canonicalCollection,
+        first, f.blockHash(first)),
+      log(TRANSFER, { from: OTHER, to: OWNER, tokenId: 93n }, ROBINHOOD.canonicalCollection,
+        first + 1n, f.blockHash(first + 1n)),
+    ];
+  };
+  if (stage === "initial") change();
+  const result = await f.run({ [stage]: change });
   assert.equal(result.status, "OWNERSHIP_CHANGED_SINCE_AUTHORIZATION");
   assert.equal(f.submissions, 0); assert.equal(f.recorded, 0);
   assert.equal(f.signatures, ["estimate", "reserve"].includes(stage) ? 1 : 0);
@@ -254,8 +318,9 @@ test("worker can scan, sign and submit on an advancing chain with all three guar
   const f = advancingHead(); assert.equal((await f.run()).status, "SUBMITTED");
   assert.equal(f.latestReads, 6); assert.equal(f.signatures, 1); assert.equal(f.submissions, 1);
   assert.deepEqual(f.queries.map(q => [q.fromBlock, q.toBlock]), [
-    [100n, 110n], [111n, 112n], [100n, 114n], [115n, 116n], [100n, 118n], [119n, 120n],
+    [100n, 110n], [111n, 112n], [113n, 114n], [115n, 116n], [117n, 118n], [119n, 120n],
   ]);
+  assert.deepEqual(f.persistedCheckpoints.map(value => value.blockNumber), ["112", "116", "120"]);
 });
 
 for (const height of [111n, 112n]) test(`a transfer at tail block ${height} blocks signing even if the current owner is unchanged`, async () => {

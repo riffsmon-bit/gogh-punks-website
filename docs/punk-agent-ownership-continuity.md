@@ -4,15 +4,21 @@ Updated September 12, 2026 after investigating Punk #93's intermittent productio
 
 ## What changed
 
-The scheduled Punk Agent worker now loads the existing `authorization_transaction_hash` from `broker_v2_agent_sessions`; no migration is needed. Its mandatory guard:
+Legacy sessions now use `broker_v2_agent_ownership_checkpoints`, an additive,
+server-written table keyed by `session_id` and foreign-key-bound to that exact
+session's authorization transaction and generation. Its database trigger forbids
+binding changes, block rollback, same-height hash changes and deletion.
+
+The mandatory guard:
 
 1. Verifies a successful canonical authorization receipt from the selected account, with exactly one session-configured event matching the mission's owner, session key and generation.
-2. Reads canonical collection ownership, account generation and active-session status at one block.
-3. Scans canonical collection Transfer logs for the selected Punk from the authorization block through that head, including away-and-back transfers.
+2. Loads only that session's checkpoint. On first use it starts at the authorization block; otherwise it canonically revalidates the stored block hash and starts at the following block.
+3. Reads canonical collection ownership, account generation and active-session status at one block, and scans every still-unverified canonical collection `Transfer` log for the selected Punk, including away-and-back transfers.
 4. Captures a closing head after the history scan. If blocks arrived, scans every new block through that closing head and rechecks ownership, generation and session activity there. Epoch accounts also recheck their epoch binding there.
-5. Rechecks the canonical hashes and numbers of the authorization block, initial head and closing head. Evidence names only the fully checked closing block; later block production does not extend the attested range.
+5. Rechecks the canonical hashes and numbers of the authorization block, prior checkpoint, initial head and closing head. Evidence names only the fully checked closing block; later block production does not extend the attested range.
+6. Persists that closing block after every successful legacy guard with an atomic, monotonic upsert that also locks and revalidates the live session, authorization, generation, Punk account, token and owner. A lease loss, session change or write race blocks signing/submission.
 
-The check runs before discovery, immediately before signing after candidate work, and after estimation/reservation immediately before submission. No caller can omit this guard from `runPunkAgentMissionOnce`.
+The check runs before discovery, immediately before signing after candidate work, and after estimation/reservation immediately before submission. Each guard advances from the checkpoint written by the prior guard; no caller can omit this guard from `runPunkAgentMissionOnce`.
 
 A verified transfer returns `OWNERSHIP_CHANGED_SINCE_AUTHORIZATION`, persists the mission as PAUSED through the existing failure handler and records an activity reason. A changed owner/session also pauses. An unverified read blocks that attempt without signing/submitting and remains retryable. A freshly approved later session uses its own receipt/generation, not a manually reset “transfer seen” flag.
 
@@ -20,8 +26,8 @@ If the final guard fails after a signed operation has been reserved, the existin
 
 ## Deliberate limits and deployment impact
 
-- Queries use 2,000-block pages, with a 40,000-block inclusive maximum. Exceeding that bound pauses the worker and requires fresh mission approval; it does not assume an unscanned range is empty.
-- This cap is an initial engineering limit, not the desired long-term mission duration. Existing long-lived sessions may exceed it. Measure RPC latency/rate limits and design a durable, reorg-aware incremental history index before deployment if this is too restrictive.
+- Queries use 2,000-block pages, with a 40,000-block inclusive maximum for the **unverified** interval. The cap is unchanged: first use still covers the authorization block, and an outage that leaves more than 40,000 unchecked blocks fails with `OWNERSHIP_HISTORY_WINDOW_EXCEEDED` and requires fresh mission approval. A checkpoint never skips an unchecked range.
+- Long-lived sessions remain usable because each successful guard durably advances the verified boundary. Missing, malformed, differently bound, noncanonical or future checkpoints fail closed; they never fall back to current-owner equality or silently restart after the authorization block has aged beyond the cap.
 - Even a transfer earlier in the authorization block is conservatively rejected. Reauthorization in a later block is required.
 - Initial and closing heads must be no more than 30 seconds old (with at most five seconds future clock skew). The initial snapshot must still be within that age at completion. The closing head cannot move backwards, change hash at the same height, move its timestamp backwards, or advance by more than 2,000 blocks. A slow or inconsistent read remains retryable. There is one bounded catch-up pass, not an unbounded loop waiting for the chain to stop.
 - The 40,000-block legacy history cap includes the closing tail. No range is skipped to make an old mission pass. Production requires archive access; the unauthenticated PublicNode endpoint rejected the historical log request during this investigation.

@@ -9,6 +9,7 @@ const OWNER_ABI = parseAbi(["function ownerOf(uint256 tokenId) view returns (add
 const SESSION_ABI = parseAbi(["function sessionGeneration() view returns (uint64)", "function isAutonomousSessionActive() view returns (bool)"]);
 const HASH = /^0x[0-9a-f]{64}$/i;
 const ADDRESS = /^0x[0-9a-f]{40}$/i;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PAGE = 2_000n;
 export const MAX_OWNERSHIP_HISTORY_BLOCKS = 40_000n;
 const same = (a, b) => typeof a === "string" && typeof b === "string" && a.toLowerCase() === b.toLowerCase();
@@ -24,16 +25,30 @@ function freshBlock(block) {
     fail("OWNERSHIP_CONTINUITY_UNVERIFIED");
   return { number, time };
 }
+function checkpointForMission(checkpoint, mission, generation) {
+  if (checkpoint == null) return null;
+  if (!checkpoint || typeof checkpoint !== "object" || !UUID.test(mission?.sessionId)
+    || !same(checkpoint.sessionId, mission.sessionId)
+    || !same(checkpoint.authorizationTransactionHash, mission.authorizationTransactionHash)
+    || uint(checkpoint.sessionGeneration) !== generation || !HASH.test(checkpoint.blockHash))
+    fail("OWNERSHIP_CONTINUITY_UNVERIFIED");
+  return Object.freeze({ sessionId: mission.sessionId,
+    authorizationTransactionHash: mission.authorizationTransactionHash,
+    sessionGeneration: generation.toString(), blockNumber: uint(checkpoint.blockNumber),
+    blockHash: checkpoint.blockHash });
+}
 
 // Worker-side mitigation, NOT an on-chain transfer epoch. Does not revoke or sign.
 // Never use a cached current-owner address as proof that no round trip occurred.
-export async function verifyPunkAgentOwnershipContinuity({ client, mission, runtime, deployment }) {
+export async function verifyPunkAgentOwnershipContinuity({ client, mission, runtime, deployment,
+  checkpoint = null }) {
   try {
     const epochModel = deployment?.schema === PUNK_AGENT_EPOCH_DEPLOYMENT_SCHEMA;
     if (!HASH.test(mission?.authorizationTransactionHash) || !ADDRESS.test(mission?.owner)
       || !ADDRESS.test(mission?.account) || !same(runtime?.account, mission.account)
       || !same(runtime?.owner, mission.owner)) fail("OWNERSHIP_CONTINUITY_UNVERIFIED");
     const tokenId = uint(mission.tokenId), generation = uint(mission.sessionGeneration);
+    const previous = epochModel ? null : checkpointForMission(checkpoint, mission, generation);
     if (generation !== uint(runtime.session?.generation)) fail("SESSION_STATE_MISMATCH");
     if (await client.getChainId() !== ROBINHOOD.chainId) fail("OWNERSHIP_CONTINUITY_UNVERIFIED");
     const tip = await client.getBlock({ blockTag: "latest" });
@@ -43,9 +58,17 @@ export async function verifyPunkAgentOwnershipContinuity({ client, mission, runt
       || !Array.isArray(receipt.logs)) fail("OWNERSHIP_CONTINUITY_UNVERIFIED");
     const from = uint(receipt.blockNumber), { number: to, time: tipTime } = freshBlock(tip);
     if (from > to) fail("OWNERSHIP_CONTINUITY_UNVERIFIED");
-    if (!epochModel && to - from + 1n > MAX_OWNERSHIP_HISTORY_BLOCKS) fail("OWNERSHIP_HISTORY_WINDOW_EXCEEDED");
     const anchor = await client.getBlock({ blockNumber: from });
     if (!same(anchor?.hash, receipt.blockHash) || uint(anchor.number) !== from) fail("OWNERSHIP_CONTINUITY_UNVERIFIED");
+    if (previous) {
+      if (previous.blockNumber < from || previous.blockNumber > to) fail("OWNERSHIP_CONTINUITY_UNVERIFIED");
+      const checkpointAnchor = await client.getBlock({ blockNumber: previous.blockNumber });
+      if (!same(checkpointAnchor?.hash, previous.blockHash)
+        || uint(checkpointAnchor?.number) !== previous.blockNumber) fail("OWNERSHIP_CONTINUITY_UNVERIFIED");
+    }
+    const historyFrom = previous ? previous.blockNumber + 1n : from;
+    if (!epochModel && historyFrom <= to
+      && to - historyFrom + 1n > MAX_OWNERSHIP_HISTORY_BLOCKS) fail("OWNERSHIP_HISTORY_WINDOW_EXCEEDED");
     const events = receipt.logs.flatMap(log => {
       if (!same(log.address, mission.account)) return [];
       try { return [decodeEventLog({ abi: [CONFIGURED], data: log.data, topics: log.topics, strict: true })]; }
@@ -88,28 +111,38 @@ export async function verifyPunkAgentOwnershipContinuity({ client, mission, runt
         }
       }
     }
-    await verifyHistory(from, to);
+    await verifyHistory(historyFrom, to);
     // A live chain keeps producing blocks while history is read. Cover a bounded
     // tail, then attest that specific canonical snapshot, never an unscanned head.
     const closing = await client.getBlock({ blockTag: "latest" });
     const { number: through, time: closingTime } = freshBlock(closing);
     if (through < to || through - to > PAGE || closingTime < tipTime
       || (through === to && !same(closing.hash, tip.hash))) fail("OWNERSHIP_CONTINUITY_UNVERIFIED");
-    if (!epochModel && through - from + 1n > MAX_OWNERSHIP_HISTORY_BLOCKS) fail("OWNERSHIP_HISTORY_WINDOW_EXCEEDED");
+    if (!epochModel && historyFrom <= through
+      && through - historyFrom + 1n > MAX_OWNERSHIP_HISTORY_BLOCKS) fail("OWNERSHIP_HISTORY_WINDOW_EXCEEDED");
     if (through > to) {
       await verifyHistory(to + 1n, through);
       await verifyState(through);
     }
-    const [tipAgain, anchorAgain, closingAgain] = await Promise.all([
-      client.getBlock({ blockNumber: to }), client.getBlock({ blockNumber: from }), client.getBlock({ blockNumber: through }),
+    const [tipAgain, anchorAgain, closingAgain, checkpointAgain] = await Promise.all([
+      client.getBlock({ blockNumber: to }), client.getBlock({ blockNumber: from }),
+      client.getBlock({ blockNumber: through }),
+      previous ? client.getBlock({ blockNumber: previous.blockNumber }) : null,
     ]);
     if (!same(tipAgain?.hash, tip.hash) || !same(anchorAgain?.hash, receipt.blockHash)
       || !same(closingAgain?.hash, closing.hash) || uint(tipAgain.number) !== to || uint(anchorAgain.number) !== from
-      || uint(closingAgain.number) !== through || Date.now() - tipTime > 30_000 || Date.now() - closingTime > 30_000)
+      || uint(closingAgain.number) !== through
+      || (previous && (!same(checkpointAgain?.hash, previous.blockHash)
+        || uint(checkpointAgain?.number) !== previous.blockNumber))
+      || Date.now() - tipTime > 30_000 || Date.now() - closingTime > 30_000)
       fail("OWNERSHIP_CONTINUITY_UNVERIFIED");
     return Object.freeze({ verified: true, account: mission.account, tokenId: tokenId.toString(),
       authorizationTransactionHash: mission.authorizationTransactionHash,
-      generation: generation.toString(), fromBlock: from.toString(), toBlock: through.toString(), blockHash: closing.hash });
+      generation: generation.toString(), fromBlock: historyFrom.toString(), toBlock: through.toString(),
+      blockHash: closing.hash, checkpoint: epochModel ? null : Object.freeze({ sessionId: mission.sessionId,
+        authorizationTransactionHash: mission.authorizationTransactionHash,
+        sessionGeneration: generation.toString(), blockNumber: through.toString(),
+        blockHash: closing.hash.toLowerCase() }) });
   } catch (error) {
     if (["OWNERSHIP_CHANGED_SINCE_AUTHORIZATION", "OWNERSHIP_HISTORY_WINDOW_EXCEEDED", "OWNER_CHANGED", "SESSION_STATE_MISMATCH"].includes(error?.code)) throw error;
     fail("OWNERSHIP_CONTINUITY_UNVERIFIED");
